@@ -245,11 +245,28 @@ form's next-touch journey (folding them here would violate the recorded operator
   Fail-safe intact (non-integration branch → baseline / full suite). Prior journeys already run
   mock-IdP per-push via this mechanism (their branches aren't under work); full cross-journey
   real-idp regression stays nightly + the §4 do-ship gate.
-- [ ] **T-03 — backend FlightReport read model: paged filtered query + DTOs.** New read-side
+- [x] **T-03 — backend FlightReport read model: paged filtered query + DTOs.** New read-side
   query over the Flight aggregate (date-range / type-flags / person|location filter), **tenant-
   scoped (ADR 0008)**; DTOs `FlightReportResult` + `FlightReportDataRecord` + nested
   `TowFlightReportDataRecord` (row shape per oracle §4); pagination (0-based offset, cap 500,
   default sort). No summary yet. *(seam: FlightReportQueryService + report DTOs + repo query)*
+  <br>DONE: `FlightReportQueryService` (application) + `FlightReportDtos` (FlightReportResult /
+  FlightReportDataRecord / TowFlightReportDataRecord / FlightReportFilter / present-but-empty
+  FlightReportSummary) + `FlightCategory` (domain) + `FlightReportRepository` port (domain) +
+  `JpaFlightReportRepository` (infra, native SQL). Tenant-scoped on EVERY path: explicit
+  `f.operating_club_id = :tenant` on page + count (corrects the legacy tenancy hole); decoration
+  joins (aircraft/person/location/flight-type) deliberately unscoped so cross-tenant ride-throughs
+  (charter aircraft S-058, cross-tenant crew Person S-051, cross-club location report) resolve —
+  registered in `database/native-sql-register.md` (`flight-report-read-model`). Pagination: 0-based
+  offset, default size 100, hard cap 500, default sort `start_date_time asc, immatriculation asc`,
+  `FlightDuration` sort-key → epoch-seconds remap. Air-state/duration/category computed in Java
+  (never stored); AirState/ProcessState emitted as legacy SMALLINT codes. Aerotow glider carries a
+  nested TowFlight block; the tow appears as its own row with `towedGliderFlightId` back-ref. IT
+  `FlightReportQueryServiceIT` (4 tests, real-Postgres): filtered rows + decorations + duration;
+  tenant isolation (club-B never returned to club-A); aerotow nested-tow shape; person-filter
+  role inclusion. `./gradlew check` green (cpdRatchet/pmdMain/arch-guards/OpenApiSnapshotIT/IT).
+  NOTE (parity): `StartType` int is an AlpenFlight stable code→int (V2 seed order) — legacy carried
+  a per-club DB int with no fixed enum and the new schema dropped it; documented in the service.
 - [ ] **T-04 — backend summary aggregation.** Person-branch 6 rows (Pilot Glider/Motor/Towing,
   Copilot, Instructor, Instructor-Solo, Total) + location-branch group-by-FlightTypeName + Total;
   starts-from-landings formulas; **correct the `TotalFlights=0` legacy bug** on all rows.

@@ -202,6 +202,39 @@ When you need to add one:
 4. Expired entries (past `expires`) trigger a build warning + a follow-up
    review.
 
+### `flight-report-read-model` — `Paged + filtered flight-report read model (J-7)`
+
+- **Caller:** `src/main/java/ch/alpenflight/flights/infra/JpaFlightReportRepository.java`
+- **Tenant-scoped tables touched:** t_flight, t_flight_crew, t_aircraft, t_person, t_location, t_flight_type
+- **Justification:** the flight-report page must surface decoration columns
+  (aircraft immatriculation, crew Person names, flight-type name/code, start +
+  landing location names) REGARDLESS of their own tenant — the charter aircraft
+  ride-through (S-058), the cross-tenant crew Person ride-through (S-051), and
+  the legacy cross-club location report all reference rows outside the caller's
+  club. A JPQL projection would apply each joined entity's `@TenantId`
+  discriminator and HIDE exactly those decorations, breaking the report. Native
+  SQL is the only path that scopes the *matched flight* by tenant while leaving
+  the FK-reachable decoration joins unscoped. The report also computes
+  air-state in Java (sacred-cow: never stored) over the raw timestamp/flag
+  columns, and orders the second-crew pick by the crew-type `legacy_int_id` —
+  shapes the keyset/method-name JPA derivation can't express.
+- **Tenancy gate:** the matched flight carries an explicit
+  `f.operating_club_id = :tenant` predicate (parameter-bound from
+  `TenantContextCarrier.current()`, never caller-controlled string
+  interpolation) on BOTH the page and the count query — this CORRECTS the
+  legacy tenancy hole (`FlightReportService.cs:114-125`) where a person-only /
+  unknown-type report leaked other clubs' flights. The decoration joins
+  (t_aircraft, t_person, t_location, t_flight_type) + the nested-tow self-join
+  carry no tenant predicate by design — they are FK-reachable rows whose
+  cross-tenant visibility is the documented ride-through contract above.
+- **Reviewer:** auto-registered with J-7 T-03 implementation; security-reviewer
+  panel re-confirms at the journey gate.
+- **Approved:** 2026-06-09.
+- **Expires:** 2027-06-09
+- **Remove when:** Hibernate exposes a per-query `@TenantId` opt-out for joined
+  read-only entities, OR a dedicated denormalized flight-report read model
+  (materialized projection carrying the decorations) lands.
+
 ## Entry template
 
 ```
