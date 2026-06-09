@@ -920,6 +920,31 @@ jobs:
             # for it here — the page must never advertise a shot the run can't
             # produce (would render a lone legacy figure / a dead pairing slot).
           fi
+          # ----- J-7 flight reports (picker/result/custom — view keys match the
+          # legacy-reference dir + the fanout) -------------------------------
+          # Read-side reporting journey: the three views the per-journey page
+          # pairs are picker / result / custom (matching
+          # e2e/legacy-reference/reporting/PENDING.md + expected-shots.json J-7).
+          # The legacy `reporting/{picker,result,custom}.png` refs are DEFERRED
+          # (legacy stack unrunnable on the Alpine/musl box → captured at the
+          # fanout, PENDING.md) so add_pair degrades to the AF side; and the AF
+          # parity PNGs are written once T-15 thickens flight-reports-parity.spec.ts
+          # (today the real-idp spec emits only proofVideos). Until both land, this
+          # block stages whatever exists; the `[shots-present]` guard below treats
+          # all six J-7 views as `pending` (tolerated) per the contract, so nothing
+          # reds prematurely — T-15 flips the AF three to `expected`. The DECLARATION
+          # exists NOW so a future missing-shot reds instead of silently passing.
+          if [ "${PROOF_JOURNEY:-}" = "J-7" ]; then
+            add_pair "J-7" "reporting" "picker" "picker.png" "alpenflight-flightreports-picker.png" \
+              "Legacy flsweb: the /flightreports picker - the person + location canned-report tile grid" \
+              "AlpenFlight: the /flightreports picker - person + location category tiles linking to each canned report"
+            add_pair "J-7" "reporting" "result" "result.png" "alpenflight-flightreports-result.png" \
+              "Legacy flsweb: a canned report's results - the filter-criteria panel + grouped summary + flights table" \
+              "AlpenFlight: a canned report's results page - derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows"
+            add_pair "J-7" "reporting" "custom" "custom.png" "alpenflight-flightreports-custom.png" \
+              "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
+              "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -971,6 +996,29 @@ jobs:
             --order ../../docs/modernization/stories/_ORDER.md \
             $JUW_ARG \
             $SHOT_ARG
+
+      # J-7 T-12 — SHOTS-PRESENT pre-deploy guard (operator grill, J-5/J-6 retro).
+      # add_shot/add_pair silently DROP a missing PNG, so a partial-red capture
+      # could ship a THIN per-journey page while the generator stays green. This
+      # browserless guard reads the committed expected-shots.json + the staged
+      # screenshots.json and FAILS if any `expected` <side>:<view> for the
+      # journey-under-work is absent (a `pending`/deferred shot is tolerated +
+      # surfaced). Runs BEFORE the deploy so a thin page never publishes. Gated on
+      # a derivable journey-under-work + the gallery having built; `always()` so a
+      # partial-red proof run is still guarded (the gate signal is `steps.pw`).
+      # A journey with no expected-shots entry skips cleanly inside the spec.
+      - name: Shots-present guard (journey-under-work, pre-deploy)
+        if: ${{ always() && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_journey != '' }}
+        working-directory: alpenflight/web
+        env:
+          GALLERY_EXPECT_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          GALLERY_SHOTS_DIR: ${{ github.workspace }}/perpush-screenshots
+          GALLERY_LINKS_ONLY: '1'
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[shots-present\]'
 
       # J-25 — compute the per-PR preview destination + clickable URL.
       # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
@@ -1092,6 +1140,33 @@ jobs:
         uses: ./.github/actions/rebuild-previews-index
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # J-7 T-12 — DEPLOYED-JOURNEY post-deploy guard (operator grill, J-6 retro:
+      # "a procedure rule kept failing, so this must be structural"). The baseline
+      # caption check below ONLY runs for the J-0 baseline path
+      # (proof_is_baseline == 'true'); a JOURNEY-UNDER-WORK run (e.g. J-7) had NO
+      # deployed assertion at all — exactly where the page shipped wrong ~4× (the
+      # generator was green while the deployed bookmark read `pending` or the page
+      # was thin, deploy-path/probe-path drifting independently). This step runs
+      # the browserless proof-gallery-links spec in `[deployed-journey]` mode
+      # against the LIVE PR preview + the persistent previews index, asserting the
+      # journey-under-work's bookmark row is a LIVE LINK (200) and its per-journey
+      # page declares ≥1 asset with EVERY asset resolving 200 (the spec polls ~60s
+      # for gh-pages). Runs AFTER the preview deploy + index rebuild, PR + non-fork
+      # + gallery-green gated, for the non-baseline journey-under-work path only
+      # (the baseline path is covered by the caption check below).
+      - name: Deployed-journey guard (bookmark live + page assets 200)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey != '' }}
+        working-directory: alpenflight/web
+        env:
+          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          GALLERY_LINKS_ONLY: '1'
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[deployed-journey\]'
 
       # J-25 T-02 — THE provable green: a live link-check against the deployed
       # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy

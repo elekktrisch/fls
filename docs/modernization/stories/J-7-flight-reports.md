@@ -504,9 +504,41 @@ form's next-touch journey (folding them here would violate the recorded operator
   `report-placeholder.page.ts` (both custom shells became real pages — dead-code/maintainability).
   `pnpm lint` + reporting vitest (28) + `ng build` green; all 8 reporting chromium mock e2e specs
   pass (incl. the now-implemented custom-builder flow).
-- [ ] **T-12 — boyscout: structural post-deploy gallery guard.** Post-deploy job asserts the J-7
+- [x] **T-12 — boyscout: structural post-deploy gallery guard.** Post-deploy job asserts the J-7
   bookmark row is a LIVE LINK and every declared asset (videos + paired shots) resolves 200 on the
   DEPLOYED page; add the shots-present pre-deploy guard. *(seam: deployed-gallery-guard step + add_shot presence guard)*
+  <br>DONE: STRUCTURAL (CI steps + a browserless spec that runs every proof deploy — not a procedure
+  rule), per the operator grill ("a procedure rule kept failing, so this must be structural"). Three
+  guards, all in the existing `proof-gallery-links` Playwright project (browserless, runs in any CI
+  context): (1) **`[deployed-journey]` POST-deploy guard** — against the LIVE deployed URLs, asserts the
+  journey-under-work's bookmark row on the persistent previews index is a LIVE LINK (200, anchor form —
+  NOT a `pending` placeholder span) AND its per-journey page declares ≥1 asset with EVERY video/screenshot
+  resolving 200 (polls ~60s for gh-pages). This is the catch the generator unit test can't make: it shipped
+  wrong ~4× (green generator while the deployed bookmark read `pending`/the page was thin — deploy-path and
+  probe-path drift independently). Wired into ci.yml's `alpenflight-proof` job (the gap: the existing live
+  link-check only ran the J-0 BASELINE caption path; a journey-under-work run had NO deployed assertion —
+  this step gates the `proof_is_baseline != 'true'` path) AND folded into the fanout's existing T-33
+  deployed link-check (broadened grep `\[deployed` + `GALLERY_DEPLOYED_JOURNEY`). (2) **`[shots-present]`
+  PRE-deploy guard** — `add_shot`/`add_pair` silently drop a missing PNG; this reads the new committed
+  `expected-shots.json` contract + the staged `screenshots.json` and FAILS if any `expected` `<side>:<view>`
+  for the journey-under-work is absent (a `pending`/deferred shot is tolerated + surfaced) — replacing the
+  silent drop. Runs `always()` + gallery-built-gated BEFORE deploy in BOTH ci.yml (per-push) and the fanout.
+  (3) **J-7 reporting pairing DECLARED now** — added the J-7 `add_pair` (ci.yml per-push) + `add_shot`
+  (fanout) for the picker/result/custom views matching `e2e/legacy-reference/reporting/PENDING.md`; the six
+  J-7 views sit in `expected-shots.json` `pending` (legacy → fanout-deferred; AlpenFlight → T-15 thickens
+  the parity spec to write the PNGs, which flips the AF three to `expected`) so a future missing-shot reds
+  rather than silently passes, without redding the gate now. 4 files: new
+  `e2e/proof-gallery/expected-shots.json` + the spec + ci.yml + the fanout. `required` aggregator semantics
+  intact (new steps skip→success; deploy/guard steps gated on `!cancelled()`/`always()` so a red case still
+  deploys+guards the gallery). VERIFIED LOCALLY: actionlint clean on both workflows; the spec project green
+  (4 tests — `[happy]` + 3 env-gated); `[shots-present]` proven across PASS (J-1 full fixtures), FAIL
+  (missing `legacy:list` → precise red), pending-tolerated (J-7), and skip (un-guarded J-0); `[deployed-
+  journey]` proven PASS against a real HTTP-served local gallery (J-1 live bookmark + page assets 200) and
+  the J-7 pending-row regex confirmed against the served index HTML. DEFERRED-TO-REAL-RUN (no gh-pages
+  deploy in a worker): the live ci.yml/fanout deployed steps fetching the ACTUAL gh-pages URLs — only a real
+  proof run confirms the end-to-end gh-pages timing/path; logic validated by reasoning + actionlint + the
+  local HTTP-served exercise. Pre-existing e2e lint (`let galleries`/`let broken` no-useless-assignment) +
+  the legacy capture PNGs left to their owners (T-14 / fanout) — not this task's surface.
 - [ ] **T-13 — boyscout: CI fail-aggregate.** Run the independent checks (build / server-test /
   web-lint / mock-e2e) so one run reports every red at once instead of stopping at the first.
   *(seam: ci.yml job parallelism/aggregation)*

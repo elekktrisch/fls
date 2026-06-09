@@ -73,6 +73,9 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 const PROOF_GALLERY = resolve(__dirname, '..', '..', 'proof-gallery');
 const FIXTURES = resolve(PROOF_GALLERY, 'fixtures');
+// J-7 T-12 — the committed per-journey expected-shots contract (the SHOTS-PRESENT
+// guard's source of truth). See expected-shots.json's header.
+const EXPECTED_SHOTS = resolve(PROOF_GALLERY, 'expected-shots.json');
 const REPORT = resolve(FIXTURES, 'proof-manifest.json');
 const LEGACY_VIDEO_DIR = resolve(FIXTURES, 'legacy-video');
 const SCREENSHOTS_DIR = resolve(FIXTURES, 'screenshots');
@@ -266,6 +269,47 @@ function extractAssetSrcs(html: string): string[] {
 /** External / mailto / protocol-relative / pure-fragment links: not fs-checkable. */
 function isExternal(href: string): boolean {
   return /^(?:[a-z]+:|\/\/|#)/i.test(href);
+}
+
+// ─── J-7 T-12: SHOTS-PRESENT contract helpers ──────────────────────────────────
+
+type ExpectedShotsContract = Record<string, { expected?: string[]; pending?: string[] }>;
+
+/** Load + validate the committed per-journey expected-shots contract. */
+function loadExpectedShots(): ExpectedShotsContract {
+  expect(existsSync(EXPECTED_SHOTS), `expected-shots.json present at ${EXPECTED_SHOTS}`).toBe(true);
+  const parsed = JSON.parse(readFileSync(EXPECTED_SHOTS, 'utf8')) as {
+    journeys?: ExpectedShotsContract;
+  };
+  return parsed.journeys ?? {};
+}
+
+/**
+ * The set of `<side>:<view>` keys actually STAGED for the gallery — read from the
+ * staged `screenshots.json` sidecar (what add_shot/add_pair declared + the
+ * generator will render). A missing dir/sidecar yields an empty set (so an
+ * EXPECTED shot then reds, which is the point — a wholly-unstaged journey is a
+ * thin page).
+ */
+function loadStagedShotKeys(shotsDir: string): Set<string> {
+  const keys = new Set<string>();
+  const sidecar = resolve(shotsDir, 'screenshots.json');
+  if (!existsSync(sidecar)) return keys;
+  let decl: { screenshots?: { side?: string; view?: string; file?: string }[] };
+  try {
+    decl = JSON.parse(readFileSync(sidecar, 'utf8'));
+  } catch {
+    return keys;
+  }
+  for (const s of decl.screenshots ?? []) {
+    // Only count an entry whose PNG is actually on disk — a declared-but-absent
+    // file would fail the generator's own AC5 check, but counting it here would
+    // mask the drop the guard exists to catch.
+    if (s.file && existsSync(resolve(shotsDir, s.file)) && s.side && s.view) {
+      keys.add(`${s.side}:${s.view}`);
+    }
+  }
+  return keys;
 }
 
 /** A href starting `/` (but not `//`) is site-root-absolute (gh-pages root-rel). */
@@ -506,6 +550,52 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
     }
   });
 
+  // SHOTS-PRESENT MODE (J-7 T-12) — the PRE-deploy structural guard. The
+  // add_shot/add_pair staging steps silently DROP a missing PNG (graceful
+  // degrade), so a partial-red capture could ship a THIN per-journey page while
+  // the generator stayed green (operator grill, J-5/J-6 retro). This guard reads
+  // the committed EXPECTED-shots contract (`expected-shots.json`) + the STAGED
+  // `screenshots.json` sidecar and FAILS if any `expected` <side>:<view> for the
+  // journey-under-work is absent from the stage. `pending` shots (deferred to the
+  // fanout legacy capture / a later thicken task) are TOLERATED but surfaced.
+  // Runs only when GALLERY_EXPECT_JOURNEY is set (the per-push + fanout pre-deploy
+  // step); GALLERY_SHOTS_DIR points at the staged --screenshots dir.
+  const EXPECT_JOURNEY = process.env['GALLERY_EXPECT_JOURNEY'];
+  test('[shots-present] journey-under-work expected paired shots are staged (no silent drop)', async () => {
+    test.skip(!EXPECT_JOURNEY, 'set GALLERY_EXPECT_JOURNEY to assert a journey’s expected shots');
+    const jid = EXPECT_JOURNEY!;
+    const contract = loadExpectedShots();
+    const entry = contract[jid];
+    // A journey absent from the contract is intentionally UN-guarded (no enforced
+    // shots) — pass cleanly so adding a journey to the staging steps without an
+    // expected-shots entry never reds (the contract is opt-in per journey).
+    test.skip(!entry, `journey ${jid} is not in expected-shots.json — no shots guarded`);
+
+    const expected = entry!.expected ?? [];
+    const pending = entry!.pending ?? [];
+
+    // The staged screenshots.json sidecar declares what the gallery WILL render.
+    // GALLERY_SHOTS_DIR is the --screenshots dir CI staged; default to the
+    // committed fixtures dir for a local self-run.
+    const shotsDir = process.env['GALLERY_SHOTS_DIR'] || SCREENSHOTS_DIR;
+    const staged = loadStagedShotKeys(shotsDir);
+
+    const missing = expected.filter((k) => !staged.has(k));
+    expect(
+      missing,
+      `journey ${jid}: EXPECTED paired shots absent from the stage (${shotsDir}) — a silent ` +
+        `add_shot/add_pair drop would have shipped a thin gallery page:\n  - ${missing.join('\n  - ')}` +
+        `\nstaged: [${[...staged].sort().join(', ')}]`,
+    ).toEqual([]);
+
+    // Surface (not fail) the pending shots so the operator sees what's still
+    // deferred rather than silently absent.
+    const stillPending = pending.filter((k) => !staged.has(k));
+    if (stillPending.length) {
+      console.log(`[shots-present] ${jid}: pending (tolerated-absent): ${stillPending.join(', ')}`);
+    }
+  });
+
   // DEPLOYED MODE — runs only when GALLERY_DEPLOYED_URL is set (the fanout
   // POST-deploy step). Fetches the live gh-pages branch-preview previews index +
   // every per-journey page + asserts each link returns HTTP 200, polling briefly
@@ -514,6 +604,31 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
   test('[deployed] live gh-pages gallery links return 200', async ({ request }) => {
     test.skip(!DEPLOYED, 'set GALLERY_DEPLOYED_URL to check the live gh-pages gallery');
     await walkDeployedWithRetry(request, DEPLOYED!);
+  });
+
+  // DEPLOYED-JOURNEY MODE (J-7 T-12) — the POST-deploy structural guard the
+  // operator asked for ("a procedure rule kept failing, so this must be
+  // structural"). The `[deployed]` walk above proves no DEAD links exist, but it
+  // does NOT prove the JOURNEY-UNDER-WORK's bookmark row is actually PRESENT +
+  // links a COMPLETE page — the exact failure mode that shipped ~4× this journey:
+  // the generator test was green while the DEPLOYED page was wrong (wrong probe
+  // path / freshest-wins linking the thinner page), so the journey read `pending`
+  // on the bookmark or the page was missing its assets. This test, against the
+  // LIVE deployed URLs, asserts:
+  //   1. the journey-under-work's bookmark row on the persistent previews index
+  //      is a LIVE LINK (resolves 200), not a `pending` placeholder; AND
+  //   2. that journey's per-journey page declares ≥1 asset (video or shot) and
+  //      EVERY declared asset (videos + paired screenshots) resolves 200.
+  // Runs only when GALLERY_DEPLOYED_JOURNEY is set alongside GALLERY_DEPLOYED_URL.
+  const DEPLOYED_JOURNEY = process.env['GALLERY_DEPLOYED_JOURNEY'];
+  test('[deployed-journey] journey-under-work bookmark is a live link + its page assets resolve 200', async ({
+    request,
+  }) => {
+    test.skip(
+      !DEPLOYED || !DEPLOYED_JOURNEY,
+      'set GALLERY_DEPLOYED_URL + GALLERY_DEPLOYED_JOURNEY to assert the journey’s live page',
+    );
+    await assertDeployedJourneyComplete(request, DEPLOYED!, DEPLOYED_JOURNEY!);
   });
 });
 
@@ -590,4 +705,92 @@ async function walkDeployed(request: APIRequestContext, seeds: string[]): Promis
 function rel(root: string, abs: string): string {
   const r = relative(root, abs);
   return r.startsWith('..') ? abs : r;
+}
+
+/**
+ * J-7 T-12 — POST-deploy journey-completeness guard. Against the LIVE deployed
+ * gallery, prove the journey-under-work's bookmark row is a LIVE LINK on the
+ * persistent previews index (not a `pending` placeholder) AND its per-journey
+ * page declares ≥1 asset with EVERY declared asset (video + paired screenshot)
+ * resolving HTTP 200. This is the catch the generator unit test can't make: the
+ * deploy-path / probe-path can drift independently, so a green generator can ship
+ * a `pending` bookmark or a thin page (the failure that recurred ~4×). Polls ~60s
+ * for gh-pages to serve the freshly-pushed files.
+ *
+ * `baseUrl` = the deployed branch-preview PARENT (`…/proof-preview/<branch>/`),
+ * same as the `[deployed]` walk consumes; the persistent previews index lives at
+ * the SITE root (`/fls/alpenflight/previews/index.html`).
+ */
+async function assertDeployedJourneyComplete(
+  request: APIRequestContext,
+  baseUrl: string,
+  journey: string,
+): Promise<void> {
+  const start = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const origin = new URL(start).origin;
+  const indexUrl = new URL(`${SITE_BASE}alpenflight/previews/index.html`, origin).href;
+  const deadlineMs = Date.now() + 60_000;
+
+  let lastErr: string;
+  for (;;) {
+    lastErr = await tryAssertJourneyComplete(request, indexUrl, journey);
+    if (lastErr === '') return;
+    if (Date.now() >= deadlineMs) break;
+    await new Promise((r) => setTimeout(r, 5_000));
+  }
+  expect(lastErr, `deployed journey-completeness check (after retry):\n  ${lastErr}`).toBe('');
+}
+
+/** One pass; returns '' on success or a human-readable failure reason. */
+async function tryAssertJourneyComplete(
+  request: APIRequestContext,
+  indexUrl: string,
+  journey: string,
+): Promise<string> {
+  const idxRes = await request.get(indexUrl);
+  if (!idxRes.ok()) return `previews index ${indexUrl} → ${idxRes.status()}`;
+  const idxHtml = await idxRes.text();
+
+  // Find the journey's row. A LIVE row is `<a class="journey-link" href="…">
+  // <strong>J-N</strong> proof page</a>`; a PENDING row is `<span
+  // class="journey-link"><strong>J-N</strong></span>` (no href). Require the live
+  // anchor form for the journey-under-work.
+  const strongTag = `<strong>${journey}</strong>`;
+  if (!idxHtml.includes(strongTag)) {
+    return `journey ${journey} has NO row on the previews index ${indexUrl}`;
+  }
+  // The anchor immediately wraps the <strong> on a live row. Match an <a … href>
+  // whose inner text starts with this journey's <strong>.
+  const liveRe = new RegExp(
+    `<a\\b[^>]*class="journey-link"[^>]*\\bhref="([^"]+)"[^>]*>\\s*<strong>${journey}<\\/strong>`,
+    'i',
+  );
+  const m = liveRe.exec(idxHtml);
+  if (!m) {
+    return `journey ${journey} is on the index but its row is PENDING (no live link) — the deployed page is missing/thin`;
+  }
+  const pageUrl = new URL(m[1]!, indexUrl).href;
+
+  const pageRes = await request.get(pageUrl);
+  if (!pageRes.ok()) return `journey ${journey} page ${pageUrl} → ${pageRes.status()}`;
+  const pageHtml = await pageRes.text();
+
+  // The per-journey page must carry ≥1 asset (video or screenshot) — a page with
+  // zero media is the "thin/pending-shaped" page the guard exists to reject (it
+  // would otherwise pass the no-dead-links walk trivially).
+  const assets = [...extractAssetSrcs(pageHtml)].filter((s) => !/^#/.test(s));
+  if (assets.length === 0) {
+    return `journey ${journey} page ${pageUrl} declares NO video/screenshot assets (thin page)`;
+  }
+  // Every declared asset must resolve 200.
+  const broken: string[] = [];
+  for (const src of assets) {
+    const abs = new URL(src, pageUrl).href;
+    const r = await request.get(abs);
+    if (!r.ok()) broken.push(`${abs} (${r.status()})`);
+  }
+  if (broken.length) {
+    return `journey ${journey} page ${pageUrl} has ${broken.length} asset(s) not resolving 200:\n    - ${broken.join('\n    - ')}`;
+  }
+  return '';
 }
