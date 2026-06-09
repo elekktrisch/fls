@@ -273,7 +273,24 @@ function isExternal(href: string): boolean {
 
 // ─── J-7 T-12: SHOTS-PRESENT contract helpers ──────────────────────────────────
 
-type ExpectedShotsContract = Record<string, { expected?: string[]; pending?: string[] }>;
+type ExpectedShotsContract = Record<
+  string,
+  {
+    expected?: string[];
+    pending?: string[];
+    /**
+     * Optional per-shot producing-context map (J-7 T-16). A shot is produced in
+     * exactly one CI context: `proof` (the per-push `alpenflight-proof` job) or
+     * `fanout` (the nightly/dispatch fanout legacy→migrate→real chain). An
+     * `expected` shot is only enforced when its producing context matches the
+     * guard's current `GALLERY_PROOF_CONTEXT`; in the OTHER context it is
+     * produced-elsewhere → tolerated-absent. An `expected` shot with NO entry
+     * here is enforced in BOTH contexts (the migration journeys whose AF shots
+     * the fanout AND the per-push both produce).
+     */
+    producedBy?: Record<string, 'proof' | 'fanout'>;
+  }
+>;
 
 /** Load + validate the committed per-journey expected-shots contract. */
 function loadExpectedShots(): ExpectedShotsContract {
@@ -571,8 +588,25 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
     // expected-shots entry never reds (the contract is opt-in per journey).
     test.skip(!entry, `journey ${jid} is not in expected-shots.json — no shots guarded`);
 
-    const expected = entry!.expected ?? [];
+    const allExpected = entry!.expected ?? [];
     const pending = entry!.pending ?? [];
+    const producedBy = entry!.producedBy ?? {};
+
+    // PER-CONTEXT enforcement (J-7 T-16). The SAME guard runs in two CI contexts
+    // — the per-push `proof` job (ci.yml) and the `fanout` chain — but a shot is
+    // produced in exactly ONE of them. GALLERY_PROOF_CONTEXT names the current
+    // context; an `expected` shot is enforced here only when its `producedBy`
+    // context matches (or it has no producedBy tag → enforced in BOTH, the
+    // migration journeys both contexts produce). A shot produced in the OTHER
+    // context is tolerated-absent here (it is guarded where it is produced), so a
+    // read-side journey's proof-only shots don't false-red the fanout. Unset
+    // context (local self-run) enforces every `expected` shot — strictest.
+    const context = process.env['GALLERY_PROOF_CONTEXT'];
+    const enforced = allExpected.filter((k) => {
+      const pc = producedBy[k];
+      return !context || !pc || pc === context;
+    });
+    const otherContext = allExpected.filter((k) => !enforced.includes(k));
 
     // The staged screenshots.json sidecar declares what the gallery WILL render.
     // GALLERY_SHOTS_DIR is the --screenshots dir CI staged; default to the
@@ -580,17 +614,26 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
     const shotsDir = process.env['GALLERY_SHOTS_DIR'] || SCREENSHOTS_DIR;
     const staged = loadStagedShotKeys(shotsDir);
 
-    const missing = expected.filter((k) => !staged.has(k));
+    const missing = enforced.filter((k) => !staged.has(k));
     expect(
       missing,
-      `journey ${jid}: EXPECTED paired shots absent from the stage (${shotsDir}) — a silent ` +
-        `add_shot/add_pair drop would have shipped a thin gallery page:\n  - ${missing.join('\n  - ')}` +
+      `journey ${jid}: EXPECTED paired shots absent from the stage (${shotsDir}` +
+        `${context ? `, context=${context}` : ''}) — a silent add_shot/add_pair drop would have ` +
+        `shipped a thin gallery page:\n  - ${missing.join('\n  - ')}` +
         `\nstaged: [${[...staged].sort().join(', ')}]`,
     ).toEqual([]);
 
-    // Surface (not fail) the pending shots so the operator sees what's still
-    // deferred rather than silently absent.
+    // Surface (not fail) the shots deferred to the OTHER context + the pending
+    // shots so the operator sees what's tolerated-absent here rather than it
+    // silently vanishing. The other-context shots ARE enforced — just in their
+    // producing context's guard run, not this one.
     const stillPending = pending.filter((k) => !staged.has(k));
+    if (otherContext.length) {
+      console.log(
+        `[shots-present] ${jid}: produced in another context (enforced there, tolerated here): ` +
+          otherContext.join(', '),
+      );
+    }
     if (stillPending.length) {
       console.log(`[shots-present] ${jid}: pending (tolerated-absent): ${stillPending.join(', ')}`);
     }

@@ -1066,6 +1066,12 @@ jobs:
           GALLERY_EXPECT_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
           GALLERY_SHOTS_DIR: ${{ github.workspace }}/perpush-screenshots
           GALLERY_LINKS_ONLY: '1'
+          # J-7 T-16 — this is the PER-PUSH proof context: it produces the
+          # journey's AF parity shots (the real-idp/proof specs run here). The
+          # guard enforces only the shots `producedBy: proof` (+ untagged shots)
+          # so a read-side journey's proof-only AF shots are required HERE — where
+          # they are actually produced — not in the fanout (which never runs them).
+          GALLERY_PROOF_CONTEXT: proof
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \

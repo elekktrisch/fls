@@ -60,11 +60,29 @@
         "T-15 thickened flight-reports-parity.spec.ts to write the three full-page",
         "AlpenFlight parity PNGs (alpenflight-flightreports-{picker,result,custom}.png",
         "via testInfo.outputDir, each behind a J-2-T-43-style self-guard), so the AF",
-        "three are now EXPECTED — a missing AF shot REDS rather than silently passing.",
+        "three are EXPECTED — a missing AF shot REDS rather than silently passing.",
         "The three legacy:* shots stay PENDING (deferred to the fanout legacy-stack",
-        "capture, e2e/legacy-reference/reporting/PENDING.md — unrunnable on the dev box)."
+        "capture, e2e/legacy-reference/reporting/PENDING.md — unrunnable on the dev box).",
+        "",
+        "T-16 — PER-CONTEXT producing seam. J-7 is READ-SIDE: its AF reporting shots",
+        "are written by the real-idp flight-reports-parity.spec.ts, which runs in the",
+        "PER-PUSH proof job (ci.yml alpenflight-proof) — NOT in the fanout (the fanout",
+        "runs only the migration parity specs J-0c/J-1/J-2/J-5/planning + the legacy",
+        "capture, so it never produces the AF reporting shots). So the AF three are",
+        "EXPECTED only in the `proof` context; in the `fanout` context they are",
+        "produced-elsewhere → tolerated-absent (no false red). The guard keys on",
+        "GALLERY_PROOF_CONTEXT: an `expected` shot is enforced only when its",
+        "`producedBy` context matches the current one (a shot with no producedBy tag",
+        "is enforced in BOTH contexts — the J-1..J-6 migration journeys, whose AF",
+        "shots the fanout DOES produce). A real silent drop still reds: the AF three",
+        "are guarded in the proof context where they are actually produced."
       ],
       "expected": ["alpenflight:picker", "alpenflight:result", "alpenflight:custom"],
+      "producedBy": {
+        "alpenflight:picker": "proof",
+        "alpenflight:result": "proof",
+        "alpenflight:custom": "proof"
+      },
       "pending": ["legacy:picker", "legacy:result", "legacy:custom"]
     }
   }

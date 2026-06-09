@@ -1185,6 +1185,13 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           GALLERY_SHOTS_DIR: ${{ github.workspace }}/j1-screenshots
           GALLERY_LINKS_ONLY: '1'
+          # J-7 T-16 — this is the FANOUT context: it produces the legacy capture +
+          # the migration parity AF shots (J-0c/J-1/J-2/J-5/J-6), but NOT a
+          # read-side journey's AF shots (J-7's reporting spec runs only in the
+          # per-push proof job). The guard therefore tolerates J-7's
+          # `producedBy: proof` AF shots being absent here (they are enforced in
+          # the proof context) while still enforcing the fanout-produced shots.
+          GALLERY_PROOF_CONTEXT: fanout
         run: |
           JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
           if [ -z "$JID" ]; then
