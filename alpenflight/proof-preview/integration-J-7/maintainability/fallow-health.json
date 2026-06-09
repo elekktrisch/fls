@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.90.0",
-  "elapsed_ms": 377,
+  "elapsed_ms": 354,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -1036,11 +1036,11 @@
     {
       "path": "src/app/core/session/session.store.ts",
       "name": "<arrow>",
-      "line": 100,
+      "line": 105,
       "col": 18,
       "cyclomatic": 13,
       "cognitive": 13,
-      "line_count": 42,
+      "line_count": 43,
       "param_count": 1,
       "exceeded": "crap",
       "severity": "moderate",
@@ -2895,14 +2895,14 @@
     }
   ],
   "summary": {
-    "files_analyzed": 203,
-    "functions_analyzed": 1466,
+    "files_analyzed": 209,
+    "functions_analyzed": 1498,
     "functions_above_threshold": 90,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 154,
-    "average_maintainability": 92.0,
+    "files_scored": 159,
+    "average_maintainability": 92.1,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 31,
@@ -2912,35 +2912,35 @@
   "vital_signs": {
     "dead_file_pct": 1.0,
     "dead_export_pct": 0.2,
-    "avg_cyclomatic": 2.2,
+    "avg_cyclomatic": 2.1,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
     "duplication_pct": 5.7,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.0,
+    "maintainability_avg": 92.1,
     "maintainability_low_pct": 0.6,
     "unused_dep_count": 6,
-    "unused_deps_per_k_files": 29.6,
+    "unused_deps_per_k_files": 28.7,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 203,
-      "total_exports": 436,
+      "total_files": 209,
+      "total_exports": 455,
       "dead_files": 2,
       "dead_exports": 1,
-      "duplicated_lines": 1422,
-      "total_lines": 26111,
-      "files_scored": 154,
+      "duplicated_lines": 1462,
+      "total_lines": 26673,
+      "files_scored": 159,
       "total_deps": 0
     },
     "unit_size_profile": {
       "low_risk": 86.7,
       "medium_risk": 6.5,
-      "high_risk": 3.1,
-      "very_high_risk": 3.7
+      "high_risk": 3.2,
+      "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 36.8,
+    "functions_over_60_loc_per_k": 36.0,
     "unit_interfacing_profile": {
       "low_risk": 97.1,
       "medium_risk": 2.6,
@@ -2949,11 +2949,11 @@
     },
     "p95_fan_in": 6,
     "coupling_high_pct": 1.3,
-    "total_loc": 26111
+    "total_loc": 26673
   },
   "health_score": {
     "formula_version": 2,
-    "score": 72.7,
+    "score": 73.1,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
@@ -2962,7 +2962,7 @@
       "p90_complexity": 0.0,
       "maintainability": 0.9,
       "hotspots": 0.0,
-      "unused_deps": 14.8,
+      "unused_deps": 14.4,
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.7,
@@ -3437,12 +3437,12 @@
       "fan_in": 38,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.17,
-      "maintainability_index": 87.7,
+      "complexity_density": 0.16,
+      "maintainability_index": 88.0,
       "total_cyclomatic": 36,
       "total_cognitive": 21,
       "function_count": 16,
-      "lines": 214,
+      "lines": 220,
       "crap_max": 49.5,
       "crap_above_threshold": 1
     },
@@ -3876,7 +3876,7 @@
       "total_cyclomatic": 7,
       "total_cognitive": 4,
       "function_count": 4,
-      "lines": 131,
+      "lines": 134,
       "crap_max": 12.0,
       "crap_above_threshold": 0
     },
@@ -3891,6 +3891,34 @@
       "total_cognitive": 3,
       "function_count": 11,
       "lines": 91,
+      "crap_max": 12.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/reporting/report.store.ts",
+      "fan_in": 0,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 92.7,
+      "total_cyclomatic": 18,
+      "total_cognitive": 4,
+      "function_count": 13,
+      "lines": 120,
+      "crap_max": 12.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/reporting/picker/flight-reports-picker.page.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.05,
+      "maintainability_index": 93.0,
+      "total_cyclomatic": 5,
+      "total_cognitive": 2,
+      "function_count": 3,
+      "lines": 110,
       "crap_max": 12.0,
       "crap_above_threshold": 0
     },
@@ -3965,16 +3993,30 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reporting/canned-report.ts",
+      "fan_in": 3,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.08,
+      "maintainability_index": 97.6,
+      "total_cyclomatic": 14,
+      "total_cognitive": 2,
+      "function_count": 5,
+      "lines": 175,
+      "crap_max": 9.3,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 19,
+      "fan_out": 20,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.37,
-      "maintainability_index": 76.9,
-      "total_cyclomatic": 42,
+      "complexity_density": 0.36,
+      "maintainability_index": 77.0,
+      "total_cyclomatic": 44,
       "total_cognitive": 0,
-      "function_count": 42,
-      "lines": 114,
+      "function_count": 44,
+      "lines": 122,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4147,6 +4189,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reporting/canned-report-request.ts",
+      "fan_in": 1,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.1,
+      "maintainability_index": 94.2,
+      "total_cyclomatic": 5,
+      "total_cognitive": 4,
+      "function_count": 1,
+      "lines": 51,
+      "crap_max": 5.1,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/util/form/optional-fields.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4175,20 +4231,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/core/auth/oidc-claims.ts",
-      "fan_in": 2,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.21,
-      "maintainability_index": 90.9,
-      "total_cyclomatic": 14,
-      "total_cognitive": 8,
-      "function_count": 5,
-      "lines": 66,
-      "crap_max": 4.9,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/start/club-dashboard.store.ts",
       "fan_in": 2,
       "fan_out": 2,
@@ -4199,6 +4241,20 @@
       "total_cognitive": 6,
       "function_count": 12,
       "lines": 122,
+      "crap_max": 4.9,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/core/auth/oidc-claims.ts",
+      "fan_in": 2,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.2,
+      "maintainability_index": 91.2,
+      "total_cyclomatic": 14,
+      "total_cognitive": 8,
+      "function_count": 5,
+      "lines": 69,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -4367,6 +4423,20 @@
       "total_cognitive": 0,
       "function_count": 8,
       "lines": 34,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/reporting/reporting.routes.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.18,
+      "maintainability_index": 89.6,
+      "total_cyclomatic": 8,
+      "total_cognitive": 0,
+      "function_count": 8,
+      "lines": 45,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4638,7 +4708,7 @@
     },
     {
       "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 9,
+      "fan_in": 10,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.09,
@@ -5080,7 +5150,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 54,
+      "lines": 59,
       "crap_max": 1.2,
       "crap_above_threshold": 0
     },
@@ -5100,7 +5170,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 55,
+      "fan_in": 56,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -5330,8 +5400,8 @@
     {
       "path": "src/app/core/session/session.store.ts",
       "name": "<arrow>",
-      "line": 89,
-      "line_count": 103
+      "line": 94,
+      "line_count": 104
     },
     {
       "path": "src/app/features/persons/persons.store.ts",
