@@ -14,7 +14,7 @@ acceptance:
   - "[happy] Pick a canned location report (location-flights-this-year): summary groups by FlightTypeName (location reports), flights table populated, scoped to the user's homebase/club."
   - "[happy] Custom builder (/flightreports/custom/:category/:filter/edit): set FlightDate range + flight-type toggles + person/location selector → Apply → results render the filtered set; filter round-trips through the route param."
   - "[happy] Excel export button on a results screen → returns a streamed .xlsx attachment (Content-Type spreadsheet, Content-Disposition attachment)."
-  - "[happy] Excel parity: the exported FlightReports .xlsx is cell-for-cell equal to the legacy fixture (parity harness green; cosmetic font/width diffs tolerated, values/types not)."
+  - "[happy] Excel parity: the exported FlightReports .xlsx is cell-for-cell equal to the parity-contract golden fixture (S-093 inventory + oracle-derived, NOT a live legacy export — that byte-match rides the fanout; parity harness green; cosmetic font/width diffs tolerated, values/types not)."
   - "[key-error] Tenant isolation: club-admin from club A filtering by a club-B location sees no club-B flights (empty/scoped, not a leak)."
   - "[edge] A filter matching no flights renders the empty-state copy (no crash, summary + table both empty)."
   - "[edge] Person-report summary groups by crew function (Pilot / Copilot / Instructor / InstructorSoloFlights + Total); tow-flight columns nest under each glider row where a tow exists."
