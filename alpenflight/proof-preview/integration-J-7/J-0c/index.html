@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AlpenFlight proof — J-0c</title>
+<style>
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
+  --text: #1a1d21; --muted: #5c6470; --border: #e3e6ea;
+  --primary: #0a66c2; --primary-hover: #0552a3;
+  --success: #0a7f3f; --success-bg: #e3f5ea;
+  --failure: #c0353a; --failure-bg: #fbe6e7;
+  --pending: #8a6d00; --pending-bg: #fbf3d6;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface-2: #1c222b;
+    --text: #e6edf3; --muted: #8d96a0; --border: #2a313b;
+    --primary: #4da3ff; --primary-hover: #79bbff;
+    --success: #3fb950; --success-bg: #14271b;
+    --failure: #f85149; --failure-bg: #2a1416;
+    --pending: #d6a700; --pending-bg: #2a2410;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem) clamp(1rem, 3vw, 1.5rem); }
+header { margin-bottom: 2rem; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.25rem); margin: 0 0 .5rem; letter-spacing: -.02em; }
+h3 { font-size: 1.05rem; margin: 0 0 .5rem; display: flex; align-items: center; gap: .6rem; }
+p { margin: 0; color: var(--muted); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; background: var(--surface-2); padding: .1em .4em; border-radius: 4px; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--primary-hover); text-decoration: underline; }
+.meta { color: var(--muted); font-size: .9rem; }
+.status { display: inline-block; padding: .2em .65em; border-radius: 4px; font-size: .8rem; font-weight: 500; }
+.status.success { background: var(--success-bg); color: var(--success); }
+.status.failure { background: var(--failure-bg); color: var(--failure); }
+.status.pending { background: var(--pending-bg); color: var(--pending); }
+.status.neutral { background: var(--surface-2); color: var(--muted); }
+/* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
+   border, NO shadow), sharp corners (radius 0), restrained motion (the native
+   toggle only — no slide). The brand color lands only on the open-state accent
+   bar, never on chrome backgrounds. */
+.journey {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 0; padding: 0; margin: 0 0 -1px;
+}
+.journey + .journey { margin-top: 0; }
+.journey > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; gap: .25rem;
+  padding: .9rem 1.1rem .9rem 2.1rem; position: relative;
+  background: var(--surface);
+  border-left: 2px solid transparent; transition: opacity 120ms ease-out;
+}
+.journey > summary::-webkit-details-marker { display: none; }
+/* CSS triangle marker — rotates on open (native toggle, no JS, no slide). */
+.journey > summary::before {
+  content: ''; position: absolute; left: 1rem; top: 1.25rem;
+  width: 0; height: 0;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transform: rotate(0deg); transform-origin: 25% 50%;
+}
+.journey[open] > summary::before { transform: rotate(90deg); }
+.journey[open] > summary { border-left-color: var(--primary); }
+.journey > summary:hover { background: var(--surface-2); }
+.journey > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.summary-head { display: flex; align-items: center; gap: .6rem; font-size: 1.05rem; }
+.summary-jid { font-weight: 500; }
+.summary-counts { color: var(--muted); font-size: .8rem; font-weight: 400; }
+.summary-caption { color: var(--muted); font-size: .85rem; }
+/* The body (videos / screenshots / pending note) sits inside the <details>. */
+.journey > .proofs,
+.journey > .parity-screenshots,
+.journey > p { margin-left: 1.1rem; margin-right: 1.1rem; }
+.journey[open] { padding-bottom: 1.1rem; }
+.pending-journey { opacity: .85; }
+.pending-journey > summary { cursor: default; }
+.proofs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.proof {
+  margin: 0; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden;
+}
+.proof video { display: block; width: 100%; height: auto; background: #000; }
+.proof figcaption { padding: .65rem .75rem; font-size: .9rem; display: flex; flex-direction: column; gap: .4rem; }
+.proof .caption { color: var(--text); }
+.proof.legacy-proof { border-color: var(--pending); }
+.legacy-label {
+  display: inline-block; align-self: flex-start; padding: .2em .65em; border-radius: 4px;
+  font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--pending-bg); color: var(--pending);
+}
+.parity-screenshots { margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+.parity-screenshots h4 { margin: 0 0 .75rem; font-size: .95rem; font-weight: 500; }
+.shot-pair { margin-bottom: 1.25rem; }
+.shot-view-label { font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin-bottom: .4rem; }
+.shot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.shot { margin: 0; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.shot.shot-legacy { border-color: var(--pending); }
+.shot img { display: block; width: 100%; height: auto; background: #fff; }
+.shot-side { display: inline-block; padding: .2em .65em; margin: .5rem .5rem 0; border-radius: 4px; font-size: .75rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; background: var(--success-bg); color: var(--success); }
+.shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
+.shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
+.nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
+/* Maintainability panel — flat, table-of-numbers; pill carries the roll-up. */
+.maintainability { margin-top: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0; padding: 1rem 1.1rem; }
+.maintainability h4 { margin: 0 0 .75rem; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: .6rem; }
+.maint-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.maint-table th { text-align: left; font-weight: 500; color: var(--muted); padding: .4rem .75rem .4rem 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.maint-table td { padding: .4rem 0; color: var(--text); border-top: 1px solid var(--border); }
+.maint-table tr:first-child td, .maint-table tr:first-child th { border-top: 0; }
+.maint-table td.muted { color: var(--muted); }
+.back-link { font-size: .85rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>J-0c — proof</h1>
+    <p class="meta">
+      <span class="summary-jid">J-0c</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 0 screenshots</span>
+    </p>
+    <p class="meta">
+      Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
+      for this journey. Generated on <code>215/merge</code> &middot; 2026-06-09T11:20:44.801Z
+    </p>
+    <p class="meta back-link" style="margin-top:.5rem;">
+      <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
+      <a href="../">all-journeys gallery</a>
+    </p>
+  </header>
+
+  <section class="journey-page">
+        <div class="proofs">
+        <figure class="proof legacy-proof">
+          <video controls preload="metadata" src="../videos/legacy-locations-fanout-J0c.webm"></video>
+          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
+        </figure>
+        </div>
+
+        <section class="maintainability">
+          <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
+          <table class="maint-table">
+          <tr>
+            <th>FE delta (this journey)</th>
+            <td class="muted">— historical per-journey delta not reconstructable (only the current branch's diff is). Snapshot below applies repo-wide.</td>
+          </tr>
+          <tr>
+            <th>FE snapshot (repo)</th>
+            <td>score <strong>72.7</strong> (B) · maintainability <strong>92</strong> · duplication <strong>5.7%</strong> · dead files <strong>1.0%</strong></td>
+          </tr>
+          <tr>
+            <th>BE complexity/dead-code (PMD)</th>
+            <td><strong>68</strong> violations · complexity <strong>68</strong> · dead-code <strong>0</strong></td>
+          </tr>
+          <tr>
+            <th>BE duplication (CPD)</th>
+            <td><strong>3.7%</strong> duplicated · <strong>60</strong> clone groups</td>
+          </tr>
+          </table>
+          <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>
+        </section>
+  </section>
+
+  <footer>
+    Proof source: <code>real-idp</code> Playwright run (live Keycloak + Spring + Postgres).
+    Maintainability is informational, scoped to this journey's delta where reconstructable.
+  </footer>
+</div>
+</body>
+</html>
