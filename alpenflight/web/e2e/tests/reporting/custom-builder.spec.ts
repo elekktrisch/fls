@@ -1,32 +1,27 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 /**
- * J-7 T-01 — Custom-builder SCREEN-SHAPE stub (mock inner loop).
+ * J-7 — Custom report builder MOCK inner-loop spec (`page.route`-stubbed).
  *
- * THIN-ASSERTION STUB, sibling of `flight-reports.spec.ts`. Commits the shape of
- * the custom report builder (`/flightreports/custom/:category/:filter/edit`) —
- * the date-range inputs, the three flight-type toggles, the conditional
- * person/location selector, and the Apply → results flow — so T-11 implements
- * against a fixed `data-testid` contract and T-15 thickens the assertions to the
- * filter-round-trips-through-the-route-param case from the oracle.
+ * T-15 thickened this from the T-01 thin stub to the full custom-builder
+ * contract (J-7-flight-reports.md § Custom builder + § Spec must assert): set
+ * the FlightDate range + the three flight-type toggles + the conditional
+ * person/location selector → Apply → the filter round-trips through the route
+ * param AND the results render the filtered set. Booted under `mock-auth`;
+ * `/api/v1/*` intercepted via `page.route`. The real-data proof of the same
+ * custom flow is the sibling `real-idp/flight-reports-parity.spec.ts`.
  *
- * The flow case is `test.fixme` until T-11 builds the form (the route does not
- * mount yet). What runs today is the testid-contract assertion. Booted under
- * `mock-auth`; `/api/v1/*` intercepted via `page.route`.
+ * Custom builder shape (legacy `flightreport-custom-configuration.html`): From/To
+ * date range + Glider/Motor/Tow checkboxes + a conditional selector — LocationId
+ * (category=location) or FlightCrewPersonId (category=person). Apply builds the
+ * route's JSON filter (encodeCustomFilter) + navigates to `…/apply` where the
+ * results page decodes + renders it.
  *
- * Custom builder shape (legacy `flightreport-custom-configuration.html`, oracle
- * § Custom builder): From/To date range + Glider/Motor/Tow checkboxes + a
- * conditional selector — LocationId (category=location) or FlightCrewPersonId
- * (category=person). Apply builds the route's JSON filter + calls the page
- * endpoint. Built to the as-you-type bar (debounced liveFieldErrors), kept
- * low-CRAP (T-11; no `*-edit.page.ts` form-mapping complexity replicated).
- *
- * Reference: docs/modernization/stories/J-7-flight-reports.md (§ Spec must assert).
+ * Mock governance: NO `@mocked:` seams — this is the declared mock inner loop.
  */
 
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
-// Custom-builder testids (the T-11 seam). Kept aligned with `flight-reports.spec.ts`.
 const TESTIDS = {
   customForm: 'report-custom-form',
   customFrom: 'report-custom-from',
@@ -38,7 +33,9 @@ const TESTIDS = {
   customLocationSelect: 'report-custom-location',
   customApply: 'report-custom-apply',
   summaryTable: 'report-summary-table',
+  summaryRow: 'report-summary-row',
   flightsTable: 'report-flights-table',
+  flightsRow: 'report-flights-row',
 } as const;
 
 const mockReportResult = {
@@ -68,6 +65,13 @@ const mockReportResult = {
       totalFlights: 1,
       totalFlightDuration: '01:30',
     },
+    {
+      groupBy: 'Total',
+      totalStarts: 1,
+      totalLdgs: 1,
+      totalFlights: 1,
+      totalFlightDuration: '01:30',
+    },
   ],
 };
 
@@ -80,19 +84,40 @@ async function stubReportBackend(page: Page): Promise<void> {
     }),
   );
   await page.route('**/api/v1/persons**', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { id: 'pn-019e30c3-2c00-7001-8000-000000000001', firstname: 'Anna', lastname: 'Pilot' },
+      ]),
+    }),
   );
   await page.route('**/api/v1/locations**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ id: 'loc-1', ownerClubId: CLUB_A_ID, icaoCode: 'LSZK' }]),
+      body: JSON.stringify([
+        { id: 'loc-1', ownerClubId: CLUB_A_ID, locationName: 'Birrfeld', icaoCode: 'LSZK' },
+      ]),
     }),
   );
 }
 
-test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', () => {
-  test('declares the custom-builder testid contract T-11 implements', () => {
+/** Parse the `:filter` JSON out of the apply-route URL (handles double-encode). */
+function decodeFilterFromUrl(url: string): Record<string, unknown> {
+  let encoded = new URL(url).pathname.split('/').at(-2) ?? '';
+  for (let i = 0; i < 3; i++) {
+    try {
+      return JSON.parse(encoded) as Record<string, unknown>;
+    } catch {
+      encoded = decodeURIComponent(encoded);
+    }
+  }
+  throw new Error(`could not decode filter from ${url}`);
+}
+
+test.describe('flight reports custom builder — full contract (J-7 mock inner loop)', () => {
+  test('declares the custom-builder testid contract', () => {
     for (const id of [
       TESTIDS.customForm,
       TESTIDS.customFrom,
@@ -104,11 +129,10 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     ]) {
       expect(id).toMatch(/^report-custom-/);
     }
-    // The conditional selector differs by category (person ↔ location).
     expect(TESTIDS.customPersonSelect).not.toBe(TESTIDS.customLocationSelect);
   });
 
-  test('custom builder: set date range + flight-type toggles + selector → Apply → results render + filter round-trips', async ({
+  test('[happy] location builder: date range + toggles → Apply → filter round-trips + results render', async ({
     page,
   }) => {
     await stubReportBackend(page);
@@ -117,7 +141,7 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     const form = page.getByTestId(TESTIDS.customForm);
     await expect(form).toBeVisible();
 
-    // The location category renders the location selector, not the person one.
+    // The location category renders the location selector, NOT the person one.
     await expect(page.getByTestId(TESTIDS.customLocationSelect)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.customPersonSelect)).toHaveCount(0);
 
@@ -125,42 +149,67 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
     await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-12-31');
 
-    // Flight-type toggles — Tow ON (defaults are Glider+Motor on, Tow off).
+    // Flight-type toggles: defaults Glider+Motor on, Tow off — turn Tow ON.
     await page.getByTestId(TESTIDS.customTowToggle).check();
 
-    await page.screenshot({ path: 'screenshots/reporting/03-custom-builder.png', fullPage: true });
+    await page.screenshot({ path: 'screenshots/reporting/05-custom-builder.png', fullPage: true });
 
-    // Apply encodes the filter into the route + navigates to the apply view.
     await page.getByTestId(TESTIDS.customApply).locator('button').click();
 
-    // Filter round-trips through the route param: the encoded segment carries
-    // the From/To/flags so the results URL reflects the applied filter (the AC).
+    // Filter round-trips through the route param (the AC).
     await expect(page).toHaveURL(/\/flightreports\/custom\/location\/.+\/(apply|view)/);
-    const url = new URL(page.url());
-    let encoded = url.pathname.split('/').at(-2) ?? '';
-    // The router percent-encodes the path segment; `URL.pathname` leaves it
-    // encoded — decode until it parses as the filter JSON (one or two passes).
-    let roundTripped: Record<string, unknown> | null = null;
-    for (let i = 0; i < 3 && roundTripped === null; i++) {
-      try {
-        roundTripped = JSON.parse(encoded) as Record<string, unknown>;
-      } catch {
-        encoded = decodeURIComponent(encoded);
-      }
-    }
-    expect(roundTripped).not.toBeNull();
-    roundTripped = roundTripped ?? {};
-    expect(roundTripped['flightDateFrom']).toBe('2026-01-01');
-    expect(roundTripped['flightDateTo']).toBe('2026-12-31');
-    expect(roundTripped['towFlights']).toBe(true);
+    const filter = decodeFilterFromUrl(page.url());
+    expect(filter['flightDateFrom']).toBe('2026-01-01');
+    expect(filter['flightDateTo']).toBe('2026-12-31');
+    expect(filter['gliderFlights']).toBe(true);
+    expect(filter['motorFlights']).toBe(true);
+    expect(filter['towFlights']).toBe(true);
 
-    // The results view renders the filtered set from the decoded filter.
+    // The results view renders the decoded filtered set.
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.summaryRow).filter({ hasText: 'Total' })).toBeVisible();
     await expect(page.getByTestId(TESTIDS.flightsTable)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.flightsRow).first()).toBeVisible();
 
     await page.screenshot({
-      path: 'screenshots/reporting/04-custom-results.png',
+      path: 'screenshots/reporting/06-custom-results.png',
       fullPage: true,
     });
+  });
+
+  test('[happy] person builder renders the person selector, not the location one', async ({
+    page,
+  }) => {
+    await stubReportBackend(page);
+    await page.goto('/flightreports/custom/person/%7B%7D/edit');
+
+    await expect(page.getByTestId(TESTIDS.customForm)).toBeVisible();
+    // The person category renders the person selector branch.
+    await expect(page.getByTestId(TESTIDS.customPersonSelect)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.customLocationSelect)).toHaveCount(0);
+
+    await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
+    await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-06-30');
+    await page.getByTestId(TESTIDS.customApply).locator('button').click();
+
+    await expect(page).toHaveURL(/\/flightreports\/custom\/person\/.+\/(apply|view)/);
+    const filter = decodeFilterFromUrl(page.url());
+    expect(filter['flightDateFrom']).toBe('2026-01-01');
+    expect(filter['flightDateTo']).toBe('2026-06-30');
+    // person category leaves Tow off by default (corrected legacy default).
+    expect(filter['towFlights']).toBe(false);
+
+    await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
+  });
+
+  test('[edge] Apply is disabled until the required From/To range is set', async ({ page }) => {
+    await stubReportBackend(page);
+    await page.goto('/flightreports/custom/location/%7B%7D/edit');
+
+    // From/To are required (built to the J-6b as-you-type bar) → Apply disabled.
+    await expect(page.getByTestId(TESTIDS.customApply).locator('button')).toBeDisabled();
+    await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
+    await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-12-31');
+    await expect(page.getByTestId(TESTIDS.customApply).locator('button')).toBeEnabled();
   });
 });

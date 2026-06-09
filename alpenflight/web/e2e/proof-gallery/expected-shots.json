@@ -57,21 +57,15 @@
     },
     "J-7": {
       "$note": [
-        "AlpenFlight picker/result/custom shots are PENDING until T-15 thickens",
-        "flight-reports-parity.spec.ts to write the full-page parity PNGs (today the",
-        "real-idp spec emits only proofVideos). T-15 flips these three to `expected`.",
-        "The three legacy:* shots are deferred to the fanout legacy-stack capture",
-        "(e2e/legacy-reference/reporting/PENDING.md) — pending until those PNGs commit."
+        "T-15 thickened flight-reports-parity.spec.ts to write the three full-page",
+        "AlpenFlight parity PNGs (alpenflight-flightreports-{picker,result,custom}.png",
+        "via testInfo.outputDir, each behind a J-2-T-43-style self-guard), so the AF",
+        "three are now EXPECTED — a missing AF shot REDS rather than silently passing.",
+        "The three legacy:* shots stay PENDING (deferred to the fanout legacy-stack",
+        "capture, e2e/legacy-reference/reporting/PENDING.md — unrunnable on the dev box)."
       ],
-      "expected": [],
-      "pending": [
-        "legacy:picker",
-        "legacy:result",
-        "legacy:custom",
-        "alpenflight:picker",
-        "alpenflight:result",
-        "alpenflight:custom"
-      ]
+      "expected": ["alpenflight:picker", "alpenflight:result", "alpenflight:custom"],
+      "pending": ["legacy:picker", "legacy:result", "legacy:custom"]
     }
   }
 }
