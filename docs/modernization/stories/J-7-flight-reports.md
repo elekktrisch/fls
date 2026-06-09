@@ -539,9 +539,31 @@ form's next-touch journey (folding them here would violate the recorded operator
   proof run confirms the end-to-end gh-pages timing/path; logic validated by reasoning + actionlint + the
   local HTTP-served exercise. Pre-existing e2e lint (`let galleries`/`let broken` no-useless-assignment) +
   the legacy capture PNGs left to their owners (T-14 / fanout) — not this task's surface.
-- [ ] **T-13 — boyscout: CI fail-aggregate.** Run the independent checks (build / server-test /
+- [x] **T-13 — boyscout: CI fail-aggregate.** Run the independent checks (build / server-test /
   web-lint / mock-e2e) so one run reports every red at once instead of stopping at the first.
   *(seam: ci.yml job parallelism/aggregation)*
+  <br>DONE: surgical, merge-gate-conservative. The serial-discovery lived INSIDE one `next-build`
+  job that built server (Gradle) THEN web (Node) THEN ran `pnpm lint; pnpm format; pnpm test;
+  pnpm build` in a single `run:` block — a server-build red hid every web check, a `pnpm lint` red
+  hid the test/build reds. SPLIT `next-build` into two PARALLEL toolchain jobs: **`next-build-server`**
+  (JDK/Gradle: server + migration-tool builds — DISJOINT toolchain, so the split duplicates NO
+  expensive setup) and **`next-build-web`** (Node/pnpm: generate-api drift check → lint → format →
+  test → build, each its OWN step gated `${{ !cancelled() && …web=='true' }}` so a red step doesn't
+  skip the later independent checks). One run now surfaces server-build, web-lint, web-format,
+  web-test, web-build reds at once; `alpenflight-mock-e2e` was already a separate parallel job so it
+  reported independently before this. **`required` aggregator preserved exactly:** swapped `next-build`
+  → `next-build-server` + `next-build-web` in `needs:` AND the result-check loop (a red in EITHER reds
+  `required`; both `skipped` on a docs-only push → the unchanged `success|skipped` path keeps the gate
+  green). The aggregator JOB NAME `required` (the branch-protection key) is UNCHANGED. **LEFT CHAINED
+  (deliberate, NOT artificial):** `alpenflight-proof → dashboard-proof → profile-proof` stay `needs:`-chained
+  — operator-recorded runner-CONTENTION serialisation (full-stack real-chain jobs: Postgres+Keycloak+
+  Mailpit+backend+ng-serve; a cited starved 4th-parallel run caused a cold-start flake). They ALREADY
+  report independently via `if: always()` (a red upstream proof does NOT skip the downstream job — it runs
+  + reds on its own), so the fail-aggregate property already holds there; breaking the chain would
+  re-introduce the contention flake. VERIFIED: actionlint clean (0). DEFERRED-TO-REAL-RUN: only a live
+  GitHub Actions run confirms the two split jobs schedule in parallel + the `!cancelled()` step-skip
+  semantics end-to-end (no local Actions runner) — validated here by actionlint + job-graph reasoning +
+  the unchanged aggregator needs-list/loop. *(seam: ci.yml job parallelism/aggregation)*
 - [ ] **T-14 — boyscout: e2e tsc-strictness cleanup.** Clear the ~23 pre-existing
   `exactOptionalPropertyTypes`/`maxFailures` errors so an e2e `tsc` gate could be wired. *(seam: e2e/tsconfig strict cleanup)*
 - [ ] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
