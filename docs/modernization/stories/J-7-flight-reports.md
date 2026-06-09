@@ -294,9 +294,32 @@ form's next-touch journey (folding them here would violate the recorded operator
   `no_ldg_time_information`, `start_location_id`, `ldg_location_id`, `is_solo_flight`) — no
   escalation. 3 new ITs (person-branch grouping + corrected non-zero Motor/Towing + Instructor/
   Solo split; location group-by-FlightTypeName + Total; tenant-scoped). `./gradlew check` green.
-- [ ] **T-05 — backend FlightReportsController.** `POST /api/v1/flightreports/page/{start}/{size}`
+- [x] **T-05 — backend FlightReportsController.** `POST /api/v1/flightreports/page/{start}/{size}`
   → result+summaries; exception handling; **explicit `operationId`s** (orval stability rider);
   ITs incl. tenant-isolation. *(seam: FlightReportsController + IT)*
+  <br>DONE: `FlightReportsController` (package-private, mirrors `FlightsController`) exposes
+  `POST /api/v1/flightreports/page/{pageStart}/{pageSize}` → `FlightReportResult` (items+summaries).
+  Body DTOs `FlightReportPageRequest{sorting, searchFilter}` + `FlightReportSearchFilter` (mirrors
+  legacy `FlightReportFilterCriteria`: FlightDate From/To, FlightCrewPersonId, LocationId,
+  Glider/Motor/Tow flags) with oracle §8.45 defaults applied when fields omitted (`@Nullable Boolean`
+  → glider/motor true, tow false). 0-based offset, default size 100, cap 500 (query service enforces,
+  controller passes through). Sorting honours only `FlightDuration: asc|desc` → the service's
+  `sortByDuration` remap; other keys → default sort. Read-shaped POST → `@ReadOnlyQuery` (exempts the
+  ControllerAuditCoverage mutating-verb guard; no audit event). Explicit
+  `@Operation(operationId="getFlightReportPage")` → stable named orval method (J-3 rider); OpenAPI
+  snapshot regenerated (`./gradlew generateOpenApiSnapshot`; +298 lines incl. the new operationId).
+  **Authz:** mirrors `FlightsController.list` post-J-3 — `hasAnyRole('CLUB_ADMINISTRATOR',
+  'FLIGHT_OPERATOR', 'PILOT')` (a PILOT reads own/club reports — the J-3 PILOT-403 lesson; reports
+  read the same tenant-scoped row set as the flights list). **Escalation/fix-forward (T-03 bug
+  surfaced by the wire test):** `FlightReportQueryService` read the tenant from `TenantContextCarrier`
+  directly, which is empty on the real HTTP path (only set by test `runAs`/`@WithTenant`) → every real
+  request 500'd "No tenant in context". Corrected to inject `ClubTenantIdentifierResolver` and call
+  `resolveCurrentTenantIdentifier()` (the canonical native-SQL tenant pattern — `PlanningDaysService`,
+  resolver checks `TenantContextCarrier` first so the T-03/T-04 `runAs` ITs stay green). 3 ITs
+  (`FlightReportsControllerIT`): club-admin happy page (items+summaries+Total); club-A filtering by
+  a club-B location sees no club-B rows (tenant isolation); PILOT-role caller reads. No exception
+  handler needed (no new domain exception types; the global handlers cover it). `./gradlew check`
+  green (cpdRatchet/pmdMain/arch-guards incl. ControllerAuditCoverage/OpenApiSnapshotIT/all ITs).
 - [ ] **T-06 — ExcelExportSupport POI helper (S-094).** Add `poi-ooxml` dep; SXSSF streaming
   helper: `headerRow/dataRow/dateCell/timeCell/durationCell/intCell/streamingWorkbook` matching
   legacy formats; one unit test per helper. *(seam: ch.alpenflight.excel.ExcelExportSupport + dep)*

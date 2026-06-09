@@ -13,7 +13,7 @@ import ch.alpenflight.flights.domain.FlightReportRepository;
 import ch.alpenflight.flights.domain.FlightReportRepository.ReportRow;
 import ch.alpenflight.flights.domain.FlightReportRepository.SummaryRow;
 import ch.alpenflight.platform.id.FlightId;
-import ch.alpenflight.platform.tenancy.TenantContextCarrier;
+import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,10 +31,13 @@ import org.springframework.transaction.annotation.Transactional;
  * filters the {@link ch.alpenflight.flights.domain.Flight} aggregate's data
  * through {@link FlightReportRepository} and assembles the wire DTOs.
  *
- * <p>Tenant scoping is explicit (ADR 0008): the caller's tenant is read from
- * {@link TenantContextCarrier} and passed to every query — correcting the
- * legacy tenancy hole ({@code FlightReportService.cs:114-125}) so a club-A
- * caller filtering by a club-B location sees no club-B flights.
+ * <p>Tenant scoping is explicit (ADR 0008): the caller's tenant is resolved
+ * via {@link ClubTenantIdentifierResolver} (the same resolver Hibernate's
+ * {@code @TenantId} discriminator uses — JWT {@code clubId} on the HTTP path,
+ * the {@code TenantContextCarrier} override in tests / {@code @WithTenant})
+ * and passed to every query — correcting the legacy tenancy hole
+ * ({@code FlightReportService.cs:114-125}) so a club-A caller filtering by a
+ * club-B location sees no club-B flights.
  *
  * <p>Air-state + flight-duration + category are computed here (never stored).
  * {@code AirState} / {@code processState} are emitted as the legacy SMALLINT
@@ -59,9 +62,12 @@ public class FlightReportQueryService {
     public static final int MAX_PAGE_SIZE = 500;
 
     private final FlightReportRepository repository;
+    private final ClubTenantIdentifierResolver tenantResolver;
 
-    public FlightReportQueryService(FlightReportRepository repository) {
+    public FlightReportQueryService(FlightReportRepository repository,
+                                    ClubTenantIdentifierResolver tenantResolver) {
         this.repository = repository;
+        this.tenantResolver = tenantResolver;
     }
 
     /**
@@ -80,8 +86,10 @@ public class FlightReportQueryService {
                                             boolean sortByDuration,
                                             boolean sortAsc) {
         FlightReportFilter f = filter != null ? filter : FlightReportFilter.defaults();
-        UUID tenant = TenantContextCarrier.current().orElseThrow(() ->
-                new IllegalStateException("No tenant in context for flight-report query"));
+        UUID tenant = tenantResolver.resolveCurrentTenantIdentifier();
+        if (ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
+            throw new IllegalStateException("No tenant in context for flight-report query");
+        }
         int offset = Math.max(0, pageStart);
         int limit = clampPageSize(pageSize);
 
