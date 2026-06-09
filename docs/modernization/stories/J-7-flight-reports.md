@@ -343,9 +343,34 @@ form's next-touch journey (folding them here would violate the recorded operator
   vertical-slices-first. `./gradlew check` green (arch-guards/PMD/cpdRatchet at baseline 4767/
   OpenApiSnapshotIT/all ITs). 4 files: build.gradle.kts + ExcelExportSupport.java + package-info.java
   + ExcelExportSupportTest.java.
-- [ ] **T-07 — flight-reports Excel export endpoint (S-095).** `POST …/export/excel/{start}/{size}`
+- [x] **T-07 — flight-reports Excel export endpoint (S-095).** `POST …/export/excel/{start}/{size}`
   streaming `.xlsx`; exact 30-col layout + A1/A3/C3 metadata + skipped col 17 + `HH:MM`/`[H]:MM`
   formats per oracle §5; correct MIME. *(seam: FlightReportsController export endpoint + writer)*
+  <br>DONE: `POST /api/v1/flightreports/export/excel/{pageStart}/{pageSize}` on
+  `FlightReportsController` — same `{sorting, searchFilter}` body, tenant scoping, and authz
+  (`CLUB_ADMINISTRATOR`/`FLIGHT_OPERATOR`/`PILOT`) as the page endpoint; `@ReadOnlyQuery`
+  (read-shaped, no audit). Returns `ResponseEntity<StreamingResponseBody>` — the SXSSF workbook is
+  streamed straight to the response output stream (no whole-file buffering), reusing the T-06
+  `ExcelExportSupport` helper. `Content-Type` = corrected OOXML spreadsheet MIME (legacy sent the
+  wrong `application/vnd.ms-excel` — documented harness-neutral deviation); `Content-Disposition:
+  attachment; filename="FlightReports.xlsx"`. Stable `@Operation(operationId="exportFlightReportExcel")`
+  (orval) — OpenAPI snapshot regenerated (+46 lines, the new path+operationId). The shared
+  request→result preamble extracted to a private `runReport(...)` so the two endpoints don't duplicate
+  (kept cpdRatchet at baseline). **Layout** lives in new `FlightReportExcelWriter` (web package, the
+  presentation seam): sheet `Flights`; A1 `Flights` font 20; row 2 blank; A3 `Excel Erstellt:` + C3
+  timestamp `dd.mm.yyyy HH:MM:ss`; header row 5 / data row 6; the 30-column legacy order INCLUDING the
+  intentionally-blank column 17 (no header, no cell) and the preserved typo `LdgTime UCT` (col 11);
+  tow columns 19-30 written only when the row carries a TowFlight; time cells = UTC wall-clock `HH:MM`
+  (Instant→LocalDateTime at ZoneOffset.UTC, no TZ shift); duration `[H]:MM`; IsSoloFlight int 1/0;
+  StartType already mapped to the legacy `AircraftStartType` int by the query service (T-03);
+  AirState/ProcessState raw ints; FlightDate (col 2) carries NO number format (legacy default). 1 new
+  IT (`FlightReportsControllerIT.exportExcel_streamsXlsxWithLegacyLayout`): POSTs the export, reads the
+  `.xlsx` back with POI, asserts MIME+Content-Disposition, A1/A3/C3 metadata (incl. C3 format string),
+  the row-5 header (incl. `LdgTime UCT` typo + blank col 17), and a data row's key cells (StartTime/
+  LdgTime `HH:MM` format, FlightDuration `[H]:MM` format, IsSoloFlight 0, StartType WINCH_LAUNCH→1).
+  `./gradlew check` green (cpdRatchet baseline/pmdMain/arch-guards incl. ControllerAuditCoverage/
+  OpenApiSnapshotIT/all ITs). No escalation — the AlpenFlight read model reproduces every targeted
+  legacy cell value (StartType via the documented code→int map).
 - [ ] **T-08 — Excel parity harness (S-096).** XLSX cell-by-cell diff (value+number-format,
   tolerant of font/width); legacy FlightReports fixture (S-093 inventory + committed fixture);
   CI-wired, FlightReports-scoped (J-10 adds the other two exports). *(seam: excel-parity test harness + fixture)*

@@ -10,16 +10,20 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * REST surface for the flight-report read model (J-7 T-05) — the SPA paged
@@ -27,8 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
  * legacy {@code FlightReportsController.cs:40-46} {@code POST page/{start}/{size}}
  * shape with a {@code PageableSearchFilter}-style body.
  *
- * <p>The Excel-export endpoint ({@code POST .../export/excel/{start}/{size}})
- * is T-07; only the page endpoint lands here.
+ * <p>The Excel-export endpoint ({@code POST .../export/excel/{start}/{size}},
+ * T-07) shares this resource: same body + tenant scoping + authz, but streams an
+ * {@code .xlsx} attachment ({@link FlightReportExcelWriter}, the exact legacy
+ * layout) instead of JSON.
  *
  * <p><strong>Tenant scoping.</strong> Every query is scoped to the caller's
  * tenant by {@link FlightReportQueryService} (it reads the {@code clubId} the
@@ -57,6 +63,18 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "flightreports", description = "Flight reports (paged read-side report query).")
 class FlightReportsController {
 
+    /**
+     * The correct OOXML spreadsheet MIME for an {@code .xlsx} body. Legacy sent
+     * the wrong {@code application/vnd.ms-excel} (the old binary {@code .xls}
+     * type) for its {@code .xlsx} export — a documented J-7 deviation, corrected
+     * here. Parity-harness-neutral: the MIME is not cell content.
+     */
+    private static final String XLSX_MIME =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /** Attachment filename for the streamed export. */
+    private static final String EXPORT_FILENAME = "FlightReports.xlsx";
+
     private final FlightReportQueryService reports;
 
     FlightReportsController(FlightReportQueryService reports) {
@@ -83,10 +101,59 @@ class FlightReportsController {
             @PathVariable("pageStart") int pageStart,
             @PathVariable("pageSize") int pageSize,
             @RequestBody(required = false) @Nullable FlightReportPageRequest request) {
+        return runReport(request, pageStart, pageSize);
+    }
+
+    /**
+     * Runs the report query for the shared {@code {sorting, searchFilter}} body —
+     * the common preamble behind both the JSON page endpoint and the Excel export
+     * (null body ⇒ legacy-default filter; paging/sort folded from the request).
+     */
+    private FlightReportResult runReport(@Nullable FlightReportPageRequest request,
+                                         int pageStart, int pageSize) {
         FlightReportPageRequest req = request != null ? request : FlightReportPageRequest.empty();
         FlightReportFilter filter = req.toFilter();
         return reports.getReportPage(filter, pageStart, pageSize,
                 req.sortByDuration(), req.sortAscending());
+    }
+
+    /**
+     * Synchronous Excel export of the flight report — same body + tenant scoping
+     * + authz as {@link #getFlightReportPage}, but returns a streamed
+     * {@code .xlsx} attachment in the exact legacy layout
+     * ({@link FlightReportExcelWriter}, oracle §5). The workbook is streamed to
+     * the response output stream via SXSSF — the whole file is never buffered in
+     * memory.
+     *
+     * <p>Read-shaped (it only reads the same tenant-scoped row set), so
+     * {@link ReadOnlyQuery} exempts it from the mutating-verb audit guard. The
+     * {@code Content-Type} is the corrected OOXML spreadsheet MIME (legacy sent
+     * the wrong {@code application/vnd.ms-excel}) — a documented, harness-neutral
+     * J-7 deviation.
+     */
+    @Operation(operationId = "exportFlightReportExcel",
+            summary = "Synchronous Excel (.xlsx) export of the flight report. Same body as the page "
+                    + "endpoint; streams an attachment in the exact legacy 30-column layout. "
+                    + "pageStart is a 0-based row offset; pageSize defaults to 100, capped at 500.")
+    @ApiResponse(responseCode = "200", description = "Streamed .xlsx attachment (Flights sheet).")
+    @PostMapping(path = "/export/excel/{pageStart}/{pageSize}",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = XLSX_MIME)
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR', 'PILOT')")
+    @ReadOnlyQuery
+    ResponseEntity<StreamingResponseBody> exportFlightReportExcel(
+            @PathVariable("pageStart") int pageStart,
+            @PathVariable("pageSize") int pageSize,
+            @RequestBody(required = false) @Nullable FlightReportPageRequest request) {
+        FlightReportResult result = runReport(request, pageStart, pageSize);
+        Instant generatedAt = Instant.now();
+
+        StreamingResponseBody body = out -> FlightReportExcelWriter.write(result, generatedAt, out);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, XLSX_MIME)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + EXPORT_FILENAME + "\"")
+                .body(body);
     }
 
     /**

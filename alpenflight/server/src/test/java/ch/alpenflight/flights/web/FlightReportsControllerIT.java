@@ -6,6 +6,7 @@ import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -14,6 +15,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +53,9 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
     private static final UUID CLUB_B = UUID.fromString("019e30c5-2c00-7001-8000-0000000000b2");
 
     private static final int TYPE_GLIDER = 1;
+    /** {@code t_start_type} WINCH_LAUNCH id (V2 seed) → legacy AircraftStartType int 1. */
+    private static final UUID WINCH_LAUNCH_START_TYPE =
+            UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -158,6 +166,73 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         assertThat(readJson(res).get("totalRows").asLong()).isEqualTo(1);
     }
 
+    @Test
+    void exportExcel_streamsXlsxWithLegacyLayout() throws Exception {
+        UUID aircraft = seedAircraft(CLUB_A);
+        UUID location = seedLocation(CLUB_A, "Birrfeld");
+        UUID flightType = seedFlightType(CLUB_A, "Schul", "SCH");
+        UUID pilot = seedPerson("Tester", "Anna");
+
+        Instant start = Instant.parse("2026-05-15T08:05:00Z");
+        Instant ldg = Instant.parse("2026-05-15T09:35:00Z"); // 1h30m duration
+        // WINCH_LAUNCH start type → legacy AircraftStartType int 1 (the StartType-int parity contract).
+        UUID flight = seedFlightWithStartType(CLUB_A, aircraft, LocalDate.of(2026, 5, 15),
+                start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE);
+        seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
+
+        String token = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        Map<String, Object> body = Map.of("searchFilter", Map.of(
+                "flightDateFrom", "2026-05-01",
+                "flightDateTo", "2026-05-31"));
+
+        ResponseEntity<byte[]> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/flightreports/export/excel/0/100"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body),
+                byte[].class);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_TYPE))
+                .isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("attachment").contains("FlightReports.xlsx");
+
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(res.getBody()))) {
+            Sheet sheet = wb.getSheet("Flights");
+            assertThat(sheet).as("sheet named Flights").isNotNull();
+
+            // Metadata: A1 = "Flights", A3 = "Excel Erstellt:", C3 timestamp format.
+            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Flights");
+            assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("Excel Erstellt:");
+            Cell c3 = sheet.getRow(2).getCell(2);
+            assertThat(c3.getCellStyle().getDataFormatString()).isEqualTo("dd.mm.yyyy HH:MM:ss");
+
+            // Header = row 5 (index 4); preserved typo + skipped col 17.
+            Row header = sheet.getRow(4);
+            assertThat(header.getCell(0).getStringCellValue()).isEqualTo("Flight ID");
+            assertThat(header.getCell(9).getStringCellValue()).isEqualTo("StartTime UTC");
+            assertThat(header.getCell(10).getStringCellValue()).isEqualTo("LdgTime UCT"); // typo preserved
+            assertThat(header.getCell(12).getStringCellValue()).isEqualTo("IsSoloFlight");
+            assertThat(header.getCell(13).getStringCellValue()).isEqualTo("StartType");
+            // Column 17 (index 16) intentionally blank.
+            Cell skipped = header.getCell(16);
+            assertThat(skipped == null || skipped.getStringCellValue().isEmpty())
+                    .as("column 17 header is blank").isTrue();
+            assertThat(header.getCell(17).getStringCellValue()).isEqualTo("FlightComment");
+
+            // Data row = row 6 (index 5): key cells + number formats.
+            Row data = sheet.getRow(5);
+            assertThat(data.getCell(2).getStringCellValue()).startsWith("HB-"); // Immatriculation
+            assertThat(data.getCell(3).getStringCellValue()).isEqualTo("Tester Anna"); // PilotName
+            assertThat(data.getCell(9).getCellStyle().getDataFormatString()).isEqualTo("HH:MM"); // StartTime
+            assertThat(data.getCell(10).getCellStyle().getDataFormatString()).isEqualTo("HH:MM"); // LdgTime
+            assertThat(data.getCell(11).getCellStyle().getDataFormatString()).isEqualTo("[H]:MM"); // Duration
+            assertThat((int) data.getCell(12).getNumericCellValue()).isEqualTo(0); // IsSoloFlight 0
+            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(1); // StartType WINCH=1
+        }
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /** {@code t_flight_crew_type} PilotOrStudent id (legacy fixed seed). */
@@ -256,6 +331,27 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
                 id.toString(), clubId.toString(), aircraftId.toString(), TYPE_GLIDER,
                 flightDate, Timestamp.from(start), Timestamp.from(ldg),
                 startLocation.toString(), ldgLocation.toString(), flightType.toString(),
+                ch.alpenflight.flights.domain.FlightProcessState.VALID.id().toString());
+        return id;
+    }
+
+    private UUID seedFlightWithStartType(UUID clubId, UUID aircraftId, LocalDate flightDate,
+                           Instant start, Instant ldg, UUID startLocation, UUID ldgLocation,
+                           UUID flightType, UUID startTypeId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_flight (id, operating_club_id, aircraft_id, flight_aircraft_type_id,
+                        flight_date, start_date_time, ldg_date_time, start_location_id,
+                        ldg_location_id, flight_type_id, start_type_id, is_solo_flight,
+                        no_start_time_information, no_ldg_time_information, process_state_id,
+                        nr_of_ldgs, nr_of_ldgs_on_start_location)
+                VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?::uuid, ?::uuid, ?::uuid, ?::uuid,
+                        false, false, false, ?::uuid, 1, 0)
+                """,
+                id.toString(), clubId.toString(), aircraftId.toString(), TYPE_GLIDER,
+                flightDate, Timestamp.from(start), Timestamp.from(ldg),
+                startLocation.toString(), ldgLocation.toString(), flightType.toString(),
+                startTypeId.toString(),
                 ch.alpenflight.flights.domain.FlightProcessState.VALID.id().toString());
         return id;
     }

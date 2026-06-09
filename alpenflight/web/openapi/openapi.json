@@ -2066,6 +2066,51 @@
         }
       }
     },
+    "/api/v1/flightreports/export/excel/{pageStart}/{pageSize}" : {
+      "post" : {
+        "tags" : [ "flightreports" ],
+        "summary" : "Synchronous Excel (.xlsx) export of the flight report. Same body as the page endpoint; streams an attachment in the exact legacy 30-column layout. pageStart is a 0-based row offset; pageSize defaults to 100, capped at 500.",
+        "operationId" : "exportFlightReportExcel",
+        "parameters" : [ {
+          "name" : "pageStart",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "pageSize",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightReportPageRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Streamed .xlsx attachment (Flights sheet).",
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flight-types" : {
       "get" : {
         "tags" : [ "FlightTypes" ],
@@ -6393,6 +6438,7 @@
         },
         "required" : [ "airState", "processState", "towFlightId" ]
       },
+      "StreamingResponseBody" : { },
       "FlightTypeCreateRequest" : {
         "type" : "object",
         "description" : "Payload to register a new FlightType in the caller's tenant.",
