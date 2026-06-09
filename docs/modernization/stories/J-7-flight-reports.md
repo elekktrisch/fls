@@ -649,7 +649,7 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   modules compile clean. **DEFERRED-TO-FANOUT:** the producer SELECT runs against real MSSQL — synth bundles
   don't exercise it ([[project_synth_bundle_doesnt_validate_producer_select]]); the green fanout (sub-step d) +
   the reservation parity clearing is the manager-triggered fanout's proof.
-- [ ] **T-18 — real-idp seed↔spec reconciliation (gate-revealed, batch).** The real-idp proof surfaced
+- [x] **T-18 — real-idp seed↔spec reconciliation (gate-revealed, batch).** The real-idp proof surfaced
   sequential seed gaps: location-summary (fixed T-16), then `person report` expects a `Pilot (Towing)` summary
   row but the seed never makes the reported person a tow pilot (row count 0). To stop the ~20-min-per-cycle
   ping-pong, audit EVERY assertion in `flight-reports-parity.spec.ts` against `reporting-parity-fixture.ts` in
