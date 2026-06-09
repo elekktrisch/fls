@@ -715,7 +715,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
       orderPath,
       screenshotsDir,
       renderNav: false,
-      journeyUnderWork: opts.journeyUnderWork,
+      ...(opts.journeyUnderWork ? { journeyUnderWork: opts.journeyUnderWork } : {}),
       ...(opts.branch ? { branch: opts.branch } : {}),
     });
     return { outDir, result };
@@ -1097,7 +1097,6 @@ describe('generateGallery — per-push committed-legacy ↔ fresh-AF pairing (T-
   // The REAL committed legacy-reference fixtures (T-17a). Resolved from the spec
   // dir up to e2e/legacy-reference/planning/.
   const LEGACY_REF_DIR = resolve(__dirname, '..', 'legacy-reference', 'planning');
-  const VIEWS = ['list', 'form', 'setup'] as const;
 
   // The per-push staging step (ci.yml T-17b) maps each view to:
   //   legacy file name  ← copied from the committed ref under a stable name

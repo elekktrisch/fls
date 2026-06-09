@@ -400,7 +400,15 @@ function setupAircraftBackend(aircraft: MockAircraftDetail[]) {
         return;
       }
       const prev = aircraft[idx]!;
-      aircraft[idx] = { ...prev, ...body, id: prev.id, ownerClubId: prev.ownerClubId };
+      // id + ownerClubId are server-owned: a PUT body can't change them. Carry
+      // ownerClubId via a conditional spread — under exactOptionalPropertyTypes
+      // an explicit `ownerClubId: undefined` is rejected by the optional prop.
+      aircraft[idx] = {
+        ...prev,
+        ...body,
+        id: prev.id,
+        ...(prev.ownerClubId !== undefined ? { ownerClubId: prev.ownerClubId } : {}),
+      };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

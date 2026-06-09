@@ -151,7 +151,7 @@ function stageMaintainability(galleryOut: string): void {
 function stagePerRunGalleries(canonicalOut: string): void {
   const manifestPath = resolve(PROOF_GALLERY, 'per-run-galleries.json');
   if (!existsSync(manifestPath)) return;
-  let galleries: { href?: string }[] = [];
+  let galleries: { href?: string }[];
   try {
     galleries = JSON.parse(readFileSync(manifestPath, 'utf8')).galleries ?? [];
   } catch {
@@ -652,7 +652,7 @@ async function walkDeployedWithRetry(request: APIRequestContext, baseUrl: string
     // The persistent previews index (site-root) — the back-link's target.
     new URL(`${SITE_BASE}alpenflight/previews/index.html`, origin).href,
   ];
-  let broken: string[] = [];
+  let broken: string[];
   for (;;) {
     broken = await walkDeployed(request, seeds);
     if (broken.length === 0) return;

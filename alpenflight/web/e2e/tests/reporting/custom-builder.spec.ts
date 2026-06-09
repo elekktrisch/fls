@@ -150,9 +150,9 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     }
     expect(roundTripped).not.toBeNull();
     roundTripped = roundTripped ?? {};
-    expect(roundTripped.flightDateFrom).toBe('2026-01-01');
-    expect(roundTripped.flightDateTo).toBe('2026-12-31');
-    expect(roundTripped.towFlights).toBe(true);
+    expect(roundTripped['flightDateFrom']).toBe('2026-01-01');
+    expect(roundTripped['flightDateTo']).toBe('2026-12-31');
+    expect(roundTripped['towFlights']).toBe(true);
 
     // The results view renders the filtered set from the decoded filter.
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();

@@ -564,8 +564,30 @@ form's next-touch journey (folding them here would violate the recorded operator
   GitHub Actions run confirms the two split jobs schedule in parallel + the `!cancelled()` step-skip
   semantics end-to-end (no local Actions runner) — validated here by actionlint + job-graph reasoning +
   the unchanged aggregator needs-list/loop. *(seam: ci.yml job parallelism/aggregation)*
-- [ ] **T-14 — boyscout: e2e tsc-strictness cleanup.** Clear the ~23 pre-existing
+- [x] **T-14 — boyscout: e2e tsc-strictness cleanup.** Clear the ~23 pre-existing
   `exactOptionalPropertyTypes`/`maxFailures` errors so an e2e `tsc` gate could be wired. *(seam: e2e/tsconfig strict cleanup)*
+  <br>DONE: empirical count was **35** real errors across 9 e2e files (the rider's "~23"
+  under-counted — and clearing the two project-level `maxFailures` lines UNMASKED two latent
+  config-object errors `workers: undefined` + `webServer: undefined` that the overload failure had
+  short-circuited). `tsc -p e2e/tsconfig.json --noEmit` now exits **0**. Fixes are type-level only,
+  behavior unchanged (all 220 specs still collect under esbuild). By file: **playwright.config.ts** —
+  removed the two per-project `maxFailures` entries (it's a SUITE-level `TestConfig` option, ignored
+  per-project → was a runtime no-op; use `--max-failures` for a fail-fast gate); `workers` +
+  `webServer` switched to conditional-spread so optional keys are omitted (not set to `undefined`)
+  under `exactOptionalPropertyTypes`; `webServer` hoisted to a `const`. **generate-gallery.spec.ts** —
+  conditional-spread `journeyUnderWork`; removed dead `VIEWS` const (pre-existing `no-unused-vars`).
+  **generate-previews-index.spec.ts** — `by['J-0']/['J-1']` captured + `toBeDefined()` + `?.`;
+  `hrefs` filtered to `string[]`. **flights-list.spec.ts** — `allFlights` typed as a 3-tuple so
+  `[0..2]` are known-present (`noUncheckedIndexedAccess`). **aircraft-crud.spec.ts** — conditional
+  spread for `ownerClubId` carry-through. **handshake.spec.ts** — `copied[0]!` after a length assert.
+  **persons-add-modal.spec.ts** — added an `optional(key,value)` helper; optional person/membership
+  fields spread in only when defined. **custom-builder.spec.ts** — bracket access for the
+  index-signature props (TS4111). **proof-gallery-links.spec.ts** — the two named `no-useless-assignment`
+  findings (`let galleries`/`let broken`) fixed by dropping the dead `= []` initializers (both vars are
+  unconditionally assigned before use). eslint + prettier clean on all 9 touched files. NOTE for
+  /do-retro: an e2e `tsc -p e2e/tsconfig.json --noEmit` CI gate would now be a natural follow-on (the
+  tree is green) — out of scope here per the rider. Other pre-existing e2e lint findings (array-type /
+  no-empty-pattern / preserve-caught-error in untouched real-idp specs) left to their owners.
 - [ ] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
   + edge assertions from the oracle (canned date windows, summary grouping incl. corrected
   TotalFlights, nested tow, tenant isolation, Excel parity). *(seam: reporting spec full assertions)*

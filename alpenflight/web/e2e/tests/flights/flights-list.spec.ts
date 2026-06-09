@@ -57,7 +57,9 @@ interface MockFlightListItem {
 const AC_GLI = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 
-const allFlights: MockFlightListItem[] = [
+// Fixed 3-flight fixture — typed as a tuple so the [0]/[1]/[2] accesses below are
+// statically known-present under `noUncheckedIndexedAccess` (no `!` noise).
+const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] = [
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000001',
     flightAircraftType: 'GLIDER',
