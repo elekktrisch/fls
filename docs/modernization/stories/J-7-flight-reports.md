@@ -480,9 +480,30 @@ form's next-touch journey (folding them here would violate the recorded operator
   implementable T-01 mock cases** (picker + canned-person-results + location + Excel-export + empty-
   state) in `e2e/tests/reporting/flight-reports.spec.ts` — added an export-endpoint `page.route` stub
   (attachment .xlsx) — all 7 reporting mock specs green (1 still-fixme = T-11 custom-builder flow).
-- [ ] **T-11 — web custom report builder form.** Date range + 3 flight-type toggles + conditional
+- [x] **T-11 — web custom report builder form.** Date range + 3 flight-type toggles + conditional
   person/location selector; built to the **as-you-type bar** (debounced `liveFieldErrors`), kept
   **low-CRAP**. *(seam: web custom-builder form component)*
+  <br>DONE: `edit/report-custom-builder.page.ts` on `/flightreports/custom/:category/:filter/edit` —
+  typed reactive `FormGroup` (From/To date pickers via `af-input type=date`, three flight-type
+  checkboxes Glider/Motor/Tow defaulting on/on/off per § Parity decisions, and a CONDITIONAL selector:
+  `af-select` location picker when `:category==='location'`, person picker when `'person'`). Apply →
+  pure `formToFilter` → `encodeCustomFilter` (JSON+`encodeURIComponent`) → `navigateByUrl`
+  `custom/:category/<encoded>/apply`; the **results page** (T-10) now reads BOTH routes off the
+  paramMap and on the custom-apply route `decodeCustomFilter`s the `:filter` segment → renders the
+  filtered set. **Filter round-trips through the route param (the AC)** — the un-fixme'd
+  custom-builder mock e2e asserts the encoded segment carries From/To/towFlights AND the summary +
+  flights tables render. **As-you-type bar (boyscout):** From/To required via the J-6b debounced
+  `liveFieldErrors` (`fromErrors`/`toErrors`) bound on `af-form-field [errors]`, not the touched-only
+  wiring. **Low-CRAP:** the whole mapping is one small pure `formToFilter` — NO
+  `formToUpdateRequest`/`errorPatch` cascade (it's a filter form, not entity CRUD). **Selector data:**
+  reused the generated `PersonsService.listPersons` / `LocationsService.listLocations` via two
+  idempotent lazy loaders on `ReportStore` (store owns the HTTP — §4; the mock spec stubs
+  `/api/v1/persons` + `/api/v1/locations`). Codec is a pure framework-free pair with 10 unit tests
+  (`custom-filter.spec.ts`: round-trip, malformed→null, `{}`-default, formToFilter category routing);
+  decode is encoding-tolerant (paramMap pre-decodes once). Removed the now-dead
+  `report-placeholder.page.ts` (both custom shells became real pages — dead-code/maintainability).
+  `pnpm lint` + reporting vitest (28) + `ng build` green; all 8 reporting chromium mock e2e specs
+  pass (incl. the now-implemented custom-builder flow).
 - [ ] **T-12 — boyscout: structural post-deploy gallery guard.** Post-deploy job asserts the J-7
   bookmark row is a LIVE LINK and every declared asset (videos + paired shots) resolves 200 on the
   DEPLOYED page; add the shots-present pre-deploy guard. *(seam: deployed-gallery-guard step + add_shot presence guard)*

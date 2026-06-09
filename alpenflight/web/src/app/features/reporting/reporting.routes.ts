@@ -27,13 +27,16 @@ export const REPORTING_ROUTES: Routes = [
     path: 'custom/:category/:filter/edit',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () => import('./report-placeholder.page').then((m) => m.ReportPlaceholderPage),
+    loadComponent: () =>
+      import('./edit/report-custom-builder.page').then((m) => m.ReportCustomBuilderPage),
   },
   {
+    // Custom-filter results (mode = apply | view): the builder encodes the filter
+    // into `:filter` and navigates here; the results page decodes it and renders.
     path: 'custom/:category/:filter/:mode',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () => import('./report-placeholder.page').then((m) => m.ReportPlaceholderPage),
+    loadComponent: () => import('./results/report-results.page').then((m) => m.ReportResultsPage),
   },
   {
     path: ':category/:type',

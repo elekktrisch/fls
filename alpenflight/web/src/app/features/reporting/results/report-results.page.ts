@@ -4,10 +4,10 @@ import {
   computed,
   effect,
   inject,
-  input,
   signal,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 
 import { SessionStore } from '@core/session/session.store';
@@ -22,6 +22,7 @@ import type { FlightReportPageRequest } from '@api/generated/model';
 
 import { cannedReportRequest } from '../canned-report-request';
 import { isCannedType } from '../canned-report';
+import { customFilterRequest, decodeCustomFilter } from '../custom-filter';
 import { ReportStore } from '../report.store';
 
 /** Render a `YYYY-MM-DDTHH:mm:ssZ` (or any ISO) value as local `HH:MM`. */
@@ -244,11 +245,17 @@ function formatTime(iso?: string): string {
 export class ReportResultsPage {
   protected readonly store = inject(ReportStore);
   private readonly session = inject(SessionStore);
-  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
-  /** Route params (bound via `withComponentInputBinding`). */
-  readonly category = input<string>('person');
-  readonly type = input<string>('');
+  // Read route params off the paramMap directly: this page serves BOTH the
+  // canned route (`:category/:type`) and the custom-apply route
+  // (`custom/:category/:filter/:mode`), whose param sets differ — a single
+  // paramMap read handles both without per-route input bindings.
+  private readonly routeParams = toSignal(this.route.paramMap, { requireSync: true });
+  protected readonly category = computed(() => this.routeParams().get('category') ?? 'person');
+  protected readonly type = computed(() => this.routeParams().get('type') ?? '');
+  /** Present only on the custom-apply route; drives the custom-filter branch. */
+  private readonly filterParam = computed(() => this.routeParams().get('filter'));
 
   protected readonly exporting = signal(false);
 
@@ -256,8 +263,18 @@ export class ReportResultsPage {
     this.category() === 'location' ? 'Location flight report' : 'My flight report',
   );
 
-  /** The derived request the route loaded — null until a valid canned type. */
+  /**
+   * The derived request the route loaded. On the custom-apply route the filter
+   * is decoded from the `:filter` segment (the round-trip); on the canned route
+   * it is derived from the `:type` date-math + the principal-bound id. Null when
+   * neither resolves (an unknown canned `:type` → empty).
+   */
   private readonly request = computed<FlightReportPageRequest | null>(() => {
+    const encoded = this.filterParam();
+    if (encoded !== null) {
+      const filter = decodeCustomFilter(encoded);
+      return filter ? customFilterRequest(filter) : null;
+    }
     const t = this.type();
     if (!isCannedType(t)) return null;
     const user = this.session.authenticatedUser();
@@ -285,10 +302,13 @@ export class ReportResultsPage {
 
   protected readonly scopeLabel = computed(() => {
     const f = this.request()?.searchFilter;
+    const isCustom = this.filterParam() !== null;
     if (this.category() === 'location') {
-      return f?.locationId ? 'Club homebase' : 'Whole club';
+      if (!f?.locationId) return 'Whole club';
+      return isCustom ? 'Selected location' : 'Club homebase';
     }
-    return f?.flightCrewPersonId ? 'Me' : 'Whole club';
+    if (!f?.flightCrewPersonId) return 'Whole club';
+    return isCustom ? 'Selected person' : 'Me';
   });
 
   constructor() {

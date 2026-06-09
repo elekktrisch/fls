@@ -108,7 +108,7 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     expect(TESTIDS.customPersonSelect).not.toBe(TESTIDS.customLocationSelect);
   });
 
-  test.fixme('custom builder: set date range + flight-type toggles + selector → Apply → results render + filter round-trips', async ({
+  test('custom builder: set date range + flight-type toggles + selector → Apply → results render + filter round-trips', async ({
     page,
   }) => {
     await stubReportBackend(page);
@@ -117,27 +117,49 @@ test.describe('flight reports custom builder — screen shape (J-7 T-01 stub)', 
     const form = page.getByTestId(TESTIDS.customForm);
     await expect(form).toBeVisible();
 
-    // Date range (From/To).
-    await page.getByTestId(TESTIDS.customFrom).fill('2026-01-01');
-    await page.getByTestId(TESTIDS.customTo).fill('2026-12-31');
+    // The location category renders the location selector, not the person one.
+    await expect(page.getByTestId(TESTIDS.customLocationSelect)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.customPersonSelect)).toHaveCount(0);
+
+    // Date range (From/To) — the testid is on the <af-input>; fill the inner input.
+    await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
+    await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-12-31');
 
     // Flight-type toggles — Tow ON (defaults are Glider+Motor on, Tow off).
-    await page.getByTestId(TESTIDS.customTowToggle).click();
+    await page.getByTestId(TESTIDS.customTowToggle).check();
 
-    // Location category → location selector.
-    await page.getByTestId(TESTIDS.customLocationSelect).click();
+    await page.screenshot({ path: 'screenshots/reporting/03-custom-builder.png', fullPage: true });
 
-    // Apply builds the route filter param + calls the page endpoint.
-    await page.getByTestId(TESTIDS.customApply).click();
+    // Apply encodes the filter into the route + navigates to the apply view.
+    await page.getByTestId(TESTIDS.customApply).locator('button').click();
 
-    // Filter round-trips through the route param (T-15 asserts the encoded
-    // From/To/flags/LocationId all reappear on the results URL).
+    // Filter round-trips through the route param: the encoded segment carries
+    // the From/To/flags so the results URL reflects the applied filter (the AC).
     await expect(page).toHaveURL(/\/flightreports\/custom\/location\/.+\/(apply|view)/);
+    const url = new URL(page.url());
+    let encoded = url.pathname.split('/').at(-2) ?? '';
+    // The router percent-encodes the path segment; `URL.pathname` leaves it
+    // encoded — decode until it parses as the filter JSON (one or two passes).
+    let roundTripped: Record<string, unknown> | null = null;
+    for (let i = 0; i < 3 && roundTripped === null; i++) {
+      try {
+        roundTripped = JSON.parse(encoded) as Record<string, unknown>;
+      } catch {
+        encoded = decodeURIComponent(encoded);
+      }
+    }
+    expect(roundTripped).not.toBeNull();
+    roundTripped = roundTripped ?? {};
+    expect(roundTripped.flightDateFrom).toBe('2026-01-01');
+    expect(roundTripped.flightDateTo).toBe('2026-12-31');
+    expect(roundTripped.towFlights).toBe(true);
+
+    // The results view renders the filtered set from the decoded filter.
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.flightsTable)).toBeVisible();
 
     await page.screenshot({
-      path: 'screenshots/reporting/03-custom-results.png',
+      path: 'screenshots/reporting/04-custom-results.png',
       fullPage: true,
     });
   });
