@@ -185,6 +185,13 @@ calls for the port:
 - **Operator confirm at gate (not blocking the build):** is the Excel export consumed by any
   *external* tool (none found in `flsserver`/`flsweb`)? If yes, the typo/skip preservation is
   mandatory; if no, it's still the safe default (harness requires it). Recorded, not asked now.
+- **StartType int parity (T-03 finding).** Legacy carried a per-club DB `StartTypeId` int with
+  no fixed enum; the new schema dropped it (`t_start_type` has only `code`), so the read model
+  emits an AlpenFlight stable code→int. The **Excel export (T-07) MUST map the AlpenFlight
+  start-type code → the legacy `AircraftStartType` int** {Towing=1, Winch=2, Self=3, External=4,
+  Motor=5} for the StartType column to byte-match the legacy fixture; the parity harness (T-08)
+  treats StartType under that mapping. AirState/ProcessState already emit legacy SMALLINT codes
+  (byte-match directly).
 
 ## Boyscout riders — folded vs deferred (operator: "do the boyscout tasks", 2026-06-09)
 
