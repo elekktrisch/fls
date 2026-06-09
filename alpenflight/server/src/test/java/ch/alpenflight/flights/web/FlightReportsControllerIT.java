@@ -53,7 +53,7 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
     private static final UUID CLUB_B = UUID.fromString("019e30c5-2c00-7001-8000-0000000000b2");
 
     private static final int TYPE_GLIDER = 1;
-    /** {@code t_start_type} WINCH_LAUNCH id (V2 seed) → legacy AircraftStartType int 1. */
+    /** {@code t_start_type} WINCH_LAUNCH id (V2 seed) → legacy AircraftStartType.WinchLaunch int 2. */
     private static final UUID WINCH_LAUNCH_START_TYPE =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
 
@@ -175,7 +175,7 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
         Instant start = Instant.parse("2026-05-15T08:05:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:35:00Z"); // 1h30m duration
-        // WINCH_LAUNCH start type → legacy AircraftStartType int 1 (the StartType-int parity contract).
+        // WINCH_LAUNCH start type → legacy AircraftStartType.WinchLaunch int 2 (the StartType-int parity contract).
         UUID flight = seedFlightWithStartType(CLUB_A, aircraft, LocalDate.of(2026, 5, 15),
                 start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE);
         seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
@@ -229,7 +229,7 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
             assertThat(data.getCell(10).getCellStyle().getDataFormatString()).isEqualTo("HH:MM"); // LdgTime
             assertThat(data.getCell(11).getCellStyle().getDataFormatString()).isEqualTo("[H]:MM"); // Duration
             assertThat((int) data.getCell(12).getNumericCellValue()).isEqualTo(0); // IsSoloFlight 0
-            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(1); // StartType WINCH=1
+            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(2); // StartType WINCH=2 (legacy AircraftStartType.WinchLaunch)
         }
     }
 

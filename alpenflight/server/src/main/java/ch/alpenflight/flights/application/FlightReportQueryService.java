@@ -361,20 +361,22 @@ public class FlightReportQueryService {
     /**
      * Maps a {@code t_start_type.code} to the report's {@code StartType} int.
      * Legacy carried a per-club {@code StartTypeId} DB int with no fixed enum;
-     * the new schema dropped it (t_start_type has only {@code code}). This is
-     * the AlpenFlight stable code→int the report exposes — grounded in the V2
-     * seed order, not a legacy id round-trip. Unknown / null ⇒ null.
+     * the new schema dropped it (t_start_type has only {@code code}). For Excel
+     * parity this maps each code to the legacy {@code AircraftStartType} enum int
+     * by SEMANTIC correspondence (flsserver {@code Enums/AircraftStartType.cs}):
+     * TowingByAircraft=1, WinchLaunch=2, SelfStart=3, ExternalStart=4,
+     * MotorFlightStart=5 — NOT the V2 seed order. Unknown / null ⇒ null.
      */
     private static @Nullable Integer startTypeLegacyInt(@Nullable String code) {
         if (code == null) {
             return null;
         }
         return switch (code) {
-            case "WINCH_LAUNCH" -> 1;
-            case "AEROTOW" -> 2;
-            case "SELF_START" -> 3;
-            case "EXTERNAL_START" -> 4;
-            case "MOTOR" -> 5;
+            case "AEROTOW" -> 1;        // legacy AircraftStartType.TowingByAircraft
+            case "WINCH_LAUNCH" -> 2;   // legacy AircraftStartType.WinchLaunch
+            case "SELF_START" -> 3;     // legacy AircraftStartType.SelfStart
+            case "EXTERNAL_START" -> 4; // legacy AircraftStartType.ExternalStart
+            case "MOTOR" -> 5;          // legacy AircraftStartType.MotorFlightStart
             default -> null;
         };
     }
