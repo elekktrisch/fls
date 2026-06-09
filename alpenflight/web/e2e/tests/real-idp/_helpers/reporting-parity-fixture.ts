@@ -16,7 +16,7 @@ import { seedFlightMasterdata, type FlightMasterdata } from './flight-parity-fix
  * and the migrated club's admin is a provisioned Keycloak admin, NOT a crew
  * Person. The J-7 report contract needs MORE than the J-2 bundle provides — the
  * oracle's "Minimum legacy seed":
- *   - a pilot with ≥3 GLIDER flights incl. an aerotow pair,
+ *   - a pilot with ≥2 GLIDER flights incl. an aerotow pair,
  *   - the SAME pilot also PilotOrStudent on a MOTOR + a TOW flight (so the
  *     person-report summary shows Pilot (Motor)/(Towing) with the CORRECTED
  *     non-zero TotalFlights — the legacy-bug correction),
@@ -205,11 +205,15 @@ function iso(date: string, hhmm: string): string {
  *   1. TOW flight (tow aircraft, pilot=PilotOrStudent) — its own row.
  *   2. AEROTOW GLIDER (glider aircraft, pilot=PilotOrStudent), then PUT-linked
  *      to (1) → the glider's detail carries towFlightId (nested-tow block).
- *   3. A second GLIDER (winch) flown by the same pilot — so the pilot has ≥3
- *      glider flights (2 glider + the aerotow pair counts the glider once; this
- *      adds the third).
+ *   3. A second GLIDER (winch) flown by the same pilot — the pilot's second
+ *      glider flight (the aerotow glider #2 is the first), so the person summary's
+ *      Pilot (Glider) row carries ≥2 flights.
  *   4. A MOTOR flight (motor aircraft, pilot=PilotOrStudent) — so the person
  *      summary shows Pilot (Motor) with non-zero TotalFlights.
+ *   4b. A TOW-aircraft flight flown by the SAME pilot (pilot=PilotOrStudent) — so
+ *      the person summary shows Pilot (Towing) with non-zero TotalFlights (J-7
+ *      T-18: the gate failure — flight #1 is a tow flight but its crew is the
+ *      separate towPilotPersonId, so `pilot` was never a tow pilot).
  *   5. An INSTRUCTOR non-solo glider flight (instructor=FlightInstructor).
  *   6. An INSTRUCTOR SOLO glider flight (instructor=FlightInstructor, solo) —
  *      the Instructor vs Instructor (Soloflights) split.
@@ -320,6 +324,36 @@ export async function seedReportingFixture(
     ldgLocationId: homebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_MOTOR,
+    isSoloFlight: false,
+    noStartTimeInformation: false,
+    noLdgTimeInformation: false,
+    crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
+  });
+
+  // 4b. A TOW-AIRCRAFT flight flown by the SAME pilot as PilotOrStudent — so the
+  // person summary shows Pilot (Towing) with the CORRECTED non-zero TotalFlights.
+  // The person-branch row split keys on the FLIGHT's aircraft-type int
+  // (1=glider/2=tow/4=motor; FlightReportQueryService TYPE_TOW=2) AND the
+  // reported person holding the PilotOrStudent crew role on it (JpaFlightReport-
+  // Repository.roleExists on PILOT_TYPE). Seed flight #1 above is a TOW flight but
+  // its crew is the SEPARATE towPilotPersonId, so `pilot` was never a tow pilot and
+  // the Pilot (Towing) row was absent (row count 0 — the J-7 T-18 gate failure).
+  // This is a DISTINCT TOW flight (not a second crew row on #1) so it neither
+  // perturbs the nested aerotow pairing (#1↔#2) nor risks a duplicate-crew row.
+  // It renders as a plain report-flights-row (not a report-flights-tow-row — that
+  // testid is the nested block under an aerotow glider only), so the location
+  // case's nested-tow assertion is unaffected.
+  const pilotTowDate = daysAgo(1);
+  await postFlight(api, bearer, {
+    flightAircraftType: 'TOW',
+    aircraftId: masterdata.towAircraftId,
+    flightDate: pilotTowDate,
+    startDateTime: iso(pilotTowDate, '15:00'),
+    ldgDateTime: iso(pilotTowDate, '15:14'),
+    startLocationId: homebase,
+    ldgLocationId: homebase,
+    flightTypeId: masterdata.gliderFlightTypeId,
+    startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
     noStartTimeInformation: false,
     noLdgTimeInformation: false,
