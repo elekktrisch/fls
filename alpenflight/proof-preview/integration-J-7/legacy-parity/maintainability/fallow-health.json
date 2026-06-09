@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.90.0",
-  "elapsed_ms": 389,
+  "elapsed_ms": 382,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -1828,7 +1828,7 @@
     {
       "path": "src/app/features/reporting/edit/report-custom-builder.page.ts",
       "name": "filterToForm",
-      "line": 251,
+      "line": 249,
       "col": 0,
       "cyclomatic": 8,
       "cognitive": 6,
@@ -3152,7 +3152,7 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1487,
-      "total_lines": 27475,
+      "total_lines": 27473,
       "files_scored": 162,
       "total_deps": 0
     },
@@ -3171,7 +3171,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.2,
-    "total_loc": 27475
+    "total_loc": 27473
   },
   "health_score": {
     "formula_version": 2,
@@ -3580,7 +3580,7 @@
       "total_cyclomatic": 29,
       "total_cognitive": 17,
       "function_count": 13,
-      "lines": 268,
+      "lines": 266,
       "crap_max": 72.0,
       "crap_above_threshold": 1
     },

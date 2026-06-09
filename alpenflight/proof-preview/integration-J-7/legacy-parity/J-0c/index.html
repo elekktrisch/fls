@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-5</title>
+<title>AlpenFlight proof — J-0c</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-5 — proof</h1>
+    <h1>J-0c — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-5</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 1 screenshot</span>
+      <span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -144,23 +144,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-e18121a9d7987cf4d738a5b936cdddb5f08f41ed.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-249ef41fd80f53bfb2804d0765e50999d55045c8.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-60d82bab92fff5e45d86d2bb7bf9a7133fdb0202.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-b6ac72105c714b49131ec7967f8743a3aeba9702.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
         </figure>
         </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservation-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
           <table class="maint-table">

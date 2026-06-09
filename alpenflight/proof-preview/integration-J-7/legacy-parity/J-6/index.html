@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-6 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-6</span> <span class="status success">7 proofs</span> <span class="summary-counts">7 videos · 6 screenshots</span>
+      <span class="summary-jid">J-6</span> <span class="status success">8 proofs</span> <span class="summary-counts">8 videos · 6 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-09T14:23:45.432Z
+      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-09T17:05:24.901Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -148,28 +148,32 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) + one planning day's edit form (date · location · remarks · the 3 crew selectizes · the inline per-day reservations table) + the setup wizard (start/end range · 7 weekday checkboxes · location) — the legacy field set to eyeball against AlpenFlight's /planning list + edit form + /planningsetup wizard</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-f55e33abcbc9089dba3008d8b751a23dcf67de1c.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-c187f9f896c365befd36c6c059c50a0f4e23e1c4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-b4f637b7a8523aa5634c38c6a5e620bc4878534f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-c7ba7c214c98f675a881438ab7f88f4dd6eecba2.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d84f6888fcc648f99371876ffd40976e5827dfe8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-0596598b9eb6f38cc276ca7fc183b9a131a21e9e.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-21968f3bdd177a97c37d2aa8fc53d54b9bde0142.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-6c116ab5fce5c48fe4bd8aeabbbac67888beb2af.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1895169111042aa891b2acde406dd10fb6310d7d.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-99b84887fd6600a24bc71ddf68a381a96f1f1329.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-041d69b833480f96b348e33e16d1134c059cd100.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-ebe8501761814875acfaf97a83e6055fcd0bfe4d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-efffe89b5fb6dcf7e05de4090a829cf1698b32b9.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · migrated planning day · a real legacy planning day (remark &quot;Test3&quot;, with crew assignments + a fan-out-resolved own-club location), exported + migrated through the live chain, renders on the migrated TestClub’s /planning list — identity-matched to legacy and pointing at its OWN club’s Location replica (full legacy→export→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
