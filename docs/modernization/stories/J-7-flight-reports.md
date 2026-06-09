@@ -398,10 +398,39 @@ form's next-touch journey (folding them here would violate the recorded operator
   swaps in here when the fan-out brings up the legacy stack). **SCOPE:** FlightReports ONLY;
   DeliveryMailExport + AircraftStatisticReport ride J-10 (comparator reused, not rebuilt) — recorded
   in `src/test/resources/excel-parity/README.md` so it doesn't read as "all three covered".
-- [ ] **T-09 — web reporting scaffold: feature folder + picker + date-math util + store.** Routes
+- [x] **T-09 — web reporting scaffold: feature folder + picker + date-math util + store.** Routes
   (`/flightreports`, `/:category/:type`, `/custom/:category/:filter/edit|:mode`); picker tile grid
   (person + location categories); canned `:type` → derived date-range util (oracle §1); report
   store + orval client wiring. *(seam: web reporting feature scaffold + picker)*
+  <br>DONE: orval regenerated → new `flightreports/flightreports.service.ts` with NAMED methods
+  `getFlightReportPage` + `exportFlightReportExcel` (explicit operationIds from T-05/T-07 held;
+  no positional `getN`) + 8 additive model types; clean additive diff (no renumbered existing
+  methods). Feature folder `src/app/features/reporting/`: `reporting.routes.ts` (lazy, registered
+  in `app.routes.ts` as `/flightreports`; `custom/...` routes ordered before `:category/:type` so
+  the literal `custom` segment isn't swallowed by `:category`); `picker/flight-reports-picker.page.ts`
+  (functional tile grid — person tiles my-flights-today…previous-year, location tiles location-flights
+  today/yesterday/this-year/previous-year; testids `flightreports-category-{person,location}` +
+  `flightreports-tile-<category>-<type>` per the T-01 contract; logbook page-header idiom, ng-zorro +
+  Tailwind, RouterLink anchors); `report-placeholder.page.ts` (scaffold the `:category/:type` results
+  route + the two `custom/...` builder routes for T-10/T-11 to fill — page chrome + spinner, no
+  results table/form built here); `canned-report.ts` (PURE date-math util `cannedDateRange`/
+  `cannedReportSpec` reproducing `FlightReportsController.js:118-364` EXACTLY incl. the intended
+  off-by-one: last-7-days = today−7…today = 8 inclusive days, same for 30-days/12-months/24-months;
+  this-year = Jan 1…today; previous-year = last Jan 1…last Dec 31; default flags glider+motor on, tow
+  off per the journey note — legacy actually sets tow on, corrected per § Parity decisions);
+  `canned-report-request.ts` (composes `{searchFilter}` binding person→flightCrewPersonId /
+  location→locationId); `report.store.ts` (signalStore over `getFlightReportPage` with
+  `{sorting,searchFilter}` → items+summaries+totalRows, loading/error, isEmpty; clears on tenant
+  switch/logout). 18 unit tests (canned-report 13 + canned-report-request 5) green. `pnpm lint` +
+  `ng build` green; date-math + request-composer unit tests green.
+  <br>ESCALATION (source of canned ids): person canned reports source `flightCrewPersonId` from
+  `SessionStore.authenticatedUser().personId` (populated by `/me`, S-165) — works end-to-end.
+  **Club homebase location id for LOCATION canned reports is NOT on the web wire** — `ClubResponse`
+  has no `homebaseId` and `/me` (MeResponse) carries no homebase field. `cannedReportRequest` leaves
+  `locationId` null for location reports until that seam exists; the backend is tenant-scoped (ADR
+  0008) so a location report with no locationId still returns the caller's club (club-wide, not
+  homebase-filtered). FLAGGED for T-10 / a follow-up: add `homebaseLocationId` to `/me` or
+  `ClubResponse` so location canned reports filter to the homebase.
 - [ ] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
   table idiom; nested tow rendering) + **Excel export button** (streamed download); empty-state.
   *(seam: web reporting results component)*
