@@ -3,6 +3,7 @@ id: S-093
 title: Inventory every Excel export (column/row spec)
 epic: E-11
 status: todo
+rolled_up_into: J-7
 depends_on: []
 acceptance:
   - A reference doc `alpenflight/database/legacy-excel-exports.md` (or similar) lists every Excel-emitting code path in the legacy server with: source code location, sheet structure, column list with types/formats, sample input → sample output.

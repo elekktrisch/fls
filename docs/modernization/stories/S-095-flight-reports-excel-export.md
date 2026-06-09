@@ -3,6 +3,7 @@ id: S-095
 title: Port flight-reports synchronous Excel export
 epic: E-11
 status: todo
+rolled_up_into: J-7
 depends_on: [S-065, S-094]
 acceptance:
   - `GET /api/v1/flightreports/.../export?format=xlsx` returns an Excel attachment.
