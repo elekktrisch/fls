@@ -320,9 +320,29 @@ form's next-touch journey (folding them here would violate the recorded operator
   a club-B location sees no club-B rows (tenant isolation); PILOT-role caller reads. No exception
   handler needed (no new domain exception types; the global handlers cover it). `./gradlew check`
   green (cpdRatchet/pmdMain/arch-guards incl. ControllerAuditCoverage/OpenApiSnapshotIT/all ITs).
-- [ ] **T-06 — ExcelExportSupport POI helper (S-094).** Add `poi-ooxml` dep; SXSSF streaming
+- [x] **T-06 — ExcelExportSupport POI helper (S-094).** Add `poi-ooxml` dep; SXSSF streaming
   helper: `headerRow/dataRow/dateCell/timeCell/durationCell/intCell/streamingWorkbook` matching
   legacy formats; one unit test per helper. *(seam: ch.alpenflight.excel.ExcelExportSupport + dep)*
+  <br>DONE: `org.apache.poi:poi-ooxml:5.5.1` added to `alpenflight/server` (latest stable, runs on
+  JDK 25; `poi-ooxml-full` NOT needed — streaming write path only touches the lite ooxml-schemas).
+  POI's transitive `commons-io:2.21.0` clashed with the existing `commons-compress`-pulled `2.16.1`
+  under `failOnVersionConflict()` → pinned `commons-io:2.21.0` explicitly (one resolved version).
+  Helper homed at **`ch.alpenflight.platform.excel.ExcelExportSupport`** (NOT a new top-level
+  `ch.alpenflight.excel` module — `platform` is the OPEN Spring-Modulith shared kernel every feature
+  may import without a named interface; mirrors the `platform.text.FreeText` precedent). Backed by
+  `SXSSFWorkbook(100)` (default row window, S-094). Helpers: `streamingWorkbook()`/`workbook()`,
+  `titleCell(...,fontSizeInPoints)` (A1 "Flights" font 20), `headerRow`, `dataRow`, `stringCell`,
+  `intCell` (raw ints — AirState/ProcessState/StartType/IsSoloFlight), `dateCell(value,formatString)`,
+  `timeCell` (`HH:MM`), `durationCell` (`[H]:MM`, value = seconds/86400 fraction-of-day), generic
+  `formattedCell(value,formatString)` (the J-10 currency/locale extension seam), `autoSize` +
+  `trackColumnsForAutoSizing` (SXSSF requires tracking BEFORE row writes — documented + autoSize
+  defensively enables all-column tracking). Per-format-string + per-font-size `CellStyle` caching
+  (POI 64k-style cap). 13 unit tests (one per helper + style-reuse + autosize), plain JUnit5/AssertJ
+  (no Postgres/Spring) — write cell → serialize SXSSF → read back as XSSF → assert value AND
+  number-format string. Currency/locale cells deferred to J-10 (noted in javadoc) per
+  vertical-slices-first. `./gradlew check` green (arch-guards/PMD/cpdRatchet at baseline 4767/
+  OpenApiSnapshotIT/all ITs). 4 files: build.gradle.kts + ExcelExportSupport.java + package-info.java
+  + ExcelExportSupportTest.java.
 - [ ] **T-07 — flight-reports Excel export endpoint (S-095).** `POST …/export/excel/{start}/{size}`
   streaming `.xlsx`; exact 30-col layout + A1/A3/C3 metadata + skipped col 17 + `HH:MM`/`[H]:MM`
   formats per oracle §5; correct MIME. *(seam: FlightReportsController export endpoint + writer)*

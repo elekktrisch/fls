@@ -220,6 +220,22 @@ dependencies {
     // the write side — keeps producer + consumer on lockstep tooling.
     implementation("org.apache.commons:commons-compress:1.27.1")
 
+    // J-7 T-06 (S-094): Apache POI for AlpenFlight's FIRST synchronous Excel
+    // export. `poi-ooxml` is the .xlsx (OOXML) writer; it transitively brings
+    // `poi` (core) + the SXSSF streaming workbook used by ExcelExportSupport
+    // (ch.alpenflight.platform.excel). 5.5.x is the current stable line and
+    // runs on the project's JDK 25 toolchain. `poi-ooxml-full` (the schema
+    // mega-jar) is NOT needed — the streaming write path only touches the lite
+    // ooxml-schemas that `poi-ooxml` already depends on. T-07 (flight-reports
+    // export) + J-10 (deliveries/statistics exports) consume the helper.
+    implementation("org.apache.poi:poi-ooxml:5.5.1")
+    // J-7 T-06: POI 5.5.1 (poi-core) requests commons-io 2.21.0 while the
+    // already-present commons-compress 1.27.1 requests 2.16.1 →
+    // failOnVersionConflict() reds the build on the split. Pin the higher
+    // (backward-compatible) version explicitly so both resolve to one. POI is
+    // the version-leading consumer here; 2.21.0 satisfies commons-compress too.
+    implementation("commons-io:commons-io:2.21.0")
+
     // J-0b T-10: TEST-only — LocationRealProducerRoundTripIT builds a bundle via
     // the REAL BundleWriter.assembleTarGz (not the hand-ordered test factory) to
     // prove the pgcopy-before-NDJSON tar entry order survives a real producer run
