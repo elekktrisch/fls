@@ -399,10 +399,15 @@ test.describe('J-7 flight reports — real chain parity', () => {
 
   // ── TENANT ISOLATION (key-error) — a REAL low-privilege PILOT (club A)
   // filtering by a CLUB-B location sees NO club-B flights. The report query is
-  // @TenantId scoped (ADR 0008, structural), so the cross-club location yields an
-  // empty result — closing the legacy tenancy hole. Driving a low-priv PILOT (not
-  // the admin-everything mock principal) also proves the report read endpoint's
-  // role gate admits a PILOT without leaking across tenants. ───────────────────
+  // @TenantId scoped (ADR 0008, structural), so the cross-club location yields NO
+  // matching flights — closing the legacy tenancy hole. A LOCATION report with
+  // zero matching flights is NOT the empty-state: legacy parity
+  // (FlightReportService.cs:715-727 → locationBranch always appends a zeroed
+  // "Total") returns one zeroed summary row, so the page shows the summary table
+  // (not report-empty). The isolation proof is therefore: zero leaked flight rows
+  // + a zeroed Total (asserted below). Driving a low-priv PILOT (not the
+  // admin-everything mock principal) also proves the report read endpoint's role
+  // gate admits a PILOT without leaking across tenants. ────────────────────────
   test('[key-error] tenant isolation: a club-A PILOT filtering by a club-B location sees no club-B flights', async ({
     browser,
   }, testInfo) => {
@@ -411,7 +416,7 @@ test.describe('J-7 flight reports — real chain parity', () => {
     try {
       await loginAsSeedClubPilot(page, pilot);
       // Custom location report targeting CLUB B's location id. @TenantId scope
-      // must yield an empty result for the club-A PILOT — never a leak.
+      // must yield NO matching flights for the club-A PILOT — never a leak.
       const yearStart = `${new Date().getFullYear()}-01-01`;
       const todayIso = new Date().toISOString().slice(0, 10);
       await page.goto(
@@ -425,11 +430,34 @@ test.describe('J-7 flight reports — real chain parity', () => {
         }),
       );
 
-      // The empty-state renders — no club-B flight leaks into the club-A PILOT's
-      // report, and there is no flights/summary table.
-      await expect(page.getByTestId('report-empty')).toBeVisible();
-      await expect(page.getByTestId('report-flights-table')).toHaveCount(0);
-      await expect(page.getByTestId('report-summary-table')).toHaveCount(0);
+      // ISOLATION ASSERTION — a LOCATION report is NOT an empty-state when it has
+      // zero matching flights: the legacy `FlightReportService.cs:715-727`
+      // (mirrored by `FlightReportQueryService.locationBranch` → `totalRow` always
+      // appended) returns a SINGLE zeroed "Total" summary row even with no flights,
+      // so `report.store.ts` `isEmpty` (items===0 && summaries===0) is FALSE and the
+      // page renders the summary table with one zeroed Total — never `report-empty`.
+      // The security property we prove is the absence of a leak, not the empty-state:
+      //   1. NO club-B flight row appears (the flights table has 0 data rows), and
+      //   2. the lone summary row is the zeroed Total (no club-B starts/ldgs/flights).
+      // This still FAILS loud if a club-B flight leaked into the club-A PILOT's
+      // @TenantId-scoped report (a leaked row → report-flights-row count > 0, and a
+      // non-zero Total flights cell).
+      const summaryTable = page.getByTestId('report-summary-table');
+      await expect(summaryTable).toBeVisible();
+      // No leaked flights — the flights table renders with zero data rows.
+      await expect(page.getByTestId('report-flights-row')).toHaveCount(0);
+      // The only summary row is the zeroed Total (location-report parity).
+      const summaryRows = page.getByTestId('report-summary-row');
+      await expect(summaryRows).toHaveCount(1);
+      const total = summaryRows.first();
+      await expect(total).toContainText('Total');
+      // Total flights/starts/landings are all 0 — no club-B data summed in.
+      // (cells: Group · Starts · Landings · Flights · Duration → cols 1..3 are 0).
+      await expect(total.locator('td').nth(1)).toHaveText('0'); // starts
+      await expect(total.locator('td').nth(2)).toHaveText('0'); // landings
+      await expect(total.locator('td').nth(3)).toHaveText('0'); // flights
+      // And the empty-state is NOT shown (this branch is mutually exclusive with it).
+      await expect(page.getByTestId('report-empty')).toHaveCount(0);
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-reporting-tenant-isolation.png`,

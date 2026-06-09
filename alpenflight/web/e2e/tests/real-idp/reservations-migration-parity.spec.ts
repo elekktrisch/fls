@@ -298,6 +298,23 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
   test('[happy] create a timed reservation through the UI type-picker → it renders in the list and scheduler lane', async ({
     browser,
   }, testInfo) => {
+    // S-163 timeout pattern (aircraft-migration-parity.spec.ts:493). T-17 made the
+    // FULL legacy bundle ingest (was aborting on 23505 before), so the fanout's
+    // shared DB + Keycloak are heavier: this test's real-IDP redirect login + the
+    // four sequential <af-select> picker resolutions over a now-populated aircraft
+    // catalog legitimately push the multi-step UI create past the 45s base budget
+    // under load. The cause is environment contention, NOT a slot collision — the
+    // reserved aircraft is run-tagged + freshly seeded (HB-R<tag>) and migrated
+    // reservations land in a DIFFERENT tenant, so the operating_club_id+aircraft_id
+    // GiST overlap probe can't collide. We do NOT raise the 5s per-ASSERTION
+    // expect timeout — a genuinely stuck step still fails fast naming the step (the
+    // create's waitForResponse below is capped at 30s so a real non-201 surfaces
+    // precisely instead of a vague minute-long test timeout). 90s = 45s base flow +
+    // ~45s heavy-bundle headroom.
+    // CI MUST CONFIRM: with this bump the create reliably reaches its 201. If it
+    // still times out at the POST, the picker/seed cost (or a real backend reject)
+    // is the thing to attack, not a further bump.
+    test.setTimeout(90_000);
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
@@ -356,11 +373,15 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       // Capture the 201 (the SPA navigates on bus-success → read the id from the
       // Location header, never the evicted POST body). Track it for afterAll
       // cleanup BEFORE asserting, so a later failure still cleans the row.
+      // Cap the create wait at 30s (well under the 90s test budget) so a genuine
+      // non-201 (e.g. an unexpected 409/422) fails here with a precise wire-state
+      // message instead of the test hanging until the test-level timeout.
       const createdResp = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
           new URL(r.url()).pathname === '/api/v1/aircraft-reservations' &&
           r.status() === 201,
+        { timeout: 30_000 },
       );
       await page.getByTestId('reservation-save-button').click();
       const resp = await createdResp;
