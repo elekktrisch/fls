@@ -588,6 +588,6 @@ form's next-touch journey (folding them here would violate the recorded operator
   /do-retro: an e2e `tsc -p e2e/tsconfig.json --noEmit` CI gate would now be a natural follow-on (the
   tree is green) — out of scope here per the rider. Other pre-existing e2e lint findings (array-type /
   no-empty-pattern / preserve-caught-error in untouched real-idp specs) left to their owners.
-- [ ] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
+- [x] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
   + edge assertions from the oracle (canned date windows, summary grouping incl. corrected
   TotalFlights, nested tow, tenant isolation, Excel parity). *(seam: reporting spec full assertions)*
