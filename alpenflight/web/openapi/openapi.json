@@ -1526,6 +1526,35 @@
         }
       }
     },
+    "/api/v1/planning-days/validate" : {
+      "post" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Pre-check a candidate (date, location) for a duplicate planning day (non-mutating). 200 with {valid,field,message} — surfaces the save-path 409 inline before save.",
+        "operationId" : "validatePlanningDayUniqueness",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayValidateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Validation outcome (valid flag + offending field/message).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayValidationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/planning-days/page/{start}/{size}" : {
       "post" : {
         "tags" : [ "Planning days" ],
@@ -2526,6 +2555,35 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/aircraft-reservations/validate" : {
+      "post" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Pre-check a candidate aircraft slot for overlap (non-mutating). 200 with {valid,field,message} — surfaces the save-path conflict inline before save.",
+        "operationId" : "validateAircraftReservationOverlap",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftReservationValidateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Validation outcome (valid flag + offending field/message).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationValidationResult"
                 }
               }
             }
@@ -5479,6 +5537,43 @@
         },
         "required" : [ "locationId", "planningDate" ]
       },
+      "PlanningDayValidateRequest" : {
+        "type" : "object",
+        "description" : "Candidate (date, location) to pre-check for a duplicate planning day (non-mutating).",
+        "properties" : {
+          "planningDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "excludePlanningDayId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "On an edit, the planning day's own id — excluded from the uniqueness probe so it does not self-conflict. Absent on a create check."
+          }
+        },
+        "required" : [ "locationId", "planningDate" ]
+      },
+      "PlanningDayValidationResult" : {
+        "type" : "object",
+        "description" : "Field-level validation outcome for an inline pre-check (200; valid flag + offending field).",
+        "properties" : {
+          "valid" : {
+            "type" : "boolean"
+          },
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "valid" ]
+      },
       "PlanningDayPageRequest" : {
         "type" : "object",
         "description" : "Legacy PageableSearchFilter-shaped paged-list request (Day.From filter + sorting).",
@@ -6388,6 +6483,50 @@
           }
         },
         "required" : [ "aircraftId", "end", "isAllDay", "locationId", "pilotPersonId", "start" ]
+      },
+      "AircraftReservationValidateRequest" : {
+        "type" : "object",
+        "description" : "Candidate aircraft-slot fields to pre-check for overlap (non-mutating).",
+        "properties" : {
+          "aircraftId" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "start" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "end" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "isAllDay" : {
+            "type" : "boolean"
+          },
+          "excludeReservationId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "On an edit, the reservation's own id — excluded from the overlap probe so it does not self-conflict. Absent on a create check."
+          }
+        },
+        "required" : [ "aircraftId", "end", "isAllDay", "start" ]
+      },
+      "ReservationValidationResult" : {
+        "type" : "object",
+        "description" : "Field-level validation outcome for an inline pre-check (200; valid flag + offending field).",
+        "properties" : {
+          "valid" : {
+            "type" : "boolean"
+          },
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "valid" ]
       },
       "AircraftReservationPageRequest" : {
         "type" : "object",
@@ -7742,6 +7881,11 @@
           },
           "isTowingAircraft" : {
             "type" : "boolean"
+          },
+          "nrOfSeats" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Seat count — drives the conditional Second-Crew requirement on the reservation form (required when nrOfSeats > 1). Nullable: an aircraft may have an unknown seat count."
           }
         },
         "required" : [ "aircraftTypeId", "id", "immatriculation", "isTowingAircraft" ]
@@ -7809,9 +7953,13 @@
           },
           "active" : {
             "type" : "boolean"
+          },
+          "instructorRequired" : {
+            "type" : "boolean",
+            "description" : "Whether picking this type requires a Second-Crew person. AlpenFlight's reservation-type model carries only the single is_instructor_required flag; the legacy ObserverPilotOrInstructorRequired / IsPassengerRequired FlightType-derived flags are NOT modeled here, so this one boolean is the collapsed second-crew-required driver for the type lane (the aircraft NrOfSeats>1 driver rides the picker)."
           }
         },
-        "required" : [ "active", "id", "name" ]
+        "required" : [ "active", "id", "instructorRequired", "name" ]
       },
       "AuditEventPage" : {
         "type" : "object",

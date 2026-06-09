@@ -12,7 +12,8 @@ import {
 } from '@ngrx/signals';
 import { setAllEntities, withEntities } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { forkJoin, pipe, switchMap, tap } from 'rxjs';
+import type { ValidationErrors } from '@angular/forms';
+import { debounceTime, forkJoin, pipe, switchMap, tap } from 'rxjs';
 
 import { AircraftReservationTypesService } from '@api/generated/aircraft-reservation-types/aircraft-reservation-types.service';
 import { AircraftReservationsService } from '@api/generated/aircraft-reservations/aircraft-reservations.service';
@@ -27,8 +28,10 @@ import type {
   AircraftReservationPage,
   AircraftReservationTypeListItem,
   AircraftReservationUpdateRequest,
+  AircraftReservationValidateRequest,
   LocationListItem,
   PersonListItem,
+  ReservationValidationResult,
 } from '@api/generated/model';
 import { mapApiSaveError } from '@shared/util/form';
 
@@ -79,6 +82,13 @@ interface ReservationsExtraState {
   immatById: Readonly<Record<string, string>>;
   pilotNameById: Readonly<Record<string, string>>;
   locationNameById: Readonly<Record<string, string>>;
+  // Inline overlap pre-check (J-6b T-06). The edit form's STORE owns the
+  // `…/validate` call (CLAUDE.md §4 — no HTTP in components); the result is
+  // surfaced inline on the start/slot field via `liveFieldErrors`'s
+  // `asyncErrors$` merge. `overlapValidating` drives the pending hint; a
+  // `valid:false` result becomes the inline server-error message.
+  overlapValidating: boolean;
+  overlapResult: ReservationValidationResult | null;
 }
 
 const initialExtra: ReservationsExtraState = {
@@ -96,6 +106,8 @@ const initialExtra: ReservationsExtraState = {
   immatById: {},
   pilotNameById: {},
   locationNameById: {},
+  overlapValidating: false,
+  overlapResult: null,
 };
 
 function withRowId(r: AircraftReservationListItem): ReservationItem {
@@ -109,11 +121,20 @@ export const ReservationsStore = signalStore(
   { providedIn: 'root' },
   withEntities<ReservationItem>(),
   withState<ReservationsExtraState>(initialExtra),
-  withComputed(({ entities, loadError, totalRows, immatById }) => ({
+  withComputed(({ entities, loadError, totalRows, immatById, overlapResult }) => ({
     isEmpty: computed(() => entities().length === 0),
     hasError: computed(() => loadError() !== null),
     pageSize: computed(() => PAGE_SIZE),
     total: computed(() => totalRows()),
+    // Inline overlap pre-check (T-06): a `valid:false` result becomes the
+    // `ValidationErrors` slot the edit form merges onto the start/slot field via
+    // `liveFieldErrors`'s `asyncErrors$`. `null` when there is no conflict (or no
+    // probe has run) so the inline message clears.
+    overlapErrors: computed<ValidationErrors | null>(() => overlapResultToErrors(overlapResult())),
+    overlapMessage: computed<string | null>(() => {
+      const r = overlapResult();
+      return r && !r.valid ? (r.message ?? 'aircraft.reservation.overlap') : null;
+    }),
     // Scheduler-view selector (T-10): group the loaded reservations into one
     // lane per aircraft that has reservations, in immatriculation order. A thin
     // derivation over `entities()` — the calendar view shares the list store's
@@ -210,8 +231,40 @@ export const ReservationsStore = signalStore(
         clearSaveError(): void {
           patchState(store, { saveError: null });
         },
+        clearOverlapValidation(): void {
+          patchState(store, { overlapValidating: false, overlapResult: null });
+        },
+        // Inline overlap pre-check (T-06). The edit form fires this (debounced)
+        // when aircraft + start + end + all-day are set/changed; the SAME J-5
+        // overlap probe the save path runs, behind the non-mutating `…/validate`
+        // path (oracle: NO new rule). `excludeReservationId` self-excludes on an
+        // edit. The result feeds the inline `overlapErrors` / `overlapMessage`
+        // selectors — surfaced on the start/slot field, no save round-trip.
+        validateOverlap: rxMethod<AircraftReservationValidateRequest>(
+          pipe(
+            debounceTime(200),
+            tap(() => patchState(store, { overlapValidating: true })),
+            switchMap((req) =>
+              reservationsApi.validateAircraftReservationOverlap(req).pipe(
+                tapResponse({
+                  next: (result: ReservationValidationResult) =>
+                    patchState(store, { overlapResult: result, overlapValidating: false }),
+                  error: () =>
+                    // A failed probe must not block the form — the save-path 409
+                    // stays the backstop. Clear the inline state on error.
+                    patchState(store, { overlapResult: null, overlapValidating: false }),
+                }),
+              ),
+            ),
+          ),
+        ),
         selectNew(): void {
-          patchState(store, { selectedDetail: null, saveError: null });
+          patchState(store, {
+            selectedDetail: null,
+            saveError: null,
+            overlapValidating: false,
+            overlapResult: null,
+          });
         },
         loadDetail: rxMethod<string>(
           pipe(
@@ -323,6 +376,20 @@ export const ReservationsStore = signalStore(
     },
   }),
 );
+
+/**
+ * Map a `…/validate` overlap result to the inline `ValidationErrors` slot the
+ * edit form merges onto the offending field (T-06). A passing (or absent)
+ * result clears the slot; a failing one keys an `overlap` error so
+ * `<af-field-errors>` renders the inline message. Pure — unit-tested without a
+ * `TestBed`.
+ */
+export function overlapResultToErrors(
+  result: ReservationValidationResult | null | undefined,
+): ValidationErrors | null {
+  if (!result || result.valid) return null;
+  return { overlap: result.message ?? true };
+}
 
 function buildImmatMap(items: readonly AircraftPickerItem[]): Record<string, string> {
   const map: Record<string, string> = {};

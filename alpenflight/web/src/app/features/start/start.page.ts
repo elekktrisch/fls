@@ -6,6 +6,8 @@ import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
 import { LocationsStore } from '@features/locations/locations.store';
 
+import { formatIsoDateDdMmYyyy } from '@shared/util/date';
+
 import { AfPageComponent } from '@ui/molecules/af-page';
 
 import { DEFAULT_LOCALE } from '../../core/i18n/lang-resolver';
@@ -172,16 +174,13 @@ export class StartPage {
   protected readonly formattedToday = computed(() =>
     formatLocaleDate(this.today(), this.locale(), 'long'),
   );
-  protected readonly formattedLastFlightDate = computed(() => {
-    const iso = this.store.lastFlight()?.flightDate;
-    if (!iso) return '';
-    // Avoid the new Date('YYYY-MM-DD') UTC-midnight gotcha by parsing the
-    // local-date components directly — a flight in CH-DE on 2026-05-21
-    // mustn't render as 2026-05-20 west of UTC.
-    const [y, m, d] = iso.split('-').map(Number);
-    if (!y || !m || !d) return '';
-    return formatLocaleDate(new Date(y, m - 1, d), this.locale(), 'medium');
-  });
+  // DD.MM.YYYY date-only (J-6b T-12 — legacy hardcodes it). `formatIsoDateDdMmYyyy`
+  // formats the `YYYY-MM-DD` string directly, sidestepping the
+  // `new Date('YYYY-MM-DD')` UTC-midnight gotcha (a CH flight on 2026-05-21
+  // mustn't render as 2026-05-20 west of UTC).
+  protected readonly formattedLastFlightDate = computed(() =>
+    formatIsoDateDdMmYyyy(this.store.lastFlight()?.flightDate),
+  );
 
   protected readonly displayName = computed(() => {
     const user = this.session.authenticatedUser();

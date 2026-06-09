@@ -189,7 +189,11 @@ jobs:
             echo "not an integration/J-NNN branch → J-0 Locations baseline (fail-safe)"
             emit "$BASELINE" "J-0" "true"; exit 0
           fi
-          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
+          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
+          # also matches `${jid}-*.md` and would otherwise win `head -1`
+          # alphabetically, derailing the derivation.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
             echo "no journey file for ${jid} → baseline (fail-safe)"
             emit "$BASELINE" "$jid" "true"; exit 0
@@ -198,7 +202,7 @@ jobs:
           # first whitespace, '(', or ';' (the value can carry prose / a second
           # path after a separator). Strip a leading alpenflight/web/ so the path
           # is relative to that working-directory.
-          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//')"
+          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//' || true)"
           spec="$(printf '%s' "$raw" | sed -E 's/[[:space:](;].*$//' | sed -E 's#^alpenflight/web/##')"
           echo "${jid} parity_test first token → '${spec}'"
           case "$spec" in
@@ -273,7 +277,11 @@ jobs:
             echo "not an integration/J-NNN branch → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
+          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
+          # also matches `${jid}-*.md` and would otherwise win `head -1`
+          # alphabetically, silently defeating this step's scoping.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
             echo "no journey file for ${jid} → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
@@ -283,22 +291,62 @@ jobs:
             echo "${jid} has no mock_test: frontmatter → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          # First path token (stop at whitespace / '(' / ';' / '#' so trailing
-          # prose or a comment is dropped); strip a leading alpenflight/web/.
-          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:](;#].*$//' | sed -E 's#^alpenflight/web/##')"
-          echo "${jid} mock_test first token → '${filter}'"
+          # Extract the filter token. Stop at whitespace / ';' / '#' so trailing
+          # prose or a comment is dropped — but DELIBERATELY keep '(' '|' ')': a
+          # journey whose own specs span SEVERAL feature dirs (J-6b:
+          # reservations/planning/forms) can't be a single dir without pulling
+          # prior journeys' specs in that dir, so its `mock_test:` is a Playwright
+          # positional REGEX (an alternation over its spec stems). Strip a leading
+          # alpenflight/web/ so the token is relative to that working-directory.
+          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:];#].*$//' | sed -E 's#^alpenflight/web/##')"
+          echo "${jid} mock_test token → '${filter}'"
           if [ -z "$filter" ]; then
             echo "empty mock_test token → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          # The filter must resolve to a real path under alpenflight/web/ (a
-          # tests/<feature>/ dir OR a single spec file). If it doesn't, fall back
-          # to the full suite rather than risk a no-spec run.
-          if [ -e "alpenflight/web/${filter}" ]; then
-            emit "$filter" "false"; exit 0
-          fi
-          echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
-          emit "" "true"; exit 0
+          # VALIDATE the token resolves to real spec(s) under alpenflight/web/,
+          # else fall back to the full suite (never risk a no-spec run). Two shapes:
+          #   • PLAIN PATH (no regex metachars): a tests/<feature>/ dir OR a single
+          #     spec file — check it exists on disk directly (pre-J-6b behaviour).
+          #   • REGEX ALTERNATION (contains '(' or '|'): a Playwright positional
+          #     regex like `tests/(a/x|b/y|c/z)`. Decompose it into its literal
+          #     path stems and require EVERY stem to resolve on disk (a *.spec.ts
+          #     file or a prefix of one). The chromium project's testMatch still
+          #     applies on top, so the regex only narrows — it can't widen.
+          case "$filter" in
+            *'('*|*'|'*)
+              # Expand the alternation: drop the leading `prefix(`, the trailing
+              # `)`, split on '|', and re-prepend the prefix to each branch.
+              prefix="$(printf '%s' "$filter" | sed -E 's/\(.*$//')"
+              inner="$(printf '%s' "$filter" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//')"
+              ok=1
+              IFS='|'
+              for branch in $inner; do
+                stem="${prefix}${branch}"
+                # A stem resolves if a *.spec.ts under alpenflight/web/ starts with
+                # it (the regex matches by path prefix, e.g. `…-hardening` → the
+                # `…-hardening.spec.ts` file). Match dir-or-file-prefix via glob.
+                if ! ls "alpenflight/web/${stem}"*.spec.ts >/dev/null 2>&1 \
+                   && [ ! -e "alpenflight/web/${stem}" ]; then
+                  echo "mock filter branch '${stem}' resolves to no spec on disk"
+                  ok=0
+                fi
+              done
+              unset IFS
+              if [ "$ok" = 1 ]; then
+                emit "$filter" "false"; exit 0
+              fi
+              echo "mock filter regex '${filter}' has an unresolved branch → full chromium suite (fail-safe)"
+              emit "" "true"; exit 0
+              ;;
+            *)
+              if [ -e "alpenflight/web/${filter}" ]; then
+                emit "$filter" "false"; exit 0
+              fi
+              echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
+              emit "" "true"; exit 0
+              ;;
+          esac
 
 
   # ---------------------------------------------------------------------------
@@ -813,6 +861,21 @@ jobs:
               echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
             fi
           }
+          # add_af_only: stage just the FRESH AF PNG for ONE view with NO legacy
+          # pairing — used for GREENFIELD screens (no legacy parity, e.g. the
+          # J-6b reservations Day/Week calendar). The generator renders a single
+          # AlpenFlight figure (the other pairing slot is simply absent).
+          # $1 journey $2 feature $3 view $4 AF filename $5 AF-caption.
+          add_af_only() {
+            local jrn="$1" feat="$2" view="$3" affile="$4" acap="$5"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
           # ----- J-6 planning (list/form/setup — view keys match the fanout) ---
           if [ "${PROOF_JOURNEY:-}" = "J-6" ]; then
             add_pair "J-6" "planning" "list" "list.png" "alpenflight-planning-list.png" \
@@ -824,6 +887,38 @@ jobs:
             add_pair "J-6" "planning" "setup" "setup.png" "alpenflight-planning-setup-form.png" \
               "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard" \
               "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
+          fi
+          # ----- J-6b reservations & planning hardening + inline validation ----
+          # The Day/Week CALENDAR is GREENFIELD (no legacy parity per the oracle)
+          # → AlpenFlight-only shots. The edit FORMS pair against legacy where a
+          # committed legacy ref exists (planning form ref is committed; the
+          # reservation form + inline-validation refs are captured at T-17 — until
+          # then add_pair degrades to the AF side only). Filenames must match the
+          # PNGs the J-6b proof spec writes to test-results/.
+          if [ "${PROOF_JOURNEY:-}" = "J-6b" ]; then
+            add_af_only "J-6b" "reservations" "calendar-day" \
+              "alpenflight-reservations-calendar-day.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations DAY view — the aircraft×hour calendar with the Day/Week toggle (selected button legible) + a DD.MM.YYYY period label"
+            add_af_only "J-6b" "reservations" "calendar-week" \
+              "alpenflight-reservations-calendar-week.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations WEEK view — the aircraft×day matrix, paging by weeks with a DD.MM.YYYY – DD.MM.YYYY range label"
+            add_pair "J-6b" "planning" "form" "form.png" "alpenflight-planning-edit-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day reservations table)" \
+              "AlpenFlight: the planning-day edit form hardened — read-only renders all fields disabled with an Edit toggle, dates render DD.MM.YYYY, and inline validation surfaces per-field errors while typing"
+            # The ≥60% feature — inline validation — as an AF-only state shot
+            # (greenfield UX; legacy flsweb has no while-typing inline validation
+            # to pair against). The PNG the proof spec writes at the inline-validate
+            # assertion (reservations-planning-hardening.spec.ts ~L640).
+            add_af_only "J-6b" "planning" "inline-validate" \
+              "alpenflight-planning-inline-validate.png" \
+              "AlpenFlight (greenfield): the planning-day edit form mid-typing — the debounced inline per-field validation message surfaces under the field from the real validate endpoint (no full submit)"
+            # NOTE: the reservation-edit-form parity shot is DEFERRED (J-6b T-20):
+            # the reservation real-idp seeding is heavier (aircraft/type/pilot
+            # picker chain) and the planning inline-validate above already proves
+            # the FE→real-endpoint→real-rule→inline vertical. The proof spec does
+            # NOT write `alpenflight-reservation-edit-form.png`, so NO `add_pair`
+            # for it here — the page must never advertise a shot the run can't
+            # produce (would render a lone legacy figure / a dead pairing slot).
           fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

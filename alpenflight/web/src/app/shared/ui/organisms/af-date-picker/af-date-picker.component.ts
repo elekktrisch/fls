@@ -16,6 +16,16 @@ import { rangeArray, toRangeValue } from './date-value-bridge';
 export type DateValue = Date | [Date, Date] | null;
 
 /**
+ * Project-wide display format for every date picker (J-6b T-12 — legacy
+ * hardcodes `DD.MM.YYYY` everywhere; the new app matches). date-fns tokens,
+ * fed to ng-zorro's `[nzFormat]`. The format is *display-only* — the model
+ * stays a `Date` round-tripped through `date-value-bridge`, untouched. A
+ * consumer that genuinely needs another format can override the `format` input,
+ * but the default means no per-call config is required for the common case.
+ */
+export const DEFAULT_DATE_FORMAT = 'dd.MM.yyyy';
+
+/**
  * Wraps `nz-range-picker` (mode="range") or `nz-date-picker` (mode="single").
  * The range mode is the load-bearing case for the flight form (departure +
  * arrival times) per operator. The single mode is for one-off date inputs
@@ -43,6 +53,7 @@ export type DateValue = Date | [Date, Date] | null;
     @if (mode() === 'range') {
       <nz-range-picker
         class="w-full"
+        [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
         [nzAllowClear]="allowClear()"
@@ -53,6 +64,7 @@ export type DateValue = Date | [Date, Date] | null;
     } @else {
       <nz-date-picker
         class="w-full"
+        [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
         [nzAllowClear]="allowClear()"
@@ -67,6 +79,10 @@ export class AfDatePickerComponent implements ControlValueAccessor {
   readonly #density = inject(DensityService);
 
   readonly mode = input<'single' | 'range'>('single');
+  // Display format (date-fns tokens, → ng-zorro `[nzFormat]`). Defaults to the
+  // project-wide DD.MM.YYYY so every consumer renders dates the same without
+  // per-call config; overridable for the rare consumer that needs another shape.
+  readonly format = input<string>(DEFAULT_DATE_FORMAT);
   readonly placeholder = input<string>('');
   readonly rangePlaceholders = input<[string, string]>(['', '']);
   readonly allowClear = input<boolean>(true);

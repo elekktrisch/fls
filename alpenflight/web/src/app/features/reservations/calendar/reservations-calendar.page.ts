@@ -22,8 +22,10 @@ import {
   DAY_HOURS_START,
   addDays,
   isoDate,
+  periodLabel,
   startOfDay,
   startsOnDay,
+  stepDaysForView,
   weekCell,
   weekDays,
   type CalendarDay,
@@ -84,7 +86,7 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
   template: `
     <af-page>
       <ng-container *transloco="let t; read: 'reservations'">
-        <af-page-header [title]="t('title')" [description]="weekSubtitle()">
+        <af-page-header [title]="t('title')" [description]="periodLabel()">
           <af-button
             type="default"
             htmlType="button"
@@ -110,12 +112,16 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
         <!-- Week navigation + day-picker + day/week toggle -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-1">
+            <!-- Pager step follows the active view (T-08 #3): day view steps ±1
+                 day (prev/next-day testids), week view steps ±7 (prev/next-week). -->
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center border border-slate-300 bg-white text-slate-600 cursor-pointer hover:bg-slate-50"
-              [attr.aria-label]="t('calendar.prevWeek')"
-              (click)="shiftWeek(-1)"
-              data-testid="reservations-prev-week"
+              [attr.aria-label]="view() === 'week' ? t('calendar.prevWeek') : t('calendar.prevDay')"
+              (click)="shiftPeriod(-1)"
+              [attr.data-testid]="
+                view() === 'week' ? 'reservations-prev-week' : 'reservations-prev-day'
+              "
             >
               <af-icon name="chevron-left" [size]="16" />
             </button>
@@ -131,9 +137,9 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                   [attr.aria-selected]="d.isSelected"
                   class="flex min-w-14 flex-col items-center gap-0.5 border-0 px-3 py-1.5 cursor-pointer not-first:border-l not-first:border-slate-300"
                   [class.bg-slate-900]="d.isSelected"
-                  [class.text-white]="d.isSelected"
+                  [class.!text-white]="d.isSelected"
                   [class.bg-white]="!d.isSelected"
-                  [class.text-slate-500]="!d.isSelected"
+                  [class.!text-slate-500]="!d.isSelected"
                   (click)="selectDay(d)"
                   [attr.data-testid]="'reservations-daypicker-' + d.key"
                 >
@@ -145,25 +151,44 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
             <button
               type="button"
               class="ml-2 inline-flex h-9 w-9 items-center justify-center border border-slate-300 bg-white text-slate-600 cursor-pointer hover:bg-slate-50"
-              [attr.aria-label]="t('calendar.nextWeek')"
-              (click)="shiftWeek(1)"
-              data-testid="reservations-next-week"
+              [attr.aria-label]="view() === 'week' ? t('calendar.nextWeek') : t('calendar.nextDay')"
+              (click)="shiftPeriod(1)"
+              [attr.data-testid]="
+                view() === 'week' ? 'reservations-next-week' : 'reservations-next-day'
+              "
             >
               <af-icon name="chevron-right" [size]="16" />
             </button>
+            <!-- View-aware period label (T-08 #3): DD.MM.YYYY day / start–end week. -->
+            <span
+              class="tabular ml-3 text-sm font-medium text-slate-700"
+              data-testid="reservations-period-label"
+              >{{ periodLabel() }}</span
+            >
           </div>
 
           <div class="flex border border-slate-300" data-testid="reservations-view-toggle">
             @for (v of views; track v) {
+              <!-- Selected = design fg-bg + bg-text (screens-reservations.jsx:106-110):
+                   surface-fg (slate-900) ground + white text, a legible active
+                   state, not an inverted "blacked-out" block (J-6b T-08 #2).
+                   The text color utility is IMPORTANT deliberately (J-6b T-17):
+                   ng-zorro's stylesheet is imported UNLAYERED (styles.css:2), so
+                   its global button color reset beats Tailwind's LAYERED text
+                   utilities and left the selected button dark-on-dark (the
+                   operator's #2 bug T-08 missed). The important utility wins the
+                   cascade over the unlayered antd reset, restoring legible text. -->
               <button
                 type="button"
                 class="border-0 px-3.5 py-1.5 text-xs font-medium capitalize cursor-pointer not-first:border-l not-first:border-slate-300"
                 [class.bg-slate-900]="view() === v"
-                [class.text-white]="view() === v"
+                [class.!text-white]="view() === v"
                 [class.bg-white]="view() !== v"
-                [class.text-slate-500]="view() !== v"
+                [class.!text-slate-500]="view() !== v"
+                [class.hover:bg-slate-50]="view() !== v"
                 (click)="view.set(v)"
                 [attr.aria-pressed]="view() === v"
+                [attr.data-selected]="view() === v"
                 [attr.data-testid]="'reservations-view-' + v"
               >
                 @if (v === 'day') {
@@ -381,14 +406,14 @@ export class ReservationsCalendarPage {
     hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END + 1),
   );
 
-  protected readonly weekSubtitle = computed<string>(() => {
-    const cells = this.weekDayCells();
-    const first = cells.at(0);
-    const last = cells.at(-1);
-    if (!first || !last) return '';
-    const fmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
-    return `${fmt.format(new Date(first.iso))} – ${fmt.format(new Date(last.iso))}`;
-  });
+  /**
+   * View-aware period label (J-6b T-08 #3): single day `DD.MM.YYYY` in day view,
+   * the week's `DD.MM.YYYY – DD.MM.YYYY` start–end range in week view. Drives the
+   * page-header subtitle + the `reservations-period-label` hook.
+   */
+  protected readonly periodLabel = computed<string>(() =>
+    periodLabel(this.view(), this.selectedDayIso()),
+  );
 
   protected readonly dayReservationCount = computed<number>(() => {
     const key = isoDate(startOfDay(this.selectedDayIso()));
@@ -433,8 +458,13 @@ export class ReservationsCalendarPage {
     this.selectedDayIso.set(d.iso);
   }
 
-  protected shiftWeek(delta: number): void {
-    this.selectedDayIso.set(addDays(this.selectedDayIso(), delta * 7).toISOString());
+  /**
+   * Pager step — granularity follows the active view (J-6b T-08 #3): day view
+   * steps ±1 day, week view steps ±7 days. `delta` is the direction (−1 / +1).
+   */
+  protected shiftPeriod(delta: number): void {
+    const step = stepDaysForView(this.view());
+    this.selectedDayIso.set(addDays(this.selectedDayIso(), delta * step).toISOString());
   }
 
   protected goToday(): void {

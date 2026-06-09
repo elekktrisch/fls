@@ -29,26 +29,26 @@ invent a parallel convention.
 
 ## Gate: parity videos, parallel CI, helper tags
 
-- **Paired videos + screenshots.** For a legacy-replacing screen capture, for UI-parity: legacy `flsweb` +
-  AlpenFlight real-chain **videos**, AND paired legacy↔AlpenFlight **list+form screenshots** (declare via a
-  sidecar the gallery pairs by `side`×`view`). Capture the AlpenFlight list **populated** (≥3 rows, every
-  column — an empty "No Data" shot proves nothing) + capture each shot BEFORE its deep assertions so a partial
-  red still produces it. Reuse `e2e/` legacy specs; drive only if none. Review aid, not pass/fail; greenfield →
-  AlpenFlight-only. **No-migration screen:** run the legacy capture in the fanout but do NOT re-seed showcase
-  there (collides with the migrated DB) — `curl` the AlpenFlight shots from the per-push gallery + pair vs the
-  fanout's legacy shots. Expand legacy accordions before shooting; anchor on a unique element.
-- **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
-  `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
-  uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
-  FLS+`flsweb` drive on the same fixture, uploads the legacy video). Both seed
-  independently from the **deterministic** fixture, so they run in parallel with
-  no shared state.
+- **Paired videos + screenshots.** Legacy `flsweb` + AlpenFlight real-chain **videos**, AND paired
+  legacy↔AlpenFlight **list+form screenshots** (sidecar declares `side`×`view`). Capture each shot BEFORE its
+  deep assertions (a partial red still produces it) and the list/form **populated** (≥1 real row + the
+  load-bearing data — an empty "No Data" shot proves nothing; J-6: the form shot must show the inline list).
+  Legacy is captured ONCE → committed (see "ONE source" below); greenfield → AlpenFlight-only. Expand legacy
+  accordions before shooting; anchor on a unique element.
+- **Two parallel jobs.** Own the journey-gate workflow: `alpenflight-proof` (required; legacy→seed→migrate→real,
+  uploads the pass video) + `parity-legacy-video` (non-blocking; legacy FLS+`flsweb` on the same fixture). Both
+  seed independently from the **deterministic** fixture → run in parallel, no shared state.
 - **A proof the operator can't click isn't done.** Deploy the heavy-chain gallery to a **journey-agnostic
   namespaced subpath** (`destination_dir`+`keep_files`, never `publish_dir: public`; not a per-journey name),
   branch-preview it pre-merge, gate deploy on `!cancelled()` (survives a partial-red run), and **auto-post the
   gallery link as a sticky PR comment** (resolve the PR from `github.ref_name`; fail-soft). After deploy, run
   the **deployed-link-check** (browserless `request`-based crawl of the LIVE gallery — every link returns 200,
   modelling gh-pages dir→`index.html` semantics) so a deployed dead link can't ship green.
+- **ONE source per journey; verify the DEPLOYED page, never the unit test** (J-6 T-17). The per-journey page
+  is complete every push — it pairs the **committed `e2e/legacy-reference/<feature>/` screenshots** (legacy
+  frozen, captured once) against fresh AlpenFlight captures + videos; no per-push-vs-fanout split / freshest-wins
+  tie-break. A green generator test while the deployed page was wrong recurred ~4× in J-6: after any gallery
+  change, `curl` the deployed bookmark + page + EVERY asset (200) — "verified" = you fetched the live artifact.
 - **Helper tags.** An e2e case exercising *logic / an error case* (not
   UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
   <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.

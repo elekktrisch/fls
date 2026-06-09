@@ -90,6 +90,12 @@ the first roadmap journey whose `depends_on` are all done.
      unmerged `/do-retro` just produced `_BOYSCOUT.md` + suite edits, in which case base
      on **that retro branch** so the riders + tuned skills ride this same journey (they
      merge with it — the fix-forward path). `git checkout -b integration/J-NNN <base>`.
+   - **Squash-merge guard** ([[project_do_plan_carve_base_after_squash_merge]]): if the prior journey
+     already **squash-merged** to `main`, the `/do-retro` branch is now divergent history (it carries the
+     prior journey's pre-squash commits). Do NOT branch off it — base on `origin/main` and **cherry-pick the
+     retro's net commit** on top (`git cherry-pick <retro-sha>`). Branching off the stale retro branch drags
+     the squashed commits back in (J-6: a clean 11-file diff but 83 junk commits). Verify: `git diff
+     origin/main <retro-sha>^ --stat` is empty → the squash == the retro's parent, so the cherry-pick is clean.
    - Commit the journey file + `rolled_up_into` stamps (carrying the retro commit if it's
      the base), then `git push -u origin integration/J-NNN`. Print the branch name.
 

@@ -215,9 +215,9 @@ test.describe('home (/start) dashboard', () => {
     const lastCard = page.getByTestId('start-last-flight-card');
     await expect(lastCard).toBeVisible();
     await expect(lastCard).toContainText('HB-S165');
-    // Card-header date renders via Intl.DateTimeFormat(locale, {dateStyle:
-    // 'medium'}); en-US shape is "May 21, 2026".
-    await expect(lastCard).toContainText(/May 21, 2026/);
+    // Card-header date renders DD.MM.YYYY, locale-independent (J-6b T-12 —
+    // legacy hardcodes it; flightDate 2026-05-21 → 21.05.2026).
+    await expect(lastCard).toContainText('21.05.2026');
     await expect(page.getByTestId('start-last-flight-role')).toHaveText('PIC');
 
     await expect(page.getByTestId('start-reservation-placeholder')).toBeVisible();

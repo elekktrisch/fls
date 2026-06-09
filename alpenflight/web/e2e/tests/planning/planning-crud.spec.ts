@@ -542,10 +542,17 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await expect(panel).toBeVisible();
     const resvRow = panel.getByTestId(`planning-reservation-${SEED_DAY_RESERVATION_ID}`);
     await expect(resvRow).toBeVisible();
-    // Each reservation links to J-5's reservation editor.
+    // Each reservation links to J-5's reservation editor, carrying a
+    // returnUrl=/planning/:id/edit so the editor's Cancel returns here (J-6b
+    // T-10). The href is the editor path + the encoded returnUrl query param.
     await expect(
       resvRow.getByTestId(`planning-reservation-edit-${SEED_DAY_RESERVATION_ID}`),
-    ).toHaveAttribute('href', `/reservations/${SEED_DAY_RESERVATION_ID}/edit`);
+    ).toHaveAttribute(
+      'href',
+      `/reservations/${SEED_DAY_RESERVATION_ID}/edit?returnUrl=${encodeURIComponent(
+        `/planning/${SEED_DAY_ID}/edit`,
+      )}`,
+    );
     // "New reservation" navigates to J-5's create form pre-seeding the day's
     // date + location as query params (the J-5 edit page reads them — legacy
     // `PlanningDayEditController.js:128-132` parity).

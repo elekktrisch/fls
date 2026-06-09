@@ -16,4 +16,6 @@ export type AircraftPickerItem = {
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftTypeId: string;
   isTowingAircraft: boolean;
+  /** Seat count — drives the conditional Second-Crew requirement on the reservation form (required when nrOfSeats > 1). Nullable: an aircraft may have an unknown seat count. */
+  nrOfSeats?: number;
 };

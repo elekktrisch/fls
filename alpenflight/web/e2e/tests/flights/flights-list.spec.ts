@@ -322,6 +322,68 @@ test.describe('flights list page', () => {
     expect(lastParams.to).toBeUndefined();
   });
 
+  // AC11 / J-6b T-13 REGRESSION GUARD — the flights date-range picker FILTERS the
+  // list (the operator's "currently broken" #12). T-13's root cause was an
+  // asymmetric ISO↔Date round-trip in the list page: the picker→store→server
+  // `from`/`to` wiring dropped silently in negative-offset zones, so a picked
+  // range never reached the server. The pure helpers got Vitest specs; THIS is
+  // the e2e that the picker→store→server param round-trip actually fires.
+  //
+  // SCOPE NOTE (T-20 collateral iii): J-6b's per-push gate `mock_test:` scopes to
+  // the THREE J-6b spec stems (reservations/planning/forms), so this flights spec
+  // does NOT run in J-6b's per-push gate — it runs in the FULL nightly suite +
+  // the §4 done-gate. AC11 is honestly covered here (the flights feature's own
+  // spec, its natural home), not bolted onto a reservations/planning spec.
+  test('the date-range picker round-trips from/to to the server and filters the list (AC11 / T-13)', async ({
+    page,
+  }) => {
+    await stubReferenceData(page);
+    const { handler: flightsHandler, lastParams } = setupFlightsBackend(allFlights);
+    await page.route('**/api/v1/flights**', flightsHandler);
+
+    await page.goto('/flights');
+    await expect(page.getByTestId('flights-summary')).toContainText('3 flights');
+    // Initial load sends NO date params.
+    expect(lastParams.from).toBeUndefined();
+    expect(lastParams.to).toBeUndefined();
+
+    // Pick a from+to range. ng-zorro renders two calendar panels; the first
+    // non-disabled cell click sets the range start, the second sets the end
+    // (idiom from primitives-date-picker.spec.ts:62-75). Using in-view cells
+    // keeps the spec independent of the current month — the round-trip (params
+    // SENT, not their exact values) is what T-13 fixed.
+    await page.getByTestId('flights-date-range').locator('input').first().click();
+    const overlay = page.locator('.cdk-overlay-container .ant-picker-panel-container');
+    await expect(overlay).toBeVisible();
+    const days = overlay.locator(
+      '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
+    );
+    await days.nth(2).click();
+    await days.nth(18).click();
+
+    // The picker→store→server wiring T-13 fixed now SENDS both date params on the
+    // refetch — the regression (params silently dropped) would leave them
+    // undefined. Poll lastParams via expect.poll so the assertion waits for the
+    // debounced store refetch (no fixed timeout — zoneless-safe).
+    await expect
+      .poll(() => lastParams.from, {
+        message: 'the picked range sends a `from` date param to the server (T-13 round-trip)',
+      })
+      .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await expect
+      .poll(() => lastParams.to, {
+        message: 'the picked range sends a `to` date param to the server (T-13 round-trip)',
+      })
+      .toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // `from` is on/before `to` — the bridge preserves the [start, end] order.
+    expect(lastParams.from! <= lastParams.to!).toBe(true);
+
+    await page.screenshot({
+      path: 'screenshots/flights/04-date-range-filtered.png',
+      fullPage: true,
+    });
+  });
+
   test('visual snapshots — populated, filtered, empty', async ({ page }) => {
     await stubReferenceData(page);
     const { handler: flightsHandler } = setupFlightsBackend(allFlights);

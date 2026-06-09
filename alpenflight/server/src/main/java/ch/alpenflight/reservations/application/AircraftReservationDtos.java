@@ -94,11 +94,66 @@ public final class AircraftReservationDtos {
             @NotNull Boolean isAllDay,
             @Nullable @Size(max = 4000) String remarks) {}
 
+    /**
+     * Non-mutating overlap pre-check payload (J-6b T-04). The FE inline-validation
+     * (T-06) posts the candidate slot WHILE EDITING to surface the same
+     * aircraft-slot overlap the save path enforces (the J-5 conflict-409) before a
+     * full save round-trip — NO new rule. {@code aircraftId} / {@code start} /
+     * {@code end} / {@code isAllDay} are the load-bearing fields the overlap probe
+     * needs; {@code excludeReservationId} is the reservation's own id on an
+     * <em>edit</em> so it is not flagged against itself (mirrors the update path's
+     * {@code excludeId}), absent on a create check.
+     */
+    @Schema(description = "Candidate aircraft-slot fields to pre-check for overlap (non-mutating).")
+    public record AircraftReservationValidateRequest(
+            @NotNull AircraftId aircraftId,
+            @NotNull Instant start,
+            @NotNull Instant end,
+            @NotNull Boolean isAllDay,
+            @Nullable @Schema(description = "On an edit, the reservation's own id — excluded from the "
+                    + "overlap probe so it does not self-conflict. Absent on a create check.")
+                    UUID excludeReservationId) {}
+
+    /**
+     * Field-level validation result (J-6b T-04). The FE maps a {@code valid=false}
+     * onto the offending field's inline {@code <af-field-errors>} message without a
+     * save round-trip. {@code field} names the form field the message attaches to
+     * (the time/aircraft slot → {@code "start"}); {@code message} is the
+     * human-readable text. On {@code valid=true} both {@code field} and
+     * {@code message} are {@code null}. Returned 200 (a validation OUTCOME, not a
+     * request error) — distinct from the save path's 409 problem response.
+     */
+    @Schema(description = "Field-level validation outcome for an inline pre-check (200; valid flag + offending field).")
+    public record ReservationValidationResult(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean valid,
+            @Nullable String field,
+            @Nullable String message) {
+
+        /** A passing result — no offending field, no message. */
+        public static ReservationValidationResult passed() {
+            return new ReservationValidationResult(true, null, null);
+        }
+
+        /** A failing result attaching {@code message} to {@code field}. */
+        public static ReservationValidationResult failed(String field, String message) {
+            return new ReservationValidationResult(false, field, message);
+        }
+    }
+
     @Schema(description = "Reservation-type listitem for the type dropdown.")
     public record AircraftReservationTypeListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                            description = "Whether picking this type requires a Second-Crew person."
+                                    + " AlpenFlight's reservation-type model carries only the single"
+                                    + " is_instructor_required flag; the legacy"
+                                    + " ObserverPilotOrInstructorRequired / IsPassengerRequired"
+                                    + " FlightType-derived flags are NOT modeled here, so this one"
+                                    + " boolean is the collapsed second-crew-required driver for the"
+                                    + " type lane (the aircraft NrOfSeats>1 driver rides the picker).")
+                    boolean instructorRequired) {}
 
     /**
      * List-row projection for the paged list / future / day overview reads

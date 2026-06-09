@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Spring Data JPA implementation of the {@link PlanningDayRepository} domain
@@ -71,6 +72,22 @@ public interface JpaPlanningDayRepository
             + "and d.locationId = :locationId")
     boolean existsActiveForDay(@Param("planningDate") LocalDate planningDate,
                                @Param("locationId") UUID locationId);
+
+    /**
+     * Self-excluding dedup existence check for the non-mutating {@code …/validate}
+     * pre-check (J-6b T-05). Tenant-implicit ({@code @TenantId}) + soft-delete
+     * filtered, mirroring the partial {@code ux_pln_club_date_loc} index. A null
+     * {@code excludeId} matches no row (the {@code is null} branch short-circuits
+     * the id-not-equal), so a create check sees every (date, location) day.
+     */
+    @Override
+    @Query("select count(d) > 0 from PlanningDay d "
+            + "where d.deletedOn is null and d.planningDate = :planningDate "
+            + "and d.locationId = :locationId "
+            + "and (:excludeId is null or d.id <> :excludeId)")
+    boolean existsActiveForDayExcluding(@Param("planningDate") LocalDate planningDate,
+                                        @Param("locationId") UUID locationId,
+                                        @Param("excludeId") @Nullable UUID excludeId);
 
     @Override
     default Page findFuturePage(LocalDate asOf, int pageStart, int pageSize) {

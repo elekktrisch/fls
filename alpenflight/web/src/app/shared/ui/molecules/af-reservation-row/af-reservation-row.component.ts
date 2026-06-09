@@ -49,6 +49,7 @@ import { reservationTimeLabel } from '@shared/util/reservation';
       <a
         class="text-brand-600 no-underline hover:text-brand-700"
         [routerLink]="openLink()"
+        [queryParams]="openQueryParams()"
         [attr.data-testid]="openTestId()"
       >
         {{ openLabel() }}
@@ -62,6 +63,13 @@ export class AfReservationRowComponent {
   readonly aircraftLabel = input.required<string>();
   /** Router target for the open-link (e.g. `['/reservations', id, 'edit']`). */
   readonly openLink = input.required<readonly unknown[] | string>();
+  /**
+   * Optional query params for the open-link (RouterLink `[queryParams]`). The
+   * planning inline list passes `{ returnUrl: <current planning-day url> }` so
+   * the reservation editor's Cancel returns to the planning day, not the
+   * /reservations overview (J-6b T-10). Empty by default → a bare link.
+   */
+  readonly openQueryParams = input<Record<string, string> | null>(null);
   readonly openLabel = input.required<string>();
   /**
    * Test-id prefix; the row gets `<prefix>-<id>` and the open-link

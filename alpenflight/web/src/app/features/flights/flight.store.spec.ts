@@ -205,6 +205,30 @@ describe('FlightStore', () => {
     expect(store.entities()).toEqual([FLIGHT_A]);
   });
 
+  it('clearing the range (from/to null) drops the date params and refetches unfiltered', () => {
+    // T-13: clearing the flights-list range picker restores the unfiltered list.
+    // `paramsOf` omits from/to when null, so the refetch carries only `limit`.
+    const calls: (ListParams | undefined)[] = [];
+    configure(
+      flightsServiceStub({
+        list: (params) => {
+          calls.push(params);
+          return of({ items: [FLIGHT_A] });
+        },
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+    store.setDateRange({ from: '2026-05-01', to: '2026-05-31' });
+    store.setDateRange({ from: null, to: null });
+
+    // Last query carries no date filter — only the page limit.
+    expect(calls.at(-1)).toEqual({ limit: 50 });
+    expect(calls.at(-1)).not.toHaveProperty('from');
+    expect(calls.at(-1)).not.toHaveProperty('to');
+    expect(store.dateFrom()).toBeNull();
+    expect(store.dateTo()).toBeNull();
+  });
+
   it('clientFilter narrows visibleEntities without re-querying the server', () => {
     let calls = 0;
     configure(

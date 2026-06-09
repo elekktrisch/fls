@@ -92,6 +92,53 @@ public final class PlanningDayDtos {
             @Nullable @Size(max = 4000) String info) {}
 
     /**
+     * Non-mutating uniqueness pre-check payload (J-6b T-05). The FE
+     * inline-validation (T-07) posts the candidate {@code (date, location)} WHILE
+     * EDITING to surface the same {@code (club, date, location)} duplicate the save
+     * path enforces (the J-6 {@code ux_pln_club_date_loc} 409) before a full save
+     * round-trip — NO new rule. The club is the caller's tenant (never on the wire,
+     * mirroring the create/update DTOs — A04 mass-assignment defense).
+     * {@code excludePlanningDayId} is the day's own id on an <em>edit</em> so it is
+     * not flagged against itself (mirrors the bulk skip + the update path); absent
+     * on a create check.
+     */
+    @Schema(description = "Candidate (date, location) to pre-check for a duplicate planning day (non-mutating).")
+    public record PlanningDayValidateRequest(
+            @NotNull LocalDate planningDate,
+            @NotNull LocationId locationId,
+            @Nullable @Schema(description = "On an edit, the planning day's own id — excluded from the "
+                    + "uniqueness probe so it does not self-conflict. Absent on a create check.")
+                    UUID excludePlanningDayId) {}
+
+    /**
+     * Field-level validation result (J-6b T-05). Mirrors the reservation
+     * {@code ReservationValidationResult} envelope EXACTLY ({@code {valid, field,
+     * message}}) so the FE (T-07) reuses the same inline-error mapping onto
+     * {@code <af-field-errors>}. {@code field} names the form field the message
+     * attaches to — the planning-day duplicate keys on date + location, surfaced on
+     * {@code "planningDate"} (the day's primary identity field); {@code message} is
+     * the human-readable text. On {@code valid=true} both {@code field} and
+     * {@code message} are {@code null}. Returned 200 (a validation OUTCOME, not a
+     * request error) — distinct from the save path's 409 problem response.
+     */
+    @Schema(description = "Field-level validation outcome for an inline pre-check (200; valid flag + offending field).")
+    public record PlanningDayValidationResult(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean valid,
+            @Nullable String field,
+            @Nullable String message) {
+
+        /** A passing result — no offending field, no message. */
+        public static PlanningDayValidationResult passed() {
+            return new PlanningDayValidationResult(true, null, null);
+        }
+
+        /** A failing result attaching {@code message} to {@code field}. */
+        public static PlanningDayValidationResult failed(String field, String message) {
+            return new PlanningDayValidationResult(false, field, message);
+        }
+    }
+
+    /**
      * SPA paged envelope for {@code POST .../page/{start}/{size}} — the legacy
      * {@code {Items, PageStart, PageSize, TotalRows}} shape in AlpenFlight house
      * camelCase ({@code items/pageStart/pageSize/totalRows}). {@code totalRows}

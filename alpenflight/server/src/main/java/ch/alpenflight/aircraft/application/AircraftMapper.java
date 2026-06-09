@@ -46,7 +46,8 @@ final class AircraftMapper {
                 AircraftId.of(row.id()),
                 row.immatriculation(),
                 AircraftTypeId.of(row.aircraftTypeId()),
-                row.towingAircraft());
+                row.towingAircraft(),
+                row.nrOfSeats());
     }
 
     /**

@@ -82,7 +82,7 @@ public interface AircraftReservationRepository {
                        @Nullable String info) {}
 
     /** Slim list-item for the {@code /aircraftreservationtypes/listitems} dropdown. */
-    record TypeListItem(UUID id, String name, boolean active) {}
+    record TypeListItem(UUID id, String name, boolean active, boolean instructorRequired) {}
 
     AircraftReservation save(AircraftReservation reservation);
 

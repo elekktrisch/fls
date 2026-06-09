@@ -12,7 +12,91 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Retro-process flags (for the NEXT /do-retro to adjudicate — not code riders)
+## Pending (filed by form-validation parity audit 2026-06-09)
+
+Full analysis + per-form verified gaps: `docs/modernization/form-validation-parity-audit.md`
+(ultracode sweep — 12 forms, legacy-oracle → parity-review → gap-hunter verify). Operator bar:
+legacy = minimum; **all** validations as-you-type (debounced ~200ms); server-on-submit stays the
+safety step. **Each rider rides the next touch of its form.** The as-you-type batch (P2/P3) all
+reuse the J-6b `liveFieldErrors` infra (`shared/util/form/inline-validation.ts:120`) — fold them
+into one as-you-type sweep when a form-heavy journey lands. (Operator chose riders for ALL of these,
+incl. the P0 safety items — 2026-06-09.)
+
+**P0 — safety / data-loss (below the legacy bar; each needs server + store + e2e):**
+- **Person edit silently DROPS all membership edits on update (data loss).** The `/edit` form
+  hydrates + lets you toggle memberNumber / memberStateId / isGlider|Motor|TowPilot, Save toasts
+  success, but `PersonUpdateRequest` omits them and `PUT /persons/{id}/clubs/current` (which EXISTS,
+  `PersonsController.java:139-144`) is never called. Wire the membership update in `persons.store.ts`
+  update (fields hydrated at `persons-edit.page.ts:387-400`, request omits at `:375-382`) + add an
+  edit-path e2e asserting role/memberNumber round-trip (only `persons-add-modal.spec.ts` exists, create-only).
+  *(seam: persons-edit update path + persons.store)*
+- **Flight-type FlightCode duplicate → raw 500** (reproduces the legacy bug). Add an
+  `@ExceptionHandler(DataIntegrityViolationException)` to `FlightTypesExceptionHandler` discriminating
+  `ux_flight_type_club_code` → 409 `field=flightCode` (mirror `LocationsExceptionHandler.java:83`) +
+  a `findActiveByCode` pre-check (`FlightTypesService.java:70,100,154`). **Coupled:** the store/effect
+  must route the 409 on the problem-detail `field` (name vs code) — today `flight-types.store.ts:229-236`
+  + `flight-types-edit.page.ts:344-350` send EVERY 409 to `flightTypeName`. *(seam: FlightTypesExceptionHandler + service + store 409 discrimination)*
+- **Flight-type Instructor × Observer mutual-exclusion enforced at NO layer** (legacy `CHECK` forbids
+  `(1,1)`). Add a cross-field validator (`flight-types-edit.page.ts:300-301`) **and** a domain XOR guard
+  in `FlightType.updateFlags()` (`FlightType.java:158-180`) — domain is the must-have (ADR-0022 §2);
+  optional DB CHECK (`V3:255-289`). *(seam: flight-type XOR — client + domain)*
+- **Club duplicate clubKey → 409 MISLABELED as a slug error on the wrong field.** `ClubsService.persist()`
+  (`:164-169`) maps *any* `DataIntegrityViolationException` → `SlugAlreadyExistsException`; distinguish
+  `ux_club_key` vs `ux_club_slug` before throwing → clean clubKey 409 (also fixes the latent "any future
+  t_club constraint → mislabeled slug" trap). *(seam: ClubsService DIVE discrimination)*
+
+**P1 — client-parity regression / dead code:**
+- **Profile Account `languageId` lost its required validator** (legacy `profile.html:61` had it; only the
+  server `@NotNull` enforces now). Add `Validators.required` (`profile-account.tab.ts:174`). *(seam: profile-account tab)*
+- **Flight edit: dead `FlightValidator` + zero client validation.** `FlightValidator`/`FlightCompositeValidator`
+  author the full Validate-job rule set but are NEVER invoked on any path (`FlightsService.createFlight/updateFlight`
+  never call them); and the form has NO `Validators`, NO `[errors]`/`[required]` bindings, and Save is never
+  gated on validity (`flight-form.model.ts:79-118`, `flights-edit.page.ts:613-650`). Wire-or-delete the
+  validator + add client `required` on flightDate/aircraftId/pilot + gate Save on `form.invalid`.
+  *(seam: flights validator wiring + flight-form client validators)*
+
+**P2 — as-you-type sweep (mechanical, one shared infra; the systemic J-6b-bar miss):**
+- The J-6b as-you-type bar is wired ONLY on reservation-edit + planning-edit. **Replace `ctl.touched ?
+  ctl.errors : null` with debounced `liveFieldErrors` on every other form:** aircraft
+  (`aircraft-edit.page.ts:157-194,252,333-352`), article (`articles-edit.page.ts:96-113`), club
+  (`clubs-edit.page.ts:83-133`), flight-type (`flight-types-edit.page.ts:109-135`), location
+  (`locations-edit.page.ts:130-206`+IOP `:265-292`), person (`persons-edit.page.ts:104-131`), planning-setup
+  (`planning-setup.page.ts:130-157`), user (`users-edit.page.ts:141-175` + roles-≥1 live `:351-354`),
+  profile 4 tabs (`profile-account.tab.ts:88-104`, `profile-personal.tab.ts:106-215`, `profile-pilot.tab.ts:188-190`).
+  *(seam: per-form `liveFieldErrors` adoption — fold into one sweep)*
+
+**P3 — missing `[errors]` bindings (PREREQUISITE for P2 on these fields — validator present but never renders
+inline at all, even on submit; `af-form-field` defaults `errors` to null):**
+- Bind `[errors]` on the `af-form-field` for the ~30 silent fields: aircraft 7 (`:206-227,315-329,369-401`),
+  article articleInfo (`:123-130`), flight-type FlightCode (`:120-127`), location IOP rows (`:265-292`),
+  person city/mobile/memberNumber (`:142,151,160`), user phone/remarks (`:189-200`), profile 9
+  (`profile-account.tab.ts:116-123`, `profile-personal.tab.ts:116-196`). *(seam: af-form-field [errors] bindings)*
+
+**P4 — server-roundtrip as-you-type pre-checks (submit-time 409 already CONFIRMED safe — UX only):**
+- Add a non-mutating `…/validate` endpoint + debounced store rxMethod (model on reservation overlap
+  `AircraftReservationsService.java:229-244`) + merge via `asyncErrors$`/`mergeFieldErrors`
+  (`inline-validation.ts:56,67`) for: aircraft immatriculation, article articleNumber, location ICAO,
+  user username. *(seam: per-aggregate /validate endpoint + store)*
+
+**P5 — declined better-than-legacy / cosmetic (low):**
+- Planning-setup: client `start ≤ end` + `≥1 weekday` cross-field validators + error region
+  (`planning-setup.page.ts:170-191,242-254`); planning info `maxLength(4000)` client-side
+  (`planning-edit.page.ts:376`). **Transloco-translate `af-field-errors`** — it renders the i18n KEY
+  verbatim (`common.errors.required`), no `t()` pipe (`af-field-errors.component.ts:12-13`). DIVE→400
+  handlers for reservation/planning FK→500 (phantom type/location/person ids — parity-met, lowest).
+  *(seam: planning-setup validators + af-field-errors transloco + reservation/planning DIVE handlers)*
+
+## Retro-process flags
+
+**✅ Adjudicated + encoded by /do-retro (J-6 window, 2026-06-07)** — the four flags below were resolved this
+retro; kept for trace. (1) **Squash-merge branch handoff** → encoded in `/do-plan` §4 (squash-merge guard:
+base on `origin/main` + cherry-pick the retro's net commit). (2) **T-01/T-02 standard slots** → encoded in
+`/do-ship` §2 default decomposition (T-01 scaffolds the proof page; T-02 moves prior journeys to mock-IdP).
+(3) **Proof-index fragility + verify-the-deployed-artifact** → encoded in `/do-ship` §4 (ONE-source gallery
+model) + `e2e-driver` (verify the DEPLOYED page, never the unit test) + the structural post-deploy guard rider
+below. (4) **Paired shots only at the fanout** → resolved by the J-6 T-17 capture-legacy-once-and-commit model
+(now the standard in `/do-ship` §4 + `e2e-driver`). The original flag text follows.
+
 
 - **🔁 The retro→new-carve branch handoff is rough — 5th time running (operator flag, J-6 carve 2026-06-06).**
   Every cycle, starting the next journey's `integration/J-NNN` off the `/do-retro` output is friction-y.
@@ -69,6 +153,24 @@ genuinely new vertical feature scope.
   paired shots land with the first screens. At minimum the proof page should SAY "legacy pairing pending — runs at
   gate" rather than silently omitting it. [[feedback_demonstrable_proof_prefer_ui]] [[feedback_surface_proof_early_on_repeated_failure]]
 
+## Pending (filed by /do-retro 2026-06-07, J-6 window)
+
+- **Structural post-deploy proof-gallery guard (operator grill, J-6 retro).** CI machinery, not procedure:
+  after the per-push proof deploys, a job asserts the **journey-under-work's bookmark row is a LIVE LINK** AND
+  **every declared asset (videos + paired screenshots) resolves 200 on the DEPLOYED page** — fails the proof
+  job otherwise. The unit/generator tests passed ~4× this journey while the deployed page was wrong (wrong probe
+  path, freshest-wins linking the thinner page); a procedure rule kept failing, so this must be structural.
+  *(seam: a new deployed-gallery-guard step/spec the proof + fanout jobs run post-deploy — extends the existing
+  `proof-gallery-links` deployed-link-check to also assert the journey-under-work page is linked + complete)*
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+- **Un-mask the migration-ingest constraint in dev/test (operator grill, J-6 retro).** The bundle-ingest path
+  catches the JDBC `SQLException` and returns only `{"detail":"Database error during ingest [sqlstate=23505]",
+  "errorCode":"INGEST_INTERNAL_ERROR"}` — the real constraint name (`ux_pln_club_date_loc`, the FK name) is
+  buried in the server log. In dev/test profiles, include the constraint name in the error body/detail so a
+  fanout red is diagnosable without server-log archaeology (J-6 23505/23503 each cost a log-dig). Keep prod
+  masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
+  [[project_synth_bundle_doesnt_validate_producer_select]]
+
 ## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
 
 - **Producer dedupe is soft-delete-blind (gap-hunter, J-6 T-11b/T-16).** The PLANNING_DAY (and the
@@ -82,12 +184,15 @@ genuinely new vertical feature scope.
   `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
   deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
   MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
-- **Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).** The `[key-error]` delete proves the
-  user-visible AC (day leaves the list, parent GET 404, freed slot re-creatable) but never asserts the 3
-  child `t_planning_day_assignment` rows are gone — and since delete is a soft-delete on the aggregate, the
-  V4 `ON DELETE CASCADE` FK never fires, so orphaned/leaked assignment rows wouldn't be caught. Add an
-  assertion that a deleted day's assignments are excluded from reads. Low-risk; rides the next planning touch.
-  *(seam: planning delete spec / assignment soft-delete reconcile)*
+- ~~**Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).**~~ **Shipped J-6b T-16.** Added
+  `PlanningDaysControllerIT.delete_excludesTheDaysAssignmentsFromEveryRead`: a day with 3 crew (→ 3
+  `t_planning_day_assignment` rows) is soft-deleted, then the IT asserts the read layer ALREADY excludes
+  them — GET → 404, the `overview/future` list omits the day, and re-creating the same (club,date,location)
+  yields a FRESH day owning its own 3 assignments. Confirmed NO leak (the rider's predicted bug did not
+  materialise): every read query filters `deleted_on IS NULL` at the PARENT (`findActiveById` /
+  `FUTURE_SELECT`), so a soft-deleted day is never loaded and its children — which physically remain
+  (`countAssignments(id)==3` post-delete, since soft-delete means the V4 `ON DELETE CASCADE` never fires) —
+  are unreachable through any read path. Test-only; `./gradlew check` green.
 
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 

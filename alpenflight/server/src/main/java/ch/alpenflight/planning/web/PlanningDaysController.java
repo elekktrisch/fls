@@ -7,6 +7,8 @@ import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPage;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPageRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayRuleRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayUpdateRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayValidateRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayValidationResult;
 import ch.alpenflight.planning.application.PlanningDaysService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -90,6 +92,31 @@ public class PlanningDaysController {
     @PreAuthorize("isAuthenticated()")
     public List<PlanningDayDetail> listFuturePlanningDays() {
         return service.overviewFuture();
+    }
+
+    /**
+     * Non-mutating uniqueness pre-check (J-6b T-05) — lets the edit form (T-07)
+     * surface the same {@code (club, date, location)} duplicate the save path
+     * enforces (the J-6 {@code ux_pln_club_date_loc} 409) WHILE EDITING, inline on
+     * the offending field, without a save round-trip. Read-shaped POST (the
+     * candidate (date, location) doesn't fit a GET query string), so it carries
+     * {@link ReadOnlyQuery} to opt out of the mutating-verb audit guard and emits
+     * no audit event — it persists nothing. Returns 200 with a {@code {valid,
+     * field, message}} outcome the FE maps onto {@code <af-field-errors>} (NOT a
+     * 409 problem — that stays the save path). Tenant-scoped via {@code @TenantId};
+     * pass the day's own id as {@code excludePlanningDayId} on an edit so it does
+     * not self-conflict.
+     */
+    @Operation(operationId = "validatePlanningDayUniqueness",
+            summary = "Pre-check a candidate (date, location) for a duplicate planning day (non-mutating). "
+                    + "200 with {valid,field,message} — surfaces the save-path 409 inline before save.")
+    @ApiResponse(responseCode = "200", description = "Validation outcome (valid flag + offending field/message).")
+    @PostMapping(path = "/validate", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    @ReadOnlyQuery
+    public PlanningDayValidationResult validatePlanningDayUniqueness(
+            @Valid @RequestBody PlanningDayValidateRequest req) {
+        return service.validateUniqueness(req);
     }
 
     @Operation(operationId = "getPlanningDay",

@@ -8,6 +8,8 @@ import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftR
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPage;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPageRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationUpdateRequest;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationValidateRequest;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.ReservationValidationResult;
 import ch.alpenflight.reservations.application.AircraftReservationsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -120,6 +122,30 @@ public class AircraftReservationsController {
             @PathVariable @org.springframework.format.annotation.DateTimeFormat(iso =
                     org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate date) {
         return service.listForDay(date);
+    }
+
+    /**
+     * Non-mutating overlap pre-check (J-6b T-04) — lets the edit form (T-06)
+     * surface the same aircraft-slot overlap the save path enforces (the J-5
+     * conflict-409) WHILE EDITING, inline on the offending field, without a save
+     * round-trip. Read-shaped POST (the candidate slot doesn't fit a GET query
+     * string), so it carries {@link ReadOnlyQuery} to opt out of the
+     * mutating-verb audit guard and emits no audit event — it persists nothing.
+     * Returns 200 with a {@code {valid, field, message}} outcome the FE maps onto
+     * {@code <af-field-errors>} (NOT a 409 problem — that stays the save path).
+     * Tenant-scoped via {@code @TenantId}; pass the reservation's own id as
+     * {@code excludeReservationId} on an edit so it does not self-conflict.
+     */
+    @Operation(operationId = "validateAircraftReservationOverlap",
+            summary = "Pre-check a candidate aircraft slot for overlap (non-mutating). 200 with "
+                    + "{valid,field,message} — surfaces the save-path conflict inline before save.")
+    @ApiResponse(responseCode = "200", description = "Validation outcome (valid flag + offending field/message).")
+    @PostMapping(path = "/validate", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    @ReadOnlyQuery
+    public ReservationValidationResult validateAircraftReservationOverlap(
+            @Valid @RequestBody AircraftReservationValidateRequest req) {
+        return service.validateOverlap(req);
     }
 
     @Operation(operationId = "createAircraftReservation",

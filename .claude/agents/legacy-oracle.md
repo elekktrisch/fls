@@ -45,6 +45,12 @@ You decide what the legacy *does*; you do not type the new code.
   screen, what data the e2e needs seeded in legacy to exercise it, and any
   type coercion / enum re-encoding the per-journey mapper must do. This feeds
   the journey's seed + mapper contribution to the proof chain.
+- **Flag next-schema invariants the legacy lacks.** When the AlpenFlight schema has a
+  **UNIQUE or CASCADE the legacy table does NOT enforce** (legacy let dups/orphans exist),
+  call it out explicitly: the real legacy data will violate it on ingest (a masked
+  `INGEST_INTERNAL_ERROR`), so the migration mapper MUST dedupe/keep-first or remap, and the
+  migration task MUST ship a real-producer collision/orphan round-trip IT that seeds the
+  violating case (J-6: `ux_pln_club_date_loc` had no legacy equivalent → 23505/23503).
 - **Be honest about uncertainty.** "Unclear after investigation — escalate"
   is a valid output. Don't invent behavior.
 

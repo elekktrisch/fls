@@ -6,6 +6,7 @@ import {
   inject,
   input,
   model,
+  signal,
 } from '@angular/core';
 import { FormsModule, NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -38,7 +39,7 @@ export interface AfSelectOption<T> {
       [nzPlaceHolder]="placeholder()"
       [nzShowSearch]="showSearch()"
       [nzAllowClear]="allowClear()"
-      [nzDisabled]="disabled()"
+      [nzDisabled]="isDisabled()"
       [ngModel]="value()"
       (ngModelChange)="onModelChange($event)"
     >
@@ -72,6 +73,15 @@ export class AfSelectComponent<T> implements ControlValueAccessor {
   readonly disabled = input<boolean>(false);
   readonly value = model<T | null>(null);
 
+  /**
+   * CVA-driven disabled state (set by `form.disable()`/`enable()`), OR'd with the
+   * explicit `[disabled]` input. A read-only form (`form.disable()`) MUST render
+   * its selects non-editable, not just mark the control DISABLED (J-6b T-09: the
+   * planning view-mode read-only fix).
+   */
+  private readonly cvaDisabled = signal(false);
+  protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
+
   protected readonly nzSize = computed(() =>
     this.#density.density() === 'dense' ? ('small' as const) : ('default' as const),
   );
@@ -88,8 +98,8 @@ export class AfSelectComponent<T> implements ControlValueAccessor {
   registerOnTouched(fn: () => void): void {
     this.onTouched = fn;
   }
-  setDisabledState(): void {
-    // The disabled input wins.
+  setDisabledState(isDisabled: boolean): void {
+    this.cvaDisabled.set(isDisabled);
   }
 
   protected onModelChange(next: T | null): void {

@@ -7,7 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
@@ -17,11 +17,15 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { map } from 'rxjs';
 
 import type {
+  AircraftPickerItem,
   AircraftReservationCreateRequest,
   AircraftReservationDetail,
+  AircraftReservationTypeListItem,
   AircraftReservationUpdateRequest,
+  AircraftReservationValidateRequest,
 } from '@api/generated/model';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
@@ -30,7 +34,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
-import { withOptionals } from '@shared/util/form';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
@@ -123,9 +127,7 @@ type ReservationForm = FormGroup<{
                   [label]="t('aircraft')"
                   for="ReservationAircraft"
                   [required]="true"
-                  [errors]="
-                    form.controls.aircraftId.touched ? form.controls.aircraftId.errors : null
-                  "
+                  [errors]="aircraftErrors()"
                 >
                   <af-select
                     inputId="ReservationAircraft"
@@ -139,11 +141,7 @@ type ReservationForm = FormGroup<{
                   [label]="t('type')"
                   for="ReservationType"
                   [required]="true"
-                  [errors]="
-                    form.controls.reservationTypeId.touched
-                      ? form.controls.reservationTypeId.errors
-                      : null
-                  "
+                  [errors]="typeErrors()"
                 >
                   <af-select
                     inputId="ReservationType"
@@ -159,9 +157,7 @@ type ReservationForm = FormGroup<{
                   [label]="t('pilot')"
                   for="ReservationPilot"
                   [required]="true"
-                  [errors]="
-                    form.controls.pilotPersonId.touched ? form.controls.pilotPersonId.errors : null
-                  "
+                  [errors]="pilotErrors()"
                 >
                   <af-select
                     inputId="ReservationPilot"
@@ -171,7 +167,12 @@ type ReservationForm = FormGroup<{
                     data-testid="reservation-pilot-select"
                   />
                 </af-form-field>
-                <af-form-field [label]="t('secondCrew')" for="ReservationSecondCrew">
+                <af-form-field
+                  [label]="t('secondCrew')"
+                  for="ReservationSecondCrew"
+                  [required]="secondCrewRequired()"
+                  [errors]="secondCrewErrors()"
+                >
                   <af-select
                     inputId="ReservationSecondCrew"
                     formControlName="secondCrewPersonId"
@@ -185,7 +186,7 @@ type ReservationForm = FormGroup<{
                 [label]="t('location')"
                 for="ReservationLocation"
                 [required]="true"
-                [errors]="form.controls.locationId.touched ? form.controls.locationId.errors : null"
+                [errors]="locationErrors()"
               >
                 <af-select
                   inputId="ReservationLocation"
@@ -209,7 +210,7 @@ type ReservationForm = FormGroup<{
                   [label]="t('date')"
                   for="ReservationDate"
                   [required]="true"
-                  [errors]="form.controls.date.touched ? form.controls.date.errors : null"
+                  [errors]="dateErrors()"
                 >
                   <af-input
                     inputId="ReservationDate"
@@ -223,9 +224,7 @@ type ReservationForm = FormGroup<{
                     [label]="t('startTime')"
                     for="ReservationStartTime"
                     [required]="true"
-                    [errors]="
-                      form.controls.startTime.touched ? form.controls.startTime.errors : null
-                    "
+                    [errors]="startTimeErrors()"
                   >
                     <af-input
                       inputId="ReservationStartTime"
@@ -238,7 +237,7 @@ type ReservationForm = FormGroup<{
                     [label]="t('endTime')"
                     for="ReservationEndTime"
                     [required]="true"
-                    [errors]="form.controls.endTime.touched ? form.controls.endTime.errors : null"
+                    [errors]="endTimeErrors()"
                   >
                     <af-input
                       inputId="ReservationEndTime"
@@ -258,6 +257,33 @@ type ReservationForm = FormGroup<{
                 />
                 <span>{{ t('allDay') }}</span>
               </label>
+
+              <!--
+                Async overlap pre-check (T-06): the STORE calls the T-04
+                validate endpoint (debounced) when aircraft + start + end +
+                all-day are set; its result surfaces inline here on the slot —
+                the SAME J-5 overlap the save-path 409 enforces, shown earlier
+                WITHOUT a save round-trip. The required-field messages above use
+                the shared debounced liveFieldErrors; this is the async leg.
+              -->
+              @if (store.overlapValidating()) {
+                <span
+                  class="block text-sm text-slate-500"
+                  data-testid="reservation-start-validating"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {{ t('validating') }}
+                </span>
+              } @else if (store.overlapMessage() !== null) {
+                <span
+                  class="block text-sm text-red-600"
+                  data-testid="reservation-start-server-error"
+                  role="alert"
+                >
+                  {{ t('overlap') }}
+                </span>
+              }
             </section>
 
             <!-- Section 3: Notes -->
@@ -277,14 +303,18 @@ type ReservationForm = FormGroup<{
             </section>
 
             <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
-              <af-button htmlType="button" (clicked)="router.navigateByUrl('/reservations')">
+              <af-button
+                htmlType="button"
+                (clicked)="onCancel()"
+                data-testid="reservation-edit-cancel"
+              >
                 {{ t('cancel') }}
               </af-button>
               @if (canMutate()) {
                 <af-button
                   type="primary"
                   htmlType="submit"
-                  [disabled]="form.invalid || saveSubmitted()"
+                  [disabled]="form.invalid || saveSubmitted() || store.overlapMessage() !== null"
                   data-testid="reservation-save-button"
                 >
                   {{ t('save') }}
@@ -330,6 +360,53 @@ export class ReservationEditPage {
     initialValue: false,
   });
 
+  // Raw form value as a signal (includes disabled controls — all-day disables
+  // the time fields). Drives the async overlap-validate effect so it re-runs on
+  // every keystroke; the store debounces the actual HTTP call.
+  private readonly formValue = toSignal(
+    this.form.valueChanges.pipe(map(() => this.form.getRawValue())),
+    { initialValue: this.form.getRawValue() },
+  );
+
+  // Inline validation WHILE TYPING (T-06, via T-03 `liveFieldErrors`): each
+  // required field shows its client-side message debounced ~200ms and clears on
+  // valid — replacing the touched-only `[errors]="ctl.touched ? …"` wiring.
+  protected readonly aircraftErrors = liveFieldErrors(this.form.controls.aircraftId);
+  protected readonly typeErrors = liveFieldErrors(this.form.controls.reservationTypeId);
+  protected readonly pilotErrors = liveFieldErrors(this.form.controls.pilotPersonId);
+  protected readonly locationErrors = liveFieldErrors(this.form.controls.locationId);
+  protected readonly dateErrors = liveFieldErrors(this.form.controls.date);
+  protected readonly secondCrewErrors = liveFieldErrors(this.form.controls.secondCrewPersonId);
+  // The slot's async overlap leg (T-04 `…/validate`) merges into the start-time
+  // control's live errors via `liveFieldErrors`'s `asyncErrors$` hook — the
+  // SAME inline slot the client rules render in. The dedicated
+  // `reservation-start-server-error` element (template) carries the stable
+  // testid; the visible slot message + submit-block derive from the same store
+  // overlap signal.
+  protected readonly startTimeErrors = liveFieldErrors(this.form.controls.startTime, {
+    asyncErrors$: toObservable(this.store.overlapErrors),
+  });
+  protected readonly endTimeErrors = liveFieldErrors(this.form.controls.endTime);
+
+  // Conditional Second-Crew (oracle: required when the selected TYPE requires a
+  // second crew member OR the selected AIRCRAFT has `NrOfSeats > 1`). T-18 put
+  // `instructorRequired` on `AircraftReservationTypeListItem` (AlpenFlight
+  // collapses legacy's three FlightType flags into that one) + `nrOfSeats` on
+  // `AircraftPickerItem`, so this derived signal now reads the real picker data
+  // (T-06 wired the dynamic validator; this is the live driver). Re-derives when
+  // the type/aircraft selection changes or the pickers load.
+  protected readonly selectedType = computed<AircraftReservationTypeListItem | null>(
+    () =>
+      this.store.reservationTypes().find((t) => t.id === this.formValue().reservationTypeId) ??
+      null,
+  );
+  protected readonly selectedAircraft = computed<AircraftPickerItem | null>(
+    () => this.store.aircraftPicker().find((a) => a.id === this.formValue().aircraftId) ?? null,
+  );
+  protected readonly secondCrewRequired = computed(() =>
+    secondCrewRequiredFor(this.selectedType(), this.selectedAircraft()),
+  );
+
   protected readonly aircraftOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.store.aircraftPicker().map((a) => ({ value: a.id, label: a.immatriculation })),
   );
@@ -362,6 +439,31 @@ export class ReservationEditPage {
       } else {
         for (const c of controls) c.enable({ emitEvent: false });
       }
+    });
+
+    // Conditional Second-Crew validator — toggle `required` on the control as the
+    // derived condition flips (`secondCrewRequired`, live since T-18 exposed the
+    // driving instructor/seat flags on the picker projections).
+    effect(() => {
+      const ctl = this.form.controls.secondCrewPersonId;
+      ctl.setValidators(this.secondCrewRequired() ? [Validators.required] : []);
+      ctl.updateValueAndValidity({ emitEvent: false });
+    });
+
+    // Async overlap pre-check (T-06): when aircraft + start + end + all-day are
+    // set/changed, the STORE calls the T-04 `…/validate` endpoint (debounced in
+    // the store) — the SAME J-5 overlap probe the save path runs, surfaced inline
+    // earlier. `excludeReservationId` self-excludes the edited reservation. The
+    // component injects the store (no HttpClient here, CLAUDE.md §4). Driven off
+    // the form value SIGNAL so the effect re-tracks on every keystroke.
+    effect(() => {
+      const v = this.formValue();
+      const probe = overlapProbe(v, this.reservationId());
+      if (!probe) {
+        this.store.clearOverlapValidation();
+        return;
+      }
+      this.store.validateOverlap(probe);
     });
 
     effect(() => {
@@ -415,6 +517,43 @@ export class ReservationEditPage {
       this.store.update({ id, req: formToRequest(this.form) });
     }
   }
+
+  /**
+   * Cancel returns to where the user came from: when the planning inline list
+   * opened this reservation it passed `?returnUrl=/planning/:id/<mode>` (J-6b
+   * T-10), so Cancel goes back to that exact planning-day form. Standalone edit
+   * (no returnUrl) keeps the original `/reservations` overview target. The
+   * returnUrl is sanitized to an internal same-app path — an absent/external/
+   * protocol-relative value falls back to `/reservations` (no open-redirect).
+   */
+  protected onCancel(): void {
+    const target = sanitizeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
+    void this.router.navigateByUrl(target);
+  }
+}
+
+/**
+ * Resolve a Cancel target from an optional `returnUrl` query param. Accepts only
+ * an internal, same-app absolute path (`/planning/…`); rejects anything that
+ * could navigate off-app — an external URL, a protocol-relative `//host`, or a
+ * non-rooted value — and falls back to `/reservations`. Pure → unit-tested
+ * without a `TestBed`.
+ */
+export function sanitizeReturnUrl(raw: string | null | undefined): string {
+  const fallback = '/reservations';
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  // Must be a single rooted path, not a protocol-relative `//host` and not a
+  // scheme (`http:`, `javascript:`, ...). `/foo` is internal; `//foo`, `http://`,
+  // `javascript:` are not.
+  if (!raw.startsWith('/') || raw.startsWith('//')) return fallback;
+  // A backslash or control char right after the leading `/` is a known
+  // open-redirect bypass: browsers normalise `\\` to `/`, so `/\\evil.com`
+  // resolves like the protocol-relative `//evil.com`. Reject any backslash or
+  // C0/C1 control char anywhere in the path -- only a normal rooted internal
+  // path passes.
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u001f\u007f-\u009f]/.test(raw)) return fallback;
+  return raw;
 }
 
 function detailToFormValue(d: AircraftReservationDetail): Partial<{
@@ -454,15 +593,14 @@ function formToRequest(
   form: ReservationForm,
 ): AircraftReservationCreateRequest & AircraftReservationUpdateRequest {
   const v = form.getRawValue();
-  const start = v.isAllDay ? `${v.date}T00:00:00Z` : `${v.date}T${v.startTime}:00Z`;
-  const end = v.isAllDay ? `${v.date}T00:00:00Z` : `${v.date}T${v.endTime}:00Z`;
+  const span = buildSpan(v.date, v.startTime, v.endTime, v.isAllDay);
   return withOptionals(
     {
       aircraftId: v.aircraftId,
       pilotPersonId: v.pilotPersonId,
       locationId: v.locationId,
-      start,
-      end,
+      start: span.start,
+      end: span.end,
       isAllDay: v.isAllDay,
     },
     {
@@ -471,6 +609,78 @@ function formToRequest(
       remarks: v.remarks,
     },
   );
+}
+
+/** Raw reservation form value (disabled controls included via `getRawValue`). */
+type RawReservationValue = ReturnType<ReservationForm['getRawValue']>;
+
+/**
+ * Build the slot's `<date>T<time>` instants. All-day collapses
+ * `start = end = midnight-of-date` (the aggregate normalizes the full-day
+ * span); timed builds explicit `<date>T<time>` instants. Shared by the save
+ * builder and the overlap-probe builder so both send the SAME span the J-5
+ * save path / T-04 validate endpoint compare against.
+ */
+function buildSpan(
+  date: string,
+  startTime: string,
+  endTime: string,
+  isAllDay: boolean,
+): { start: string; end: string } {
+  const start = isAllDay ? `${date}T00:00:00Z` : `${date}T${startTime}:00Z`;
+  const end = isAllDay ? `${date}T00:00:00Z` : `${date}T${endTime}:00Z`;
+  return { start, end };
+}
+
+/**
+ * Build the T-04 `…/validate` overlap-probe request from the live form, or
+ * `null` when the slot is not yet complete enough to probe (no aircraft, no
+ * date, or a timed slot missing a time). `editId` (the route `:id` on an edit)
+ * is sent as `excludeReservationId` so the reservation does not self-conflict.
+ * Pure → unit-tested without a `TestBed`.
+ */
+export function overlapProbe(
+  v: RawReservationValue,
+  editId: string | null,
+): AircraftReservationValidateRequest | null {
+  if (v.aircraftId === '' || v.date === '') return null;
+  if (!v.isAllDay && (v.startTime === '' || v.endTime === '')) return null;
+  const span = buildSpan(v.date, v.startTime, v.endTime, v.isAllDay);
+  return withOptionals(
+    {
+      aircraftId: v.aircraftId,
+      start: span.start,
+      end: span.end,
+      isAllDay: v.isAllDay,
+    },
+    { excludeReservationId: editId ?? '' },
+  );
+}
+
+/**
+ * Conditional Second-Crew requirement (oracle: required when the selected
+ * reservation TYPE requires a second crew member, OR the selected AIRCRAFT has
+ * `NrOfSeats > 1`).
+ *
+ * Legacy drove the type leg off three FlightType-derived flags
+ * (`IsInstructorRequired || ObserverPilotOrInstructorRequired ||
+ * IsPassengerRequired`). AlpenFlight's reservation-type model COLLAPSES those
+ * into the single `instructorRequired` flag (`AircraftReservationType` carries
+ * only `is_instructor_required`), so the type leg here is that one boolean.
+ * T-18 exposed it on `AircraftReservationTypeListItem` + exposed `nrOfSeats` on
+ * `AircraftPickerItem`, so this now evaluates against real picker data (T-06
+ * wired the dynamic validator; this flips it live).
+ *
+ * Pure → unit-tested without a `TestBed`. `type`/`aircraft` are the currently
+ * selected picker items (or `null` when none / not yet loaded).
+ */
+export function secondCrewRequiredFor(
+  type: AircraftReservationTypeListItem | null,
+  aircraft: AircraftPickerItem | null,
+): boolean {
+  const typeRequiresCrew = type?.instructorRequired === true;
+  const multiSeat = (aircraft?.nrOfSeats ?? 0) > 1;
+  return typeRequiresCrew || multiSeat;
 }
 
 function isoDate(iso: string): string {

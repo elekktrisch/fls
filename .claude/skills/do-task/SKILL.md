@@ -103,11 +103,16 @@ on a long background gradle run — run verification foreground-bounded, then co
 Commit **directly to `integration/J-NNN`**, per work-package (subject `#N: <task
 summary>` / `J-NNN T-NN: …`). Don't push past red; don't `--no-verify` /
 force-push. Tick `T-NN` in the journey's `## Tasks` checklist (one commit may
-include the tick). **Then `git push` — always, as the last step of the task.** The
-branch already carries a PR + CI; a commit you don't push is stranded locally and
-makes CI (and the manager) test stale state. The only reason to skip the push is a red local
-build — then you're not done. (`/do-ship` still opens the draft PR after the first
-green backend task if none exists; that doesn't relieve you of pushing your commit.)
+include the tick). **Push ownership (the manager owns the push when one is driving):**
+- **Manager-driven (dispatched by `/do-ship`):** commit, then **report your SHA and RETURN
+  immediately** — do **not** push, do **not** wait on / poll in-flight CI, do **not** spawn a
+  background CI-waiter. The manager pushes at its cadence (it alone sees in-flight runs + the
+  task sequence). A worker that hangs on CI or pushes mid-sequence creates the exact overhead
+  this rule removes.
+- **Standalone (manual / `/loop`, no manager):** commit, then `git push` as the last step —
+  your commit is stranded otherwise. Don't push past a red local build.
+
+Either way: don't `--no-verify` / force-push; don't push past red.
 
 **Format + lint the touched files before you commit** — run the project formatter in
 **write** mode then verify, over the **full glob** you changed (e.g. `prettier --write`
@@ -119,7 +124,7 @@ format-only miss fails CI a whole round later — the most wasteful red there is
 CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
 done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
 
-**Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent (whole `./gradlew test` + lint/tsc/build/api-drift + gallery tests/link-check + the mock-auth e2e when a chromium is launchable) — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — it parses but misses GitHub's expression-length limit + step-skip (`success()`/`!cancelled()`) semantics; run `actionlint` or a real dispatch. **Don't push while a verification run is in flight** — any push (even docs) cancels the branch's in-flight CI (concurrency); push at task boundaries only.
+**Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **Backend: run `./gradlew check`, NOT `test`** — the build gate's red-makers (`cpdRatchet`, `pmdMain`, the arch-guards, `OpenApiSnapshotIT`) live in `check`, not `test`; a `test`-green commit reds CI on `cpdRatchet` (J-6 T-04/05). And run it on **every module your change reaches, not just the obvious one** — a binding edit in `migration-bundle` reds an `ExportCommandSmokeTest` in `migration-tool` (J-6 T-11); when unsure, `check` from the repo root. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — run `actionlint` or a real dispatch (it misses GitHub's expression-length limit + `success()`/`!cancelled()` step-skip semantics).
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it
