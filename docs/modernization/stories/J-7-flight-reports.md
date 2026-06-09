@@ -2,7 +2,8 @@
 id: J-7
 title: Flight reports (/flightreports — canned + custom builder + Excel export)
 epic: E-07/E-11
-status: todo
+status: in_progress
+started_at: 2026-06-09
 journey0: false
 carved: true
 depends_on: [J-2]            # reuses J-2's migrated Flight/FlightCrew read-side
@@ -138,3 +139,128 @@ needs; J-10 extends it for currency/statistics cells.
 4. Spec lives under `alpenflight/web/e2e/tests/reporting/` (mock inner loop) + a
    `real-idp/flight-reports-parity.spec.ts` (gate). The `e2e/tests/reporting/*` stubs
    are the legacy-reference oracle, not the AlpenFlight gate spec.
+
+## Parity decisions (from the legacy behavior oracle, 2026-06-09)
+
+The oracle (`legacy-oracle`, agent a3e15e3d) graded each legacy behavior. Load-bearing
+calls for the port:
+
+- **CORRECT legacy bugs (documented parity deviations):**
+  - **Tenancy hole.** Legacy does NOT scope the page/export query by ClubId except when a
+    *foreign* location is selected (`FlightReportService.cs:114-125`); a person-only or
+    unknown-type report can leak other clubs' flights. The rewrite scopes EVERY query by
+    `@TenantId` (ADR 0008, structural) — the spec asserts cross-tenant isolation (club-B
+    flight never appears in club-A's report). Non-negotiable correction.
+  - **`Pilot (Motor)` / `Pilot (Towing)` summary rows omit `TotalFlights` → always 0**
+    (`FlightReportService.cs:304-314,366-376`), under-counting the `Total`. The rewrite
+    sets `TotalFlights` on all summary rows; spec asserts non-zero motor/tow pilot counts.
+  - **Unknown `:type`** runs an unfiltered page-of-1 in legacy; rewrite 404s/empties it.
+  - **MIME type:** legacy sends `application/vnd.ms-excel` for an `.xlsx` body; rewrite
+    sends the correct `…spreadsheetml.sheet` (not cell-content, so parity-harness-neutral).
+- **PRESERVE exactly (the parity contract the harness checks):**
+  - **Canned date math** incl. the "last-7-days = 8 inclusive days" off-by-one (today−N …
+    today) — INTENDED; reproduce `FlightReportsController.js:118-364` exactly.
+  - **"Starts" derived from landings** (`NrOfLdgs`/`NrOfLdgsOnStartLocation`), location-branch
+    fly-in `NrOfLdgs-1` term — INTENDED; reproduce the formulas.
+  - **Excel layout:** sheet `Flights`; A1 `Flights` (font 20); A3 `Excel Erstellt:` + C3
+    timestamp `dd.mm.yyyy HH:MM:ss`; header **row 5**; data from **row 6**; the 30-column
+    order INCLUDING the **skipped column 17** and the header typo **`LdgTime UCT`** (col 11);
+    time cells `HH:MM` (UTC wall-clock, no TZ shift), duration `[H]:MM`, IsSoloFlight `0/1`,
+    AirState/ProcessState/StartType as **raw ints**. The harness asserts the cell
+    number-format string AND the value, not rendered text (`FlightReportService.cs:743-859`).
+    *Decision:* preserve the typo + skipped column (no in-repo consumer found; exact-match is
+    what the parity harness requires). Header styling beyond A1 size = cosmetic, harness-ignored.
+  - **Pagination:** `pageStart` is a 0-based row offset; default size 100; **cap 500**
+    (canned reports request 1000 → clamped). Keep a sane max; paginate beyond 500 rather than
+    silently truncate. Default sort `StartDateTime asc, Immatriculation asc`; `FlightDuration`
+    sort key → `FlightDurationInSeconds`.
+  - **Row shape:** one row per flight; an aerotow glider carries a **nested TowFlight block**;
+    the tow ALSO appears as its own row (when TowFlights flag on) with `TowedGliderFlightId`
+    back-ref. Person filter counts crew roles {PilotOrStudent=1, CoPilot=2, FlightInstructor=3}
+    only (Passenger/Winch/Observer excluded). Instructor vs Instructor(Soloflights) split on
+    `IsSoloFlight`.
+  - **DEAD, do not port:** HighCharts (`showChart=false`), per-column table text filters (DTO
+    ignores them), `#if DEBUG` `C:\temp` export dump.
+- **Operator confirm at gate (not blocking the build):** is the Excel export consumed by any
+  *external* tool (none found in `flsserver`/`flsweb`)? If yes, the typo/skip preservation is
+  mandatory; if no, it's still the safe default (harness requires it). Recorded, not asked now.
+
+## Boyscout riders — folded vs deferred (operator: "do the boyscout tasks", 2026-06-09)
+
+Per the boyscout scoping rule ("each rides the next touch of its form/surface"), J-7 folds the
+riders that touch ITS surface or ride ITS gate; the per-form validation riders ride their own
+form's next-touch journey (folding them here would violate the recorded operator design).
+
+**FOLDED into J-7 tasks:**
+- Gallery: **structural post-deploy proof-gallery guard** + **shots-present guard** + the
+  index-regression fix (J-6 retro + J-5 retro + J-6 "paired per-push") → **T-12**.
+- CI: **fail-aggregate** (surface all reds in one run, J-5 retro) → **T-13**.
+- **orval `operationId`** stability (J-3 rider) — J-7 ADDS endpoints → renumbers `getN`; set
+  explicit operationIds on the new flightreports endpoints (≥ those) → folded into **T-05**.
+- e2e **tsc-strictness** opportunistic cleanup (J-2 rider) → **T-14**.
+- New custom-builder form built to the **as-you-type bar** (J-6b `liveFieldErrors`) + the
+  reporting page kept **low-CRAP** (don't replicate the `*-edit.page.ts` form-mapping/errorPatch
+  complexity) → baked into **T-11** (not a separate rider).
+- Maintainability panel already SHIPPED (J-6 T-14) — J-7 page inherits it; no task.
+
+**DEFERRED (ride their own next-touch journey — surfaced for the operator):**
+- P0/P1/P2/P3/P4 per-form validation riders for persons/flight-types/clubs/profile/aircraft/
+  article/location/planning-setup/user edit + flight-EDIT dead `FlightValidator` — J-7 is
+  read-side and touches none of those edit forms.
+- "Un-mask migration-ingest constraint" — J-7 has no mapper/ingest (read-side); rides a
+  migration journey's gate.
+- clubadmin4/V29 removal (Flyway-checksum risk), legacy /profile video staging, JIT-username
+  robustness, op-field-mutate test — not J-7's surface.
+
+## Tasks
+
+- [ ] **T-01 — spec stub + proof-page scaffold (standing).** Author the Playwright spec
+  structure/selectors/flow for `/flightreports` (picker → canned results → custom builder →
+  export) with thin assertions (commits the screen shape); scaffold the per-journey J-7
+  gallery page + link from the persistent index. Capture-legacy-once: commit legacy reference
+  shots under `e2e/legacy-reference/reporting/`. *(seam: reporting spec skeleton + gallery page)*
+- [ ] **T-02 — scope gate to J-7; prior journeys → mock-IdP (standing).** Set `mock_test:`
+  + `parity_test:` derivation so per-push runs only J-7's own specs heavy (real-idp) and prior
+  journeys mock-IdP. *(seam: ci.yml spec selection + J-7 frontmatter)*
+- [ ] **T-03 — backend FlightReport read model: paged filtered query + DTOs.** New read-side
+  query over the Flight aggregate (date-range / type-flags / person|location filter), **tenant-
+  scoped (ADR 0008)**; DTOs `FlightReportResult` + `FlightReportDataRecord` + nested
+  `TowFlightReportDataRecord` (row shape per oracle §4); pagination (0-based offset, cap 500,
+  default sort). No summary yet. *(seam: FlightReportQueryService + report DTOs + repo query)*
+- [ ] **T-04 — backend summary aggregation.** Person-branch 6 rows (Pilot Glider/Motor/Towing,
+  Copilot, Instructor, Instructor-Solo, Total) + location-branch group-by-FlightTypeName + Total;
+  starts-from-landings formulas; **correct the `TotalFlights=0` legacy bug** on all rows.
+  `FlightReportSummary` DTO. *(seam: FlightReportQueryService summary computation + DTO)*
+- [ ] **T-05 — backend FlightReportsController.** `POST /api/v1/flightreports/page/{start}/{size}`
+  → result+summaries; exception handling; **explicit `operationId`s** (orval stability rider);
+  ITs incl. tenant-isolation. *(seam: FlightReportsController + IT)*
+- [ ] **T-06 — ExcelExportSupport POI helper (S-094).** Add `poi-ooxml` dep; SXSSF streaming
+  helper: `headerRow/dataRow/dateCell/timeCell/durationCell/intCell/streamingWorkbook` matching
+  legacy formats; one unit test per helper. *(seam: ch.alpenflight.excel.ExcelExportSupport + dep)*
+- [ ] **T-07 — flight-reports Excel export endpoint (S-095).** `POST …/export/excel/{start}/{size}`
+  streaming `.xlsx`; exact 30-col layout + A1/A3/C3 metadata + skipped col 17 + `HH:MM`/`[H]:MM`
+  formats per oracle §5; correct MIME. *(seam: FlightReportsController export endpoint + writer)*
+- [ ] **T-08 — Excel parity harness (S-096).** XLSX cell-by-cell diff (value+number-format,
+  tolerant of font/width); legacy FlightReports fixture (S-093 inventory + committed fixture);
+  CI-wired, FlightReports-scoped (J-10 adds the other two exports). *(seam: excel-parity test harness + fixture)*
+- [ ] **T-09 — web reporting scaffold: feature folder + picker + date-math util + store.** Routes
+  (`/flightreports`, `/:category/:type`, `/custom/:category/:filter/edit|:mode`); picker tile grid
+  (person + location categories); canned `:type` → derived date-range util (oracle §1); report
+  store + orval client wiring. *(seam: web reporting feature scaffold + picker)*
+- [ ] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
+  table idiom; nested tow rendering) + **Excel export button** (streamed download); empty-state.
+  *(seam: web reporting results component)*
+- [ ] **T-11 — web custom report builder form.** Date range + 3 flight-type toggles + conditional
+  person/location selector; built to the **as-you-type bar** (debounced `liveFieldErrors`), kept
+  **low-CRAP**. *(seam: web custom-builder form component)*
+- [ ] **T-12 — boyscout: structural post-deploy gallery guard.** Post-deploy job asserts the J-7
+  bookmark row is a LIVE LINK and every declared asset (videos + paired shots) resolves 200 on the
+  DEPLOYED page; add the shots-present pre-deploy guard. *(seam: deployed-gallery-guard step + add_shot presence guard)*
+- [ ] **T-13 — boyscout: CI fail-aggregate.** Run the independent checks (build / server-test /
+  web-lint / mock-e2e) so one run reports every red at once instead of stopping at the first.
+  *(seam: ci.yml job parallelism/aggregation)*
+- [ ] **T-14 — boyscout: e2e tsc-strictness cleanup.** Clear the ~23 pre-existing
+  `exactOptionalPropertyTypes`/`maxFailures` errors so an e2e `tsc` gate could be wired. *(seam: e2e/tsconfig strict cleanup)*
+- [ ] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
+  + edge assertions from the oracle (canned date windows, summary grouping incl. corrected
+  TotalFlights, nested tow, tenant isolation, Excel parity). *(seam: reporting spec full assertions)*
