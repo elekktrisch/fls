@@ -34,4 +34,6 @@ export type MeResponse = {
   languageId?: string;
   /** BCP-47 code of `languageId` (e.g. `de`, `fr`). Lets the SPA flip its active locale on a saved language change without a second round-trip. */
   languageCode?: string;
+  /** Caller's club homebase Location id, prefixed external form `loc-<uuid>` (matches `LocationId` / `FlightReportSearchFilter.locationId`, so the SPA passes it straight into a LOCATION canned report). Null when the club has no homebase set or no user row matches the JWT sub. */
+  homebaseLocationId?: string;
 };

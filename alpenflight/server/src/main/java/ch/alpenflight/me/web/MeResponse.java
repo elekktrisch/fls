@@ -2,6 +2,7 @@ package ch.alpenflight.me.web;
 
 import ch.alpenflight.me.application.MeView;
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.PersonId;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -55,7 +56,12 @@ record MeResponse(
         @Nullable String languageId,
         @Schema(description = "BCP-47 code of `languageId` (e.g. `de`, `fr`). Lets the SPA flip "
                 + "its active locale on a saved language change without a second round-trip.")
-        @Nullable String languageCode) {
+        @Nullable String languageCode,
+        @Schema(description = "Caller's club homebase Location id, prefixed external form "
+                + "`loc-<uuid>` (matches `LocationId` / `FlightReportSearchFilter.locationId`, so "
+                + "the SPA passes it straight into a LOCATION canned report). Null when the club "
+                + "has no homebase set or no user row matches the JWT sub.")
+        @Nullable String homebaseLocationId) {
 
     static MeResponse from(MeView view) {
         return new MeResponse(
@@ -70,6 +76,9 @@ record MeResponse(
                 view.friendlyName(),
                 view.phoneNumber(),
                 view.languageId() == null ? null : view.languageId().toString(),
-                view.languageCode());
+                view.languageCode(),
+                view.homebaseLocationId() == null
+                        ? null
+                        : LocationId.of(view.homebaseLocationId()).toExternal());
     }
 }

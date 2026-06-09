@@ -431,12 +431,29 @@ form's next-touch journey (folding them here would violate the recorded operator
   0008) so a location report with no locationId still returns the caller's club (club-wide, not
   homebase-filtered). FLAGGED for T-10 / a follow-up: add `homebaseLocationId` to `/me` or
   `ClubResponse` so location canned reports filter to the homebase.
-- [ ] **T-09b — expose club homebase on `/me` + wire location reports (T-09 gap).** `t_club` has
+- [x] **T-09b — expose club homebase on `/me` + wire location reports (T-09 gap).** `t_club` has
   `homebase_id` (V3 `fk_club_homebase_id`); add `homebaseLocationId` to `MeResponse` (the club
   context lives on `/me`) + regen orval + wire `cannedReportRequest` to pass `locationId` for
   LOCATION canned reports. **Required, not optional:** the backend location-branch summary only
   computes when a LocationId is set — without it a location report has an EMPTY summary, breaking the
   AC "location report summary groups by FlightTypeName." *(seam: MeResponse homebase field + web canned-request wiring)*
+  <br>DONE: **Backend** — `MeService` SELECT now `LEFT JOIN t_club c ON c.id = u.club_id` and
+  projects `c.homebase_id` (nullable: a club may have no homebase; null when no club). `MeView` +
+  `MeResponse` carry `homebaseLocationId` (UUID → `loc-<uuid>` external form via `LocationId`, ADR
+  0019 — matches `FlightReportSearchFilter.locationId` so the SPA passes it straight through). DTO ≠
+  entity preserved (projection through MeView). No new native-SQL-register entry needed — `t_club`
+  /`t_user` aren't `@TenantId`-scoped (MeService is principal-scoped, already unregistered; verified
+  by green `NativeSqlRegisterTest`). OpenAPI snapshot regenerated (`generateOpenApiSnapshot`,
+  +`homebaseLocationId` on `MeResponse`). `MeControllerIT`: +1 test (club with homebase → `loc-`
+  prefixed id) + null assertion on the no-person test. **Web** — orval regenerated (clean additive
+  diff: only `meResponse.ts` gained `homebaseLocationId?`). Hand-written `MeResponse` (me.service.ts)
+  + `User` (session.store.ts) + `oidc-claims.ts` mapper + `app.config.mock.ts` mock principal (set to
+  the Bern-Belp seed homebase) all carry the field; `SessionStore.loadMe` patches it from `/me`.
+  `cannedReportRequest` ALREADY accepted `homebaseLocationId` and wired LOCATION reports →
+  `searchFilter.locationId` (built in T-09); the 5 canned-report-request unit tests already assert
+  location reports pass `locationId` (now reachable end-to-end). Stale T-09 escalation comment
+  removed. `./gradlew check` green; `ng lint` + `ng build` + affected vitest (81 tests, incl. updated
+  `oidc-claims.spec` + the 6 User-literal fixtures) green.
 - [ ] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
   table idiom; nested tow rendering) + **Excel export button** (streamed download); empty-state.
   *(seam: web reporting results component)*

@@ -27,6 +27,7 @@ const tenantedUser: User = {
   lastName: 'Doe',
   clubId: 'club-1',
   personId: null,
+  homebaseLocationId: null,
   roles: ['PILOT'],
 };
 
@@ -38,6 +39,7 @@ const tenantlessSysadmin: User = {
   lastName: 'Admin',
   clubId: null,
   personId: null,
+  homebaseLocationId: null,
   roles: ['SYSTEM_ADMINISTRATOR'],
 };
 

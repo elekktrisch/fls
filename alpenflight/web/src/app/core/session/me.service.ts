@@ -24,6 +24,11 @@ export interface MeResponse {
   // second round-trip — see SessionStore.loadMe + core/i18n. Null when no
   // user row matches the JWT sub.
   languageCode: string | null;
+  // Caller's club homebase Location id (`loc-<uuid>`, matches
+  // FlightReportSearchFilter.locationId). Drives LOCATION canned reports
+  // (J-7) — scope the report to the club's homebase. Null when the club has
+  // no homebase set or no user row matches the JWT sub.
+  homebaseLocationId: string | null;
 }
 
 /**

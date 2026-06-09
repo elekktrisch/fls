@@ -69,10 +69,12 @@ public class MeService {
                    u.language_id     AS language_id,
                    l.code            AS language_code,
                    p.firstname       AS first_name,
-                   p.lastname        AS last_name
+                   p.lastname        AS last_name,
+                   c.homebase_id     AS homebase_location_id
             FROM t_user u
             LEFT JOIN t_person p ON p.id = u.person_id AND p.deleted_on IS NULL
             LEFT JOIN t_language l ON l.id = u.language_id
+            LEFT JOIN t_club c ON c.id = u.club_id AND c.deleted_on IS NULL
             WHERE u.keycloak_sub = ?::uuid AND u.deleted_on IS NULL
             """;
 
@@ -100,6 +102,8 @@ public class MeService {
                     null,
                     null,
                     null,
+                    null,
+                    // No user row → no club context → no homebase.
                     null);
         }
         String firstName = row.firstName != null ? row.firstName : claim(jwt, "given_name");
@@ -116,7 +120,8 @@ public class MeService {
                 row.friendlyName,
                 row.phoneNumber,
                 row.languageId,
-                row.languageCode);
+                row.languageCode,
+                row.homebaseLocationId);
     }
 
     private static List<String> extractRoles(Jwt jwt) {
@@ -163,7 +168,11 @@ public class MeService {
                     Objects.requireNonNull((String) row.get("friendly_name")),
                     (String) row.get("phone_number"),
                     asUuid(row.get("language_id")),
-                    (String) row.get("language_code"));
+                    (String) row.get("language_code"),
+                    // homebase_id is nullable on t_club (a club may have no
+                    // homebase set); the LEFT JOIN also yields null when the
+                    // user row carries no club_id.
+                    asUuidNullable(row.get("homebase_location_id")));
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -199,5 +208,6 @@ public class MeService {
             String friendlyName,
             @Nullable String phoneNumber,
             UUID languageId,
-            @Nullable String languageCode) {}
+            @Nullable String languageCode,
+            @Nullable UUID homebaseLocationId) {}
 }

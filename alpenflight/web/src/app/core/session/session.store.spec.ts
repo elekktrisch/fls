@@ -15,6 +15,7 @@ const sampleUser: User = {
   lastName: 'Doe',
   clubId: 'club-1',
   personId: null,
+  homebaseLocationId: null,
   roles: ['CLUB_ADMINISTRATOR'],
 };
 

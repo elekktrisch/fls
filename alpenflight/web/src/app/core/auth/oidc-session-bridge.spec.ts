@@ -163,6 +163,7 @@ describe('SessionStore widening (S-021)', () => {
       lastName: '',
       clubId: null,
       personId: null,
+      homebaseLocationId: null,
       roles: ['CLUB_ADMINISTRATOR'],
     };
 
@@ -184,6 +185,7 @@ describe('SessionStore widening (S-021)', () => {
         lastName: '',
         clubId: null,
         personId: null,
+        homebaseLocationId: null,
         roles: ['SYSTEM_ADMINISTRATOR'],
       },
       sessionStatus: 'authenticated',

@@ -14,15 +14,11 @@ import { cannedReportSpec, categoryOf } from './canned-report';
  *     (oracle § 1 — `LocationId = club.HomebaseId`).
  *
  * Both ids are passed in (the composer stays pure + unit-testable); the caller
- * sources them from the session. A null id is OMITTED from the filter — the
- * backend is tenant-scoped (ADR 0008) so a person report with no PersonId still
- * returns only the caller's club, just unfiltered by person.
- *
- * NOTE (T-09 escalation): the club homebase location id is NOT currently on the
- * web wire (no `homebaseId` on ClubResponse, no field on `/me`). `locationId`
- * is therefore left null for location canned reports until that seam exists —
- * see the T-09 report. Person reports work end-to-end today (PersonId is on
- * SessionStore via `/me`).
+ * sources them from the session: `SessionStore.authenticatedUser().personId`
+ * and `.homebaseLocationId` (both populated by `/me` — S-165 + J-7 T-09b). A
+ * null id is OMITTED from the filter — the backend is tenant-scoped (ADR 0008)
+ * so a report with no person/location id still returns only the caller's club,
+ * just unfiltered by that dimension.
  */
 export function cannedReportRequest(
   type: CannedType,
