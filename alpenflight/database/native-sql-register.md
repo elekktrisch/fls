@@ -221,9 +221,11 @@ When you need to add one:
 - **Tenancy gate:** the matched flight carries an explicit
   `f.operating_club_id = :tenant` predicate (parameter-bound from
   `TenantContextCarrier.current()`, never caller-controlled string
-  interpolation) on BOTH the page and the count query — this CORRECTS the
-  legacy tenancy hole (`FlightReportService.cs:114-125`) where a person-only /
-  unknown-type report leaked other clubs' flights. The decoration joins
+  interpolation) on the page, the count, AND the T-04 summary-aggregation query
+  (`findSummaryRows`, which shares the same `appendWhere`/`bindWhere` tenant
+  predicate) — this CORRECTS the legacy tenancy hole
+  (`FlightReportService.cs:114-125`) where a person-only / unknown-type report
+  leaked other clubs' flights. The decoration joins
   (t_aircraft, t_person, t_location, t_flight_type) + the nested-tow self-join
   carry no tenant predicate by design — they are FK-reachable rows whose
   cross-tenant visibility is the documented ride-through contract above.

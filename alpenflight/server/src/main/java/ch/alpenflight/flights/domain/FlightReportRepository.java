@@ -104,6 +104,42 @@ public interface FlightReportRepository {
     long countReport(ReportCriteria criteria);
 
     /**
+     * Per-flight aggregation inputs for the summary computation (J-7 T-04).
+     * Returns ALL matched flights for the filter (no pagination) within the
+     * tenant — the service folds these into the person- or location-branch
+     * summary rows in memory (legacy re-queries per group; this matches the
+     * VALUES with a single tenant-scoped pass).
+     *
+     * <p>{@code isPilotOrStudent}/{@code isCoPilot}/{@code isFlightInstructor}
+     * are true when the filter's {@code personId} holds that crew role on the
+     * flight (non-deleted crew row); they are all false when the filter has no
+     * person. {@code aircraftType} is the legacy aircraft-type int (1=glider,
+     * 2=tow, 4=motor). {@code durationSeconds} is {@code DiffSeconds(start,ldg)}
+     * (0 when either bound is absent — matching legacy {@code DbFunctions}).
+     */
+    record SummaryRow(
+            short aircraftType,
+            boolean soloFlight,
+            @Nullable Short nrOfLdgs,
+            @Nullable Short nrOfLdgsOnStartLocation,
+            boolean noStartTimeInformation,
+            boolean noLdgTimeInformation,
+            @Nullable UUID startLocationId,
+            @Nullable UUID ldgLocationId,
+            long durationSeconds,
+            @Nullable String flightTypeName,
+            boolean isPilotOrStudent,
+            boolean isCoPilot,
+            boolean isFlightInstructor) {}
+
+    /**
+     * All matched flights (no pagination) for the filter, projected to the
+     * summary aggregation inputs. Tenant-scoped identically to
+     * {@link #findReportPage}.
+     */
+    List<SummaryRow> findSummaryRows(ReportCriteria criteria);
+
+    /**
      * Resolved, tenant-bound filter for a report query. {@code tenantId} is
      * the caller's effective tenant (the page + count both scope by it — the
      * J-7 tenancy-hole correction). The remaining fields mirror the filter

@@ -274,10 +274,26 @@ form's next-touch journey (folding them here would violate the recorded operator
   role inclusion. `./gradlew check` green (cpdRatchet/pmdMain/arch-guards/OpenApiSnapshotIT/IT).
   NOTE (parity): `StartType` int is an AlpenFlight stable code→int (V2 seed order) — legacy carried
   a per-club DB int with no fixed enum and the new schema dropped it; documented in the service.
-- [ ] **T-04 — backend summary aggregation.** Person-branch 6 rows (Pilot Glider/Motor/Towing,
+- [x] **T-04 — backend summary aggregation.** Person-branch 6 rows (Pilot Glider/Motor/Towing,
   Copilot, Instructor, Instructor-Solo, Total) + location-branch group-by-FlightTypeName + Total;
   starts-from-landings formulas; **correct the `TotalFlights=0` legacy bug** on all rows.
   `FlightReportSummary` DTO. *(seam: FlightReportQueryService summary computation + DTO)*
+  <br>DONE: thickened `FlightReportSummary` (groupBy/totalStarts/totalLdgs/totalFlights/
+  totalFlightDuration) + `FlightReportRepository.SummaryRow` projection + `findSummaryRows`
+  (one tenant-scoped pass, no pagination; shares the page query's `appendWhere`/`bindWhere` via
+  new `prepare(...)` helper — keeps cpdRatchet at baseline). Service `computeSummaries` folds the
+  rows in memory: person branch = 6 fixed-order rows (each present only with ≥1 flight) + Total,
+  reproducing the legacy starts-from-landings person formula INCLUDING the intended quirk
+  (`totalStarts` base = `nrOfLdgs`, noStart fallback) `FlightReportService.cs:244-251`; location
+  branch = group-by-FlightTypeName (alphabetical) + Total with the 4-term same-airfield/fly-in
+  (`nrOfLdgs-1`)/fly-out/outlandings starts formula `:683-691`. **Corrected the legacy
+  `TotalFlights=0` bug** — `totalFlights` set on ALL rows (legacy omits it on Pilot Motor/Towing
+  `:304-314,366-376`). Tenant-scoped on every path (same `operating_club_id = :tenant` predicate;
+  native-sql-register updated). All required fields present on the migrated Flight aggregate
+  (`nr_of_ldgs`, `nr_of_ldgs_on_start_location`, `no_start_time_information`,
+  `no_ldg_time_information`, `start_location_id`, `ldg_location_id`, `is_solo_flight`) — no
+  escalation. 3 new ITs (person-branch grouping + corrected non-zero Motor/Towing + Instructor/
+  Solo split; location group-by-FlightTypeName + Total; tenant-scoped). `./gradlew check` green.
 - [ ] **T-05 — backend FlightReportsController.** `POST /api/v1/flightreports/page/{start}/{size}`
   → result+summaries; exception handling; **explicit `operationId`s** (orval stability rider);
   ITs incl. tenant-isolation. *(seam: FlightReportsController + IT)*

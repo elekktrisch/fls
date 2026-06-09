@@ -68,14 +68,34 @@ public final class FlightReportDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<FlightReportSummary> summaries) {}
 
     /**
-     * Placeholder summary row. T-03 ships the type so {@link FlightReportResult}
-     * compiles with a present-but-empty {@code summaries}; T-04 owns the real
-     * shape (GroupBy / TotalStarts / TotalLdgs / TotalFlights /
-     * TotalFlightDuration) + the grouping rule.
+     * One aggregated summary row (legacy {@code FlightReportSummary.cs:6-37}).
+     * Two mutually-exclusive grouping branches populate this (T-04):
+     *
+     * <ul>
+     *   <li><b>Person branch</b> (filter carries a {@code flightCrewPersonId}) —
+     *       up to 6 fixed-order rows ({@code Pilot (Glider)}, {@code Pilot
+     *       (Motor)}, {@code Pilot (Towing)}, {@code Copilot}, {@code Instructor},
+     *       {@code Instructor (Soloflights)}), each present only when it has ≥1
+     *       flight, plus a {@code Total} row always appended.</li>
+     *   <li><b>Location branch</b> (filter carries a {@code locationId} but no
+     *       person) — one row per {@code FlightTypeName} (alphabetical) plus a
+     *       {@code Total} row.</li>
+     * </ul>
+     *
+     * <p>{@code totalStarts}/{@code totalLdgs} are derived from landings (legacy
+     * has no starts column); the formulas are reproduced exactly from
+     * {@code FlightReportService.cs:188-730} — including the INTENDED quirk that
+     * person-branch {@code totalStarts} uses the {@code nrOfLdgs} base. The J-7
+     * parity correction sets {@code totalFlights} on ALL rows (legacy omits it on
+     * {@code Pilot (Motor)}/{@code Pilot (Towing)} → 0, under-counting the Total).
      */
-    @Schema(description = "Flight-report summary row (T-04 fills this; empty at T-03).")
+    @Schema(description = "Flight-report summary row (one crew-function/flight-type group, plus a Total row).")
     public record FlightReportSummary(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String groupBy) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String groupBy,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int totalStarts,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int totalLdgs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int totalFlights,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Duration totalFlightDuration) {}
 
     @Schema(description = "One flight-report data row (one row per flight).")
     public record FlightReportDataRecord(

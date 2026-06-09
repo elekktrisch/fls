@@ -120,11 +120,8 @@ class JpaFlightReportRepository implements FlightReportRepository {
            .append(" left join t_flight_type twft on twft.id = tw.flight_type_id")
            .append(" left join t_location twsl on twsl.id = tw.start_location_id")
            .append(" left join t_location twll on twll.id = tw.ldg_location_id");
-        appendWhere(sql, typePredicate, c.from(), c.to(), c.personId(), c.locationId());
-        sql.append(' ').append(orderBy).append(" offset :offset limit :limit");
-
-        Query q = em.createNativeQuery(sql.toString());
-        bindWhere(q, c.tenantId(), c.from(), c.to(), c.personId(), c.locationId());
+        Query q = prepare(sql, typePredicate, c,
+                ' ' + orderBy + " offset :offset limit :limit");
         q.setParameter("offset", offset);
         q.setParameter("limit", limit);
 
@@ -142,11 +139,81 @@ class JpaFlightReportRepository implements FlightReportRepository {
             return 0L;
         }
         StringBuilder sql = new StringBuilder("select count(*) from t_flight f");
-        appendWhere(sql, typePredicate, c.from(), c.to(), c.personId(), c.locationId());
-        Query q = em.createNativeQuery(sql.toString());
-        bindWhere(q, c.tenantId(), c.from(), c.to(), c.personId(), c.locationId());
+        Query q = prepare(sql, typePredicate, c, "");
         Object n = q.getSingleResult();
         return ((Number) n).longValue();
+    }
+
+    @Override
+    public List<SummaryRow> findSummaryRows(ReportCriteria c) {
+        String typePredicate = typePredicate(c.gliderFlights(), c.motorFlights(), c.towFlights());
+        if (typePredicate == null) {
+            return List.of();
+        }
+        // Person-role flags: true when the filter's person holds that role on the
+        // flight. Constant false when no person filter (no personId bound).
+        String pilotFlag = roleExists(c.personId(), PILOT_TYPE);
+        String coPilotFlag = roleExists(c.personId(), "'019e2e15-2c00-76b1-8000-0000000036b1'");
+        String instructorFlag = roleExists(c.personId(), "'019e2e15-2c00-76b2-8000-0000000036b2'");
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("select")
+           .append("  f.flight_aircraft_type_id, f.is_solo_flight,")
+           .append("  f.nr_of_ldgs, f.nr_of_ldgs_on_start_location,")
+           .append("  f.no_start_time_information, f.no_ldg_time_information,")
+           .append("  f.start_location_id, f.ldg_location_id,")
+           .append("  coalesce(extract(epoch from (f.ldg_date_time - f.start_date_time)), 0),")
+           .append("  ft.flight_type_name,")
+           .append("  ").append(pilotFlag).append(",")
+           .append("  ").append(coPilotFlag).append(",")
+           .append("  ").append(instructorFlag)
+           .append(" from t_flight f")
+           .append(" left join t_flight_type ft on ft.id = f.flight_type_id");
+        Query q = prepare(sql, typePredicate, c, "");
+
+        List<SummaryRow> out = new ArrayList<>();
+        for (Object raw : q.getResultList()) {
+            out.add(toSummaryRow((Object[]) raw));
+        }
+        return out;
+    }
+
+    /**
+     * SQL boolean: does {@code :personId} hold the given crew role on flight
+     * {@code f}? Constant {@code false} when no person filter (the summary
+     * person-role split is only meaningful under a person filter).
+     */
+    private static String roleExists(@Nullable UUID personId, String crewTypeLiteral) {
+        if (personId == null) {
+            return "false";
+        }
+        return "exists (select 1 from t_flight_crew fc where fc.flight_id = f.id"
+                + " and fc.deleted_on is null and fc.person_id = :personId"
+                + " and fc.flight_crew_type_id = " + crewTypeLiteral + ")";
+    }
+
+    private static SummaryRow toSummaryRow(Object[] r) {
+        int i = 0;
+        short typeId = ((Number) r[i++]).shortValue();
+        boolean solo = asBool(r[i++]);
+        Short nrOfLdgs = asShort(r[i++]);
+        Short nrOfLdgsOnStart = asShort(r[i++]);
+        boolean noStart = asBool(r[i++]);
+        boolean noLdg = asBool(r[i++]);
+        UUID startLoc = asUuid(r[i++]);
+        UUID ldgLoc = asUuid(r[i++]);
+        long durationSeconds = ((Number) r[i++]).longValue();
+        String flightTypeName = asString(r[i++]);
+        boolean isPilot = asBool(r[i++]);
+        boolean isCoPilot = asBool(r[i++]);
+        boolean isInstructor = asBool(r[i]);
+        return new SummaryRow(typeId, solo, nrOfLdgs, nrOfLdgsOnStart, noStart, noLdg,
+                startLoc, ldgLoc, durationSeconds, flightTypeName,
+                isPilot, isCoPilot, isInstructor);
+    }
+
+    private static @Nullable Short asShort(@Nullable Object o) {
+        return o == null ? null : ((Number) o).shortValue();
     }
 
     /** Null ⇒ all flags off ⇒ caller short-circuits to an empty result. */
@@ -172,6 +239,20 @@ class JpaFlightReportRepository implements FlightReportRepository {
             p.append(types.get(i));
         }
         return p.append(')').toString();
+    }
+
+    /**
+     * Appends the shared tenant-scoped WHERE clause + an optional {@code suffix}
+     * (order/limit) to {@code sql}, then builds the native query and binds the
+     * filter parameters. Single seam for the page / count / summary queries so
+     * the tenant predicate + parameter binding live in exactly one place.
+     */
+    private Query prepare(StringBuilder sql, String typePredicate, ReportCriteria c, String suffix) {
+        appendWhere(sql, typePredicate, c.from(), c.to(), c.personId(), c.locationId());
+        sql.append(suffix);
+        Query q = em.createNativeQuery(sql.toString());
+        bindWhere(q, c.tenantId(), c.from(), c.to(), c.personId(), c.locationId());
+        return q;
     }
 
     private static void appendWhere(StringBuilder sql,

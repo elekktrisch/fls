@@ -219,6 +219,172 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         assertThat(ids(result)).containsExactly(asPilot);
     }
 
+    // -------------------------------------------------------- summary (T-04)
+
+    @Test
+    void personBranch_groupsByCrewFunction_correctsTotalFlights_andSplitsInstructorSolo() {
+        UUID glider = seedAircraft(CLUB_A);
+        UUID motor = seedAircraft(CLUB_A);
+        UUID tow = seedAircraft(CLUB_A);
+        UUID loc = seedLocation(CLUB_A, "Base");
+        UUID ft = seedFlightType(CLUB_A, "T", "T");
+        UUID person = seedPerson("Pic", "Paul");
+        UUID other = seedPerson("Co", "Carla");
+
+        Instant s = Instant.parse("2026-05-15T08:00:00Z");
+        Instant l = Instant.parse("2026-05-15T09:00:00Z"); // 60 min each
+
+        // Pilot (Glider): 2 flights, ldgs 2 + 1 (with onStart 1 on one).
+        UUID g1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 15), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 2, (short) 0);
+        seedCrew(g1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+        UUID g2 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 16), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 1);
+        seedCrew(g2, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        // Pilot (Motor): 1 flight as pilot.
+        UUID m1 = seedFlight(CLUB_A, TYPE_MOTOR, motor, LocalDate.of(2026, 5, 17), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 3, (short) 0);
+        seedCrew(m1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        // Pilot (Towing): 1 flight as pilot.
+        UUID t1 = seedFlight(CLUB_A, TYPE_TOW, tow, LocalDate.of(2026, 5, 18), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 4, (short) 0);
+        seedCrew(t1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        // Copilot: 1 flight where person is copilot.
+        UUID c1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 19), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
+        seedCrew(c1, other, FlightCrewTypeIds.PILOT_OR_STUDENT);
+        seedCrew(c1, person, FlightCrewTypeIds.CO_PILOT);
+
+        // Instructor (non-solo) + Instructor (solo) split.
+        UUID i1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 20), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
+        seedCrew(i1, person, FlightCrewTypeIds.FLIGHT_INSTRUCTOR);
+        UUID i2 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 21), s, l,
+                loc, loc, ft, FlightProcessState.VALID.id(), null, true, (short) 1, (short) 0);
+        seedCrew(i2, person, FlightCrewTypeIds.FLIGHT_INSTRUCTOR);
+
+        FlightReportFilter filter = new FlightReportFilter(
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
+                new PersonId(person), null, true, true, true);
+        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+                () -> service.getReportPage(filter, 0, 100, false, true));
+
+        List<FlightReportDtos.FlightReportSummary> sums = result.summaries();
+        // Fixed order, each present (all have ≥1 flight) + Total.
+        assertThat(sums.stream().map(FlightReportDtos.FlightReportSummary::groupBy))
+                .containsExactly("Pilot (Glider)", "Pilot (Motor)", "Pilot (Towing)",
+                        "Copilot", "Instructor", "Instructor (Soloflights)", "Total");
+
+        var pg = summary(sums, "Pilot (Glider)");
+        assertThat(pg.totalFlights()).isEqualTo(2);
+        assertThat(pg.totalLdgs()).isEqualTo(2 + (1 + 1)); // (2) + (1 + onStart 1)
+        assertThat(pg.totalStarts()).isEqualTo(2 + (1 + 1)); // starts base = nrOfLdgs
+        assertThat(pg.totalFlightDuration()).isEqualTo(java.time.Duration.ofHours(2));
+
+        // CORRECTED legacy bug: Motor/Towing pilot rows carry non-zero TotalFlights.
+        assertThat(summary(sums, "Pilot (Motor)").totalFlights()).isEqualTo(1);
+        assertThat(summary(sums, "Pilot (Towing)").totalFlights()).isEqualTo(1);
+
+        // Instructor vs Instructor (Soloflights) split on IsSoloFlight.
+        assertThat(summary(sums, "Instructor").totalFlights()).isEqualTo(1);
+        assertThat(summary(sums, "Instructor (Soloflights)").totalFlights()).isEqualTo(1);
+        assertThat(summary(sums, "Copilot").totalFlights()).isEqualTo(1);
+
+        // Total = sum of all rows (8 flights across the 6 groups).
+        var total = summary(sums, "Total");
+        assertThat(total.totalFlights()).isEqualTo(2 + 1 + 1 + 1 + 1 + 1);
+    }
+
+    @Test
+    void locationBranch_groupsByFlightTypeName_alphabetical_withTotal() {
+        UUID ac = seedAircraft(CLUB_A);
+        UUID loc = seedLocation(CLUB_A, "Home");
+        UUID away = seedLocation(CLUB_A, "Away");
+        UUID streckenflug = seedFlightType(CLUB_A, "Streckenflug", "STR");
+        UUID schulung = seedFlightType(CLUB_A, "Schulung", "SCH");
+
+        Instant s = Instant.parse("2026-05-15T08:00:00Z");
+        Instant l = Instant.parse("2026-05-15T09:00:00Z");
+
+        // Same-airfield flight (start==ldg==loc): starts = nrOfLdgs (3) + onStart (0).
+        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 15), s, l,
+                loc, loc, schulung, FlightProcessState.VALID.id(), null, false, (short) 3, (short) 0);
+        // Fly-in (start away, ldg here): ldgs counts nrOfLdgs (2); starts term = nrOfLdgs-1 = 1.
+        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 16), s, l,
+                away, loc, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 2, (short) 0);
+        // Fly-out (start here, ldg away): ldgs 0 here; starts term = nrOfLdgs (1).
+        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 17), s, l,
+                loc, away, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
+
+        FlightReportFilter filter = new FlightReportFilter(
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
+                null, new LocationId(loc), true, true, true);
+        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+                () -> service.getReportPage(filter, 0, 100, false, true));
+
+        List<FlightReportDtos.FlightReportSummary> sums = result.summaries();
+        // Alphabetical FlightTypeName groups + Total appended.
+        assertThat(sums.stream().map(FlightReportDtos.FlightReportSummary::groupBy))
+                .containsExactly("Schulung", "Streckenflug", "Total");
+
+        var sch = summary(sums, "Schulung");
+        assertThat(sch.totalFlights()).isEqualTo(1);
+        assertThat(sch.totalLdgs()).isEqualTo(3);   // ldg here
+        assertThat(sch.totalStarts()).isEqualTo(3); // same-airfield: nrOfLdgs
+
+        var str = summary(sums, "Streckenflug");
+        assertThat(str.totalFlights()).isEqualTo(2);
+        assertThat(str.totalLdgs()).isEqualTo(2);   // only the fly-in lands here
+        assertThat(str.totalStarts()).isEqualTo((2 - 1) + 1); // fly-in (nrOfLdgs-1) + fly-out (nrOfLdgs)
+
+        var total = summary(sums, "Total");
+        assertThat(total.totalFlights()).isEqualTo(3);
+        assertThat(total.totalLdgs()).isEqualTo(3 + 2);
+        assertThat(total.totalStarts()).isEqualTo(3 + 1 + 1);
+    }
+
+    @Test
+    void summaries_tenantScoped_clubBFlightsDoNotInflateClubASummary() {
+        UUID acA = seedAircraft(CLUB_A);
+        UUID acB = seedAircraft(CLUB_B);
+        UUID locA = seedLocation(CLUB_A, "Shared");
+        UUID ftA = seedFlightType(CLUB_A, "TypeX", "X");
+        UUID ftB = seedFlightType(CLUB_B, "TypeX", "X");
+        UUID person = seedPerson("Shared", "Sam");
+
+        Instant s = Instant.parse("2026-05-15T08:00:00Z");
+        Instant l = Instant.parse("2026-05-15T09:00:00Z");
+
+        UUID fa = seedFlight(CLUB_A, TYPE_GLIDER, acA, LocalDate.of(2026, 5, 15), s, l,
+                locA, locA, ftA, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
+        seedCrew(fa, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+        // Club B flight with the SAME person as pilot — must not leak into A's summary.
+        UUID fb = seedFlight(CLUB_B, TYPE_GLIDER, acB, LocalDate.of(2026, 5, 15), s, l,
+                locA, locA, ftB, FlightProcessState.VALID.id(), null, false, (short) 5, (short) 0);
+        seedCrew(fb, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        FlightReportFilter filter = new FlightReportFilter(null, null,
+                new PersonId(person), null, true, true, true);
+        FlightReportResult aResult = TenantTestContext.runAs(CLUB_A,
+                () -> service.getReportPage(filter, 0, 100, false, true));
+
+        var pg = summary(aResult.summaries(), "Pilot (Glider)");
+        assertThat(pg.totalFlights()).isEqualTo(1);          // only A's flight
+        assertThat(pg.totalLdgs()).isEqualTo(1);             // B's 5 ldgs not counted
+        assertThat(summary(aResult.summaries(), "Total").totalFlights()).isEqualTo(1);
+    }
+
+    private static FlightReportDtos.FlightReportSummary summary(
+            List<FlightReportDtos.FlightReportSummary> sums, String label) {
+        return sums.stream()
+                .filter(x -> x.groupBy().equals(label))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no summary row '" + label + "'"));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static List<UUID> ids(FlightReportResult result) {
@@ -289,20 +455,32 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
                            LocalDate flightDate, Instant start, Instant ldg,
                            UUID startLocation, UUID ldgLocation, UUID flightType,
                            UUID processStateId, UUID towFlightId, boolean solo) {
+        return seedFlight(clubId, aircraftTypeId, aircraftId, flightDate, start, ldg,
+                startLocation, ldgLocation, flightType, processStateId, towFlightId, solo,
+                (Short) null, (Short) null);
+    }
+
+    @SuppressWarnings("ParameterNumber")
+    private UUID seedFlight(UUID clubId, int aircraftTypeId, UUID aircraftId,
+                           LocalDate flightDate, Instant start, Instant ldg,
+                           UUID startLocation, UUID ldgLocation, UUID flightType,
+                           UUID processStateId, UUID towFlightId, boolean solo,
+                           Short nrOfLdgs, Short nrOfLdgsOnStartLocation) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_flight (id, operating_club_id, aircraft_id, flight_aircraft_type_id,
                         flight_date, start_date_time, ldg_date_time, start_location_id,
                         ldg_location_id, flight_type_id, is_solo_flight, tow_flight_id,
-                        no_start_time_information, no_ldg_time_information, process_state_id)
+                        no_start_time_information, no_ldg_time_information, process_state_id,
+                        nr_of_ldgs, nr_of_ldgs_on_start_location)
                 VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?::uuid, ?::uuid, ?::uuid,
-                        ?, ?::uuid, false, false, ?::uuid)
+                        ?, ?::uuid, false, false, ?::uuid, ?, ?)
                 """,
                 id.toString(), clubId.toString(), aircraftId.toString(), aircraftTypeId,
                 flightDate, java.sql.Timestamp.from(start), java.sql.Timestamp.from(ldg),
                 startLocation.toString(), ldgLocation.toString(), flightType.toString(),
                 solo, towFlightId == null ? null : towFlightId.toString(),
-                processStateId.toString());
+                processStateId.toString(), nrOfLdgs, nrOfLdgsOnStartLocation);
         return id;
     }
 
