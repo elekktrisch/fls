@@ -454,9 +454,32 @@ form's next-touch journey (folding them here would violate the recorded operator
   location reports pass `locationId` (now reachable end-to-end). Stale T-09 escalation comment
   removed. `./gradlew check` green; `ng lint` + `ng build` + affected vitest (81 tests, incl. updated
   `oidc-claims.spec` + the 6 User-literal fixtures) green.
-- [ ] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
+- [x] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
   table idiom; nested tow rendering) + **Excel export button** (streamed download); empty-state.
   *(seam: web reporting results component)*
+  <br>DONE: `results/report-results.page.ts` replaces the placeholder on
+  `/flightreports/:category/:type` (route rewired; placeholder kept for the two T-11 `custom/...`
+  shells). Reads `:category` + `:type` via `withComponentInputBinding` `input()`s, derives the
+  filter via the T-09 `cannedReportRequest` (binding `SessionStore.authenticatedUser()` personId /
+  homebaseLocationId), and loads `ReportStore` from an `effect()`. **(1) Filter-criteria panel**
+  (`report-filter-criteria`): derived From–To via `formatIsoDateDdMmYyyy` (DD.MM.YYYY, J-6b date
+  convention), flight-type label (Glider/Motor/Tow, off→omitted), and person/location scope.
+  **(2) Summary table** (`report-summary-table`/`-row`): GroupBy/Starts/Ldgs/Flights/Duration; renders
+  the backend's crew-function (person) or FlightTypeName (location) rows + Total straight through.
+  **(3) Flights table** (`report-flights-table`/row `report-flights-row`): logbook column idiom —
+  FlightDate/Immat/Pilot/2ndCrew/Solo/Type/From/To/Takeoff/Landing/Duration/Comment; **nested tow**
+  rendered as a `report-flights-tow-row` sub-row (↳ Tow + immat/pilot/type/locations/times) under an
+  aerotow glider. Dates DD.MM.YYYY, times HH:MM. **(4) Excel export** (`report-excel-export`, in the
+  page-header actions slot): new `ReportStore.exportExcel()` fetches the streamed `.xlsx` via the orval
+  `exportFlightReportExcel` with `responseType:'blob' + observe:'response'` (parses the
+  Content-Disposition filename); the component does the `URL.createObjectURL`→anchor-click download
+  (handshake-page idiom — HTTP in store, DOM in component). **(5) Empty-state** (`report-empty`,
+  screens-misc copy) when `store.isEmpty()`; export button disabled while empty. Kept low-CRAP (no
+  reactive-forms mapping/errorPatch — read-side derived filter). `pnpm` eslint + prettier clean over
+  the reporting + spec globs; `ng build` green; reporting vitest 18 green. **Un-fixmed the 5 now-
+  implementable T-01 mock cases** (picker + canned-person-results + location + Excel-export + empty-
+  state) in `e2e/tests/reporting/flight-reports.spec.ts` — added an export-endpoint `page.route` stub
+  (attachment .xlsx) — all 7 reporting mock specs green (1 still-fixme = T-11 custom-builder flow).
 - [ ] **T-11 — web custom report builder form.** Date range + 3 flight-type toggles + conditional
   person/location selector; built to the **as-you-type bar** (debounced `liveFieldErrors`), kept
   **low-CRAP**. *(seam: web custom-builder form component)*

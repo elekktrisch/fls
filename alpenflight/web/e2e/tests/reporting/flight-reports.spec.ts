@@ -9,13 +9,13 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * against a fixed `data-testid` contract, and T-15 thickens these assertions to
  * the full happy/edge/key-error set from the parity oracle.
  *
- * Until T-09/T-10/T-11 build the screen the route does not exist, so the flow
- * cases are `test.fixme`-skipped (they would hang on a route that never mounts).
- * What runs today is the SELECTOR-CONTRACT manifest below: a single assertion
- * that the testid names this file references are the ones the screen tasks must
- * ship — a typo here vs the component is caught at T-09 wiring time, not at the
- * gate. This is "red for the right reason": the shape is committed, the behavior
- * is pending.
+ * T-09 (picker + scaffold) and T-10 (results page) have landed, so the picker
+ * flow + the canned-results / location / Excel-export / empty-state cases now
+ * run live against the mounted screen. The custom-builder flow (T-11) is still
+ * `test.fixme` until that form lands; T-15 thickens every case to the full
+ * happy/edge/key-error assertion set from the parity oracle. The SELECTOR-
+ * CONTRACT manifest still runs as the typo guard between this spec and the
+ * components.
  *
  * Booted under the `mock-auth` Angular configuration; the principal is a mocked
  * SYSTEM_ADMINISTRATOR. All `/api/v1/*` calls are intercepted via `page.route` —
@@ -131,6 +131,17 @@ async function stubReportBackend(page: Page, result = mockReportResult): Promise
       body: JSON.stringify(result),
     }),
   );
+  // Excel export endpoint — fulfil with a tiny attachment so the export button
+  // triggers a real browser download (the spec asserts the `.xlsx` filename,
+  // not the bytes; cell-parity is the backend harness's job, T-08).
+  await page.route('**/api/v1/flightreports/export/excel/**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      headers: { 'content-disposition': 'attachment; filename="FlightReports.xlsx"' },
+      body: 'PK',
+    }),
+  );
   // Masterdata the custom-builder selectors read (persons / locations). Empty
   // is fine for the shape stub; T-15 seeds pickable options.
   await page.route('**/api/v1/persons**', (route) =>
@@ -175,7 +186,7 @@ test.describe('flight reports — screen shape (J-7 T-01 stub)', () => {
   // EXACT flow + selectors the screen must satisfy; flip `fixme`→`test` (and let
   // T-15 thicken) once the route mounts. ────────────────────────────────────
 
-  test.fixme('picker renders person + location category tiles, each linking a canned :type', async ({
+  test('picker renders person + location category tiles, each linking a canned :type', async ({
     page,
   }) => {
     await stubReportBackend(page);
@@ -193,7 +204,7 @@ test.describe('flight reports — screen shape (J-7 T-01 stub)', () => {
     await page.screenshot({ path: 'screenshots/reporting/01-picker.png', fullPage: true });
   });
 
-  test.fixme('pick a canned person report → filter-criteria panel + summary table + flights table render', async ({
+  test('pick a canned person report → filter-criteria panel + summary table + flights table render', async ({
     page,
   }) => {
     await stubReportBackend(page);
@@ -215,7 +226,7 @@ test.describe('flight reports — screen shape (J-7 T-01 stub)', () => {
     });
   });
 
-  test.fixme('a canned location report scopes + groups by FlightTypeName', async ({ page }) => {
+  test('a canned location report scopes + groups by FlightTypeName', async ({ page }) => {
     await stubReportBackend(page);
     await page.goto('/flightreports/location/location-flights-this-year');
 
@@ -223,7 +234,7 @@ test.describe('flight reports — screen shape (J-7 T-01 stub)', () => {
     await expect(page.getByTestId(TESTIDS.flightsTable)).toBeVisible();
   });
 
-  test.fixme('Excel export button streams an .xlsx attachment', async ({ page }) => {
+  test('Excel export button streams an .xlsx attachment', async ({ page }) => {
     await stubReportBackend(page);
     await page.goto('/flightreports/person/my-flights-last-30-days');
 
@@ -236,7 +247,7 @@ test.describe('flight reports — screen shape (J-7 T-01 stub)', () => {
     expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
   });
 
-  test.fixme('a filter matching no flights renders the empty-state copy', async ({ page }) => {
+  test('a filter matching no flights renders the empty-state copy', async ({ page }) => {
     await stubReportBackend(page, { items: [], summaries: [] });
     await page.goto('/flightreports/person/my-flights-today');
 

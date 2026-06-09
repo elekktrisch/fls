@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, type HttpResponse } from '@angular/common/http';
 import { DestroyRef, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { tapResponse } from '@ngrx/operators';
@@ -11,7 +11,7 @@ import {
   withState,
 } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { firstValueFrom, pipe, switchMap, tap } from 'rxjs';
 
 import { FlightreportsService } from '@api/generated/flightreports/flightreports.service';
 import type {
@@ -27,6 +27,21 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 // clamps to its 500 cap (oracle § Pagination). Page from offset 0.
 const DEFAULT_PAGE_START = 0;
 const DEFAULT_PAGE_SIZE = 500;
+
+/** The fetched Excel export: the streamed `.xlsx` blob + its server filename. */
+export interface ExcelDownload {
+  readonly blob: Blob;
+  readonly filename: string;
+}
+
+const DEFAULT_EXPORT_FILENAME = 'FlightReports.xlsx';
+
+/** Parse `attachment; filename="FlightReports.xlsx"` → the filename, or null. */
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
 
 interface ReportState {
   /** The filter the current result was loaded with (drives the criteria panel). */
@@ -97,6 +112,29 @@ export const ReportStore = signalStore(
       reload(): void {
         const f = store.filter();
         if (f) fetchPage(f);
+      },
+      /**
+       * Fetch the streamed `.xlsx` export for the given request. The store owns
+       * the HTTP call (web/CLAUDE.md §4 — no HttpClient in components); the
+       * caller performs the browser download (DOM is a component concern). The
+       * orval client types the body as `StreamingResponseBody`, so we override
+       * `responseType: 'blob'` + `observe: 'response'` to read the binary body
+       * AND the `Content-Disposition` filename.
+       */
+      async exportExcel(request: FlightReportPageRequest): Promise<ExcelDownload> {
+        const response = (await firstValueFrom(
+          api.exportFlightReportExcel(DEFAULT_PAGE_START, DEFAULT_PAGE_SIZE, request, {
+            observe: 'response',
+            // `responseType` is outside the orval-generated option type (it only
+            // ever generates JSON bodies); the cast keeps Angular's HttpClient
+            // returning the raw blob instead of attempting a JSON parse.
+            responseType: 'blob' as 'json',
+          } as never),
+        )) as HttpResponse<Blob>;
+        const filename =
+          filenameFromContentDisposition(response.headers.get('content-disposition')) ??
+          DEFAULT_EXPORT_FILENAME;
+        return { blob: response.body ?? new Blob(), filename };
       },
       clear(): void {
         patchState(store, initial);

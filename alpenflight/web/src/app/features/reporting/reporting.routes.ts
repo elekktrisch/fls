@@ -7,13 +7,13 @@ import { tenantRequiredGuard } from '@core/session/tenant-required.guard';
  * (`flsweb/src/reporting/FlightReportsModule.js`):
  *
  *   /flightreports                              → picker (T-09, built here)
- *   /flightreports/:category/:type              → canned results (T-10 fills)
+ *   /flightreports/:category/:type              → canned results (T-10)
  *   /flightreports/custom/:category/:filter/edit→ custom builder edit (T-11 fills)
  *   /flightreports/custom/:category/:filter/:mode → custom builder apply/view (T-11)
  *
  * The `custom/...` routes are listed BEFORE `:category/:type` so the literal
- * `custom` segment is not swallowed by the `:category` param. The results +
- * custom shells render the scaffold placeholder until T-10/T-11 land.
+ * `custom` segment is not swallowed by the `:category` param. The custom shells
+ * still render the scaffold placeholder until T-11 lands.
  */
 export const REPORTING_ROUTES: Routes = [
   {
@@ -39,6 +39,6 @@ export const REPORTING_ROUTES: Routes = [
     path: ':category/:type',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () => import('./report-placeholder.page').then((m) => m.ReportPlaceholderPage),
+    loadComponent: () => import('./results/report-results.page').then((m) => m.ReportResultsPage),
   },
 ];
