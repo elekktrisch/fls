@@ -441,3 +441,12 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   (shipped) — recorded here as the /do-retro lesson: the **mock-auth** suite's admin principal HID this
   authz gap; only the **real-idp showcase run with a real PILOT principal** surfaced it. Real-roles
   end-to-end catches authz gaps mock-auth can't. *(retro lesson, not a code rider)*
+
+## Pending (filed by /do-ship 2026-06-09, J-7 gate)
+
+- **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
+  real-idp/fanout spec references its `error-context.md`/`trace.zip` but only `proof-manifest.json` survives
+  (the proof-gallery step overwrites the dir), so a gate red can't be diagnosed from the DOM snapshot/trace —
+  forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
+  reds). Upload `test-results/**` as a separate failure artifact BEFORE the gallery step mutates the dir. *(seam:
+  ci.yml alpenflight-proof + fanout test-results upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]

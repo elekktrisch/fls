@@ -656,4 +656,12 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   ONE pass and make the seed satisfy all of them: person is PilotOrStudent on glider + motor + tow flights (→
   Pilot Glider/Motor/Towing rows, non-zero TotalFlights — the legacy-bug correction); instructor solo + non-solo
   split; nested aerotow row; location grouping ≥2 types; tenant-isolation club-B flight; Excel export. *(seam:
-  reporting-parity-fixture seed completeness vs the spec's full assertion set)*
+  reporting-parity-fixture seed completeness vs the spec's full assertion set)*- [x] **T-19 — final gate reds (1 J-7 + 1 J-5-surfaced).** (a) J-7 real-idp `[key-error] tenant isolation`
+  expected `report-empty` but the LOCATION branch unconditionally appends a zeroed `Total`
+  (`FlightReportQueryService.locationBranch` 183-194; legacy `FlightReportService.cs:715-727`) → `summaries=1`
+  → `isEmpty` false → the (zeroed) summary table renders, not the empty-state. **No leak** (confirmed from
+  source: 0 flight rows, zeroed Total). Rewrote the assertion to prove isolation faithfully (0 `report-flights-row`
+  + exactly one zeroed `Total` summary row) — still red-on-leak. (b) J-5 fanout `reservations-migration-parity:298`
+  create timed out at `waitForResponse(201)`; 409-collision mechanically impossible (run-tagged fresh aircraft +
+  tenant-scoped overlap probe) → load-timeout from T-17's now-fully-ingested heavier DB. S-163 pattern: 90s test
+  timeout + explicit 30s `waitForResponse` cap so a genuine non-201 names itself. *(seam: J-7 isolation assertion + J-5 reservation create timeout)*
