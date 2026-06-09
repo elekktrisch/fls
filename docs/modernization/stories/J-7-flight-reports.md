@@ -431,6 +431,12 @@ form's next-touch journey (folding them here would violate the recorded operator
   0008) so a location report with no locationId still returns the caller's club (club-wide, not
   homebase-filtered). FLAGGED for T-10 / a follow-up: add `homebaseLocationId` to `/me` or
   `ClubResponse` so location canned reports filter to the homebase.
+- [ ] **T-09b — expose club homebase on `/me` + wire location reports (T-09 gap).** `t_club` has
+  `homebase_id` (V3 `fk_club_homebase_id`); add `homebaseLocationId` to `MeResponse` (the club
+  context lives on `/me`) + regen orval + wire `cannedReportRequest` to pass `locationId` for
+  LOCATION canned reports. **Required, not optional:** the backend location-branch summary only
+  computes when a LocationId is set — without it a location report has an EMPTY summary, breaking the
+  AC "location report summary groups by FlightTypeName." *(seam: MeResponse homebase field + web canned-request wiring)*
 - [ ] **T-10 — web reporting results page.** Summary table + flights table (reuse J-2 flights-list
   table idiom; nested tow rendering) + **Excel export button** (streamed download); empty-state.
   *(seam: web reporting results component)*
