@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-09T13:53:17.171">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-09T17:57:01.227">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/application/AircraftsService.java">
 <violation beginline="73" endline="80" begincolumn="28" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.application" class="AircraftsService" method="AircraftsService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
@@ -146,20 +146,20 @@ The method 'rewriteForeignKeys(Mapper, ObjectNode)' has a cyclomatic complexity 
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/application/MigrationBundleIngestService.java">
-<violation beginline="99" endline="99" begincolumn="14" endcolumn="42" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'MigrationBundleIngestService' has a total cyclomatic complexity of 73 (highest 13).
+<violation beginline="100" endline="100" begincolumn="14" endcolumn="42" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The class 'MigrationBundleIngestService' has a total cyclomatic complexity of 80 (highest 14).
 </violation>
-<violation beginline="141" endline="158" begincolumn="40" endcolumn="83" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
-Avoid long parameter lists (16 parameters - threshold is 8).
+<violation beginline="143" endline="161" begincolumn="40" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+Avoid long parameter lists (17 parameters - threshold is 8).
 </violation>
-<violation beginline="211" endline="211" begincolumn="26" endcolumn="32" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="ingest" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="222" endline="222" begincolumn="26" endcolumn="32" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="ingest" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'ingest(UUID, UUID, UUID, InputStream)' has a cyclomatic complexity of 13.
 </violation>
-<violation beginline="311" endline="311" begincolumn="27" endcolumn="47" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="runInsideTransaction" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
+<violation beginline="322" endline="322" begincolumn="27" endcolumn="47" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="runInsideTransaction" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
 The method 'runInsideTransaction(UUID, UUID, UUID, InputStream, AtomicReference&lt;UUID&gt;)' has a cognitive complexity of 17, current threshold is 15
 </violation>
-<violation beginline="414" endline="414" begincolumn="27" endcolumn="45" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="drainDecryptedBody" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The method 'drainDecryptedBody(Connection, MigrationUpload, UUID, MigrationRun, BundleHeader, InputStream, SecureBytes)' has a cyclomatic complexity of 12.
+<violation beginline="425" endline="425" begincolumn="27" endcolumn="45" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="drainDecryptedBody" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The method 'drainDecryptedBody(Connection, MigrationUpload, UUID, MigrationRun, BundleHeader, InputStream, SecureBytes)' has a cyclomatic complexity of 14.
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/infra/MigrationCryptoConfig.java">

@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-7 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-7</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 0 screenshots</span>
+      <span class="summary-jid">J-7</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>215/merge</code> &middot; 2026-06-09T13:53:21.841Z
+      for this journey. Generated on <code>215/merge</code> &middot; 2026-06-09T17:57:06.596Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,11 +144,63 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-971ca23caa45febc3ccac1a44f3e4f6d65424270.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">A real club administrator authenticates through live Keycloak and reaches the /flightreports screen (proof-wiring anchor; full report + export parity lands at T-15).</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-18ef382b8b3f092cdab9189b169c00a0f2cc1fee.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A real club administrator authenticates through live Keycloak and reaches the /flightreports picker (person + location report categories).</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-3d975b1341210800a33e3a71d5fb718963a9a4bf.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A canned location report (this-year) renders the derived date window, groups the summary by flight-type, and shows the aerotow glider with its nested tow block — live, tenant-scoped.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-3c23670cc5c181175cab02f5e0ab2c7f81900f52.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A person report groups by crew function (Pilot Glider/Motor/Towing + Total) with the corrected non-zero TotalFlights on the Pilot (Motor) and Pilot (Towing) rows — the legacy under-count bug, fixed.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-65bcd57285743bb268716e2c62701d852349fd35.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A person report on an instructor splits the summary into Instructor and Instructor (Soloflights) rows on the solo/non-solo flag.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-4e9554689aa08f04ad96e457d24f8352e41527c8.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">A real low-privilege PILOT in club A filtering a report by a club-B location sees an empty result — every report query is @TenantId scoped (ADR 0008), closing the legacy cross-club leak.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-9de447ec670172847f1a3998f2cdaa7e6958c2bc.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">The flight-reports Excel export streams a real .xlsx (OOXML spreadsheet MIME, PK container); cell-for-cell parity against the legacy fixture is proven by the T-08 backend parity harness.</span></figcaption>
         </figure>
         </div>
-
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">picker</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-flightreports-picker.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flightreports-picker.png" alt="alpenflight picker" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /flightreports picker - person + location category tiles linking to each canned report</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">result</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-flightreports-result.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flightreports-result.png" alt="alpenflight result" loading="lazy"></a>
+            <figcaption>AlpenFlight: a canned report's results page - derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">custom</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-flightreports-custom.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flightreports-custom.png" alt="alpenflight custom" loading="lazy"></a>
+            <figcaption>AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
