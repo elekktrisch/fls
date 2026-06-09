@@ -46,6 +46,20 @@ const START_TYPE_AEROTOW = '019e2e15-2c00-7fa1-8000-000000000fa1';
 const START_TYPE_WINCH = '019e2e15-2c00-7fa0-8000-000000000fa0';
 const START_TYPE_MOTOR = '019e2e15-2c00-7fa4-8000-000000000fa4';
 
+/**
+ * seed-club-1's homebase location — Bern-Belp / LSZB (`...c001`, V34 seed; set as
+ * `t_club.homebase_id` by V37 — J-7 T-16). The LOCATION canned report binds
+ * `searchFilter.locationId` from the caller's club homebase (`/me`
+ * `homebaseLocationId`), and the backend location-branch summary ONLY groups when
+ * a LocationId is set — so the canned location report's flights MUST sit at the
+ * homebase to surface. `masterdata.locationId` is a FRESH per-run location, which
+ * the homebase is NOT, so seeding flights there left the canned location report
+ * with no homebase flights → empty summary (the real-chain gate red). Seeding the
+ * reporting flights at the homebase (`loc-<uuid>` external form, the create-wire
+ * shape) aligns the seed with how the canned location report actually filters.
+ */
+export const SEED_CLUB_HOMEBASE_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
+
 export interface ReportingSeed {
   /** The masterdata closure (aircraft / locations / flight types / pilots). */
   masterdata: FlightMasterdata;
@@ -218,6 +232,13 @@ export async function seedReportingFixture(
   // row COUNT (≥2 groups), not the exact names, so no name is plumbed through.
 
   const pilot = masterdata.pilotPersonId;
+  // All reporting flights sit at the club HOMEBASE (not the fresh
+  // masterdata.locationId), because the LOCATION canned report filters by the
+  // club homebase (/me homebaseLocationId → searchFilter.locationId) and the
+  // backend location-branch summary only groups when a LocationId is set. See
+  // SEED_CLUB_HOMEBASE_LOCATION_ID. (The person reports filter by personId, so
+  // they are location-agnostic.)
+  const homebase = SEED_CLUB_HOMEBASE_LOCATION_ID;
 
   // 1. TOW flight (its own row).
   const towDate = daysAgo(2);
@@ -227,8 +248,8 @@ export async function seedReportingFixture(
     flightDate: towDate,
     startDateTime: iso(towDate, '08:00'),
     ldgDateTime: iso(towDate, '08:12'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -244,8 +265,8 @@ export async function seedReportingFixture(
     flightDate: towDate,
     startDateTime: iso(towDate, '08:00'),
     ldgDateTime: iso(towDate, '09:30'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -258,8 +279,8 @@ export async function seedReportingFixture(
     flightDate: towDate,
     startDateTime: iso(towDate, '08:00'),
     ldgDateTime: iso(towDate, '09:30'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -277,8 +298,8 @@ export async function seedReportingFixture(
     flightDate: winchDate,
     startDateTime: iso(winchDate, '10:00'),
     ldgDateTime: iso(winchDate, '10:45'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: false,
@@ -295,8 +316,8 @@ export async function seedReportingFixture(
     flightDate: motorDate,
     startDateTime: iso(motorDate, '11:00'),
     ldgDateTime: iso(motorDate, '12:30'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_MOTOR,
     isSoloFlight: false,
@@ -313,8 +334,8 @@ export async function seedReportingFixture(
     flightDate: instrDate,
     startDateTime: iso(instrDate, '13:00'),
     ldgDateTime: iso(instrDate, '13:45'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: false,
@@ -331,8 +352,8 @@ export async function seedReportingFixture(
     flightDate: soloDate,
     startDateTime: iso(soloDate, '14:00'),
     ldgDateTime: iso(soloDate, '14:30'),
-    startLocationId: masterdata.locationId,
-    ldgLocationId: masterdata.locationId,
+    startLocationId: homebase,
+    ldgLocationId: homebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: true,

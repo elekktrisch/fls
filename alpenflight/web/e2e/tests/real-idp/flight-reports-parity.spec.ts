@@ -238,12 +238,17 @@ test.describe('J-7 flight reports — real chain parity', () => {
       await expect(summaryRows.filter({ hasText: /Pilot \(Glider\)/ })).toHaveCount(0);
 
       // (3) FLIGHTS TABLE populated + NESTED TOW — the aerotow glider row carries
-      // a nested tow sub-row.
+      // a nested tow sub-row. The location report runs at the shared club
+      // homebase, so flights from prior runs accumulate (the seed-club-1 tenant is
+      // never truncated); target THIS run's tow row by its run-unique
+      // immatriculation rather than `.first()` so the assertion can't latch onto a
+      // prior run's tow row.
       await expect(page.getByTestId('report-flights-table')).toBeVisible();
       await expect(page.getByTestId('report-flights-row').first()).toBeVisible();
-      const towRow = page.getByTestId('report-flights-tow-row').first();
+      const towRow = page
+        .getByTestId('report-flights-tow-row')
+        .filter({ hasText: seed.masterdata.towImmat });
       await expect(towRow).toBeVisible();
-      await expect(towRow).toContainText(seed.masterdata.towImmat);
 
       // Gallery-declared AlpenFlight `result` view: a canned report's filter
       // panel + summary + flights table (the parity pairing key vs legacy
