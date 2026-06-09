@@ -220,9 +220,7 @@ export class ReportCustomBuilderPage {
     // Navigate by URL string (not a segments array) so the already
     // percent-encoded `:filter` segment is not re-encoded by the router — the
     // route then decodes it once and `decodeCustomFilter` reads it back.
-    void this.router.navigateByUrl(
-      `/flightreports/custom/${this.category()}/${encoded}/apply`,
-    );
+    void this.router.navigateByUrl(`/flightreports/custom/${this.category()}/${encoded}/apply`);
   }
 }
 
