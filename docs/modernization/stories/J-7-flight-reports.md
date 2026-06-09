@@ -214,11 +214,20 @@ form's next-touch journey (folding them here would violate the recorded operator
 
 ## Tasks
 
-- [ ] **T-01 — spec stub + proof-page scaffold (standing).** Author the Playwright spec
+- [x] **T-01 — spec stub + proof-page scaffold (standing).** Author the Playwright spec
   structure/selectors/flow for `/flightreports` (picker → canned results → custom builder →
   export) with thin assertions (commits the screen shape); scaffold the per-journey J-7
   gallery page + link from the persistent index. Capture-legacy-once: commit legacy reference
   shots under `e2e/legacy-reference/reporting/`. *(seam: reporting spec skeleton + gallery page)*
+  <br>DONE: mock-auth specs `alpenflight/web/e2e/tests/reporting/{flight-reports,custom-builder}.spec.ts`
+  (testid-contract manifests pass today; picker→canned→export→empty + custom-builder flows are
+  `test.fixme` until T-09/10/11) + real-idp skeleton `…/real-idp/flight-reports-parity.spec.ts`
+  (proof-anchor passes + emits `proof-journey: J-7` → the per-journey J-7 gallery page is generated
+  by the existing data-driven generators; J-7 already in the roadmap/index). Legacy capture spec
+  `e2e/tests/reporting/reporting-parity-J7.spec.ts` authored against real flsweb selectors + staged
+  at the fanout gate; `e2e/legacy-reference/reporting/` refs deferred (legacy stack unrunnable on the
+  Alpine/musl dev box — note in `…/legacy-reference/reporting/PENDING.md` + provenance row).
+  CI `add_pair` wiring for the reporting refs rides T-12 (structural gallery guard).
 - [ ] **T-02 — scope gate to J-7; prior journeys → mock-IdP (standing).** Set `mock_test:`
   + `parity_test:` derivation so per-push runs only J-7's own specs heavy (real-idp) and prior
   journeys mock-IdP. *(seam: ci.yml spec selection + J-7 frontmatter)*
