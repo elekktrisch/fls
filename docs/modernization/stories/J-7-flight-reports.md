@@ -591,3 +591,22 @@ form's next-touch journey (folding them here would violate the recorded operator
 - [x] **T-15 — thicken spec to full real assertions (standing final).** Full happy + key-error
   + edge assertions from the oracle (canned date windows, summary grouping incl. corrected
   TotalFlights, nested tow, tenant isolation, Excel parity). *(seam: reporting spec full assertions)*
+- [x] **T-16 — gate-revealed fixes (§4).** (a) Web build prettier on `report-custom-builder.page.ts`.
+  (b) Real-chain location report had an EMPTY summary: root cause `t_club.homebase_id` was NULL for
+  seed-club-1 (no migration set it; the mock principal hardcoded Bern-Belp, hiding the gap — a real
+  mock-vs-real divergence). Fix: `V37__dev_seed_club_homebase.sql` sets it to c001 + seed J-7 flights
+  there; product wiring (T-09b/T-10) confirmed correct. (c) Fanout `[shots-present]` false-red: modeled
+  expected-shots per producing context (`producedBy: proof` for AF reporting shots; guard reads
+  `GALLERY_PROOF_CONTEXT`) — a real drop still reds in the proof context. *(seam: V37 seed + reporting fixture + shots-present context model)*
+
+## §4 gate — pre-existing fanout red (NOT a J-7 blocker)
+
+The fanout's **migration parity** specs (J-0c/J-2/J-5/planning) fail with `bundle ingest 500 sqlstate=23505`
+— **pre-existing main-red** (main's scheduled fanout is `failure` on 2026-06-08 AND 06-09 with the identical
+error). J-7 carries **no mapper** (read-side), so this is not a J-7 regression; it's the known CLUB
+identity-pgcopy ↔ `seedClubLegacyIdMap` collision flagged for **pre-J-21** (see `_ORDER.md` J-0b open
+follow-ups + the J-6 retro "un-mask the ingest constraint" rider). J-7's PRIMARY required gate is CI
+`alpenflight-proof` (real-idp), made green by T-16. **Operator decision pending:** whether J-7's
+legacy↔AlpenFlight *paired-capture* half (fanout-deferred legacy reporting shots) blocks merge given the
+shared fanout is pre-existing-red — or J-7 merges on the real-idp green with the legacy pairing riding the
+fanout fix. The reporting AF captures + the real-chain proof land per-push; only the *legacy* pairing waits.
