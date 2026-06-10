@@ -890,8 +890,12 @@ public final class MapperLegacyBindings {
                     // row per (ClubId, Day, LocationId) and drops the rest. Day is a pure
                     // DATE, so two rows on the same day at different creation times still
                     // collide on the V4 partial — partition on Day, matching the schema.
-                    // The dropped dups are recorded as PLANNING_DAY_DUPLICATE
-                    // (ProducerDropReconciliation) so they are visible, not silent.
+                    // The dropped dups carry a PLANNING_DAY_DUPLICATE drop-code
+                    // (ProducerDropReconciliation, ROW_DROP_CODES) — the reconciliation
+                    // SURFACING at the parity gate is deferred to S-187a (ParityDiffEngine
+                    // resolves only CLUB/USER today), so the drop is currently SILENT at the
+                    // gate; the dedupe correctness is locked by PlanningDayProducerDedupeIT,
+                    // and it drops nothing the V4 partial UNIQUE would have kept as live.
                     // ROW_NUMBER() OVER is T-SQL native (the live legacy MSSQL dialect).
                     PortPolicy.FULL_PORT,
                     """
@@ -972,9 +976,11 @@ public final class MapperLegacyBindings {
                     // rider "producer dedupe is soft-delete-blind": when a live and a
                     // soft-deleted assignment collide on the composite, the LIVE one must win
                     // (a soft-deleted assignment surviving over a live one would silently drop
-                    // a real crew assignment). The dropped dups are recorded as
-                    // PLANNING_DAY_ASSIGNMENT_DUPLICATE (ProducerDropReconciliation) — visible,
-                    // not silent — mirroring PLANNING_DAY_DUPLICATE. ROW_NUMBER() OVER + the
+                    // a real crew assignment). The dropped dups carry a
+                    // PLANNING_DAY_ASSIGNMENT_DUPLICATE drop-code (ProducerDropReconciliation,
+                    // ROW_DROP_CODES) mirroring PLANNING_DAY_DUPLICATE — but, like that one, the
+                    // gate SURFACING is deferred to S-187a (silent at the gate today); the dedupe
+                    // is locked by PlanningDayProducerDedupeIT. ROW_NUMBER() OVER + the
                     // CASE expression are T-SQL native (the live legacy MSSQL dialect) and
                     // evaluate identically on the Postgres test container.
                     //
