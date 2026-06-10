@@ -1,5 +1,7 @@
 package ch.alpenflight.flights.infra;
 
+import ch.alpenflight.flights.domain.FlightAircraftType;
+import ch.alpenflight.flights.domain.FlightCrewTypeIds;
 import ch.alpenflight.flights.domain.FlightReportRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -36,21 +38,32 @@ import org.springframework.stereotype.Repository;
 @Repository
 class JpaFlightReportRepository implements FlightReportRepository {
 
-    /** Aircraft-type discriminator ints (FlightAircraftType: 1=GLIDER, 2=TOW, 4=MOTOR). */
-    private static final int TYPE_GLIDER = 1;
-    private static final int TYPE_TOW = 2;
-    private static final int TYPE_MOTOR = 4;
+    private static final String PILOT_TYPE = literal(FlightCrewTypeIds.PILOT_OR_STUDENT);
+    private static final String SECOND_CREW_TYPES = literals(
+            FlightCrewTypeIds.CO_PILOT,
+            FlightCrewTypeIds.FLIGHT_INSTRUCTOR,
+            FlightCrewTypeIds.PASSENGER,
+            FlightCrewTypeIds.OBSERVER);
+    private static final String PERSON_FILTER_TYPES = literals(
+            FlightCrewTypeIds.PILOT_OR_STUDENT,
+            FlightCrewTypeIds.CO_PILOT,
+            FlightCrewTypeIds.FLIGHT_INSTRUCTOR);
 
-    private static final String PILOT_TYPE = "'019e2e15-2c00-76b0-8000-0000000036b0'";
-    private static final String SECOND_CREW_TYPES =
-            "'019e2e15-2c00-76b1-8000-0000000036b1',"   // CO_PILOT
-            + "'019e2e15-2c00-76b2-8000-0000000036b2',"  // FLIGHT_INSTRUCTOR
-            + "'019e2e15-2c00-76b3-8000-0000000036b3',"  // PASSENGER
-            + "'019e2e15-2c00-76b5-8000-0000000036b5'";  // OBSERVER
-    private static final String PERSON_FILTER_TYPES =
-            "'019e2e15-2c00-76b0-8000-0000000036b0',"   // PILOT_OR_STUDENT
-            + "'019e2e15-2c00-76b1-8000-0000000036b1'," // CO_PILOT
-            + "'019e2e15-2c00-76b2-8000-0000000036b2'"; // FLIGHT_INSTRUCTOR
+    /** Quoted SQL literal for a canonical seed UUID (compile-time constant, not user input). */
+    private static String literal(UUID id) {
+        return "'" + id + "'";
+    }
+
+    private static String literals(UUID... ids) {
+        StringBuilder out = new StringBuilder();
+        for (UUID id : ids) {
+            if (out.length() > 0) {
+                out.append(',');
+            }
+            out.append(literal(id));
+        }
+        return out.toString();
+    }
 
     /** Pilot name as "Lastname Firstname" for a given flight alias. */
     private static String pilotNameSubselect(String flightAlias) {
@@ -153,8 +166,8 @@ class JpaFlightReportRepository implements FlightReportRepository {
         // Person-role flags: true when the filter's person holds that role on the
         // flight. Constant false when no person filter (no personId bound).
         String pilotFlag = roleExists(c.personId(), PILOT_TYPE);
-        String coPilotFlag = roleExists(c.personId(), "'019e2e15-2c00-76b1-8000-0000000036b1'");
-        String instructorFlag = roleExists(c.personId(), "'019e2e15-2c00-76b2-8000-0000000036b2'");
+        String coPilotFlag = roleExists(c.personId(), literal(FlightCrewTypeIds.CO_PILOT));
+        String instructorFlag = roleExists(c.personId(), literal(FlightCrewTypeIds.FLIGHT_INSTRUCTOR));
 
         StringBuilder sql = new StringBuilder();
         sql.append("select")
@@ -220,13 +233,13 @@ class JpaFlightReportRepository implements FlightReportRepository {
     private static @Nullable String typePredicate(boolean glider, boolean motor, boolean tow) {
         List<Integer> types = new ArrayList<>();
         if (glider) {
-            types.add(TYPE_GLIDER);
+            types.add((int) FlightAircraftType.GLIDER.legacyId());
         }
         if (motor) {
-            types.add(TYPE_MOTOR);
+            types.add((int) FlightAircraftType.MOTOR.legacyId());
         }
         if (tow) {
-            types.add(TYPE_TOW);
+            types.add((int) FlightAircraftType.TOW.legacyId());
         }
         if (types.isEmpty()) {
             return null;

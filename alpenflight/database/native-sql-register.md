@@ -7,7 +7,13 @@ against a tenant-scoped table without the explicit `WHERE club_id = ?`
 predicate would re-introduce the legacy [R1](../modernization/01-current-state.md#r1--multi-tenancy-enforced-by-convention)
 risk that ADR 0008 was written to close.
 
-This register is the gate.
+This register is the gate. Policy:
+[ADR 0027](../../docs/modernization/adrs/0027-jpa-first-persistence-and-domain-read-models.md)
+— JPA-first; this register is a **shrinking exception list**. Only seams
+structurally outside `@TenantId` qualify (pre-tenant resolution, provisioning
+before tenant context, system-actor NULL-tenant writes); query complexity does
+not — complex reads get a domain-maintained read-model instead. Every entry
+carries an expiry + removal plan.
 
 ## Approved escape hatches
 
@@ -233,9 +239,12 @@ When you need to add one:
   panel re-confirms at the journey gate.
 - **Approved:** 2026-06-09.
 - **Expires:** 2027-06-09
-- **Remove when:** Hibernate exposes a per-query `@TenantId` opt-out for joined
-  read-only entities, OR a dedicated denormalized flight-report read model
-  (materialized projection carrying the decorations) lands.
+- **Remove when:** the dedicated denormalized flight-report read model lands —
+  no longer an alternative but the decided direction per
+  [ADR 0027](../../docs/modernization/adrs/0027-jpa-first-persistence-and-domain-read-models.md)
+  (PR #215 review): report entities maintained redundantly by domain
+  aggregates at mutation time, plain JPA finds, sync integration-tested.
+  Rider filed in `_BOYSCOUT.md`.
 
 ## Entry template
 

@@ -479,3 +479,26 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   deployed page (extend the deployed-journey guard to check both sides of a pair, not just that the page is linked). *(seam:
   alpenflight-proof-fanout.yml add_shot json emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
   [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+
+## Pending (filed by PR #215 review, 2026-06-10 — ADR 0027 JPA-first / no-JDBC)
+
+- **Convert the flight-report read path to a domain-maintained read-model (the BIG ADR-0027 follow-up; J-8-planning
+  candidate).** Replace `JpaFlightReportRepository`'s native SQL with redundant report entities written at mutation
+  time by separate aggregates via application events (same-transaction, NO db triggers), queried with plain JPA
+  finds; sync integration-tested (mutate via production path → assert read-model row). Needs: backfill for
+  migration-bundle-ingested flights (ingest must populate the read-model too, or a backfill job), and a design pass
+  on decoration-rename propagation (immatriculation / person-name / location-name changes must update report rows).
+  Retires the `flight-report-read-model` native-sql-register entry. **Pulled forward by operator decision
+  (2026-06-10 PR #215 review): in work on stacked branch `integration/J-7-jpa-readmodel` (base `integration/J-7`),
+  merging back into the J-7 PR — #215 stays draft until main receives no new JDBC.** *(seam: flights read path +
+  migrations ingest + register)*
+- **Retire the remaining main-code JDBC/native sites per-module on next touch (ADR 0027 §1).** 14 main-source files
+  at filing time; structurally-pre-tenant seams stay register-listed (`UserPrincipalLookup`, `PreTenantUserLookup`,
+  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). Convert-on-touch candidates: `MeService`
+  (the operator's commented instance — JPA `User` entity already has `keycloak_sub`), `JpaUserRepository`,
+  `JpaPersonRepository`, `JpaClubStateRepository`, `JpaCountryRepository`, `PlanningDayPersistenceProbeImpl`,
+  `AircraftReservationConflictProbeImpl`, `ShowcaseSeeder`, `LanguageCodeLookup`. *(seam: per-module infra layer)*
+- **IT seeding: raw-JDBC → production-code per-touch (ADR 0027 §3).** ~85 ITs (incl. `TenantScopedRowBuilders` /
+  `TwoClubFixture` consumers) seed via `JdbcTemplate`; convert each file the next time it's materially edited —
+  convention, NOT a sweep story. J-7's own two ITs converted in PR #215 as the pattern reference. ADR 0021
+  isolation rules unchanged. *(seam: server src/test, per-touch)*
