@@ -66,8 +66,14 @@ function runId(): string {
  */
 export const SEED_CLUB_NOTIFICATION_ADDRESS = 'flugbetrieb@seed-club-1.example';
 
+/** A monotonic per-process counter so two `shortTag()` calls in the same
+ *  millisecond (e.g. several `seedFreshPlanningLocation`s in one `beforeAll`)
+ *  still produce DISTINCT tags — distinct location names → distinct rows. */
+let shortTagSeq = 0;
+
 function shortTag(): string {
-  return `${runId().slice(0, 3)}${Date.now().toString(36).slice(-4)}`.toUpperCase();
+  const seq = (shortTagSeq++).toString(36);
+  return `${runId().slice(0, 3)}${Date.now().toString(36).slice(-4)}${seq}`.toUpperCase();
 }
 
 async function postJson(
@@ -157,12 +163,55 @@ async function seedCrewPerson(
 }
 
 /**
+ * Seed (as `clubadmin4`, through the REAL create API — no mocking) a FRESH
+ * seed-club-1 location with a UNIQUE-per-run name, distinct from the V34 seed
+ * days AND from every other location seeded this run. Returns the SPA-prefixed
+ * id + the unique name (the create/edit/wizard `<af-select>`s search by this
+ * exact name to pick it out of the virtualised long list).
+ *
+ * COLLISION ISOLATION (T-21): the clean-seed block runs ~8 tests serially that
+ * each create planning days on the shared, never-truncated seed-club-1 tenant,
+ * picking future dates via `dayKeyFromToday`/`nextSaturdayFromToday`. Two of
+ * them bulk-create EVERY Sat/Sun in a window (the duplicate-409 rule-wizard
+ * skip-probe [:527] over [day+15, day+36] and the setup-wizard [:599] over
+ * [day+20, day+34]). The `ux_pln_club_date_loc` unique key is (club, date,
+ * location) — so when a single-date test's date lands on a Sat/Sun inside a
+ * wizard window AT THE SAME LOCATION, its create 409s. This is wall-clock
+ * dependent (it depends what weekday a given offset lands on today). Giving each
+ * day-creating test its OWN location removes the (club, date, location) overlap
+ * entirely: no two tests share a location's date space, so no date offset can
+ * collide regardless of the calendar date the suite runs on.
+ */
+export async function seedFreshPlanningLocation(
+  api: APIRequestContext,
+  bearer: string,
+  label: string,
+): Promise<{ locationId: string; locationName: string }> {
+  const tag = shortTag();
+  const locationName = `J6 ${label} ${tag}`;
+  const location = await postJson(api, bearer, '/api/v1/locations', {
+    locationName,
+    locationShortName: 'J6PF',
+    countryId: CH_COUNTRY_ID,
+    locationTypeId: GRASS_RUNWAY_LOCATION_TYPE_ID,
+    isInboundRouteRequired: false,
+    isOutboundRouteRequired: false,
+    isFastEntryRecord: false,
+  });
+  return { locationId: String(location['id']), locationName };
+}
+
+/**
  * Seed (as `clubadmin4`, through the REAL create APIs — no mocking) the
  * masterdata the clean-seed planning create/edit chain references: a FRESH
  * location + 3 crew persons WITH a seed-club-1 membership so the form's 3 crew
  * `<af-select>`s offer them. All names are run-tagged so a retry's re-seed never
  * collides on a unique index, and the fresh location keeps the happy-create off
  * the V34 seed days' (date, location).
+ *
+ * This location is the DEFAULT (happy-create) location; the collision-prone
+ * day-creating tests each take their OWN `seedFreshPlanningLocation` so no two
+ * tests' (date, location) spaces overlap (T-21 isolation — see that helper).
  */
 export async function seedPlanningMasterdata(
   api: APIRequestContext,

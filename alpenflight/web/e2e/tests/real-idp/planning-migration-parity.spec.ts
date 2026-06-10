@@ -11,6 +11,7 @@ import {
 } from './_helpers/reservation-parity-fixture';
 import {
   seedPlanningMasterdata,
+  seedFreshPlanningLocation,
   seedReservationOnPlanningDay,
   provisionSeedClubPilot,
   captureSeedClubPilotBearer,
@@ -187,6 +188,25 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   let adminBearer: string;
   /** A fresh location + 3 pickable crew persons + an aircraft (seed-club-1). */
   let masterdata: PlanningMasterdata;
+  /**
+   * T-21 collision isolation: each day-creating test gets its OWN fresh
+   * seed-club-1 location so no two tests share a (date, location) space. The two
+   * bulk-create tests ([:527] rule-wizard skip-probe + [:599] setup wizard) emit
+   * EVERY Sat/Sun in a window; a single-date test landing on a Sat/Sun inside one
+   * of those windows AT THE SAME location 409s on `ux_pln_club_date_loc` (wall-
+   * clock dependent — what weekday a given `dayKeyFromToday(N)` lands on). Distinct
+   * locations make the (club, date, location) key collision-free regardless of the
+   * calendar date the suite runs on. Seeded once in `beforeAll`. The UI-picker
+   * tests ([:255] create, [:423] inline, [:599] wizard) carry a `name` so the
+   * `<af-select>` can search the unique location out of the virtualised long list.
+   */
+  let locEditCrew: { locationId: string; locationName: string };
+  let locInline: { locationId: string; locationName: string };
+  let locDuplicate: { locationId: string; locationName: string };
+  let locWizard: { locationId: string; locationName: string };
+  let locDelete: { locationId: string; locationName: string };
+  let locTenant: { locationId: string; locationName: string };
+  let locNotify: { locationId: string; locationName: string };
   /** The clean-seed default reservation type (V31 seed) the inline-panel reservation uses. */
   let reservationTypeId: string;
   /** Every planning-day id this group created in seed-club-1 — deleted in afterAll. */
@@ -218,6 +238,25 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     // not pickable) + a fresh aircraft for the inline-panel reservation. The
     // PILOT-vs-creator authz delete/update probe stays T-16.
     masterdata = await seedPlanningMasterdata(request, adminBearer);
+    // T-21: one fresh location per day-creating test so their (date, location)
+    // spaces never overlap (collision-free regardless of wall-clock — see the
+    // field decls above). The [:255] happy-create keeps `masterdata`'s default
+    // location; the inline-reservations [:423] picks `locInline` in the UI, the
+    // setup wizard [:599] picks `locWizard` in the UI — both carry a unique name.
+    // Seed them in PARALLEL: 7 independent location creates run concurrently so
+    // the extra seeding stays well inside the `beforeAll` budget (they are
+    // disjoint rows — `shortTag()`'s per-process counter keeps the names unique
+    // even when the creates land in the same millisecond).
+    [locEditCrew, locInline, locDuplicate, locWizard, locDelete, locTenant, locNotify] =
+      await Promise.all([
+        seedFreshPlanningLocation(request, adminBearer, 'EditCrew'),
+        seedFreshPlanningLocation(request, adminBearer, 'Inline'),
+        seedFreshPlanningLocation(request, adminBearer, 'Duplicate'),
+        seedFreshPlanningLocation(request, adminBearer, 'Wizard'),
+        seedFreshPlanningLocation(request, adminBearer, 'Delete'),
+        seedFreshPlanningLocation(request, adminBearer, 'Tenant'),
+        seedFreshPlanningLocation(request, adminBearer, 'Notify'),
+      ]);
     // The V31-seeded default reservation type — the inline-panel parity shot
     // reserves the seeded aircraft on the captured planning day with this type.
     reservationTypeId = await fetchReservationTypeId(request, adminBearer);
@@ -381,7 +420,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       // assert the change persisted (the picker shows the assigned name).
       const id = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dayKeyFromToday(11),
-        locationId: masterdata.locationId,
+        locationId: locEditCrew.locationId,
       });
 
       await page.goto(`/planning/${id}/edit?lang=de`);
@@ -441,7 +480,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       const planningDate = dayKeyFromToday(13);
       const reservationId = await seedReservationOnPlanningDay(ctx.request, adminBearer, {
         planningDate,
-        locationId: masterdata.locationId,
+        locationId: locInline.locationId,
         aircraftId: masterdata.aircraftId,
         pilotPersonId: masterdata.instructorId,
         reservationTypeId,
@@ -457,8 +496,8 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await selectAfOption(
         page,
         'planning-location-select',
-        masterdata.locationId,
-        masterdata.locationName,
+        locInline.locationId,
+        locInline.locationName,
       );
 
       const panel = page.getByTestId('planning-reservations-panel');
@@ -498,7 +537,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       // surfaces (the read-side join is unchanged for a saved day).
       const id = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate,
-        locationId: masterdata.locationId,
+        locationId: locInline.locationId,
       });
       await page.goto(`/planning/${id}/edit?lang=de`);
       await expect(
@@ -536,13 +575,17 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       const dupDate = nextSaturdayFromToday(15);
       const first = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dupDate,
-        locationId: masterdata.locationId,
+        locationId: locDuplicate.locationId,
       });
       expect(first).toBeTruthy();
 
+      // The INTENTIONAL self-collision: the SAME (date, location) as `first` →
+      // 409. Same location on purpose — this is the duplicate-409 probe, not a
+      // cross-test accident (T-21 isolation gives this test its OWN location, so
+      // its window cannot collide with another test's days).
       const dup = await ctx.request.post(PLANNINGDAYS, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
-        data: { planningDate: dupDate, locationId: masterdata.locationId },
+        data: { planningDate: dupDate, locationId: locDuplicate.locationId },
       });
       expect(
         dup.status(),
@@ -570,7 +613,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
           everyFriday: false,
           everySaturday: true,
           everySunday: false,
-          locationId: masterdata.locationId,
+          locationId: locDuplicate.locationId,
         },
       });
       expect(
@@ -616,13 +659,14 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await page.getByTestId('planning-setup-start').locator('input').fill(start);
       await page.getByTestId('planning-setup-end').locator('input').fill(end);
       // Sat+Sun are default-ticked (PlanningDaySetupController.js:8-10); select
-      // the fresh seeded location explicitly (overrides the first-location
-      // default). Search by the unique seeded name (virtualised long list, J-5 T-27).
+      // this test's OWN fresh location explicitly (T-21 isolation — overrides the
+      // first-location default). Search by the unique seeded name (virtualised
+      // long list, J-5 T-27).
       await selectAfOption(
         page,
         'planning-setup-location-select',
-        masterdata.locationId,
-        masterdata.locationName,
+        locWizard.locationId,
+        locWizard.locationName,
       );
 
       // PARITY SHOT: the populated setup wizard form (range + weekdays + location)
@@ -655,20 +699,28 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await expect(page).toHaveURL('/planning');
 
       // Re-GET the created days from the real paged list (never the evicted POST
-      // body): the wizard's window [start, end] at the fresh location holds exactly
-      // the Sat/Sun days it created. Track them for afterAll cleanup + assert the
-      // bulk-create count off the authoritative server state.
+      // body): the wizard's window [start, end] at THIS test's OWN fresh location
+      // holds exactly the Sat/Sun days it created. Because `locWizard` is dedicated
+      // to this test (T-21), every row at that location IS a wizard day — the
+      // re-GET (filtered to `locWizard.locationId`, [start, end] matching the
+      // wizard's exact inclusive window) tracks EVERY day the wizard created, so
+      // `afterAll` deletes them all (no untracked survivor pollutes the tenant).
+      // Track them for afterAll cleanup + assert the bulk-create count off the
+      // authoritative server state.
+      // Pass the `Day.From` lower bound = the wizard window start so accumulated
+      // EARLIER days (the +1..+19 days other tests create + V34 seed + prior-run
+      // residue on the never-truncated tenant) are dropped server-side and cannot
+      // push the wizard's +20..+34 days off this single page (offset 0, size 50) —
+      // making the re-GET an AUTHORITATIVE, complete capture of every wizard day.
       const paged = await ctx.request.post(`${PLANNINGDAYS}/page/0/50`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
-        data: { sorting: { planningDate: 'asc' } },
+        data: { sorting: { planningDate: 'asc' }, searchFilter: { from: start } },
       });
       expect(paged.status(), 'the planning list pages the wizard-created days').toBe(200);
       const pagedBody = (await paged.json()) as { items: PlanningDayListRow[] };
       const created = pagedBody.items.filter(
         (d) =>
-          d.locationId === masterdata.locationId &&
-          d.planningDate >= start &&
-          d.planningDate <= end,
+          d.locationId === locWizard.locationId && d.planningDate >= start && d.planningDate <= end,
       );
       expect(created.length, 'the wizard bulk-created at least one weekend day').toBeGreaterThan(0);
       for (const d of created) {
@@ -709,7 +761,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       const dayDate = dayKeyFromToday(17);
       const id = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dayDate,
-        locationId: masterdata.locationId,
+        locationId: locDelete.locationId,
         instructorPersonId: masterdata.instructorId,
         towingPilotPersonId: masterdata.towPilotId,
         flightOperatorPersonId: masterdata.flightOpId,
@@ -776,7 +828,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       expect(after.status(), 'the deleted planning day is no longer readable (404)').toBe(404);
       const recreate = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dayDate,
-        locationId: masterdata.locationId,
+        locationId: locDelete.locationId,
       });
       expect(
         recreate,
@@ -804,7 +856,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       // Create a day as seed-club-1 (clubadmin4 / adminBearer).
       const id = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dayKeyFromToday(19),
-        locationId: masterdata.locationId,
+        locationId: locTenant.locationId,
       });
 
       // Capture club B's admin Bearer through real Keycloak (a DIFFERENT tenant).
@@ -866,11 +918,11 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       const imminentDate = dayKeyFromToday(1);
       const imminentId = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: imminentDate,
-        locationId: masterdata.locationId,
+        locationId: locNotify.locationId,
       });
       const reservationId = await seedReservationOnPlanningDay(ctx.request, adminBearer, {
         planningDate: imminentDate,
-        locationId: masterdata.locationId,
+        locationId: locNotify.locationId,
         aircraftId: masterdata.aircraftId,
         pilotPersonId: masterdata.instructorId,
         reservationTypeId,
@@ -882,7 +934,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       // planningday-assignment-notification.
       const weekAheadId = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dayKeyFromToday(7),
-        locationId: masterdata.locationId,
+        locationId: locNotify.locationId,
         instructorPersonId: masterdata.instructorId,
         towingPilotPersonId: masterdata.towPilotId,
         flightOperatorPersonId: masterdata.flightOpId,
