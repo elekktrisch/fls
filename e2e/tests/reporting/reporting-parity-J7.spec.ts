@@ -117,11 +117,14 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
     await cannedLink.waitFor({ state: "visible", timeout: 30_000 });
     await screenshot(page, "reporting-parity-J7-01-legacy-picker");
     // STABLE parity screenshot the fanout stages into the gallery (side=legacy,
-    // view=picker). FIXED basename so the staging step finds it by name the same
-    // way it finds the .webm. Captured AS SOON AS the picker renders (J-2 T-42:
-    // survive a partial red).
+    // view=picker). FIXED basename `legacy-flightreports-picker.png` — it MUST
+    // match the fanout's add_shot glob (alpenflight-proof-fanout.yml step 7,
+    // "J-7 flight-reports parity SCREENSHOTS") + the J-7 expected-shots
+    // legacy:picker view, exactly as the AlpenFlight half writes
+    // alpenflight-flightreports-picker.png. Captured AS SOON AS the picker
+    // renders (J-2 T-42: survive a partial red).
     await page.screenshot({
-      path: testInfo.outputPath("legacy-reporting-picker.png"),
+      path: testInfo.outputPath("legacy-flightreports-picker.png"),
       fullPage: true,
     });
 
@@ -140,7 +143,7 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
       await summaryTable.waitFor({ state: "visible", timeout: 15_000 });
       await screenshot(page, "reporting-parity-J7-02-legacy-canned-result");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-reporting-result.png"),
+        path: testInfo.outputPath("legacy-flightreports-result.png"),
         fullPage: true,
       });
     } catch (err) {
@@ -161,7 +164,7 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
       await applyBtn.waitFor({ state: "visible", timeout: 30_000 });
       await screenshot(page, "reporting-parity-J7-03-legacy-custom-builder");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-reporting-custom.png"),
+        path: testInfo.outputPath("legacy-flightreports-custom.png"),
         fullPage: true,
       });
     } catch (err) {
@@ -178,13 +181,13 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
     // canned-result + custom-builder are BEST-EFFORT (their own try/catch above);
     // if absent the fanout's add_pair simply no-ops that entry.
     expect(
-      existsSync(testInfo.outputPath("legacy-reporting-picker.png")),
-      "expected legacy parity screenshot legacy-reporting-picker.png in the test " +
-        "output dir — the fanout gallery's J-7 legacy half depends on it",
+      existsSync(testInfo.outputPath("legacy-flightreports-picker.png")),
+      "expected legacy parity screenshot legacy-flightreports-picker.png in the " +
+        "test output dir — the fanout gallery's J-7 legacy half depends on it",
     ).toBeTruthy();
     for (const png of [
-      "legacy-reporting-result.png",
-      "legacy-reporting-custom.png",
+      "legacy-flightreports-result.png",
+      "legacy-flightreports-custom.png",
     ]) {
       if (!existsSync(testInfo.outputPath(png))) {
         console.warn(
