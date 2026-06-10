@@ -458,3 +458,7 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 - **planning fixture club-B KC provisioning `beforeAll` can 45s-timeout under contention (J-7 T-20).** Did not
   reproduce on re-run (fanout `retries:1` absorbs it); if it recurs, bump that fixture's provisioning timeout
   or warm the KC admin client. *(seam: planning-migration-parity beforeAll club-B provisioning timeout)*
+- **Planning `:410` edit-crew cold-`page.goto` reopen flakes on OIDC reboot/renew stall (J-7 T-21).** The
+  reopen via `page.goto('/planning/{id}/edit')` hits the documented cold lazy-chunk/OIDC-renew stall
+  ([[project_real_idp_goto_reboot_renew_stall]]); self-heals warm + CI `retries:1`. Switch that reopen to warm
+  in-app nav to harden. *(seam: planning-migration-parity :410 reopen → warm nav)*

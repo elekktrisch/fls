@@ -675,3 +675,10 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   Fix: spec picks the seeded pilot as second crew. **FIX 2 planning-599 = SPA-nav body-eviction**: `genResp.json()`
   threw `No data found` (wizard navigates to /planning on success); fix re-GETs the paged list scoped to the
   wizard's window+location. Both validated locally (3 passed); CI/fanout confirm. *(seam: J-5 reservation second-crew seed + J-6 planning create read-back)*
+- [x] **T-21 — fix J-6 planning clean-seed test isolation (fanout red, fast-loop).** `planning-599` +
+  `planning-699` etc. shared ONE `freshLocation`, so the wizard's bulk-create window collided with single-date
+  tests on `ux_pln_club_date_loc` — a WALL-CLOCK-dependent 409 (today 2026-06-10 made `:699` the victim). Fix:
+  each day-creating test gets its OWN fresh seed-club-1 location (7 dedicated, seeded parallel in beforeAll) →
+  collision-free regardless of calendar; the intentional duplicate-409 (`:527`) keeps its self-collision.
+  Hardened the T-20 FIX-2 wizard cleanup (re-GET now `from=start` → complete capture, no untracked survivors).
+  Validated the FULL planning clean-seed block green TWICE locally (~2min each) via the T-20 fast loop. *(seam: planning-parity-fixture per-test fresh location + wizard cleanup completeness)*
