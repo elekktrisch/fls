@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-7 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-7</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-7</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-10T06:21:07.215Z
+      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-10T07:02:47.440Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -142,7 +142,45 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof legacy-proof">
+          <video controls preload="metadata" src="../videos/legacy-reporting-parity-J7.webm"></video>
+          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the /flightreports picker (person + location canned-report tile grid) + a canned report's results (filter-criteria panel · grouped summary · flights table) + the custom-report builder (date range · glider/motor/tow toggles · person/location selector) — the legacy reporting screens to eyeball against AlpenFlight's /flightreports picker + result page + custom builder</span></figcaption>
+        </figure>
+        </div>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">picker</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-picker.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-picker.png" alt="legacy picker" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /flightreports picker — the person + location canned-report tile grid</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">result</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-result.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-result.png" alt="legacy result" loading="lazy"></a>
+            <figcaption>Legacy flsweb: a canned report's results — the filter-criteria panel + grouped summary + flights table</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">custom</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-custom.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-custom.png" alt="legacy custom" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the custom-report builder — date range + flight-type toggles + person/location selector</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
