@@ -462,3 +462,20 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   reopen via `page.goto('/planning/{id}/edit')` hits the documented cold lazy-chunk/OIDC-renew stall
   ([[project_real_idp_goto_reboot_renew_stall]]); self-heals warm + CI `retries:1`. Switch that reopen to warm
   in-app nav to harden. *(seam: planning-migration-parity :410 reopen → warm nav)*
+
+## Pending (filed by /do-ship 2026-06-10, J-7 gate — STRUCTURAL gallery)
+
+- **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
+  The fanout legacy capture (`reporting-parity-J7.spec.ts`) PASSES and produces `legacy-flightreports-{picker,result,custom}.png`
+  + `legacy-reporting-parity-J7.webm` (confirmed in the run artifact under both `/tmp/fls-e2e-results/...` and the staged
+  `public/alpenflight/proof/screenshots/`), the J-7 `add_shot` calls for BOTH sides exist (fanout ~1091-1101), and the
+  shots-present guard ENFORCES the legacy three (passes) — yet the DEPLOYED J-7 page renders only the **alpenflight** side of
+  each of the 3 shot-pairs, legacy side = "pending". The fanout deployed LAST (07:03 vs CI 06:56), so it's NOT a deploy race —
+  the fanout's OWN `generate-gallery.mjs` run didn't emit/match the legacy J-7 `screenshots.json` entries the pairing reads.
+  Root cause is in the fanout `add_shot`→`screenshots.json`→generator pairing path (the guard checks PNG presence while the
+  generator pairs `screenshots.json` entries — the two disagree). **STRUCTURAL fix** (the operator's recurring gallery-plumbing
+  class — ride a journey's tech-debt budget, possibly the gallery re-arch): make the shots-present guard and the generator read
+  the SAME source of truth so "present" == "rendered", and assert the legacy SIDE of each declared pair actually renders on the
+  deployed page (extend the deployed-journey guard to check both sides of a pair, not just that the page is linked). *(seam:
+  alpenflight-proof-fanout.yml add_shot json emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]

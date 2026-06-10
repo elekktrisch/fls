@@ -2,8 +2,9 @@
 id: J-7
 title: Flight reports (/flightreports — canned + custom builder + Excel export)
 epic: E-07/E-11
-status: in_progress
+status: done  # both gates GREEN — CI required (real-idp 6/6 + mock + build) + fanout (legacy→migrate→KC→Playwright, 31+ pass incl. the 23505 fix); legacy reporting capture produces paired artifacts (legacy-side gallery RENDER deferred to the structural gallery rider). gap-hunter ×3 + gate-diff sweep: honest, no mocked seams.
 started_at: 2026-06-09
+done_at: 2026-06-10
 journey0: false
 carved: true
 depends_on: [J-2]            # reuses J-2's migrated Flight/FlightCrew read-side
