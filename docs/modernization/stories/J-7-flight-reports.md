@@ -665,3 +665,13 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   create timed out at `waitForResponse(201)`; 409-collision mechanically impossible (run-tagged fresh aircraft +
   tenant-scoped overlap probe) → load-timeout from T-17's now-fully-ingested heavier DB. S-163 pattern: 90s test
   timeout + explicit 30s `waitForResponse` cap so a genuine non-201 names itself. *(seam: J-7 isolation assertion + J-5 reservation create timeout)*
+- [x] **T-20 — fast local real-idp loop + fix both fanout reds (operator: "40min too long, fix both").**
+  Stood up a LOCAL real-idp loop (~45s for both specs vs the 40-min fanout): backend `bootJar … --profile dev`
+  + `ng serve :4201` against the EXISTING LAN Postgres (`DATASOURCE_*`, NOT Testcontainers) + the already-running
+  KC(:8090)/Mailpit(:8025) dev containers + local `/usr/lib/chromium`. **FIX 1 reservations-298 = TEST bug,
+  not the date-picker** (empirically disproved: `.fill()` commits fine): the seeded aircraft is 2-seat → the
+  conditional second-crew-required validator (`reservation-edit.page.ts:447-451`) made the form invalid since the
+  spec never picked a second crew → `onSubmit` early-returns (`:508`) → no POST → `waitForResponse(201)` timeout.
+  Fix: spec picks the seeded pilot as second crew. **FIX 2 planning-599 = SPA-nav body-eviction**: `genResp.json()`
+  threw `No data found` (wizard navigates to /planning on success); fix re-GETs the paged list scoped to the
+  wizard's window+location. Both validated locally (3 passed); CI/fanout confirm. *(seam: J-5 reservation second-crew seed + J-6 planning create read-back)*

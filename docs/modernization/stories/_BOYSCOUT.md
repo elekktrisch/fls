@@ -450,3 +450,11 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
   reds). Upload `test-results/**` as a separate failure artifact BEFORE the gallery step mutates the dir. *(seam:
   ci.yml alpenflight-proof + fanout test-results upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
+- **Reservation Save enabled while form invalid (async validator race, J-7 T-20 observation).** The
+  second-crew-required validator flips AFTER the aircraft picker resolves `nrOfSeats`, so `reservation-save-button`
+  shows enabled (`saveDisabled:false`) for a beat while `form.invalid` is still true; clicking then early-returns
+  in `onSubmit` with no user feedback beyond `markAllAsTouched`. Not happy-path-blocking once crew is supplied, but
+  the button-disable binding and validator state momentarily disagree. *(seam: reservation-edit Save disable binding vs async second-crew validator)*
+- **planning fixture club-B KC provisioning `beforeAll` can 45s-timeout under contention (J-7 T-20).** Did not
+  reproduce on re-run (fanout `retries:1` absorbs it); if it recurs, bump that fixture's provisioning timeout
+  or warm the KC admin client. *(seam: planning-migration-parity beforeAll club-B provisioning timeout)*
