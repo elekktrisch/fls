@@ -682,3 +682,12 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   collision-free regardless of calendar; the intentional duplicate-409 (`:527`) keeps its self-collision.
   Hardened the T-20 FIX-2 wizard cleanup (re-GET now `from=start` → complete capture, no untracked survivors).
   Validated the FULL planning clean-seed block green TWICE locally (~2min each) via the T-20 fast loop. *(seam: planning-parity-fixture per-test fresh location + wizard cleanup completeness)*
+- [x] **T-22 — wire J-7 LEGACY reporting capture into the fanout (complete the paired-capture done-bar).**
+  `reporting-parity-J7.spec.ts` existed (T-01) but was never run by the fanout → the J-7 gallery page showed the
+  AlpenFlight side complete but the legacy side "pending". Verified the spec's legacy selectors match flsweb
+  (`flightreports.html:78`, `flightreportresults.html:9/69/88`, `flightreport-custom-configuration.html:65`).
+  Wired: fanout legacy-capture step 2g runs the spec; stages `reporting-parity-J7.webm`; aligned the spec's PNG
+  basenames to the add_shot keys (`legacy-flightreports-{picker,result,custom}.png` — a latent no-op mismatch);
+  flipped `expected-shots.json` legacy:{picker,result,custom} `pending→expected` (`producedBy: fanout`). actionlint
+  clean. Real proof = the confirming fanout. Follow-up: capture-once + commit the legacy PNGs to
+  `e2e/legacy-reference/reporting/` (one-source model). *(seam: fanout reporting legacy-capture wiring + expected-shots)*
