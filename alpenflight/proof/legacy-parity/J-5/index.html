@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-5 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-5</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 3 screenshots</span>
+      <span class="summary-jid">J-5</span> <span class="status success">parity screenshots</span> <span class="summary-counts">0 videos · 1 screenshot</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-09T06:38:26.405Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-10T06:48:23.173Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -142,40 +142,8 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d1b5629668f99edd1a3190c2a081fce4ef43f000.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-eb4581c20737f30f46d5eb0650b6414914bf51f7.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1b789bb7f5e22c011ce0a8b2392125dafe819f04.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-708749da766d1bb88a3b773125f6eaa6bf275b44.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-cb11ad0a758a84e9fff3df66a96ad0880b8e08d8.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
-        </figure>
-        </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservations-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservations-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations CALENDAR day view (aircraft×hour grid 08–20) with a created reservation placed as a time-block in its aircraft lane — the calendar-first replacement for the legacy reservation table, decorated client-side from the picker label maps</figcaption>
-          </figure>
-          </div>
-        </div>
         <div class="shot-pair">
           <div class="shot-view-label">form</div>
           <div class="shot-grid">
@@ -183,16 +151,6 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <span class="shot-side">alpenflight</span>
             <a href="../screenshots/alpenflight-reservation-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-form.png" alt="alpenflight form" loading="lazy"></a>
             <figcaption>AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">scheduler</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservation-scheduler.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-scheduler.png" alt="alpenflight scheduler" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations CALENDAR week view (aircraft×day matrix — per-cell count · hours · progress bar), the consolidated replacement for the legacy reservation-scheduler grid (the calendar day view is the old lane×time scheduler; this week view is the distinct second surface)</figcaption>
           </figure>
           </div>
         </div>
@@ -206,15 +164,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
-            <td>score <strong>71.8</strong> (B) · maintainability <strong>92</strong> · duplication <strong>6.2%</strong> · dead files <strong>1.0%</strong></td>
+            <td>score <strong>72.7</strong> (B) · maintainability <strong>92</strong> · duplication <strong>5.7%</strong> · dead files <strong>1.0%</strong></td>
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>66</strong> violations · complexity <strong>66</strong> · dead-code <strong>0</strong></td>
+            <td><strong>68</strong> violations · complexity <strong>68</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.9%</strong> duplicated · <strong>60</strong> clone groups</td>
+            <td><strong>3.8%</strong> duplicated · <strong>60</strong> clone groups</td>
           </tr>
           </table>
           <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>

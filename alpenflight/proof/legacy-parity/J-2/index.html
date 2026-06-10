@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-09T06:38:26.405Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-10T06:48:23.173Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,35 +144,35 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-810eade9d30a6d4cc0478a92baa470fecb596250.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-876d68f2c940882bbf7acd0babc96b783bc21e40.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-dd7898cba9ea3d2917afd1a9aea12cbf4523a262.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-b998b8e871ea777c0c6f9fe33f637c66b72ddb32.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-693598c6171a40e57e542ab80ee9cb9996dc73fd.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-91dcd2dfd70cca6fa364b9d87eef3ba4a35bc9c5.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-16f79c977254e3424f23d786efada7f292670cb8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-07425c572e702f4eee7383a8bc398454b777f040.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-9ba05eb0bfefd5bdf4ed2ad09de05c508dfebc6e.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-83c1e9816884e1d1da90635d2dd1d2812122733a.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-6f0cd386723b627bb50d90d02684b1ed34f51942.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-4dcb254df7345ccb72fe01cae0b7002d6256a8d7.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ad55c05fbb7dfa279302ab9eceb69d4897bf921b.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-2838d4eef733693cd071fcc2223fe0f5855b9651.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-caf80def4c100bc48088188520f21996bde21801.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-7c3117310b831722034be9dd93d77f5175e9f380.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
@@ -228,15 +228,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
-            <td>score <strong>71.8</strong> (B) · maintainability <strong>92</strong> · duplication <strong>6.2%</strong> · dead files <strong>1.0%</strong></td>
+            <td>score <strong>72.7</strong> (B) · maintainability <strong>92</strong> · duplication <strong>5.7%</strong> · dead files <strong>1.0%</strong></td>
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>66</strong> violations · complexity <strong>66</strong> · dead-code <strong>0</strong></td>
+            <td><strong>68</strong> violations · complexity <strong>68</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.9%</strong> duplicated · <strong>60</strong> clone groups</td>
+            <td><strong>3.8%</strong> duplicated · <strong>60</strong> clone groups</td>
           </tr>
           </table>
           <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>
