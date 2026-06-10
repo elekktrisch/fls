@@ -5,6 +5,7 @@ import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.flights.domain.Flight;
+import ch.alpenflight.flights.domain.FlightReportRow;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
@@ -53,6 +54,10 @@ public final class TenantScopedRowBuilders {
             Map.entry(MemberState.class, ctx -> new MemberState(uniqueName("MS"))),
             Map.entry(Location.class, LocationSweepFactory::build),
             Map.entry(Flight.class, FlightSweepFactory::build),
+            // J-7 RM-1 flight-report read-model row. Its crew child
+            // (FlightReportCrewEntry) is aggregate-internal WITHOUT @TenantId
+            // (FlightCrew pattern) — deliberately NOT a sweep participant.
+            Map.entry(FlightReportRow.class, FlightReportRowSweepFactory::build),
             Map.entry(FlightType.class, FlightTypeSweepFactory::build),
             Map.entry(Article.class, ArticleSweepFactory::build),
             // PersonClub is aggregate-internal under the cross-tenant Person
