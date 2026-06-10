@@ -350,6 +350,16 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       // dropdown before V31 made this flow impossible; now it is selectable).
       await selectAfOption(page, 'reservation-type-select', reservationTypeId);
       await selectAfOption(page, 'reservation-pilot-select', masterdata.pilotPersonId);
+      // The seeded managed aircraft is a 2-seat ASK 21 (`seedReservationMasterdata`
+      // → `nrOfSeats: 2`), so the form's conditional Second-Crew validator
+      // (`secondCrewRequiredFor`: multi-seat → required) marks `secondCrewPersonId`
+      // REQUIRED. Without a second-crew pick the form stays invalid and `onSubmit`
+      // returns early — no POST, so the create-201 wait below times out (the T-20
+      // fanout red). Drive the full crew the multi-seat aircraft demands; the
+      // seeded pilot doubles as second crew (the backend admits the same person in
+      // both roles — there is no distinct-person constraint). T-20: proven locally
+      // against the real-idp stack — with this pick the create reaches its 201.
+      await selectAfOption(page, 'reservation-second-crew-select', masterdata.pilotPersonId);
       await selectAfOption(page, 'reservation-location-select', masterdata.locationId);
       // Date the reservation to TODAY so it lands on the calendar's default day
       // view (the day view only shows reservations starting on the selected day).

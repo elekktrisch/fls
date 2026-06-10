@@ -632,6 +632,15 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
         fullPage: true,
       });
 
+      // Only WAIT for the 201 to land — do NOT read its body. The wizard navigates
+      // back to /planning on bus-success, and a SPA nav on POST-success evicts the
+      // captured response body (`genResp.json()` then throws "No data found" —
+      // [[project_spa_nav_evicts_post_response_body]]; the prior flaky-passes-on-retry
+      // T-20 fanout red). `/create/rule` returns a LIST (no single-resource Location
+      // header), so the deterministic source for the created days is a RE-GET of the
+      // paged list, scoped to the fresh window + the fresh location — every Sat/Sun
+      // the wizard expanded the rule into (a fresh location + fresh window means the
+      // wizard created exactly these days, nothing skipped).
       const generated = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
@@ -639,10 +648,28 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
           r.status() === 201,
       );
       await page.getByTestId('planning-setup-generate-button').click();
-      const genResp = await generated;
-      // The backend returns the days actually created — every one a Sat/Sun in
-      // the window at the fresh location. Track them for afterAll cleanup.
-      const created = (await genResp.json()) as { id: string; planningDate: string }[];
+      await generated;
+
+      // On bus-success the wizard routes back to /planning where the generated
+      // days appear.
+      await expect(page).toHaveURL('/planning');
+
+      // Re-GET the created days from the real paged list (never the evicted POST
+      // body): the wizard's window [start, end] at the fresh location holds exactly
+      // the Sat/Sun days it created. Track them for afterAll cleanup + assert the
+      // bulk-create count off the authoritative server state.
+      const paged = await ctx.request.post(`${PLANNINGDAYS}/page/0/50`, {
+        headers: { authorization: adminBearer, 'content-type': 'application/json' },
+        data: { sorting: { planningDate: 'asc' } },
+      });
+      expect(paged.status(), 'the planning list pages the wizard-created days').toBe(200);
+      const pagedBody = (await paged.json()) as { items: PlanningDayListRow[] };
+      const created = pagedBody.items.filter(
+        (d) =>
+          d.locationId === masterdata.locationId &&
+          d.planningDate >= start &&
+          d.planningDate <= end,
+      );
       expect(created.length, 'the wizard bulk-created at least one weekend day').toBeGreaterThan(0);
       for (const d of created) {
         createdIds.push(d.id);
@@ -650,9 +677,8 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
         expect(dow === 0 || dow === 6, `generated day ${d.planningDate} is a Sat/Sun`).toBe(true);
       }
 
-      // On bus-success the wizard routes back to /planning where the generated
-      // days appear; assert the first generated day renders in the list.
-      await expect(page).toHaveURL('/planning');
+      // The first generated day renders in the /planning future-days list (the
+      // screen wires to the real backend round-trip).
       await expect(
         page.getByTestId(`planning-row-${created[0]!.id}`),
         'a wizard-generated day renders in the future-days list',
