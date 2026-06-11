@@ -41,6 +41,17 @@ import org.springframework.transaction.annotation.Transactional;
  * resolver exactly like the Flight insert in the same session; the crew
  * children copy the resolved tenant explicitly (they are aggregate-internal
  * and carry no own discriminator).
+ *
+ * <p><strong>Known limitation — cross-club Location names decorate as
+ * {@code null}.</strong> {@code Location} rides {@code @TenantId}, so a
+ * flight referencing another club's location (possible only through the
+ * structural FK — no production write path validates club-locality, and
+ * migrated data always lands on the operating club's own fan-out replica)
+ * projects a null {@code start/ldg_location_name} while keeping the location
+ * ID. The native-SQL oracle joined {@code t_location} unfiltered; no
+ * legitimate JPA-side cross-tenant Location read seam exists, and per
+ * ADR 0027 §1 no native-SQL escape hatch is added for it. Re-checked in
+ * RM-2: accepted, documented here, surfaced in the RM-2 report.
  */
 @Component
 public class FlightReportProjector {
@@ -69,7 +80,17 @@ public class FlightReportProjector {
     @EventListener
     @Transactional(propagation = Propagation.REQUIRED)
     public void onFlightSaved(FlightSaved event) {
-        UUID savedId = event.flightId();
+        repairAround(event.flightId());
+    }
+
+    /**
+     * Repairs the saved flight's own row plus every row reachable through a
+     * (current or stale) tow link — the full blast radius of one flight-state
+     * change. Package-private seam shared with the rebuild service and the
+     * rename-propagation listener (J-7 RM-2) so all read-model writes flow
+     * through ONE projection path.
+     */
+    void repairAround(UUID savedId) {
         Set<UUID> affected = new LinkedHashSet<>();
         affected.add(savedId);
         // Forward: the saved flight's current tow link → that tow's row
@@ -98,8 +119,14 @@ public class FlightReportProjector {
         }
     }
 
-    /** Rebuilds (or deletes) the read-model row for one flight id. */
-    private void refresh(UUID flightId) {
+    /**
+     * Rebuilds (or deletes) the read-model row for one flight id. Idempotent:
+     * a live flight gets its row created / refreshed in place; a flight
+     * invisible to the tenant-scoped repository (soft-deleted / gone) gets
+     * its row deleted. Package-private seam shared with
+     * {@code FlightReportRebuildService} (J-7 RM-2).
+     */
+    void refresh(UUID flightId) {
         Optional<Flight> loaded = flights.findByIdWithCrew(FlightId.of(flightId));
         if (loaded.isEmpty()) {
             // Soft-deleted (or otherwise invisible) — the read-model carries

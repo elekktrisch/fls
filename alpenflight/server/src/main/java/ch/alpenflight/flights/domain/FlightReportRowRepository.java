@@ -36,4 +36,21 @@ public interface FlightReportRowRepository {
      * to repair tow rows when their glider is saved / unlinked / soft-deleted.
      */
     List<UUID> findFlightIdsByTowedGliderFlightId(UUID towedGliderFlightId);
+
+    /**
+     * Flight ids of ALL rows visible under the caller's tenant — the
+     * orphan-detection set of the read-model rebuild (J-7 RM-2): ids present
+     * here but absent from the live flight set are stale rows to delete.
+     */
+    List<UUID> findAllFlightIds();
+
+    /**
+     * Flight ids of rows carrying a crew entry for {@code personId} (the
+     * {@code t_flight_report_crew} child, {@code ix_frc_person}) — the
+     * affected-flight lookup when a Person rename must refresh denormalized
+     * read-model crew names (J-7 RM-2). The child carries no own
+     * {@code @TenantId}; ids outside the caller's tenant are harmless to the
+     * re-projection (every per-flight read is tenant-scoped and no-ops).
+     */
+    List<UUID> findFlightIdsByCrewPersonId(UUID personId);
 }

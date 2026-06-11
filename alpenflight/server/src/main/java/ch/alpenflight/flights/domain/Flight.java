@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -512,16 +513,11 @@ public class Flight {
      */
     @DomainEvents
     Collection<Object> domainEvents() {
-        UUID resolvedId = this.id;
-        if (resolvedId == null) {
-            // Save-before-publication is the Spring Data contract; a null id
-            // here means the event pipeline was driven outside the repository.
-            // Fail loud rather than project a read-model row without a key.
-            throw new IllegalStateException(
-                    "Flight.id is null at domain-event publication time — "
-                            + "save() must run before events are drained.");
-        }
-        return List.of(new FlightSaved(resolvedId));
+        // Save-before-publication is the Spring Data contract; a null id means
+        // the event pipeline was driven outside the repository — fail loud
+        // rather than project a read-model row without a key.
+        return List.of(new FlightSaved(Objects.requireNonNull(
+                this.id, "Flight.id null at domain-event publication — save() runs first")));
     }
 
     private static void assertOrder(String earlierName, @Nullable Instant earlier,

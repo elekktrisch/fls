@@ -29,6 +29,18 @@
  * <p>Per ADR 0022 directive 2 the at-least-one-of-{glider,tow,motor} invariant
  * on FCBT (was V3's dropped {@code ck_fcbt_at_least_one_flag}) lives on the
  * aggregate (constructor + flag mutators), not as a DB CHECK.
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module (matching the sibling business modules
+ * {@code persons} / {@code aircraft} / {@code locations} / {@code flights})
+ * so the flight-report read-model sync in {@code flights.application} (J-7
+ * RM-2, ADR 0027 §2) may listen to the
+ * {@link ch.alpenflight.flighttypes.domain.FlightTypeSaved} domain event and
+ * keep its denormalized flight-type name / code strings fresh. The read-model
+ * listener is the only external importer; the normal read/write path stays
+ * the {@code flighttypes.application} service + REST controller.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.flighttypes;

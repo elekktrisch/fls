@@ -49,5 +49,17 @@
 # — sharing the block via @MappedSuperclass/@Embeddable would couple the two
 # models, the same abstraction this file already declines twice above.
 #
+# Re-measured 2026-06-11 (J-7 RM-2, rename-propagation events): 4883 (+56).
+# The @DomainEvents emit-on-save methods added to Aircraft / Location /
+# FlightType / Person were already collapsed to one-liners (the reducible
+# part); the residual clone is that one-liner CHAINING with the byte-identical
+# pre-existing softDelete(userId, clock) directly above it into one 56-token
+# window across Aircraft/FlightType/Location. Spring Data requires
+# @DomainEvents on each aggregate root, and the softDelete block is the
+# already-baselined per-aggregate lifecycle boilerplate — extracting both
+# would need the @MappedSuperclass this file declines three times above. A
+# maintainability rider (_BOYSCOUT.md) tracks revisiting that stance now that
+# five aggregates share the saved-event + soft-delete lifecycle shape.
+#
 # Single non-comment, non-blank line = the token baseline.
-4827
+4883

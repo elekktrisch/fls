@@ -502,3 +502,9 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   `TwoClubFixture` consumers) seed via `JdbcTemplate`; convert each file the next time it's materially edited —
   convention, NOT a sweep story. J-7's own two ITs converted in PR #215 as the pattern reference. ADR 0021
   isolation rules unchanged. *(seam: server src/test, per-touch)*
+- **Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).** Five
+  aggregates now share the byte-identical softDelete(userId, clock) + @DomainEvents emit-on-save one-liner
+  shape (Flight, Aircraft, Person, Location, FlightType); the cpd-baseline has declined a @MappedSuperclass
+  three times while the clone count grew. Next server-side journey: either extract the lifecycle base
+  (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
+  stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*

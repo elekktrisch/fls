@@ -241,6 +241,28 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void backfillsFlightReportRowsForEverySeededFlight() {
+        seeder.seed();
+        // J-7 RM-2 phase C: the JDBC base inserts bypass the save-time
+        // projector, so the seeder ends with a per-club read-model rebuild —
+        // every live showcase flight (both clubs) must own a report row.
+        Long reportRows = jdbc.queryForObject(
+                "SELECT count(*) FROM t_flight_report_row "
+                        + "WHERE flight_id::text LIKE '019e30c3-2c00-7801-%'",
+                Long.class);
+        assertThat(reportRows).isEqualTo(countShowcaseFlights()).isEqualTo(14);
+        // The aerotow glider's row carries the reconstructed tow block +
+        // decorations — proof the rebuild ran the real projector, not a stub.
+        var gliderRow = jdbc.queryForMap(
+                "SELECT pilot_name, tow_flight_id::text AS tow_flight_id, tow_immatriculation "
+                        + "FROM t_flight_report_row WHERE flight_id = ?::uuid",
+                FLIGHT_C1_AEROTOW_GLIDER_TODAY.toString());
+        assertThat(gliderRow.get("tow_flight_id")).isEqualTo(FLIGHT_C1_TOW_TODAY.toString());
+        assertThat(gliderRow.get("tow_immatriculation")).isEqualTo("HB-TOW1");
+        assertThat(gliderRow.get("pilot_name")).asString().isNotBlank();
+    }
+
+    @Test
     void pilot1IsPicOnSeededFlightsButPilotEmpty1HasZeroCrew() {
         seeder.seed();
         // pilot1 (club-1) + pilot-c2 (club-2) are PIC on every flight they fly.

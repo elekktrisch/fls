@@ -5,6 +5,7 @@ import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.DeploymentRepository;
+import ch.alpenflight.flights.application.FlightReportRebuildService;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Manifest;
@@ -138,6 +139,7 @@ public class MigrationBundleIngestService {
     private final long sqlStatementTimeoutMs;
     private final BundleStreamReader bundleStreamReader;
     private final EntityStreamIngestor entityStreamIngestor;
+    private final FlightReportRebuildService flightReportRebuild;
     private final boolean unmaskConstraintNames;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
@@ -158,6 +160,7 @@ public class MigrationBundleIngestService {
                                         @Value("${alpenflight.migration.bundle-timeout:PT15M}")
                                         Duration bundleTimeout,
                                         EntityStreamIngestor entityStreamIngestor,
+                                        FlightReportRebuildService flightReportRebuild,
                                         Environment environment) {
         this.uploads = uploads;
         this.runs = runs;
@@ -187,6 +190,7 @@ public class MigrationBundleIngestService {
         this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = entityStreamIngestor;
+        this.flightReportRebuild = flightReportRebuild;
         // Un-mask the violated constraint name in the ingest error detail under
         // the dev/test profiles only (J-6 retro rider). In prod the raw
         // constraint name stays out of the response body — it can leak schema
@@ -419,7 +423,42 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest pipeline returned no outcome and no failure");
         }
+        rebuildFlightReportReadModel(result);
         return result;
+    }
+
+    /**
+     * J-7 RM-2: backfill the flight-report read-model for every ingested
+     * club. The bundle's FLIGHT / FLIGHT_CREW rows land via JDBC inside the
+     * ingest transaction and never pass {@code FlightRepository.save}, so the
+     * synchronous projector never sees them.
+     *
+     * <p>Runs IMMEDIATELY AFTER the ingest transaction commits (not inside
+     * it): the ingest session is opened tenant-less, and Hibernate fixes the
+     * {@code @TenantId} at session-open — an in-transaction rebuild would
+     * read zero flights under {@code NO_TENANT}, while a {@code REQUIRES_NEW}
+     * per-club transaction could not see the still-uncommitted ingest rows.
+     * Post-commit on the same worker thread keeps the work inside the
+     * {@code bundleTimeout} envelope; the rebuild service opens one fresh
+     * tenant-scoped transaction per club.
+     *
+     * <p>A rebuild failure is logged loudly but does NOT fail the request:
+     * the migrated data IS committed, the run row is already COMPLETED, and
+     * flipping it to FAILED would lie about the ingest. The rebuild is
+     * idempotent and re-runnable (ops job), and the report-parity e2e gate
+     * catches a silently missing read-model.
+     */
+    private void rebuildFlightReportReadModel(IngestOutcome outcome) {
+        for (UUID clubId : outcome.clubIds()) {
+            try {
+                flightReportRebuild.rebuildForClub(clubId);
+            } catch (RuntimeException rebuildFailure) {
+                LOG.error("MigrationBundleIngest: flight-report read-model rebuild failed "
+                                + "for club {} (Deployment {} is committed; rebuild is "
+                                + "idempotent — re-run it for this club)",
+                        clubId, outcome.deploymentId(), rebuildFailure);
+            }
+        }
     }
 
     private IngestOutcome drainDecryptedBody(Connection connection,

@@ -133,4 +133,33 @@ public interface FlightRepository {
      * tenant filter structural via {@code @TenantId}.
      */
     Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate);
+
+    /**
+     * Ids of ALL non-deleted flights within the caller's tenant — the
+     * iteration set of the flight-report read-model rebuild (J-7 RM-2,
+     * ADR 0027 §2). Tenant filter structural via {@code @TenantId}.
+     */
+    List<UUID> findAllLiveIds();
+
+    /**
+     * Ids of non-deleted flights flying the given aircraft within the
+     * caller's tenant — the affected-flight lookup when an Aircraft rename
+     * must refresh denormalized read-model immatriculations (J-7 RM-2).
+     */
+    List<UUID> findIdsByAircraftId(UUID aircraftId);
+
+    /**
+     * Ids of non-deleted flights whose start OR landing location is the
+     * given location, within the caller's tenant — the affected-flight
+     * lookup when a Location rename must refresh denormalized read-model
+     * location names (J-7 RM-2).
+     */
+    List<UUID> findIdsByLocationId(UUID locationId);
+
+    /**
+     * Ids of non-deleted flights of the given flight type within the
+     * caller's tenant — the affected-flight lookup when a FlightType rename
+     * must refresh denormalized read-model type names / codes (J-7 RM-2).
+     */
+    List<UUID> findIdsByFlightTypeId(UUID flightTypeId);
 }

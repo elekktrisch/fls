@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -149,6 +150,9 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     private UUID actorUserId;
     private UUID legacyPilotPersonId;
     private UUID legacyCoPilotPersonId;
+    private String gliderImmat;
+    private String towImmat;
+    private String motorImmat;
 
     @BeforeEach
     void seedActor() {
@@ -161,6 +165,14 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "FLM-" + tag;
         testClubSlug = "flm-" + tag;
+        // ux_aircraft_immatriculation is regulator-GLOBALLY-unique. Own a
+        // per-run immat namespace (the V36 fixture-namespace convention)
+        // instead of the showcase fixtures' deterministic HB-TOW1/HB-MOT1 —
+        // single-fork suite runs share one Postgres container, and a prior
+        // ShowcaseSeederIT class legitimately leaves its seed behind.
+        gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
+        towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
+        motorImmat = ("HB-M" + tag).toUpperCase(Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -278,11 +290,11 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 pgcopyMap(legacyFlightTypeId, legacyFlightTypeId));
         // Three aircraft (glider / tow / motor), all cross-tenant non-fan-out.
         tarEntries.put("AIRCRAFT.ndjson", concat(
-                aircraftNdjson(legacyGliderAircraftId, legacyClubId, "HB-3000",
+                aircraftNdjson(legacyGliderAircraftId, legacyClubId, gliderImmat,
                         LEGACY_AIRCRAFT_TYPE_GLIDER),
-                aircraftNdjson(legacyTowAircraftId, legacyClubId, "HB-TOW1",
+                aircraftNdjson(legacyTowAircraftId, legacyClubId, towImmat,
                         LEGACY_AIRCRAFT_TYPE_TOW),
-                aircraftNdjson(legacyMotorAircraftId, legacyClubId, "HB-MOT1",
+                aircraftNdjson(legacyMotorAircraftId, legacyClubId, motorImmat,
                         LEGACY_AIRCRAFT_TYPE_MOTOR)));
         tarEntries.put("legacy_id_map/AIRCRAFT.pgcopy", pgcopyMap2(
                 new MapRow(legacyGliderAircraftId, legacyGliderAircraftId),
@@ -442,6 +454,41 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         assertThat(((Number) motor.get("flight_aircraft_type_id")).shortValue())
                 .as("MOTOR sparse-enum (4) passed through verbatim")
                 .isEqualTo((short) 4);
+
+        // (5) J-7 RM-2: the post-commit per-club rebuild backfilled the
+        // flight-report read-model. The bundle's FLIGHT/FLIGHT_CREW rows land
+        // via JDBC inside the ingest transaction and never pass
+        // FlightRepository.save — without the rebuild a migrated club's
+        // report read-model would be silently empty (the fanout
+        // legacy→migrate→reports-parity chain depends on these rows).
+        Integer reportRows = jdbc.queryForObject(
+                "SELECT count(*) FROM t_flight_report_row WHERE operating_club_id = ?::uuid",
+                Integer.class, newClub.toString());
+        assertThat(reportRows)
+                .as("rebuild-after-ingest projects one report row per migrated flight")
+                .isEqualTo(3);
+        Map<String, Object> gliderReportRow = jdbc.queryForMap(
+                "SELECT immatriculation, pilot_name, second_crew_name, flight_code, "
+                        + "start_location_name, tow_flight_id, tow_immatriculation "
+                        + "FROM t_flight_report_row WHERE flight_id = ?::uuid",
+                legacyGliderFlightId.toString());
+        assertThat(gliderReportRow.get("immatriculation")).isEqualTo(gliderImmat);
+        assertThat(gliderReportRow.get("pilot_name"))
+                .as("decoration picked the migrated PILOT crew person ('Lastname Firstname')")
+                .isEqualTo("Pilot Glider");
+        assertThat(gliderReportRow.get("second_crew_name"))
+                .as("CO_PILOT decorates as second crew")
+                .isEqualTo("CoPilot Glider");
+        assertThat(gliderReportRow.get("flight_code"))
+                .as("flight_code copied from the migrated per-club FlightType")
+                .isEqualTo("SCH");
+        assertThat(gliderReportRow.get("start_location_name"))
+                .as("the operating club's fan-out Location replica decorates by name")
+                .isEqualTo("Zurich");
+        assertThat(UUID.fromString(gliderReportRow.get("tow_flight_id").toString()))
+                .as("tow block present: the S-141 two-pass tow link reached the read model")
+                .isEqualTo(legacyTowFlightId);
+        assertThat(gliderReportRow.get("tow_immatriculation")).isEqualTo(towImmat);
     }
 
     // ---- NDJSON builders shaped as the production mappers emit -------------

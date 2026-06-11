@@ -34,4 +34,13 @@ public interface JpaFlightReportRowRepository
             + " where r.towedGliderFlightId = :towedGliderFlightId")
     List<UUID> findFlightIdsByTowedGliderFlightId(
             @Param("towedGliderFlightId") UUID towedGliderFlightId);
+
+    @Override
+    @Query("select r.flightId from FlightReportRow r")
+    List<UUID> findAllFlightIds();
+
+    @Override
+    @Query("select distinct e.row.flightId from FlightReportCrewEntry e"
+            + " where e.personId = :personId")
+    List<UUID> findFlightIdsByCrewPersonId(@Param("personId") UUID personId);
 }

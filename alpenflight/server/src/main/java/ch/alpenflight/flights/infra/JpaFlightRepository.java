@@ -92,6 +92,23 @@ public interface JpaFlightRepository
     List<Flight> doFindLastByAircraftAndDate(@Param("acid") UUID aircraftId,
                                              @Param("date") LocalDate flightDate,
                                              Pageable pageable);
+
+    @Override
+    @Query("select f.id from Flight f where f.deletedOn is null")
+    List<UUID> findAllLiveIds();
+
+    @Override
+    @Query("select f.id from Flight f where f.aircraftId = :acid and f.deletedOn is null")
+    List<UUID> findIdsByAircraftId(@Param("acid") UUID aircraftId);
+
+    @Override
+    @Query("select f.id from Flight f where (f.startLocationId = :locId"
+            + " or f.ldgLocationId = :locId) and f.deletedOn is null")
+    List<UUID> findIdsByLocationId(@Param("locId") UUID locationId);
+
+    @Override
+    @Query("select f.id from Flight f where f.flightTypeId = :ftid and f.deletedOn is null")
+    List<UUID> findIdsByFlightTypeId(@Param("ftid") UUID flightTypeId);
 }
 
 interface CustomListQuery {
