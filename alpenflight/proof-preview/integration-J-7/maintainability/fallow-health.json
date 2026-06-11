@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.91.0",
-  "elapsed_ms": 383,
+  "version": "2.93.0",
+  "elapsed_ms": 360,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -5842,6 +5842,18 @@
             "line": 72,
             "cognitive": 42
           }
+        ],
+        "direct_callers": [
+          {
+            "path": "src/app/features/reservations/reservations.routes.ts",
+            "symbols": [
+              {
+                "imported": "ReservationsCalendarPage",
+                "local": "ReservationsCalendarPage",
+                "type_only": false
+              }
+            ]
+          }
         ]
       },
       "actions": [
@@ -5865,5 +5877,22 @@
     "fan_in_p75": 3.0,
     "fan_out_p95": 11.0,
     "fan_out_p90": 9
+  },
+  "next_steps": [
+    {
+      "id": "complexity-breakdown",
+      "command": "fallow health --complexity-breakdown",
+      "reason": "see per-decision-point contributions for a hotspot"
+    },
+    {
+      "id": "audit-changed",
+      "command": "fallow audit",
+      "reason": "gate only the files your branch changed (auto-detects the base)"
+    }
+  ],
+  "_meta": {
+    "telemetry": {
+      "analysis_run_id": "run_cd67b73873e5a6f5"
+    }
   }
 }
