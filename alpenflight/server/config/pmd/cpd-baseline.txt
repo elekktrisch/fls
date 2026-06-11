@@ -39,5 +39,15 @@
 # (no shared base class — same reason the JPA column block isn't a
 # @MappedSuperclass), and the DTO/column shapes mirror reservations by design.
 #
+# Re-measured 2026-06-11 (J-7 RM-1b, flight-report read-model core): 4827
+# (+60). The single new clone is the JPA column-declaration block
+# (flight_aircraft_type_id/@Convert + flight_date + start/ldg_date_time)
+# shared by the Flight write aggregate and the FlightReportRow read-model
+# row. Pure field-declaration boilerplate, no logic: the read model
+# deliberately mirrors the report oracle's columns (ADR 0027) and must stay
+# mapping-independent from the write model so RM-3 can swap queries onto it
+# — sharing the block via @MappedSuperclass/@Embeddable would couple the two
+# models, the same abstraction this file already declines twice above.
+#
 # Single non-comment, non-blank line = the token baseline.
-4767
+4827
