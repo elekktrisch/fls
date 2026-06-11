@@ -8,21 +8,20 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Read-model port for the flight-report query (J-7). Implemented by
- * {@code ch.alpenflight.flights.infra.JpaFlightReportRepository}.
+ * {@code ch.alpenflight.flights.infra.JpaFlightReportReadAdapter} with plain
+ * JPA over the domain-maintained read-model ({@link FlightReportRow} + crew
+ * children, ADR 0027 §2) — the native-SQL implementation was retired in RM-3.
  *
- * <p>Tenant scoping is explicit (ADR 0008): the implementation binds the
- * caller's tenant and constrains the matched flight by
- * {@code operating_club_id = :tenant}. This CORRECTS the legacy tenancy hole
- * ({@code FlightReportService.cs:114-125}) where a person-only / unknown-type
- * report could leak other clubs' flights. Decoration columns (immatriculation,
- * pilot/second-crew name, flight-type name/code, locations) are resolved
- * regardless of their own tenant — matching legacy and the cross-tenant
- * ride-throughs (charter aircraft S-058, cross-tenant crew Person S-051).
- *
- * <p>The implementation is native SQL (registered in
- * {@code alpenflight/database/native-sql-register.md}): JPQL would apply each
- * joined entity's {@code @TenantId} discriminator and so HIDE the
- * cross-tenant decorations the report must show.
+ * <p>Tenant scoping is STRUCTURAL (ADR 0008): {@code @TenantId} on the
+ * read-model row's {@code operating_club_id} constrains every query to the
+ * caller's tenant. This preserves the J-7 correction of the legacy tenancy
+ * hole ({@code FlightReportService.cs:114-125}) where a person-only /
+ * unknown-type report could leak other clubs' flights. Decoration columns
+ * (immatriculation, pilot/second-crew name, flight-type name/code, locations)
+ * are denormalized copies written at projection time; the cross-tenant
+ * decoration semantics (charter aircraft S-058, cross-tenant crew Person
+ * S-051) ride {@code FlightReportProjector}'s decoration port, not this
+ * query.
  */
 public interface FlightReportRepository {
 
@@ -141,9 +140,11 @@ public interface FlightReportRepository {
 
     /**
      * Resolved, tenant-bound filter for a report query. {@code tenantId} is
-     * the caller's effective tenant (the page + count both scope by it — the
-     * J-7 tenancy-hole correction). The remaining fields mirror the filter
-     * DTO; see {@link #findReportPage} for the per-field semantics.
+     * the caller's effective tenant, resolved + validated by the query
+     * service; the queries themselves are scoped structurally by
+     * {@code @TenantId} on the read-model row (the implementation binds no
+     * manual tenant predicate). The remaining fields mirror the filter DTO;
+     * see {@link #findReportPage} for the per-field semantics.
      */
     record ReportCriteria(UUID tenantId,
                           @Nullable LocalDate from,

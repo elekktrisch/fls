@@ -23,8 +23,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Flight-report read-model row (ADR 0027 §2) — a redundant, denormalized
  * projection of one live {@link Flight} carrying exactly the columns the
- * report screen reads (the column oracle: the native SELECT in
- * {@code JpaFlightReportRepository}, page + summary queries). Maintained by
+ * report screen reads (the column oracle: the retired native SELECT of J-7's
+ * first report read path — since RM-3, {@code JpaFlightReportReadAdapter}
+ * queries these columns with plain JPA). Maintained by
  * {@code FlightReportProjector} in the same transaction as every Flight save;
  * never written by DB triggers (ADR 0022 directive 2).
  *

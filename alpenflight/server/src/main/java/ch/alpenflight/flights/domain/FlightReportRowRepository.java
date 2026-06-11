@@ -11,8 +11,8 @@ import java.util.UUID;
  * {@code @TenantId} filter (ADR 0008); no native SQL.
  *
  * <p>Write access is reserved for {@code FlightReportProjector} (the
- * single sync seam off {@link FlightSaved}); the report query path adopts
- * the read side in RM-3.
+ * single sync seam off {@link FlightSaved}); the report query path reads
+ * the rows via {@link FlightReportRepository} (RM-3).
  */
 public interface FlightReportRowRepository {
 
