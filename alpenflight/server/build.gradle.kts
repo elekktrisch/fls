@@ -538,6 +538,11 @@ tasks.withType<Test> {
     //     ALPENFLIGHT_TEST_FORKS=1 ./gradlew test
     // Expected wall-time reduction at N=2 on the ~50-class suite: ~40-50 %.
     maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 2).coerceAtLeast(1)
+    // 1g (Gradle's worker default is 512m): single-fork runs (external-PG dev
+    // mode, ALPENFLIGHT_TEST_FORKS=1) host the WHOLE suite's Spring context
+    // cache in one JVM — 512m OOMed at ~suite-end (J-7 RM-5, SecurityFilterChainIT
+    // "Java heap space" during context parse). CI's 2-fork split fits either way.
+    maxHeapSize = "1g"
 }
 
 // S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which

@@ -15,6 +15,14 @@ spring:
       # without a cap each acquires Hikari's default 10 connections and the
       # shared testcontainer exhausts PG's max_connections.
       maximum-pool-size: 4
+      # External-PG dev mode (J-7 RM-5): single-fork runs cache the WHOLE
+      # suite's contexts in one JVM — even 4 idle connections each exhausted
+      # the LAN server's max_connections ("remaining connection slots are
+      # reserved..."). Idle pools drain to zero within 10s (Hikari's minimum
+      # idle-timeout), so only the actively-testing context holds connections;
+      # reopening on the next hit costs single-digit ms on LAN/container.
+      minimum-idle: 0
+      idle-timeout: 10000
   jpa:
     properties:
       hibernate:
