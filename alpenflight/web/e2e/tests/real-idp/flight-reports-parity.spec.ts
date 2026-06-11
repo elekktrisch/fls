@@ -184,7 +184,11 @@ test.describe('J-7 flight reports — real chain parity', () => {
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubA);
-      await page.goto('/flightreports');
+      // Enter through the nav entry (legacy parity: FLIGHTREPORTS directly
+      // after the start-list) — proves the screen is UI-reachable, not just
+      // URL-reachable, and keeps the navigation warm (no cold-goto stall).
+      await page.goto('/flights');
+      await page.getByTestId('af-nav-section-/flightreports').click();
       await expect(page).toHaveURL(/\/flightreports/);
       await expect(page.getByTestId('flightreports-category-person')).toBeVisible();
       await expect(page.getByTestId('flightreports-category-location')).toBeVisible();
