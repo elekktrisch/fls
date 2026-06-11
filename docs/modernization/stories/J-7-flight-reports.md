@@ -692,3 +692,28 @@ fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17
   flipped `expected-shots.json` legacy:{picker,result,custom} `pending→expected` (`producedBy: fanout`). actionlint
   clean. Real proof = the confirming fanout. Follow-up: capture-once + commit the legacy PNGs to
   `e2e/legacy-reference/reporting/` (one-source model). *(seam: fanout reporting legacy-capture wiring + expected-shots)*
+
+## §5 addendum — PR-review loop (2026-06-10/11, post-done)
+
+Operator review on PR #215 set the **JPA-first direction** (ADR 0027: avoid JDBC codebase-wide;
+reads like reports get domain-maintained read-models; tests seed via production code) and decided
+"no jdbc pollution into main" → the conversion landed BEFORE merge on stacked branch
+`integration/J-7-jpa-readmodel` (PR #217, merged by operator):
+
+- **T-RM1..RM5** — flight-report read-model (`t_flight_report_row`/`_crew`, V38; `@DomainEvents`
+  same-tx sync; rebuild at ingest/dev-seed/showcase; rename propagation), read path → plain JPA
+  (414-line native-SQL class deleted, register entry RETIRED — first shrink), MeService → JPA,
+  J-7 ITs seed via production code (zero reflection needed). Oracle unchanged: report ITs +
+  Excel cell-parity green throughout.
+- **T-23** — Reports nav entry after Flights (legacy parity; screen was URL-only). The real-idp
+  proof anchor now ENTERS via the nav click.
+- **Infra hardening en route:** external LAN-Postgres test mode (operator: no local PG;
+  full `check` in ~5m20s), single-schema fixes (heap, Hikari idle-drain, club-id squatters),
+  V39 + spec weekday fix (Wed/Thu date flake), fanout run-name no longer claims J-0c.
+- **ADR 0026 D-2** — cross-club location decoration is tenant-scoped (legacy ride-through has
+  no reachable case post-migration; remedy documented if one appears).
+- **Final gate (commit e8b5e100):** CI `required` all-jobs-real green (real-idp proof incl.
+  nav-click entry, mock e2e, builds, dashboard+profile proofs) + fanout green (full
+  legacy→migrate→KC→Playwright; J-7 legacy reporting capture). False-green skip-run caught and
+  re-dispatched during the loop. New rider: fanout lacks a reporting-over-migrated-data spec
+  (predates the conversion; server-side covered by ingest-rebuild ITs).

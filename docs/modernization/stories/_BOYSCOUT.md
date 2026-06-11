@@ -482,8 +482,10 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by PR #215 review, 2026-06-10 — ADR 0027 JPA-first / no-JDBC)
 
-- **Convert the flight-report read path to a domain-maintained read-model (the BIG ADR-0027 follow-up; J-8-planning
-  candidate).** Replace `JpaFlightReportRepository`'s native SQL with redundant report entities written at mutation
+- ~~**Convert the flight-report read path to a domain-maintained read-model**~~ — **SHIPPED 2026-06-11** (stacked
+  PR #217 → integration/J-7, RM-1..RM-5: read-model + same-tx sync + rebuild at all bypass seams + rename
+  propagation + JPA read path; 414-line native-SQL class deleted; register entry retired; cross-club location
+  decoration recorded as intentional divergence ADR 0026 D-2). Original scope (kept for trace): Replace `JpaFlightReportRepository`'s native SQL with redundant report entities written at mutation
   time by separate aggregates via application events (same-transaction, NO db triggers), queried with plain JPA
   finds; sync integration-tested (mutate via production path → assert read-model row). Needs: backfill for
   migration-bundle-ingested flights (ingest must populate the read-model too, or a backfill job), and a design pass
@@ -494,8 +496,8 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   migrations ingest + register)*
 - **Retire the remaining main-code JDBC/native sites per-module on next touch (ADR 0027 §1).** 14 main-source files
   at filing time; structurally-pre-tenant seams stay register-listed (`UserPrincipalLookup`, `PreTenantUserLookup`,
-  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). Convert-on-touch candidates: `MeService`
-  (the operator's commented instance — JPA `User` entity already has `keycloak_sub`), `JpaUserRepository`,
+  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). Convert-on-touch candidates (`MeService` DONE in RM-4, incl. its `JpaUserRepository.languageExists`
+  native→JPQL boyscout): `JpaUserRepository` (remaining native), 
   `JpaPersonRepository`, `JpaClubStateRepository`, `JpaCountryRepository`, `PlanningDayPersistenceProbeImpl`,
   `AircraftReservationConflictProbeImpl`, `ShowcaseSeeder`, `LanguageCodeLookup`. *(seam: per-module infra layer)*
 - **IT seeding: raw-JDBC → production-code per-touch (ADR 0027 §3).** ~85 ITs (incl. `TenantScopedRowBuilders` /
