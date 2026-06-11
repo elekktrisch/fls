@@ -52,9 +52,9 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     long countAllActive();
 
     @Override
-    // Native: no Language entity is mapped (the language seed is a static
-    // reference table, read elsewhere via JDBC — see LanguageCodeLookup).
-    @Query(value = "select exists(select 1 from t_language where id = :languageId)",
-            nativeQuery = true)
+    // JPQL against referencedata's Language mapping (ADR 0027 retired the
+    // former native t_language EXISTS once the entity landed with RM-4).
+    @Query("select case when count(l) > 0 then true else false end "
+            + "from Language l where l.id = :languageId")
     boolean languageExists(@Param("languageId") UUID languageId);
 }
