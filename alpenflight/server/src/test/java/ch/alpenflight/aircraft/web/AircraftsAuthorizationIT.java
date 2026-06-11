@@ -56,7 +56,7 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-000000000001";
-    private static final String CLUB_B = "019e30c3-2c00-7001-8000-000000000002";
+    private static final String CLUB_B = "019e30c3-2c00-7001-8000-0000000ab202";
     private static final String LANG_DE_UUID = "019e2e15-2c00-77d0-8000-0000000007d0";
 
     @Autowired TestRestTemplate rest;

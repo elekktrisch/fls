@@ -208,43 +208,11 @@ When you need to add one:
 4. Expired entries (past `expires`) trigger a build warning + a follow-up
    review.
 
-### `flight-report-read-model` — `Paged + filtered flight-report read model (J-7)`
+## Retired
 
-- **Caller:** `src/main/java/ch/alpenflight/flights/infra/JpaFlightReportRepository.java`
-- **Tenant-scoped tables touched:** t_flight, t_flight_crew, t_aircraft, t_person, t_location, t_flight_type
-- **Justification:** the flight-report page must surface decoration columns
-  (aircraft immatriculation, crew Person names, flight-type name/code, start +
-  landing location names) REGARDLESS of their own tenant — the charter aircraft
-  ride-through (S-058), the cross-tenant crew Person ride-through (S-051), and
-  the legacy cross-club location report all reference rows outside the caller's
-  club. A JPQL projection would apply each joined entity's `@TenantId`
-  discriminator and HIDE exactly those decorations, breaking the report. Native
-  SQL is the only path that scopes the *matched flight* by tenant while leaving
-  the FK-reachable decoration joins unscoped. The report also computes
-  air-state in Java (sacred-cow: never stored) over the raw timestamp/flag
-  columns, and orders the second-crew pick by the crew-type `legacy_int_id` —
-  shapes the keyset/method-name JPA derivation can't express.
-- **Tenancy gate:** the matched flight carries an explicit
-  `f.operating_club_id = :tenant` predicate (parameter-bound from
-  `TenantContextCarrier.current()`, never caller-controlled string
-  interpolation) on the page, the count, AND the T-04 summary-aggregation query
-  (`findSummaryRows`, which shares the same `appendWhere`/`bindWhere` tenant
-  predicate) — this CORRECTS the legacy tenancy hole
-  (`FlightReportService.cs:114-125`) where a person-only / unknown-type report
-  leaked other clubs' flights. The decoration joins
-  (t_aircraft, t_person, t_location, t_flight_type) + the nested-tow self-join
-  carry no tenant predicate by design — they are FK-reachable rows whose
-  cross-tenant visibility is the documented ride-through contract above.
-- **Reviewer:** auto-registered with J-7 T-03 implementation; security-reviewer
-  panel re-confirms at the journey gate.
-- **Approved:** 2026-06-09.
-- **Expires:** 2027-06-09
-- **Remove when:** the dedicated denormalized flight-report read model lands —
-  no longer an alternative but the decided direction per
-  [ADR 0027](../../docs/modernization/adrs/0027-jpa-first-persistence-and-domain-read-models.md)
-  (PR #215 review): report entities maintained redundantly by domain
-  aggregates at mutation time, plain JPA finds, sync integration-tested.
-  Rider filed in `_BOYSCOUT.md`.
+- `flight-report-read-model` — retired 2026-06-11 by ADR 0027 RM-3: the report
+  read path is now plain JPA over `t_flight_report_row` (domain-maintained
+  read-model, `JpaFlightReportReadAdapter`); the native-SQL caller was deleted.
 
 ## Entry template
 

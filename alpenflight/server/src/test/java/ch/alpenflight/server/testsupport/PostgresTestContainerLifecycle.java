@@ -46,6 +46,14 @@ public final class PostgresTestContainerLifecycle {
     static final String DB_PASSWORD = "alpenflight_test_pw";
     private static final int READINESS_TIMEOUT_SECONDS = 120;
 
+    /**
+     * Advisory-lock key guarding the shared external test database — one test
+     * JVM at a time. Arbitrary constant; must only be unique within our use of
+     * the external server.
+     */
+    private static final long EXTERNAL_LOCK_KEY = 0x414C50464C545354L; // "ALPFLTST"
+    private static final int EXTERNAL_LOCK_WAIT_SECONDS = 15;
+
     /** Marker label so the pre-start sweep + the Stop-hook prune can target our containers precisely. */
     private static final String OWNER_LABEL = "ch.alpenflight.test=pg";
 
@@ -60,8 +68,40 @@ public final class PostgresTestContainerLifecycle {
     private volatile int hostPort = -1;
     private volatile boolean started = false;
 
+    // External-PG mode state (see externalConfigured()).
+    private volatile boolean external = false;
+    private volatile String externalJdbcUrl;
+    private volatile String externalUser;
+    private volatile String externalPassword;
+    private volatile Connection externalLockConnection;
+
+    /**
+     * External-PG mode: when {@code DATASOURCE_URL} is set (dev boxes that must
+     * NOT start a local Postgres — operator directive), tests run against that
+     * database directly — the shared dev DB, no separate test database
+     * (operator decision). CI never takes this path (pinned PG 17 container
+     * stays authoritative); {@code ALPENFLIGHT_TEST_FORCE_DOCKER=1} restores
+     * the container path on a dev box.
+     *
+     * <p>Isolation: the schema is dropped + recreated at JVM start (Flyway then
+     * migrates fresh — immune to cross-branch migration drift), and a
+     * session-held advisory lock serialises test JVMs; run with
+     * {@code ALPENFLIGHT_TEST_FORKS=1}. Failures in this mode are LOUD —
+     * external is explicit intent, so we never skip-silently nor fall back to
+     * a local container.
+     */
+    static boolean externalConfigured() {
+        return System.getenv("DATASOURCE_URL") != null
+                && System.getenv("CI") == null
+                && System.getenv("ALPENFLIGHT_TEST_FORCE_DOCKER") == null;
+    }
+
     public synchronized void start() {
         if (started) return;
+        if (externalConfigured()) {
+            startExternal();
+            return;
+        }
         sweepStaleContainers();
         Runtime.getRuntime().addShutdownHook(new Thread(this::stopQuietly, "alpenflight-pg-shutdown"));
         runOrThrow("docker", "pull", IMAGE);
@@ -85,6 +125,84 @@ public final class PostgresTestContainerLifecycle {
         }
     }
 
+    /**
+     * Connects to the {@code DATASOURCE_URL} database itself (operator decision:
+     * the shared dev DB, no separate test database), serialises against sibling
+     * test JVMs via a session advisory lock, then resets the schema so Flyway
+     * migrates fresh. Consequence: every test run RESETS the dev database — a
+     * fast-loop dev backend running against the same DB must be restarted after
+     * a test run (and should not serve traffic during one).
+     */
+    private void startExternal() {
+        String testUrl = System.getenv("DATASOURCE_URL");
+        String user = System.getenv("DATASOURCE_USER");
+        String password = System.getenv("DATASOURCE_PASSWORD");
+        if (user == null || password == null) {
+            throw new IllegalStateException(
+                    "External-PG test mode: DATASOURCE_URL is set but DATASOURCE_USER/DATASOURCE_PASSWORD are not.");
+        }
+
+        Properties props = new Properties();
+        props.setProperty("user", user);
+        props.setProperty("password", password);
+        Connection lock;
+        try {
+            lock = DriverManager.getConnection(testUrl, props);
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "External-PG test mode: cannot connect to " + testUrl + " (" + e.getMessage()
+                            + "). External mode never falls back to a local container (operator directive).",
+                    e);
+        }
+        try {
+            boolean locked = false;
+            long deadline = System.currentTimeMillis() + EXTERNAL_LOCK_WAIT_SECONDS * 1000L;
+            while (System.currentTimeMillis() < deadline) {
+                try (var rs = lock.createStatement()
+                        .executeQuery("SELECT pg_try_advisory_lock(" + EXTERNAL_LOCK_KEY + ")")) {
+                    rs.next();
+                    if (rs.getBoolean(1)) {
+                        locked = true;
+                        break;
+                    }
+                }
+                sleepQuietly(1000);
+            }
+            if (!locked) {
+                throw new IllegalStateException(
+                        "External-PG test mode: another test JVM holds " + DB_NAME + " (advisory lock busy "
+                                + EXTERNAL_LOCK_WAIT_SECONDS + "s). Run with ALPENFLIGHT_TEST_FORKS=1 and"
+                                + " one gradle test invocation at a time.");
+            }
+            // Fresh start every JVM: immune to cross-branch Flyway drift; the
+            // post-run state stays inspectable until the NEXT run (ADR 0021).
+            lock.createStatement().execute("DROP SCHEMA public CASCADE");
+            lock.createStatement().execute("CREATE SCHEMA public");
+        } catch (SQLException e) {
+            try {
+                lock.close();
+            } catch (SQLException ignored) {
+                // best-effort
+            }
+            throw new IllegalStateException("External-PG test mode: schema reset failed on " + testUrl, e);
+        } catch (RuntimeException e) {
+            try {
+                lock.close();
+            } catch (SQLException ignored) {
+                // best-effort
+            }
+            throw e;
+        }
+        // Hold the lock connection for the JVM's lifetime; the advisory lock is
+        // session-scoped and releases when this connection dies with the JVM.
+        externalLockConnection = lock;
+        externalJdbcUrl = testUrl;
+        externalUser = user;
+        externalPassword = password;
+        external = true;
+        started = true;
+    }
+
     public synchronized void stop() {
         if (!started) return;
         stopQuietly();
@@ -92,6 +210,16 @@ public final class PostgresTestContainerLifecycle {
     }
 
     private void stopQuietly() {
+        if (external) {
+            try {
+                if (externalLockConnection != null) {
+                    externalLockConnection.close();
+                }
+            } catch (Exception ignored) {
+                // best-effort: the advisory lock dies with the session anyway
+            }
+            return;
+        }
         try {
             new ProcessBuilder("docker", "rm", "-f", containerName)
                     .redirectErrorStream(true)
@@ -171,15 +299,18 @@ public final class PostgresTestContainerLifecycle {
 
     public String jdbcUrl() {
         ensureStarted();
+        if (external) {
+            return externalJdbcUrl;
+        }
         return "jdbc:postgresql://localhost:" + hostPort + "/" + DB_NAME;
     }
 
     public String username() {
-        return DB_USER;
+        return external ? externalUser : DB_USER;
     }
 
     public String password() {
-        return DB_PASSWORD;
+        return external ? externalPassword : DB_PASSWORD;
     }
 
     public int hostPort() {

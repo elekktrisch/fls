@@ -501,4 +501,15 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 - **IT seeding: raw-JDBC → production-code per-touch (ADR 0027 §3).** ~85 ITs (incl. `TenantScopedRowBuilders` /
   `TwoClubFixture` consumers) seed via `JdbcTemplate`; convert each file the next time it's materially edited —
   convention, NOT a sweep story. J-7's own two ITs converted in PR #215 as the pattern reference. ADR 0021
-  isolation rules unchanged. *(seam: server src/test, per-touch)*
+  isolation rules unchanged. **Same per-touch convention now also covers club-id collisions:** single-schema
+  external-PG runs (RM-2a) surfaced classes sharing club UUID literals by value with club-HARD-DELETING classes
+  (LocationsAuthorizationIT pair fixed RM-5; 4 showcase-CLUB_2 squatters fixed RM-5; audit found latent pairs left:
+  the migration round-trip family's bundle clubs `…04be`/`…0bb8` are also referenced by Audit*/Clubs* ITs — give a
+  class ITS OWN club ids when touching it; production-reserved ids (ShowcaseSeeder, V-seeds) are off-limits as
+  foreign fixture clubs). *(seam: server src/test, per-touch)*
+- **Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).** Five
+  aggregates now share the byte-identical softDelete(userId, clock) + @DomainEvents emit-on-save one-liner
+  shape (Flight, Aircraft, Person, Location, FlightType); the cpd-baseline has declined a @MappedSuperclass
+  three times while the clone count grew. Next server-side journey: either extract the lifecycle base
+  (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
+  stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*
