@@ -115,6 +115,13 @@ audit:
       # actor + entity id so the trail is observable for forensics.
       - Flight
       - FlightCrew
+      # ADR 0027 RM-2/RM-3 — the flight-report read-model row + crew child
+      # are DERIVED projections of Flight/FlightCrew/Person (denormalized
+      # pilot/crew names, comment, routes); the source aggregates above are
+      # already deny-all, and auditing the projection would re-leak the same
+      # PII through a second entity. Same default-deny decision.
+      - FlightReportRow
+      - FlightReportCrewEntry
     entities:
       # Names below are the entity field names (what reflection sees), NOT
       # the JSON-serialized property names — the redactor walks @Entity
