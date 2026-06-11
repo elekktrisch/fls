@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-10T07:02:47.440Z
+      for this journey. Generated on <code>integration/J-7</code> &middot; 2026-06-11T20:24:27.495Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,31 +144,31 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-148cda7d7102f2720acbd244ea33faa9b04b3242.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-5bce215c3c2293094f9b8d1f5c362fd047555e43.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-14105a77ae4ab491b64e97eef65ddefb6e1b6983.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-e2145ffa44de41a2e1cce06e29e4dd8f4a4cba44.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-8588f0afdf761afcc1a5a426d9858c95acb0f2fd.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-4dfd99b22ebcb96b7da3e7160a2201cdb433ba12.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-dd68f9ce1f70aaff04e7c2e4ababe76ad809c936.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-8c0f0084a81c4125c1de15baec96fd1e117a40ef.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-f1f004de49b2bd73ee2fef17d416b8cd22493fa8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-edc5a97efea6750286a866d6afedfdd9ec76df73.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-966d85dd780c0fa6e6a13f86b70cf925b7998029.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-3655fe6ce051fdc0e87044efc799e4af730b1c95.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-2890531418c6489b9ebd9084f103af08f180523f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-88afa4c20024823872ef720c188d58f4737fe84d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · migrated planning day · a real legacy planning day (remark &quot;Test3&quot;, with crew assignments + a fan-out-resolved own-club location), exported + migrated through the live chain, renders on the migrated TestClub’s /planning list — identity-matched to legacy and pointing at its OWN club’s Location replica (full legacy→export→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -218,11 +218,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>68</strong> violations · complexity <strong>68</strong> · dead-code <strong>0</strong></td>
+            <td><strong>70</strong> violations · complexity <strong>70</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.6%</strong> duplicated · <strong>60</strong> clone groups</td>
+            <td><strong>3.6%</strong> duplicated · <strong>62</strong> clone groups</td>
           </tr>
           </table>
           <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>

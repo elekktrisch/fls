@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.91.0",
-  "elapsed_ms": 284,
+  "version": "2.93.0",
+  "elapsed_ms": 374,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -3152,7 +3152,7 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1487,
-      "total_lines": 27473,
+      "total_lines": 27479,
       "files_scored": 162,
       "total_deps": 0
     },
@@ -3171,7 +3171,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.2,
-    "total_loc": 27473
+    "total_loc": 27479
   },
   "health_score": {
     "formula_version": 2,
@@ -4868,7 +4868,7 @@
       "total_cyclomatic": 3,
       "total_cognitive": 2,
       "function_count": 1,
-      "lines": 50,
+      "lines": 54,
       "crap_max": 3.0,
       "crap_above_threshold": 0
     },
@@ -5358,7 +5358,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 78,
+      "lines": 80,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -5842,6 +5842,18 @@
             "line": 72,
             "cognitive": 42
           }
+        ],
+        "direct_callers": [
+          {
+            "path": "src/app/features/reservations/reservations.routes.ts",
+            "symbols": [
+              {
+                "imported": "ReservationsCalendarPage",
+                "local": "ReservationsCalendarPage",
+                "type_only": false
+              }
+            ]
+          }
         ]
       },
       "actions": [
@@ -5865,5 +5877,22 @@
     "fan_in_p75": 3.0,
     "fan_out_p95": 11.0,
     "fan_out_p90": 9
+  },
+  "next_steps": [
+    {
+      "id": "complexity-breakdown",
+      "command": "fallow health --complexity-breakdown",
+      "reason": "see per-decision-point contributions for a hotspot"
+    },
+    {
+      "id": "audit-changed",
+      "command": "fallow audit",
+      "reason": "gate only the files your branch changed (auto-detects the base)"
+    }
+  ],
+  "_meta": {
+    "telemetry": {
+      "analysis_run_id": "run_83968a95b146961f"
+    }
   }
 }
