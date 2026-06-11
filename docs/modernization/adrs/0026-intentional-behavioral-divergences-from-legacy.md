@@ -56,6 +56,27 @@ rationale. The `parity-reviewer` and `legacy-oracle` treat a documented entry he
   conflates them and is an accident of when a row happened to be typed in. The operator
   accepted that this shifts *when* flights become lockable/billable vs legacy.
 
+**D-2 — Flight-report location decoration is tenant-scoped; the legacy cross-club
+ride-through is dropped.** (J-7 read-model conversion, ADR 0027 / PR #217)
+- **Legacy:** report decoration joins carry no tenant predicate — a flight referencing
+  another club's Location still shows that location's name
+  (`FlightReportService.cs` join shape; carried into the retired
+  `flight-report-read-model` native-SQL register entry as a documented ride-through).
+- **AlpenFlight:** the `FlightReportProjector` decorates under `@TenantId` — a
+  cross-club location would project `start/ldg_location_name = null` (id retained on
+  `t_flight_report_row`). Owned by `flights.application.FlightReportProjector` +
+  `JpaFlightReportDecorations`.
+- **Why:** the case is structurally unreachable in AlpenFlight, so the ride-through
+  buys nothing: (1) migration FANS OUT each legacy shared location into one replica
+  per referencing club ("union of club homebases + flights' start/landing locations",
+  `MapperLegacyBindings` LOCATION binding) and flight FKs remap to the own-club
+  replica — migrated flights always decorate; (2) tenant-filtered pickers prevent
+  creating a cross-club reference in the app. Keeping a tenant-bypassing decoration
+  seam (a register entry) for an unreachable case would contradict ADR 0027's
+  shrinking-register direction. If a reachable case ever appears, the row still
+  carries the location id — a register-listed projection-time lookup (the
+  `persons-cross-tenant-membership-check` shape) is the prepared remedy.
+
 ## Consequences
 
 - **Positive:** a parity reviewer / `legacy-oracle` has one greppable place to confirm a

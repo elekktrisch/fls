@@ -513,3 +513,11 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   three times while the clone count grew. Next server-side journey: either extract the lifecycle base
   (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
   stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*
+- **Fanout has NO reporting spec over MIGRATED data (predates the read-model conversion; found at RM-5).** The
+  fanout's AlpenFlight parity step runs J-0c/J-1/J-2/J-5/J-6 migration-parity specs — `/flightreports` over the
+  migrated dataset has never been e2e-asserted (the J-7 reporting specs run against the CLEAN seed in ci.yml; the
+  fanout only captures the LEGACY reporting side). Server-side the seam IS covered (RM-2 ingest-rebuild ITs assert
+  read-model rows + decorations post-ingest). Next reporting touch: add a small AlpenFlight-side
+  `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
+  location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
+  *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
