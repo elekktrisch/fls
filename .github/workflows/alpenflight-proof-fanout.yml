@@ -1,4 +1,8 @@
-name: alpenflight proof — J-0c fan-out
+# (The fan-out harness was BUILT in J-0c; runs serve whatever journey the
+# dispatched branch carries — the run-name shows the branch so the Actions
+# list stops claiming every run is J-0c.)
+name: alpenflight proof fan-out
+run-name: fan-out proof — ${{ github.ref_name }}
 
 # J-0c T-05 — the FULL legacy→migrate+Keycloak→AlpenFlight fan-out parity chain,
 # end to end, on ONE runner. This is the dedicated proof workflow the journey
