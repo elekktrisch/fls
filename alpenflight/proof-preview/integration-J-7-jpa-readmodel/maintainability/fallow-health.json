@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.92.1",
-  "elapsed_ms": 384,
+  "elapsed_ms": 412,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -5880,7 +5880,7 @@
   },
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_872aa9c21c28672d"
+      "analysis_run_id": "run_978c988c5a1b6634"
     }
   }
 }
