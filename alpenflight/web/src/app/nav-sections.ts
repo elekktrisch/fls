@@ -12,6 +12,14 @@ export const TENANT_SECTIONS: readonly NavItem[] = [
   { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
   { path: '/locations', label: 'Locations', icon: 'map-pin' },
   { path: '/persons', label: 'Persons', icon: 'users' },
+  // Legacy parity: flsweb's masterdata dropdown put FlightTypes at the tail of
+  // the masterdata run AlpenFlight carries over (persons/clubs/aircrafts/
+  // locations/users → flightTypes; navigation-bar-directive.html:75-104).
+  // Legacy gated the ENTRY to club-admins (AuthService.js:37) but the screen
+  // itself is open to every tenant principal (tenantRequiredGuard only; GET
+  // reads are isAuthenticated()) — the entry follows the screen's guard, not
+  // legacy's nav gate (J-26 T-28).
+  { path: '/flight-types', label: 'Flight types', icon: 'tags' },
   // Future sections (Settings) land here as their feature stories ship —
   // kept inline so the nav-bar's input surface stays a pure data shape.
 ];
@@ -37,17 +45,24 @@ export interface NavRoleFlags {
 /**
  * Pure nav-section assembly per principal role.
  *
- * - sysadmin → Clubs only (tenant-scoped pages render empty; no clubId claim, S-159).
+ * - sysadmin-only → Clubs only (tenant-scoped pages render empty; no clubId claim, S-159).
  * - club-admin → tenant sections + Users; NO Clubs.
  * - regular user → tenant sections; NO Users, NO Clubs.
+ * - dual-role (sysadmin + club-admin) → the role UNION: tenant sections +
+ *   Users + Clubs. The old `isSystemAdmin` short-circuit hid ALL tenant nav
+ *   from a principal that legitimately operates a tenant (J-26 T-28; the
+ *   mock-auth persona is exactly this shape).
  */
 export function navSectionsFor(flags: NavRoleFlags): readonly NavItem[] {
-  if (flags.isSystemAdmin) {
+  if (flags.isSystemAdmin && !flags.isClubAdmin) {
     return SYS_ADMIN_SECTIONS;
   }
-  const base = [...TENANT_SECTIONS];
+  const sections = [...TENANT_SECTIONS];
   if (flags.isClubAdmin) {
-    return [...base, ...CLUB_ADMIN_SECTIONS];
+    sections.push(...CLUB_ADMIN_SECTIONS);
   }
-  return base;
+  if (flags.isSystemAdmin) {
+    sections.push(...SYS_ADMIN_SECTIONS);
+  }
+  return sections;
 }

@@ -38,8 +38,34 @@ describe('navSectionsFor', () => {
     expect(paths({ isSystemAdmin: true, isClubAdmin: false })).not.toContain('/flightreports');
   });
 
-  it('sysadmin flag wins even if club-admin is also set', () => {
+  it('dual-role (sysadmin + club-admin) sees the role UNION — tenant + Users + Clubs (J-26 T-28)', () => {
     const p = paths({ isSystemAdmin: true, isClubAdmin: true });
-    expect(p).toEqual(['/clubs']);
+    expect(p).toEqual([
+      '/flights',
+      '/flightreports',
+      '/reservations',
+      '/planning',
+      '/aircraft',
+      '/locations',
+      '/persons',
+      '/flight-types',
+      '/users',
+      '/clubs',
+    ]);
+  });
+
+  it('Flight types sits directly after Persons — tail of the masterdata run, per legacy nav (J-26 T-28)', () => {
+    // Legacy placed FlightTypes at the tail of the masterdata entries AlpenFlight
+    // carries (persons/aircrafts/locations → flightTypes; flsweb
+    // navigation-bar-directive.html:75-104). Visible to EVERY tenant principal —
+    // the screen's guard is tenantRequiredGuard with isAuthenticated() reads, so
+    // the entry follows the screen, not legacy's club-admin nav gate
+    // (AuthService.js:37).
+    for (const isClubAdmin of [false, true]) {
+      const p = paths({ isSystemAdmin: false, isClubAdmin });
+      expect(p.indexOf('/flight-types')).toBe(p.indexOf('/persons') + 1);
+    }
+    // Sysadmin-only principals keep exactly today's sections (no tenant nav).
+    expect(paths({ isSystemAdmin: true, isClubAdmin: false })).not.toContain('/flight-types');
   });
 });
