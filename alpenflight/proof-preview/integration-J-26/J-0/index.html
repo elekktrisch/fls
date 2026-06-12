@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-26</title>
+<title>AlpenFlight proof — J-0</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-26 — proof</h1>
+    <h1>J-0 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-26</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-0</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -142,13 +142,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-4386ee2de8eb813e153ea99f3fcc1cb159d70479.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-041d4ba8600b011c3a69dc5c8ebef270b102a76a.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-29f60639c03128171d23c99c25b300b3baff9ddf.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
-          <h4>Maintainability <span class="status success">no new findings</span></h4>
+          <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
           <table class="maint-table">
           <tr>
-            <th>FE delta (this journey vs main)</th>
-            <td>complexity <strong>0</strong> · duplication <strong>0</strong> · dead-code <strong>0</strong> · verdict <strong>unknown</strong></td>
+            <th>FE delta (this journey)</th>
+            <td class="muted">— historical per-journey delta not reconstructable (only the current branch's diff is). Snapshot below applies repo-wide.</td>
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
@@ -163,7 +177,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <td><strong>3.6%</strong> duplicated · <strong>62</strong> clone groups</td>
           </tr>
           </table>
-          <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>J-26</strong></p>
+          <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>
         </section>
   </section>
 

@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T14:15:04.372Z
+      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T19:39:36.783Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -142,12 +142,26 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <details class="journey pending-journey">
+      <details class="journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
+          <span class="summary-caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-4386ee2de8eb813e153ea99f3fcc1cb159d70479.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-041d4ba8600b011c3a69dc5c8ebef270b102a76a.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-29f60639c03128171d23c99c25b300b3baff9ddf.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
+        </figure>
+        </div>
+
       </details>
       <details class="journey pending-journey">
         <summary>
