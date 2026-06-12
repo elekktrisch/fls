@@ -52,6 +52,8 @@ const CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 const FLIGHT_TYPE_ID = '019e30c3-2c00-7001-8000-0000000000f1';
 const PERSON_ID = '019e30c3-2c00-7001-8000-0000000000b1';
 const AIRCRAFT_ID = '019e30c3-2c00-7001-8000-00000000a001';
+const COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
+const CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 
 const mockFlightTypes = [
   {
@@ -139,34 +141,58 @@ test.describe('J-26 duplicate-key 409 routes to the offending field (mock inner 
     },
   );
 
-  test.fixme('[key-error] club duplicate clubKey → 409 labeled on the clubKey field (not the slug)', async ({
-    page,
-  }) => {
-    // T-07 thickens: ClubsService DIVE discrimination `ux_club_key` vs
-    // `ux_club_slug` (today ANY DataIntegrityViolation → SlugAlreadyExists on
-    // the wrong field).
-    await page.route('**/api/v1/clubs', (route) => route.fulfill({ json: mockClubs }));
-    await page.route(`**/api/v1/clubs/${CLUB_ID}`, (route) =>
-      route.request().method() === 'PUT'
-        ? route.fulfill({
-            status: 409,
-            json: { field: 'clubKey', message: 'common.errors.duplicate' },
-          })
-        : route.fulfill({ json: mockClubs[0] }),
-    );
+  // Error-path logic, not wiring — the server 409 envelope (DIVE
+  // discrimination ux_club_key vs ux_club_slug) is covered by
+  // ClubsControllerIT; this case asserts the CLIENT field-routing.
+  // covered-by: ClubsControllerIT
+  test(
+    '[key-error] club duplicate clubKey → 409 labeled on the clubKey field (not the slug)',
+    { tag: '@helper' },
+    async ({ page }) => {
+      // T-07: clubKey is CREATE-only (the field renders on /clubs/new and is
+      // immutable on edit — ClubUpdateRequest carries no clubKey), so the
+      // duplicate can only trip on POST. Mock shape: the POST answers the
+      // T-07 problem-detail (`field: 'clubKey'`); before the fix the server
+      // mislabeled this as a bare slug 409 → inline error on the WRONG field.
+      await page.route('**/api/v1/countries**', (route) =>
+        route.fulfill({ json: [{ id: COUNTRY_ID, iso2Code: 'CH', name: 'Switzerland' }] }),
+      );
+      await page.route('**/api/v1/club-states**', (route) =>
+        route.fulfill({ json: [{ id: CLUB_STATE_ID, code: 'ACTIVE', name: 'Active' }] }),
+      );
+      await page.route('**/api/v1/clubs', (route) =>
+        route.request().method() === 'POST'
+          ? route.fulfill({
+              status: 409,
+              json: { field: 'clubKey', message: 'common.errors.duplicate' },
+            })
+          : route.fulfill({ json: mockClubs }),
+      );
 
-    // Chrome entry: the Clubs section IS in the mock (sysadmin-branch) nav.
-    await enterSection(page, '/clubs');
-    await page.getByTestId('clubs-table').getByRole('row').nth(1).click();
-    await expect(page.getByTestId('clubs-edit-form')).toBeVisible();
+      // Chrome entry: the Clubs section IS in the mock (sysadmin-branch) nav.
+      await enterSection(page, '/clubs');
+      await page.getByRole('button', { name: 'New club' }).click();
+      await expect(page.getByTestId('clubs-edit-form')).toBeVisible();
 
-    await page.locator('#clubKey').fill('DUP');
-    await page.getByTestId('clubs-save-button').click();
+      await page.locator('#clubName').fill('Duplikat Club');
+      await page.locator('#clubSlug').fill('duplikat-club');
+      await page.locator('#clubKey').fill('SC1'); // duplicates the seeded key
+      await page.getByTestId('clubs-country-select').locator('nz-select').click();
+      await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
+      await page.getByTestId('clubs-club-state-select').locator('nz-select').click();
+      await page.locator('nz-option-item').filter({ hasText: 'Active' }).click();
+      await page.getByTestId('clubs-save-button').click();
 
-    // 409 on the clubKey field — NOT the slug field's error.
-    await expect(fieldErrors(page, page.locator('#clubKey'))).toBeVisible();
-    await expect(fieldErrors(page, page.locator('#clubSlug'))).toHaveCount(0);
-  });
+      // 409 on the clubKey field — NOT the slug field's error.
+      await expect(fieldErrors(page, page.locator('#clubKey'))).toBeVisible();
+      await expect(fieldErrors(page, page.locator('#clubSlug'))).toHaveCount(0);
+
+      await page.screenshot({
+        path: 'screenshots/forms/12-duplicate-clubkey-409.png',
+        fullPage: true,
+      });
+    },
+  );
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

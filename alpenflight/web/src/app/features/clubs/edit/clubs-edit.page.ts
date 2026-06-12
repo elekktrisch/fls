@@ -244,16 +244,25 @@ export class ClubsEditPage {
       this.form.controls.clubKey.disable({ emitEvent: false });
     });
 
-    // Any save error (409, 500, network) disarms the bus-driven navigation
-    // and (for 409 specifically) marks the slug field as duplicate so the
-    // user sees the inline error.
+    // Any save error (409, 500, network) disarms the bus-driven navigation;
+    // a duplicate 409 marks the OFFENDING control inline, routed by the
+    // store's saveErrorKind (J-26 T-07 — the server discriminates
+    // ux_club_key vs ux_club_slug, so clubKey conflicts no longer land on
+    // the slug field).
     effect(() => {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
-      if (err.includes('already in use')) {
-        this.form.controls.slug.setErrors({ duplicate: true });
-        this.form.controls.slug.markAsTouched();
+      const kind = this.store.saveErrorKind();
+      const control =
+        kind === 'club-key-duplicate'
+          ? this.form.controls.clubKey
+          : kind === 'slug-duplicate'
+            ? this.form.controls.slug
+            : null;
+      if (control) {
+        control.setErrors({ duplicate: true });
+        control.markAsTouched();
       }
     });
 

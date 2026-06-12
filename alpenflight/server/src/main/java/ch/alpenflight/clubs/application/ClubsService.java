@@ -7,6 +7,7 @@ import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
 import ch.alpenflight.clubs.domain.Club;
+import ch.alpenflight.clubs.domain.ClubKeyAlreadyExistsException;
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
@@ -162,11 +163,30 @@ public class ClubsService {
         try {
             return clubs.save(club);
         } catch (DataIntegrityViolationException e) {
-            // Race-loser path: partial UNIQUE on slug wins regardless of the
-            // service-layer pre-check. FK violations are pre-empted by
-            // validateReferences above; any DIVE here is the slug case.
-            throw new SlugAlreadyExistsException(slug);
+            // Race-loser path: the UNIQUE indexes win regardless of the
+            // service-layer pre-check. Discriminate by violated constraint
+            // (J-26 T-07) — before this, ANY integrity violation was labeled
+            // a slug conflict. FK violations are pre-empted by
+            // validateReferences above; an unrecognized constraint propagates
+            // (a genuine bug deserves its 500, not a slug mislabel). NOTE:
+            // Hibernate defers the INSERT to the transaction flush, so the
+            // common path surfaces the DIVE at commit — OUTSIDE this try;
+            // ClubsExceptionHandler#handleDataIntegrity applies the same
+            // discrimination there (the T-05 pattern).
+            throw discriminate(e, club.getClubKey(), slug);
         }
+    }
+
+    private static RuntimeException discriminate(
+            DataIntegrityViolationException e, String clubKey, String slug) {
+        String message = String.valueOf(e.getMostSpecificCause().getMessage());
+        if (message.contains("ux_club_key")) {
+            return new ClubKeyAlreadyExistsException(clubKey);
+        }
+        if (message.contains("ux_club_slug")) {
+            return new SlugAlreadyExistsException(slug);
+        }
+        return e;
     }
 
     private void validateReferences(CountryId countryId, ClubStateId clubStateId) {

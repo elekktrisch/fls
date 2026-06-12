@@ -131,6 +131,37 @@ describe('ClubsStore', () => {
 
     expect(store.saveError()).toContain('seed-club-1');
     expect(store.saveError()).toContain('already in use');
+    expect(store.saveErrorKind()).toBe('slug-duplicate');
+  });
+
+  it('create routes a 409 with field=clubKey to the club-key error shape (J-26 T-07)', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      statusText: 'Conflict',
+      error: { field: 'clubKey', title: 'Club key already in use' },
+    });
+    configure(
+      clubsServiceStub({
+        list: () => of([sampleClub]),
+        create: () => throwError(() => err),
+      }),
+    );
+
+    const store = TestBed.inject(ClubsStore);
+    store.create({
+      name: 'Dup Key',
+      slug: 'unique-slug',
+      clubKey: 'SEED',
+      publicRegistrationEnabled: false,
+      countryId: '019e2e15-2c00-74be-8000-0000000004be',
+      clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
+    });
+
+    // The clubKey duplicate no longer collapses onto the slug message.
+    expect(store.saveError()).toContain('SEED');
+    expect(store.saveError()).toContain('Club key');
+    expect(store.saveError()).not.toContain('unique-slug');
+    expect(store.saveErrorKind()).toBe('club-key-duplicate');
   });
 
   it('update patches the matching entity and emits club.updated', () => {
