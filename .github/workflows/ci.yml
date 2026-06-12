@@ -1044,9 +1044,20 @@ jobs:
           # changes job emits the J-0 baseline journey then) — harmless, that
           # page has no audit delta to show anyway.
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          # J-26 T-32 — a BASELINE run (the journey's own real-idp spec is not
+          # yet thickened → `proof_is_baseline=true`, the J-0 Locations spec
+          # actually ran) must produce a BASELINE-shaped gallery: drop
+          # --journey-under-work so the deployed preview carries the J-0 page +
+          # its 3 captions (the `Live link-check … (200 + captions)` step below,
+          # gated on is_baseline==true, greps for exactly those). Passing
+          # --journey-under-work here built the EMPTY journey page instead, so
+          # the J-0 captions were absent → that step red. When the real spec
+          # lands (is_baseline flips false), JUW returns and the J-26 page +
+          # its Maintainability delta render again.
+          PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
         run: |
           JUW_ARG=""
-          if [ -n "${PROOF_JOURNEY:-}" ]; then
+          if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
           fi
           # T-17b — per-push parity screenshots: feed the staged screenshots.json
