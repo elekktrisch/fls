@@ -2,7 +2,8 @@
 id: J-26
 title: Hardening sprint — validation bugfixes, UX corrections, JDBC retirement, redundancy purge
 epic: cross-cutting (E-06/E-07/E-08 surfaces; E-13 proof infra)
-status: todo
+status: in_progress
+started_at: 2026-06-12
 journey0: false
 carved: true
 depends_on: [J-7]
@@ -108,6 +109,36 @@ endpoints (new endpoint surface ≈ new feature — deferred); the full gallery
 re-arch beyond the staged==rendered structural fix (next journeys' 40%
 budgets, per operator); JIT-username multi-IdP security review; S-189 +
 CLUB-pgcopy (migration scope, pre-J-21).
+
+## Tasks
+
+- [ ] **T-01** — spec stub + proof page: author `forms/validation-hardening.spec.ts` + `real-idp/hardening-J26.spec.ts` structure/selectors/flow (thin assertions, enter via nav) AND scaffold the J-26 per-journey gallery page + link it from the persistent index.
+- [ ] **T-02** — per-push gate scope: finalize `mock_test:` stems (J-6b regex convention) + verify BOTH ci.yml derive steps resolve J-26 (mock filter + `parity_test` real-idp spec, `is_baseline=false`); actionlint.
+- [ ] **T-03** — fix nightly `alpenflight-e2e-real-idp.yml`: add setup-java 21 (mirror ci.yml), then `gh workflow run` it on THIS branch and verify JOB-level it reaches the Playwright specs — 12 days of unrun cross-journey regression re-baselined; any latent red becomes a new T-NN.
+- [ ] **T-04** — persons membership data-loss fix: wire `PUT /persons/{id}/clubs/current` into the persons.store update path (fields already hydrated, request omits them) + mock spec case asserting memberNumber/state/role-toggle round-trip.
+- [ ] **T-05** — flight-type duplicate FlightCode: `@ExceptionHandler(DataIntegrityViolationException)` discriminating `ux_flight_type_club_code` → 409 `field=flightCode` (mirror LocationsExceptionHandler) + `findActiveByCode` pre-check + store/page 409 field-routing (name vs code) + IT + spec case.
+- [ ] **T-06** — flight-type Instructor×Observer XOR: domain guard in `FlightType.updateFlags` (must-have, ADR 0022 §2) + client cross-field validator + IT + spec case.
+- [ ] **T-07** — club duplicate clubKey: `ClubsService.persist()` DIVE discrimination `ux_club_key` vs `ux_club_slug` → clean clubKey 409 + spec case.
+- [ ] **T-08** — `af-field-errors` transloco translation (renders raw i18n key today) + profile-account `languageId` required validator + spec asserts.
+- [ ] **T-09** — reservation-edit Save-disable binding vs async second-crew validator race: disable state must track form validity; spec case.
+- [ ] **T-10** — as-you-type sweep A: aircraft + article + club edit forms — bind the silent `[errors]` fields (P3) + adopt debounced `liveFieldErrors` (P2); spec asserts aircraft as representative.
+- [ ] **T-11** — as-you-type sweep B: flight-type + location (incl. IOP rows) + person edit forms — same; spec asserts person + flight-type.
+- [ ] **T-12** — as-you-type sweep C: planning-setup + user (+ roles-≥1 live) + profile 4 tabs — same.
+- [ ] **T-13** — flight edit: client required validators (flightDate/aircraft/pilot) + Save gated on validity + the dead `FlightValidator` wire-or-delete VERDICT recorded; spec case.
+- [ ] **T-14** — JDBC: `LanguageCodeLookup` → the RM-4 `Language` JPA repo (delete JdbcTemplate).
+- [ ] **T-15** — JDBC: `JpaClubStateRepository` + `JpaCountryRepository` native → JPQL/derived queries.
+- [ ] **T-16** — JDBC: `PlanningDayPersistenceProbeImpl` → a reservations-module count port (`@NamedInterface`, per the register's own Remove-when) + retire the `planning-day-reservation-count` register entry + Modulith/arch guards green.
+- [ ] **T-17** — register re-affirm pass: conflict-probe keep-GiST-vs-JPQL decision RECORDED; ShowcaseSeeder + persons cross-tenant entries re-affirmed or retired; register doc current.
+- [ ] **T-18** — IT seeding: `TenantScopedRowBuilders` (+ `TenantScopedEntityCatalog`) → production-code seeding (reflection only for non-settables); full `check` green on LAN PG.
+- [ ] **T-19** — IT seeding: `TwoClubFixture` → production-code seeding, consumers compile-compatible; full `check` green.
+- [ ] **T-20** — IT seeding: Sweep factories → production code; inventory remaining direct-JDBC test files, leftovers recorded per-touch in `_BOYSCOUT.md`.
+- [ ] **T-21** — lifecycle `@MappedSuperclass` verdict EXECUTED: extract the shared softDelete + saved-event base across the 5 aggregates (or ADR-recorded decline); cpd-baseline ratchets DOWN from 4883.
+- [ ] **T-22** — FE hotspot extraction 1: shared form↔request + `errorPatch` helper; absorb `aircraft-edit.page.ts` + `users-edit.page.ts`/`users.store.ts`.
+- [ ] **T-23** — FE hotspot extraction 2: `flights-edit.page.ts finalSubmit` + `flight-form.defaults.ts applyLastContextThenPrefs` (CRAP 210) + `persons-edit.page.ts hydrate` onto the helper.
+- [ ] **T-24** — fallow dead code: 3 unused files + 6 unused deps + 1 unresolved import deleted; fallow snapshot improves.
+- [ ] **T-25** — proof infra: upload `test-results/**` (error-context.md + trace.zip) as a failure artifact in ci.yml proof + fanout BEFORE the gallery step mutates the dir.
+- [ ] **T-26** — proof infra: staged==rendered single source of truth (fanout `add_shot` json emission ↔ `generate-gallery.mjs` pairing) + deployed-journey guard asserts BOTH sides of every declared pair render.
+- [ ] **T-27** — thicken both specs to full real assertions; gallery pairing complete; clear every shipped `_BOYSCOUT.md` bullet; full-unskip prep for the gate.
 
 ## Assumptions made
 
