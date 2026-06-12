@@ -156,6 +156,24 @@ jobs:
           # canned dev password into the uploaded backend.log artifact. The
           # `dev` Spring profile must not log payloads at INFO either.
           LOGGING_LEVEL_ROOT: INFO
+          # J-26 T-29 — env parity with ci.yml's alpenflight-proof job
+          # (ci.yml:726-740). The backend runs as a HOST bootJar but Keycloak
+          # is a container host-published at localhost:8090 (compose
+          # `127.0.0.1:8090:8080`), so the compose-internal `http://keycloak:8080`
+          # is unresolvable from a host process. The `dev` profile already
+          # redirects JWKS + issuer to localhost:8090, but `keycloak.admin.base-url`
+          # (application.yml) still defaults to `http://keycloak:8080` — this
+          # nightly never got the override, so the migration-provisioning /
+          # user-directory admin client failed at ingest with "I/O error on
+          # POST http://keycloak:8080/...token" (bundle-ingest 500 ×3 + the
+          # clubadmin1 GET /api/v1/users 400, run 27397268241). Point the
+          # admin-base at the host port; the remaining four mirror
+          # ci.yml:737-740 verbatim for full parity.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
         run: |
           # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
           # not "server" — and the plain `jar` task also emits a non-executable
