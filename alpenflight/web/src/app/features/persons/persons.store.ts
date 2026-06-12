@@ -18,10 +18,11 @@ import {
   withEntities,
 } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { of, pipe, switchMap, tap } from 'rxjs';
 
 import { PersonsService } from '@api/generated/persons/persons.service';
 import type {
+  PersonClubRequest,
   PersonCreateRequest,
   PersonListItem,
   PersonResponse,
@@ -178,11 +179,24 @@ export const PersonsStore = signalStore(
           ),
         ),
       ),
-      update: rxMethod<{ id: string; req: PersonUpdateRequest }>(
+      /**
+       * Forked update (J-26 T-04 data-loss fix): the edit form spans TWO
+       * resources — Person identity/contact (PUT /persons/{id}) and the
+       * caller-tenant PersonClub (PUT /persons/{id}/clubs/current). The two
+       * PUTs run SEQUENTIALLY (person first): the membership response then
+       * reflects both halves, so it is the authoritative source for the
+       * detail/list patch. Any failure — either half — lands in errorPatch
+       * and NO `person.updated` event fires, so the edit page stays put and
+       * shows the error instead of a false success.
+       */
+      update: rxMethod<{ id: string; req: PersonUpdateRequest; membership?: PersonClubRequest }>(
         pipe(
           tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap(({ id, req }) =>
+          switchMap(({ id, req, membership }) =>
             personsApi.updatePerson(id, req).pipe(
+              switchMap((d: PersonResponse) =>
+                membership ? personsApi.updateCurrentClubMembership(id, membership) : of(d),
+              ),
               tapResponse({
                 next: (d: PersonResponse) => {
                   const detail = withDetailId(d);

@@ -26,6 +26,7 @@ import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import type {
+  PersonClubRequest,
   PersonCreateRequest,
   PersonResponse,
   PersonUpdateRequest,
@@ -380,8 +381,50 @@ export class PersonsEditPage {
         receiveOwnedAircraftStatisticReports: false,
         enableAddress: false,
       };
-      this.store.update({ id, req });
+      // J-26 T-04: PUT /persons/{id} ignores membership fields BY DESIGN —
+      // memberNumber / memberState / role flags live on the caller-tenant
+      // PersonClub and go through PUT /persons/{id}/clubs/current. Forward
+      // them to the store's forked update; without this the edits were
+      // silently dropped (data loss).
+      const membership = this.membershipRequest(v);
+      this.store.update(membership ? { id, req, membership } : { id, req });
     }
+  }
+
+  /**
+   * Build the clubs/current payload from the form + the hydrated membership.
+   * The server PUT is a FULL REPLACE (primitive booleans — an absent flag
+   * lands as false), so every flag the form does NOT expose is echoed from
+   * the loaded detail to avoid zeroing it. Returns undefined when the loaded
+   * Person has no caller-tenant membership — nothing to update then.
+   */
+  private membershipRequest(
+    v: ReturnType<PersonForm['getRawValue']>,
+  ): PersonClubRequest | undefined {
+    const pc = this.store.selectedPerson()?.memberships?.[0];
+    if (!pc) {
+      return undefined;
+    }
+    const membership: PersonClubRequest = {
+      isMotorPilot: v.isMotorPilot,
+      isGliderPilot: v.isGliderPilot,
+      isTowPilot: v.isTowPilot,
+      isGliderInstructor: pc.isGliderInstructor,
+      isGliderTrainee: pc.isGliderTrainee,
+      isPassenger: pc.isPassenger,
+      isWinchOperator: pc.isWinchOperator,
+      isMotorInstructor: pc.isMotorInstructor,
+      receiveFlightReports: pc.receiveFlightReports,
+      receiveAircraftReservationNotifications: pc.receiveAircraftReservationNotifications,
+      receivePlanningDayRoleReminder: pc.receivePlanningDayRoleReminder,
+      isActive: pc.isActive,
+    };
+    const trimmedMember = v.memberNumber.trim();
+    if (trimmedMember.length > 0) membership.memberNumber = trimmedMember;
+    if (v.memberStateId !== null && v.memberStateId.length > 0) {
+      membership.memberStateId = v.memberStateId;
+    }
+    return membership;
   }
 
   private hydrate(detail: PersonResponse): void {
