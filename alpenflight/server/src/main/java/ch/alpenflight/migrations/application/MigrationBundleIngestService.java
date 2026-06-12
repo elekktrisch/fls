@@ -5,6 +5,7 @@ import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.DeploymentRepository;
+import ch.alpenflight.flights.application.FlightReportRebuildService;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Manifest;
@@ -60,6 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -137,6 +139,8 @@ public class MigrationBundleIngestService {
     private final long sqlStatementTimeoutMs;
     private final BundleStreamReader bundleStreamReader;
     private final EntityStreamIngestor entityStreamIngestor;
+    private final FlightReportRebuildService flightReportRebuild;
+    private final boolean unmaskConstraintNames;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
                                         MigrationRunRepository runs,
@@ -155,7 +159,9 @@ public class MigrationBundleIngestService {
                                         AsyncTaskExecutor ingestExecutor,
                                         @Value("${alpenflight.migration.bundle-timeout:PT15M}")
                                         Duration bundleTimeout,
-                                        EntityStreamIngestor entityStreamIngestor) {
+                                        EntityStreamIngestor entityStreamIngestor,
+                                        FlightReportRebuildService flightReportRebuild,
+                                        Environment environment) {
         this.uploads = uploads;
         this.runs = runs;
         this.crypto = crypto;
@@ -184,6 +190,15 @@ public class MigrationBundleIngestService {
         this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = entityStreamIngestor;
+        this.flightReportRebuild = flightReportRebuild;
+        // Un-mask the violated constraint name in the ingest error detail under
+        // the dev/test profiles only (J-6 retro rider). In prod the raw
+        // constraint name stays out of the response body — it can leak schema
+        // internals — but a dev/test/fanout failure needs to name the breached
+        // constraint (e.g. ux_pda_composite) so the next red is diagnosable
+        // without a backend.log dig (the dig that diagnosed the J-7 T-17 23505).
+        this.unmaskConstraintNames =
+                environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "test"));
     }
 
     /**
@@ -408,7 +423,42 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest pipeline returned no outcome and no failure");
         }
+        rebuildFlightReportReadModel(result);
         return result;
+    }
+
+    /**
+     * J-7 RM-2: backfill the flight-report read-model for every ingested
+     * club. The bundle's FLIGHT / FLIGHT_CREW rows land via JDBC inside the
+     * ingest transaction and never pass {@code FlightRepository.save}, so the
+     * synchronous projector never sees them.
+     *
+     * <p>Runs IMMEDIATELY AFTER the ingest transaction commits (not inside
+     * it): the ingest session is opened tenant-less, and Hibernate fixes the
+     * {@code @TenantId} at session-open — an in-transaction rebuild would
+     * read zero flights under {@code NO_TENANT}, while a {@code REQUIRES_NEW}
+     * per-club transaction could not see the still-uncommitted ingest rows.
+     * Post-commit on the same worker thread keeps the work inside the
+     * {@code bundleTimeout} envelope; the rebuild service opens one fresh
+     * tenant-scoped transaction per club.
+     *
+     * <p>A rebuild failure is logged loudly but does NOT fail the request:
+     * the migrated data IS committed, the run row is already COMPLETED, and
+     * flipping it to FAILED would lie about the ingest. The rebuild is
+     * idempotent and re-runnable (ops job), and the report-parity e2e gate
+     * catches a silently missing read-model.
+     */
+    private void rebuildFlightReportReadModel(IngestOutcome outcome) {
+        for (UUID clubId : outcome.clubIds()) {
+            try {
+                flightReportRebuild.rebuildForClub(clubId);
+            } catch (RuntimeException rebuildFailure) {
+                LOG.error("MigrationBundleIngest: flight-report read-model rebuild failed "
+                                + "for club {} (Deployment {} is committed; rebuild is "
+                                + "idempotent — re-run it for this club)",
+                        clubId, outcome.deploymentId(), rebuildFailure);
+            }
+        }
     }
 
     private IngestOutcome drainDecryptedBody(Connection connection,
@@ -494,9 +544,21 @@ public class MigrationBundleIngestService {
             // the server-side log only — the BundleIngestException's
             // cause carries it through the exception handler's LOG.warn.
             String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
+            // Un-mask the violated constraint NAME in dev/test (J-6 retro
+            // rider). The constraint name (e.g. ux_pda_composite) is a
+            // schema identifier, NOT row data — but it can leak schema
+            // internals, so prod stays masked and only dev/test/fanout adds
+            // it. Postgres reports it on PSQLException.getServerErrorMessage()
+            // .getConstraint(); a non-Postgres / non-constraint SQLException
+            // yields null and the detail stays the bare sqlstate.
+            String constraint = unmaskConstraintNames ? violatedConstraintName(sql) : null;
+            String detail = constraint == null
+                    ? "Database error during ingest [sqlstate=" + state + "]"
+                    : "Database error during ingest [sqlstate=" + state
+                            + ", constraint=" + constraint + "]";
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Database error during ingest [sqlstate=" + state + "]",
+                    detail,
                     sql);
         }
     }
@@ -657,6 +719,25 @@ public class MigrationBundleIngestService {
             stmt.execute("SET LOCAL synchronous_commit = OFF");
             stmt.execute("SET LOCAL lock_timeout = '30s'");
         }
+    }
+
+    /**
+     * The violated constraint name from a Postgres {@link SQLException} (or a
+     * cause), or {@code null} when none is available. Walks the cause chain so
+     * a wrapped {@code PSQLException} is still found, and reads the constraint
+     * off the server error message — the structured field, not the free-text
+     * message (which can echo row values).
+     */
+    private static @Nullable String violatedConstraintName(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof org.postgresql.util.PSQLException psql) {
+                org.postgresql.util.ServerErrorMessage serverError = psql.getServerErrorMessage();
+                if (serverError != null && serverError.getConstraint() != null) {
+                    return serverError.getConstraint();
+                }
+            }
+        }
+        return null;
     }
 
     private static String shortDetail(Throwable t) {

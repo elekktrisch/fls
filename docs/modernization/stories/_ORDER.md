@@ -26,7 +26,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |
 | J-6 | Planning days + setup | E-08 | J-5, J-2 | S-070, S-071, S-086 | `PlanningDay` | `planning/` → `/planning`, `/planningsetup` |
 | ✅ **J-6b** | **Reservations & Planning hardening + inline form validation** | E-08 | J-5, J-6 | — (operator field-test polish) | N/A — hardens J-5/J-6 | `/reservations` + `/planning` polish + shared edit-form + nav shell |
-| J-7 | Flight reports | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
+| ✅ **J-7** | Flight reports + Excel export | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
 | J-8 | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
 | J-9 | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
 | J-10 | Deliveries (invoice drafts) | E-09 | J-9 | S-078, S-080, S-089, S-090, S-150, S-029, S-087 | `Delivery`, `DeliveryItem` | `masterdata/deliveries/` → `/deliveries` |
@@ -46,9 +46,11 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
 
 **✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-0b (#198),
-J-0c (#200), J-1 (#202), J-24 (#192), J-25 (#196). **Carved + in flight:** **J-2**
-(Flight list + edit forms — the airfield hot path, the first transactional-entity migration;
-carved 2026-06-03 onto `integration/J-2` off `main`). All other unmarked rows are `todo`.
+J-0c (#200), J-1 (#202), J-2 (#205), J-3 (#206), J-4 (#207), J-5 (#210), J-6 (#211),
+J-6b (#213), J-24 (#192), J-25 (#196). **Done, PR ready (awaiting merge):** **J-7**
+(Flight reports + Excel export — read-side payoff of J-2 + the first synchronous Excel export,
+homing the POI export infra + cell-parity harness; both gates green on `integration/J-7`; the
+fanout `23505` planning-assignment-dedupe bug was fixed here per operator). All other unmarked rows are `todo`.
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 

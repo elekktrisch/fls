@@ -27,6 +27,18 @@ import java.util.UUID;
  * {@code TENANT_BYPASS_ALLOW_LIST}; the per-bundle Person sub-map handles
  * the rewrite at ingest.
  *
+ * <p>{@code planning_day_id} → {@link EntityType#PLANNING_DAY}. The producer
+ * SELECT REMAPS a dropped duplicate day's assignment onto the kept-first
+ * surviving day (J-6 T-16, the 23503 fix) AND dedupe-keep-firsts on the
+ * POST-REMAP {@code (planning_day_id, assigned_person_id, assignment_type_id)}
+ * composite (J-7 T-17, the {@code ux_pda_composite} 23505 fix — two duplicate
+ * days' assignments sharing a {@code (person, type)} would collapse onto the one
+ * survivor and collide), recording each dropped row as a
+ * {@code PLANNING_DAY_ASSIGNMENT_DUPLICATE} warning. The dedupe prefers a live
+ * (non-{@code DeletedOn}) assignment over a soft-deleted one. Mapper passes
+ * through; both the remap and the composite dedupe run in the producer SELECT
+ * before any bundle row reaches this mapper.
+ *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
  * Legacy {@code Remarks} maps to the new {@code info} column.

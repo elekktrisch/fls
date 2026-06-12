@@ -55,16 +55,26 @@ public final class SharedPostgresContainer {
                             + "did not start. See the SharedPostgresContainer startup error above "
                             + "(stderr) and check the runner's Docker daemon (`docker info`).");
         }
+        if (!AVAILABLE && PostgresTestContainerLifecycle.externalConfigured()) {
+            // External-PG mode is explicit intent (DATASOURCE_URL set): a broken
+            // external DB must FAIL the run, not silently skip every DB test.
+            throw new IllegalStateException(
+                    "External-PG test mode is configured (DATASOURCE_URL) but the external test "
+                            + "database did not come up: " + STARTUP_ERROR);
+        }
         return AVAILABLE;
     }
+
+    private static volatile String STARTUP_ERROR = "(no startup error recorded)";
 
     private static boolean tryStart() {
         try {
             INSTANCE.start();
             return true;
         } catch (Throwable t) {
+            STARTUP_ERROR = t.getMessage();
             System.err.println("""
-                    [alpenflight-server] Skipping DB-dependent tests — Docker unreachable.
+                    [alpenflight-server] Skipping DB-dependent tests — database unreachable.
                       Root cause: %s
                       Start Docker Desktop / Docker Engine and re-run.
                     """.formatted(t.getMessage()));

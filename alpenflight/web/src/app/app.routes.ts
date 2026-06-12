@@ -84,6 +84,14 @@ export const routes: Routes = [
     loadChildren: () => import('@features/flights/flights.routes').then((m) => m.FLIGHTS_ROUTES),
   },
   {
+    // `/flightreports` — canned + custom flight reports (J-7), replacing the
+    // legacy flsweb/src/reporting/ FlightReportsModule. Served by the reporting
+    // feature folder.
+    path: 'flightreports',
+    loadChildren: () =>
+      import('@features/reporting/reporting.routes').then((m) => m.REPORTING_ROUTES),
+  },
+  {
     path: 'flight-types',
     loadChildren: () =>
       import('@features/flight-types/flight-types.routes').then((m) => m.FLIGHT_TYPES_ROUTES),

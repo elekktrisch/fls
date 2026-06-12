@@ -49,7 +49,7 @@ class UsersListControllerIT extends PostgresIntegrationTest {
     private static final UUID CLUB =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID OTHER_CLUB =
-            UUID.fromString("019e30c3-2c00-7001-8000-000000000002");
+            UUID.fromString("019e30c3-2c00-7001-8000-0000000ab102");
     private static final UUID LANG_DE =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
 

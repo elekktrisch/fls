@@ -13,13 +13,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.DomainEvents;
 
 /**
  * Person aggregate root. <strong>Cross-tenant by design</strong> (no
@@ -425,6 +428,20 @@ public class Person {
                 pc.softDelete(userId, now);
             }
         }
+    }
+
+    /**
+     * Spring Data publishes a {@link PersonSaved} event on every
+     * {@code PersonRepository.save} (the Flight {@code @DomainEvents}
+     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
+     * {@link #id}. Unconditional: the flight-report read-model keeps its
+     * denormalized crew-name strings fresh by observing EVERY persisted state
+     * change (ADR 0027 §2).
+     */
+    @DomainEvents
+    Collection<Object> domainEvents() {
+        return List.of(new PersonSaved(Objects.requireNonNull(
+                this.id, "Person.id null at domain-event publication — save() runs first")));
     }
 
     /** Caller-tenant-scoped lookup of an alive PersonClub for the given clubId. */

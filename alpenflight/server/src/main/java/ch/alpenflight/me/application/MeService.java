@@ -1,5 +1,13 @@
 package ch.alpenflight.me.application;
 
+import ch.alpenflight.clubs.domain.Club;
+import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.persons.domain.Person;
+import ch.alpenflight.persons.domain.PersonRepository;
+import ch.alpenflight.referencedata.domain.Language;
+import ch.alpenflight.referencedata.domain.LanguageRepository;
+import ch.alpenflight.users.domain.User;
+import ch.alpenflight.users.domain.UserRepository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -7,22 +15,23 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Resolves the authenticated principal into a single read projection for
  * {@code GET /api/v1/me}. Three sources, in priority order:
  *
  * <ol>
- *   <li>The {@code user} row matched on {@code keycloak_sub} — supplies
- *       {@code id}, {@code clubId}, {@code username}, {@code email},
+ *   <li>The {@code user} row matched on {@code keycloak_sub} (via
+ *       {@code users.domain.UserRepository#findActiveByKeycloakSub}) —
+ *       supplies {@code id}, {@code clubId}, {@code username}, {@code email},
  *       {@code personId}. Same lookup column as
- *       {@code platform.tenancy.UserPrincipalLookup}; the schemas overlap
+ *       {@code platform.tenancy.UserPrincipalLookup}; the two overlap
  *       deliberately — both serve the JWT-sub-to-internal-row resolution
- *       seam but project different field sets.</li>
+ *       seam but project different field sets (and the lookup must stay
+ *       JDBC, since it runs in Hibernate's session-open path).</li>
  *   <li>The linked {@code t_person} row (when {@code user.person_id} is set)
  *       — supplies {@code firstName} + {@code lastName}.</li>
  *   <li>JWT claims — fallbacks for {@code username} ({@code preferred_username}),
@@ -30,6 +39,11 @@ import org.springframework.stereotype.Service;
  *       {@code lastName} ({@code family_name}) when no {@code user} / no
  *       {@code t_person} is linked.</li>
  * </ol>
+ *
+ * <p>All reads are plain JPA finders against cross-tenant aggregates
+ * (none of User / Person / Club / Language carries {@code @TenantId}), per
+ * ADR 0027 — this service's former {@code JdbcTemplate} join was retired
+ * with the J-7 review (PR #215).
  *
  * <p>Roles are read directly from the JWT's {@code realm_access.roles[]}
  * claim — the same source
@@ -43,13 +57,15 @@ import org.springframework.stereotype.Service;
 public class MeService {
 
     // Realm-role catalogue. The same set lives in `users.domain.Role` —
-    // duplicated here because Spring Modulith treats `users.domain` as
-    // module-internal (a cross-module reference fails ApplicationModulesTest).
-    // Drift between the two lists is detected by `MeServiceRoleCatalogTest`
-    // (and the SPA's `AppRole` test), not by sharing a type. Roles outside
-    // this set — Keycloak built-ins (`uma_authorization`, `offline_access`,
-    // `default-roles-*`) and the `proffix-sync` client role — are dropped
-    // at the wire boundary.
+    // kept as a plain String set because this is the wire-boundary filter
+    // over raw JWT claim values, not domain authority. (The original
+    // reason — Modulith treating `users.domain` as internal — lapsed when
+    // the users module went OPEN; this class now imports its repository
+    // port.) Drift between the two lists is detected by
+    // `RoleVocabularySingleSourceTest` (and the SPA's `AppRole` test), not
+    // by sharing a type. Roles outside this set — Keycloak built-ins
+    // (`uma_authorization`, `offline_access`, `default-roles-*`) and the
+    // `proffix-sync` client role — are dropped at the wire boundary.
     private static final Set<String> KNOWN_REALM_ROLES = Set.of(
             "SYSTEM_ADMINISTRATOR",
             "CLUB_ADMINISTRATOR",
@@ -58,30 +74,22 @@ public class MeService {
             "OFFICE_USER",
             "GUEST");
 
-    private static final String SELECT_USER_AND_PERSON = """
-            SELECT u.id              AS user_id,
-                   u.club_id         AS club_id,
-                   u.username        AS username,
-                   u.notification_email AS email,
-                   u.person_id       AS person_id,
-                   u.friendly_name   AS friendly_name,
-                   u.phone_number    AS phone_number,
-                   u.language_id     AS language_id,
-                   l.code            AS language_code,
-                   p.firstname       AS first_name,
-                   p.lastname        AS last_name
-            FROM t_user u
-            LEFT JOIN t_person p ON p.id = u.person_id AND p.deleted_on IS NULL
-            LEFT JOIN t_language l ON l.id = u.language_id
-            WHERE u.keycloak_sub = ?::uuid AND u.deleted_on IS NULL
-            """;
+    private final UserRepository users;
+    private final PersonRepository persons;
+    private final ClubRepository clubs;
+    private final LanguageRepository languages;
 
-    private final JdbcTemplate jdbc;
-
-    public MeService(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    public MeService(UserRepository users,
+                     PersonRepository persons,
+                     ClubRepository clubs,
+                     LanguageRepository languages) {
+        this.users = users;
+        this.persons = persons;
+        this.clubs = clubs;
+        this.languages = languages;
     }
 
+    @Transactional(readOnly = true)
     public MeView resolve(Jwt jwt) {
         List<String> roles = extractRoles(jwt);
         @Nullable UserPersonRow row = loadUserAndPerson(jwt);
@@ -100,6 +108,8 @@ public class MeService {
                     null,
                     null,
                     null,
+                    null,
+                    // No user row → no club context → no homebase.
                     null);
         }
         String firstName = row.firstName != null ? row.firstName : claim(jwt, "given_name");
@@ -116,7 +126,8 @@ public class MeService {
                 row.friendlyName,
                 row.phoneNumber,
                 row.languageId,
-                row.languageCode);
+                row.languageCode,
+                row.homebaseLocationId);
     }
 
     private static List<String> extractRoles(Jwt jwt) {
@@ -140,47 +151,53 @@ public class MeService {
         if (sub == null || sub.isBlank()) {
             return null;
         }
+        UUID subUuid;
         try {
-            UUID.fromString(sub);
+            subUuid = UUID.fromString(sub);
         } catch (IllegalArgumentException e) {
             return null;
         }
-        try {
-            Map<String, Object> row = jdbc.queryForMap(SELECT_USER_AND_PERSON, sub);
-            // Casts use requireNonNull for columns the schema (V2) marks
-            // NOT NULL (id, club_id, username, notification_email). The
-            // JDBC map signature can't carry that through to NullAway.
-            return new UserPersonRow(
-                    asUuid(row.get("user_id")),
-                    asUuid(row.get("club_id")),
-                    Objects.requireNonNull((String) row.get("username")),
-                    Objects.requireNonNull((String) row.get("email")),
-                    asUuidNullable(row.get("person_id")),
-                    (String) row.get("first_name"),
-                    (String) row.get("last_name"),
-                    // friendly_name / language_id are NOT NULL on t_user (V2);
-                    // phone_number + the joined language code are nullable.
-                    Objects.requireNonNull((String) row.get("friendly_name")),
-                    (String) row.get("phone_number"),
-                    asUuid(row.get("language_id")),
-                    (String) row.get("language_code"));
-        } catch (EmptyResultDataAccessException e) {
-            return null;
-        }
+        return users.findActiveByKeycloakSub(subUuid)
+                .map(this::project)
+                .orElse(null);
     }
 
-    private static UUID asUuid(@Nullable Object value) {
-        if (value instanceof UUID u) {
-            return u;
-        }
-        if (value instanceof String s) {
-            return UUID.fromString(s);
-        }
-        throw new IllegalStateException("Expected UUID column, got: " + value);
-    }
+    /**
+     * Projects the active User row plus its decorations — mirrors the
+     * former LEFT JOINs: a missing/soft-deleted Person or Club, or an
+     * unset {@code homebase_id}, degrade to null fields, never to an
+     * absent row.
+     */
+    private UserPersonRow project(User user) {
+        // A repository-loaded entity always carries its id; the getter is
+        // @Nullable only for the not-yet-persisted state.
+        UUID userId = Objects.requireNonNull(user.getId(), "persisted User must have an id").value();
 
-    private static @Nullable UUID asUuidNullable(@Nullable Object value) {
-        return value == null ? null : asUuid(value);
+        @Nullable UUID personId = user.getPersonId();
+        @Nullable Person person =
+                personId == null ? null : persons.findActiveById(personId).orElse(null);
+
+        // language_id is NOT NULL with an FK onto the static V2 seed, so the
+        // row is always present; stay null-tolerant like the old LEFT JOIN.
+        @Nullable Language language = languages.findById(user.getLanguageId()).orElse(null);
+
+        // homebase_id is nullable on t_club (a club may have no homebase
+        // set); a soft-deleted club likewise yields no homebase.
+        @Nullable Club club = clubs.findActiveById(user.getClubId()).orElse(null);
+
+        return new UserPersonRow(
+                userId,
+                user.getClubId(),
+                user.getUsername(),
+                user.getNotificationEmail(),
+                personId,
+                person == null ? null : person.getFirstname(),
+                person == null ? null : person.getLastname(),
+                user.getFriendlyName(),
+                user.getPhoneNumber(),
+                user.getLanguageId(),
+                language == null ? null : language.getCode(),
+                club == null ? null : club.getHomebaseId());
     }
 
     private static @Nullable String claim(Jwt jwt, String name) {
@@ -199,5 +216,6 @@ public class MeService {
             String friendlyName,
             @Nullable String phoneNumber,
             UUID languageId,
-            @Nullable String languageCode) {}
+            @Nullable String languageCode,
+            @Nullable UUID homebaseLocationId) {}
 }

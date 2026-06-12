@@ -2,6 +2,7 @@ package ch.alpenflight.tenancy.showcase;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftStateHistoryEntry;
+import ch.alpenflight.flights.application.FlightReportRebuildService;
 import ch.alpenflight.flights.application.FlightStateTransitionService;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
@@ -249,15 +250,18 @@ public class ShowcaseSeeder {
     private final JdbcTemplate jdbc;
     private final ReferenceDataSeeder referenceDataSeeder;
     private final FlightStateTransitionService flightTransitions;
+    private final FlightReportRebuildService flightReportRebuild;
     private final TransactionTemplate txTemplate;
 
     public ShowcaseSeeder(JdbcTemplate jdbc,
                           ReferenceDataSeeder referenceDataSeeder,
                           FlightStateTransitionService flightTransitions,
+                          FlightReportRebuildService flightReportRebuild,
                           PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
         this.referenceDataSeeder = referenceDataSeeder;
         this.flightTransitions = flightTransitions;
+        this.flightReportRebuild = flightReportRebuild;
         this.txTemplate = new TransactionTemplate(txManager);
     }
 
@@ -294,6 +298,14 @@ public class ShowcaseSeeder {
         // the transitions into phase A's session bound it to NO_TENANT, resolved
         // before any runAs, and the load returned empty.)
         driveFlightTransitions();
+
+        // Phase C — flight-report read-model backfill (J-7 RM-2). The phase-A
+        // base rows are JDBC inserts under deterministic ids, so they bypass
+        // the save-time projector (only the phase-B transitions projected
+        // rows). One idempotent per-club rebuild closes the gap; runs after
+        // phase B so the projected rows carry the final process states.
+        flightReportRebuild.rebuildForClub(CLUB_1);
+        flightReportRebuild.rebuildForClub(CLUB_2);
 
         LOG.info("showcase-seed: done — clubs=[seed-club-1, showcase-club-2], "
                 + "reference-data seeded per club, {} net-new principal(s): {}, "

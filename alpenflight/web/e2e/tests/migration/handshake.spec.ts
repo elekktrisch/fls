@@ -104,7 +104,7 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
       () => (window as unknown as { __copied: string[] }).__copied,
     );
     expect(copied).toHaveLength(1);
-    const artifact = JSON.parse(copied[0]);
+    const artifact = JSON.parse(copied[0]!);
     expect(artifact.uploadId).toBe(MOCK_UPLOAD.uploadId);
     expect(artifact.publicKeyPem).toBe(MOCK_UPLOAD.publicKeyPem);
     // A bare PEM (no uploadId) would fail the server's AEAD-tag check.

@@ -3,6 +3,7 @@ id: S-096
 title: Excel parity-verification harness
 epic: E-11
 status: todo
+rolled_up_into: J-7
 depends_on: [S-094, S-095]
 acceptance:
   - A test harness reads two XLSX files and produces a cell-by-cell diff, tolerant of cosmetic differences (font name, exact column width).

@@ -29,6 +29,19 @@ interface MockMemberState {
   name: string;
 }
 
+/**
+ * Build a single-key object only when `value` is defined — so an optional
+ * (`?:`) target property is omitted rather than set to `undefined`. Lets the
+ * mock backend copy optional request fields through under the e2e tsconfig's
+ * `exactOptionalPropertyTypes`, which rejects an explicit `key: undefined`.
+ */
+function optional<K extends string, V>(
+  key: K,
+  value: V | undefined,
+): Record<K, V> | Record<string, never> {
+  return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
+}
+
 interface MockPersonClubResponse {
   id: string;
   clubId: string;
@@ -283,11 +296,15 @@ function setupPersonsBackend(persons: MockPerson[]) {
             {
               id: `019e30c3-2c00-7002-8000-${String(nextId).padStart(12, '0')}`,
               clubId: CLUB_A_ID,
-              memberNumber: body.initialClubMembership.memberNumber,
-              memberStateId: body.initialClubMembership.memberStateId,
-              memberStateName: mockMemberStates.find(
-                (m) => m.id === body.initialClubMembership?.memberStateId,
-              )?.name,
+              // exactOptionalPropertyTypes: optional fields are spread in only
+              // when present (an explicit `: undefined` is rejected for `?:` props).
+              ...optional('memberNumber', body.initialClubMembership.memberNumber),
+              ...optional('memberStateId', body.initialClubMembership.memberStateId),
+              ...optional(
+                'memberStateName',
+                mockMemberStates.find((m) => m.id === body.initialClubMembership?.memberStateId)
+                  ?.name,
+              ),
               isMotorPilot: body.initialClubMembership.isMotorPilot,
               isTowPilot: body.initialClubMembership.isTowPilot,
               isGliderInstructor: body.initialClubMembership.isGliderInstructor,
@@ -309,9 +326,9 @@ function setupPersonsBackend(persons: MockPerson[]) {
         id,
         firstname: body.firstname,
         lastname: body.lastname,
-        emailPrivate: body.emailPrivate,
-        mobilePhone: body.mobilePhone,
-        city: body.city,
+        ...optional('emailPrivate', body.emailPrivate),
+        ...optional('mobilePhone', body.mobilePhone),
+        ...optional('city', body.city),
         preferMailToBusinessMail: body.preferMailToBusinessMail,
         receiveOwnedAircraftStatisticReports: body.receiveOwnedAircraftStatisticReports,
         enableAddress: body.enableAddress,

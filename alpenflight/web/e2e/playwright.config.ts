@@ -17,6 +17,52 @@ const CHROMIUM_LAUNCH_OPTIONS = {
   args: chromiumLaunchArgs(CHROMIUM_EXECUTABLE_PATH),
 };
 
+// Dev-server(s) to boot before the run. `GALLERY_LINKS_ONLY=1` skips the dev
+// server entirely — the T-31 `proof-gallery-links` project is browserless +
+// serverless, so the DoD check runs in any task context without paying the
+// ~20-30s `ng serve` boot. Resolved to `undefined` in that mode and spread
+// conditionally onto the config below — under `exactOptionalPropertyTypes`
+// the optional `webServer` property cannot be set to an explicit `undefined`.
+const WEB_SERVER = process.env['GALLERY_LINKS_ONLY']
+  ? undefined
+  : process.env['E2E_REAL_IDP']
+    ? [
+        {
+          command:
+            'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
+          cwd: PROJECT_ROOT,
+          url: MOCK_BASE_URL,
+          reuseExistingServer: !process.env['CI'],
+          timeout: 120_000,
+          stdout: 'pipe' as const,
+          stderr: 'pipe' as const,
+        },
+        {
+          // real-idp: `development` configuration keeps the real
+          // app.config.ts (no fileReplacements) so OIDC hits
+          // localhost:8090/realms/alpenflight.
+          command:
+            'node node_modules/@angular/cli/bin/ng serve --port=4201 --configuration=development',
+          cwd: PROJECT_ROOT,
+          url: REAL_IDP_BASE_URL,
+          reuseExistingServer: !process.env['CI'],
+          timeout: 180_000,
+          stdout: 'pipe' as const,
+          stderr: 'pipe' as const,
+        },
+      ]
+    : {
+        // mock-auth only — the default for PR CI and `pnpm e2e`.
+        command:
+          'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
+        cwd: PROJECT_ROOT,
+        url: MOCK_BASE_URL,
+        reuseExistingServer: !process.env['CI'],
+        timeout: 120_000,
+        stdout: 'pipe' as const,
+        stderr: 'pipe' as const,
+      };
+
 export default defineConfig({
   testDir: './tests',
   // Skip the parity-port masterdata specs that are not on the current
@@ -92,9 +138,15 @@ export default defineConfig({
       retries: 0,
       // 4 parallel workers in CI to match ubuntu-22.04's core count. ng
       // serve is shared (one webServer instance) so worker count only
-      // fans out browser contexts.
-      workers: process.env['CI'] ? 4 : undefined,
-      maxFailures: Number(process.env['PLAYWRIGHT_MAX_FAILURES'] ?? 3),
+      // fans out browser contexts. Off-CI the key is omitted (conditional
+      // spread) so Playwright applies its default — under
+      // `exactOptionalPropertyTypes` `workers: undefined` is not assignable.
+      ...(process.env['CI'] ? { workers: 4 } : {}),
+      // NOTE: `maxFailures` is a SUITE-level TestConfig option, not a per-project
+      // one (Playwright has no per-project fail-fast cap), so a project-level
+      // entry is silently ignored at runtime. It lived here as a no-op; removed
+      // to keep `tsc -p e2e/tsconfig.json` clean. Set the suite-wide cap via the
+      // `--max-failures` / `-x` CLI flag if a fail-fast gate is wanted.
       timeout: 30_000,
       expect: { timeout: 5_000 },
     },
@@ -161,7 +213,8 @@ export default defineConfig({
       // the exact step (matches the mock `chromium` project). Explicit
       // `waitForResponse` waits in specs are likewise capped at 5s.
       expect: { timeout: 5_000 },
-      maxFailures: Number(process.env['PLAYWRIGHT_REAL_IDP_MAX_FAILURES'] ?? 3),
+      // See the `maxFailures` note on the chromium project above: suite-level
+      // only, ignored per-project — removed to keep the e2e tsc gate clean.
     },
 
     // ── proof-gallery-links ───────────────────────────────────────────────
@@ -186,46 +239,7 @@ export default defineConfig({
   // The real-idp nightly workflow sets the env var; local invocations
   // either set it explicitly or rely on `reuseExistingServer` if a
   // separate `pnpm start` is already running on :4201.
-  // `GALLERY_LINKS_ONLY=1` skips the dev server entirely — the T-31
-  // `proof-gallery-links` project is browserless + serverless, so the DoD
-  // check runs in any task context without paying the ~20-30s `ng serve` boot.
-  webServer: process.env['GALLERY_LINKS_ONLY']
-    ? undefined
-    : process.env['E2E_REAL_IDP']
-      ? [
-          {
-            command:
-              'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
-            cwd: PROJECT_ROOT,
-            url: MOCK_BASE_URL,
-            reuseExistingServer: !process.env['CI'],
-            timeout: 120_000,
-            stdout: 'pipe',
-            stderr: 'pipe',
-          },
-          {
-            // real-idp: `development` configuration keeps the real
-            // app.config.ts (no fileReplacements) so OIDC hits
-            // localhost:8090/realms/alpenflight.
-            command:
-              'node node_modules/@angular/cli/bin/ng serve --port=4201 --configuration=development',
-            cwd: PROJECT_ROOT,
-            url: REAL_IDP_BASE_URL,
-            reuseExistingServer: !process.env['CI'],
-            timeout: 180_000,
-            stdout: 'pipe',
-            stderr: 'pipe',
-          },
-        ]
-      : {
-          // mock-auth only — the default for PR CI and `pnpm e2e`.
-          command:
-            'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
-          cwd: PROJECT_ROOT,
-          url: MOCK_BASE_URL,
-          reuseExistingServer: !process.env['CI'],
-          timeout: 120_000,
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
+  // WEB_SERVER resolves to `undefined` under GALLERY_LINKS_ONLY=1 — spread it
+  // conditionally so the optional `webServer` key is simply omitted then.
+  ...(WEB_SERVER ? { webServer: WEB_SERVER } : {}),
 });

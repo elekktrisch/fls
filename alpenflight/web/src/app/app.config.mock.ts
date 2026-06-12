@@ -59,6 +59,9 @@ const MOCK_USER: User = {
   lastName: 'Sysadmin',
   clubId: MOCK_CLUB_ID,
   personId: MOCK_PERSON_ID,
+  // Bern-Belp, the seed homebase Location of seed-club-1 (V34) — lets the
+  // mock principal exercise LOCATION canned reports (J-7) end-to-end.
+  homebaseLocationId: 'loc-019e30c3-2c00-7001-8000-00000000c001',
   // Both roles: SYSTEM_ADMINISTRATOR unlocks sysadmin-only screens,
   // CLUB_ADMINISTRATOR unlocks the per-tenant mutation gates
   // (`session.isClubAdmin`, used by e.g. `aircraft-edit`'s canMutate

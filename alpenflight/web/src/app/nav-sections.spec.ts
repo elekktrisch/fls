@@ -30,6 +30,14 @@ describe('navSectionsFor', () => {
     expect(p).not.toContain('/clubs');
   });
 
+  it('Reports sits directly after Flights for every tenant principal (legacy nav parity)', () => {
+    for (const isClubAdmin of [false, true]) {
+      const p = paths({ isSystemAdmin: false, isClubAdmin });
+      expect(p.indexOf('/flightreports')).toBe(p.indexOf('/flights') + 1);
+    }
+    expect(paths({ isSystemAdmin: true, isClubAdmin: false })).not.toContain('/flightreports');
+  });
+
   it('sysadmin flag wins even if club-admin is also set', () => {
     const p = paths({ isSystemAdmin: true, isClubAdmin: true });
     expect(p).toEqual(['/clubs']);

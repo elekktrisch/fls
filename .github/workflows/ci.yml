@@ -350,13 +350,32 @@ jobs:
 
 
   # ---------------------------------------------------------------------------
-  # alpenflight/ build — Spring Boot (Gradle) under alpenflight/server, Angular under
-  # alpenflight/web. Detects which subdir is buildable; runs only what exists.
+  # alpenflight/ build — FAIL-AGGREGATE split (J-7 T-13, J-5 retro rider).
+  #
+  # Previously ONE `next-build` job built server (Gradle) THEN web (Node) THEN
+  # ran `pnpm lint; pnpm format; pnpm test; pnpm build` in a single `run:` block.
+  # A server-build failure hid every web check; a `pnpm lint` failure hid the
+  # `pnpm test`/`build` reds — so a developer discovered reds layer-by-layer
+  # across fix-one-rerun cycles. Split into two PARALLEL jobs by toolchain (the
+  # two use entirely DISJOINT setups — JDK/Gradle vs Node/pnpm — so the split
+  # adds no duplicated expensive setup), and inside each job each check is its
+  # OWN step gated on `${{ !cancelled() }}` so a red step doesn't skip the
+  # later independent checks: one CI run now surfaces server build, web lint,
+  # web format, web test, and web build reds all at once. Both jobs gate the
+  # `required` aggregator (see `required.needs`); each carries the SAME
+  # `next == 'true' && docs_only != 'true'` path-filter as before, so a
+  # docs-only push skips both → they report `skipped` → the aggregator's
+  # skipped-to-success path keeps the gate green.
+  #
+  # `mock-e2e` was already a separate parallel job (`needs: changes`), so it
+  # reported independently before this split — this change closes the
+  # build/server-test/web-lint serial gap the rider names.
+  #
   # Legacy lanes live in `nightly.yml` (cron + workflow_dispatch); PR CI
   # only gates the rewrite.
   # ---------------------------------------------------------------------------
-  next-build:
-    name: alpenflight build
+  next-build-server:
+    name: alpenflight build (server + migration-tool)
     needs: changes
     if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
@@ -364,18 +383,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Detect buildable next subdirs
+      - name: Detect buildable Gradle subdirs
         id: detect
         run: |
           if [ -f alpenflight/server/build.gradle.kts ] || [ -f alpenflight/server/build.gradle ]; then
             echo "server=true" >> $GITHUB_OUTPUT
           else
             echo "server=false" >> $GITHUB_OUTPUT
-          fi
-          if [ -f alpenflight/web/package.json ]; then
-            echo "web=true" >> $GITHUB_OUTPUT
-          else
-            echo "web=false" >> $GITHUB_OUTPUT
           fi
           if [ -f alpenflight/migration-tool/build.gradle.kts ]; then
             echo "migration_tool=true" >> $GITHUB_OUTPUT
@@ -394,15 +408,35 @@ jobs:
         if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
         uses: gradle/actions/setup-gradle@v4
 
+      # `!cancelled()` (not the default fail-fast) so a red server build still
+      # lets the migration-tool build report its own status in the same run.
       - name: Build alpenflight/server
-        if: steps.detect.outputs.server == 'true'
+        if: ${{ !cancelled() && steps.detect.outputs.server == 'true' }}
         working-directory: alpenflight/server
         run: ./gradlew build --no-daemon
 
       - name: Build alpenflight/migration-tool
-        if: steps.detect.outputs.migration_tool == 'true'
+        if: ${{ !cancelled() && steps.detect.outputs.migration_tool == 'true' }}
         working-directory: alpenflight/migration-tool
         run: ./gradlew build --no-daemon
+
+  next-build-web:
+    name: alpenflight build (web)
+    needs: changes
+    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect buildable web subdir
+        id: detect
+        run: |
+          if [ -f alpenflight/web/package.json ]; then
+            echo "web=true" >> $GITHUB_OUTPUT
+          else
+            echo "web=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Node 22
         if: steps.detect.outputs.web == 'true'
@@ -433,15 +467,22 @@ jobs:
           CI: 'true'
         run: pnpm install --frozen-lockfile
 
-      # Drift gate for the generated TS API client. We deliberately do NOT
-      # auto-commit the regenerated artifacts back to the PR branch: any
-      # push made with the workflow's GITHUB_TOKEN suppresses the
-      # `pull_request: synchronize` events for subsequent pushes on the
-      # same branch (GitHub's recursive-workflow protection), which
-      # leaves the PR's `required` check forever unsatisfied. Developers
-      # regenerate locally and commit the result.
+      # Drift gate for the generated TS API client (orval reads the committed
+      # openapi/openapi.json snapshot — Node-only, no JDK/server boot). We
+      # deliberately do NOT auto-commit the regenerated artifacts back to the PR
+      # branch: any push made with the workflow's GITHUB_TOKEN suppresses the
+      # `pull_request: synchronize` events for subsequent pushes on the same
+      # branch (GitHub's recursive-workflow protection), which leaves the PR's
+      # `required` check forever unsatisfied. Developers regenerate locally and
+      # commit the result.
+      #
+      # Each web check below is its OWN step gated on `${{ !cancelled() }}` so a
+      # red in one (e.g. lint) does NOT skip the later independent checks
+      # (format / test / build) — one run reports every web red at once. (The
+      # leading detect-gate `&& steps.detect.outputs.web == 'true'` keeps them
+      # no-ops when there is no web subdir.)
       - name: Check generated API client is up to date
-        if: steps.detect.outputs.web == 'true'
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
         working-directory: alpenflight/web
         run: |
           pnpm run generate-api
@@ -453,14 +494,25 @@ jobs:
           git --no-pager diff --stat src/app/api/generated/
           exit 1
 
-      - name: Lint + format + test + build alpenflight/web
-        if: steps.detect.outputs.web == 'true'
+      - name: Lint alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
         working-directory: alpenflight/web
-        run: |
-          pnpm lint
-          pnpm format
-          pnpm test
-          pnpm build:prod
+        run: pnpm lint
+
+      - name: Check formatting alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm format
+
+      - name: Test alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm test
+
+      - name: Build alpenflight/web
+        if: ${{ !cancelled() && steps.detect.outputs.web == 'true' }}
+        working-directory: alpenflight/web
+        run: pnpm build:prod
 
   # ---------------------------------------------------------------------------
   # Keycloak realm shape check (S-019). Cheap jq guard over
@@ -920,6 +972,31 @@ jobs:
             # for it here — the page must never advertise a shot the run can't
             # produce (would render a lone legacy figure / a dead pairing slot).
           fi
+          # ----- J-7 flight reports (picker/result/custom — view keys match the
+          # legacy-reference dir + the fanout) -------------------------------
+          # Read-side reporting journey: the three views the per-journey page
+          # pairs are picker / result / custom (matching
+          # e2e/legacy-reference/reporting/PENDING.md + expected-shots.json J-7).
+          # The legacy `reporting/{picker,result,custom}.png` refs are DEFERRED
+          # (legacy stack unrunnable on the Alpine/musl box → captured at the
+          # fanout, PENDING.md) so add_pair degrades to the AF side; and the AF
+          # parity PNGs are written once T-15 thickens flight-reports-parity.spec.ts
+          # (today the real-idp spec emits only proofVideos). Until both land, this
+          # block stages whatever exists; the `[shots-present]` guard below treats
+          # all six J-7 views as `pending` (tolerated) per the contract, so nothing
+          # reds prematurely — T-15 flips the AF three to `expected`. The DECLARATION
+          # exists NOW so a future missing-shot reds instead of silently passing.
+          if [ "${PROOF_JOURNEY:-}" = "J-7" ]; then
+            add_pair "J-7" "reporting" "picker" "picker.png" "alpenflight-flightreports-picker.png" \
+              "Legacy flsweb: the /flightreports picker - the person + location canned-report tile grid" \
+              "AlpenFlight: the /flightreports picker - person + location category tiles linking to each canned report"
+            add_pair "J-7" "reporting" "result" "result.png" "alpenflight-flightreports-result.png" \
+              "Legacy flsweb: a canned report's results - the filter-criteria panel + grouped summary + flights table" \
+              "AlpenFlight: a canned report's results page - derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows"
+            add_pair "J-7" "reporting" "custom" "custom.png" "alpenflight-flightreports-custom.png" \
+              "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
+              "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -971,6 +1048,35 @@ jobs:
             --order ../../docs/modernization/stories/_ORDER.md \
             $JUW_ARG \
             $SHOT_ARG
+
+      # J-7 T-12 — SHOTS-PRESENT pre-deploy guard (operator grill, J-5/J-6 retro).
+      # add_shot/add_pair silently DROP a missing PNG, so a partial-red capture
+      # could ship a THIN per-journey page while the generator stays green. This
+      # browserless guard reads the committed expected-shots.json + the staged
+      # screenshots.json and FAILS if any `expected` <side>:<view> for the
+      # journey-under-work is absent (a `pending`/deferred shot is tolerated +
+      # surfaced). Runs BEFORE the deploy so a thin page never publishes. Gated on
+      # a derivable journey-under-work + the gallery having built; `always()` so a
+      # partial-red proof run is still guarded (the gate signal is `steps.pw`).
+      # A journey with no expected-shots entry skips cleanly inside the spec.
+      - name: Shots-present guard (journey-under-work, pre-deploy)
+        if: ${{ always() && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_journey != '' }}
+        working-directory: alpenflight/web
+        env:
+          GALLERY_EXPECT_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          GALLERY_SHOTS_DIR: ${{ github.workspace }}/perpush-screenshots
+          GALLERY_LINKS_ONLY: '1'
+          # J-7 T-16 — this is the PER-PUSH proof context: it produces the
+          # journey's AF parity shots (the real-idp/proof specs run here). The
+          # guard enforces only the shots `producedBy: proof` (+ untagged shots)
+          # so a read-side journey's proof-only AF shots are required HERE — where
+          # they are actually produced — not in the fanout (which never runs them).
+          GALLERY_PROOF_CONTEXT: proof
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[shots-present\]'
 
       # J-25 — compute the per-PR preview destination + clickable URL.
       # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
@@ -1092,6 +1198,33 @@ jobs:
         uses: ./.github/actions/rebuild-previews-index
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      # J-7 T-12 — DEPLOYED-JOURNEY post-deploy guard (operator grill, J-6 retro:
+      # "a procedure rule kept failing, so this must be structural"). The baseline
+      # caption check below ONLY runs for the J-0 baseline path
+      # (proof_is_baseline == 'true'); a JOURNEY-UNDER-WORK run (e.g. J-7) had NO
+      # deployed assertion at all — exactly where the page shipped wrong ~4× (the
+      # generator was green while the deployed bookmark read `pending` or the page
+      # was thin, deploy-path/probe-path drifting independently). This step runs
+      # the browserless proof-gallery-links spec in `[deployed-journey]` mode
+      # against the LIVE PR preview + the persistent previews index, asserting the
+      # journey-under-work's bookmark row is a LIVE LINK (200) and its per-journey
+      # page declares ≥1 asset with EVERY asset resolving 200 (the spec polls ~60s
+      # for gh-pages). Runs AFTER the preview deploy + index rebuild, PR + non-fork
+      # + gallery-green gated, for the non-baseline journey-under-work path only
+      # (the baseline path is covered by the caption check below).
+      - name: Deployed-journey guard (bookmark live + page assets 200)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey != '' }}
+        working-directory: alpenflight/web
+        env:
+          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          GALLERY_LINKS_ONLY: '1'
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[deployed-journey\]'
 
       # J-25 T-02 — THE provable green: a live link-check against the deployed
       # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy
@@ -2156,8 +2289,9 @@ jobs:
   #     also gates the merge. The J-3 dashboard display job
   #     (`alpenflight-dashboard-proof`) stays NON-blocking (the visual showcase +
   #     gallery), so the gate isn't coupled to `start-dashboard.spec.ts`.
-  # `alpenflight-proof`'s `if:` guard is identical to next-build /
-  # next-auth-realm-shape (`next == 'true' && docs_only != 'true'`), and
+  # `alpenflight-proof`'s `if:` guard is identical to next-build-server /
+  # next-build-web / next-auth-realm-shape (`next == 'true' && docs_only !=
+  # 'true'`), and
   # `alpenflight-profile-proof` `needs:` the (non-required) dashboard-proof for
   # runner serialisation only; on a docs-only push the whole heavy chain skips →
   # all three report `skipped` → the skipped-to-success path below keeps the gate
@@ -2165,7 +2299,7 @@ jobs:
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e]
+    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -2173,7 +2307,12 @@ jobs:
       - name: Check upstream job results
         env:
           R_CHANGES: ${{ needs.changes.result }}
-          R_NEXT: ${{ needs.next-build.result }}
+          # J-7 T-13 — `next-build` was split into two parallel toolchain jobs
+          # (server+migration-tool / web) so one run reports every build/lint/
+          # test red at once; the aggregator gates on BOTH (a red in either reds
+          # `required`; both `skipped` on a docs-only push → success path below).
+          R_NEXT_SERVER: ${{ needs.next-build-server.result }}
+          R_NEXT_WEB: ${{ needs.next-build-web.result }}
           R_AUTH: ${{ needs.next-auth-realm-shape.result }}
           R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
@@ -2182,7 +2321,8 @@ jobs:
           fail=0
           for pair in \
               "changes:$R_CHANGES" \
-              "alpenflight-build:$R_NEXT" \
+              "alpenflight-build-server:$R_NEXT_SERVER" \
+              "alpenflight-build-web:$R_NEXT_WEB" \
               "alpenflight-auth-realm-shape:$R_AUTH" \
               "alpenflight-proof:$R_PROOF" \
               "alpenflight-profile-proof:$R_PROFILE_PROOF" \

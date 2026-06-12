@@ -11,20 +11,44 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
-    "name" : "Articles",
-    "description" : "Article CRUD (per-club tenant-scoped masterdata)."
+    "name" : "flightreports",
+    "description" : "Flight reports (paged read-side report query)."
   }, {
     "name" : "Persons",
     "description" : "Person CRUD (cross-tenant root with tenant-scoped PersonClub child)."
+  }, {
+    "name" : "Planning days",
+    "description" : "Planning-day CRUD (tenant-scoped; 409 on duplicate club+date+location; update/delete gated to admin-or-creator)."
+  }, {
+    "name" : "CounterUnitTypes",
+    "description" : "Counter-unit-type reference catalog."
+  }, {
+    "name" : "flights",
+    "description" : "Flight CRUD"
+  }, {
+    "name" : "AircraftStates",
+    "description" : "Aircraft-state reference catalog."
+  }, {
+    "name" : "Migration handshake",
+    "description" : "Per-upload keypair handshake — public-key surface for the legacy export JAR (S-140)."
+  }, {
+    "name" : "MemberStates",
+    "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
+  }, {
+    "name" : "Aircraft reservations",
+    "description" : "Aircraft-reservation CRUD (tenant-scoped; conflict-409 on same-aircraft overlap)."
+  }, {
+    "name" : "FlightCostBalanceTypes",
+    "description" : "Flight-cost-balance reference catalog (cross-tenant)."
+  }, {
+    "name" : "Articles",
+    "description" : "Article CRUD (per-club tenant-scoped masterdata)."
   }, {
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
     "name" : "Migration bundle ingest",
     "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
-  }, {
-    "name" : "Planning days",
-    "description" : "Planning-day CRUD (tenant-scoped; 409 on duplicate club+date+location; update/delete gated to admin-or-creator)."
   }, {
     "name" : "FlightTypes",
     "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
@@ -53,35 +77,14 @@
     "name" : "Locations",
     "description" : "Locations CRUD (per-club masterdata)."
   }, {
-    "name" : "CounterUnitTypes",
-    "description" : "Counter-unit-type reference catalog."
-  }, {
     "name" : "me",
     "description" : "Authenticated-principal view"
-  }, {
-    "name" : "flights",
-    "description" : "Flight CRUD"
   }, {
     "name" : "Aircraft",
     "description" : "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id)."
   }, {
     "name" : "LocationTypes",
     "description" : "Location-type reference catalog."
-  }, {
-    "name" : "AircraftStates",
-    "description" : "Aircraft-state reference catalog."
-  }, {
-    "name" : "Migration handshake",
-    "description" : "Per-upload keypair handshake — public-key surface for the legacy export JAR (S-140)."
-  }, {
-    "name" : "MemberStates",
-    "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
-  }, {
-    "name" : "Aircraft reservations",
-    "description" : "Aircraft-reservation CRUD (tenant-scoped; conflict-409 on same-aircraft overlap)."
-  }, {
-    "name" : "FlightCostBalanceTypes",
-    "description" : "Flight-cost-balance reference catalog (cross-tenant)."
   } ],
   "paths" : {
     "/api/v1/users/{id}" : {
@@ -2011,6 +2014,96 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/FlightDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flightreports/page/{pageStart}/{pageSize}" : {
+      "post" : {
+        "tags" : [ "flightreports" ],
+        "summary" : "Paged flight report (legacy PageableSearchFilter shape). Body carries optional sorting (`FlightDuration: asc|desc`) + a flight-report search filter. pageStart is a 0-based row offset; pageSize defaults to 100, capped at 500.",
+        "operationId" : "getFlightReportPage",
+        "parameters" : [ {
+          "name" : "pageStart",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "pageSize",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightReportPageRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "One page of report rows + total-row count + summaries.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightReportResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flightreports/export/excel/{pageStart}/{pageSize}" : {
+      "post" : {
+        "tags" : [ "flightreports" ],
+        "summary" : "Synchronous Excel (.xlsx) export of the flight report. Same body as the page endpoint; streams an attachment in the exact legacy 30-column layout. pageStart is a 0-based row offset; pageSize defaults to 100, capped at 500.",
+        "operationId" : "exportFlightReportExcel",
+        "parameters" : [ {
+          "name" : "pageStart",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "pageSize",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightReportPageRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Streamed .xlsx attachment (Flights sheet).",
+            "content" : {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
                 }
               }
             }
@@ -6121,6 +6214,231 @@
         },
         "required" : [ "aircraftId", "flightAircraftType" ]
       },
+      "FlightReportPageRequest" : {
+        "type" : "object",
+        "description" : "Legacy PageableSearchFilter-shaped flight-report request (sorting + filter criteria).",
+        "properties" : {
+          "sorting" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Column→direction map; only `FlightDuration: asc|desc` is honoured."
+          },
+          "searchFilter" : {
+            "$ref" : "#/components/schemas/FlightReportSearchFilter"
+          }
+        }
+      },
+      "FlightReportSearchFilter" : {
+        "type" : "object",
+        "description" : "Flight-report filter criteria (legacy FlightReportFilterCriteria; type flags default on/on/off).",
+        "properties" : {
+          "flightDateFrom" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "flightDateTo" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "flightCrewPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "gliderFlights" : {
+            "type" : "boolean"
+          },
+          "motorFlights" : {
+            "type" : "boolean"
+          },
+          "towFlights" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "FlightReportDataRecord" : {
+        "type" : "object",
+        "description" : "One flight-report data row (one row per flight).",
+        "properties" : {
+          "flightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "immatriculation" : {
+            "type" : "string"
+          },
+          "pilotName" : {
+            "type" : "string"
+          },
+          "secondCrewName" : {
+            "type" : "string"
+          },
+          "flightComment" : {
+            "type" : "string"
+          },
+          "airState" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "processState" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "flightCode" : {
+            "type" : "string"
+          },
+          "flightTypeName" : {
+            "type" : "string"
+          },
+          "startDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "ldgDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "flightDuration" : {
+            "type" : "string"
+          },
+          "isSoloFlight" : {
+            "type" : "boolean"
+          },
+          "startType" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "startLocation" : {
+            "type" : "string"
+          },
+          "ldgLocation" : {
+            "type" : "string"
+          },
+          "flightCategory" : {
+            "type" : "string",
+            "enum" : [ "GLIDER", "TOW", "MOTOR", "OTHER", "UNKNOWN" ]
+          },
+          "towedGliderFlightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "towFlight" : {
+            "$ref" : "#/components/schemas/TowFlightReportDataRecord"
+          }
+        },
+        "required" : [ "airState", "flightCategory", "flightId", "isSoloFlight", "processState" ]
+      },
+      "FlightReportResult" : {
+        "type" : "object",
+        "description" : "Paged flight-report result: data rows + total-row count + (T-04) summaries.",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FlightReportDataRecord"
+            }
+          },
+          "totalRows" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "summaries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FlightReportSummary"
+            }
+          }
+        },
+        "required" : [ "items", "summaries", "totalRows" ]
+      },
+      "FlightReportSummary" : {
+        "type" : "object",
+        "description" : "Flight-report summary row (one crew-function/flight-type group, plus a Total row).",
+        "properties" : {
+          "groupBy" : {
+            "type" : "string"
+          },
+          "totalStarts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalLdgs" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalFlights" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalFlightDuration" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "groupBy", "totalFlightDuration", "totalFlights", "totalLdgs", "totalStarts" ]
+      },
+      "TowFlightReportDataRecord" : {
+        "type" : "object",
+        "description" : "Nested tow-flight block under an aerotow glider row.",
+        "properties" : {
+          "towFlightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "immatriculation" : {
+            "type" : "string"
+          },
+          "pilotName" : {
+            "type" : "string"
+          },
+          "flightCode" : {
+            "type" : "string"
+          },
+          "flightTypeName" : {
+            "type" : "string"
+          },
+          "startDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "ldgDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "startLocation" : {
+            "type" : "string"
+          },
+          "ldgLocation" : {
+            "type" : "string"
+          },
+          "flightDuration" : {
+            "type" : "string"
+          },
+          "airState" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "processState" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "airState", "processState", "towFlightId" ]
+      },
+      "StreamingResponseBody" : { },
       "FlightTypeCreateRequest" : {
         "type" : "object",
         "description" : "Payload to register a new FlightType in the caller's tenant.",
@@ -6755,6 +7073,10 @@
           "languageCode" : {
             "type" : "string",
             "description" : "BCP-47 code of `languageId` (e.g. `de`, `fr`). Lets the SPA flip its active locale on a saved language change without a second round-trip."
+          },
+          "homebaseLocationId" : {
+            "type" : "string",
+            "description" : "Caller's club homebase Location id, prefixed external form `loc-<uuid>` (matches `LocationId` / `FlightReportSearchFilter.locationId`, so the SPA passes it straight into a LOCATION canned report). Null when the club has no homebase set or no user row matches the JWT sub."
           }
         }
       },

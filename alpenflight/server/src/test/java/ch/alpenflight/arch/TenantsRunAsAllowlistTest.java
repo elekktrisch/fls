@@ -64,7 +64,13 @@ class TenantsRunAsAllowlistTest {
             // counts one club at a time to span all tenants — a deliberate
             // SYSTEM_ADMINISTRATOR-only read, gated by
             // @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')") on its controller.
-            "ch.alpenflight.me.application.SystemDashboardService"
+            "ch.alpenflight.me.application.SystemDashboardService",
+            // Flight-report read-model rebuild (ADR 0027 RM-2): re-projects a
+            // club's flights under that club's tenant scope at the three
+            // repository.save-bypass seams (migration ingest, dev-seed startup,
+            // showcase). Never on the request path — invoked by the ingest
+            // transaction, a dev/showcase-profile runner, or ops tooling.
+            "ch.alpenflight.flights.application.FlightReportRebuildService"
     );
 
     @ArchTest

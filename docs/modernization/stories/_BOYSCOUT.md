@@ -441,3 +441,85 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   (shipped) — recorded here as the /do-retro lesson: the **mock-auth** suite's admin principal HID this
   authz gap; only the **real-idp showcase run with a real PILOT principal** surfaced it. Real-roles
   end-to-end catches authz gaps mock-auth can't. *(retro lesson, not a code rider)*
+
+## Pending (filed by /do-ship 2026-06-09, J-7 gate)
+
+- **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
+  real-idp/fanout spec references its `error-context.md`/`trace.zip` but only `proof-manifest.json` survives
+  (the proof-gallery step overwrites the dir), so a gate red can't be diagnosed from the DOM snapshot/trace —
+  forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
+  reds). Upload `test-results/**` as a separate failure artifact BEFORE the gallery step mutates the dir. *(seam:
+  ci.yml alpenflight-proof + fanout test-results upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
+- **Reservation Save enabled while form invalid (async validator race, J-7 T-20 observation).** The
+  second-crew-required validator flips AFTER the aircraft picker resolves `nrOfSeats`, so `reservation-save-button`
+  shows enabled (`saveDisabled:false`) for a beat while `form.invalid` is still true; clicking then early-returns
+  in `onSubmit` with no user feedback beyond `markAllAsTouched`. Not happy-path-blocking once crew is supplied, but
+  the button-disable binding and validator state momentarily disagree. *(seam: reservation-edit Save disable binding vs async second-crew validator)*
+- **planning fixture club-B KC provisioning `beforeAll` can 45s-timeout under contention (J-7 T-20).** Did not
+  reproduce on re-run (fanout `retries:1` absorbs it); if it recurs, bump that fixture's provisioning timeout
+  or warm the KC admin client. *(seam: planning-migration-parity beforeAll club-B provisioning timeout)*
+- **Planning `:410` edit-crew cold-`page.goto` reopen flakes on OIDC reboot/renew stall (J-7 T-21).** The
+  reopen via `page.goto('/planning/{id}/edit')` hits the documented cold lazy-chunk/OIDC-renew stall
+  ([[project_real_idp_goto_reboot_renew_stall]]); self-heals warm + CI `retries:1`. Switch that reopen to warm
+  in-app nav to harden. *(seam: planning-migration-parity :410 reopen → warm nav)*
+
+## Pending (filed by /do-ship 2026-06-10, J-7 gate — STRUCTURAL gallery)
+
+- **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
+  The fanout legacy capture (`reporting-parity-J7.spec.ts`) PASSES and produces `legacy-flightreports-{picker,result,custom}.png`
+  + `legacy-reporting-parity-J7.webm` (confirmed in the run artifact under both `/tmp/fls-e2e-results/...` and the staged
+  `public/alpenflight/proof/screenshots/`), the J-7 `add_shot` calls for BOTH sides exist (fanout ~1091-1101), and the
+  shots-present guard ENFORCES the legacy three (passes) — yet the DEPLOYED J-7 page renders only the **alpenflight** side of
+  each of the 3 shot-pairs, legacy side = "pending". The fanout deployed LAST (07:03 vs CI 06:56), so it's NOT a deploy race —
+  the fanout's OWN `generate-gallery.mjs` run didn't emit/match the legacy J-7 `screenshots.json` entries the pairing reads.
+  Root cause is in the fanout `add_shot`→`screenshots.json`→generator pairing path (the guard checks PNG presence while the
+  generator pairs `screenshots.json` entries — the two disagree). **STRUCTURAL fix** (the operator's recurring gallery-plumbing
+  class — ride a journey's tech-debt budget, possibly the gallery re-arch): make the shots-present guard and the generator read
+  the SAME source of truth so "present" == "rendered", and assert the legacy SIDE of each declared pair actually renders on the
+  deployed page (extend the deployed-journey guard to check both sides of a pair, not just that the page is linked). *(seam:
+  alpenflight-proof-fanout.yml add_shot json emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+
+## Pending (filed by PR #215 review, 2026-06-10 — ADR 0027 JPA-first / no-JDBC)
+
+- ~~**Convert the flight-report read path to a domain-maintained read-model**~~ — **SHIPPED 2026-06-11** (stacked
+  PR #217 → integration/J-7, RM-1..RM-5: read-model + same-tx sync + rebuild at all bypass seams + rename
+  propagation + JPA read path; 414-line native-SQL class deleted; register entry retired; cross-club location
+  decoration recorded as intentional divergence ADR 0026 D-2). Original scope (kept for trace): Replace `JpaFlightReportRepository`'s native SQL with redundant report entities written at mutation
+  time by separate aggregates via application events (same-transaction, NO db triggers), queried with plain JPA
+  finds; sync integration-tested (mutate via production path → assert read-model row). Needs: backfill for
+  migration-bundle-ingested flights (ingest must populate the read-model too, or a backfill job), and a design pass
+  on decoration-rename propagation (immatriculation / person-name / location-name changes must update report rows).
+  Retires the `flight-report-read-model` native-sql-register entry. **Pulled forward by operator decision
+  (2026-06-10 PR #215 review): in work on stacked branch `integration/J-7-jpa-readmodel` (base `integration/J-7`),
+  merging back into the J-7 PR — #215 stays draft until main receives no new JDBC.** *(seam: flights read path +
+  migrations ingest + register)*
+- **Retire the remaining main-code JDBC/native sites per-module on next touch (ADR 0027 §1).** 14 main-source files
+  at filing time; structurally-pre-tenant seams stay register-listed (`UserPrincipalLookup`, `PreTenantUserLookup`,
+  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). Convert-on-touch candidates (`MeService` DONE in RM-4, incl. its `JpaUserRepository.languageExists`
+  native→JPQL boyscout): `JpaUserRepository` (remaining native), 
+  `JpaPersonRepository`, `JpaClubStateRepository`, `JpaCountryRepository`, `PlanningDayPersistenceProbeImpl`,
+  `AircraftReservationConflictProbeImpl`, `ShowcaseSeeder`, `LanguageCodeLookup`. *(seam: per-module infra layer)*
+- **IT seeding: raw-JDBC → production-code per-touch (ADR 0027 §3).** ~85 ITs (incl. `TenantScopedRowBuilders` /
+  `TwoClubFixture` consumers) seed via `JdbcTemplate`; convert each file the next time it's materially edited —
+  convention, NOT a sweep story. J-7's own two ITs converted in PR #215 as the pattern reference. ADR 0021
+  isolation rules unchanged. **Same per-touch convention now also covers club-id collisions:** single-schema
+  external-PG runs (RM-2a) surfaced classes sharing club UUID literals by value with club-HARD-DELETING classes
+  (LocationsAuthorizationIT pair fixed RM-5; 4 showcase-CLUB_2 squatters fixed RM-5; audit found latent pairs left:
+  the migration round-trip family's bundle clubs `…04be`/`…0bb8` are also referenced by Audit*/Clubs* ITs — give a
+  class ITS OWN club ids when touching it; production-reserved ids (ShowcaseSeeder, V-seeds) are off-limits as
+  foreign fixture clubs). *(seam: server src/test, per-touch)*
+- **Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).** Five
+  aggregates now share the byte-identical softDelete(userId, clock) + @DomainEvents emit-on-save one-liner
+  shape (Flight, Aircraft, Person, Location, FlightType); the cpd-baseline has declined a @MappedSuperclass
+  three times while the clone count grew. Next server-side journey: either extract the lifecycle base
+  (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
+  stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*
+- **Fanout has NO reporting spec over MIGRATED data (predates the read-model conversion; found at RM-5).** The
+  fanout's AlpenFlight parity step runs J-0c/J-1/J-2/J-5/J-6 migration-parity specs — `/flightreports` over the
+  migrated dataset has never been e2e-asserted (the J-7 reporting specs run against the CLEAN seed in ci.yml; the
+  fanout only captures the LEGACY reporting side). Server-side the seam IS covered (RM-2 ingest-rebuild ITs assert
+  read-model rows + decorations post-ingest). Next reporting touch: add a small AlpenFlight-side
+  `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
+  location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
+  *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*

@@ -3,6 +3,7 @@ package ch.alpenflight.me.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
@@ -36,6 +37,10 @@ class MeControllerIT extends PostgresIntegrationTest {
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID LANG_DE_UUID =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
+    // Bern-Belp, a seed location owned by seed-club-1 (V34) — a valid
+    // homebase FK target for the homebase-on-/me test.
+    private static final UUID HOMEBASE_LOCATION_UUID =
+            UUID.fromString("019e30c3-2c00-7001-8000-00000000c001");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -45,6 +50,11 @@ class MeControllerIT extends PostgresIntegrationTest {
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'me-it-%'");
         jdbc.update("DELETE FROM t_person WHERE firstname = 'MeIT'");
+        // Real-HTTP IT (no test-tx rollback): reset the shared seed club's
+        // homebase so the homebase test (which sets it) doesn't leak into
+        // the null-homebase assertions on other tests.
+        jdbc.update("UPDATE t_club SET homebase_id = NULL WHERE id = ?::uuid",
+                CLUB_UUID.toString());
     }
 
     @Test
@@ -160,6 +170,41 @@ class MeControllerIT extends PostgresIntegrationTest {
                 .as("With no Person link, firstName falls back to the JWT given_name claim")
                 .isEqualTo("FallFirst");
         assertThat(body.get("lastName").asText()).isEqualTo("FallLast");
+        assertThat(body.get("homebaseLocationId").isNull())
+                .as("homebaseLocationId is null when the caller's club has no homebase set")
+                .isTrue();
+    }
+
+    @Test
+    void me_returnsClubHomebaseLocationId_whenClubHasHomebase() {
+        // J-7 T-09b: LOCATION canned reports scope to the club's homebase
+        // Location. The id rides /me as the `loc-<uuid>` external form so the
+        // SPA passes it straight into FlightReportSearchFilter.locationId.
+        jdbc.update("UPDATE t_club SET homebase_id = ?::uuid WHERE id = ?::uuid",
+                HOMEBASE_LOCATION_UUID.toString(), CLUB_UUID.toString());
+        UUID userId = UUID.randomUUID();
+        UUID kcSub = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_user (id, club_id, username, friendly_name, person_id,
+                                    notification_email, language_id,
+                                    keycloak_sub)
+                VALUES (?::uuid, ?::uuid, ?, ?, NULL, ?, ?::uuid, ?::uuid)
+                """,
+                userId.toString(), CLUB_UUID.toString(),
+                "me-it-homebase", "Me IT Homebase",
+                "homebase@example.com", LANG_DE_UUID.toString(), kcSub.toString());
+
+        String token = jwts.mint(c -> c
+                .subject(kcSub.toString())
+                .claim("clubId", CLUB_UUID.toString())
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
+
+        ResponseEntity<String> res = get("/api/v1/me", token);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.get("homebaseLocationId").asText())
+                .as("homebaseLocationId carries the `loc-` external prefix per ADR 0019")
+                .isEqualTo(LocationId.of(HOMEBASE_LOCATION_UUID).toExternal());
     }
 
     @Test

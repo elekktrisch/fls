@@ -28,4 +28,10 @@ public record MeView(
         // The BCP-47 code of {@code languageId} (joined from t_language) — lets
         // the SPA flip its active locale on a saved language change without a
         // second round-trip.
-        @Nullable String languageCode) {}
+        @Nullable String languageCode,
+        // The caller's club homebase Location id (t_club.homebase_id, V3
+        // fk_club_homebase_id). Null when the club has no homebase set. The web
+        // reporting feature (J-7) uses it to scope LOCATION canned reports to
+        // the club's homebase; the backend location-branch summary only
+        // computes when a LocationId is set.
+        @Nullable UUID homebaseLocationId) {}

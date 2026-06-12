@@ -36,7 +36,7 @@ class TenantSweepFloorAndPinTest {
      * opportunistically — boyscout — when a new {@code @TenantId} entity
      * lands.
      */
-    private static final int TENANT_SCOPED_ENTITY_FLOOR = 9;
+    private static final int TENANT_SCOPED_ENTITY_FLOOR = 10;
 
     @Test
     void discovered_tenant_scoped_entity_count_meets_floor() {

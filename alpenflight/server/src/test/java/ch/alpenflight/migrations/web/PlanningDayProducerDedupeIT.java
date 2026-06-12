@@ -58,6 +58,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * The second test here seeds an assignment on the dropped dup and asserts the
  * producer SELECT projects the SURVIVOR's id — locking the remap behaviourally so
  * a regression can't silently reintroduce the 23503.
+ *
+ * <p><strong>J-7 T-17 — the 23505 follow-on.</strong> The 23503 remap fix
+ * introduced a NEW collision: when the two duplicate days' assignments share the
+ * SAME {@code (AssignedPersonId, AssignmentTypeId)}, the remap collapses BOTH onto
+ * the surviving day → two rows with an identical {@code (planning_day_id,
+ * assigned_person_id, assignment_type_id)} → V4's {@code ux_pda_composite} UNIQUE
+ * 23505 (the §4 fanout blocker the backend.log dig diagnosed). The producer SELECT
+ * therefore dedupe-keep-firsts on the POST-REMAP composite, preferring a LIVE
+ * (non-{@code DeletedOn}) row over a soft-deleted one then earliest CreatedOn. The
+ * third test seeds that exact collision and asserts exactly one survivor (the live
+ * earliest) for the composite — locking the dedupe so a regression can't silently
+ * reintroduce the 23505.
  */
 @Tag("slow")
 class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
@@ -190,16 +202,108 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void assignmentSelectDedupesPostRemapCompositeKeepingTheLiveEarliestRow() {
+        // J-7 T-17 — the ux_pda_composite 23505 case. The real legacy FLSTest
+        // fixture has TWO duplicate planning days ('Test'/'Test2') on the SAME
+        // (Club, Day, LSZK), BOTH carrying an assignment with the SAME
+        // (AssignedPersonId, AssignmentTypeId). The J-6 remap re-points BOTH at
+        // the one surviving day → two rows with an identical
+        // (planning_day_id, assigned_person_id, assignment_type_id) → V4's
+        // ux_pda_composite UNIQUE 23505 at the 2nd INSERT. The producer SELECT
+        // must dedupe-keep-first on the POST-REMAP composite so exactly ONE row
+        // for that composite survives — and the LIVE / earliest-CreatedOn row
+        // wins over a soft-deleted / later one.
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS PlanningDayAssignments (
+                    PlanningDayAssignmentId UUID PRIMARY KEY,
+                    AssignedPlanningDayId   UUID NOT NULL,
+                    AssignedPersonId        UUID,
+                    AssignmentTypeId        UUID,
+                    Remarks                 TEXT,
+                    CreatedOn               TIMESTAMP NOT NULL,
+                    CreatedByUserId         UUID,
+                    ModifiedOn              TIMESTAMP,
+                    ModifiedByUserId        UUID,
+                    DeletedOn               TIMESTAMP,
+                    DeletedByUserId         UUID
+                )
+                """);
+        jdbc.update("DELETE FROM PlanningDayAssignments");
+
+        // ONE (person, type) shared by both duplicate days' assignments.
+        UUID sharedPerson = UUID.randomUUID();
+        UUID sharedType = UUID.randomUUID();
+
+        // On the kept-first survivor day: the LIVE, earlier assignment — the
+        // keep-first winner for the post-remap composite.
+        UUID liveWinner = UUID.randomUUID();
+        // On the DROPPED dup day: a soft-deleted (DeletedOn set), later
+        // assignment with the SAME (person, type) — must be dropped (the live
+        // earlier row wins; a soft-deleted survivor would silently drop a real
+        // crew assignment, the gap-hunter "soft-delete-blind" rider).
+        UUID softDeletedLoser = UUID.randomUUID();
+        insertAssignment(liveWinner, dupKeepFirstId, sharedPerson, sharedType,
+                Timestamp.valueOf("2020-01-01 08:00:00"), null);
+        insertAssignment(softDeletedLoser, dupLaterId, sharedPerson, sharedType,
+                Timestamp.valueOf("2021-06-15 09:30:00"),
+                Timestamp.valueOf("2022-01-01 00:00:00"));
+
+        // A second, DISTINCT (person, type) on the dropped dup day: remaps onto
+        // the survivor too but does NOT collide on the composite — must survive.
+        UUID distinctComposite = UUID.randomUUID();
+        insertAssignment(distinctComposite, dupLaterId, UUID.randomUUID(), UUID.randomUUID(),
+                Timestamp.valueOf("2020-01-01 08:00:00"), null);
+
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT);
+        List<Map<String, Object>> rows = jdbc.queryForList(select);
+
+        List<UUID> survivingIds = rows.stream()
+                .map(r -> UUID.fromString(r.get("planningdayassignmentid").toString()))
+                .sorted()
+                .toList();
+
+        assertThat(survivingIds)
+                .as("the post-remap composite dedupe keeps the LIVE earliest assignment "
+                        + "for the colliding (person, type) and drops the soft-deleted later "
+                        + "dup — else two identical (planning_day_id, person, type) rows "
+                        + "23505 on ux_pda_composite at ingest; the distinct-composite "
+                        + "assignment is untouched")
+                .containsExactlyInAnyOrder(liveWinner, distinctComposite)
+                .doesNotContain(softDeletedLoser);
+
+        // Exactly one row per post-remap composite on the survivor day.
+        long collidingComposite = rows.stream()
+                .filter(r -> r.get("assignedpersonid").toString().equals(sharedPerson.toString())
+                        && r.get("assignmenttypeid").toString().equals(sharedType.toString()))
+                .count();
+        assertThat(collidingComposite)
+                .as("exactly one survivor for the colliding (planning_day_id, person, type)")
+                .isEqualTo(1L);
+        // Every surviving row points at the kept-first survivor day.
+        for (Map<String, Object> row : rows) {
+            assertThat(UUID.fromString(row.get("assignedplanningdayid").toString()))
+                    .isEqualTo(dupKeepFirstId);
+        }
+    }
+
     private void insertAssignment(UUID id, UUID planningDayId) {
+        insertAssignment(id, planningDayId, UUID.randomUUID(), UUID.randomUUID(),
+                Timestamp.valueOf("2020-01-01 08:00:00"), null);
+    }
+
+    private void insertAssignment(UUID id, UUID planningDayId, UUID personId,
+                                  UUID assignmentTypeId, Timestamp createdOn,
+                                  Timestamp deletedOn) {
         jdbc.update("""
                 INSERT INTO PlanningDayAssignments
                     (PlanningDayAssignmentId, AssignedPlanningDayId, AssignedPersonId,
                      AssignmentTypeId, Remarks, CreatedOn, CreatedByUserId,
                      ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NULL)
                 """,
-                id, planningDayId, UUID.randomUUID(), UUID.randomUUID(), "crew",
-                Timestamp.valueOf("2020-01-01 08:00:00"));
+                id, planningDayId, personId, assignmentTypeId, "crew",
+                createdOn, deletedOn);
     }
 
     private void insertRow(UUID id, UUID location, Timestamp createdOn, String remarks) {

@@ -21,6 +21,7 @@ const pilot: User = {
   lastName: 'Pilot',
   clubId: '019e30c3-2c00-7001-8000-000000000001',
   personId: null,
+  homebaseLocationId: null,
   roles: ['PILOT'],
 };
 

@@ -1,4 +1,8 @@
-name: alpenflight proof — J-0c fan-out
+# (The fan-out harness was BUILT in J-0c; runs serve whatever journey the
+# dispatched branch carries — the run-name shows the branch so the Actions
+# list stops claiming every run is J-0c.)
+name: alpenflight proof fan-out
+run-name: fan-out proof — ${{ github.ref_name }}
 
 # J-0c T-05 — the FULL legacy→migrate+Keycloak→AlpenFlight fan-out parity chain,
 # end to end, on ONE runner. This is the dedicated proof workflow the journey
@@ -482,6 +486,39 @@ jobs:
             tests/planning/planning-parity-J6.spec.ts
 
       # ========================================================================
+      # 2g. J-7 T-01/T-22 — legacy REPORTING parity spec. Read-only walkthrough of
+      #     the /flightreports picker + a canned report's result (filter panel +
+      #     summary + flights table) + the custom-report builder form in the flsweb
+      #     UI; records the legacy reporting parity video + writes the
+      #     legacy-flightreports-{picker,result,custom}.png screenshots. The SAME
+      #     legacy stack (already up) + the SAME deterministic FLSTest seed the
+      #     J-0c/J-1/J-2/J-5/J-6 specs used — the spec self-seeds a current-year
+      #     LSZK glider flight (ensureGliderFlight) so the location-flights-this-year
+      #     canned report renders ≥1 row; no extra seeding, runs on this one fanout
+      #     run alongside T-04 + the others. Paired side-by-side with J-7's
+      #     AlpenFlight reporting shots (alpenflight-flightreports-{picker,result,
+      #     custom}.png, curled from the per-push proof gallery) in the gallery via
+      #     the legacy-video sidecar (step 7b) + screenshots.json (step 7).
+      #     Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-7 T-01 legacy reporting parity spec (records legacy video)
+        id: legacy-pw-reporting
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Same
+        # contract as the J-1/J-2/J-4/J-5/J-6 steps above: `if: always()` (runs
+        # even after a prior failure) AND `continue-on-error: true` (its own
+        # failure neither fails the job nor cascade-skips the unguarded downstream
+        # gate steps — incl. the real alpenflight-export producer-SELECT validation
+        # + the AlpenFlight parity specs).
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 12
+        run: |
+          npx playwright test \
+            --project=reporting \
+            tests/reporting/reporting-parity-J7.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -775,6 +812,8 @@ jobs:
           RESV_WEBM="$(find /tmp/fls-e2e-results -path '*reservations-parity-J5*' -name '*.webm' | head -1 || true)"
           # J-6 — legacy planning list+form+setup-wizard parity video (T-13/T-16).
           PLAN_WEBM="$(find /tmp/fls-e2e-results -path '*planning-parity-J6*' -name '*.webm' | head -1 || true)"
+          # J-7 — legacy reporting picker+canned-result+custom-builder parity video (T-01/T-22).
+          REP_WEBM="$(find /tmp/fls-e2e-results -path '*reporting-parity-J7*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -824,6 +863,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-6\",\"file\":\"planning-parity-J6.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_PLAN")},"
           else
             echo "No J-6 planning .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$REP_WEBM" ]; then
+            cp "$REP_WEBM" "$STAGE/reporting-parity-J7.webm"
+            CAP_REP="Legacy flsweb: the /flightreports picker (person + location canned-report tile grid) + a canned report's results (filter-criteria panel · grouped summary · flights table) + the custom-report builder (date range · glider/motor/tow toggles · person/location selector) — the legacy reporting screens to eyeball against AlpenFlight's /flightreports picker + result page + custom builder"
+            VIDEOS="$VIDEOS{\"journey\":\"J-7\",\"file\":\"reporting-parity-J7.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_REP")},"
+          else
+            echo "No J-7 reporting .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -1034,6 +1080,31 @@ jobs:
           add_shot "alpenflight/web/test-results" "alpenflight-planning-setup-form.png" "J-6" "alpenflight" "setup" \
             "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
 
+          # ----- J-7 T-01/T-12 — flight-reports parity SCREENSHOTS (legacy + AlpenFlight)
+          # Read-side reporting journey: THREE views — picker / result / custom —
+          # the same view keys as e2e/legacy-reference/reporting/PENDING.md +
+          # expected-shots.json (J-7). The legacy PNGs are captured here at the
+          # fanout (the reporting-parity-J7 spec drives the legacy stack the
+          # Alpine/musl dev box can't run) under /tmp/fls-e2e-results; the AlpenFlight
+          # PNGs land under alpenflight/web/test-results once T-15 thickens the
+          # parity spec to write them. A missing PNG drops that one entry (add_shot
+          # no-ops it) — the post-stage SHOTS-PRESENT guard (below) catches an
+          # EXPECTED shot going missing per expected-shots.json (all J-7 views are
+          # `pending`/tolerated until the captures land; T-15 flips the AF three to
+          # `expected`).
+          add_shot "/tmp/fls-e2e-results" "legacy-flightreports-picker.png" "J-7" "legacy" "picker" \
+            "Legacy flsweb: the /flightreports picker — the person + location canned-report tile grid"
+          add_shot "/tmp/fls-e2e-results" "legacy-flightreports-result.png" "J-7" "legacy" "result" \
+            "Legacy flsweb: a canned report's results — the filter-criteria panel + grouped summary + flights table"
+          add_shot "/tmp/fls-e2e-results" "legacy-flightreports-custom.png" "J-7" "legacy" "custom" \
+            "Legacy flsweb: the custom-report builder — date range + flight-type toggles + person/location selector"
+          add_shot "alpenflight/web/test-results" "alpenflight-flightreports-picker.png" "J-7" "alpenflight" "picker" \
+            "AlpenFlight: the /flightreports picker — person + location category tiles linking to each canned report"
+          add_shot "alpenflight/web/test-results" "alpenflight-flightreports-result.png" "J-7" "alpenflight" "result" \
+            "AlpenFlight: a canned report's results page — derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows"
+          add_shot "alpenflight/web/test-results" "alpenflight-flightreports-custom.png" "J-7" "alpenflight" "custom" \
+            "AlpenFlight: the custom-report builder form — From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
+
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -1143,6 +1214,41 @@ jobs:
             $LEGACY_ARG \
             $SHOT_ARG \
             $JUW_ARG
+
+      # J-7 T-12 — SHOTS-PRESENT pre-deploy guard (mirror ci.yml). add_shot
+      # silently drops a missing PNG, so a partial-red fanout could deploy a thin
+      # per-journey page while the generator stays green. This browserless guard
+      # reads expected-shots.json + the staged screenshots.json (the j1-screenshots
+      # dir) and FAILS if any `expected` <side>:<view> for the journey-under-work is
+      # absent (`pending`/deferred shots tolerated). Derives the journey id off the
+      # dispatched branch (`integration/J-NNN`); a non-integration dispatch /
+      # un-guarded journey skips cleanly inside the spec. `always()` + gallery-built
+      # gated so a partial-red run is still guarded before the deploy.
+      - name: Shots-present guard (journey-under-work, pre-deploy)
+        if: ${{ always() && steps.gallery.outcome == 'success' }}
+        working-directory: alpenflight/web
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          GALLERY_SHOTS_DIR: ${{ github.workspace }}/j1-screenshots
+          GALLERY_LINKS_ONLY: '1'
+          # J-7 T-16 — this is the FANOUT context: it produces the legacy capture +
+          # the migration parity AF shots (J-0c/J-1/J-2/J-5/J-6), but NOT a
+          # read-side journey's AF shots (J-7's reporting spec runs only in the
+          # per-push proof job). The guard therefore tolerates J-7's
+          # `producedBy: proof` AF shots being absent here (they are enforced in
+          # the proof context) while still enforcing the fanout-produced shots.
+          GALLERY_PROOF_CONTEXT: fanout
+        run: |
+          JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          if [ -z "$JID" ]; then
+            echo "non-integration dispatch (${REF_NAME:-?}) — no journey-under-work to guard."
+            exit 0
+          fi
+          GALLERY_EXPECT_JOURNEY="$JID" \
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[shots-present\]'
 
       - name: Collect logs on failure
         if: failure()
@@ -1317,20 +1423,33 @@ jobs:
       # so it still fires on a PARTIAL-RED parity run (the same resilience rule as
       # the deploys), but only when the gallery built + a deploy happened (the
       # `steps.preview.outputs.parent_url` exists). A 404 on any link FAILS the step.
-      - name: Link-check the DEPLOYED branch-preview gallery (T-33)
+      # J-7 T-12 — also runs the `[deployed-journey]` guard: against the LIVE
+      # deploy, assert the journey-under-work's bookmark row is a LIVE LINK (not
+      # `pending`) AND its per-journey page declares ≥1 asset with every asset
+      # resolving 200 — the structural catch for the "generator green but deployed
+      # page wrong/thin" failure (operator grill, J-6 retro). The `\[deployed`
+      # grep matches BOTH `[deployed]` (the no-dead-links walk) and
+      # `[deployed-journey]`; the journey id is derived off the dispatched branch
+      # and passed via GALLERY_DEPLOYED_JOURNEY (a non-integration dispatch leaves
+      # it empty → the `[deployed-journey]` test skips, the `[deployed]` walk still
+      # runs).
+      - name: Link-check the DEPLOYED branch-preview gallery (T-33 + T-12 journey guard)
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.parent_url != '' }}
         working-directory: alpenflight/web
         env:
           # The spec appends `legacy-parity/index.html` + probes the site previews
           # index, so it consumes the branch-preview PARENT, not the gallery root.
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.parent_url }}
+          REF_NAME: ${{ github.ref_name }}
           # Browserless project — skip the dev webServer (see playwright.config.ts).
           GALLERY_LINKS_ONLY: '1'
         run: |
+          JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          GALLERY_DEPLOYED_JOURNEY="$JID" \
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=proof-gallery-links \
-            --grep '\[deployed\]'
+            --grep '\[deployed'
 
       # J-4 T-24 — the former `<!-- fanout-proof-preview -->` sticky PR comment was
       # REMOVED. The fanout no longer posts its own PR comment; the single

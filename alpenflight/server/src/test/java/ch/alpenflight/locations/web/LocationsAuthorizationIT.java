@@ -38,8 +38,14 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final String CLUB_A = "019e30c3-2c00-7001-8000-0000000000a1";
-    private static final String CLUB_B = "019e30c3-2c00-7001-8000-0000000000a2";
+    // Class-unique club ids (ADR 0021 rule 1). MUST NOT be shared with any
+    // other fixture: this class HARD-DELETEs these clubs in its pre-clean, and
+    // the club FKs are ON DELETE RESTRICT — a foreign class seeding flights
+    // under a shared id breaks the delete (single-schema external-PG mode runs
+    // the whole suite in one schema, so by-value id collisions are no longer
+    // masked by per-fork containers).
+    private static final String CLUB_A = "019e30c3-2c00-7001-8000-00000010ca01";
+    private static final String CLUB_B = "019e30c3-2c00-7001-8000-00000010ca02";
 
     private static final String NAME_PREFIX = "IT_LA_";
     private static final String KEY_PREFIX = "IT_A_";

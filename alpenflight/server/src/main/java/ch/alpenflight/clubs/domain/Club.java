@@ -62,6 +62,14 @@ public class Club {
     @Column(name = "use_planning_day_without_reservations", nullable = false)
     private boolean usePlanningDayWithoutReservations;
 
+    // Homebase Location FK (V3 fk_club_homebase_id, ON DELETE SET NULL).
+    // Read-only on this aggregate today: surfaced through GET /api/v1/me
+    // (MeService → MeView.homebaseLocationId) so the SPA can scope LOCATION
+    // canned reports to the club's homebase. No write path exists yet — the
+    // V37 dev seed sets it; a future club-settings story adds the mutator.
+    @Column(name = "homebase_id")
+    private @Nullable UUID homebaseId;
+
     // V2 NOT NULL FKs that the walking-skeleton DTO does not surface. Mapped
     // so update operations don't null them; not exposed as setters.
     @Column(name = "country_id", nullable = false)
@@ -211,6 +219,11 @@ public class Club {
 
     public @Nullable UUID getDeploymentId() {
         return deploymentId;
+    }
+
+    /** The club's homebase Location id, or null when no homebase is set. */
+    public @Nullable UUID getHomebaseId() {
+        return homebaseId;
     }
 
     public boolean isDeleted() {

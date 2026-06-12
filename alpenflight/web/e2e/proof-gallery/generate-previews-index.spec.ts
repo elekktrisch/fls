@@ -121,14 +121,18 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     writeJourneyPage(root, 'alpenflight/proof/legacy-parity', 'J-1');
 
     const by = Object.fromEntries(scanJourneys(root, { orderPath }).map((j) => [j.jid, j]));
+    const j0 = by['J-0'];
+    const j1 = by['J-1'];
+    expect(j0).toBeDefined();
+    expect(j1).toBeDefined();
     // Canonical page → ../proof/J-0/
-    expect(by['J-0'].found).toBe(true);
-    expect(by['J-0'].href).toBe('../proof/J-0/');
-    expect(by['J-0'].source).toBe('canonical');
+    expect(j0?.found).toBe(true);
+    expect(j0?.href).toBe('../proof/J-0/');
+    expect(j0?.source).toBe('canonical');
     // Archive page → ../proof/legacy-parity/J-1/
-    expect(by['J-1'].found).toBe(true);
-    expect(by['J-1'].href).toBe('../proof/legacy-parity/J-1/');
-    expect(by['J-1'].source).toBe('archive');
+    expect(j1?.found).toBe(true);
+    expect(j1?.href).toBe('../proof/legacy-parity/J-1/');
+    expect(j1?.source).toBe('archive');
   });
 
   it('renders pending journeys WITHOUT a dead link', async () => {
@@ -144,7 +148,9 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     // Pending rows carry a "pending" badge and NO <a href> for that journey.
     expect(html).toContain('pending');
     // The only anchor hrefs present are the live J-0 page + the footer archive.
-    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)]
+      .map((m) => m[1])
+      .filter((h): h is string => h !== undefined);
     expect(hrefs).toContain('../proof/J-0/');
     expect(hrefs).toContain('../proof/'); // footer full-archive link
     // No href ever points at a per-proof-type all-in-one gallery as a primary dest.

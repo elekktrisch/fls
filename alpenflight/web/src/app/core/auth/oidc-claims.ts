@@ -60,6 +60,9 @@ export function mapClaimsToUser(claims: unknown): User | null {
     // Resolved by SessionStore.loadMe() post-login from the /me endpoint
     // (S-165) — the JWT carries no personId claim.
     personId: null,
+    // Resolved by SessionStore.loadMe() from /me (J-7 T-09b); the JWT
+    // carries no club-homebase claim.
+    homebaseLocationId: null,
     roles: extractRoles(c),
   };
 }

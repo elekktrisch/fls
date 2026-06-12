@@ -38,3 +38,5 @@ alpenflight/web/.angular
 # Per-developer Keycloak env (Google OAuth client secrets, SMTP overrides,
 # SPA base URL). .env.example is the committed template.
 alpenflight/auth/.env
+# J-7 T-21: e2e diagnostic screenshots (alpenflight/web/e2e) — not matched by the root /screenshots rule
+alpenflight/web/e2e/screenshots/

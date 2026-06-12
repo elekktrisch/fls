@@ -28,6 +28,7 @@ import java.util.Base64;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
@@ -117,6 +118,8 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
     private UUID legacyCountryId;
     private UUID actorUserId;
     private UUID legacyPilotPersonId;
+    private String gliderImmat;
+    private String towImmat;
 
     @BeforeEach
     void seedActor() {
@@ -128,6 +131,12 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "FRP-" + tag;
         testClubSlug = "frp-" + tag;
+        // ux_aircraft_immatriculation is regulator-GLOBALLY-unique. Own a
+        // per-run immat namespace (the V36 fixture-namespace convention) so a
+        // showcase-seeded HB-TOW1 surviving in the shared single-fork
+        // Postgres container cannot 23505 this ingest.
+        gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
+        towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -221,8 +230,8 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 flightTypeNdjson(legacyFlightTypeId, legacyClubId, "Schulung"), 1);
         EntityStreamResult aircraftStream = ndjsonStream(EntityType.AIRCRAFT,
                 concat(
-                        aircraftNdjson(legacyGliderAircraftId, legacyClubId, "HB-3000", false),
-                        aircraftNdjson(legacyTowAircraftId, legacyClubId, "HB-TOW1", true)), 2);
+                        aircraftNdjson(legacyGliderAircraftId, legacyClubId, gliderImmat, false),
+                        aircraftNdjson(legacyTowAircraftId, legacyClubId, towImmat, true)), 2);
         // J-2 T-41: the GLIDER is emitted BEFORE its tow — the real-bundle order
         // that 500'd on fk_flight_tow_flight_id (sqlstate=23503) before the
         // S-141 two-pass. A single-pass INSERT binds tow_flight_id while the tow

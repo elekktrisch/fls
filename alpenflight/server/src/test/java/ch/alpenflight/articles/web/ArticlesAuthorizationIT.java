@@ -53,7 +53,7 @@ class ArticlesAuthorizationIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-000000000001";
-    private static final String CLUB_B = "019e30c3-2c00-7001-8000-000000000002";
+    private static final String CLUB_B = "019e30c3-2c00-7001-8000-0000000ab302";
 
     @Autowired TestRestTemplate rest;
     @Autowired JwtTestFixture jwts;

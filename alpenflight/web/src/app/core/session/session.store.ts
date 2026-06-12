@@ -49,6 +49,11 @@ export interface User {
   // card and any future per-person filter (admin views pilot X's
   // flights, view-as, per-person stats).
   personId: string | null;
+  // Nullable: the caller's club homebase Location id (`loc-<uuid>`),
+  // populated by `loadMe()` from the `/api/v1/me` projection (J-7 T-09b).
+  // Drives LOCATION canned reports — the reporting page passes it as the
+  // report filter's `locationId`. Null when the club has no homebase set.
+  homebaseLocationId: string | null;
   roles: readonly AppRole[];
 }
 
@@ -135,6 +140,7 @@ export const SessionStore = signalStore(
                     lastName: response.lastName ?? current.lastName,
                     email: response.email ?? current.email,
                     username: response.username ?? current.username,
+                    homebaseLocationId: response.homebaseLocationId,
                   },
                   currentClubId: response.clubId ?? store.currentClubId(),
                 });

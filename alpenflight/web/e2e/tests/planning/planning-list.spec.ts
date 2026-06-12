@@ -39,6 +39,19 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Like {@link dayKeyFromToday} but shifted past a Saturday/Sunday landing —
+ * the row this key feeds is asserted `data-weekend=false` (line ~167), and a
+ * naive today+3 lands on the weekend whenever the suite runs on Wed/Thu
+ * (first hit: 2026-06-11, a Thursday). Mirrors V34/V39's weekday targeting.
+ */
+function weekdayKeyFromToday(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const shift = d.getDay() === 6 ? 2 : d.getDay() === 0 ? 1 : 0; // Sat -> Mon, Sun -> Mon
+  return dayKeyFromToday(days + shift);
+}
+
 /** The next Saturday from today (`YYYY-MM-DD`) — exercises the Sat/Sun flag. */
 function nextSaturdayKey(): string {
   const d = new Date();
@@ -50,7 +63,7 @@ function nextSaturdayKey(): string {
   return `${y}-${m}-${day}`;
 }
 
-const WEEKDAY_DAY_KEY = dayKeyFromToday(3);
+const WEEKDAY_DAY_KEY = weekdayKeyFromToday(3);
 const WEEKEND_DAY_KEY = nextSaturdayKey();
 
 interface MockPlanningDay {

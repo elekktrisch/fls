@@ -220,6 +220,22 @@ dependencies {
     // the write side — keeps producer + consumer on lockstep tooling.
     implementation("org.apache.commons:commons-compress:1.27.1")
 
+    // J-7 T-06 (S-094): Apache POI for AlpenFlight's FIRST synchronous Excel
+    // export. `poi-ooxml` is the .xlsx (OOXML) writer; it transitively brings
+    // `poi` (core) + the SXSSF streaming workbook used by ExcelExportSupport
+    // (ch.alpenflight.platform.excel). 5.5.x is the current stable line and
+    // runs on the project's JDK 25 toolchain. `poi-ooxml-full` (the schema
+    // mega-jar) is NOT needed — the streaming write path only touches the lite
+    // ooxml-schemas that `poi-ooxml` already depends on. T-07 (flight-reports
+    // export) + J-10 (deliveries/statistics exports) consume the helper.
+    implementation("org.apache.poi:poi-ooxml:5.5.1")
+    // J-7 T-06: POI 5.5.1 (poi-core) requests commons-io 2.21.0 while the
+    // already-present commons-compress 1.27.1 requests 2.16.1 →
+    // failOnVersionConflict() reds the build on the split. Pin the higher
+    // (backward-compatible) version explicitly so both resolve to one. POI is
+    // the version-leading consumer here; 2.21.0 satisfies commons-compress too.
+    implementation("commons-io:commons-io:2.21.0")
+
     // J-0b T-10: TEST-only — LocationRealProducerRoundTripIT builds a bundle via
     // the REAL BundleWriter.assembleTarGz (not the hand-ordered test factory) to
     // prove the pgcopy-before-NDJSON tar entry order survives a real producer run
@@ -522,6 +538,11 @@ tasks.withType<Test> {
     //     ALPENFLIGHT_TEST_FORKS=1 ./gradlew test
     // Expected wall-time reduction at N=2 on the ~50-class suite: ~40-50 %.
     maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 2).coerceAtLeast(1)
+    // 1g (Gradle's worker default is 512m): single-fork runs (external-PG dev
+    // mode, ALPENFLIGHT_TEST_FORKS=1) host the WHOLE suite's Spring context
+    // cache in one JVM — 512m OOMed at ~suite-end (J-7 RM-5, SecurityFilterChainIT
+    // "Java heap space" during context parse). CI's 2-fork split fits either way.
+    maxHeapSize = "1g"
 }
 
 // S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which
@@ -647,6 +668,21 @@ val seedAircraftOwnerLink by tasks.registering(JavaExec::class) {
     if (seederArgs.isPresent) {
         args = seederArgs.get().split(" ")
     }
+}
+
+// J-7 T-08: one-shot generator for the FlightReports Excel golden-parity fixture
+// (story S-096). Renders the documented S-093/oracle layout contract
+// (FlightReportGoldenFixture) to a deterministic .xlsx so the committed fixture can
+// be regenerated when the contract legitimately changes (or a live-legacy fixture
+// swaps in via the fan-out gate). NOT a test; the committed bytes are guarded by
+// FlightReportGoldenFixtureTest. Test runtime classpath (the generator + fixture
+// builder live in src/test alongside the harness they feed).
+val generateFlightReportGoldenFixture by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Regenerate the FlightReports Excel golden-parity fixture (S-096)."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.flights.web.FlightReportGoldenFixtureGenerator"
+    args = listOf("src/test/resources/excel-parity/flight-reports-legacy-golden.xlsx")
 }
 
 // J-3 T-02: one-command loader for the on-demand SHOWCASE seed — a cumulative,

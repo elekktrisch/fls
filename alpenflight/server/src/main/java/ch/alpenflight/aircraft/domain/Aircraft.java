@@ -14,14 +14,17 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.DomainEvents;
 
 /**
  * Aircraft aggregate root. Per ADR 0018 the AR owns its airworthiness-state
@@ -427,6 +430,20 @@ public class Aircraft {
             this.deletedOn = Instant.now(clock);
             this.deletedByUserId = userId;
         }
+    }
+
+    /**
+     * Spring Data publishes an {@link AircraftSaved} event on every
+     * {@code AircraftRepository.save} (the Flight {@code @DomainEvents}
+     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
+     * {@link #id}. Unconditional: the flight-report read-model keeps its
+     * denormalized immatriculation strings fresh by observing EVERY persisted
+     * state change (ADR 0027 §2).
+     */
+    @DomainEvents
+    Collection<Object> domainEvents() {
+        return List.of(new AircraftSaved(Objects.requireNonNull(
+                this.id, "Aircraft.id null at domain-event publication — save() runs first")));
     }
 
     private void assignImmatriculation(String value) {

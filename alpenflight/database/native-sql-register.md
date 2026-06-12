@@ -7,7 +7,13 @@ against a tenant-scoped table without the explicit `WHERE club_id = ?`
 predicate would re-introduce the legacy [R1](../modernization/01-current-state.md#r1--multi-tenancy-enforced-by-convention)
 risk that ADR 0008 was written to close.
 
-This register is the gate.
+This register is the gate. Policy:
+[ADR 0027](../../docs/modernization/adrs/0027-jpa-first-persistence-and-domain-read-models.md)
+— JPA-first; this register is a **shrinking exception list**. Only seams
+structurally outside `@TenantId` qualify (pre-tenant resolution, provisioning
+before tenant context, system-actor NULL-tenant writes); query complexity does
+not — complex reads get a domain-maintained read-model instead. Every entry
+carries an expiry + removal plan.
 
 ## Approved escape hatches
 
@@ -201,6 +207,12 @@ When you need to add one:
    Calls not present in this register fail the build.
 4. Expired entries (past `expires`) trigger a build warning + a follow-up
    review.
+
+## Retired
+
+- `flight-report-read-model` — retired 2026-06-11 by ADR 0027 RM-3: the report
+  read path is now plain JPA over `t_flight_report_row` (domain-maintained
+  read-model, `JpaFlightReportReadAdapter`); the native-SQL caller was deleted.
 
 ## Entry template
 

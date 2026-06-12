@@ -3,6 +3,7 @@ id: S-094
 title: ExcelExportSupport helper class
 epic: E-11
 status: todo
+rolled_up_into: J-7
 depends_on: [S-001, S-093]
 acceptance:
   - `ch.alpenflight.excel.ExcelExportSupport` provides: `headerRow(...)`, `dataRow(...)`, `currencyCell(...)`, `dateCell(...)`, `autoSize(...)`, `streamingWorkbook()`.

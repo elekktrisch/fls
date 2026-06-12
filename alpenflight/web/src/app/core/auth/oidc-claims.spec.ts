@@ -22,6 +22,8 @@ describe('mapClaimsToUser', () => {
       lastName: 'Admin',
       clubId: '019e30c3-2c00-7001-8000-000000000001',
       personId: null,
+      // Resolved post-login from /me (J-7 T-09b); the JWT carries no claim.
+      homebaseLocationId: null,
       roles: ['CLUB_ADMINISTRATOR', 'OFFICE_USER'],
     });
   });

@@ -13,14 +13,17 @@ import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.DomainEvents;
 
 /**
  * Flight aggregate root. Single-table sacred-cow shape — glider / tow /
@@ -497,6 +500,24 @@ public class Flight {
         assertOrder("blockStartDateTime", blockStartDateTime, "startDateTime", startDateTime);
         assertOrder("startDateTime", startDateTime, "ldgDateTime", ldgDateTime);
         assertOrder("ldgDateTime", ldgDateTime, "blockEndDateTime", blockEndDateTime);
+    }
+
+    /**
+     * Spring Data publishes a {@link FlightSaved} event on every
+     * {@link FlightRepository#save} (the Deployment-module {@code @DomainEvents}
+     * precedent) — at which point JPA's UUID generator has populated
+     * {@link #id}. Unconditional: the flight-report read-model projector
+     * (ADR 0027 §2) must observe EVERY persisted state change, including
+     * saves issued directly against the repository by integration-test
+     * seeding (ADR 0027 §3) and the showcase seeder's state transitions.
+     */
+    @DomainEvents
+    Collection<Object> domainEvents() {
+        // Save-before-publication is the Spring Data contract; a null id means
+        // the event pipeline was driven outside the repository — fail loud
+        // rather than project a read-model row without a key.
+        return List.of(new FlightSaved(Objects.requireNonNull(
+                this.id, "Flight.id null at domain-event publication — save() runs first")));
     }
 
     private static void assertOrder(String earlierName, @Nullable Instant earlier,
