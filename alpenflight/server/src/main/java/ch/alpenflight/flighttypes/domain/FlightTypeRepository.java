@@ -23,6 +23,8 @@ public interface FlightTypeRepository {
 
     Optional<FlightType> findActiveByName(String name);
 
+    Optional<FlightType> findActiveByCode(String flightCode);
+
     FlightType save(FlightType flightType);
 
     /** Flushes the persistence context — used to surface DB-side UNIQUE races synchronously. */

@@ -33,7 +33,7 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 export type FlightTypeItem = FlightTypeListItem & { id: string };
 export type FlightTypeDetailLoaded = FlightTypeDetail & { id: string };
 
-export type SaveErrorKind = 'name-duplicate' | 'forbidden' | 'other';
+export type SaveErrorKind = 'name-duplicate' | 'code-duplicate' | 'forbidden' | 'other';
 
 interface FlightTypesExtraState {
   selectedId: string | null;
@@ -158,8 +158,7 @@ export const FlightTypesStore = signalStore(
                   bus.next({ kind: 'flightType.created', id: detail.id });
                   loadAll();
                 },
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e, req.flightTypeName)),
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, req)),
               }),
             ),
           ),
@@ -179,8 +178,7 @@ export const FlightTypesStore = signalStore(
                   bus.next({ kind: 'flightType.updated', id: detail.id });
                   loadAll();
                 },
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e, req.flightTypeName)),
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, req)),
               }),
             ),
           ),
@@ -224,12 +222,24 @@ export const FlightTypesStore = signalStore(
 
 function errorPatch(
   e: HttpErrorResponse,
-  name: string | null | undefined,
+  req: Pick<FlightTypeCreateRequest, 'flightTypeName' | 'flightCode'> | null,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
   if (e.status === 409) {
+    // Route by the problem-detail `field` (J-26 T-05): the server
+    // discriminates name vs code conflicts — they no longer collapse onto
+    // flightTypeName. An absent/unknown field keeps the name-duplicate shape.
+    const field = (e.error as { field?: string } | null)?.field;
+    if (field === 'flightCode') {
+      return {
+        saveError: req?.flightCode
+          ? `Flight type code "${req.flightCode}" is already in use.`
+          : 'Flight type code is already in use.',
+        saveErrorKind: 'code-duplicate',
+      };
+    }
     return {
-      saveError: name
-        ? `Flight type "${name}" is already in use.`
+      saveError: req?.flightTypeName
+        ? `Flight type "${req.flightTypeName}" is already in use.`
         : 'Flight type name is already in use.',
       saveErrorKind: 'name-duplicate',
     };

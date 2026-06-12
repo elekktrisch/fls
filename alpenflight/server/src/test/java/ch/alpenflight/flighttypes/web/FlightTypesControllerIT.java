@@ -58,6 +58,13 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         // Per-test cleanup keeps the seed-club's slot empty so each test
         // starts with a known surface (the V3 seed doesn't insert
         // flight_type rows; only V3-seeded FCBTs).
+        // The club's flights go first: the V36 dev-seed flight references the
+        // seeded flight type (fk_flight_flight_type_id), so on a fresh DB the
+        // flight-type delete trips the FK unless a flights IT happened to run
+        // earlier (order-dependent red in isolation / failed-first ordering).
+        // Same proven statement as FlightCreatedSseIT; crew + report rows
+        // cascade. Full production-code seeding conversion is T-18/T-20.
+        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 

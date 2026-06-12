@@ -97,42 +97,47 @@ function fieldErrors(page: Page, controlLocator: Locator): Locator {
 // Inline 409 FIELD-ROUTING — the duplicate-key fixes (T-05 / T-07).
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 duplicate-key 409 routes to the offending field (mock inner loop)', () => {
-  test.fixme('[key-error] flight-type duplicate FlightCode → inline 409 on the flightCode field, not a raw 500', async ({
-    page,
-  }) => {
-    // T-05 thickens: backend DIVE discrimination (`ux_flight_type_club_code` →
-    // 409 field=flightCode) + store 409 field-routing (name vs code no longer
-    // collapse onto flightTypeName). Mock shape: the POST answers 409 with the
-    // problem-detail `field: 'flightCode'`.
-    await page.route('**/api/v1/flight-types', (route) =>
-      route.request().method() === 'POST'
-        ? route.fulfill({
-            status: 409,
-            json: { field: 'flightCode', message: 'common.errors.duplicate' },
-          })
-        : route.fulfill({ json: mockFlightTypes }),
-    );
+  // Error-path logic, not wiring — the server 409 envelope is covered by
+  // FlightTypeDuplicateCodeIT; this case asserts the CLIENT field-routing.
+  // covered-by: FlightTypeDuplicateCodeIT
+  test(
+    '[key-error] flight-type duplicate FlightCode → inline 409 on the flightCode field, not a raw 500',
+    { tag: '@helper' },
+    async ({ page }) => {
+      // T-05: backend DIVE discrimination (`ux_flight_type_club_code` →
+      // 409 field=flightCode) + store 409 field-routing (name vs code no longer
+      // collapse onto flightTypeName). Mock shape: the POST answers 409 with the
+      // problem-detail `field: 'flightCode'`.
+      await page.route('**/api/v1/flight-types', (route) =>
+        route.request().method() === 'POST'
+          ? route.fulfill({
+              status: 409,
+              json: { field: 'flightCode', message: 'common.errors.duplicate' },
+            })
+          : route.fulfill({ json: mockFlightTypes }),
+      );
 
-    // Chrome entry: nav section (PREREQ 2 — `/flight-types` nav entry) → list →
-    // New → form.
-    await enterSection(page, '/flight-types');
-    await page.getByTestId('flight-types-new-button').click();
-    await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
+      // Chrome entry: nav section (PREREQ 2 — `/flight-types` nav entry) → list →
+      // New → form.
+      await enterSection(page, '/flight-types');
+      await page.getByTestId('flight-types-new-button').click();
+      await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
 
-    await page.locator('#FlightTypeName').fill('Duplikat');
-    await page.locator('#FlightCode').fill('S'); // duplicates the seeded code
-    await page.getByTestId('flight-types-save-button').click();
+      await page.locator('#FlightTypeName').fill('Duplikat');
+      await page.locator('#FlightCode').fill('S'); // duplicates the seeded code
+      await page.getByTestId('flight-types-save-button').click();
 
-    // The 409 lands INLINE on the Code field — not on flightTypeName, not a
-    // raw 500 toast (the legacy-reproducing bug this fixes).
-    await expect(fieldErrors(page, page.locator('#FlightCode'))).toBeVisible();
-    await expect(fieldErrors(page, page.locator('#FlightTypeName'))).toHaveCount(0);
+      // The 409 lands INLINE on the Code field — not on flightTypeName, not a
+      // raw 500 toast (the legacy-reproducing bug this fixes).
+      await expect(fieldErrors(page, page.locator('#FlightCode'))).toBeVisible();
+      await expect(fieldErrors(page, page.locator('#FlightTypeName'))).toHaveCount(0);
 
-    await page.screenshot({
-      path: 'screenshots/forms/10-duplicate-flightcode-409.png',
-      fullPage: true,
-    });
-  });
+      await page.screenshot({
+        path: 'screenshots/forms/10-duplicate-flightcode-409.png',
+        fullPage: true,
+      });
+    },
+  );
 
   test.fixme('[key-error] club duplicate clubKey → 409 labeled on the clubKey field (not the slug)', async ({
     page,

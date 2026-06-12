@@ -31,7 +31,7 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
-import { FlightTypesStore } from '../flight-types.store';
+import { FlightTypesStore, type SaveErrorKind } from '../flight-types.store';
 
 type FlightTypeForm = FormGroup<{
   flightTypeName: FormControl<string>;
@@ -117,7 +117,11 @@ type FlightTypeForm = FormGroup<{
                   placeholder="Schulflug"
                 />
               </af-form-field>
-              <af-form-field label="Code" for="FlightCode">
+              <af-form-field
+                label="Code"
+                for="FlightCode"
+                [errors]="form.controls.flightCode.touched ? form.controls.flightCode.errors : null"
+              >
                 <af-input
                   inputId="FlightCode"
                   formControlName="flightCode"
@@ -341,34 +345,40 @@ export class FlightTypesEditPage {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
-      if (this.store.saveErrorKind() === 'name-duplicate') {
-        this.form.controls.flightTypeName.setErrors({
-          ...(this.form.controls.flightTypeName.errors ?? {}),
-          duplicate: true,
-        });
-        this.form.controls.flightTypeName.markAsTouched();
-      }
+      // 409s are field-routed by the problem-detail `field` (J-26 T-05):
+      // name vs code conflicts land inline on their own control.
+      const kind = this.store.saveErrorKind();
+      if (kind === 'name-duplicate') markDuplicate(this.form.controls.flightTypeName);
+      if (kind === 'code-duplicate') markDuplicate(this.form.controls.flightCode);
     });
 
     const destroyRef = inject(DestroyRef);
-    this.form.controls.flightTypeName.valueChanges
-      .pipe(takeUntilDestroyed(destroyRef))
-      .subscribe(() => {
-        if (this.form.controls.flightTypeName.hasError('duplicate')) {
-          const errs = { ...this.form.controls.flightTypeName.errors };
-          delete errs['duplicate'];
-          this.form.controls.flightTypeName.setErrors(Object.keys(errs).length ? errs : null);
-        }
-        if (this.store.saveErrorKind() === 'name-duplicate') {
-          this.store.clearSaveError();
-        }
-      });
+    this.clearDuplicateOnEdit(this.form.controls.flightTypeName, 'name-duplicate', destroyRef);
+    this.clearDuplicateOnEdit(this.form.controls.flightCode, 'code-duplicate', destroyRef);
 
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'flightType.created' || evt.kind === 'flightType.updated') {
         this.saveSubmitted.set(false);
         this.router.navigateByUrl('/flight-types');
+      }
+    });
+  }
+
+  /** Editing the control clears its inline duplicate error + the store's matching save error. */
+  private clearDuplicateOnEdit(
+    control: FormControl<string>,
+    kind: SaveErrorKind,
+    destroyRef: DestroyRef,
+  ): void {
+    control.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
+      if (control.hasError('duplicate')) {
+        const errs = { ...control.errors };
+        delete errs['duplicate'];
+        control.setErrors(Object.keys(errs).length ? errs : null);
+      }
+      if (this.store.saveErrorKind() === kind) {
+        this.store.clearSaveError();
       }
     });
   }
@@ -387,6 +397,11 @@ export class FlightTypesEditPage {
       this.store.update({ id, req: formToUpdateRequest(this.form) });
     }
   }
+}
+
+function markDuplicate(control: FormControl<string>): void {
+  control.setErrors({ ...(control.errors ?? {}), duplicate: true });
+  control.markAsTouched();
 }
 
 function detailToFormValue(d: FlightTypeDetail): Partial<{

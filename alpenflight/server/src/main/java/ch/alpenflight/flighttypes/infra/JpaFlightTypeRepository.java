@@ -34,4 +34,8 @@ public interface JpaFlightTypeRepository
     @Override
     @Query("select ft from FlightType ft where ft.flightTypeName = :name and ft.deletedOn is null")
     Optional<FlightType> findActiveByName(@Param("name") String name);
+
+    @Override
+    @Query("select ft from FlightType ft where ft.flightCode = :code and ft.deletedOn is null")
+    Optional<FlightType> findActiveByCode(@Param("code") String code);
 }
