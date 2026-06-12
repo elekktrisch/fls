@@ -444,7 +444,7 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-09, J-7 gate)
 
-- **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
+- **[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
   real-idp/fanout spec references its `error-context.md`/`trace.zip` but only `proof-manifest.json` survives
   (the proof-gallery step overwrites the dir), so a gate red can't be diagnosed from the DOM snapshot/trace —
   forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
@@ -465,7 +465,7 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-10, J-7 gate — STRUCTURAL gallery)
 
-- **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
+- **[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
   The fanout legacy capture (`reporting-parity-J7.spec.ts`) PASSES and produces `legacy-flightreports-{picker,result,custom}.png`
   + `legacy-reporting-parity-J7.webm` (confirmed in the run artifact under both `/tmp/fls-e2e-results/...` and the staged
   `public/alpenflight/proof/screenshots/`), the J-7 `add_shot` calls for BOTH sides exist (fanout ~1091-1101), and the

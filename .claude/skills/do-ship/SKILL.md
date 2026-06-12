@@ -6,11 +6,10 @@ description: Drive ONE vertical journey to a green PR. Manager skill — creates
 # do-ship — journey manager
 
 Take one carved journey (`J-NNN`) and drive it to a green PR. You are a
-**manager**: you decide the task list, then run each task in its own fresh
-worker context so no single conversation accumulates the whole journey and
-drifts into the dumb-zone. You hold only lean summaries; the heavy work lives
-in the workers. When the tasks are done, you run the proof-chain gate and open
-the journey PR. The operator merges.
+**manager**: decide the task list, run each task in its own fresh worker context
+(no single conversation accumulates the whole journey), hold only lean summaries.
+When the tasks are done, run the proof-chain gate and open the journey PR. The
+operator merges.
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md)
 first — both directives govern. Schema is structural; business rules on aggregates.
@@ -21,16 +20,15 @@ search/navigation, **codebase-memory-mcp** for prior-art recall; fall back to
 
 ## Shape
 
-One journey at a time (no fleet — vertical diffs collide), on its **own integration branch**
-`integration/J-NNN`; tasks commit **directly** onto it, each in a **fresh-context `/do-task` worker**. You
-stay lean: decide the list, dispatch workers, collect one-line results, gate, PR. On-demand escalation tools:
+One journey at a time (vertical diffs collide), on its **own branch** `integration/J-NNN`;
+tasks commit **directly** onto it, each in a **fresh-context `/do-task` worker**. On-demand:
 `legacy-oracle` (exact legacy behavior), `e2e-driver` (proof chain), `gap-hunter` (attack the green at the gate).
 
 ## The done bar — a real, honest green
 
 A journey is done only when its Playwright spec drives the **real UI** end to end and
 passes — clean seed first, then real legacy data migrated into AlpenFlight (Postgres +
-Keycloak). Two extra done-bar requirements:
+Keycloak). Extra done-bar requirements:
 
 - **Migration journeys** (any carrying a mapper) need a **green real-export (fanout) run**, not just synth:
   synth bundles alias columns + never hit the producer SELECT against the real schema, so unwired bindings,
@@ -39,10 +37,12 @@ Keycloak). Two extra done-bar requirements:
   [[project_synth_bundle_doesnt_validate_producer_select]] [[verify_infra_is_run_not_just_authored]]
 - **Legacy-replacing screens** produce paired legacy↔AlpenFlight screenshots + the legacy video in the gallery,
   PR link auto-posted — part of done. `e2e-driver` owns the capture.
+- **New screens are chrome-reachable:** nav/link placed per legacy (+ role visibility), and the proof
+  spec ENTERS through it — a URL-only screen is hollow (J-7 /flightreports miss). `gap-hunter` blocks it.
 
-**Red is the work-list, not a wall.** Never done while red; the bar is self-imposed and
-absolute. **A journey never merges red.** Synthetic / mocked-seam green is an inner-loop
-aid, **never** progress toward done — only the real-chain green counts.
+**Red is the work-list, not a wall.** Never done while red — a journey never merges red.
+Synthetic / mocked-seam green is an inner-loop aid, **never** progress toward done — only
+the real-chain green counts.
 
 ## Procedure
 
@@ -50,20 +50,17 @@ aid, **never** progress toward done — only the real-chain green counts.
 
 Resolve `J-NNN` from arg or a `integration/J-NNN` branch. Bail if not `carved: true`
 ("run /do-plan J-NNN first") or not `status: todo` (in_progress → resume; done → refuse).
-Every `depends_on` journey must be `done` + PR `MERGED`. `/do-plan` already created + pushed
+Every `depends_on` journey must be `done` + PR `MERGED`. `/do-plan` already pushed
 `integration/J-NNN` (carve + `/do-retro` riders) — **`git fetch` + checkout + pull it**, don't
-re-create (only create off the integration line if absent). Flip `status: in_progress` +
-`started_at`; create a GitHub issue (`J-NNN: <title>`) if `gh`+remote.
+re-create. Flip `status: in_progress` + `started_at`; GitHub issue (`J-NNN: <title>`) if `gh`+remote.
 
 ### 2 — Decide the task list (stay lean)
 
-Refresh the graph before recall: run `detect_changes` and, if drifted,
-`index_repository` (incremental) — the integration line may have moved since the
-last index. Read the journey spec + its `rolls_up` stories + the legacy screen(s)
-it replaces. For parity-sensitive screens, dispatch `legacy-oracle` ONCE to get the
-behavior oracle (its output is a worker input, not something you internalize in
-detail). Then write an ordered `## Tasks` checklist into the journey file —
-`T-NN` ids, one-line scope each, dependency order. Default decomposition:
+Refresh the graph before recall (`detect_changes`; if drifted, incremental
+`index_repository`). Read the journey spec + its `rolls_up` stories + the legacy
+screen(s) it replaces. For parity-sensitive screens, dispatch `legacy-oracle` ONCE
+(its output is a worker input). Write an ordered `## Tasks` checklist into the
+journey file — `T-NN` ids, one-line scope each, dependency order. Default decomposition:
 
 1. **T-01 — spec stub + scaffold the journey proof page.** Author the Playwright spec's
    structure + selectors + flow (thin assertions, commits the screen shape) AND scaffold the
@@ -79,18 +76,16 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
 4. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 5. **Final task — thicken spec** to full real assertions from the oracle.
 
-**Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders that
-touch this journey's surface (or stale infra/cleanup riders) into `T-NN`s sized per the
-gate, and clear them from the file as they ship — that's how `/do-retro` fixes reach the
-proof loop.
+**Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders touching this
+journey's surface (or stale infra riders) into `T-NN`s sized per the gate; clear them as they
+ship — that's how `/do-retro` fixes reach the proof loop.
 
 **Sizing gate (pre-dispatch heuristic — every task).** Each `T-NN`: **one seam** (one aggregate+repo / one
 resource's endpoints / one component-route / one migration / one spec edit — *'the domain layer' is not a task,
 'the Booking aggregate' is*); **≤8 files, ≤5 new**, one logical change describable without 'and', **≤3 tests at
 one layer**; **self-naming** (scope line names the files / ≤2 globs find them, else carve finer). A layer with N
 aggregates = **N tasks**. When unsure split — early-finish is free, overflow costs a re-plan.
-
-This list is your only durable state — workers and re-runs read it.
+The checklist is your only durable state — workers and re-runs read it.
 
 ### 3 — Manager loop (fresh worker per task)
 
@@ -112,16 +107,20 @@ this keeps push timing deterministic and stops workers hanging on in-flight CI),
 **escalates** (parity/legacy-bug/unmeetable-AC/contract conflict), stop the loop and
 surface to the operator per § Escalation. Do not push past a red task.
 
-Push at task boundaries; after the first locally-green backend task, open a
-**draft PR** (`gh pr create --draft --base <integration-line> --head
-integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
-a red CI run becomes the next task, not a blocked wait. Superseding an in-flight per-push run with
-the next push is fine (scoped/fast; the new run re-validates) — don't stall on it.
+**Worker deaths (session limits, J-7 ×3).** A dead/limited worker NEVER resumes — `TaskStop` it
+(zombies re-arm with STALE instructions); treat its in-tree work as UNVERIFIED DRAFT for a fresh
+finisher whose prompt restates the current environment rules + the full verification protocol.
+Decompose toward SMALLER tasks — a death loses less (operator, J-7 retro).
 
-**Surface the gallery EARLY, not at the gate** ([[feedback_surface_proof_early_on_repeated_failure]]) — it's
-the operator's only glanceable window for a wrong screen shape before it costs reopens. T-01 scaffolds it;
-give the link once the spec produces its first captures; refresh as tasks land. On a repeatedly-red proof,
-re-deploy + surface the current gallery before retrying, and suspect the screen shape, not just the test.
+Push at task boundaries; after the first locally-green backend task, open a **draft PR**
+(`gh pr create --draft --base <integration-line> --head integration/J-NNN`, body `Closes #N`
++ AC checklist). Watch CI in background; a red run becomes the next task, not a blocked wait;
+superseding an in-flight per-push run with the next push is fine — don't stall on it.
+
+**Surface the gallery EARLY, not at the gate** ([[feedback_surface_proof_early_on_repeated_failure]]) — the
+operator's only glanceable window for a wrong screen shape. T-01 scaffolds it; give the link at first
+captures; refresh as tasks land. On a repeatedly-red proof, re-deploy + surface the gallery before
+retrying; suspect the screen shape, not just the test.
 
 **Drive to the goal with tasks — never follow-ups.** A gap between the journey and its ACs
 (worker- or gate-revealed) becomes **another `T-NN`** until the done bar — never a follow-up
@@ -143,23 +142,25 @@ When every task is ticked, `e2e-driver` runs the gate: the full chain — legacy
 Keycloak → real Playwright — both fidelities green, **video retained on pass**. It produces the
 done-bar demonstrability (above): the legacy video + paired screenshots + auto-posted PR gallery
 link (greenfield is AlpenFlight-only), and — for a **migration journey** — a **green real-export
-`fanout` run** (not just synth). CI: `alpenflight-proof` (required, synth) + the `fanout` run. For
-**Journey-0** the gate work *is* the tasks: stand up the thinnest whole chain.
+`fanout` run** (not just synth). CI: `alpenflight-proof` (required, synth) + the `fanout` run.
+
+**Verify the gate JOB-level, on the FINAL sha.** A run-level green can be hollow: path-filtered
+`detect changes` skips every job on a workflow/docs-only delta (`required` green over NOTHING, J-7),
+and cancel-on-push can kill the only real run. Confirm the jobs EXECUTED (not skipped) for the sha
+you ship; after any cancel/re-push, dispatch + job-verify a fresh full run. [[false_green_derive_fallback]]
 
 **Dev-time proof = THIS journey only; full green only at the gate** ([[feedback_dev_time_test_strategy]]).
-Per push runs only the journey's OWN spec(s) — real-idp + mock-e2e scoped to it (T-02 set this up); prior
-journeys run mock-IdP. Full cross-journey real-idp regression runs nightly + once at the §4 gate (**nothing
-skipped**). **Gallery deploy survives a red case**: capture each screenshot as its container renders, before
-deep assertions; gate deploy on `!cancelled()`. Refresh the journey proof page continuously during dev.
+Per push runs only the journey's OWN spec(s) (T-02 set this up); prior journeys run mock-IdP; full
+cross-journey real-idp regression runs nightly + once at the §4 gate (**nothing skipped**). **Gallery
+deploy survives a red case**: capture before deep assertions; gate deploy on `!cancelled()`; refresh
+the journey proof page continuously during dev.
 
 **Gallery model — ONE source per journey** (J-6 T-17). The per-journey page is complete every push:
-it pairs the **legacy reference screenshots captured ONCE and committed** (legacy is frozen — captured
-at T-01/T-13 under `e2e/legacy-reference/<feature>/`, never reaped) against the **fresh AlpenFlight
-captures** + videos. No per-push-vs-fanout page split, no freshest-wins tie-break; the fanout owns the
-migration round-trip proof, separate from the visual pairing. **Verify the DEPLOYED artifact, not the
-unit/spec pass** (a green generator test while the deployed page was wrong recurred ~4× in J-6): curl
-the deployed bookmark + page + every asset (200) before claiming it works — the structural post-deploy
-guard (rider) enforces this so it can't drift again.
+**legacy reference screenshots captured ONCE + committed** (`e2e/legacy-reference/<feature>/`, never
+reaped) paired against the **fresh AlpenFlight captures** + videos; the fanout owns the migration
+round-trip proof, separate from the visual pairing. **Verify the DEPLOYED artifact, not the unit/spec
+pass** (recurred ~4× in J-6): curl the deployed bookmark + page + every asset (200) before claiming
+it works — the structural post-deploy guard (rider) enforces this.
 
 **Mock governance.** Happy + key-error run fully real. Any mocked seam (edge/error only) carries
 an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked seams"** list + **one operator signoff**
@@ -180,11 +181,10 @@ into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link + Mocked-sea
 
 Stop and ask the operator (one precise question) when a worker reports: a parity
 assertion only passes by changing behavior; this journey breaks another's green;
-a `depends_on` artifact is missing despite the dep being done; ported legacy
-code has an apparent bug (never silently fix); an AC is unmeetable; or
-`gap-hunter` flags a blocker needing a contract/ADR/sacred-cow change. Default
-next: `/do-retro` captures the lesson; `/do-plan` re-carves if the journey shape
-was wrong.
+a `depends_on` artifact is missing despite the dep being done; ported legacy code
+has an apparent bug (never silently fix); an AC is unmeetable; or `gap-hunter`
+flags a blocker needing a contract/ADR/sacred-cow change. Default next:
+`/do-retro` captures the lesson; `/do-plan` re-carves if the shape was wrong.
 
 ## Quality bar
 

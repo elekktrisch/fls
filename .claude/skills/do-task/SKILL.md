@@ -73,7 +73,11 @@ Build only this task. Typical task shapes:
 - **Migration:** Flyway `V<n+1>__*.sql`, structural only (ADR 0022 directive 2 —
   no CHECK/trigger/generated for business rules; those go on aggregates).
 - **Backend slice:** entity → repository → service → controller + unit tests.
-  `@PreAuthorize` + `@TenantId` per the oracle's tenancy rule.
+  `@PreAuthorize` + `@TenantId` per the oracle's tenancy rule. **JPA-first
+  (ADR 0027), blocking:** never add `JdbcTemplate`/`createNativeQuery` — the
+  register is a shrinking list for structurally-pre-tenant seams only; a
+  complex read gets a domain-maintained read-model, not native SQL. Tests
+  seed via production code (reflection only for non-settable attributes).
 - **Frontend slice:** Signal Store → component → route + logic unit tests,
   consuming the regenerated client (per `alpenflight/web/CLAUDE.md`).
 - **Proof-chain contribution:** this entity's legacy seed + per-entity migration
@@ -154,6 +158,7 @@ a flaky spec) — one consult per fork, no chaining.
 - Red-first at the task's layer; fail for the right reason.
 - Commit directly to `integration/J-NNN`; never push past red.
 - Schema structural; business rules on aggregates.
+- No new JDBC/native SQL outside the register (ADR 0027) — gap-hunter blocks it.
 - Default real; any mock declared with an `@mocked:` tag for the journey PR list.
 - Code self-explanatory; cite by file:line, never SHAs in committed text.
 - Leave a ticked checklist + a lean report. Don't prune the journey body (that's
