@@ -14,6 +14,7 @@ import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import type { MePersonLicencesUpdateRequest } from '@api/generated/model';
+import { liveFieldErrors } from '@shared/util/form';
 
 import { PilotStore } from './pilot.store';
 
@@ -185,9 +186,7 @@ type PilotForm = FormGroup<{
           <af-form-field
             [label]="t('licenceNumber')"
             for="PilotLicenceNumber"
-            [errors]="
-              form.controls.licenceNumber.touched ? form.controls.licenceNumber.errors : null
-            "
+            [errors]="licenceNumberErrors()"
             class="mt-2"
           >
             <af-input
@@ -357,6 +356,12 @@ export class ProfilePilotTab {
     hasGliderWinchStartPermission: this.fb.control(false),
     receiveOwnedAircraftStatisticReports: this.fb.control(false),
   });
+
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): the licenceNumber `af-form-field [errors]` tracks its maxLength(20)
+  // error debounced ~200ms and clears when valid — replacing the touched-only
+  // binding (silent until blur/submit).
+  protected readonly licenceNumberErrors = liveFieldErrors(this.form.controls.licenceNumber);
 
   constructor() {
     // Hydrate the form whenever the store's view lands (initial GET + after a

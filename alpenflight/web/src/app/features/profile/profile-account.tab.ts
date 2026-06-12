@@ -16,6 +16,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import type { MeProfileUpdateRequest } from '@api/generated/model';
 import { LANGUAGE_OPTIONS } from '@shared/ui/locale';
+import { liveFieldErrors } from '@shared/util/form';
 
 import { AccountStore } from './account.store';
 
@@ -85,7 +86,7 @@ type AccountForm = FormGroup<{
           [label]="t('friendlyName')"
           for="ProfileFriendlyName"
           [required]="true"
-          [errors]="form.controls.friendlyName.touched ? form.controls.friendlyName.errors : null"
+          [errors]="friendlyNameErrors()"
         >
           <af-input
             inputId="ProfileFriendlyName"
@@ -99,9 +100,7 @@ type AccountForm = FormGroup<{
           [label]="t('notificationEmail')"
           for="ProfileNotificationEmail"
           [required]="true"
-          [errors]="
-            form.controls.notificationEmail.touched ? form.controls.notificationEmail.errors : null
-          "
+          [errors]="notificationEmailErrors()"
         >
           <af-input
             inputId="ProfileNotificationEmail"
@@ -113,7 +112,7 @@ type AccountForm = FormGroup<{
           <span class="block text-xs text-slate-500 mt-1">{{ t('notificationEmailHelp') }}</span>
         </af-form-field>
 
-        <af-form-field [label]="t('phone')" for="ProfilePhone">
+        <af-form-field [label]="t('phone')" for="ProfilePhone" [errors]="phoneNumberErrors()">
           <af-input
             inputId="ProfilePhone"
             formControlName="phoneNumber"
@@ -126,7 +125,7 @@ type AccountForm = FormGroup<{
           [label]="t('language')"
           for="ProfileLanguage"
           [required]="true"
-          [errors]="form.controls.languageId.touched ? form.controls.languageId.errors : null"
+          [errors]="languageIdErrors()"
         >
           <af-select
             inputId="ProfileLanguage"
@@ -182,6 +181,19 @@ export class ProfileAccountTab {
     // gate) — J-26 T-08 restored the client validator.
     languageId: this.fb.control('', { validators: [Validators.required] }),
   });
+
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit) and binding the previously-silent phone field (maxLength
+  // only). The languageId required validator (T-08) is preserved and now renders
+  // its error live (clear → error → re-pick recovers).
+  protected readonly friendlyNameErrors = liveFieldErrors(this.form.controls.friendlyName);
+  protected readonly notificationEmailErrors = liveFieldErrors(
+    this.form.controls.notificationEmail,
+  );
+  protected readonly phoneNumberErrors = liveFieldErrors(this.form.controls.phoneNumber);
+  protected readonly languageIdErrors = liveFieldErrors(this.form.controls.languageId);
 
   constructor() {
     // Hydrate the form whenever the store's view lands (initial load + after a

@@ -7,7 +7,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, merge } from 'rxjs';
 import {
   FormBuilder,
   FormControl,
@@ -34,6 +35,7 @@ import type {
   UserUpdateRequestRolesItem,
 } from '@api/generated/model';
 import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS, LocaleService } from '@shared/ui/locale';
+import { liveFieldErrors } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import {
@@ -138,7 +140,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
               label="Username"
               for="Username"
               [required]="true"
-              [errors]="form.controls.username.touched ? form.controls.username.errors : null"
+              [errors]="usernameErrors()"
             >
               <af-input
                 inputId="Username"
@@ -154,7 +156,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             label="Friendly name"
             for="FriendlyName"
             [required]="true"
-            [errors]="form.controls.friendlyName.touched ? form.controls.friendlyName.errors : null"
+            [errors]="friendlyNameErrors()"
           >
             <af-input
               inputId="FriendlyName"
@@ -168,11 +170,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             label="Notification email"
             for="NotificationEmail"
             [required]="true"
-            [errors]="
-              form.controls.notificationEmail.touched
-                ? form.controls.notificationEmail.errors
-                : null
-            "
+            [errors]="notificationEmailErrors()"
           >
             <af-input
               inputId="NotificationEmail"
@@ -186,7 +184,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             </span>
           </af-form-field>
 
-          <af-form-field label="Phone" for="PhoneNumber">
+          <af-form-field label="Phone" for="PhoneNumber" [errors]="phoneNumberErrors()">
             <af-input
               inputId="PhoneNumber"
               formControlName="phoneNumber"
@@ -195,7 +193,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             />
           </af-form-field>
 
-          <af-form-field label="Remarks" for="Remarks">
+          <af-form-field label="Remarks" for="Remarks" [errors]="remarksErrors()">
             <af-input inputId="Remarks" formControlName="remarks" data-testid="remarks-input" />
           </af-form-field>
 
@@ -345,11 +343,35 @@ export class UsersEditPage {
     GUEST: this.fb.control(false),
   });
 
-  // Surfaces only after the operator attempts submit so the field doesn't
-  // shout on first render. Checkbox `touched` flags are unreliable on
-  // groups; track explicit submission instead.
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit) and binding the previously-silent optional fields
+  // (phone / remarks) that carried a maxLength validator but rendered no inline
+  // error at all.
+  protected readonly usernameErrors = liveFieldErrors(this.form.controls.username);
+  protected readonly friendlyNameErrors = liveFieldErrors(this.form.controls.friendlyName);
+  protected readonly notificationEmailErrors = liveFieldErrors(
+    this.form.controls.notificationEmail,
+  );
+  protected readonly phoneNumberErrors = liveFieldErrors(this.form.controls.phoneNumber);
+  protected readonly remarksErrors = liveFieldErrors(this.form.controls.remarks);
+
+  // Roles ≥1 cross-field — now LIVE (J-26 T-12). The error surfaces once the
+  // user has interacted with the role checkboxes and unticked them all (the
+  // as-you-type bar), debounced ~200ms off the group value, OR after a submit
+  // attempt. Checkbox `touched` flags are unreliable on groups; track the first
+  // interaction via a debounced value-change signal instead of waiting for submit.
+  private readonly rolesInteracted = toSignal(
+    merge(...this.grantableRoles.map((r) => this.form.controls[r].valueChanges)).pipe(
+      debounceTime(200),
+    ),
+    { initialValue: undefined },
+  );
   protected readonly rolesEmptyError = computed(
-    () => this.submissionAttempted() && this.checkedRoles().length === 0,
+    () =>
+      (this.submissionAttempted() || this.rolesInteracted() !== undefined) &&
+      this.checkedRoles().length === 0,
   );
   private readonly submissionAttempted = signal(false);
 
