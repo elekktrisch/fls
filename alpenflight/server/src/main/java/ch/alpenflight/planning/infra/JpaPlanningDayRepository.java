@@ -17,17 +17,18 @@ import org.jspecify.annotations.Nullable;
  * Spring Data JPA implementation of the {@link PlanningDayRepository} domain
  * port (J-6 T-03). Composes {@code JpaRepository<PlanningDay, UUID>}, the port,
  * and the {@link PlanningDayPersistenceProbe} custom fragment (the dedup-aware
- * save + the native per-day reservation count, which both need an injected
- * {@code EntityManager}/tenant resolver a default method can't reach). The
- * application layer depends only on the port (ADR 0023).
+ * save needs an injected {@code EntityManager}; the per-day reservation count
+ * delegates to the {@code reservations} module's
+ * {@link ch.alpenflight.reservations.api.ReservationCountPort} named interface,
+ * J-26 T-16). The application layer depends only on the port (ADR 0023).
  *
  * <p><strong>Tenancy.</strong> {@code t_planning_day} is tenant-scoped via
  * Hibernate's {@code @TenantId} discriminator on {@code operating_club_id}
  * (ADR 0008). The JPQL list/find queries inherit the tenant predicate
- * automatically (cross-tenant rows invisible → GET 404). The reservation-count
- * native query is the exception — it carries an explicit tenant predicate (see
- * {@link PlanningDayPersistenceProbeImpl}, registered in
- * {@code native-sql-register.md}).
+ * automatically (cross-tenant rows invisible → GET 404). The per-day reservation
+ * count is now plain JPA over {@code AircraftReservation} (also
+ * {@code @TenantId}-filtered) behind the reservations named interface — no native
+ * SQL (the {@code planning-day-reservation-count} register hatch is retired).
  *
  * <p><strong>Soft-delete.</strong> Every read filters {@code deleted_on IS
  * NULL}. The {@code ux_pln_club_date_loc} unique index is itself partial
