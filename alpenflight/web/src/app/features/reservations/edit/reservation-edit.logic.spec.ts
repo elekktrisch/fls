@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { overlapProbe, sanitizeReturnUrl, secondCrewRequiredFor } from './reservation-edit.page';
+import {
+  overlapProbe,
+  saveDisabledFor,
+  sanitizeReturnUrl,
+  secondCrewRequiredFor,
+} from './reservation-edit.page';
 
 const AC_ID = 'ac-019e30c3-2c00-7001-8000-00000000a001';
 const RES_ID = 'res-019e30c3-2c00-7001-8000-000000000001';
@@ -95,6 +100,44 @@ describe('reservation-edit conditional second-crew (T-18)', () => {
     const { nrOfSeats: _omit, ...unknownSeats } = singleSeat;
     void _omit;
     expect(secondCrewRequiredFor(plainType, unknownSeats)).toBe(false);
+  });
+});
+
+describe('reservation-edit save-disable vs async validator race (T-09)', () => {
+  // The bug: the second-crew validator flips the form back to invalid AFTER the
+  // aircraft picker resolves `nrOfSeats`; the disable binding must track the live
+  // form STATUS so it never shows enabled while the form is invalid OR pending.
+  // The transition order a real edit walks: PENDING (async leg running) →
+  // INVALID (second-crew now required, empty) → VALID (crew supplied).
+  it('keeps Save disabled while the form status is PENDING (async validator running)', () => {
+    expect(saveDisabledFor('PENDING', false, false)).toBe(true);
+  });
+
+  it('keeps Save disabled while the form status is INVALID', () => {
+    expect(saveDisabledFor('INVALID', false, false)).toBe(true);
+  });
+
+  it('enables Save only once the form status is VALID', () => {
+    expect(saveDisabledFor('VALID', false, false)).toBe(false);
+  });
+
+  it('walks PENDING → INVALID → VALID without ever enabling before VALID', () => {
+    const states = ['PENDING', 'INVALID', 'VALID'] as const;
+    const disabled = states.map((s) => saveDisabledFor(s, false, false));
+    expect(disabled).toEqual([true, true, false]);
+  });
+
+  it('treats a DISABLED form (not yet a status) and a null status as disabled', () => {
+    expect(saveDisabledFor('DISABLED', false, false)).toBe(true);
+    expect(saveDisabledFor(null, false, false)).toBe(true);
+  });
+
+  it('stays disabled while a save is in flight even on a VALID form', () => {
+    expect(saveDisabledFor('VALID', true, false)).toBe(true);
+  });
+
+  it('stays disabled when the overlap pre-check flags a conflict on a VALID form', () => {
+    expect(saveDisabledFor('VALID', false, true)).toBe(true);
   });
 });
 

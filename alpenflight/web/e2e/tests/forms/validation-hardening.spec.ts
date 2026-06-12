@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
+
 /**
  * J-26 VALIDATION HARDENING — mock inner-loop spec (T-01 STUB).
  *
@@ -413,17 +415,85 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
     await expect(page.getByTestId('flight-submit-sticky').locator('button')).toBeDisabled();
   });
 
-  test.fixme('[edge] reservation Save disable state never disagrees with form validity (async second-crew race)', async ({
+  test('[edge] reservation Save disable state never disagrees with form validity (async second-crew race)', async ({
     page,
   }) => {
-    // T-09 thickens: while the async second-crew validator is PENDING the form
-    // is invalid — the Save button must be disabled in that window too (today
-    // it shows enabled while form.invalid and the click dead-ends).
+    // T-09: the conditional second-crew validator flips the form back to INVALID
+    // the moment a MULTI-SEAT aircraft is picked (`nrOfSeats > 1` requires a
+    // second crew member). The Save button must track the live form STATUS, so
+    // it can NEVER read enabled while the form is invalid (or an async leg is
+    // pending) — the J-7 T-20 race where the button showed enabled for a beat and
+    // a click dead-ended silently in `onSubmit`.
+    const RES_AIRCRAFT_ID = '019e30c3-2c00-7001-8000-00000000a002';
+    const RES_TYPE_ID = '019e30c3-2c00-7001-8000-0000000000d1';
+    const RES_LOCATION_ID = '019e30c3-2c00-7001-8000-0000000000c1';
+    // Multi-seat aircraft → second crew is REQUIRED once it is selected.
+    await page.route('**/api/v1/aircraft/picker**', (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: RES_AIRCRAFT_ID,
+            immatriculation: 'HB-MULTI',
+            isTowingAircraft: false,
+            nrOfSeats: 2,
+          },
+        ],
+      }),
+    );
+    await page.route('**/api/v1/persons', (route) => route.fulfill({ json: mockPersons }));
+    await page.route('**/api/v1/locations', (route) =>
+      route.fulfill({
+        json: [{ id: RES_LOCATION_ID, locationName: 'Bern-Belp', isAirfield: true }],
+      }),
+    );
+    await page.route('**/api/v1/aircraft-reservation-types**', (route) =>
+      route.fulfill({
+        json: [{ id: RES_TYPE_ID, name: 'Flight', active: true, instructorRequired: false }],
+      }),
+    );
+    // Reservation read endpoints. Playwright matches routes in REVERSE
+    // registration order (last wins), so the broad catch-all is registered FIRST
+    // and the specific `/page/` + `/validate` handlers AFTER it, ensuring they win
+    // for their paths. The `/validate` pre-check answers `valid:true`
+    // (ReservationValidationResult shape) so the overlap slot does not block Save.
     await page.route('**/api/v1/aircraft-reservations**', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/v1/aircraft-reservations/page/**', (route) =>
+      route.fulfill({ json: { items: [], pageStart: 0, pageSize: 20, totalRows: 0 } }),
+    );
+    await page.route('**/api/v1/aircraft-reservations/validate**', (route) =>
+      route.fulfill({ json: { valid: true } }),
+    );
 
+    // Chrome entry: nav → calendar → New reservation → form.
     await enterSection(page, '/reservations');
     await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
-    // In-app: open the create form from the calendar, then assert the disable
-    // state tracks validity across the async validator's pending phase.
+    await page.getByTestId('reservations-new-button').click();
+    await expect(page.getByTestId('reservation-edit-form')).toBeVisible();
+
+    const saveButton = page.getByTestId('reservation-save-button').locator('button');
+
+    // Empty form → disabled.
+    await expect(saveButton).toBeDisabled();
+
+    // Fill EVERY base required field, leaving second-crew empty and picking the
+    // multi-seat aircraft LAST — the exact ordering that triggered the race
+    // (picker resolves `nrOfSeats`, validator flips, disable binding must follow).
+    await selectAfOption(page, 'reservation-type-select', RES_TYPE_ID);
+    await selectAfOption(page, 'reservation-pilot-select', PERSON_ID);
+    await selectAfOption(page, 'reservation-location-select', RES_LOCATION_ID);
+    await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
+    await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
+    await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
+    await selectAfOption(page, 'reservation-aircraft-select', RES_AIRCRAFT_ID);
+
+    // Second-crew is now required (multi-seat) but empty → form is INVALID, so
+    // Save STAYS disabled. The race fix means it never flips enabled in between:
+    // assert it is consistently disabled while the field is required-and-empty.
+    await expect(saveButton).toBeDisabled();
+
+    // Supplying the second crew member makes the form VALID → Save enables. The
+    // disable state tracked validity across the whole transition.
+    await selectAfOption(page, 'reservation-second-crew-select', PERSON_ID);
+    await expect(saveButton).toBeEnabled();
   });
 });
