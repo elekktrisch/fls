@@ -32,6 +32,10 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
 import { FlightTypesStore, type SaveErrorKind } from '../flight-types.store';
+import {
+  INSTRUCTOR_OBSERVER_EXCLUSIVE,
+  instructorObserverExclusiveValidator,
+} from './instructor-observer-exclusive.validator';
 
 type FlightTypeForm = FormGroup<{
   flightTypeName: FormControl<string>;
@@ -208,6 +212,7 @@ type FlightTypeForm = FormGroup<{
                   type="checkbox"
                   formControlName="isInstructorRequired"
                   class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="flight-types-flag-instructor"
                 />
                 <span>Instructor required</span>
               </label>
@@ -216,9 +221,20 @@ type FlightTypeForm = FormGroup<{
                   type="checkbox"
                   formControlName="isObserverPilotOrInstructorRequired"
                   class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="flight-types-flag-observer"
                 />
                 <span>Observer pilot or instructor required</span>
               </label>
+              @if (form.errors?.[instructorObserverExclusive]) {
+                <p
+                  class="text-sm text-red-600"
+                  role="alert"
+                  data-testid="flight-types-instructor-observer-error"
+                >
+                  Instructor required and Observer pilot or instructor required are mutually
+                  exclusive.
+                </p>
+              }
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -295,25 +311,33 @@ export class FlightTypesEditPage {
   protected readonly isCreate = computed(() => this.flightTypeId() === null);
   protected readonly canMutate = this.session.isClubAdmin;
 
-  protected readonly form: FlightTypeForm = this.fb.group({
-    flightTypeName: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.maxLength(100),
-    ]),
-    flightCode: this.fb.nonNullable.control('', [Validators.maxLength(30)]),
-    isInstructorRequired: this.fb.nonNullable.control(false),
-    isObserverPilotOrInstructorRequired: this.fb.nonNullable.control(false),
-    isCheckFlight: this.fb.nonNullable.control(false),
-    isPassengerFlight: this.fb.nonNullable.control(false),
-    isSoloFlight: this.fb.nonNullable.control(false),
-    isForGliderFlights: this.fb.nonNullable.control(false),
-    isForTowFlights: this.fb.nonNullable.control(false),
-    isForMotorFlights: this.fb.nonNullable.control(false),
-    isFlightCostBalanceSelectable: this.fb.nonNullable.control(false),
-    isCouponNumberRequired: this.fb.nonNullable.control(false),
-    isForAircraftReservationType: this.fb.nonNullable.control(false),
-    minNrOfAircraftSeatsRequired: this.fb.control<number | null>(null, [Validators.min(1)]),
-  });
+  /** Template handle for the group-level cross-field error key. */
+  protected readonly instructorObserverExclusive = INSTRUCTOR_OBSERVER_EXCLUSIVE;
+
+  protected readonly form: FlightTypeForm = this.fb.group(
+    {
+      flightTypeName: this.fb.nonNullable.control('', [
+        Validators.required,
+        Validators.maxLength(100),
+      ]),
+      flightCode: this.fb.nonNullable.control('', [Validators.maxLength(30)]),
+      isInstructorRequired: this.fb.nonNullable.control(false),
+      isObserverPilotOrInstructorRequired: this.fb.nonNullable.control(false),
+      isCheckFlight: this.fb.nonNullable.control(false),
+      isPassengerFlight: this.fb.nonNullable.control(false),
+      isSoloFlight: this.fb.nonNullable.control(false),
+      isForGliderFlights: this.fb.nonNullable.control(false),
+      isForTowFlights: this.fb.nonNullable.control(false),
+      isForMotorFlights: this.fb.nonNullable.control(false),
+      isFlightCostBalanceSelectable: this.fb.nonNullable.control(false),
+      isCouponNumberRequired: this.fb.nonNullable.control(false),
+      isForAircraftReservationType: this.fb.nonNullable.control(false),
+      minNrOfAircraftSeatsRequired: this.fb.control<number | null>(null, [Validators.min(1)]),
+    },
+    // Cross-field rule, mirrored from FlightType.updateFlags (the legacy DB
+    // CHECK forbade instructor + observer both set) — blocks Save client-side.
+    { validators: [instructorObserverExclusiveValidator] },
+  );
 
   protected readonly saveSubmitted = signal(false);
 

@@ -173,27 +173,47 @@ test.describe('J-26 duplicate-key 409 routes to the offending field (mock inner 
 // CROSS-FIELD + TRANSLATED ERRORS (T-06 / T-08).
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 cross-field validator + translated messages (mock inner loop)', () => {
-  test.fixme('[key-error] flight-type Instructor × Observer both set → blocked by the client cross-field validator', async ({
-    page,
-  }) => {
-    // T-06 thickens: client cross-field validator (the domain XOR guard in
-    // FlightType.updateFlags is the IT's job). The flag checkboxes carry no
-    // testids today — T-06 adds `flight-types-flag-instructor` +
-    // `flight-types-flag-observer` (sibling pattern: flight-types-flag-glider).
-    await page.route('**/api/v1/flight-types', (route) => route.fulfill({ json: mockFlightTypes }));
+  // Error-path logic, not wiring — the cross-field rule itself is covered by
+  // instructor-observer-exclusive.validator.spec.ts (client) and
+  // FlightTypeDomainTest (the domain guard in FlightType.updateFlags).
+  // covered-by: FlightTypeDomainTest
+  test(
+    '[key-error] flight-type Instructor × Observer both set → blocked by the client cross-field validator',
+    { tag: '@helper' },
+    async ({ page }) => {
+      // T-06: the group-level instructorObserverExclusiveValidator marks the
+      // form invalid → inline alert in the roles section + Save disabled; no
+      // request ever leaves the client (the domain guard's 400 is the raw-API
+      // safety net).
+      await page.route('**/api/v1/flight-types', (route) =>
+        route.fulfill({ json: mockFlightTypes }),
+      );
 
-    await enterSection(page, '/flight-types');
-    await page.getByTestId('flight-types-new-button').click();
-    await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
+      await enterSection(page, '/flight-types');
+      await page.getByTestId('flight-types-new-button').click();
+      await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
 
-    await page.locator('#FlightTypeName').fill('XOR-Test');
-    await page.getByTestId('flight-types-flag-instructor').check();
-    await page.getByTestId('flight-types-flag-observer').check();
+      await page.locator('#FlightTypeName').fill('XOR-Test');
+      await page.getByTestId('flight-types-flag-instructor').check();
+      await page.getByTestId('flight-types-flag-observer').check();
 
-    // Both set → cross-field error visible in the roles section + Save blocked.
-    await expect(page.getByTestId('flight-types-section-roles').getByRole('alert')).toBeVisible();
-    await expect(page.getByTestId('flight-types-save-button').locator('button')).toBeDisabled();
-  });
+      // Both set → cross-field error visible in the roles section + Save blocked.
+      await expect(page.getByTestId('flight-types-section-roles').getByRole('alert')).toBeVisible();
+      await expect(page.getByTestId('flight-types-save-button').locator('button')).toBeDisabled();
+
+      await page.screenshot({
+        path: 'screenshots/forms/11-instructor-observer-blocked.png',
+        fullPage: true,
+      });
+
+      // Unchecking one flag clears the block — the operator can recover inline.
+      await page.getByTestId('flight-types-flag-observer').uncheck();
+      await expect(page.getByTestId('flight-types-section-roles').getByRole('alert')).toHaveCount(
+        0,
+      );
+      await expect(page.getByTestId('flight-types-save-button').locator('button')).toBeEnabled();
+    },
+  );
 
   test.fixme('[happy] af-field-errors renders TRANSLATED text — no raw common.errors.* key visible', async ({
     page,

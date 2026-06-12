@@ -35,8 +35,12 @@ import org.springframework.data.domain.DomainEvents;
  *       or {@code >= 1}. Legacy treated 0 and NULL identically; the new stack
  *       rejects 0 at the DTO boundary and the aggregate enforces the same
  *       invariant for direct callers.</li>
- *   <li>Boolean flags are independently composable — no aggregate-level
- *       cross-flag rule on FlightType. The V3 schema carries no CHECK either.</li>
+ *   <li>{@code instructorRequired} and
+ *       {@code observerPilotOrInstructorRequired} are mutually exclusive
+ *       (legacy CHECK {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired}
+ *       forbids {@code (1,1)}); see {@link #updateFlags}. All other boolean
+ *       flags are independently composable. The V3 schema carries no CHECK —
+ *       the rule lives here.</li>
  * </ul>
  *
  * <p>Identity-bearing partial UNIQUE on
@@ -159,6 +163,18 @@ public class FlightType {
         assignFlightCode(newFlightCode);
     }
 
+    /**
+     * Replaces all eleven flags atomically. Rejects the contradictory
+     * combination {@code instructorRequired && observerPilotOrInstructorRequired}
+     * — "observer pilot OR instructor" is the weaker requirement, so pairing
+     * it with the strict "instructor required" is meaningless (legacy CHECK
+     * {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired});
+     * the guard fires before any assignment, so a rejected update leaves the
+     * aggregate unchanged. Covers create too ({@link #register} delegates here).
+     *
+     * @throws InstructorObserverExclusionException when both crew-requirement
+     *         flags are set
+     */
     public void updateFlags(boolean newInstructorRequired,
                             boolean newObserverPilotOrInstructorRequired,
                             boolean newCheckFlight,
@@ -170,6 +186,9 @@ public class FlightType {
                             boolean newFlightCostBalanceSelectable,
                             boolean newCouponNumberRequired,
                             boolean newForAircraftReservationType) {
+        if (newInstructorRequired && newObserverPilotOrInstructorRequired) {
+            throw new InstructorObserverExclusionException();
+        }
         this.instructorRequired = newInstructorRequired;
         this.observerPilotOrInstructorRequired = newObserverPilotOrInstructorRequired;
         this.checkFlight = newCheckFlight;

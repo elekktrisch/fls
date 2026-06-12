@@ -4,6 +4,7 @@ import ch.alpenflight.flighttypes.domain.DuplicateFlightTypeCodeException;
 import ch.alpenflight.flighttypes.domain.DuplicateFlightTypeNameException;
 import ch.alpenflight.flighttypes.domain.FlightCostBalanceTypeInvariantException;
 import ch.alpenflight.flighttypes.domain.FlightTypeNotFoundException;
+import ch.alpenflight.flighttypes.domain.InstructorObserverExclusionException;
 import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.jspecify.annotations.Nullable;
@@ -40,6 +41,8 @@ class FlightTypesExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-type-code-conflict");
     private static final URI TYPE_FCBT_INVARIANT =
             URI.create("urn:alpenflight:problem:flight-cost-balance-type-invariant");
+    private static final URI TYPE_INSTRUCTOR_OBSERVER_EXCLUSION =
+            URI.create("urn:alpenflight:problem:flight-type-instructor-observer-exclusion");
     private static final String CODE_UNIQUE_CONSTRAINT = "ux_flight_type_club_code";
 
     @ExceptionHandler(FlightTypeNotFoundException.class)
@@ -82,6 +85,24 @@ class FlightTypesExceptionHandler {
             return problem(codeConflict("FlightType code already in use."));
         }
         throw e;
+    }
+
+    /**
+     * The aggregate's instructor×observer mutual-exclusion guard
+     * ({@code FlightType.updateFlags}, J-26 T-06) → 400 with the same
+     * problem-detail {@code field} envelope the duplicate 409s use. The
+     * client cross-field validator blocks this before submit; a raw API
+     * caller (or a bypassed client) gets the clean 400 instead of a 500.
+     */
+    @ExceptionHandler(InstructorObserverExclusionException.class)
+    ResponseEntity<ProblemDetail> handleInstructorObserverExclusion(
+            InstructorObserverExclusionException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(TYPE_INSTRUCTOR_OBSERVER_EXCLUSION);
+        pd.setTitle("Instructor and observer requirements are mutually exclusive");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("field", "isObserverPilotOrInstructorRequired");
+        return problem(pd);
     }
 
     @ExceptionHandler(FlightCostBalanceTypeInvariantException.class)
