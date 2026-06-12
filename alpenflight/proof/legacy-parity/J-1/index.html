@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-11T06:48:46.905Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-12T06:49:12.513Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,27 +144,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-9f0d1987bf49460a5cbf3c18af5de43cf885f9f8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-e949bba410a5efed4ab80a8d369199579961d40a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-a4ddb2d3a161dbca4b4e8fa20d858141632e899f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-9d88ed4101421814540d73d82026c588efb83626.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-7b830c31856c485bb88af3a28a3e95ee376913d3.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-27a9e4409f8bc56d70c02320e9e784d1e1fa929a.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-58ae06dd9e116dd8eec81f095a54b833c9b67611.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-5e5faa7726a1844a790833da09ba80cc01ddbdf8.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-5cf87f9949c75876f778d1e1a3aa56e30a278c49.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-062459245109cb3ad8e1f52ec6747319f483a374.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-c13b6a4c28c803819cf7943ca75770405968fcbb.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-ff4cc8153b5eed07d39d4e825b14009d7988971c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -200,15 +200,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
-            <td>score <strong>72.7</strong> (B) · maintainability <strong>92</strong> · duplication <strong>5.7%</strong> · dead files <strong>1.0%</strong></td>
+            <td>score <strong>73.5</strong> (B) · maintainability <strong>92</strong> · duplication <strong>5.6%</strong> · dead files <strong>0.9%</strong></td>
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>68</strong> violations · complexity <strong>68</strong> · dead-code <strong>0</strong></td>
+            <td><strong>70</strong> violations · complexity <strong>70</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.8%</strong> duplicated · <strong>60</strong> clone groups</td>
+            <td><strong>3.6%</strong> duplicated · <strong>62</strong> clone groups</td>
           </tr>
           </table>
           <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>

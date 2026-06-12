@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-5</title>
+<title>AlpenFlight proof — J-7</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-5 — proof</h1>
+    <h1>J-7 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-5</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 3 screenshots</span>
+      <span class="summary-jid">J-7</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -143,60 +143,40 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 
   <section class="journey-page">
         <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-211c9574e5e1793152eaeed242108407210775b6.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-5da706c3203f5eb9170f5ad438c4e572161c8964.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-e2119b9f2b082349c37359d4b4fdf0e0010c2497.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1c6f716db6fefdf79cef6b6b909bcf15319a4dea.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d8a2b5f9998288aa5cc796a6ca84a5ffce7a85aa.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-36df00af3fa9e9c3a9e24ac074f26986a7fc7dba.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
+        <figure class="proof legacy-proof">
+          <video controls preload="metadata" src="../videos/legacy-reporting-parity-J7.webm"></video>
+          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the /flightreports picker (person + location canned-report tile grid) + a canned report's results (filter-criteria panel · grouped summary · flights table) + the custom-report builder (date range · glider/motor/tow toggles · person/location selector) — the legacy reporting screens to eyeball against AlpenFlight's /flightreports picker + result page + custom builder</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
         <div class="shot-pair">
-          <div class="shot-view-label">list</div>
+          <div class="shot-view-label">picker</div>
           <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservations-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservations-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations CALENDAR day view (aircraft×hour grid 08–20) with a created reservation placed as a time-block in its aircraft lane — the calendar-first replacement for the legacy reservation table, decorated client-side from the picker label maps</figcaption>
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-picker.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-picker.png" alt="legacy picker" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /flightreports picker — the person + location canned-report tile grid</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">form</div>
+          <div class="shot-view-label">result</div>
           <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservation-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form</figcaption>
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-result.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-result.png" alt="legacy result" loading="lazy"></a>
+            <figcaption>Legacy flsweb: a canned report's results — the filter-criteria panel + grouped summary + flights table</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">scheduler</div>
+          <div class="shot-view-label">custom</div>
           <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-reservation-scheduler.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-scheduler.png" alt="alpenflight scheduler" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /reservations CALENDAR week view (aircraft×day matrix — per-cell count · hours · progress bar), the consolidated replacement for the legacy reservation-scheduler grid (the calendar day view is the old lane×time scheduler; this week view is the distinct second surface)</figcaption>
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-flightreports-custom.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-flightreports-custom.png" alt="legacy custom" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the custom-report builder — date range + flight-type toggles + person/location selector</figcaption>
           </figure>
           </div>
         </div>
