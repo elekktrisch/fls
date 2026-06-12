@@ -1,7 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.planning.domain.PlanningDayAssignmentType;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 
 /**
  * Minimal-object factory for {@link PlanningDayAssignmentType} consumed by the

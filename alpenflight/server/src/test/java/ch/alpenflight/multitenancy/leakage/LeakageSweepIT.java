@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.SweepFixtureContext;
 import ch.alpenflight.server.testsupport.TenantScopedEntityCatalog;
 import ch.alpenflight.server.testsupport.TenantScopedRowBuilders;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.util.UUID;
@@ -72,7 +72,7 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         this.clubs = new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX);
         clubs.seed();
         TenantTestContext.clear();
-        this.ctx = new SweepFixtureContext(jdbc);
+        this.ctx = new SweepFixtureContext(appContext);
     }
 
     @ParameterizedTest(name = "{0}")

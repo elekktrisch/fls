@@ -1,7 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.flighttypes.domain.FlightType;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 
 /**
  * Minimal-object factory for {@link FlightType} consumed by the S-024

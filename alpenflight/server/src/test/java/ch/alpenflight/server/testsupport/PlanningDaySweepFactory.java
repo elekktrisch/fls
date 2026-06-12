@@ -1,7 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.planning.domain.PlanningDay;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -9,9 +8,10 @@ import java.util.UUID;
 /**
  * Minimal-object factory for {@link PlanningDay} consumed by the S-024 leakage
  * sweep (J-6 T-03). The day carries one non-tenant FK — {@code location_id →
- * t_location} (RESTRICT) — so the factory seeds a location under the tenant the
- * sweep is currently running as (or the fallback V5 seed club when unscoped) so
- * the FK resolves even under the NO_TENANT sentinel.
+ * t_location} (RESTRICT) — so the factory seeds a Location under the tenant the
+ * sweep is currently running as (or the fallback V5 seed club when unscoped)
+ * through the production save path, so the FK resolves even under the NO_TENANT
+ * sentinel.
  *
  * <p>Because the location FK is satisfied under both the scoped and the
  * fallback club, the ONLY FK left unsatisfiable under NO_TENANT is the
@@ -42,7 +42,7 @@ final class PlanningDaySweepFactory {
                 ? FALLBACK_CLUB
                 : currentTenant;
 
-        UUID locationId = seedLocation(ctx, fkClub);
+        UUID locationId = ctx.seedLocation(fkClub);
         UUID operatingClubPlaceholder =
                 currentTenant == null ? TenantTestContext.NO_TENANT : currentTenant;
 
@@ -51,31 +51,5 @@ final class PlanningDaySweepFactory {
                 LocalDate.now(java.time.ZoneOffset.UTC).plus(7, ChronoUnit.DAYS),
                 locationId,
                 TenantScopedRowBuilders.SWEEP_PREFIX + "PLN");
-    }
-
-    private static UUID seedLocation(SweepFixtureContext ctx, UUID club) {
-        UUID countryId = firstId(ctx, "t_country");
-        UUID locationTypeId = firstId(ctx, "t_location_type");
-        UUID locationId = UUID.randomUUID();
-        String unique = Long.toString(System.nanoTime(), 36);
-        ctx.jdbc().update("""
-                INSERT INTO t_location (id, club_id, location_name, country_id, location_type_id)
-                VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?::uuid)
-                """,
-                locationId.toString(),
-                club.toString(),
-                TenantScopedRowBuilders.SWEEP_PREFIX + "PLNLOC_" + unique,
-                countryId.toString(),
-                locationTypeId.toString());
-        return locationId;
-    }
-
-    private static UUID firstId(SweepFixtureContext ctx, String table) {
-        UUID id = ctx.jdbc().queryForObject("SELECT id FROM " + table + " LIMIT 1", UUID.class);
-        if (id == null) {
-            throw new IllegalStateException(
-                    "No row in " + table + " — V3 seed must populate at least one reference row");
-        }
-        return id;
     }
 }

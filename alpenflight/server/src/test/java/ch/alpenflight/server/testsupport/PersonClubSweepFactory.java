@@ -4,7 +4,6 @@ import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonClub;
 import ch.alpenflight.persons.domain.PersonNotificationPrefs;
 import ch.alpenflight.persons.domain.PersonRoleFlags;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**

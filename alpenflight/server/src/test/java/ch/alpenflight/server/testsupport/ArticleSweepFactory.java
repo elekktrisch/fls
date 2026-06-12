@@ -1,7 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.articles.domain.Article;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 
 /**
  * Minimal-object factory for {@link Article} consumed by the S-024 leakage

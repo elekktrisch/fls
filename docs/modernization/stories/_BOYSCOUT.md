@@ -526,3 +526,23 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
   location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
   *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
+
+## Pending (filed by J-26 T-20, 2026-06-12 — IT-seeding conversion remainder, empirically measured)
+
+- **IT seeding: per-IT raw-JDBC seeders → production code, PER-TOUCH (ADR 0027 §3).** The shared seeders are now
+  done — TwoClubFixture's club seed (T-19), and the 5 Sweep factories + `SweepFixtureContext.jdbc()` (T-20,
+  converted to production save paths). The standing remainder is the **per-IT** seeders: of the **84** server
+  test files touching `JdbcTemplate` (verified by grep, not estimated), **44 SEED (raw `INSERT`)** and **40 use
+  JDBC purely for assertion (`SELECT`) / hard teardown (`DELETE`)**. The 40 assert/teardown files are NOT the
+  §3 anti-pattern (no domain-invariant bypass — a hard `DELETE` that bypasses soft-delete is legitimate test
+  infra) and should stay JDBC. The ~44 seed files convert **one file at a time, on its next material edit** —
+  ADR 0027 §3's own rule is per-touch, NOT a sweep story (an 84-file sweep is explicitly forbidden). *(seam:
+  `server/src/test`, per-touch)*
+- **Pinned-id aggregate seeds legitimately stay JDBC (the @GeneratedValue + Hibernate-7-overwrite wall).** When an
+  IT must seed an aggregate at an **externally-pinned** id (a consumer asserts on that exact id), production save
+  paths cannot deliver it: aggregate roots use `@GeneratedValue(UUID)` and Hibernate 7's `UuidGenerator`
+  (a `BeforeExecutionGenerator`) OVERWRITES any reflection-set id at insert — so save/persist/stateless-insert
+  all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
+  the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. The convertible case — the parent's
+  id is minted by the seed and merely passed to the child (no external pin) — is the clean win T-20 executed
+  across all 5 Sweep factories. *(seam: `server/src/test`, per-touch)*
