@@ -48,12 +48,15 @@ incl. the P0 safety items — 2026-06-09.)
 **P1 — client-parity regression / dead code:**
 - **Profile Account `languageId` lost its required validator** (legacy `profile.html:61` had it; only the
   server `@NotNull` enforces now). Add `Validators.required` (`profile-account.tab.ts:174`). *(seam: profile-account tab)*
-- **Flight edit: dead `FlightValidator` + zero client validation.** `FlightValidator`/`FlightCompositeValidator`
-  author the full Validate-job rule set but are NEVER invoked on any path (`FlightsService.createFlight/updateFlight`
-  never call them); and the form has NO `Validators`, NO `[errors]`/`[required]` bindings, and Save is never
-  gated on validity (`flight-form.model.ts:79-118`, `flights-edit.page.ts:613-650`). Wire-or-delete the
-  validator + add client `required` on flightDate/aircraftId/pilot + gate Save on `form.invalid`.
-  *(seam: flights validator wiring + flight-form client validators)*
+- ~~**Flight edit: dead `FlightValidator` + zero client validation.**~~ **SHIPPED J-26 T-13.** Client fix
+  landed: `Validators.required` on flightDate + glider aircraft/pilot (tow stays unvalidated — conditional step)
+  + `[required]`/`[errors]` (J-6b `liveFieldErrors`) + Save gated on a reactive `formStatus` signal.
+  **FlightValidator VERDICT = KEEP** (not wired into create/update, not deleted): its rules are the nightly
+  Validate-job verdict (NOT a create/update gate — legacy saves incomplete flights + flags them nightly;
+  wiring would 400 partial saves the screen accepts), and it is the named still-pending dependency of **S-083**
+  (DailyFlightValidationJob, "reuses it") + S-101 (validation-rejection depth), covered by FlightValidatorTest +
+  FlightCompositeValidatorTest. Deleting it would discard the ported legacy rule set + force a re-port at S-083.
+  *(was: flights validator wiring + flight-form client validators)*
 
 **P2 — as-you-type sweep (mechanical, one shared infra; the systemic J-6b-bar miss):**
 - The J-6b as-you-type bar is wired ONLY on reservation-edit + planning-edit. **Replace `ctl.touched ?

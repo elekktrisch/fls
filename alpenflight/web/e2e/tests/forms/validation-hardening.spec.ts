@@ -423,18 +423,73 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
 // SAVE-GATING (T-09 / T-13).
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
-  test.fixme('[edge] flight edit: Save gated on the client required validators (flightDate/aircraft/pilot)', async ({
+  test('[edge] flight edit: Save gated on the client required validators (flightDate/aircraft/pilot)', async ({
     page,
   }) => {
-    // T-13 thickens (+ records the dead-FlightValidator wire-or-delete verdict).
-    await page.route('**/api/v1/flights**', (route) => route.fulfill({ json: [] }));
+    // T-13: the flight form grew `Validators.required` on flightDate +
+    // glider.aircraftId + glider.pilotPersonId, and the header/sticky Save
+    // bind `[disabled]="saving() || formInvalid()"`. The new-template here is
+    // deliberately MINIMAL (date + start-type only, NO aircraft / crew) so the
+    // form opens INVALID — proving Save is gated, not merely defaulted valid.
+    const FT_GLIDER_ID = FLIGHT_TYPE_ID;
+    const START_TYPE_WINCH = '019e2e15-2c00-7fa0-8000-000000000fa0'; // non-towing → no tow step
+    // Playwright matches routes in REVERSE registration order (last wins): the
+    // broad `flights**` catch-all is registered FIRST so the specific
+    // new-template + last-context handlers (registered AFTER) win for their
+    // paths — otherwise `flights**` shadows `/flights/new-template` and the form
+    // hydrates with a NULL flightDate (the gate would then never lift).
+    await page.route('**/api/v1/flights**', (route) => route.fulfill({ json: { items: [] } }));
+    await page.route('**/api/v1/flights/new-template', (route) =>
+      route.fulfill({
+        json: {
+          flightAircraftType: 'GLIDER',
+          flightDate: '2026-07-01',
+          startTypeId: START_TYPE_WINCH,
+          crew: [],
+          isSoloFlight: false,
+          noStartTimeInformation: false,
+          noLdgTimeInformation: false,
+        },
+      }),
+    );
+    await page.route('**/api/v1/flights/last-context**', (route) =>
+      route.fulfill({ status: 404, json: {} }),
+    );
+    // Masterdata the wizard's selects read (aircraft / persons / flight-types /
+    // locations stores). One glider aircraft + one pilot so the operator can
+    // satisfy the required fields and watch Save enable.
+    await page.route('**/api/v1/aircraft**', (route) => route.fulfill({ json: mockAircraft }));
+    await page.route('**/api/v1/persons**', (route) => route.fulfill({ json: mockPersons }));
+    await page.route('**/api/v1/flight-types', (route) => route.fulfill({ json: mockFlightTypes }));
+    await page.route('**/api/v1/locations', (route) => route.fulfill({ json: [] }));
 
     await enterSection(page, '/flights');
-    // In-app: the New-flight CTA opens the stepper form.
+    // The /flights section lands on the LIST; the New-flight CTA opens the
+    // stepper at /flights/new (chrome entry, never a bare goto).
+    await page.getByTestId('flights-new-button').click();
     await expect(page.getByTestId('flight-form')).toBeVisible();
-    // Required fields empty → the submit control is disabled until
-    // flightDate + aircraft + pilot are present.
-    await expect(page.getByTestId('flight-submit-sticky').locator('button')).toBeDisabled();
+
+    // The sticky Save lives on the LAST step; flightDate is templated but
+    // aircraft + pilot are empty → the form is INVALID, so Save is disabled.
+    // (Header + sticky bind the same `formInvalid()` gate; the sticky is the
+    // <lg slot the stub named.)
+    const headerSave = page.getByTestId('flight-submit-header').locator('button');
+    await expect(headerSave).toBeDisabled();
+
+    // Fill the two missing required fields on the Glider step.
+    await page.getByTestId('flight-step-1').click();
+    await selectAfOption(page, 'flight-edit-glider-aircraft', AIRCRAFT_ID);
+    await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_ID);
+    void FT_GLIDER_ID;
+
+    // All three required fields present → Save enables (the gate tracked
+    // validity across the transition).
+    await expect(headerSave).toBeEnabled();
+
+    await page.screenshot({
+      path: 'screenshots/forms/15-flight-save-gated.png',
+      fullPage: true,
+    });
   });
 
   test('[edge] reservation Save disable state never disagrees with form validity (async second-crew race)', async ({

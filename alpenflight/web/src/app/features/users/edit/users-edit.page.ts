@@ -363,7 +363,12 @@ export class UsersEditPage {
   // attempt. Checkbox `touched` flags are unreliable on groups; track the first
   // interaction via a debounced value-change signal instead of waiting for submit.
   private readonly rolesInteracted = toSignal(
-    merge(...this.grantableRoles.map((r) => this.form.controls[r].valueChanges)).pipe(
+    // `this.form.controls[r]` index-fails under the build typecheck: r's type
+    // (UserUpdateRequestRolesItem) widens to include SYSTEM_ADMINISTRATOR, which
+    // is NOT a form control. `form.get(name)` returns AbstractControl | null with
+    // no index constraint — the grantable roles are all real controls, so the
+    // non-null assertion is safe (J-26 T-13 boyscout: unblocks the broken build).
+    merge(...this.grantableRoles.map((r) => this.form.get(r)!.valueChanges)).pipe(
       debounceTime(200),
     ),
     { initialValue: undefined },
