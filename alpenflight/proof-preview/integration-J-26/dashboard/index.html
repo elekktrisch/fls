@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T19:00:41.939Z
+      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T19:24:56.679Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -165,12 +165,44 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
+          <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">list</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-list.png" alt="legacy list" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">form</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-form.png" alt="legacy form" loading="lazy"></a>
+            <figcaption>Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -179,44 +211,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey" open>
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-3</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 3 screenshots</span></span>
-          <span class="summary-caption">AlpenFlight: the /start PILOT dashboard, populated from the showcase seed — greeting + a FILLED last-flight c…</span>
+          <span class="summary-head"><span class="summary-jid">J-3</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">pilot variant</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-start-pilot.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-start-pilot.png" alt="alpenflight pilot variant" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /start PILOT dashboard, populated from the showcase seed — greeting + a FILLED last-flight card (pilot1 is PIC on a real seeded club-1 flight; not the empty state)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">club-admin variant</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-start-clubadmin.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-start-clubadmin.png" alt="alpenflight club-admin variant" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /start CLUB-ADMIN dashboard (clubadmin1, club-1) — today's flights = 3 + pending-validation = 4, the exact tenant-scoped showcase club-1 counts</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">sysadmin variant</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-start-sysadmin.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-start-sysadmin.png" alt="alpenflight sysadmin variant" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /start SYSADMIN dashboard — cross-tenant aggregates (≥2 clubs / ≥14 flights / ≥6 users across the showcase) + the tenant-enter control</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
