@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T19:32:21.575Z
+      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-12T19:55:02.881Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -165,44 +165,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey" open>
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
-          <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
+          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-list.png" alt="legacy list" loading="lazy"></a>
-            <figcaption>Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list</figcaption>
-          </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-form.png" alt="legacy form" loading="lazy"></a>
-            <figcaption>Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)</figcaption>
-          </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -218,12 +186,54 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-4</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
+          <span class="summary-caption">AlpenFlight: /profile → Account tab (PILOT pilot1) — self-edit account fields (friendly name, notification em…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">Account tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-profile-account.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-profile-account.png" alt="alpenflight Account tab" loading="lazy"></a>
+            <figcaption>AlpenFlight: /profile → Account tab (PILOT pilot1) — self-edit account fields (friendly name, notification email, phone, language) functional via PATCH /api/v1/me/profile; username + club read-only</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Personal tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-profile-personal.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-profile-personal.png" alt="alpenflight Personal tab" loading="lazy"></a>
+            <figcaption>AlpenFlight: /profile → Personal tab (PILOT pilot1) — contact/address self-edit form (pilot1 has a linked Person)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Pilot tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-profile-pilot.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-profile-pilot.png" alt="alpenflight Pilot tab" loading="lazy"></a>
+            <figcaption>AlpenFlight: /profile → Pilot tab (PILOT pilot1) — licence/medical self-edit form (+ FADP audit on save)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Notifications tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-profile-notifications.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-profile-notifications.png" alt="alpenflight Notifications tab" loading="lazy"></a>
+            <figcaption>AlpenFlight: /profile → Notifications tab (PILOT pilot1) — the 3 notification-preference toggles</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
       </details>
       <details class="journey pending-journey">
         <summary>
