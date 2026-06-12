@@ -351,7 +351,7 @@ test.describe('J-26 cross-field validator + translated messages (mock inner loop
 // asserted on the representative aircraft / person / flight-type forms.
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 as-you-type debounced inline validation trio (mock inner loop)', () => {
-  test.fixme('[happy] aircraft edit shows a debounced inline error while typing + clears on valid (T-10)', async ({
+  test('[happy] aircraft edit shows a debounced inline error while typing + clears on valid (T-10)', async ({
     page,
   }) => {
     await page.route('**/api/v1/aircraft**', (route) => route.fulfill({ json: mockAircraft }));
@@ -359,8 +359,20 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
     await enterSection(page, '/aircraft');
     await page.getByTestId('aircraft-new-button').click();
     await expect(page.getByTestId('aircraft-edit-form')).toBeVisible();
-    // T-10 finalizes: type → clear a required field WITHOUT blur → the inline
-    // error appears after the ~200ms debounce; re-typing a valid value clears it.
+
+    // T-10: the J-6b as-you-type bar adopted on aircraft — type an INVALID value
+    // into a required field WITHOUT blurring; the inline error appears after the
+    // ~200ms `liveFieldErrors` debounce. Re-typing a VALID value clears it.
+    // `immatriculation` carries required + pattern (`^[A-Z0-9-]{2,15}$`); the
+    // touched-only binding showed nothing while typing — this proves it now does.
+    const immat = page.locator('#Immatriculation');
+    // A single lowercase char fails BOTH minLength(2) and the upper-only pattern,
+    // so the field is invalid the moment it has content (no blur needed).
+    await immat.fill('a');
+    await expect(fieldErrors(page, immat)).toBeVisible();
+    // A valid immatriculation clears the inline error (debounced).
+    await immat.fill('HB-3000');
+    await expect(fieldErrors(page, immat)).toHaveCount(0);
   });
 
   test.fixme('[happy] person edit shows a debounced inline error while typing + clears on valid (T-11)', async ({

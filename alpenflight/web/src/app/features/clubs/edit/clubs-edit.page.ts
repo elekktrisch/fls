@@ -11,11 +11,12 @@ import {
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   Validators,
   type FormGroup,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
@@ -24,6 +25,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+import { liveFieldErrors } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
@@ -76,21 +78,11 @@ type ClubForm = FormGroup<{
         class="flex flex-col gap-2"
         novalidate
       >
-        <af-form-field
-          label="Name"
-          for="clubName"
-          [required]="true"
-          [errors]="form.controls.name.touched ? form.controls.name.errors : null"
-        >
+        <af-form-field label="Name" for="clubName" [required]="true" [errors]="nameErrors()">
           <af-input inputId="clubName" formControlName="name" autocomplete="off" />
         </af-form-field>
 
-        <af-form-field
-          label="Slug"
-          for="clubSlug"
-          [required]="true"
-          [errors]="form.controls.slug.touched ? form.controls.slug.errors : null"
-        >
+        <af-form-field label="Slug" for="clubSlug" [required]="true" [errors]="slugErrors()">
           <af-input
             inputId="clubSlug"
             formControlName="slug"
@@ -104,18 +96,13 @@ type ClubForm = FormGroup<{
             label="Club key"
             for="clubKey"
             [required]="true"
-            [errors]="form.controls.clubKey.touched ? form.controls.clubKey.errors : null"
+            [errors]="clubKeyErrors()"
           >
             <af-input inputId="clubKey" formControlName="clubKey" autocomplete="off" />
           </af-form-field>
         }
 
-        <af-form-field
-          label="Country"
-          for="countryId"
-          [required]="true"
-          [errors]="form.controls.countryId.touched ? form.controls.countryId.errors : null"
-        >
+        <af-form-field label="Country" for="countryId" [required]="true" [errors]="countryErrors()">
           <af-select
             inputId="countryId"
             formControlName="countryId"
@@ -130,7 +117,7 @@ type ClubForm = FormGroup<{
           label="Club state"
           for="clubStateId"
           [required]="true"
-          [errors]="form.controls.clubStateId.touched ? form.controls.clubStateId.errors : null"
+          [errors]="clubStateErrors()"
         >
           <af-select
             inputId="clubStateId"
@@ -208,6 +195,26 @@ export class ClubsEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
+  // J-26 T-10 — server-side duplicate 409s (slug / clubKey, discriminated by
+  // T-07) routed through the `liveFieldErrors` async slot rather than `setErrors`
+  // (which carries no `valueChanges`, so the debounced stream never re-reads it).
+  // Cleared on retype (effects below).
+  private readonly slugDuplicate = signal<ValidationErrors | null>(null);
+  private readonly clubKeyDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
+  // infra): each field tracks its control's errors debounced ~200ms and clears
+  // when valid — replacing the touched-only `[errors]="ctl.touched ? …"` bindings.
+  protected readonly nameErrors = liveFieldErrors(this.form.controls.name);
+  protected readonly slugErrors = liveFieldErrors(this.form.controls.slug, {
+    asyncErrors$: toObservable(this.slugDuplicate),
+  });
+  protected readonly clubKeyErrors = liveFieldErrors(this.form.controls.clubKey, {
+    asyncErrors$: toObservable(this.clubKeyDuplicate),
+  });
+  protected readonly countryErrors = liveFieldErrors(this.form.controls.countryId);
+  protected readonly clubStateErrors = liveFieldErrors(this.form.controls.clubStateId);
+
   constructor() {
     effect(() => {
       // Re-run the slug validator whenever the entity list refreshes so the
@@ -254,23 +261,31 @@ export class ClubsEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       const kind = this.store.saveErrorKind();
-      const control =
-        kind === 'club-key-duplicate'
-          ? this.form.controls.clubKey
-          : kind === 'slug-duplicate'
-            ? this.form.controls.slug
-            : null;
-      if (control) {
-        control.setErrors({ duplicate: true });
-        control.markAsTouched();
+      // Route through the live-errors async slot so the inline message surfaces
+      // under the as-you-type binding (a `setErrors` carries no `valueChanges`).
+      if (kind === 'club-key-duplicate') {
+        this.clubKeyDuplicate.set({ duplicate: true });
+        this.form.controls.clubKey.markAsTouched();
+      } else if (kind === 'slug-duplicate') {
+        this.slugDuplicate.set({ duplicate: true });
+        this.form.controls.slug.markAsTouched();
       }
+    });
+
+    const destroyRef = inject(DestroyRef);
+    // Clear the server-side duplicate flag the moment the user retypes either
+    // field so Save re-enables and the stale 409 message disappears.
+    this.form.controls.slug.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
+      if (this.slugDuplicate() !== null) this.slugDuplicate.set(null);
+    });
+    this.form.controls.clubKey.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
+      if (this.clubKeyDuplicate() !== null) this.clubKeyDuplicate.set(null);
     });
 
     // Navigate on confirmed server success — the store emits club.created /
     // club.updated only inside the rxMethod's tapResponse.next callback,
     // which fires after the HTTP response. Errors disarm saveSubmitted via
     // the effect above so we don't navigate past them.
-    const destroyRef = inject(DestroyRef);
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'club.created' || evt.kind === 'club.updated') {
