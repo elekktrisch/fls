@@ -1,3 +1,8 @@
+import deLocale from '../../../../../i18n/de';
+import enLocale from '../../../../../i18n/en';
+import frLocale from '../../../../../i18n/fr';
+import itLocale from '../../../../../i18n/it';
+
 import { errorTranslationKey, errorsToKeys } from './field-errors';
 
 describe('errorTranslationKey', () => {
@@ -16,6 +21,49 @@ describe('errorTranslationKey', () => {
       'common.errors.arrivalBeforeDeparture',
     );
   });
+});
+
+describe('canonical error keys resolve in every shipped locale (J-26 T-08)', () => {
+  // The validator names that reach <af-field-errors> today: the Angular
+  // built-ins used across the edit forms + the synthetic `duplicate` key the
+  // stores set on 409. `errorTranslationKey` maps each onto `common.errors.*`;
+  // the component renders the key through transloco, so a missing entry in any
+  // locale file would put a raw i18n key (or the de fallback) on screen.
+  const VALIDATOR_NAMES = [
+    'required',
+    'minlength',
+    'maxlength',
+    'pattern',
+    'email',
+    'min',
+    'max',
+    'duplicate',
+  ] as const;
+
+  const LOCALES = { de: deLocale, en: enLocale, fr: frLocale, it: itLocale } as const;
+
+  function resolve(tree: object, dottedKey: string): unknown {
+    return dottedKey
+      .split('.')
+      .reduce<unknown>(
+        (node, part) =>
+          node !== null && typeof node === 'object'
+            ? (node as Record<string, unknown>)[part]
+            : undefined,
+        tree,
+      );
+  }
+
+  for (const [locale, tree] of Object.entries(LOCALES)) {
+    it(`every common.errors.* key has a non-empty ${locale} translation`, () => {
+      for (const name of VALIDATOR_NAMES) {
+        const key = errorTranslationKey(name);
+        const value = resolve(tree, key);
+        expect(value, `${locale}: ${key} must be a translated message`).toBeTypeOf('string');
+        expect((value as string).length, `${locale}: ${key} must not be empty`).toBeGreaterThan(0);
+      }
+    });
+  }
 });
 
 describe('errorsToKeys', () => {

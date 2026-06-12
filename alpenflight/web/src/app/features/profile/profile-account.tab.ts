@@ -122,11 +122,17 @@ type AccountForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('language')" for="ProfileLanguage">
+        <af-form-field
+          [label]="t('language')"
+          for="ProfileLanguage"
+          [required]="true"
+          [errors]="form.controls.languageId.touched ? form.controls.languageId.errors : null"
+        >
           <af-select
             inputId="ProfileLanguage"
             formControlName="languageId"
             [options]="languageOptions"
+            [allowClear]="true"
             data-testid="profile-account-language"
           />
         </af-form-field>
@@ -145,7 +151,7 @@ type AccountForm = FormGroup<{
           <af-button
             type="primary"
             htmlType="submit"
-            [disabled]="!store.canSave()"
+            [disabled]="form.invalid || !store.canSave()"
             data-testid="profile-account-save"
           >
             {{ t('save') }}
@@ -171,7 +177,10 @@ export class ProfileAccountTab {
       validators: [Validators.required, Validators.email, Validators.maxLength(256)],
     }),
     phoneNumber: this.fb.control('', { validators: [Validators.maxLength(30)] }),
-    languageId: this.fb.control(''),
+    // Required per legacy parity (flsweb profile.html:61 marked the language
+    // selectize `required`; the server-side @NotNull stays the authoritative
+    // gate) — J-26 T-08 restored the client validator.
+    languageId: this.fb.control('', { validators: [Validators.required] }),
   });
 
   constructor() {

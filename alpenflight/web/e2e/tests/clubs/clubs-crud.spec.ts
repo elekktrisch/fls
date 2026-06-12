@@ -292,10 +292,12 @@ test('clubs: invalid slug shows an inline field error before submit', async ({ p
   // Submit must be disabled while the form is invalid.
   await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
 
-  // The inline error renders next to the field via <af-field-errors>; the
-  // mapped error key is `common.errors.pattern` (the canonical placeholder
-  // until S-005 wires the i18n layer in).
-  await expect(page.locator('af-field-errors').filter({ hasText: 'pattern' })).toBeVisible();
+  // The inline error renders next to the field via <af-field-errors>. Since
+  // J-26 T-08 the mapped key renders TRANSLATED (no raw `common.errors.pattern`
+  // text to match on), so scope the assertion to the slug field's alert.
+  await expect(
+    page.locator('af-form-field', { has: page.locator('#clubSlug') }).getByRole('alert'),
+  ).toBeVisible();
 });
 
 // S-007 — async validator surfaces a duplicate slug *before* the user clicks
@@ -321,7 +323,10 @@ test('clubs: client-side async validator flags a duplicate slug before submit', 
   await slug.fill(seedClub.slug); // 'seed-club-1' is already taken
   await slug.blur();
 
-  // Save button disabled because async validator flagged duplicate.
+  // Save button disabled because async validator flagged duplicate. The
+  // duplicate error renders TRANSLATED since J-26 T-08, so scope by field.
   await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
-  await expect(page.locator('af-field-errors').filter({ hasText: 'duplicate' })).toBeVisible();
+  await expect(
+    page.locator('af-form-field', { has: page.locator('#clubSlug') }).getByRole('alert'),
+  ).toBeVisible();
 });

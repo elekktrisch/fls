@@ -54,6 +54,8 @@ const PERSON_ID = '019e30c3-2c00-7001-8000-0000000000b1';
 const AIRCRAFT_ID = '019e30c3-2c00-7001-8000-00000000a001';
 const COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
+// V2-seeded language id (LANGUAGE_BY_LOCALE.de — src/app/shared/ui/locale).
+const LANGUAGE_ID_DE = '019e2e15-2c00-77d0-8000-0000000007d0';
 
 const mockFlightTypes = [
   {
@@ -241,35 +243,104 @@ test.describe('J-26 cross-field validator + translated messages (mock inner loop
     },
   );
 
-  test.fixme('[happy] af-field-errors renders TRANSLATED text — no raw common.errors.* key visible', async ({
+  test('[happy] af-field-errors renders TRANSLATED text — no raw common.errors.* key visible', async ({
     page,
   }) => {
-    // T-08 thickens: af-field-errors goes through transloco (today the raw
-    // i18n key renders verbatim). Representative probe: trip a required error
-    // and assert the rendered text is the German message, not the key.
+    // T-08: af-field-errors renders its mapped keys through transloco (the raw
+    // i18n key used to render verbatim). Representative probe: trip a required
+    // error and assert the rendered text is the German message, not the key.
+    await page.route('**/api/v1/countries**', (route) =>
+      route.fulfill({ json: [{ id: COUNTRY_ID, iso2Code: 'CH', name: 'Switzerland' }] }),
+    );
+    await page.route('**/api/v1/club-states**', (route) =>
+      route.fulfill({ json: [{ id: CLUB_STATE_ID, code: 'ACTIVE', name: 'Active' }] }),
+    );
     await page.route('**/api/v1/clubs', (route) => route.fulfill({ json: mockClubs }));
 
     await enterSection(page, '/clubs');
-    await page.getByTestId('clubs-table').getByRole('row').nth(1).click();
+    // Row primary cell is a link (af-data-table renders a list, not a table).
+    await page.getByTestId('club-row-seed-club').click();
     await expect(page.getByTestId('clubs-edit-form')).toBeVisible();
 
-    await page.locator('#clubName').fill('');
-    const errors = fieldErrors(page, page.locator('#clubName'));
+    const name = page.locator('#clubName');
+    await expect(name).toHaveValue('Seed Club'); // hydrated before we clear it
+    await name.fill('');
+    await name.blur(); // errors render once the field is touched (S-007 gate)
+
+    const errors = fieldErrors(page, name);
     await expect(errors).toBeVisible();
-    // No raw dotted i18n key anywhere in the rendered error line.
+    // The TRANSLATED German message (lang pinned via ?lang=de), and no raw
+    // dotted i18n key anywhere in the rendered error line.
+    await expect(errors).toHaveText('Eingabe erforderlich.');
     await expect(errors).not.toContainText(/common\.errors\./);
+
+    await page.screenshot({
+      path: 'screenshots/forms/13-translated-required-error.png',
+      fullPage: true,
+    });
   });
 
-  test.fixme('[happy] profile Account languageId required validator restored (legacy parity)', async ({
+  test('[happy] profile Account languageId required validator restored (legacy parity)', async ({
     page,
   }) => {
-    // T-08 thickens. Profile is in the user-menu chrome (af-nav-user), not a
-    // nav section. Clearing the language select must trip required + block Save.
+    // T-08. Profile is in the user-menu chrome (af-nav-user), not a nav
+    // section. Clearing the language select must trip required + block Save
+    // (legacy profile.html:61 marked the language selectize `required`).
+    // `personId: null` keeps the Personal/Pilot/Notifications tabs disabled, so
+    // GET /api/v1/me is the only call the screen fires under mock-auth.
+    await page.route('**/api/v1/me', (route) =>
+      route.fulfill({
+        json: {
+          id: 'mock-sysadmin',
+          personId: null,
+          clubId: CLUB_ID,
+          roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
+          firstName: 'Mock',
+          lastName: 'Sysadmin',
+          email: 'mock@local',
+          username: 'mock-sysadmin',
+          friendlyName: 'Mock Sysadmin',
+          phoneNumber: '',
+          languageId: LANGUAGE_ID_DE,
+          languageCode: 'de',
+        },
+      }),
+    );
+
     await page.goto('/start?lang=de');
     await page.getByTestId('af-nav-user').click();
-    await page.getByRole('link', { name: /profil/i }).click();
+    // The dropdown entry is an <a role="menuitem"> (explicit role overrides
+    // the implicit link role).
+    await page.getByRole('menuitem', { name: /profil/i }).click();
     await expect(page).toHaveURL(/\/profile/);
-    // T-08 finalizes: clear languageId → required error + Save disabled.
+
+    // Hydrated: the seeded language renders + Save is enabled (form valid).
+    const language = page.getByTestId('profile-account-language');
+    await expect(language).toContainText('Deutsch');
+    const save = page.getByTestId('profile-account-save').locator('button');
+    await expect(save).toBeEnabled();
+
+    // Clear the select (nz-select clear affordance shows on hover) → required
+    // error inline via af-field-errors (translated, T-08a) + Save disabled.
+    await language.hover();
+    await language.locator('nz-select-clear').click();
+
+    const errors = fieldErrors(page, language);
+    await expect(errors).toBeVisible();
+    await expect(errors).toHaveText('Eingabe erforderlich.');
+    await expect(errors).not.toContainText(/common\.errors\./);
+    await expect(save).toBeDisabled();
+
+    await page.screenshot({
+      path: 'screenshots/forms/14-profile-language-required.png',
+      fullPage: true,
+    });
+
+    // Re-picking a language recovers inline — error clears, Save re-enables.
+    await language.click();
+    await page.getByTestId(`af-select-option-${LANGUAGE_ID_DE}`).click();
+    await expect(errors).toHaveCount(0);
+    await expect(save).toBeEnabled();
   });
 });
 

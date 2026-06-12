@@ -49,6 +49,18 @@ const it: Translations = {
     },
     title: 'Aeromobili',
   },
+  common: {
+    errors: {
+      duplicate: 'Già in uso.',
+      email: 'Indirizzo e-mail non valido.',
+      max: 'Valore troppo grande.',
+      maxlength: 'Testo troppo lungo.',
+      min: 'Valore troppo piccolo.',
+      minlength: 'Testo troppo corto.',
+      pattern: 'Formato non valido.',
+      required: 'Campo obbligatorio.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Continua a modificare',
