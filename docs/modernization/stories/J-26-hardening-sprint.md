@@ -112,7 +112,7 @@ CLUB-pgcopy (migration scope, pre-J-21).
 
 ## Tasks
 
-- [ ] **T-01** — spec stub + proof page: author `forms/validation-hardening.spec.ts` + `real-idp/hardening-J26.spec.ts` structure/selectors/flow (thin assertions, enter via nav) AND scaffold the J-26 per-journey gallery page + link it from the persistent index.
+- [x] **T-01** — spec stub + proof page: author `forms/validation-hardening.spec.ts` + `real-idp/hardening-J26.spec.ts` structure/selectors/flow (thin assertions, enter via nav) AND scaffold the J-26 per-journey gallery page + link it from the persistent index. *(Stub finding, for the un-fixme tasks: chrome entry needs (a) the dual-role mock principal to see the UNION of nav sections — `navSectionsFor` short-circuits to Clubs-only today — and (b) a `/flight-types` nav section — URL-only screen today, the J-7 hollow-screen class.)*
 - [ ] **T-02** — per-push gate scope: finalize `mock_test:` stems (J-6b regex convention) + verify BOTH ci.yml derive steps resolve J-26 (mock filter + `parity_test` real-idp spec, `is_baseline=false`); actionlint.
 - [ ] **T-03** — fix nightly `alpenflight-e2e-real-idp.yml`: add setup-java 21 (mirror ci.yml), then `gh workflow run` it on THIS branch and verify JOB-level it reaches the Playwright specs — 12 days of unrun cross-journey regression re-baselined; any latent red becomes a new T-NN.
 - [ ] **T-04** — persons membership data-loss fix: wire `PUT /persons/{id}/clubs/current` into the persons.store update path (fields already hydrated, request omits them) + mock spec case asserting memberNumber/state/role-toggle round-trip.

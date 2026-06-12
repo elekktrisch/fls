@@ -62,6 +62,7 @@ export const ROADMAP_FALLBACK = [
   'J-5',
   'J-6',
   'J-7',
+  'J-26', // hardening sprint — ships before J-8 (order ≠ id), mirrors _ORDER.md
   'J-8',
   'J-9',
   'J-10',
@@ -78,6 +79,7 @@ export const ROADMAP_FALLBACK = [
   'J-21',
   'J-22',
   'J-24',
+  'J-25',
 ];
 
 /**
