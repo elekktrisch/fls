@@ -25,6 +25,8 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { liveFieldErrors } from '@shared/util/form';
+
 import type {
   PersonClubRequest,
   PersonCreateRequest,
@@ -102,7 +104,7 @@ type PersonForm = FormGroup<{
             label="First name"
             for="Firstname"
             [required]="true"
-            [errors]="form.controls.firstname.touched ? form.controls.firstname.errors : null"
+            [errors]="firstnameErrors()"
           >
             <af-input
               inputId="Firstname"
@@ -116,7 +118,7 @@ type PersonForm = FormGroup<{
             label="Last name"
             for="Lastname"
             [required]="true"
-            [errors]="form.controls.lastname.touched ? form.controls.lastname.errors : null"
+            [errors]="lastnameErrors()"
           >
             <af-input
               inputId="Lastname"
@@ -126,11 +128,7 @@ type PersonForm = FormGroup<{
             />
           </af-form-field>
 
-          <af-form-field
-            label="Email"
-            for="Email"
-            [errors]="form.controls.email.touched ? form.controls.email.errors : null"
-          >
+          <af-form-field label="Email" for="Email" [errors]="emailErrors()">
             <af-input
               inputId="Email"
               type="email"
@@ -140,7 +138,7 @@ type PersonForm = FormGroup<{
             />
           </af-form-field>
 
-          <af-form-field label="Mobile phone" for="MobilePhone">
+          <af-form-field label="Mobile phone" for="MobilePhone" [errors]="mobilePhoneErrors()">
             <af-input
               inputId="MobilePhone"
               formControlName="mobilePhone"
@@ -149,7 +147,7 @@ type PersonForm = FormGroup<{
             />
           </af-form-field>
 
-          <af-form-field label="City" for="City">
+          <af-form-field label="City" for="City" [errors]="cityErrors()">
             <af-input
               inputId="City"
               formControlName="city"
@@ -158,7 +156,7 @@ type PersonForm = FormGroup<{
             />
           </af-form-field>
 
-          <af-form-field label="Member number" for="MemberNumber">
+          <af-form-field label="Member number" for="MemberNumber" [errors]="memberNumberErrors()">
             <af-input
               inputId="MemberNumber"
               formControlName="memberNumber"
@@ -268,10 +266,18 @@ export class PersonsEditPage {
     isTowPilot: this.fb.control(false),
   });
 
-  // Per-field error access is inlined in the template
-  // (`[errors]="ctl.touched ? ctl.errors : null"`) mirroring the
-  // locations / aircraft sibling pattern — ReactiveForms event listeners
-  // drive view updates; no signal bridge needed.
+  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit) and binding the previously-silent optional fields
+  // (city / mobile / memberNumber) that carried a maxLength validator but
+  // rendered no inline error at all.
+  protected readonly firstnameErrors = liveFieldErrors(this.form.controls.firstname);
+  protected readonly lastnameErrors = liveFieldErrors(this.form.controls.lastname);
+  protected readonly emailErrors = liveFieldErrors(this.form.controls.email);
+  protected readonly mobilePhoneErrors = liveFieldErrors(this.form.controls.mobilePhone);
+  protected readonly cityErrors = liveFieldErrors(this.form.controls.city);
+  protected readonly memberNumberErrors = liveFieldErrors(this.form.controls.memberNumber);
 
   constructor() {
     // Hydrate the form when an existing detail is loaded.

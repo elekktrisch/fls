@@ -2,18 +2,22 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  Injector,
+  type Signal,
   computed,
   effect,
   inject,
+  runInInjectionContext,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   type AbstractControl,
   FormArray,
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   type ValidatorFn,
   Validators,
   type FormGroup,
@@ -29,6 +33,8 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+
+import { liveFieldErrors } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
@@ -127,7 +133,7 @@ type LocationForm = FormGroup<{
           label="Name"
           for="LocationName"
           [required]="true"
-          [errors]="form.controls.locationName.touched ? form.controls.locationName.errors : null"
+          [errors]="locationNameErrors()"
         >
           <af-input inputId="LocationName" formControlName="locationName" autocomplete="off" />
         </af-form-field>
@@ -135,9 +141,7 @@ type LocationForm = FormGroup<{
         <af-form-field
           label="Short name"
           for="LocationShortName"
-          [errors]="
-            form.controls.locationShortName.touched ? form.controls.locationShortName.errors : null
-          "
+          [errors]="locationShortNameErrors()"
         >
           <af-input
             inputId="LocationShortName"
@@ -146,11 +150,7 @@ type LocationForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field
-          label="ICAO code"
-          for="IcaoCode"
-          [errors]="form.controls.icaoCode.touched ? form.controls.icaoCode.errors : null"
-        >
+        <af-form-field label="ICAO code" for="IcaoCode" [errors]="icaoCodeErrors()">
           <af-input
             inputId="IcaoCode"
             formControlName="icaoCode"
@@ -163,7 +163,7 @@ type LocationForm = FormGroup<{
           label="Country"
           for="CountryId"
           [required]="true"
-          [errors]="form.controls.countryId.touched ? form.controls.countryId.errors : null"
+          [errors]="countryIdErrors()"
         >
           <af-select
             inputId="CountryId"
@@ -179,9 +179,7 @@ type LocationForm = FormGroup<{
           label="Location type"
           for="LocationTypeId"
           [required]="true"
-          [errors]="
-            form.controls.locationTypeId.touched ? form.controls.locationTypeId.errors : null
-          "
+          [errors]="locationTypeIdErrors()"
         >
           <af-select
             inputId="LocationTypeId"
@@ -193,18 +191,10 @@ type LocationForm = FormGroup<{
         </af-form-field>
 
         <div class="grid grid-cols-2 gap-2">
-          <af-form-field
-            label="Latitude"
-            for="Latitude"
-            [errors]="form.controls.latitude.touched ? form.controls.latitude.errors : null"
-          >
+          <af-form-field label="Latitude" for="Latitude" [errors]="latitudeErrors()">
             <af-input inputId="Latitude" formControlName="latitude" autocomplete="off" />
           </af-form-field>
-          <af-form-field
-            label="Longitude"
-            for="Longitude"
-            [errors]="form.controls.longitude.touched ? form.controls.longitude.errors : null"
-          >
+          <af-form-field label="Longitude" for="Longitude" [errors]="longitudeErrors()">
             <af-input inputId="Longitude" formControlName="longitude" autocomplete="off" />
           </af-form-field>
         </div>
@@ -262,28 +252,32 @@ type LocationForm = FormGroup<{
                   [formGroupName]="i"
                   [attr.data-testid]="'locations-iop-row-' + i"
                 >
-                  <af-form-field label="Name" [required]="true">
+                  <af-form-field
+                    label="Name"
+                    [required]="true"
+                    [errors]="iopErrors(iop, 'pointName')()"
+                  >
                     <af-input
                       formControlName="pointName"
                       autocomplete="off"
                       [attr.data-testid]="'locations-iop-name-' + i"
                     />
                   </af-form-field>
-                  <af-form-field label="Type">
+                  <af-form-field label="Type" [errors]="iopErrors(iop, 'pointType')()">
                     <af-input
                       formControlName="pointType"
                       autocomplete="off"
                       [attr.data-testid]="'locations-iop-type-' + i"
                     />
                   </af-form-field>
-                  <af-form-field label="Direction">
+                  <af-form-field label="Direction" [errors]="iopErrors(iop, 'direction')()">
                     <af-input
                       formControlName="direction"
                       autocomplete="off"
                       [attr.data-testid]="'locations-iop-direction-' + i"
                     />
                   </af-form-field>
-                  <af-form-field label="Description">
+                  <af-form-field label="Description" [errors]="iopErrors(iop, 'description')()">
                     <af-input
                       formControlName="description"
                       autocomplete="off"
@@ -370,6 +364,57 @@ export class LocationsEditPage {
     return this.form.controls.inOutboundPoints;
   }
 
+  private readonly injector = inject(Injector);
+
+  // J-26 T-11 — server-side ICAO-duplicate routed through the `liveFieldErrors`
+  // async slot (`inline-validation.ts` extension point) rather than `setErrors`,
+  // so the inline message surfaces under the as-you-type binding (a `setErrors`
+  // carries no `valueChanges`, so the debounced stream never re-reads it).
+  // Cleared the moment the user retypes (effect below).
+  private readonly icaoDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings.
+  protected readonly locationNameErrors = liveFieldErrors(this.form.controls.locationName);
+  protected readonly locationShortNameErrors = liveFieldErrors(
+    this.form.controls.locationShortName,
+  );
+  protected readonly icaoCodeErrors = liveFieldErrors(this.form.controls.icaoCode, {
+    asyncErrors$: toObservable(this.icaoDuplicate),
+  });
+  protected readonly countryIdErrors = liveFieldErrors(this.form.controls.countryId);
+  protected readonly locationTypeIdErrors = liveFieldErrors(this.form.controls.locationTypeId);
+  protected readonly latitudeErrors = liveFieldErrors(this.form.controls.latitude);
+  protected readonly longitudeErrors = liveFieldErrors(this.form.controls.longitude);
+
+  // Per-IOP-row live-error signals. The IOP rows are a dynamic FormArray built
+  // after construction (addIop / hydrate), so each row's four field signals are
+  // created lazily inside the component injector (`liveFieldErrors` needs a
+  // `DestroyRef`) and cached against the row's FormGroup. Keyed by the row
+  // identity so `@for (… track i)` re-reads return the same signal.
+  private readonly iopFieldErrors = new WeakMap<
+    IopForm,
+    Record<keyof IopForm['controls'], Signal<ValidationErrors | null>>
+  >();
+
+  protected iopErrors(
+    row: IopForm,
+    field: keyof IopForm['controls'],
+  ): Signal<ValidationErrors | null> {
+    let cached = this.iopFieldErrors.get(row);
+    if (!cached) {
+      cached = runInInjectionContext(this.injector, () => ({
+        pointName: liveFieldErrors(row.controls.pointName),
+        pointType: liveFieldErrors(row.controls.pointType),
+        direction: liveFieldErrors(row.controls.direction),
+        description: liveFieldErrors(row.controls.description),
+      }));
+      this.iopFieldErrors.set(row, cached);
+    }
+    return cached[field];
+  }
+
   protected readonly saveSubmitted = signal(false);
 
   constructor() {
@@ -419,7 +464,10 @@ export class LocationsEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       if (this.store.saveErrorKind() === 'icao-duplicate') {
-        this.form.controls.icaoCode.setErrors({ duplicate: true });
+        // Route through the live-errors async slot (J-26 T-11) so the inline
+        // message surfaces under the as-you-type binding (merged with any
+        // concurrent client error, never masking it).
+        this.icaoDuplicate.set({ duplicate: true });
         this.form.controls.icaoCode.markAsTouched();
       }
     });
@@ -428,10 +476,8 @@ export class LocationsEditPage {
     // Clear the synthetic `duplicate` flag the moment the user retypes the
     // ICAO so Save re-enables without a tab-out/tab-back blur dance.
     this.form.controls.icaoCode.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
-      if (this.form.controls.icaoCode.hasError('duplicate')) {
-        const errs = { ...this.form.controls.icaoCode.errors };
-        delete errs['duplicate'];
-        this.form.controls.icaoCode.setErrors(Object.keys(errs).length ? errs : null);
+      if (this.icaoDuplicate() !== null) {
+        this.icaoDuplicate.set(null);
       }
       // Drop the page-level save banner too so the user isn't reading a stale
       // "already in use" prompt while already retyping the value.

@@ -6,12 +6,14 @@ import {
   effect,
   inject,
   signal,
+  type WritableSignal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   Validators,
   type FormGroup,
 } from '@angular/forms';
@@ -28,6 +30,8 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+
+import { liveFieldErrors } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
@@ -110,9 +114,7 @@ type FlightTypeForm = FormGroup<{
                 label="Name"
                 for="FlightTypeName"
                 [required]="true"
-                [errors]="
-                  form.controls.flightTypeName.touched ? form.controls.flightTypeName.errors : null
-                "
+                [errors]="flightTypeNameErrors()"
               >
                 <af-input
                   inputId="FlightTypeName"
@@ -121,11 +123,7 @@ type FlightTypeForm = FormGroup<{
                   placeholder="Schulflug"
                 />
               </af-form-field>
-              <af-form-field
-                label="Code"
-                for="FlightCode"
-                [errors]="form.controls.flightCode.touched ? form.controls.flightCode.errors : null"
-              >
+              <af-form-field label="Code" for="FlightCode" [errors]="flightCodeErrors()">
                 <af-input
                   inputId="FlightCode"
                   formControlName="flightCode"
@@ -133,15 +131,7 @@ type FlightTypeForm = FormGroup<{
                   placeholder="S"
                 />
               </af-form-field>
-              <af-form-field
-                label="Min. aircraft seats"
-                for="MinSeats"
-                [errors]="
-                  form.controls.minNrOfAircraftSeatsRequired.touched
-                    ? form.controls.minNrOfAircraftSeatsRequired.errors
-                    : null
-                "
-              >
+              <af-form-field label="Min. aircraft seats" for="MinSeats" [errors]="minSeatsErrors()">
                 <af-input
                   inputId="MinSeats"
                   type="number"
@@ -341,6 +331,30 @@ export class FlightTypesEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
+  // J-26 T-11 — server-side name/code duplicates routed through the
+  // `liveFieldErrors` async slot (`inline-validation.ts` extension point) rather
+  // than `setErrors`, so the inline message surfaces under the as-you-type
+  // binding (a `setErrors` carries no `valueChanges`, so the debounced stream
+  // would never re-read it). Cleared the moment the user retypes (see
+  // clearDuplicateOnEdit below).
+  private readonly nameDuplicate = signal<ValidationErrors | null>(null);
+  private readonly codeDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit). Name + Code merge their server-duplicate 409 through the
+  // async slot.
+  protected readonly flightTypeNameErrors = liveFieldErrors(this.form.controls.flightTypeName, {
+    asyncErrors$: toObservable(this.nameDuplicate),
+  });
+  protected readonly flightCodeErrors = liveFieldErrors(this.form.controls.flightCode, {
+    asyncErrors$: toObservable(this.codeDuplicate),
+  });
+  protected readonly minSeatsErrors = liveFieldErrors(
+    this.form.controls.minNrOfAircraftSeatsRequired,
+  );
+
   constructor() {
     effect(() => {
       const id = this.flightTypeId();
@@ -370,15 +384,34 @@ export class FlightTypesEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       // 409s are field-routed by the problem-detail `field` (J-26 T-05):
-      // name vs code conflicts land inline on their own control.
+      // name vs code conflicts land inline on their own control. Routed through
+      // the live-errors async slot (J-26 T-11) so the message surfaces under the
+      // as-you-type binding (merged with any concurrent client error, never
+      // masking it).
       const kind = this.store.saveErrorKind();
-      if (kind === 'name-duplicate') markDuplicate(this.form.controls.flightTypeName);
-      if (kind === 'code-duplicate') markDuplicate(this.form.controls.flightCode);
+      if (kind === 'name-duplicate') {
+        this.nameDuplicate.set({ duplicate: true });
+        this.form.controls.flightTypeName.markAsTouched();
+      }
+      if (kind === 'code-duplicate') {
+        this.codeDuplicate.set({ duplicate: true });
+        this.form.controls.flightCode.markAsTouched();
+      }
     });
 
     const destroyRef = inject(DestroyRef);
-    this.clearDuplicateOnEdit(this.form.controls.flightTypeName, 'name-duplicate', destroyRef);
-    this.clearDuplicateOnEdit(this.form.controls.flightCode, 'code-duplicate', destroyRef);
+    this.clearDuplicateOnEdit(
+      this.form.controls.flightTypeName,
+      this.nameDuplicate,
+      'name-duplicate',
+      destroyRef,
+    );
+    this.clearDuplicateOnEdit(
+      this.form.controls.flightCode,
+      this.codeDuplicate,
+      'code-duplicate',
+      destroyRef,
+    );
 
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
@@ -392,14 +425,13 @@ export class FlightTypesEditPage {
   /** Editing the control clears its inline duplicate error + the store's matching save error. */
   private clearDuplicateOnEdit(
     control: FormControl<string>,
+    duplicate: WritableSignal<ValidationErrors | null>,
     kind: SaveErrorKind,
     destroyRef: DestroyRef,
   ): void {
     control.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
-      if (control.hasError('duplicate')) {
-        const errs = { ...control.errors };
-        delete errs['duplicate'];
-        control.setErrors(Object.keys(errs).length ? errs : null);
+      if (duplicate() !== null) {
+        duplicate.set(null);
       }
       if (this.store.saveErrorKind() === kind) {
         this.store.clearSaveError();
@@ -421,11 +453,6 @@ export class FlightTypesEditPage {
       this.store.update({ id, req: formToUpdateRequest(this.form) });
     }
   }
-}
-
-function markDuplicate(control: FormControl<string>): void {
-  control.setErrors({ ...(control.errors ?? {}), duplicate: true });
-  control.markAsTouched();
 }
 
 function detailToFormValue(d: FlightTypeDetail): Partial<{

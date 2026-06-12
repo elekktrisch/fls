@@ -375,13 +375,23 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
     await expect(fieldErrors(page, immat)).toHaveCount(0);
   });
 
-  test.fixme('[happy] person edit shows a debounced inline error while typing + clears on valid (T-11)', async ({
+  test('[happy] person edit shows a debounced inline error while typing + clears on valid (T-11)', async ({
     page,
   }) => {
+    // Detail GET (`/persons/{id}`) is registered FIRST so the broader list glob
+    // (registered AFTER, last-wins in Playwright) does not shadow it — the edit
+    // page loads a SINGLE person, not the array the list returns.
+    await page.route(`**/api/v1/persons/${PERSON_ID}`, (route) =>
+      route.fulfill({ json: mockPersons[0] }),
+    );
     await page.route('**/api/v1/persons**', (route) => route.fulfill({ json: mockPersons }));
+    await page.route('**/api/v1/member-states**', (route) => route.fulfill({ json: [] }));
 
     await enterSection(page, '/persons');
-    await page.getByTestId('persons-table').getByRole('row').nth(1).click();
+    // The persons list is an af-data-table rendered as a LIST (not a <table>) —
+    // the row primary cell is a routerLink testid `person-row-<id>` (J-26 T-08
+    // corrected the same stub assumption on /clubs).
+    await page.getByTestId(`person-row-${PERSON_ID}`).click();
     await expect(page.getByTestId('person-form')).toBeVisible();
 
     const lastname = page.getByTestId('lastname-input').locator('input');
@@ -391,7 +401,7 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
     await expect(fieldErrors(page, page.getByTestId('lastname-input'))).toHaveCount(0);
   });
 
-  test.fixme('[happy] flight-type edit shows a debounced inline error while typing + clears on valid (T-11)', async ({
+  test('[happy] flight-type edit shows a debounced inline error while typing + clears on valid (T-11)', async ({
     page,
   }) => {
     await page.route('**/api/v1/flight-types', (route) => route.fulfill({ json: mockFlightTypes }));
