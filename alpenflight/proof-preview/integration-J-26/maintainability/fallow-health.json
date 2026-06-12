@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.94.0",
-  "elapsed_ms": 382,
+  "elapsed_ms": 415,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -1292,6 +1292,36 @@
       ]
     },
     {
+      "path": "src/app/features/profile/profile-account.tab.ts",
+      "name": "<template>",
+      "line": 39,
+      "col": 0,
+      "cyclomatic": 12,
+      "cognitive": 9,
+      "line_count": 111,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 43.1,
+      "coverage_tier": "partial",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "increase-coverage",
+          "auto_fixable": false,
+          "description": "Increase test coverage for `<template>` (file is reachable from existing tests; add targeted assertions for uncovered branches)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; targeted branch coverage is more efficient than scaffolding new test files when the file already has coverage"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/shared/ui/organisms/af-autocomplete/af-autocomplete.component.ts",
       "name": "<component>",
       "line": 128,
@@ -1606,36 +1636,6 @@
           "description": "Suppress with an inline comment above the function declaration",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-function-declaration"
-        }
-      ]
-    },
-    {
-      "path": "src/app/features/profile/profile-account.tab.ts",
-      "name": "<template>",
-      "line": 39,
-      "col": 0,
-      "cyclomatic": 10,
-      "cognitive": 7,
-      "line_count": 105,
-      "param_count": 0,
-      "exceeded": "crap",
-      "severity": "critical",
-      "crap": 110.0,
-      "coverage_tier": "none",
-      "coverage_source": "estimated",
-      "actions": [
-        {
-          "type": "add-tests",
-          "auto_fixable": false,
-          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
-          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
-        },
-        {
-          "type": "suppress-line",
-          "auto_fixable": false,
-          "description": "Suppress with an inline comment above the Angular decorator",
-          "comment": "// fallow-ignore-next-line complexity",
-          "placement": "above-angular-decorator"
         }
       ]
     },
@@ -3217,9 +3217,9 @@
     "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
-    "severity_critical_count": 32,
+    "severity_critical_count": 31,
     "severity_high_count": 28,
-    "severity_moderate_count": 40
+    "severity_moderate_count": 41
   },
   "vital_signs": {
     "dead_file_pct": 0.9,
@@ -3242,7 +3242,7 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1455,
-      "total_lines": 27664,
+      "total_lines": 27731,
       "files_scored": 163,
       "total_deps": 0
     },
@@ -3261,7 +3261,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.2,
-    "total_loc": 27664
+    "total_loc": 27731
   },
   "health_score": {
     "formula_version": 2,
@@ -3535,20 +3535,6 @@
       "crap_above_threshold": 1
     },
     {
-      "path": "src/app/features/profile/profile-account.tab.ts",
-      "fan_in": 1,
-      "fan_out": 6,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.08,
-      "maintainability_index": 89.8,
-      "total_cyclomatic": 17,
-      "total_cognitive": 10,
-      "function_count": 5,
-      "lines": 216,
-      "crap_max": 110.0,
-      "crap_above_threshold": 1
-    },
-    {
       "path": "src/app/features/users/edit/person-picker.component.ts",
       "fan_in": 1,
       "fan_out": 4,
@@ -3798,6 +3784,20 @@
       "function_count": 16,
       "lines": 220,
       "crap_max": 49.5,
+      "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/profile/profile-account.tab.ts",
+      "fan_in": 2,
+      "fan_out": 6,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.08,
+      "maintainability_index": 89.8,
+      "total_cyclomatic": 19,
+      "total_cognitive": 12,
+      "function_count": 5,
+      "lines": 225,
+      "crap_max": 43.1,
       "crap_above_threshold": 1
     },
     {
@@ -4082,7 +4082,7 @@
     },
     {
       "path": "src/app/features/profile/account.store.ts",
-      "fan_in": 3,
+      "fan_in": 4,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.18,
@@ -5089,6 +5089,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/shared/ui/molecules/af-field-errors/af-field-errors.component.ts",
+      "fan_in": 1,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.1,
+      "maintainability_index": 95.4,
+      "total_cyclomatic": 3,
+      "total_cognitive": 1,
+      "function_count": 2,
+      "lines": 31,
+      "crap_max": 2.9,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/ui/molecules/af-reservation-row/af-reservation-row.component.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -5099,20 +5113,6 @@
       "total_cognitive": 1,
       "function_count": 4,
       "lines": 86,
-      "crap_max": 2.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/shared/ui/molecules/af-field-errors/af-field-errors.component.ts",
-      "fan_in": 1,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.14,
-      "maintainability_index": 95.5,
-      "total_cyclomatic": 3,
-      "total_cognitive": 1,
-      "function_count": 2,
-      "lines": 21,
       "crap_max": 2.9,
       "crap_above_threshold": 0
     },
@@ -5742,6 +5742,12 @@
       "line_count": 112
     },
     {
+      "path": "src/app/features/profile/profile-account.tab.ts",
+      "name": "<template>",
+      "line": 39,
+      "line_count": 111
+    },
+    {
       "path": "src/app/features/flight-types/list/flight-types-list.page.ts",
       "name": "<template>",
       "line": 16,
@@ -5764,12 +5770,6 @@
       "name": "<arrow>",
       "line": 100,
       "line_count": 106
-    },
-    {
-      "path": "src/app/features/profile/profile-account.tab.ts",
-      "name": "<template>",
-      "line": 39,
-      "line_count": 105
     },
     {
       "path": "src/app/core/session/session.store.ts",
@@ -5996,7 +5996,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_83777b759737fa7d"
+      "analysis_run_id": "run_340a9bc30a58335a"
     }
   }
 }
