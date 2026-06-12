@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.94.0",
-  "elapsed_ms": 384,
+  "elapsed_ms": 382,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -2666,6 +2666,36 @@
       ]
     },
     {
+      "path": "src/app/features/clubs/edit/clubs-edit.page.ts",
+      "name": "<arrow>",
+      "line": 252,
+      "col": 11,
+      "cyclomatic": 5,
+      "cognitive": 5,
+      "line_count": 16,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<arrow>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/articles/list/articles-list.page.ts",
       "name": "<template>",
       "line": 16,
@@ -3179,7 +3209,7 @@
   "summary": {
     "files_analyzed": 212,
     "functions_analyzed": 1546,
-    "functions_above_threshold": 99,
+    "functions_above_threshold": 100,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
@@ -3189,7 +3219,7 @@
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 32,
     "severity_high_count": 28,
-    "severity_moderate_count": 39
+    "severity_moderate_count": 40
   },
   "vital_signs": {
     "dead_file_pct": 0.9,
@@ -3197,7 +3227,7 @@
     "avg_cyclomatic": 2.2,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 5.4,
+    "duplication_pct": 5.5,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
     "maintainability_avg": 92.0,
@@ -3208,18 +3238,18 @@
     "circular_deps_per_k_files": 0.0,
     "counts": {
       "total_files": 212,
-      "total_exports": 464,
+      "total_exports": 465,
       "dead_files": 2,
       "dead_exports": 1,
-      "duplicated_lines": 1440,
-      "total_lines": 27624,
+      "duplicated_lines": 1455,
+      "total_lines": 27664,
       "files_scored": 163,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 86.5,
-      "medium_risk": 6.7,
-      "high_risk": 3.0,
+      "low_risk": 86.4,
+      "medium_risk": 6.8,
+      "high_risk": 3.1,
       "very_high_risk": 3.7
     },
     "functions_over_60_loc_per_k": 36.9,
@@ -3231,11 +3261,11 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.2,
-    "total_loc": 27624
+    "total_loc": 27664
   },
   "health_score": {
     "formula_version": 2,
-    "score": 73.7,
+    "score": 73.6,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
@@ -3248,7 +3278,7 @@
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.6,
-      "duplication": 0.4
+      "duplication": 0.5
     }
   },
   "file_scores": [
@@ -3483,12 +3513,12 @@
       "dead_code_ratio": 0.0,
       "complexity_density": 0.14,
       "maintainability_index": 85.9,
-      "total_cyclomatic": 42,
-      "total_cognitive": 29,
+      "total_cyclomatic": 44,
+      "total_cognitive": 32,
       "function_count": 15,
-      "lines": 298,
+      "lines": 307,
       "crap_max": 110.0,
-      "crap_above_threshold": 2
+      "crap_above_threshold": 3
     },
     {
       "path": "src/app/app.component.ts",
@@ -3897,6 +3927,20 @@
       "crap_above_threshold": 1
     },
     {
+      "path": "src/app/features/clubs/clubs.store.ts",
+      "fan_in": 5,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.21,
+      "maintainability_index": 90.9,
+      "total_cyclomatic": 41,
+      "total_cognitive": 16,
+      "function_count": 27,
+      "lines": 200,
+      "crap_max": 26.5,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/articles/articles.store.ts",
       "fan_in": 3,
       "fan_out": 1,
@@ -4117,20 +4161,6 @@
       "total_cognitive": 16,
       "function_count": 50,
       "lines": 411,
-      "crap_max": 13.8,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/clubs/clubs.store.ts",
-      "fan_in": 5,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.22,
-      "maintainability_index": 90.6,
-      "total_cyclomatic": 38,
-      "total_cognitive": 11,
-      "function_count": 27,
-      "lines": 169,
       "crap_max": 13.8,
       "crap_above_threshold": 0
     },
@@ -5798,7 +5828,7 @@
     {
       "path": "src/app/features/clubs/clubs.store.ts",
       "name": "<arrow>",
-      "line": 66,
+      "line": 75,
       "line_count": 77
     },
     {
@@ -5830,6 +5860,12 @@
       "name": "<arrow>",
       "line": 61,
       "line_count": 75
+    },
+    {
+      "path": "src/app/features/clubs/edit/clubs-edit.page.ts",
+      "name": "constructor",
+      "line": 211,
+      "line_count": 71
     },
     {
       "path": "src/app/features/profile/profile-shell.page.ts",
@@ -5872,12 +5908,6 @@
       "name": "<template>",
       "line": 32,
       "line_count": 65
-    },
-    {
-      "path": "src/app/features/clubs/edit/clubs-edit.page.ts",
-      "name": "constructor",
-      "line": 211,
-      "line_count": 62
     },
     {
       "path": "src/app/core/events/me-events.service.ts",
@@ -5966,7 +5996,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_48c234ff1a97ca59"
+      "analysis_run_id": "run_83777b759737fa7d"
     }
   }
 }
