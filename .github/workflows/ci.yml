@@ -216,7 +216,24 @@ jobs:
               # job loads — running it here, clean-seed, would red. It already
               # has its own gating job, so we fall through to the baseline.)
               if [ -f "alpenflight/web/${spec}" ]; then
-                emit "$spec" "$jid" "false"; exit 0
+                # The file existing is NOT enough: a STUB spec whose every case
+                # is `test.fixme(` / `test.skip(` (the journey's parity_test
+                # authored at T-01, before its assertions are thickened) runs as
+                # a NO-OP here — zero captures, so the post-deploy
+                # deployed-journey guard then reds demanding a complete
+                # journey-under-work page that this run never produced (J-26
+                # T-31). Require ≥1 ACTIVE real-idp test before treating the
+                # spec as runnable. "Active" = a top-level `test(` declaration
+                # (NOT `test.fixme(` / `test.skip(` — those carry a `.` after
+                # `test`, so `^\s*test\(` excludes them; `test.describe(`
+                # grouping is likewise excluded — only the inner `test(` counts).
+                # When T-27 un-fixmes the assertions, this auto-flips to
+                # is_baseline=false with no workflow change.
+                if grep -qE '^[[:space:]]*test\(' "alpenflight/web/${spec}"; then
+                  emit "$spec" "$jid" "false"; exit 0
+                fi
+                echo "spec '${spec}' exists but has no active (non-fixme) real-idp test → baseline until thickened"
+                emit "$BASELINE" "$jid" "true"; exit 0
               fi
               echo "derived spec '${spec}' not found on disk → baseline (fail-safe)"
               emit "$BASELINE" "$jid" "true"; exit 0
@@ -1218,7 +1235,14 @@ jobs:
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
-          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          # Empty on a baseline run: a baseline (J-0 fail-safe) produces NO
+          # journey-under-work captures by definition, so the deployed-journey
+          # guard must not demand a complete journey page. The guard
+          # `test.skip`s when GALLERY_DEPLOYED_JOURNEY is empty-string (falsy).
+          # The step `if:` already gates on `proof_is_baseline != 'true'`; this
+          # is the defense-in-depth twin closing the latent bug for any future
+          # path that reaches the guard on a baseline fallback (J-26 T-31).
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline == 'true' && '' || needs.changes.outputs.proof_journey }}
           GALLERY_LINKS_ONLY: '1'
         run: |
           pnpm exec playwright test \
