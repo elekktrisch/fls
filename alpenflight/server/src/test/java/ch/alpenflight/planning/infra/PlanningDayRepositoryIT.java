@@ -12,6 +12,8 @@ import ch.alpenflight.planning.domain.PlanningDayRepository.Page;
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
+import ch.alpenflight.reservations.domain.AircraftReservation;
+import ch.alpenflight.reservations.domain.AircraftReservationRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Instant;
@@ -55,6 +57,7 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
     private static final LocalDate YESTERDAY = TODAY.minusDays(1);
 
     @Autowired private PlanningDayRepository planningDays;
+    @Autowired private AircraftReservationRepository reservations;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ClubRepository clubs;
     @Autowired private CountryRepository countries;
@@ -176,6 +179,53 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
         });
     }
 
+    /**
+     * J-26 T-16b — midnight-boundary proof of the UTC day window backing
+     * {@code countReservationsForDay}. The retired native probe truncated with
+     * {@code date(reservation_start)}, which applies the Postgres SESSION
+     * TimeZone; the replacement {@code countActiveOnDayAtLocation} compares the
+     * {@code timestamptz} start against the UTC instant window {@code [date 00:00
+     * UTC, date+1 00:00 UTC)}. Because both operands are instants (no
+     * tz-dependent {@code ::date} cast), the bucketing is independent of the
+     * runner's JVM tz and the DB session tz — and {@code hibernate.jdbc.time_zone}
+     * is NOT pinned to UTC in any profile, so this case is the only thing proving
+     * the boundary doesn't drift on a non-UTC CI runner.
+     *
+     * <p>Two reservations straddle the {@code DAY_1 → DAY_2} midnight: one at
+     * {@code DAY_1 23:30:00Z} (belongs to DAY_1 in UTC) and one at {@code DAY_2
+     * 00:30:00Z} (belongs to DAY_2). The DAY_1 count must include ONLY the 23:30Z
+     * row, and the DAY_2 count ONLY the 00:30Z row — neither leaking across the
+     * boundary. Seeded through the production save path (ADR 0027): an
+     * {@code Instant} binds to {@code timestamptz} as a true instant, so the seed
+     * itself carries no JVM-default-tz ambiguity.
+     */
+    @Test
+    void per_day_reservation_count_buckets_midnight_boundary_by_utc_window() {
+        UUID aircraftA = seedAircraft(clubA);
+        UUID pilot = seedPerson();
+
+        // 23:30Z on DAY_1 → DAY_1 bucket; 00:30Z on DAY_2 → DAY_2 bucket.
+        Instant lateOnDay1 = DAY_1.atStartOfDay(java.time.ZoneOffset.UTC)
+                .plusHours(23).plusMinutes(30).toInstant();
+        Instant earlyOnDay2 = DAY_2.atStartOfDay(java.time.ZoneOffset.UTC)
+                .plusMinutes(30).toInstant();
+
+        seedTimedReservation(aircraftA, pilot, locationA, lateOnDay1);
+        seedTimedReservation(aircraftA, pilot, locationA, earlyOnDay2);
+
+        Tenants.runAs(clubA, () -> {
+            assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
+                    .as("only the 23:30Z reservation belongs to DAY_1 in UTC "
+                            + "(the 00:30Z one is DAY_2, must not leak back)")
+                    .isEqualTo(1);
+            assertThat(planningDays.countReservationsForDay(DAY_2, locationA))
+                    .as("only the 00:30Z reservation belongs to DAY_2 in UTC "
+                            + "(the 23:30Z one is DAY_1, must not leak forward)")
+                    .isEqualTo(1);
+            return null;
+        });
+    }
+
     @Test
     void cross_tenant_find_by_id_returns_empty() {
         UUID dayId = Tenants.runAs(clubA,
@@ -239,6 +289,21 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                 UUID.randomUUID().toString(), clubId.toString(), aircraftId.toString(),
                 pilotId.toString(), locationId.toString(),
                 java.sql.Timestamp.from(start), java.sql.Timestamp.from(end));
+    }
+
+    /**
+     * Seeds a 2-hour timed reservation starting at exactly {@code start} through
+     * the production save path (ADR 0027) under the row's operating club, so the
+     * {@code Instant} binds to {@code timestamptz} as a true instant — no
+     * {@code java.sql.Timestamp}/JVM-default-tz round-trip. Used by the
+     * midnight-boundary case where the stored instant must be exact.
+     */
+    private void seedTimedReservation(UUID aircraftId, UUID pilotId, UUID locationId,
+                                      Instant start) {
+        Instant end = start.plus(2, ChronoUnit.HOURS);
+        Tenants.runAs(clubA, () -> reservations.save(AircraftReservation.create(
+                clubA, aircraftId, pilotId, locationId, null, null,
+                start, end, false, null, "IT_PLN_boundary")));
     }
 
     private static String nano() {
