@@ -1,5 +1,6 @@
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
+import { ensureSharedMigrationBundle } from './fan-out-parity-fixture';
 import { fillKcLogin } from './kc-form';
 import { findUsersByUsernameSearch, makeMigratedAdminLoginable } from './keycloak-admin';
 import { E2E_CANNED_PASSWORD } from './test-user';
@@ -345,13 +346,26 @@ export async function resolveMigratedTestClubAdmin(
   browser: Browser,
   baseURL: string,
 ): Promise<ResolvedMigratedAdmin> {
+  // Order-INDEPENDENCE (J-8 T-17): provisioning the migrated admins is the J-0c
+  // shared-bundle ingest, and Playwright's spec-sort does NOT honor CLI file
+  // order under `fullyParallel` (+ `workers:1`) — `accounting-rules-parity`
+  // sorts BEFORE `fan-out-migration-parity`, so this resolver used to run before
+  // the bundle was ingested and threw at `beforeAll`. `ensureSharedMigrationBundle`
+  // is a worker-scoped, idempotent, single-ingest memo of the SAME bundle the
+  // fan-out spec ingests: the first migrated-data spec to reach it triggers the
+  // one ingest, every other (incl. fan-out's own `beforeAll`) shares the cached
+  // result. So whichever migrated block the spec-sort runs first, the admins
+  // exist by the time we enumerate — no alphabetical luck, no sibling-race. The
+  // single-use bundle uploadId is therefore POSTed exactly once.
+  await ensureSharedMigrationBundle(browser, baseURL);
+
   const candidates = await findUsersByUsernameSearch(MIGRATED_ADMIN_USERNAME_INFIX);
   const migratedAdmins = candidates.filter((u) => clubIdFromUsername(u.username) !== null);
   if (migratedAdmins.length === 0) {
     throw new Error(
-      `no migration-provisioned admin (${MIGRATED_ADMIN_USERNAME_INFIX}…) exists — the J-0c ` +
-        `fan-out spec must ingest the real bundle earlier in this invocation, or the ` +
-        `CLUB provisioning regressed.`,
+      `no migration-provisioned admin (${MIGRATED_ADMIN_USERNAME_INFIX}…) exists after the ` +
+        `shared-bundle ingest — the J-0c CLUB provisioning regressed (the ingest produced no ` +
+        `migrated club admins).`,
     );
   }
 
