@@ -49,18 +49,28 @@ test.describe('token-lifecycle — realm-mutating', () => {
       { accessTokenLifespan: SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS },
       async () => {
         await loginAs(page, SEED_USER, SEED_PASSWORD);
-        // Wait past the shortened lifespan + the SPA's pre-expiry renewal
-        // window (60s per auth.config.ts:48). At login, the lib schedules
-        // a silent renewal immediately because renewBefore > lifespan;
-        // we just need to give the rotation enough time to land.
-        await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 5) * 1000);
+        // Wait past TWO shortened lifespans so at least one full silent
+        // rotation is guaranteed to have fired AND settled before we
+        // observe. At login the lib schedules a renewal immediately
+        // (renewBefore=60s > 30s lifespan, auth.config.ts:48) and then
+        // re-renews every ~lifespan; a single-lifespan wait could observe
+        // mid-rotation (the refresh-token grant + KC's rotate-and-revoke
+        // round-trip, `revokeRefreshToken=true`/`refreshTokenMaxReuse=0`)
+        // and read a transient unauthed frame. Two lifespans + the lib's
+        // 3s poll/retry (`tokenRefreshInSeconds`/`refreshTokenRetryInSeconds`
+        // defaults) removes the race deterministically.
+        await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS * 2 + 5) * 1000);
 
         // Navigate to an authed-only route. If silent refresh failed,
         // `SilentRenewFailed` would have fired and the session bridge
-        // would have re-authorized → KC URL. Unauthed-shell marker
-        // absent confirms the session is still live without coupling
-        // to a specific feature route.
+        // would have re-authorized → KC URL. Assert the survival POSITIVELY
+        // and with web-first retry, not as a single post-`networkidle`
+        // snapshot: a `goto` that lands mid-redirect can flash KC's host
+        // or the landing CTA for a frame. `waitForURL` polls until the SPA
+        // host is stable off-KC; `expect(...).toHaveCount(0)` then retries
+        // until the authed shell has rendered.
         await page.goto('/flights');
+        await page.waitForURL((url) => url.host !== KC_HOST, { timeout: 15_000 });
         await page.waitForLoadState('networkidle');
         expect(new URL(page.url()).host).not.toBe(KC_HOST);
         await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);

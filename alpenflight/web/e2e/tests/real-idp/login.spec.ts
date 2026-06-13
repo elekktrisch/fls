@@ -12,7 +12,7 @@ import { KC_ERROR_SELECTOR, fillKcLogin } from './_helpers/kc-form';
  *   - Wrong-password: KC inline error, SPA stays unauthed.
  *   - Logout → re-login: end_session_endpoint + clearCookies → cold
  *     checkAuth() returns unauthenticated.
- *   - Locale `?kc_locale=fr`: <html lang="fr"> on KC form.
+ *   - Locale `?ui_locales=fr`: <html lang="fr"> on KC form.
  *
  * Seed user `pilot1` is read-only — never re-create or mutate; the
  * password is `pilot1-dev-2026!` per auth/README.md.
@@ -89,11 +89,21 @@ test.describe('login — real-idp', () => {
     await expect(page.locator('#username')).toBeVisible();
   });
 
-  test('locale ?kc_locale=fr — <html lang="fr"> on KC chrome', async ({ page }) => {
+  test('locale ?ui_locales=fr — <html lang="fr"> on KC chrome', async ({ page }) => {
     // Bypass the SPA's authorize() (which sends `ui_locales=<spa locale>`)
-    // and hit KC directly with `kc_locale=fr`. This exercises the
+    // and hit KC directly with `ui_locales=fr`. This exercises the
     // parent message-bundle fallthrough that S-171's check-theme-load.sh
     // validates locally; mock-auth can't.
+    //
+    // `ui_locales` is the OIDC-standard authorization-request param Keycloak
+    // honours for login-UI language selection (server_admin §"User locale
+    // selection": client-provided locales via `ui_locales`). The legacy
+    // `kc_locale` query param was DROPPED in Keycloak 26.x (stack pins
+    // quay.io/keycloak/keycloak:26.5), so it no longer flips the chrome and
+    // the realm falls back to its `defaultLocale` (de) → was rendering `en`
+    // on the resolved chain. The SPA itself already uses `ui_locales`
+    // exclusively (auth.config.ts:58, landing/signup authorize() calls);
+    // this raw-goto case is single-sourced onto the same param.
     //
     // Issuer comes from the same module-scoped constant the admin helper
     // uses, so the localhost-issuer boundary is single-sourced. client_id
@@ -110,7 +120,7 @@ test.describe('login — real-idp', () => {
         scope: 'openid',
         redirect_uri: `${baseUrl}/`,
         state: 'locale-smoke',
-        kc_locale: 'fr',
+        ui_locales: 'fr',
       }).toString();
     await page.goto(authorize);
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
