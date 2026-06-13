@@ -2473,6 +2473,22 @@
       "description": "Emits engine-time-based line item for matching flights",
       "uuid": "019e2e15-2c00-7657-8000-000000004657",
       "natural_key": "ENGINE_TIME"
+    },
+    {
+      "code": "DO_NOT_INVOICE",
+      "legacy_int_id": 5,
+      "name": "Do not invoice flight rule filter",
+      "description": "Matching flight is excluded from invoicing",
+      "uuid": "019e2e15-2c00-7658-8000-000000004658",
+      "natural_key": "DO_NOT_INVOICE"
+    },
+    {
+      "code": "START_TAX",
+      "legacy_int_id": 55,
+      "name": "Start tax accounting rule filter",
+      "description": "Emits a start-tax line item for matching flights",
+      "uuid": "019e2e15-2c00-7659-8000-000000004659",
+      "natural_key": "START_TAX"
     }
   ],
   "accounting_unit_type": [

@@ -53,11 +53,13 @@ class AccountingReferenceControllerIT extends PostgresIntegrationTest {
     void filterTypes_returns_seedRows_each_with_legacyId_populated() {
         JsonNode body = readJson(get("/api/v1/accounting-rule-filter-types"));
         assertThat(body.isArray()).isTrue();
-        // V4 seeds 8 rows today (10,20,30,40,50,60,70,80); 5/55 land in T-09 —
-        // assert the table, not a hardcoded count.
-        assertThat(body.size()).isGreaterThanOrEqualTo(8);
+        // V4 seeded 8 rows (10,20,30,40,50,60,70,80); V42 (J-8 T-09) added
+        // DO_NOT_INVOICE (5) + START_TAX (55) — assert the table, not a hardcoded
+        // count.
+        assertThat(body.size()).isGreaterThanOrEqualTo(10);
 
-        // Ordered by legacy_int_id; the first row is RECIPIENT (legacyId 10).
+        // Ordered by legacy_int_id ASC; the first row is now DO_NOT_INVOICE
+        // (legacyId 5), the lowest legacy enum value after the V42 seed.
         JsonNode first = body.get(0);
         assertThat(first.has("id")).isTrue();
         assertThat(first.get("id").asText()).matches("[0-9a-f-]{36}");
@@ -69,16 +71,16 @@ class AccountingReferenceControllerIT extends PostgresIntegrationTest {
                     .as("every filter-type row must carry legacyId for the SPA")
                     .isTrue();
             assertThat(n.get("legacyId").asInt())
-                    .as("legacyId is the legacy enum int (5/10/20/30/…), never 0")
+                    .as("legacyId is the legacy enum int (5/10/20/30/55/…), never 0")
                     .isGreaterThan(0);
         });
 
         List<Integer> legacyIds = new ArrayList<>();
         body.forEach(n -> legacyIds.add(n.get("legacyId").asInt()));
-        // The four section-driving ids the SPA keys off must all be present.
-        assertThat(legacyIds).contains(10, 20, 30);
-        assertThat(first.get("legacyId").asInt()).isEqualTo(10);
-        assertThat(first.get("code").asText()).isEqualTo("RECIPIENT");
+        // The four section-driving ids the SPA keys off, plus the two V42 types.
+        assertThat(legacyIds).contains(5, 10, 20, 30, 55);
+        assertThat(first.get("legacyId").asInt()).isEqualTo(5);
+        assertThat(first.get("code").asText()).isEqualTo("DO_NOT_INVOICE");
     }
 
     @Test
