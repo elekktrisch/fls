@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.95.0",
-  "elapsed_ms": 388,
+  "version": "2.96.0",
+  "elapsed_ms": 401,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -2516,7 +2516,7 @@
     "avg_cyclomatic": 2.0,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 5.6,
+    "duplication_pct": 3.8,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
     "maintainability_avg": 92.3,
@@ -2530,7 +2530,7 @@
       "total_exports": 466,
       "dead_files": 0,
       "dead_exports": 0,
-      "duplicated_lines": 1479,
+      "duplicated_lines": 1011,
       "total_lines": 27800,
       "files_scored": 160,
       "total_deps": 0
@@ -2554,7 +2554,7 @@
   },
   "health_score": {
     "formula_version": 2,
-    "score": 88.7,
+    "score": 89.3,
     "grade": "A",
     "penalties": {
       "dead_files": 0.0,
@@ -2567,7 +2567,7 @@
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.7,
-      "duplication": 0.6
+      "duplication": 0.0
     }
   },
   "file_scores": [
@@ -5231,7 +5231,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_eb994a14ebd72603"
+      "analysis_run_id": "run_6d21eff1574279ef"
     }
   }
 }
