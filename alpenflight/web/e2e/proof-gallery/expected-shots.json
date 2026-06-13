@@ -123,20 +123,25 @@
     },
     "J-8": {
       "$note": [
-        "T-01 SCAFFOLD — registers the J-8 (AccountingRuleFilter config screen)",
-        "paired-shot contract so its per-journey proof page is declared from the",
-        "journey's first task (the operator's glanceable window exists early, T-01b).",
-        "J-8 replaces legacy masterdata/accountingRules/, so it carries paired",
-        "legacy<->AlpenFlight shots: `list` (the rule-filter table) + `form` (the",
-        "filter-type-driven edit form). NONE are captured yet — the screen lands",
-        "T-11/T-12/T-13 + the spec thickens T-14 — so all four are `pending`",
-        "(tolerated-absent, surfaced by the [shots-present] guard) until T-14 flips",
-        "them to `expected` once the parity spec + the fanout legacy capture produce",
-        "them. An empty `expected` means the guard reds on NOTHING for J-8 today",
-        "(scaffold-clean), exactly the J-5 pending-placeholder pattern."
+        "T-01 SCAFFOLD registered the J-8 (AccountingRuleFilter config screen)",
+        "paired-shot contract; T-18 FLIPPED it pending -> expected. J-8 replaces",
+        "legacy masterdata/accountingRules/, so it carries paired legacy<->",
+        "AlpenFlight shots: `list` (the rule-filter table) + `form` (the filter-",
+        "type-driven edit form). Both sides are produced in the FANOUT (the J-1..J-6",
+        "MIGRATION-journey model, NOT J-7's read-side proof context): the legacy",
+        "halves by `e2e/tests/accounting/accounting-parity-J8.spec.ts` (the fanout",
+        "legacy-pw-accounting step), the AlpenFlight halves by the clean-seed real",
+        "chain in `accounting-rules-parity.spec.ts` (step 6, run on EVERY fanout —",
+        "not gated on the real bundle, it writes alpenflight-accountingrules-",
+        "{list,form}.png). So there is NO producedBy tag — every expected shot is",
+        "enforced in BOTH contexts, exactly like J-5/J-6. The [shots-present] guard",
+        "reds if any of the four is absent from the stage; the committed legacy-",
+        "reference accounting/*.png refs land once a fanout run captures them",
+        "(capture-once lineage — until then accounting/PENDING.md, add_shot degrades",
+        "to the AlpenFlight side)."
       ],
-      "expected": [],
-      "pending": ["legacy:list", "legacy:form", "alpenflight:list", "alpenflight:form"]
+      "expected": ["legacy:list", "legacy:form", "alpenflight:list", "alpenflight:form"],
+      "pending": []
     }
   }
 }
