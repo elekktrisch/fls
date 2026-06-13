@@ -132,9 +132,15 @@ public class AccountingRuleFiltersService {
                 req.ruleFilterName(),
                 req.accountingUnitTypeId(),
                 req.description(),
-                req.active(),
-                req.stopRuleEngineWhenApplied(),
-                req.chargedToClubInternal(),
+                // Optional booleans coerce to their legacy defaults when absent
+                // (the wire DTO carries @Nullable Boolean to survive Jackson's
+                // FAIL_ON_NULL_FOR_PRIMITIVES; the SPA omits chargedToClubInternal
+                // for non-recipient filters). active defaults TRUE; the other two
+                // FALSE — preserving legacy save semantics before the aggregate
+                // (which still works in primitives) sees them.
+                orDefault(req.active(), true),
+                orDefault(req.stopRuleEngineWhenApplied(), false),
+                orDefault(req.chargedToClubInternal(), false),
                 targetArticle(req.filterTypeLegacyId(), req.articleNumber()),
                 targetRecipient(req.filterTypeLegacyId(), req.recipientMemberNumber()),
                 config);
@@ -314,6 +320,11 @@ public class AccountingRuleFiltersService {
     private static UUID requireFilterType(AccountingRuleFilter arf) {
         return Objects.requireNonNull(arf.getFilterTypeId(),
                 "AccountingRuleFilter.filterTypeId must be non-null");
+    }
+
+    /** Coerce an optional wire boolean to its default when the field was omitted (null). */
+    private static boolean orDefault(@Nullable Boolean value, boolean fallback) {
+        return value == null ? fallback : value;
     }
 
     private static @Nullable String blankToNull(@Nullable String value) {

@@ -89,6 +89,17 @@ public final class AccountingRuleFilterDtos {
      * {@code sortIndicator} are intentionally absent (A04 mass-assignment
      * defence + service-owned sort).
      */
+    /**
+     * The three top-level booleans are nullable {@code Boolean} (not primitives)
+     * so an <em>omitted</em> flag deserialises to {@code null} rather than
+     * tripping Jackson's {@code FAIL_ON_NULL_FOR_PRIMITIVES} → 400 — the same
+     * convention {@link ch.alpenflight.me.web.MeNotificationPrefsUpdateRequest}
+     * follows. The SPA edit form ({@code accounting-edit.page.ts}) only sends
+     * {@code chargedToClubInternal} in the recipient section (filter type == 10),
+     * so a non-recipient create body omits it entirely; the service coerces each
+     * to its legacy default ({@code active} → true, the other two → false) before
+     * handing primitives to the aggregate.
+     */
     @Schema(description = "Create/update payload for an AccountingRuleFilter in the caller's tenant.")
     public record AccountingRuleFilterWriteRequest(
             @NotNull UUID filterTypeId,
@@ -97,9 +108,9 @@ public final class AccountingRuleFilterDtos {
             @Nullable UUID accountingUnitTypeId,
             @NotBlank @Size(max = 250) String ruleFilterName,
             @Nullable String description,
-            boolean active,
-            boolean stopRuleEngineWhenApplied,
-            boolean chargedToClubInternal,
+            @Schema(description = "Filter active (absent = true, the legacy default).") @Nullable Boolean active,
+            @Schema(description = "Stop the rule engine when this rule applies (absent = false).") @Nullable Boolean stopRuleEngineWhenApplied,
+            @Schema(description = "Charge the recipient to the club internally (absent = false; sent only for recipient filters).") @Nullable Boolean chargedToClubInternal,
             @Nullable @Size(max = 50) String articleNumber,
             @Nullable String deliveryLineText,
             @Nullable @Size(max = 50) String recipientMemberNumber,

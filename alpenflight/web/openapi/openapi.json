@@ -5816,13 +5816,16 @@
             "type" : "string"
           },
           "active" : {
-            "type" : "boolean"
+            "type" : "boolean",
+            "description" : "Filter active (absent = true, the legacy default)."
           },
           "stopRuleEngineWhenApplied" : {
-            "type" : "boolean"
+            "type" : "boolean",
+            "description" : "Stop the rule engine when this rule applies (absent = false)."
           },
           "chargedToClubInternal" : {
-            "type" : "boolean"
+            "type" : "boolean",
+            "description" : "Charge the recipient to the club internally (absent = false; sent only for recipient filters)."
           },
           "articleNumber" : {
             "type" : "string",

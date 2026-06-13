@@ -163,6 +163,37 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    /**
+     * Regression for the §4-gate 400-on-every-create bug: the SPA edit form
+     * omits {@code chargedToClubInternal} for any non-recipient (≠ type-10)
+     * filter, so the wire body has no such key. The write DTO's optional
+     * booleans are {@code @Nullable Boolean} (coerced to their legacy defaults in
+     * the service) precisely so an omitted flag deserialises rather than tripping
+     * Jackson's {@code FAIL_ON_NULL_FOR_PRIMITIVES} → 400. The earlier tests
+     * masked this by always sending all three booleans; this one omits them and
+     * asserts a 201 + the persisted defaults ({@code active}=true, the other two
+     * false).
+     */
+    @Test
+    void create_omittingOptionalBooleans_returns_201_with_legacy_defaults() {
+        Map<String, Object> body = articlePayload("No-flags rule");
+        body.remove("active");
+        body.remove("stopRuleEngineWhenApplied");
+        body.remove("chargedToClubInternal");
+
+        ResponseEntity<String> created = post(BASE, body, clubAdminToken);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        String id = readJson(created).get("id").asText();
+        ResponseEntity<String> got = get(BASE + "/" + id, clubAdminToken);
+        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode detail = readJson(got);
+        // active defaults to true (legacy default), the others to false.
+        assertThat(detail.get("active").asBoolean()).isTrue();
+        assertThat(detail.get("stopRuleEngineWhenApplied").asBoolean()).isFalse();
+        assertThat(detail.get("chargedToClubInternal").asBoolean()).isFalse();
+    }
+
     // ----- payloads -----
 
     private static Map<String, Object> articlePayload(String name) {
