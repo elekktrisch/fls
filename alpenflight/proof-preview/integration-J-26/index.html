@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-13T06:28:59.551Z
+      assertion it proves. Generated on <code>219/merge</code> &middot; 2026-06-13T07:10:36.942Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -142,26 +142,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6f473a46e3e06a0c5c1aaf7e4cab0363d5af0b9d.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-8c715c224d0e95575cb0da1ca17bc732d768150d.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3cf3baad88705c84def1d61e4cff0a97faa2db3e.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -183,44 +169,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey" open>
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
-          <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
+          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-list.png" alt="legacy list" loading="lazy"></a>
-            <figcaption>Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list</figcaption>
-          </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-form.png" alt="legacy form" loading="lazy"></a>
-            <figcaption>Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)</figcaption>
-          </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -271,12 +225,44 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-26</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-26</span> <span class="status success">2 proofs</span><span class="summary-counts">2 videos · 2 screenshots</span></span>
+          <span class="summary-caption">J-26 · persons · a real CLUB_ADMINISTRATOR edits memberNumber + a pilot-role toggle + the member state, saves…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-2acdff6b1e45453fe47bd7a23a68628800773554.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-26 · persons · a real CLUB_ADMINISTRATOR edits memberNumber + a pilot-role toggle + the member state, saves, re-opens — every value comes back from the real backend (the membership data-loss fix T-04: the form used to toast success while silently dropping them; PUT /persons/{id}/clubs/current now fires)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-826ca7cfd2d628b009973b2851823f16bab7cb4e.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-26 · flight-types · creating a second flight type with a duplicate FlightCode over the real chain returns a 409 (real ux_flight_type_club_code constraint + service pre-check) that surfaces INLINE on the Code field — previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field</span></figcaption>
+        </figure>
+        </div>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">membership</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-hardening-membership.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-hardening-membership.png" alt="alpenflight membership" loading="lazy"></a>
+            <figcaption>AlpenFlight (hardening, T-04): a Person's membership edit re-opened after Save over the real chain — memberNumber, the toggled pilot-role flag and the changed member state all came back from the real backend (the data-loss fix: the form used to toast success while silently dropping them)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">duplicate-code</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-hardening-duplicate-code.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-hardening-duplicate-code.png" alt="alpenflight duplicate-code" loading="lazy"></a>
+            <figcaption>AlpenFlight (hardening, T-05): creating a second flight type with a duplicate FlightCode over the real chain — the real ux_flight_type_club_code constraint / service pre-check returns a 409 that surfaces INLINE on the Code field (previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field)</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
       </details>
       <details class="journey pending-journey">
         <summary>
