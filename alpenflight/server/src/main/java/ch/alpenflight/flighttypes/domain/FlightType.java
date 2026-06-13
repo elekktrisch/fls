@@ -1,15 +1,13 @@
 package ch.alpenflight.flighttypes.domain;
 
 import ch.alpenflight.platform.id.FlightTypeId;
-import ch.alpenflight.platform.persistence.PersistedAuditActor;
+import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -51,7 +49,7 @@ import org.springframework.data.domain.DomainEvents;
  */
 @Entity
 @Table(name = "t_flight_type")
-public class FlightType {
+public class FlightType extends SoftDeletableAggregate {
 
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_CODE_LENGTH = 30;
@@ -105,14 +103,6 @@ public class FlightType {
 
     @Column(name = "min_nr_of_aircraft_seats_required")
     private @Nullable Integer minNrOfAircraftSeatsRequired;
-
-    @Column(name = "deleted_on")
-    private @Nullable Instant deletedOn;
-
-    @Column(name = "deleted_by_user_id")
-    @PersistedAuditActor
-    @SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})
-    private @Nullable UUID deletedByUserId;
 
     protected FlightType() {
         // JPA.
@@ -204,13 +194,6 @@ public class FlightType {
 
     public void changeMinSeats(@Nullable Integer newMinNrOfAircraftSeatsRequired) {
         assignMinSeats(newMinNrOfAircraftSeatsRequired);
-    }
-
-    public void softDelete(@Nullable UUID userId, Clock clock) {
-        if (this.deletedOn == null) {
-            this.deletedOn = Instant.now(clock);
-            this.deletedByUserId = userId;
-        }
     }
 
     /**
@@ -326,9 +309,5 @@ public class FlightType {
 
     public @Nullable Integer getMinNrOfAircraftSeatsRequired() {
         return minNrOfAircraftSeatsRequired;
-    }
-
-    public boolean isDeleted() {
-        return deletedOn != null;
     }
 }

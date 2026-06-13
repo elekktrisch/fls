@@ -512,12 +512,15 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   the migration round-trip family's bundle clubs `…04be`/`…0bb8` are also referenced by Audit*/Clubs* ITs — give a
   class ITS OWN club ids when touching it; production-reserved ids (ShowcaseSeeder, V-seeds) are off-limits as
   foreign fixture clubs). *(seam: server src/test, per-touch)*
-- **Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).** Five
-  aggregates now share the byte-identical softDelete(userId, clock) + @DomainEvents emit-on-save one-liner
-  shape (Flight, Aircraft, Person, Location, FlightType); the cpd-baseline has declined a @MappedSuperclass
-  three times while the clone count grew. Next server-side journey: either extract the lifecycle base
-  (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
-  stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*
+- **~~Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).~~**
+  RESOLVED J-26 T-21 (ADR 0028). The "five aggregates" framing was loose: the empirical CPD clone was the
+  56-token triplet across Aircraft / FlightType / Location only (Flight + Person have divergent softDelete
+  signatures, never cloned). Verdict = EXTRACT the boundary-clean half: soft-delete state +
+  softDelete(userId, clock) + isDeleted() moved to the new @MappedSuperclass
+  `platform.persistence.SoftDeletableAggregate` (the three extend it); the @DomainEvents saved-event hook
+  STAYS per-aggregate (lifting it couples the shared kernel to each module's *Saved event — Modulith/ADR 0023
+  boundary violation). cpd-baseline ratcheted 4883→4827; ADR 0028 is the standing reference so the ratchet
+  stops re-litigating. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt — done)*
 - **Fanout has NO reporting spec over MIGRATED data (predates the read-model conversion; found at RM-5).** The
   fanout's AlpenFlight parity step runs J-0c/J-1/J-2/J-5/J-6 migration-parity specs — `/flightreports` over the
   migrated dataset has never been e2e-asserted (the J-7 reporting specs run against the CLEAN seed in ci.yml; the

@@ -61,5 +61,23 @@
 # maintainability rider (_BOYSCOUT.md) tracks revisiting that stance now that
 # five aggregates share the saved-event + soft-delete lifecycle shape.
 #
+# Re-measured 2026-06-13 (J-26 T-21, lifecycle @MappedSuperclass verdict
+# EXECUTED): 4827 (-56). The recurring question this file re-opened three times
+# above — extract a lifecycle base across the soft-delete + saved-event shape —
+# is now DECIDED in ADR 0028, so the ratchet stops re-litigating it. The
+# empirical clone was never "five aggregates": it was the 56-token triplet
+# across Aircraft / FlightType / Location (Flight and Person have divergent
+# softDelete signatures and never cloned). ADR 0028 splits the two halves: the
+# boundary-clean soft-delete state + softDelete(userId, clock) + isDeleted() was
+# EXTRACTED into the new @MappedSuperclass
+# ch.alpenflight.platform.persistence.SoftDeletableAggregate (the three
+# aggregates now extend it), collapsing the clone; the @DomainEvents
+# emit-on-save hook STAYS per-aggregate (lifting it would couple the shared
+# kernel to every module's *Saved event type — a Spring Modulith / ADR 0023
+# boundary violation), and its ~15-token residual is below the 50-token CPD
+# window. So the prior "this codebase deliberately avoids @MappedSuperclass"
+# stance is superseded by ADR 0028's distinction: @MappedSuperclass for
+# boundary-clean shared mapped state, NOT for module-coupled behavior.
+#
 # Single non-comment, non-blank line = the token baseline.
-4883
+4827
