@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-8 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-8</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 3 screenshots</span>
+      <span class="summary-jid">J-8</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 4 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-8</code> &middot; 2026-06-13T19:04:14.582Z
+      for this journey. Generated on <code>integration/J-8</code> &middot; 2026-06-13T20:59:41.199Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -148,19 +148,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit form (filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections) — the legacy masterdata/accountingRules screens to eyeball against AlpenFlight's /accountingrules list + filter-type-driven edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-10a999672346eddda9ee30c508432d21d7f4c003.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-3e8eaed2d0a5e7d50efff984873b6e4f77184c3f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, and creates an AccountingRuleFilter through the real backend — it renders in the /accountingrules list with its derived target and reopens with every field intact (core · flags · article-target incl. the filter_config deliveryLineText)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-8120da8ad6046ddf470d32d7f3a31a5c1837636f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-8a755a97ae36c56091854d5f5c671c13a5ce039e.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · selecting an AccountingRuleFilterType drives the conditional sections over the real reference-data catalog (article-target ∉{5,10} · recipient ==10 · aircraft-filter ==30 · no-landing-tax ==20) — the crux of the legacy form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-eeb3068df236fbfbc89b4dca760cf7d289cb8908.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-ef89ecde4996f1cbf4a0c49a9681b1e11b73a790.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a predicate match-list (aircraft immatriculations) round-trips its chips AND its 'use for all except listed' invert orientation through the real filter_config jsonb (load → flip toggle + add chip → save → reopen)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-721ebaa09443e91bdf62246a4407caba9dd312cd.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-daa87e2c2e665d59e1e9b161294b2a33db60bec7.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub article-target rule &quot;FlightTime: Glider per minute&quot;, article 5001), exported + migrated through the live chain, renders in the migrated club’s /accountingrules list with its predicate config intact — the ArticleTarget number + the DeliveryLineText folded into filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)</span></figcaption>
         </figure>
         </div>
@@ -184,6 +184,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <div class="shot-pair">
           <div class="shot-view-label">form</div>
           <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="../screenshots/legacy-accountingrules-form.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-accountingrules-form.png" alt="legacy form" loading="lazy"></a>
+            <figcaption>Legacy flsweb: one rule's edit form — the filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections — paired against AlpenFlight's filter-type-driven rule-filter edit form</figcaption>
+          </figure>
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
             <a href="../screenshots/alpenflight-accountingrules-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-accountingrules-form.png" alt="alpenflight form" loading="lazy"></a>
