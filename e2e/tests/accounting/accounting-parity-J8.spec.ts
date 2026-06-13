@@ -38,9 +38,10 @@
  * + `accountingRuleFilters-edit.html`, reused from the existing legacy oracle
  * spec `e2e/tests/accounting/rules-edit.spec.ts`):
  *   - List:   `/masterdata/accountingRuleFilters`, rows `tbody [data-testid="row"]`.
- *   - Edit:   `/masterdata/accountingRuleFilters/:id`; form
- *             `form[name="accountingRuleFilterForm"]`, type selectize
- *             `selectize#AccountingRuleFilterTypeId`.
+ *   - Edit:   `/masterdata/accountingRuleFilters/:id`; readiness = the
+ *             `fls-busy-indicator` backdrop (`[data-testid="busy-indicator"]`)
+ *             cleared, then the stable `input#RuleFilterName` text field visible
+ *             (a plain input, NOT the late-rendering type selectize).
  *   - Admin + password: `testclubadmin` / `s` (the TestClub `ClubAdministrator`,
  *     same credential the J-0c..J-7 specs use; `_test-fixture.sql`).
  *
@@ -211,14 +212,40 @@ test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)"
     if (seededId) {
       try {
         await gotoRoute(page, `/masterdata/accountingRuleFilters/${seededId}`);
-        const form = page.locator('form[name="accountingRuleFilterForm"]');
-        await form.waitFor({ state: "visible", timeout: 90_000 });
-        // Anchor on the filter-type selectize so the conditional sections have
-        // rendered before the shot (the article-target section is ng-if'd on it).
-        const typeSelectize = page.locator(
-          "selectize#AccountingRuleFilterTypeId",
+        // The edit form is wrapped in <fls-busy-indicator busy="busy"> and
+        // $scope.busy stays true through loadMasterData() ($q.all of 11 parallel
+        // reference loads — aircraft, start-types, flight-types, locations,
+        // articles, persons, person-categories, crew-types, member-states,
+        // unit-types) AND the rule fetch, only clearing in the controller's
+        // .finally() (AccountingRuleFiltersEditController.js:103). gotoRoute's
+        // shared busy-clear is a 30s ceiling — too short for this heavy load
+        // under Mono/MSSQL worker contention — so wait again here with the
+        // form's own 90s budget for busy to clear (display:none on the
+        // [data-testid="busy-indicator"] backdrop), mirroring J-7's
+        // "busy-spinner gone, then stable anchor" readiness pattern.
+        await page.waitForFunction(
+          () => {
+            const spinners = Array.from(
+              document.querySelectorAll('[data-testid="busy-indicator"]'),
+            ) as HTMLElement[];
+            return spinners.every((el) => {
+              const r = el.getBoundingClientRect();
+              return r.width === 0 && r.height === 0;
+            });
+          },
+          undefined,
+          { timeout: 90_000 },
         );
-        await typeSelectize.waitFor({ state: "visible", timeout: 15_000 });
+        // Anchor on the RuleFilterName text input — a plain <input id=...> with
+        // no ng-if and no selectize transform, so it is a STABLE, reliably-
+        // visible signal the populated form has rendered. (The old anchor,
+        // `selectize#AccountingRuleFilterTypeId`, is the late-rendering selectize
+        // widget the AngularJS directive rewrites; its 15s wait timed out and
+        // the form PNG was never produced.) The seeded rule is FlightTime
+        // (type 30), so targetTypeArticleVisible() is already true and the
+        // conditional article-target section is in the shot.
+        const nameInput = page.locator("input#RuleFilterName");
+        await nameInput.waitFor({ state: "visible", timeout: 60_000 });
         await screenshot(page, "accounting-parity-J8-02-legacy-edit-form");
         await page.screenshot({
           path: testInfo.outputPath("legacy-accountingrules-form.png"),
