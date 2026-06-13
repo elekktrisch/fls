@@ -1,5 +1,6 @@
 package ch.alpenflight.accounting.domain;
 
+import ch.alpenflight.audit.domain.AuditRedact;
 import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -105,6 +106,14 @@ public class AccountingRuleFilter extends SoftDeletableAggregate {
     @Column(name = "recipient_target", length = MAX_TARGET_LENGTH)
     private @Nullable String recipientTarget;
 
+    // The V4 schema COMMENT marks filter_config pii_blob: true — the predicate
+    // bag can carry club-member numbers, recipient names, delivery-line text.
+    // @AuditRedact redacts it unconditionally in the audit snapshot (the same
+    // jsonb/PII pattern as MigrationUpload.privateKeyCiphertext /
+    // MigrationRunWarning); the AccountingRuleFilter redaction allow-list in
+    // application.yml covers the remaining (non-PII) fields. Together they
+    // satisfy AuditRedactionCoverageTest once accounting.domain is in its roots.
+    @AuditRedact
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "filter_config", nullable = false, columnDefinition = "jsonb")
     private FilterConfig filterConfig = FilterConfig.empty();

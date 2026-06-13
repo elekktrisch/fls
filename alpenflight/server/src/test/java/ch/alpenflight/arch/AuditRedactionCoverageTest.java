@@ -46,6 +46,7 @@ class AuditRedactionCoverageTest {
 
     /** Packages whose {@code @Entity}s are tenant-scoped and serialise into audit rows. */
     private static final Set<String> AUDITED_PACKAGE_ROOTS = Set.of(
+            "ch.alpenflight.accounting.domain",
             "ch.alpenflight.aircraft.domain",
             "ch.alpenflight.clubs.domain",
             "ch.alpenflight.deployments.domain",

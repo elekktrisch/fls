@@ -127,6 +127,29 @@ audit:
       # the JSON-serialized property names — the redactor walks @Entity
       # fields directly. Coverage is enforced by AuditRedactionCoverageTest;
       # a new field that's neither here nor @AuditRedact-annotated fails CI.
+      AccountingRuleFilter:
+        # J-8 / S-072. Per-club billing-rule config — no PII on the structural
+        # columns (filter type, name, sort, flags, the bare article/recipient
+        # target strings). The predicate bag `filterConfig` is NOT allow-listed:
+        # it can carry club-member numbers / recipient names / delivery-line text
+        # (V4 schema COMMENT pii_blob: true) and is @AuditRedact on the entity
+        # field, so it lands "[redacted]" in both the entity-mirror and the
+        # DTO-snapshot (AccountingRuleFilterDetail.filterConfig) audit paths.
+        allow:
+          - id
+          - operatingClubId
+          - filterTypeId
+          - accountingUnitTypeId
+          - ruleFilterName
+          - description
+          - active
+          - sortIndicator
+          - stopRuleEngineWhenApplied
+          - chargedToClubInternal
+          - articleTarget
+          - recipientTarget
+          - deletedOn
+          - deletedByUserId
       Club:
         # `name` matches the ClubResponse DTO field; `clubname` matches the
         # Club entity field. Service-layer callers may pass either shape;
