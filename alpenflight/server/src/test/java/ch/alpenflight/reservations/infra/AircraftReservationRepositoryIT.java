@@ -2,7 +2,10 @@ package ch.alpenflight.reservations.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.tenancy.Tenants;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.reservations.domain.AircraftReservation;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListRow;
@@ -33,8 +36,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c5-2c00-7001-8000-0000000000d1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c5-2c00-7001-8000-0000000000d2");
     private static final String NAME_PREFIX = "IT_ARV_";
     private static final String KEY_PREFIX = "IT_AV_";
 
@@ -48,9 +49,14 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     @Autowired private AircraftReservationRepository reservations;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
 
     private final Clock clock = Clock.systemUTC();
 
+    private UUID clubA;
+    private UUID clubB;
     private UUID aircraftA;
     private UUID aircraftB;
     private UUID pilotId;
@@ -58,26 +64,29 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        // Reservations FK to aircraft (RESTRICT); clear them before the fixture
-        // wipes the seed aircraft under these clubs.
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
+        // The fixture mints the two clubs and clears all their tenant-scoped
+        // children (reservations FK to aircraft with RESTRICT) in one global
+        // child→parent pass before re-minting.
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
 
-        aircraftA = seedAircraft(CLUB_A);
-        aircraftB = seedAircraft(CLUB_B);
+        aircraftA = seedAircraft(clubA);
+        aircraftB = seedAircraft(clubB);
         pilotId = seedPerson();
-        locationId = seedLocation(CLUB_A);
+        locationId = seedLocation(clubA);
     }
 
     @Test
     void overlap_conflicts_but_adjacent_and_other_aircraft_and_self_do_not() {
-        AircraftReservation existing = Tenants.runAs(CLUB_A,
+        AircraftReservation existing = Tenants.runAs(clubA,
                 () -> reservations.save(timed(aircraftA, A_START, A_END)));
         UUID existingId = existing.getId();
         assertThat(existingId).isNotNull();
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             // Overlapping window on the SAME aircraft → conflict.
             assertThat(reservations.existsActiveConflict(
                     aircraftA, new Range(OVERLAP_START, OVERLAP_END), null))
@@ -107,10 +116,10 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void soft_deleted_rows_are_excluded_from_probe_and_list() {
-        AircraftReservation booked = Tenants.runAs(CLUB_A,
+        AircraftReservation booked = Tenants.runAs(clubA,
                 () -> reservations.save(timed(aircraftA, A_START, A_END)));
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             assertThat(reservations.existsActiveConflict(
                     aircraftA, new Range(OVERLAP_START, OVERLAP_END), null))
                     .as("sanity: alive row conflicts before delete")
@@ -135,10 +144,10 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void list_rows_and_range_window_round_trip_under_tenant() {
-        AircraftReservation saved = Tenants.runAs(CLUB_A,
+        AircraftReservation saved = Tenants.runAs(clubA,
                 () -> reservations.save(timed(aircraftA, A_START, A_END)));
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             List<ListRow> all = reservations.findAllActiveListRows();
             assertThat(all).extracting(ListRow::id).contains(saved.getId());
 
@@ -158,7 +167,7 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     private AircraftReservation timed(UUID aircraftId, Instant start, Instant end) {
         return AircraftReservation.create(
-                CLUB_A, aircraftId, pilotId, locationId,
+                clubA, aircraftId, pilotId, locationId,
                 null, null, start, end, false, null, "IT booking");
     }
 

@@ -7,11 +7,13 @@ import ch.alpenflight.aircraft.application.AircraftDtos.AircraftCreateRequest;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftDetail;
 import ch.alpenflight.aircraft.application.AircraftsService;
 import ch.alpenflight.aircraft.domain.DuplicateImmatriculationException;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.AircraftTypeId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
-import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,53 +34,63 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
-    private static final String CLUB_A_LITERAL = "019e30c3-2c00-7001-8000-0000000000d1";
-    private static final String CLUB_B_LITERAL = "019e30c3-2c00-7001-8000-0000000000d2";
-    private static final UUID CLUB_A = UUID.fromString(CLUB_A_LITERAL);
-    private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
-
     private static final String TEST_NAME_PREFIX = "IT_ATI_";
     private static final String TEST_KEY_PREFIX = "IT_AC";
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AircraftsService aircrafts;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seedTwoClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void list_returns_aircraft_from_every_club() {
-        AircraftDetail aRow = aircrafts.registerAircraft(payload(uniqueImmat()));
-        AircraftDetail bRow = TenantTestContext.runAs(CLUB_B,
-                () -> aircrafts.registerAircraft(payload(uniqueImmat())));
+        // The minted club id is runtime, so tenant A is entered via runAs here
+        // rather than a method-level @WithTenant literal.
+        TenantTestContext.runAs(clubA, () -> {
+            AircraftDetail aRow = aircrafts.registerAircraft(payload(uniqueImmat()));
+            AircraftDetail bRow = TenantTestContext.runAs(clubB,
+                    () -> aircrafts.registerAircraft(payload(uniqueImmat())));
 
-        // Cross-tenant catalog: Club A's list includes Club B's row.
-        assertThat(aircrafts.listAircraft(null))
-                .extracting(li -> li.id().toString())
-                .contains(aRow.id().toString(), bRow.id().toString());
+            // Cross-tenant catalog: Club A's list includes Club B's row.
+            assertThat(aircrafts.listAircraft(null))
+                    .extracting(li -> li.id().toString())
+                    .contains(aRow.id().toString(), bRow.id().toString());
+        });
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void register_persists_managing_club_id_from_resolver() {
-        AircraftDetail row = aircrafts.registerAircraft(payload(uniqueImmat()));
-        Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM t_aircraft WHERE id = ?::uuid AND managing_club_id = ?::uuid",
-                Integer.class, row.id().value().toString(), CLUB_A.toString());
-        assertThat(matches).isEqualTo(1);
+        TenantTestContext.runAs(clubA, () -> {
+            AircraftDetail row = aircrafts.registerAircraft(payload(uniqueImmat()));
+            Integer matches = jdbc.queryForObject(
+                    "SELECT count(*) FROM t_aircraft WHERE id = ?::uuid AND managing_club_id = ?::uuid",
+                    Integer.class, row.id().value().toString(), clubA.toString());
+            assertThat(matches).isEqualTo(1);
+        });
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void immatriculation_uniqueness_is_global_across_tenants() {
-        String shared = uniqueImmat();
-        aircrafts.registerAircraft(payload(shared));
-        TenantTestContext.runAs(CLUB_B, () ->
-                assertThatThrownBy(() -> aircrafts.registerAircraft(payload(shared)))
-                        .isInstanceOf(DuplicateImmatriculationException.class));
+        TenantTestContext.runAs(clubA, () -> {
+            String shared = uniqueImmat();
+            aircrafts.registerAircraft(payload(shared));
+            TenantTestContext.runAs(clubB, () ->
+                    assertThatThrownBy(() -> aircrafts.registerAircraft(payload(shared)))
+                            .isInstanceOf(DuplicateImmatriculationException.class));
+        });
     }
 
     @Test

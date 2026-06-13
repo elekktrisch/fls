@@ -8,13 +8,15 @@ import ch.alpenflight.locations.application.LocationDtos.LocationDetail;
 import ch.alpenflight.locations.domain.IcaoCodeAlreadyExistsException;
 import ch.alpenflight.locations.domain.LocationNotFoundException;
 import ch.alpenflight.locations.application.LocationsService;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.LocationTypeId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
-import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,64 +47,73 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
-    private static final String CLUB_A_LITERAL = "019e30c3-2c00-7001-8000-0000000000b1";
-    private static final String CLUB_B_LITERAL = "019e30c3-2c00-7001-8000-0000000000b2";
-    private static final UUID CLUB_A = UUID.fromString(CLUB_A_LITERAL);
-    private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
-
     private static final String TEST_NAME_PREFIX = "IT_LTI_";
     private static final String TEST_KEY_PREFIX = "IT_L_";
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LocationsService locations;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seedTwoClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void tenant_filter_isolates_reads_and_persists_club_id() {
-        LocationDetail aRow = locations.createLocation(payload("Field A", "AA01"));
-        AtomicReference<LocationDetail> bRowRef = new AtomicReference<>();
-        TenantTestContext.runAs(CLUB_B, () ->
-                bRowRef.set(locations.createLocation(payload("Field B", "AB02"))));
+        // The minted club id is runtime, so tenant A is entered via runAs here
+        // rather than a method-level @WithTenant literal.
+        TenantTestContext.runAs(clubA, () -> {
+            LocationDetail aRow = locations.createLocation(payload("Field A", "AA01"));
+            AtomicReference<LocationDetail> bRowRef = new AtomicReference<>();
+            TenantTestContext.runAs(clubB, () ->
+                    bRowRef.set(locations.createLocation(payload("Field B", "AB02"))));
 
-        // A's list contains A's row; getById of B's row throws (invisible to A).
-        assertThat(locations.listLocations())
-                .extracting(li -> li.id().toString())
-                .contains(aRow.id().toString())
-                .doesNotContain(bRowRef.get().id().toString());
-        LocationId bExternal = bRowRef.get().id();
-        assertThatThrownBy(() -> locations.getLocation(bExternal))
-                .isInstanceOf(LocationNotFoundException.class);
+            // A's list contains A's row; getById of B's row throws (invisible to A).
+            assertThat(locations.listLocations())
+                    .extracting(li -> li.id().toString())
+                    .contains(aRow.id().toString())
+                    .doesNotContain(bRowRef.get().id().toString());
+            LocationId bExternal = bRowRef.get().id();
+            assertThatThrownBy(() -> locations.getLocation(bExternal))
+                    .isInstanceOf(LocationNotFoundException.class);
 
-        // The persisted row carries A's club_id (not B's, not nil).
-        Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM t_location WHERE id = ?::uuid AND club_id = ?::uuid",
-                Integer.class, aRow.id().value().toString(), CLUB_A.toString());
-        assertThat(matches).isEqualTo(1);
+            // The persisted row carries A's club_id (not B's, not nil).
+            Integer matches = jdbc.queryForObject(
+                    "SELECT count(*) FROM t_location WHERE id = ?::uuid AND club_id = ?::uuid",
+                    Integer.class, aRow.id().value().toString(), clubA.toString());
+            assertThat(matches).isEqualTo(1);
+        });
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void same_icao_coexists_across_clubs_but_collides_within_one_club() {
-        String icao = "AC33";
-        locations.createLocation(payload("Same ICAO A", icao));
-        TenantTestContext.runAs(CLUB_B, () -> {
-            LocationDetail b = locations.createLocation(payload("Same ICAO B", icao));
-            assertThat(b.icaoCode()).isEqualTo(icao);
+        TenantTestContext.runAs(clubA, () -> {
+            String icao = "AC33";
+            locations.createLocation(payload("Same ICAO A", icao));
+            TenantTestContext.runAs(clubB, () -> {
+                LocationDetail b = locations.createLocation(payload("Same ICAO B", icao));
+                assertThat(b.icaoCode()).isEqualTo(icao);
+            });
+            assertThatThrownBy(() -> locations.createLocation(payload("Dup in A", icao)))
+                    .isInstanceOf(IcaoCodeAlreadyExistsException.class);
         });
-        assertThatThrownBy(() -> locations.createLocation(payload("Dup in A", icao)))
-                .isInstanceOf(IcaoCodeAlreadyExistsException.class);
     }
 
     @Test
     void no_tenant_context_yields_empty_reads() {
-        // Resolver returns NO_TENANT (nil UUID) when no @WithTenant. Hibernate
-        // appends WHERE club_id = nil-UUID → zero rows.
-        TenantTestContext.runAs(CLUB_A, () ->
+        // Resolver returns NO_TENANT (nil UUID) when no tenant is entered.
+        // Hibernate appends WHERE club_id = nil-UUID → zero rows.
+        TenantTestContext.runAs(clubA, () ->
                 locations.createLocation(payload("Hidden A", "AE55")));
         assertThat(locations.listLocations()).isEmpty();
     }

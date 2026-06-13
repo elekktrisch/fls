@@ -26,35 +26,27 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * {@code @AfterEach}. Per-class instances pick their own prefix so multiple
  * {@code IT}s coexist in the JVM without colliding.
  *
- * <h2>Two seeding paths (J-26 T-19, ADR 0027 — Option B)</h2>
+ * <h2>Production-create seeding (J-26 T-19, ADR 0027 — Option B)</h2>
  *
- * <ul>
- *   <li><strong>Production path (new, preferred):</strong> built with the
- *       {@link ClubRepository} / {@link CountryRepository} /
- *       {@link ClubStateRepository} domain ports, {@link #seed()} creates the
- *       two clubs through the real {@link Club#create} → {@code ClubRepository.save}
- *       path (mirroring {@code ClubsService.createClub} /
- *       {@code DeploymentProvisioningService.provision}). The ids are MINTED by
- *       the JPA {@code @GeneratedValue} and read back off the saved aggregates —
- *       {@link #clubA()} / {@link #clubB()} return those minted ids. A consumer
- *       captures the ids AFTER {@code seed()} rather than pinning them up front.
- *       This is the ADR-0027-clean path: zero seeding JDBC.</li>
- *   <li><strong>Legacy pinned-id path (deprecated, JDBC):</strong> built with a
- *       caller-supplied {@code (clubA, clubB)} UUID pair, {@link #seed()} INSERTs
- *       the two clubs at those exact ids via raw JDBC. Retained UNCHANGED so the
- *       ~28 existing consumers keep compiling + passing while T-19b/c/d migrate
- *       them to the production path; T-19d deletes this path. See
- *       {@link #TwoClubFixture(JdbcTemplate, UUID, UUID, String, String)}.</li>
- * </ul>
+ * <p>Built with the {@link ClubRepository} / {@link CountryRepository} /
+ * {@link ClubStateRepository} domain ports, {@link #seed()} creates the two
+ * clubs through the real {@link Club#create} → {@code ClubRepository.save} path
+ * (mirroring {@code ClubsService.createClub} /
+ * {@code DeploymentProvisioningService.provision}). The ids are MINTED by the
+ * JPA {@code @GeneratedValue} and read back off the saved aggregates —
+ * {@link #clubA()} / {@link #clubB()} return those minted ids. A consumer
+ * captures the ids AFTER {@code seed()} rather than pinning them up front. This
+ * is the ADR-0027-clean path: zero seeding JDBC. (T-19d removed the deprecated
+ * pinned-id JDBC-INSERT constructor once all 28 consumers migrated.)
  *
- * <p>{@link #seed()} also clears tenant-scoped child rows under the two
- * clubs via {@link #deleteTenantScopedRows()} — driven by
+ * <p>{@link #seed()} pre-cleans tenant-scoped child rows under any prior-run
+ * clubs at these deterministic slugs/keys via
+ * {@link #deleteTenantScopedRowsFor(List)} — driven by
  * {@link TenantScopedEntityCatalog} so a new {@code @TenantId} entity lands
  * its cleanup automatically. Aggregate-internal child tables that lack a
  * direct {@code club_id} (today: {@code inoutbound_point}) are handled by
- * an explicit reverse-dependency delete. Teardown is hard-DELETE JDBC under
- * BOTH paths (legit test infra — the production path deletes by the minted
- * ids it learned at save time).
+ * an explicit reverse-dependency delete. Teardown is hard-DELETE JDBC (legit
+ * test infra — the fixture deletes by the minted ids it learned at save time).
  */
 public final class TwoClubFixture {
 
@@ -62,13 +54,11 @@ public final class TwoClubFixture {
     private final String namePrefix;
     private final String keyPrefix;
 
-    // Production path collaborators. Null in the legacy pinned-id path.
-    private final @Nullable ClubRepository clubs;
-    private final @Nullable CountryRepository countries;
-    private final @Nullable ClubStateRepository clubStates;
+    private final ClubRepository clubs;
+    private final CountryRepository countries;
+    private final ClubStateRepository clubStates;
 
-    // Pinned up-front in the legacy path; minted at seed() in the production
-    // path (hence non-final + nullable until seed() runs).
+    // Minted at seed() (hence non-final + nullable until seed() runs).
     private @Nullable UUID clubA;
     private @Nullable UUID clubB;
 
@@ -80,7 +70,7 @@ public final class TwoClubFixture {
      * valid, unique slug per club (see {@link #slugFor}); slugs aren't asserted
      * by consumers (only {@code ux_club_slug} uniqueness matters), so any valid
      * unique value works. The {@code jdbc} handle is used for teardown DELETEs
-     * only — no seeding JDBC on this path.
+     * only — no seeding JDBC.
      */
     public TwoClubFixture(JdbcTemplate jdbc,
                           ClubRepository clubs,
@@ -95,52 +85,22 @@ public final class TwoClubFixture {
         this.keyPrefix = keyPrefix;
     }
 
-    /**
-     * Legacy pinned-id path. Pre-creates {@code clubA} / {@code clubB} at the
-     * supplied UUIDs via raw JDBC INSERT.
-     *
-     * @deprecated J-26 T-19 — Option B replaces pinned ids with minted ids
-     *     discovered after {@link #seed()}. Use
-     *     {@link #TwoClubFixture(JdbcTemplate, ClubRepository, CountryRepository,
-     *     ClubStateRepository, String, String)} and capture the ids via
-     *     {@link #clubA()} / {@link #clubB()}. T-19b/c/d migrate the remaining
-     *     consumers; T-19d removes this constructor and its seeding JDBC.
-     */
-    @Deprecated
-    public TwoClubFixture(JdbcTemplate jdbc, UUID clubA, UUID clubB,
-                          String namePrefix, String keyPrefix) {
-        this.jdbc = jdbc;
-        this.clubA = clubA;
-        this.clubB = clubB;
-        this.namePrefix = namePrefix;
-        this.keyPrefix = keyPrefix;
-        this.clubs = null;
-        this.countries = null;
-        this.clubStates = null;
-    }
-
-    /** The first club's id (minted on the production path, pinned on the legacy path). */
+    /** The first club's minted id. */
     public UUID clubA() {
-        return Objects.requireNonNull(clubA,
-                "clubA() called before seed() on the production path");
+        return Objects.requireNonNull(clubA, "clubA() called before seed()");
     }
 
-    /** The second club's id (minted on the production path, pinned on the legacy path). */
+    /** The second club's minted id. */
     public UUID clubB() {
-        return Objects.requireNonNull(clubB,
-                "clubB() called before seed() on the production path");
+        return Objects.requireNonNull(clubB, "clubB() called before seed()");
     }
 
     /** Wipes prior tenant rows + clubs, then creates the two test clubs. */
     public void seed() {
-        if (clubs != null) {
-            seedViaProductionPath();
-        } else {
-            seedViaLegacyJdbc();
-        }
+        seedViaProductionPath();
     }
 
-    // -- Production path (new) --------------------------------------------------
+    // -- Production-create seeding ----------------------------------------------
 
     /**
      * Mints both clubs through the real {@link Club#create} →
@@ -273,24 +233,7 @@ public final class TwoClubFixture {
         return key.length() > 10 ? key.substring(0, 10) : key;
     }
 
-    // -- Legacy pinned-id path (deprecated; JDBC seeding, removed in T-19d) -----
-
-    private void seedViaLegacyJdbc() {
-        deleteTenantScopedRows();
-        deleteClubs();
-        insertClub(Objects.requireNonNull(clubA), "alpha");
-        insertClub(Objects.requireNonNull(clubB), "bravo");
-    }
-
-    public void deleteClubs() {
-        jdbc.update("DELETE FROM t_club WHERE id IN (?::uuid, ?::uuid)",
-                clubA().toString(), clubB().toString());
-    }
-
-    /** Deletes every tenant-scoped row under the two seed clubs. */
-    public void deleteTenantScopedRows() {
-        deleteTenantScopedRowsFor(List.of(clubA(), clubB()));
-    }
+    // -- Teardown (hard-DELETE JDBC; legit test infra) --------------------------
 
     /**
      * Deletes every tenant-scoped row under one club id (production-path
@@ -351,15 +294,17 @@ public final class TwoClubFixture {
         // Aircraft is cross-tenant since S-058 (reverts S-159), so it's no longer
         // in the catalog loop below. But managing_club_id → club is ON DELETE
         // RESTRICT, so aircraft rows under the seed clubs would block
-        // deleteClubs(). Delete only AFTER every club's flights/reservations above
-        // are gone (cross-club references). aircraft_aircraft_state and
-        // aircraft_operating_counter cascade via their FKs.
+        // deleteClubsBySlugOrKey(). Delete only AFTER every club's
+        // flights/reservations above are gone (cross-club references).
+        // aircraft_aircraft_state and aircraft_operating_counter cascade via
+        // their FKs.
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id IN (" + in + ")", ids);
         // t_user is CROSS-tenant (not @TenantId-scoped → absent from the catalog
         // loop below), but t_user.club_id → t_club is ON DELETE RESTRICT, so any
-        // user under a seed club blocks deleteClubs(). With production-minted club
-        // ids (T-19b) a consumer's own cleanUserRows() keys on THIS run's ids and
-        // can't reach a PRIOR run's users, so the fixture must clear them itself.
+        // user under a seed club blocks deleteClubsBySlugOrKey(). With
+        // production-minted club ids (T-19b) a consumer's own cleanUserRows()
+        // keys on THIS run's ids and can't reach a PRIOR run's users, so the
+        // fixture must clear them itself.
         jdbc.update("DELETE FROM t_user WHERE club_id IN (" + in + ")", ids);
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
@@ -371,23 +316,5 @@ public final class TwoClubFixture {
     /** Builds a {@code ?::uuid, ?::uuid, …} placeholder list of the given size. */
     private static String inPlaceholders(int size) {
         return String.join(", ", Collections.nCopies(size, "?::uuid"));
-    }
-
-    private void insertClub(UUID id, String slug) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
-        // deployment_id defaults to the operator Deployment via the V14
-        // column DEFAULT — IT fixtures don't need to surface it.
-        jdbc.update("""
-                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
-                                  slug, public_registration_enabled)
-                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
-                """,
-                id.toString(),
-                namePrefix + slug,
-                keyPrefix + slug.charAt(0),
-                Objects.requireNonNull(countryId).toString(),
-                Objects.requireNonNull(clubStateId).toString(),
-                namePrefix + slug);
     }
 }
