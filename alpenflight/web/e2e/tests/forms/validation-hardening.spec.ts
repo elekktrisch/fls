@@ -3,13 +3,13 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { selectAfOption } from '../_helpers/af-select';
 
 /**
- * J-26 VALIDATION HARDENING — mock inner-loop spec (T-01 STUB).
+ * J-26 VALIDATION HARDENING — mock inner-loop spec.
  *
- * THIN STUB: every case below is `test.fixme` — the structure, chrome-entry
- * flow, and selectors are authored here so each fix task (T-05..T-13) un-fixmes
- * its case as the behavior lands; T-27 thickens all of them to full real
- * assertions. The cases LIST (`--list`) + compile, but never run red on the
- * per-push gate while the fixes are in flight.
+ * ALL CASES ARE ACTIVE. Authored as a thin `test.fixme` stub at T-01 (structure,
+ * chrome-entry flow, and selectors), each case was un-fixme'd by its fix task
+ * (T-05..T-13) as the behavior landed and thickened to full real assertions by
+ * T-27. No `test.fixme` remains — every case runs (and must stay green) on the
+ * per-push gate.
  *
  * Mock-auth fidelity: the dev server boots under `--configuration=mock-auth`
  * (synthetic SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR principal); every
@@ -101,6 +101,16 @@ function fieldErrors(page: Page, controlLocator: Locator): Locator {
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Inline 409 FIELD-ROUTING — the duplicate-key fixes (T-05 / T-07).
+//
+// These cases assert WHICH FIELD a server 409 routes to, NOT the rendered text.
+// The mock `message: 'common.errors.duplicate'` below is a STAND-IN for the
+// server's problem-detail `detail` string (a SERVER message, shown as-is) — it
+// is deliberately never asserted as rendered text. The af-field-errors transloco
+// fix (T-08) translates CLIENT-side validator KEYS through transloco; a
+// server-supplied message string is rendered verbatim (and the real backend
+// sends human prose there, e.g. the 409 detail). The translated-text path the
+// T-08 AC owns is asserted on the client-validator cases below (the /clubs
+// required probe + the person as-you-type case), not here.
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 duplicate-key 409 routes to the offending field (mock inner loop)', () => {
   // Error-path logic, not wiring — the server 409 envelope is covered by
@@ -396,7 +406,17 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
 
     const lastname = page.getByTestId('lastname-input').locator('input');
     await lastname.fill('');
-    await expect(fieldErrors(page, page.getByTestId('lastname-input'))).toBeVisible();
+    const lastnameErrors = fieldErrors(page, page.getByTestId('lastname-input'));
+    await expect(lastnameErrors).toBeVisible();
+    // T-08b: the inline as-you-type error must render the TRANSLATED German prose
+    // (lang pinned via ?lang=de in enterSection), never the raw `common.errors.*`
+    // i18n key — the af-field-errors transloco fix (T-08). `lastname` carries only
+    // `required` + `maxLength(100)`, so an empty value trips required ALONE → a
+    // single message. This guards the CLIENT-validator-key → translated path on a
+    // live, debounced inline error (the blur-based /clubs probe above covers the
+    // touched-on-blur path; this one covers as-you-type).
+    await expect(lastnameErrors).toHaveText('Eingabe erforderlich.');
+    await expect(lastnameErrors).not.toContainText(/common\.errors\./);
     await lastname.fill('Pilot');
     await expect(fieldErrors(page, page.getByTestId('lastname-input'))).toHaveCount(0);
   });
