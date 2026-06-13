@@ -261,7 +261,7 @@ async function bootBackend(page: Page, items: MockRuleFilterDetail[]): Promise<v
 }
 
 // ── nav entry (chrome-reachable contract) ──────────────────────────────────
-test.fixme('accounting-rules: a nav entry under masterdata reaches /accountingrules (ENTER via nav)', async ({
+test('accounting-rules: a nav entry under masterdata reaches /accountingrules (ENTER via nav)', async ({
   page,
 }) => {
   // T-11 adds the `/accountingrules` route + the nav item; until then there is
@@ -279,7 +279,7 @@ test.fixme('accounting-rules: a nav entry under masterdata reaches /accountingru
 });
 
 // ── list ───────────────────────────────────────────────────────────────────
-test.fixme('accounting-rules: list renders the club’s rule filters (name, type, active)', async ({
+test('accounting-rules: list renders the club’s rule filters (name, type, active)', async ({
   page,
 }) => {
   // T-11 builds the list page. Tenant-scoped: the backend stub only ever

@@ -28,6 +28,11 @@ export const TENANT_SECTIONS: readonly NavItem[] = [
 // is hidden for them.
 export const CLUB_ADMIN_SECTIONS: readonly NavItem[] = [
   { path: '/users', label: 'Users', icon: 'shield' },
+  // Accounting rules (J-8) — the AccountingRuleFilter config surface. Every
+  // CRUD endpoint is CLUB_ADMINISTRATOR-gated on the server (a pure config
+  // screen; even reads are admin-gated), so the masterdata nav entry is
+  // club-admin-only, unlike the open-to-tenant flight-types/aircraft entries.
+  { path: '/accountingrules', label: 'Accounting rules', icon: 'file-text' },
 ];
 
 // Sysadmin-only nav. Clubs is a cross-tenant management surface; per the

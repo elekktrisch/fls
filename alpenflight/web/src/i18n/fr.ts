@@ -1,6 +1,20 @@
 import type { Translations } from './de';
 
 const fr: Translations = {
+  accounting: {
+    list: {
+      columns: {
+        active: 'Actif',
+        name: 'Nom',
+        target: 'Cible',
+        type: 'Type',
+      },
+      readonlyBanner:
+        'Lecture seule. Les règles de facturation de votre club sont gérées par votre administrateur de club.',
+    },
+    new: 'Nouvelle règle',
+    title: 'Règles de facturation',
+  },
   aircraft: {
     blastRadiusBanner:
       'Données de référence du club — les modifications n’affectent que votre club.',

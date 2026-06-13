@@ -1,6 +1,20 @@
 import type { Translations } from './de';
 
 const it: Translations = {
+  accounting: {
+    list: {
+      columns: {
+        active: 'Attivo',
+        name: 'Nome',
+        target: 'Destinazione',
+        type: 'Tipo',
+      },
+      readonlyBanner:
+        'Sola lettura. Le regole di fatturazione del tuo club sono gestite dal tuo amministratore di club.',
+    },
+    new: 'Nuova regola',
+    title: 'Regole di fatturazione',
+  },
   aircraft: {
     blastRadiusBanner: 'Dati anagrafici del club — le modifiche valgono solo per il tuo club.',
     deleteConfirm: 'Eliminare l’aeromobile «{{immatriculation}}»? L’operazione è irreversibile.',

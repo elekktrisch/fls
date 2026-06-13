@@ -40,7 +40,10 @@ export type MutationEvent =
   | { kind: 'planningDay.created'; id: string }
   | { kind: 'planningDay.updated'; id: string }
   | { kind: 'planningDay.deleted'; id: string }
-  | { kind: 'planningDay.bulkCreated'; count: number };
+  | { kind: 'planningDay.bulkCreated'; count: number }
+  | { kind: 'accounting-rule-filter.created'; id: string }
+  | { kind: 'accounting-rule-filter.updated'; id: string }
+  | { kind: 'accounting-rule-filter.deleted'; id: string };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {
   providedIn: 'root',

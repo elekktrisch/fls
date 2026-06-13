@@ -5,6 +5,20 @@
  * compile errors until they add the same key.
  */
 const de = {
+  accounting: {
+    list: {
+      columns: {
+        active: 'Aktiv',
+        name: 'Name',
+        target: 'Ziel',
+        type: 'Typ',
+      },
+      readonlyBanner:
+        'Schreibgeschützt. Die Abrechnungsregeln deines Vereins werden von deinem Vereinsadministrator verwaltet.',
+    },
+    new: 'Neue Regel',
+    title: 'Abrechnungsregeln',
+  },
   aircraft: {
     blastRadiusBanner: 'Vereinsstammdaten — Änderungen wirken nur für deinen Verein.',
     deleteConfirm:

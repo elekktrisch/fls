@@ -13,20 +13,24 @@ describe('navSectionsFor', () => {
     expect(p).not.toContain('/users');
   });
 
-  it('club-admin sees Reservations + tenant + Users, but NOT Clubs', () => {
+  it('club-admin sees Reservations + tenant + Users + Accounting rules, but NOT Clubs', () => {
     const p = paths({ isSystemAdmin: false, isClubAdmin: true });
     expect(p).toContain('/reservations');
     expect(p).toContain('/users');
+    // Accounting rules — CLUB_ADMINISTRATOR-gated config screen (J-8).
+    expect(p).toContain('/accountingrules');
     expect(p).not.toContain('/clubs');
     // tenant sections present
     expect(p).toContain('/planning');
     expect(p).toContain('/flights');
   });
 
-  it('regular user sees Reservations + tenant, but NOT Users or Clubs', () => {
+  it('regular user sees Reservations + tenant, but NOT Users, Accounting rules, or Clubs', () => {
     const p = paths({ isSystemAdmin: false, isClubAdmin: false });
     expect(p).toContain('/reservations');
     expect(p).not.toContain('/users');
+    // Accounting rules is club-admin-only (server gates every CRUD endpoint).
+    expect(p).not.toContain('/accountingrules');
     expect(p).not.toContain('/clubs');
   });
 
@@ -50,6 +54,7 @@ describe('navSectionsFor', () => {
       '/persons',
       '/flight-types',
       '/users',
+      '/accountingrules',
       '/clubs',
     ]);
   });

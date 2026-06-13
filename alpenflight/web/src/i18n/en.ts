@@ -1,6 +1,20 @@
 import type { Translations } from './de';
 
 const en: Translations = {
+  accounting: {
+    list: {
+      columns: {
+        active: 'Active',
+        name: 'Name',
+        target: 'Target',
+        type: 'Type',
+      },
+      readonlyBanner:
+        'Read-only. Your club’s accounting rules are managed by your club administrator.',
+    },
+    new: 'New rule',
+    title: 'Accounting rules',
+  },
   aircraft: {
     blastRadiusBanner: 'Club master data — changes affect only your club.',
     deleteConfirm: 'Delete aircraft "{{immatriculation}}"? This cannot be undone.',

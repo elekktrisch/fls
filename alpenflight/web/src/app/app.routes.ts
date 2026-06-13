@@ -113,6 +113,15 @@ export const routes: Routes = [
     loadChildren: () => import('@features/articles/articles.routes').then((m) => m.ARTICLES_ROUTES),
   },
   {
+    // `/accountingrules` — the AccountingRuleFilter config screen (J-8),
+    // replacing legacy masterdata/accountingRules/. CLUB_ADMINISTRATOR-gated on
+    // the server (all CRUD endpoints); the nav entry lives under
+    // CLUB_ADMIN_SECTIONS (nav-sections.ts).
+    path: 'accountingrules',
+    loadChildren: () =>
+      import('@features/accounting/accounting.routes').then((m) => m.ACCOUNTING_ROUTES),
+  },
+  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),
