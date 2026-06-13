@@ -31,6 +31,13 @@ import type {
   UserUpdateRequest,
 } from '@api/generated/model';
 
+import {
+  classifyApiError,
+  genericSaveErrorMessage,
+  type ProblemDetailBody,
+  type SaveErrorRule,
+} from '@shared/util/form';
+
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 export type UserItem = UserListItem & { id: string };
@@ -304,53 +311,72 @@ export const UsersStore = signalStore(
 
 type Op = 'invite' | 'update' | 'delete' | 'resend';
 
+// Ordered classification rules (J-26 T-22, shared `classifyApiError`). First
+// status+`when` match wins, so the narrow 409 discriminators precede the broad
+// 409 / 400 catch-alls. The backend uses a single `user-conflict` URN for
+// self-delete, last-admin, and username-taken, so the 409 cases discriminate by
+// `detail` substring + the in-flight `op`; if distinct URNs land later the
+// substring match still holds.
+function userErrorRules(op: Op): readonly SaveErrorRule<SaveErrorKind>[] {
+  const detailOf = (b: ProblemDetailBody) => b.detail ?? '';
+  return [
+    {
+      status: 403,
+      when: (b) => b.type?.includes('role-grant-rejected') ?? false,
+      outcome: (b) => ({
+        saveError: b.detail ?? 'Caller may not grant one or more of the requested roles.',
+        saveErrorKind: 'role-grant-rejected',
+      }),
+    },
+    {
+      status: 403,
+      outcome: (b) => ({
+        saveError:
+          b.detail ?? 'You are not authorized to perform this action on the selected user.',
+        saveErrorKind: 'forbidden',
+      }),
+    },
+    {
+      status: 409,
+      when: (b) => op === 'delete' && /cannot deactivate themselves|self/i.test(detailOf(b)),
+      outcome: (b) => ({ saveError: detailOf(b), saveErrorKind: 'conflict-self-delete' }),
+    },
+    {
+      status: 409,
+      when: (b) => op === 'delete' && /last CLUB_ADMINISTRATOR|last admin/i.test(detailOf(b)),
+      outcome: (b) => ({ saveError: detailOf(b), saveErrorKind: 'conflict-last-admin' }),
+    },
+    {
+      status: 409,
+      when: (b) => op === 'invite' && /already in use|username/i.test(detailOf(b)),
+      outcome: (b) => ({ saveError: detailOf(b), saveErrorKind: 'conflict-username-taken' }),
+    },
+    {
+      status: 409,
+      outcome: (b) => ({
+        saveError:
+          detailOf(b).length > 0 ? detailOf(b) : 'Conflict — operation refused by the server.',
+        saveErrorKind: 'other',
+      }),
+    },
+    {
+      status: 400,
+      outcome: (b, e) => ({
+        saveError: genericSaveErrorMessage(b, e),
+        saveErrorKind: 'validation',
+      }),
+    },
+  ];
+}
+
 function errorPatch(
   e: HttpErrorResponse,
   op: Op,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
-  const body = (e.error ?? null) as { type?: string; detail?: string; message?: string } | null;
-
-  if (e.status === 403) {
-    if (body?.type?.includes('role-grant-rejected')) {
-      return {
-        saveError: body.detail ?? 'Caller may not grant one or more of the requested roles.',
-        saveErrorKind: 'role-grant-rejected',
-      };
-    }
-    return {
-      saveError:
-        body?.detail ?? 'You are not authorized to perform this action on the selected user.',
-      saveErrorKind: 'forbidden',
-    };
-  }
-
-  if (e.status === 409) {
-    const detail = body?.detail ?? '';
-    // Backend uses a single `user-conflict` URN for self-delete, last-admin,
-    // and username-taken. Discriminate by the detail string. Cheap; if the
-    // backend grows distinct URNs later, the substring match still wins.
-    if (op === 'delete') {
-      if (/cannot deactivate themselves|self/i.test(detail)) {
-        return { saveError: detail, saveErrorKind: 'conflict-self-delete' };
-      }
-      if (/last CLUB_ADMINISTRATOR|last admin/i.test(detail)) {
-        return { saveError: detail, saveErrorKind: 'conflict-last-admin' };
-      }
-    }
-    if (op === 'invite' && /already in use|username/i.test(detail)) {
-      return { saveError: detail, saveErrorKind: 'conflict-username-taken' };
-    }
-    return {
-      saveError: detail.length > 0 ? detail : 'Conflict — operation refused by the server.',
-      saveErrorKind: 'other',
-    };
-  }
-
-  if (e.status === 400) {
-    const msg = body?.detail ?? body?.message ?? e.message;
-    return { saveError: msg, saveErrorKind: 'validation' };
-  }
-
-  const msg = body?.detail ?? body?.message ?? e.message;
-  return { saveError: msg, saveErrorKind: 'other' };
+  return classifyApiError(e, userErrorRules(op), (body, err) => ({
+    // The 400 rule already ran its own (no e.message) message; this generic
+    // fallback covers every other status, matching the prior cascade's tail.
+    saveError: genericSaveErrorMessage(body, err),
+    saveErrorKind: 'other',
+  }));
 }

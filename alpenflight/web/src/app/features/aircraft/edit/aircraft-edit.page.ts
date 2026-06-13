@@ -35,7 +35,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
-import { liveFieldErrors } from '@shared/util/form';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { LocationsStore } from '../../locations/locations.store';
@@ -780,9 +780,16 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   };
 }
 
-function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
-  const v = form.getRawValue();
-  const req: AircraftCreateRequest = {
+// The required base + the shared optionals map (J-26 T-22 — both builders pass
+// the SAME pruning map to `withOptionals`, which drops every `''`/`null`/
+// `undefined` field in one pass instead of ~18 hand `if (v.x !== '') req.x = …`
+// branches per builder). `numberOrUndefined` maps the form's `null` sentinel to
+// `undefined` so `withOptionals` prunes it (it treats `null` AND `undefined` as
+// "not provided"); `''` text fields prune directly.
+type AircraftFormValue = ReturnType<AircraftForm['getRawValue']>;
+
+function aircraftRequestBase(v: AircraftFormValue) {
+  return {
     aircraftTypeId: v.aircraftTypeId,
     immatriculation: v.immatriculation.toUpperCase(),
     isTowingOrWinchRequired: v.isTowingOrWinchRequired,
@@ -790,57 +797,44 @@ function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
     isWinchStartAllowed: v.isWinchStartAllowed,
     isTowingAircraft: v.isTowingAircraft,
   };
-  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
-  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
-  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
-  if (v.flarmId !== '') req.flarmId = v.flarmId;
-  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
-  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
-  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
-  if (v.mtom !== null) req.mtom = v.mtom;
-  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
-  if (v.daecIndex !== null) req.daecIndex = v.daecIndex;
-  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
-  if (v.engineOperatingCounterUnitTypeId !== '') {
-    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
-  }
-  if (v.spotLink !== '') req.spotLink = v.spotLink;
-  if (v.comment !== '') req.comment = v.comment;
-  return req;
+}
+
+function aircraftSharedOptionals(v: AircraftFormValue) {
+  return {
+    manufacturerName: v.manufacturerName,
+    aircraftModel: v.aircraftModel,
+    competitionSign: v.competitionSign,
+    flarmId: v.flarmId,
+    aircraftSerialNumber: v.aircraftSerialNumber,
+    yearOfManufacture: v.yearOfManufacture === '' ? '' : yearToIso(v.yearOfManufacture),
+    noiseClass: v.noiseClass,
+    noiseLevel: v.noiseLevel ?? undefined,
+    mtom: v.mtom ?? undefined,
+    nrOfSeats: v.nrOfSeats ?? undefined,
+    daecIndex: v.daecIndex ?? undefined,
+    homebaseId: v.homebaseId,
+    engineOperatingCounterUnitTypeId: v.engineOperatingCounterUnitTypeId,
+    spotLink: v.spotLink,
+    comment: v.comment,
+  };
+}
+
+function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
+  const v = form.getRawValue();
+  // `withOptionals` returns `Base & Partial<Opt>`; under `exactOptionalPropertyTypes`
+  // the `Partial` widens each optional with `| undefined`, which the DTO's exact
+  // optionals reject. The runtime pruning guarantees no `undefined` survives on
+  // the object, so the narrowing cast is sound.
+  return withOptionals(aircraftRequestBase(v), aircraftSharedOptionals(v)) as AircraftCreateRequest;
 }
 
 function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   const v = form.getRawValue();
-  const req: AircraftUpdateRequest = {
-    aircraftTypeId: v.aircraftTypeId,
-    immatriculation: v.immatriculation.toUpperCase(),
-    isTowingOrWinchRequired: v.isTowingOrWinchRequired,
-    isTowingStartAllowed: v.isTowingStartAllowed,
-    isWinchStartAllowed: v.isWinchStartAllowed,
-    isTowingAircraft: v.isTowingAircraft,
-  };
-  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
-  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
-  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
-  if (v.flarmId !== '') req.flarmId = v.flarmId;
-  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
-  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
-  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
-  if (v.mtom !== null) req.mtom = v.mtom;
-  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
-  if (v.daecIndex !== null) req.daecIndex = v.daecIndex;
-  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
-  // flightOperatingCounterUnitTypeId is preserved from the loaded detail and
-  // echoed back unchanged — the master-data form has no UI for it (parity).
-  if (v.flightOperatingCounterUnitTypeId !== '') {
-    req.flightOperatingCounterUnitTypeId = v.flightOperatingCounterUnitTypeId;
-  }
-  if (v.engineOperatingCounterUnitTypeId !== '') {
-    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
-  }
-  if (v.spotLink !== '') req.spotLink = v.spotLink;
-  if (v.comment !== '') req.comment = v.comment;
-  return req;
+  return withOptionals(aircraftRequestBase(v), {
+    ...aircraftSharedOptionals(v),
+    // flightOperatingCounterUnitTypeId is preserved from the loaded detail and
+    // echoed back unchanged — the master-data form has no UI for it (parity).
+    // Create has no such field on the wire, so it's update-only here.
+    flightOperatingCounterUnitTypeId: v.flightOperatingCounterUnitTypeId,
+  }) as AircraftUpdateRequest;
 }
