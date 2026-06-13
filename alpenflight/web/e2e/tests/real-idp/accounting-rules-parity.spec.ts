@@ -1,5 +1,6 @@
 import { test, expect, type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
 
+import { enterViaNav } from '../_helpers/nav';
 import {
   loginAsReservationAdmin,
   captureReservationAdminBearer,
@@ -222,12 +223,9 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
       // reaches /accountingrules and the list renders. Pin the English cold-start
       // locale (the list test asserts the English h1).
       await page.goto('/start?lang=en');
-      const navLink = page.getByTestId('af-nav-section-/accountingrules');
-      await expect(
-        navLink,
-        'the accounting-rules nav entry is reachable from the chrome',
-      ).toBeVisible();
-      await navLink.click();
+      // Accounting rules now nests under the Masterdata nav group (J-8 T-22a):
+      // enterViaNav opens that dropdown first, then clicks the nested entry.
+      await enterViaNav(page, '/accountingrules');
       await expect(page).toHaveURL('/accountingrules');
       await expect(page.locator('h1')).toHaveText('Accounting rules');
       await expect(page.getByTestId('accounting-rules-table')).toBeVisible();

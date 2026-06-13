@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 
 import { selectAfOption } from '../_helpers/af-select';
+import { enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import {
   loginAsReservationAdmin,
@@ -148,8 +149,22 @@ test.describe('J-6b nav role-gating (real-idp)', () => {
       const reservations = page.getByTestId('af-nav-section-/reservations');
       await expect(reservations, 'a club admin sees the Reservations nav entry').toBeVisible();
 
-      // Users IS visible for a club admin (CLUB_ADMIN_SECTIONS, T-11).
-      await expect(page.getByTestId('af-nav-section-/users')).toBeVisible();
+      // Users IS available to a club admin (CLUB_ADMIN_SECTIONS, T-11). It now
+      // lives UNDER the Masterdata nav group (J-8 T-22a) and is not in the DOM
+      // until that group is opened — so assert the group trigger is chrome-visible
+      // for the club admin, then OPEN it and assert the nested Users entry renders.
+      const masterdata = page.getByTestId('af-nav-group-masterdata');
+      await expect(masterdata, 'a club admin sees the Masterdata nav group').toBeVisible();
+      await masterdata.click();
+      await expect(
+        page.getByTestId('af-nav-section-/users'),
+        'the Users entry is reachable under the opened Masterdata group',
+      ).toBeVisible();
+      // Close the dropdown again so the settled top-bar nav (no open overlay) is
+      // what the screenshot captures and what the later Reservations-tab click
+      // hits — the masterdata items leave the DOM once the group closes.
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('af-nav-section-/users')).toHaveCount(0);
 
       // Clubs is NOT visible for a club admin (AC14 — the NEW operator decision to
       // make /clubs sysadmin-only; legacy showed Clubs to all). The mock-admin
@@ -240,17 +255,18 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
       // the real backend behaviour ([[project_real_idp_goto_reboot_renew_stall]]).
       // clubadmin1 is a CLUB_ADMINISTRATOR, so the Users section renders.
       await page.goto('/start?lang=de');
-      const usersNav = page.getByTestId('af-nav-section-/users');
-      await expect(usersNav, 'a club admin sees the Users nav entry').toBeVisible();
 
       // Watch the real GET /api/v1/users response — the T-15 AC: it must NOT 400
       // for the exact dev clubadmin1 principal (symbolic clubId claim → t_user
       // lookup; the V8 seed restored the row that was the menu-broken symptom).
+      // Arm the response wait BEFORE entering via nav: Users now nests under the
+      // Masterdata group (J-8 T-22a) and enterViaNav opens that dropdown first,
+      // then clicks the nested entry — the GET fires on that child click.
       const usersResp = page.waitForResponse(
         (r) => r.request().method() === 'GET' && new URL(r.url()).pathname === '/api/v1/users',
         { timeout: 15_000 },
       );
-      await usersNav.click();
+      await enterViaNav(page, '/users');
       await expect(page).toHaveURL(/\/users(\?|$)/);
       const resp = await usersResp;
 

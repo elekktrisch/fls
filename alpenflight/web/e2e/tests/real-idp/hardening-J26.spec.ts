@@ -8,6 +8,7 @@ import {
   type TestInfo,
 } from '@playwright/test';
 
+import { enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
@@ -97,9 +98,9 @@ async function loginAsClubAdmin(page: Page): Promise<void> {
 /** Chrome entry: app shell → nav section click (never a bare goto to the form). */
 async function enterSection(page: Page, sectionPath: string): Promise<void> {
   await page.goto('/start?lang=de');
-  const section = page.getByTestId(`af-nav-section-${sectionPath}`);
-  await expect(section, `the ${sectionPath} nav section is chrome-reachable`).toBeVisible();
-  await section.click();
+  // Persons / flight-types now nest under the Masterdata nav group (J-8 T-22a);
+  // enterViaNav opens that dropdown first for nested paths.
+  await enterViaNav(page, sectionPath);
 }
 
 /** The real-idp project's baseURL (resolved per test — no shared hook state). */

@@ -56,12 +56,22 @@ export async function enterViaNav(page: Page, path: string): Promise<void> {
   }
 
   // Nested masterdata path: the Masterdata group parent must be opened first.
-  // On mobile the group lives inside the burger drawer — open the drawer if the
-  // group trigger isn't already on-screen (desktop renders it inline).
+  // The nav renders exactly ONE surface (af-nav-bar `@if (!isWide())` burger vs
+  // `@if (isWide())` inline tabs) and that surface may still be mounting when we
+  // arrive — so DON'T branch on a point-in-time `count()` (it races the render
+  // and wrongly takes the burger path on desktop). Instead wait for the live
+  // surface to settle: the desktop group trigger OR the mobile burger, whichever
+  // this viewport paints, is visible before we decide.
+  const burger = page.getByTestId('af-nav-burger');
   const group = page.getByTestId('af-nav-group-masterdata');
-  if ((await group.count()) === 0) {
-    const burger = page.getByTestId('af-nav-burger');
-    await expect(burger, 'mobile burger reveals the nav (Masterdata group)').toBeVisible();
+  await expect(
+    burger.or(group).first(),
+    'the nav settled (Masterdata group trigger on desktop, or the burger on mobile)',
+  ).toBeVisible();
+
+  // On mobile the group lives inside the burger drawer — open it first. On
+  // desktop the burger is absent (`@if (!isWide())`), so this is skipped.
+  if (await burger.isVisible()) {
     await burger.click();
   }
   await expect(group, 'the Masterdata group trigger is chrome-reachable').toBeVisible();

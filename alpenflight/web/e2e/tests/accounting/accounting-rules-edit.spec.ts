@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { enterViaNav } from '../_helpers/nav';
+
 /**
  * J-8 — AccountingRuleFilter config screen (`/accountingrules` list + edit).
  *
@@ -426,9 +428,9 @@ test('accounting-rules: a nav entry under masterdata reaches /accountingrules (E
   await bootBackend(page, [{ ...seededArticleFilter }]);
 
   await page.goto('/clubs?lang=de');
-  const navLink = page.getByTestId('af-nav-section-/accountingrules');
-  await expect(navLink).toBeVisible();
-  await navLink.click();
+  // Accounting rules now lives under the Masterdata nav group (J-8 T-22a): the
+  // helper opens that dropdown first, then clicks the nested entry.
+  await enterViaNav(page, '/accountingrules');
 
   await expect(page).toHaveURL('/accountingrules');
   await expect(page.getByTestId('accounting-rules-table')).toBeVisible();
