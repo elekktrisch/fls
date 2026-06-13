@@ -423,6 +423,10 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   set explicit `operationId`s on the `me`-dashboard endpoints (and ideally project-wide) so orval emits
   named methods, not positional `getN`. *(seam: backend operationId annotations + orval config + the few
   `meService.getN()` call sites)* — fix-forward on the next web-touching journey.
+  **PARTIAL (J-8 T-06/T-07):** the new accounting + accounting-reference endpoints all carry explicit
+  `@Operation(operationId=…)` (named methods in the regenerated client). The **project-wide** pass over the
+  remaining legacy `getN` endpoints is STILL PENDING — deliberately deferred from J-8 (risky whole-client
+  re-name churn; do it in isolation on a future web journey, not bolted onto an already-large feature journey).
 
 ## Pending (filed by /do-retro 2026-06-05, J-3 window)
 
