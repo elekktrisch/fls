@@ -2,8 +2,9 @@
 id: J-8
 title: Accounting rule filters
 epic: E-09
-status: in_progress
+status: done
 started_at: 2026-06-13
+done_at: 2026-06-13
 journey0: false
 carved: true
 depends_on: [J-1]
@@ -27,6 +28,20 @@ parity_test: alpenflight/web/e2e/tests/real-idp/accounting-rules-parity.spec.ts
 mock_test: alpenflight/web/e2e/tests/accounting/   # journey-under-work's own mock-auth specs (T-02: per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly)
 adr_refs: [0005, 0008, 0022, 0027, 0024]
 ---
+
+## Outcome (done 2026-06-13 — PR #221, gate GREEN on sha ab320ac2)
+
+`/accountingrules` config surface shipped end-to-end + the V4 accounting **migration substrate proven** (it existed but was never wired/exported). Real-chain green: per-push `required` runs the real J-8 `tests/real-idp/accounting-rules-parity.spec.ts` (is_baseline=false, EXECUTED not path-skipped); the fanout exported `ACCOUNTING_RULE_FILTER` from the real MSSQL schema (3 rows) and the migrated-parity block ran+passed; the gallery carries all 4 paired legacy↔AlpenFlight shots + the migrated-parity caption.
+
+**What the real chain caught that the ITs masked** (the gate's value): (T-16) `POST` 400'd on every create — a primitive-boolean WriteRequest field the SPA omits → made the optional booleans `@Nullable Boolean`; (T-17) the migrated-parity assertion never ran (Playwright spec-sort raced J-0c provisioning) → an order-independent single-ingest memo. (T-19) orval client drift; (T-20) legacy form-capture timeout; (T-21) per-push shots `producedBy: fanout` split.
+
+**Operator-requested mid-flight (T-22a/b):** masterdata nav overflow → grouped Aircraft/Locations/Persons/Flight types/Users/Accounting rules under a "Masterdata" `nz-dropdown` (legacy-parity grouping); shared `enterViaNav` helper; 6 consuming specs migrated.
+
+**Riders shipped:** Qodana report-only tooling (T-15, placeholder baseline — CI-run baseline is a one-time follow-up); orval operationIds on the new surface (T-08; project-wide pass stays a rider).
+
+**Deferred (non-J-8, in `_BOYSCOUT.md`):** the 3 KC-26 nightly reds; the proof-harness transients (`[deployed-journey]` 60s gh-pages-propagation wall + the real-idp step-timeout consumed by KC-26 retries); the project-wide orval pass; the Qodana CI-baseline commit.
+
+**No mocked seams** at the gate (happy + key-error run fully real; the `tests/accounting/` mock spec is the dev inner-loop only).
 
 ## Context
 
