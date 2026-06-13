@@ -154,6 +154,7 @@ CLUB-pgcopy (migration scope, pre-J-21).
 - [ ] **T-24** — fallow dead code: 3 unused files + 6 unused deps + 1 unresolved import deleted; fallow snapshot improves.
 - [ ] **T-25** — proof infra: upload `test-results/**` (error-context.md + trace.zip) as a failure artifact in ci.yml proof + fanout BEFORE the gallery step mutates the dir.
 - [ ] **T-26** — proof infra: staged==rendered single source of truth (fanout `add_shot` json emission ↔ `generate-gallery.mjs` pairing) + deployed-journey guard asserts BOTH sides of every declared pair render.
+- [ ] **T-26b** — (gate residual, found at T-22) 3 PRE-EXISTING mock-e2e reds on clean HEAD (NOT J-26-caused, in untouched features): `locations/locations-crud.spec.ts:448`, `persons/persons-add-modal.spec.ts:430`, `reservations/reservations-crud.spec.ts:690`. Outside J-26's per-push scope (mock_test = validation-hardening+persons-edit-membership), but the done-bar AC is FULL-unskip suite green — diagnose+fix (or confirm infra-flake + stabilize) before the §4 gate so the full mock run is honestly green.
 - [ ] **T-27** — thicken both specs to full real assertions; gallery pairing complete; clear every shipped `_BOYSCOUT.md` bullet; full-unskip prep for the gate.
 
 ## Assumptions made
