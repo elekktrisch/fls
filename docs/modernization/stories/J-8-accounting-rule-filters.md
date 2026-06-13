@@ -24,6 +24,7 @@ screen: /accountingrules (list + edit) — replacing legacy masterdata/accountin
 headless_pulled_in: none (this is the CONFIG surface; the rules ENGINE that consumes these filters is J-9)
 migration: AccountingRuleFilter (+ reference data AccountingRuleFilterType, AccountingUnitType, FlightCrewType) — legacy flsserver accounting tables
 parity_test: alpenflight/web/e2e/tests/accounting/accounting-rules-edit.spec.ts
+mock_test: alpenflight/web/e2e/tests/accounting/   # journey-under-work's own mock-auth specs (T-02: per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly)
 adr_refs: [0005, 0008, 0022, 0027, 0024]
 ---
 
@@ -115,7 +116,8 @@ The V4 migration (`reservations_planning_accounting`) built the accounting **sub
 Decomposed per do-ship §2 (one seam each; ≤8 files/≤5 new; ≥60% feature / ≤40% tech-debt riders = T-08, T-15). Migration journey → done-bar needs a green real-export fanout (T-10 binding + T-14 fanout assertion).
 
 - [x] **T-01** — Spec stub `e2e/tests/accounting/accounting-rules-edit.spec.ts` (screen shape, selectors, thin asserts) + scaffold the per-journey proof-gallery page + link from the persistent index. *(e2e + gallery)*
-- [ ] **T-02** — Scope the per-push gate to J-8's own spec; move prior journeys' real-idp specs to mock-IdP (full real-idp regression → nightly + the §4 gate). *(ci.yml + frontmatter)*
+- [x] **T-02** — Scope the per-push gate to J-8's own spec; move prior journeys' real-idp specs to mock-IdP (full real-idp regression → nightly + the §4 gate). *(ci.yml + frontmatter)*
+  - Scoping infra is already generic (J-5 T-14 + J-6 T-02b derive steps in `ci.yml`); verified for `integration/J-8`: (a) mock per-push derives `e2e/tests/accounting/` (`--project=chromium e2e/tests/accounting/ --list` → exactly J-8's 7 fixme cases, no prior-journey specs pulled in; fixme → skipped at runtime, not a no-spec run) — **fixed**: added the missing `mock_test:` frontmatter (J-8 was the only scoped journey lacking it, so it would have fallen back to the full chromium suite); (b) real-idp per-push falls back to the J-0 Locations baseline (`is_baseline=true`) — J-8's `parity_test:` is a `tests/accounting/` mock spec, not a `tests/real-idp/` clean-seed spec, so the derive's `*)` fail-safe pins the baseline today (T-14 adds the real-idp spec → auto-flips); (c) no prior journey's real-idp spec gates per-push — the `required` aggregator gates only the single derived `alpenflight-proof` spec + J-4's own profile spec; the full cross-journey `--project=real-idp` regression is nightly (`alpenflight-e2e-real-idp.yml`, cron) + the §4 do-ship gate.
 - [ ] **T-03** — Domain aggregate `AccountingRuleFilter` (server main): `extends SoftDeletableAggregate`, `@TenantId operating_club_id`, `filter_config` `@JdbcTypeCode(JSON)` typed config, `create()`/`update*()` factories, filter-type business rules (name + type required) on the aggregate; domain unit tests. *(domain)*
 - [ ] **T-04** — `AccountingRuleFilterRepository` port + `JpaAccountingRuleFilterRepository` (tenant-scoped list/by-id soft-delete-filtered finders, next `sort_indicator`). *(infra/repo)*
 - [ ] **T-05** — `AccountingRuleFiltersService` + `AccountingRuleFilterDtos` (create/update/detail/list); `filter_config` (de)serialize to typed config; article/recipient target assignment by type; cross-tenant load → 404; `AuditTrail.record` on every mutation. *(application)*
