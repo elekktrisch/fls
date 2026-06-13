@@ -834,6 +834,31 @@ jobs:
             --project=real-idp \
             "$SPEC"
 
+      # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
+      # trace.zip + the failure screenshot/video) BEFORE any later step mutates
+      # `test-results/`. The shots-present guard step below re-invokes Playwright
+      # (`--project=proof-gallery-links`), and Playwright CLEANS its output dir at
+      # the start of a run, deleting THIS spec's per-test artifacts — so by the
+      # time the always()-uploaded proof artifact runs (further down) the DOM
+      # snapshot + trace are already gone (only `proof-manifest.json` survives,
+      # which the gallery generator also reads). That left J-7 T-19's
+      # tenant-isolation + reservation reds undiagnosable from the run, forcing
+      # source+log+architecture reasoning. This step is gated on `failure()` so it
+      # only fires on a red run, and placed RIGHT AFTER the proof spec (before the
+      # maintainability / screenshot-staging / gallery / guard steps) so the
+      # artifacts are captured intact. Playwright writes per-test dirs to
+      # `alpenflight/web/test-results/<test>/` (NOT under `e2e/` — config has no
+      # `outputDir`, but the reporter pins the manifest there and the per-test
+      # output co-locates; verified empirically).
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-alpenflight-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
       # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
       # panel renders. PRODUCE + STAGE only (T-13 reads these paths; no panel
       # HTML here). FAIL-SOFT: a missing/failed report is informational and must
@@ -1627,6 +1652,21 @@ jobs:
             --project=real-idp \
             e2e/tests/real-idp/start-dashboard.spec.ts
 
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded dashboard artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). Gated on `failure()`
+      # so it only fires on a red dashboard spec. Same path as the proof job —
+      # Playwright writes per-test dirs to `alpenflight/web/test-results/<test>/`.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-dashboard-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
       # Stage the 3 populated variant screenshots + write the J-3 screenshots.json
       # sidecar (greenfield → AlpenFlight-only, NO paired legacy shots) so the
       # gallery renders them under the J-3 section. The spec wrote them as
@@ -2009,6 +2049,22 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/profile/self-edit.spec.ts
+
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded profile artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). This job is the
+      # REQUIRED /profile merge gate, so a red here blocks merge — exactly the
+      # case that must stay diagnosable from the run. Gated on `failure()`; same
+      # `alpenflight/web/test-results/<test>/` path as the other proof jobs.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-profile-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
 
       # Stage the 4 per-tab /profile screenshots + the J-4 screenshots.json
       # sidecar (AlpenFlight-only) so the gallery renders them under the J-4

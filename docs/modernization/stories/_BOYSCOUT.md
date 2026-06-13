@@ -447,12 +447,16 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-09, J-7 gate)
 
-- **[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
-  real-idp/fanout spec references its `error-context.md`/`trace.zip` but only `proof-manifest.json` survives
-  (the proof-gallery step overwrites the dir), so a gate red can't be diagnosed from the DOM snapshot/trace —
-  forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
-  reds). Upload `test-results/**` as a separate failure artifact BEFORE the gallery step mutates the dir. *(seam:
-  ci.yml alpenflight-proof + fanout test-results upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
+- ~~**[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure**~~ **SHIPPED J-26 T-25.**
+  Added an `actions/upload-artifact@v4` step gated on `if: failure()`, placed immediately AFTER each real-idp
+  Playwright `pw` step and BEFORE the staging/gallery/shots-present-guard steps that consume or mutate
+  `test-results/` (the guard re-invokes Playwright, which cleans the output dir → wipes the per-test
+  `error-context.md`/`trace.zip` the pre-existing always()-upload would otherwise have lost). Landed in all three
+  same-shape ci.yml jobs — `alpenflight-proof`, the J-3 `dashboard-proof`, and the REQUIRED J-4 `profile-proof` —
+  plus the `alpenflight-proof-fanout.yml` AlpenFlight parity step. Path `alpenflight/web/test-results/**`
+  (empirically verified: no `outputDir` in the Playwright config; per-test dirs land there), `retention-days: 7`,
+  distinct artifact name per job. actionlint green. *(was: ci.yml alpenflight-proof + fanout test-results
+  upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
 - **Reservation Save enabled while form invalid (async validator race, J-7 T-20 observation).** The
   second-crew-required validator flips AFTER the aircraft picker resolves `nrOfSeats`, so `reservation-save-button`
   shows enabled (`saveDisabled:false`) for a beat while `form.invalid` is still true; clicking then early-returns

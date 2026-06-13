@@ -761,6 +761,27 @@ jobs:
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
             e2e/tests/real-idp/planning-migration-parity.spec.ts
 
+      # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging + gallery + guard
+      # steps run. The gallery generate step (and the shots-present guard, which
+      # re-invokes Playwright and CLEANS the output dir) consume/mutate
+      # `test-results/`, so by the time the always()-uploaded fanout artifact runs
+      # the DOM snapshot + trace are already gone — only `proof-manifest.json`
+      # survives. A red fanout parity spec (J-0c/J-1/J-2/J-5/J-6) then can't be
+      # diagnosed from the run (J-7 T-19 precedent). Gated on `failure()` so it
+      # only fires on a red gating spec (the non-blocking legacy parity aids above
+      # are `continue-on-error`, so their reds don't trip this); placed right after
+      # the AlpenFlight parity step. Per-test dirs land at
+      # `alpenflight/web/test-results/<test>/`.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-fanout-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
       # ========================================================================
       # 6b. J-4 T-12 — AlpenFlight /profile parity SHOTS are NOT re-captured here.
       #     J-4 carries NO data migration, so its AlpenFlight side is the
