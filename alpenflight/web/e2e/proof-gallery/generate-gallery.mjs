@@ -290,6 +290,43 @@ export function extractScreenshots(screenshotsDir) {
   return { shots, errors };
 }
 
+/**
+ * J-26 T-26 — the SINGLE SOURCE OF TRUTH for "what the gallery renders".
+ *
+ * `renderScreenshots` renders exactly one `shot-<side>` figure per `extractScreenshots`
+ * shot (grouped by view). This helper projects that SAME shot list to the set of
+ * `<side>:<view>` keys the generator WILL render for a given journey — so the
+ * pre-deploy SHOTS-PRESENT guard can assert against IDENTICALLY the keys the page
+ * carries, not an independently-globbed PNG set. Before this, the guard counted
+ * `screenshots.json` entries with a PNG on disk while the generator rendered the
+ * `extractScreenshots` shots; the two reads could disagree (a one-sided render
+ * passed the guard while the page showed the other side as "pending" — the J-7
+ * staged-≠-rendered drift). Same function, two callers ⇒ present == rendered.
+ *
+ * A shot with no on-disk PNG is NOT a rendered key here — but the generator's AC5
+ * link-check throws on a declared-yet-missing PNG before any HTML is written, so a
+ * green gallery's rendered set never contains a missing-PNG shot anyway. Filtering
+ * on `imgPath` existence keeps this helper honest when called on a raw (pre-AC5)
+ * shot list (the guard's path).
+ *
+ * @param {Array<{journey?: string, side?: string, view?: string, imgPath?: string}>} shots
+ *   the `extractScreenshots(...).shots` array (or a subset).
+ * @param {string} [journey] when set, only that journey's keys are returned.
+ * @returns {Set<string>} the `<side>:<view>` keys the generator renders.
+ */
+export function renderedShotKeys(shots, journey) {
+  const keys = new Set();
+  for (const s of shots ?? []) {
+    if (journey && s.journey !== journey) continue;
+    // Only a PNG actually on disk is a rendered <img> (mirrors the generator: a
+    // missing PNG fails AC5 before render, so it never reaches the page).
+    if (s.imgPath && !existsSync(s.imgPath)) continue;
+    if (!s.side || !s.view) continue;
+    keys.add(`${s.side}:${s.view}`);
+  }
+  return keys;
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')

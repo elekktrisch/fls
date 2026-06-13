@@ -129,6 +129,30 @@ async function loadGenerators(): Promise<{
   };
 }
 
+/**
+ * J-26 T-26 — load the SAME render-source the generator uses, so the SHOTS-PRESENT
+ * guard's "present" set is definitionally the generator's "rendered" set (`present
+ * == rendered`). `extractScreenshots` parses the staged `screenshots.json`;
+ * `renderedShotKeys` projects it to the `<side>:<view>` keys the generator renders.
+ * The guard imports these (not an independent PNG glob) — one function, two callers.
+ */
+async function loadRenderSource(): Promise<{
+  extractScreenshots: (dir: string) => {
+    shots: { journey: string; side: string; view: string; imgPath?: string }[];
+    errors: string[];
+  };
+  renderedShotKeys: (
+    shots: { journey: string; side: string; view: string; imgPath?: string }[],
+    journey?: string,
+  ) => Set<string>;
+}> {
+  const gallery = await import(pathToFileURL(resolve(PROOF_GALLERY, 'generate-gallery.mjs')).href);
+  return {
+    extractScreenshots: gallery.extractScreenshots,
+    renderedShotKeys: gallery.renderedShotKeys,
+  };
+}
+
 /** Stage the maintainability artifacts into a gallery out-root before generate. */
 function stageMaintainability(galleryOut: string): void {
   const outMaint = resolve(galleryOut, 'maintainability');
@@ -302,31 +326,23 @@ function loadExpectedShots(): ExpectedShotsContract {
 }
 
 /**
- * The set of `<side>:<view>` keys actually STAGED for the gallery — read from the
- * staged `screenshots.json` sidecar (what add_shot/add_pair declared + the
- * generator will render). A missing dir/sidecar yields an empty set (so an
- * EXPECTED shot then reds, which is the point — a wholly-unstaged journey is a
- * thin page).
+ * The set of `<side>:<view>` keys the gallery WILL RENDER for `shotsDir` — read
+ * through the GENERATOR's OWN render source (`extractScreenshots` →
+ * `renderedShotKeys`), NOT an independent PNG glob. This is the J-26 T-26
+ * single-source-of-truth fix: the guard's "present" set is now definitionally the
+ * generator's "rendered" set, so a key the guard calls present is one the page
+ * renders and vice-versa (the J-7 staged-≠-rendered drift came from the guard
+ * globbing PNG presence while the generator rendered `extractScreenshots` entries —
+ * two reads that could disagree). A missing dir/sidecar yields an empty set (so an
+ * EXPECTED shot then reds — a wholly-unstaged journey is a thin page);
+ * `renderedShotKeys` drops a declared-but-absent PNG, mirroring the generator's AC5
+ * link-check that would have thrown before render.
  */
-function loadStagedShotKeys(shotsDir: string): Set<string> {
-  const keys = new Set<string>();
-  const sidecar = resolve(shotsDir, 'screenshots.json');
-  if (!existsSync(sidecar)) return keys;
-  let decl: { screenshots?: { side?: string; view?: string; file?: string }[] };
-  try {
-    decl = JSON.parse(readFileSync(sidecar, 'utf8'));
-  } catch {
-    return keys;
-  }
-  for (const s of decl.screenshots ?? []) {
-    // Only count an entry whose PNG is actually on disk — a declared-but-absent
-    // file would fail the generator's own AC5 check, but counting it here would
-    // mask the drop the guard exists to catch.
-    if (s.file && existsSync(resolve(shotsDir, s.file)) && s.side && s.view) {
-      keys.add(`${s.side}:${s.view}`);
-    }
-  }
-  return keys;
+async function loadStagedShotKeys(shotsDir: string): Promise<Set<string>> {
+  if (!existsSync(resolve(shotsDir, 'screenshots.json'))) return new Set<string>();
+  const { extractScreenshots, renderedShotKeys } = await loadRenderSource();
+  const { shots } = extractScreenshots(shotsDir);
+  return renderedShotKeys(shots);
 }
 
 /** A href starting `/` (but not `//`) is site-root-absolute (gh-pages root-rel). */
@@ -612,7 +628,7 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
     // GALLERY_SHOTS_DIR is the --screenshots dir CI staged; default to the
     // committed fixtures dir for a local self-run.
     const shotsDir = process.env['GALLERY_SHOTS_DIR'] || SCREENSHOTS_DIR;
-    const staged = loadStagedShotKeys(shotsDir);
+    const staged = await loadStagedShotKeys(shotsDir);
 
     const missing = enforced.filter((k) => !staged.has(k));
     expect(
@@ -784,6 +800,33 @@ async function assertDeployedJourneyComplete(
   expect(lastErr, `deployed journey-completeness check (after retry):\n  ${lastErr}`).toBe('');
 }
 
+/**
+ * J-26 T-26 — the `<side>:<view>` keys a DEPLOYED per-journey page actually
+ * RENDERS, parsed from the generator's emitted figure markup. `renderScreenshots`
+ * emits one `<img … alt="<side> <view>" …>` per rendered shot, so the alt text is
+ * the stable, unique render-key marker on the deployed HTML. This is the page-side
+ * mirror of the generator's `renderedShotKeys`: what the page SHOWS, read from the
+ * page itself, so the deployed guard can compare it against the declared pairs.
+ */
+function deployedRenderedShotKeys(pageHtml: string): Set<string> {
+  const keys = new Set<string>();
+  // alt="<side> <view>" — the generator escapes both via `esc`; views may carry
+  // spaces ("Account tab", "wizard (glider step)") so capture the full alt value.
+  for (const m of pageHtml.matchAll(/<img\b[^>]*\balt="(legacy|alpenflight) ([^"]+)"[^>]*>/gi)) {
+    keys.add(`${m[1]!.toLowerCase()}:${unescapeHtml(m[2]!)}`);
+  }
+  return keys;
+}
+
+/** Reverse the generator's `esc()` so a parsed alt/view matches the contract key. */
+function unescapeHtml(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
+
 /** One pass; returns '' on success or a human-readable failure reason. */
 async function tryAssertJourneyComplete(
   request: APIRequestContext,
@@ -834,6 +877,49 @@ async function tryAssertJourneyComplete(
   }
   if (broken.length) {
     return `journey ${journey} page ${pageUrl} has ${broken.length} asset(s) not resolving 200:\n    - ${broken.join('\n    - ')}`;
+  }
+
+  // J-26 T-26 — BOTH-SIDES-OF-EVERY-DECLARED-PAIR check. The asset-200 loop above
+  // proves no dead media, but a HALF-rendered pair (the alpenflight side present,
+  // the legacy side "pending") passes it trivially — exactly the J-7 deployed drift
+  // (legacy staged but the deployed page rendered only AlpenFlight). So for each
+  // EXPECTED `<side>:<view>` the contract declares for this journey, assert the
+  // deployed page actually RENDERS that figure (the page-side render-key, parsed
+  // off the figure's `alt`). A declared pair with one side un-rendered REDS here.
+  //
+  // PER-CONTEXT (mirrors `[shots-present]`): a shot `producedBy` the OTHER CI
+  // context is produced+deployed in that context's gallery, not this one's, so it
+  // is tolerated-absent here (surfaced, not failed) — else a read-side journey
+  // whose legacy is fanout-produced would false-red the per-push proof deploy. A
+  // pair with NO producedBy tag (the J-1..J-6 migration journeys, both sides
+  // fanout-produced) is enforced — BOTH sides must render on the deployed page,
+  // catching the one-sided regression. `pending` shots are not asserted at all (a
+  // not-yet-captured shot is legitimately absent — the early-journey case).
+  const contract = loadExpectedShots()[journey];
+  if (contract?.expected?.length) {
+    const rendered = deployedRenderedShotKeys(pageHtml);
+    const ctx = process.env['GALLERY_PROOF_CONTEXT'];
+    const producedBy = contract.producedBy ?? {};
+    const enforced = contract.expected.filter((k) => {
+      const pc = producedBy[k];
+      return !ctx || !pc || pc === ctx; // untagged → both contexts; tagged → own context
+    });
+    const missingSides = enforced.filter((k) => !rendered.has(k));
+    if (missingSides.length) {
+      return (
+        `journey ${journey} page ${pageUrl} declares paired shots but the deployed page ` +
+        `renders only ONE side of ${missingSides.length} declared pair(s) (the other side is ` +
+        `"pending"/un-rendered — staged-≠-rendered${ctx ? `, context=${ctx}` : ''}):\n    - missing: ` +
+        `${missingSides.join('\n    - missing: ')}\n    rendered on page: [${[...rendered].sort().join(', ')}]`
+      );
+    }
+    const otherCtx = contract.expected.filter((k) => !enforced.includes(k) && !rendered.has(k));
+    if (otherCtx.length) {
+      console.log(
+        `[deployed-journey] ${journey}: shot(s) produced in another context ` +
+          `(enforced on that context's deploy, tolerated here): ${otherCtx.join(', ')}`,
+      );
+    }
   }
   return '';
 }

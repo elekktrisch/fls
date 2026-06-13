@@ -472,19 +472,21 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-10, J-7 gate — STRUCTURAL gallery)
 
-- **[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
-  The fanout legacy capture (`reporting-parity-J7.spec.ts`) PASSES and produces `legacy-flightreports-{picker,result,custom}.png`
-  + `legacy-reporting-parity-J7.webm` (confirmed in the run artifact under both `/tmp/fls-e2e-results/...` and the staged
-  `public/alpenflight/proof/screenshots/`), the J-7 `add_shot` calls for BOTH sides exist (fanout ~1091-1101), and the
-  shots-present guard ENFORCES the legacy three (passes) — yet the DEPLOYED J-7 page renders only the **alpenflight** side of
-  each of the 3 shot-pairs, legacy side = "pending". The fanout deployed LAST (07:03 vs CI 06:56), so it's NOT a deploy race —
-  the fanout's OWN `generate-gallery.mjs` run didn't emit/match the legacy J-7 `screenshots.json` entries the pairing reads.
-  Root cause is in the fanout `add_shot`→`screenshots.json`→generator pairing path (the guard checks PNG presence while the
-  generator pairs `screenshots.json` entries — the two disagree). **STRUCTURAL fix** (the operator's recurring gallery-plumbing
-  class — ride a journey's tech-debt budget, possibly the gallery re-arch): make the shots-present guard and the generator read
-  the SAME source of truth so "present" == "rendered", and assert the legacy SIDE of each declared pair actually renders on the
-  deployed page (extend the deployed-journey guard to check both sides of a pair, not just that the page is linked). *(seam:
-  alpenflight-proof-fanout.yml add_shot json emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
+- ~~**[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**~~
+  **SHIPPED J-26 T-26.** Made staged==rendered STRUCTURAL: (1) new exported `renderedShotKeys(shots, journey)` in
+  `generate-gallery.mjs` is the SINGLE source of truth — it projects exactly the `extractScreenshots` shots the generator
+  RENDERS to the `<side>:<view>` keys; the `[shots-present]` guard's `loadStagedShotKeys` was rewritten to read through
+  `extractScreenshots` → `renderedShotKeys` (the generator's OWN render source), not an independent PNG glob, so "present"
+  (guard) is DEFINITIONALLY the generator's "rendered" set — one function, two callers. (2) the `[deployed-journey]` guard
+  (`tryAssertJourneyComplete`) now parses the deployed page's per-figure render keys (off each `<img alt="<side> <view>">`) and,
+  for every `expected` pair in `expected-shots.json`, asserts BOTH sides actually render on the deployed page — a declared pair
+  rendering only one side REDS (was: ≥1 asset + assets-200, which a half-pair passed trivially). Per-context tolerance mirrors
+  `[shots-present]` (`GALLERY_PROOF_CONTEXT` passed into BOTH deployed-journey steps: ci.yml=proof, fanout=fanout) so a side
+  `producedBy` the OTHER context is tolerated-absent on this deploy; `pending`/un-captured shots are never asserted (the
+  all-pending early-journey case stays green). Proof: 3 new generator unit tests reproduce the drift on a fixture (a one-sided
+  J-7 stage) and prove `renderedShotKeys` == the page's rendered keys; `pnpm test:scripts` 56 green; browserless link-check +
+  `[shots-present]` (J-1) green; actionlint clean on both workflows. *(was seam: alpenflight-proof-fanout.yml add_shot json
+  emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
   [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
 
 ## Pending (filed by PR #215 review, 2026-06-10 — ADR 0027 JPA-first / no-JDBC)

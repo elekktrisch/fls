@@ -1280,6 +1280,13 @@ jobs:
           # path that reaches the guard on a baseline fallback (J-26 T-31).
           GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline == 'true' && '' || needs.changes.outputs.proof_journey }}
           GALLERY_LINKS_ONLY: '1'
+          # J-26 T-26 — this is the PER-PUSH proof deploy. The both-sides-of-every-
+          # declared-pair check enforces only the shots `producedBy: proof` (+
+          # untagged) so a read-side journey's fanout-produced legacy side (deployed
+          # by the fanout, not here) is tolerated-absent on this deploy rather than
+          # false-redding it. A pair both sides of which are proof/untagged must
+          # render BOTH sides here.
+          GALLERY_PROOF_CONTEXT: proof
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
