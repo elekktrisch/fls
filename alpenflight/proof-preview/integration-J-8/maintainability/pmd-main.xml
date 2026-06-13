@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-13T14:18:27.029">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-13T14:41:39.983">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
-<violation beginline="126" endline="135" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="135" endline="144" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
 </violation>
-<violation beginline="153" endline="162" begincolumn="23" endcolumn="50" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="update" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="162" endline="171" begincolumn="23" endcolumn="50" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="update" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
 </violation>
-<violation beginline="178" endline="187" begincolumn="23" endcolumn="53" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="apply" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="187" endline="196" begincolumn="23" endcolumn="53" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="apply" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
 </violation>
 </file>
