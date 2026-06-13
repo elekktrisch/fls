@@ -473,7 +473,7 @@ test('accounting-rules: selecting a filter-type shows/hides the conditional sect
 });
 
 // ── match-list invert toggle round-trips ─────────────────────────────────────
-test.fixme('accounting-rules: a match-list "use for all except listed" toggle persists', async ({
+test('accounting-rules: a match-list "use for all except listed" toggle persists', async ({
   page,
 }) => {
   // T-13 builds the match-list sub-component. The aircraft-immatriculation list

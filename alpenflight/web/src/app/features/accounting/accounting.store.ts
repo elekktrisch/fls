@@ -22,13 +22,23 @@ import { pipe, switchMap, tap } from 'rxjs';
 
 import { AccountingReferenceDataService } from '@api/generated/accounting-reference-data/accounting-reference-data.service';
 import { AccountingRuleFiltersService } from '@api/generated/accounting-rule-filters/accounting-rule-filters.service';
+import { AircraftService } from '@api/generated/aircraft/aircraft.service';
+import { FlightTypesService } from '@api/generated/flight-types/flight-types.service';
+import { LocationsService } from '@api/generated/locations/locations.service';
+import { MemberStatesService } from '@api/generated/member-states/member-states.service';
 import type {
   AccountingRuleFilterDetail,
   AccountingRuleFilterListItem,
   AccountingRuleFilterTypeResponse,
   AccountingRuleFilterWriteRequest,
   AccountingUnitTypeResponse,
+  AircraftListItem,
+  FlightCrewTypeResponse,
+  FlightTypeListItem,
+  LocationListItem,
+  PersonListItem,
 } from '@api/generated/model';
+import { PersonsService } from '@api/generated/persons/persons.service';
 
 import { classifyApiError, type SaveErrorRule } from '@shared/util/form';
 
@@ -43,6 +53,26 @@ export type AccountingRuleFilterDetailLoaded = AccountingRuleFilterDetail & { id
 // the shared generic tail in `classifyApiError`.
 export type SaveErrorKind = 'conflict' | 'forbidden' | 'not-found' | 'other';
 
+// Suggestion tokens per dropdown-backed match-list (T-13). Keys mirror the
+// `FilterConfig` match-list field names; the token is the legacy `valueField`
+// (immatriculation / ICAO code / FlightCode / member-number / crew-type
+// legacyId). `aircraftHomebases` reuses the ICAO-code location options.
+export interface MatchListOptions {
+  aircraftImmatriculations: readonly string[];
+  flightTypeCodes: readonly string[];
+  locations: readonly string[];
+  clubMemberNumbers: readonly string[];
+  flightCrewTypes: readonly string[];
+}
+
+const emptyMatchListOptions: MatchListOptions = {
+  aircraftImmatriculations: [],
+  flightTypeCodes: [],
+  locations: [],
+  clubMemberNumbers: [],
+  flightCrewTypes: [],
+};
+
 interface AccountingExtraState {
   selectedId: string | null;
   selectedDetail: AccountingRuleFilterDetailLoaded | null;
@@ -52,6 +82,13 @@ interface AccountingExtraState {
   // Unit-type catalog (T-07): feeds the edit form's article-target section
   // AccountingUnitType select (T-12). Lazy-loaded on edit-form entry.
   accountingUnitTypes: readonly AccountingUnitTypeResponse[];
+  // Suggestion tokens for the T-13 match-list controls' typed-entry datalists.
+  // Each list persists a plain string token (the legacy `valueField`), so we
+  // store the derived token arrays rather than the raw DTOs. Lazy-loaded once
+  // on edit-form entry; an empty array just means typed-entry with no
+  // suggestions (never blocks save). start-types + member-states have no
+  // token-aligned endpoint → no suggestions (pure typed entry).
+  matchListOptions: MatchListOptions;
   isLoading: boolean;
   isLoadingDetail: boolean;
   loadError: string | null;
@@ -65,6 +102,7 @@ const initialExtra: AccountingExtraState = {
   selectedDetail: null,
   filterTypes: [],
   accountingUnitTypes: [],
+  matchListOptions: emptyMatchListOptions,
   isLoading: false,
   isLoadingDetail: false,
   loadError: null,
@@ -121,6 +159,11 @@ export const AccountingStore = signalStore(
       store,
       accountingApi = inject(AccountingRuleFiltersService),
       referenceApi = inject(AccountingReferenceDataService),
+      aircraftApi = inject(AircraftService),
+      locationsApi = inject(LocationsService),
+      flightTypesApi = inject(FlightTypesService),
+      personsApi = inject(PersonsService),
+      memberStatesApi = inject(MemberStatesService),
       bus = inject(MUTATION_BUS),
     ) => {
       const loadAll = rxMethod<void>(
@@ -171,6 +214,54 @@ export const AccountingStore = signalStore(
           ),
         ),
       );
+      const patchOptions = (patch: Partial<MatchListOptions>): void =>
+        patchState(store, (state) => ({
+          matchListOptions: { ...state.matchListOptions, ...patch },
+        }));
+      // Lazy fan-out to the existing reference endpoints, deriving the legacy
+      // `valueField` token per list (T-13 match-list datalists). Each endpoint
+      // fails independently → a missing catalog just drops that list's
+      // suggestions to typed-entry, never blocks the form. start-types +
+      // member-states have no token-aligned endpoint → no loader (typed entry).
+      const loadMatchListReferences = rxMethod<void>(
+        pipe(
+          tap(() => {
+            aircraftApi.listAircraft().subscribe({
+              next: (rows: AircraftListItem[]) =>
+                patchOptions({
+                  aircraftImmatriculations: dedupeTokens(rows.map((a) => a.immatriculation)),
+                }),
+              error: () => patchOptions({ aircraftImmatriculations: [] }),
+            });
+            locationsApi.listLocations().subscribe({
+              next: (rows: LocationListItem[]) =>
+                patchOptions({ locations: dedupeTokens(rows.map((l) => l.icaoCode)) }),
+              error: () => patchOptions({ locations: [] }),
+            });
+            flightTypesApi.listFlightTypes().subscribe({
+              next: (rows: FlightTypeListItem[]) =>
+                patchOptions({ flightTypeCodes: dedupeTokens(rows.map((f) => f.flightCode)) }),
+              error: () => patchOptions({ flightTypeCodes: [] }),
+            });
+            personsApi.listPersons().subscribe({
+              next: (rows: PersonListItem[]) =>
+                patchOptions({ clubMemberNumbers: dedupeTokens(rows.map((p) => p.memberNumber)) }),
+              error: () => patchOptions({ clubMemberNumbers: [] }),
+            });
+            referenceApi.listFlightCrewTypes().subscribe({
+              next: (rows: FlightCrewTypeResponse[]) =>
+                patchOptions({
+                  flightCrewTypes: dedupeTokens(rows.map((c) => String(c.legacyId))),
+                }),
+              error: () => patchOptions({ flightCrewTypes: [] }),
+            });
+            // member-states loaded only to confirm the endpoint exists for a
+            // future token-aligned migration; the legacy token is a Guid the new
+            // client does not carry, so it stays typed-entry (no options patch).
+            memberStatesApi.listMemberStates().subscribe({ error: () => undefined });
+          }),
+        ),
+      );
       return {
         select(id: string | null): void {
           patchState(store, { selectedId: id, selectedDetail: null });
@@ -181,6 +272,7 @@ export const AccountingStore = signalStore(
         loadAll,
         loadFilterTypes,
         loadUnitTypes,
+        loadMatchListReferences,
         getDetail: rxMethod<string>(
           pipe(
             tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
@@ -304,6 +396,18 @@ const accountingErrorRules: readonly SaveErrorRule<SaveErrorKind>[] = [
     }),
   },
 ];
+
+// Trim, drop empties, de-duplicate — the match-list datalist suggestions
+// (T-13). Reference rows may carry a null/blank token (e.g. a location without
+// an ICAO code), which is not a valid persisted value.
+function dedupeTokens(raw: readonly (string | null | undefined)[]): readonly string[] {
+  const seen = new Set<string>();
+  for (const value of raw) {
+    const token = (value ?? '').trim();
+    if (token !== '') seen.add(token);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
 
 function errorPatch(e: HttpErrorResponse): { saveError: string; saveErrorKind: SaveErrorKind } {
   return classifyApiError(e, accountingErrorRules, (body, err) => {

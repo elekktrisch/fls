@@ -38,6 +38,7 @@ import { liveFieldErrors, withOptionals } from '@shared/util/form';
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
 import { AccountingStore } from '../accounting.store';
+import { MatchListControlComponent } from './match-list-control.component';
 
 // Legacy filter-type legacyIds that drive section visibility (legacy predicate
 // fns in AccountingRuleFiltersEditController.js): article-target ∉ {5,10},
@@ -81,7 +82,126 @@ type AccountingForm = FormGroup<{
   noLandingTaxForGlider: FormControl<boolean>;
   noLandingTaxForTowingAircraft: FormControl<boolean>;
   noLandingTaxForAircraft: FormControl<boolean>;
+  // predicate match-lists (T-13) — each round-trips a {useAllExcept, matched[]}
+  // via the MatchListControlComponent (CVA). Always present (every type can use
+  // them), so they live outside the conditional sections.
+  matchAircraftImmatriculations: FormControl<MatchList>;
+  matchStartTypes: FormControl<MatchList>;
+  matchFlightTypeCodes: FormControl<MatchList>;
+  matchStartLocations: FormControl<MatchList>;
+  matchLdgLocations: FormControl<MatchList>;
+  matchClubMemberNumbers: FormControl<MatchList>;
+  matchFlightCrewTypes: FormControl<MatchList>;
+  matchAircraftHomebases: FormControl<MatchList>;
+  matchMemberStates: FormControl<MatchList>;
+  extendMatchingFlightTypeCodesToGliderAndTowFlight: FormControl<boolean>;
 }>;
+
+// The nine visible match-lists (legacy `accountingRuleFilters-edit.html`;
+// personCategories is dead/commented-out → migrated but no control). Maps the
+// form control name → the FilterConfig field + the i18n label key + the optional
+// suggestion source. Drives both the template instances and the write/read
+// round-trip — one parameterised control, no copy-pasted blocks.
+interface MatchListSpec {
+  /** Stable list key — drives every per-instance data-testid. */
+  readonly key: string;
+  /** The AccountingForm control name. */
+  readonly control: keyof MatchListControlMap;
+  /** The FilterConfig field it round-trips. */
+  readonly field: keyof MatchListMap;
+  /**
+   * Full scope-relative i18n key (under the `accounting` transloco scope), e.g.
+   * `edit.matchLists.immatriculations`. Stored whole and read via a single
+   * variable in the template — NOT a literal+variable concatenation — so the
+   * i18n-key-coverage static analyzer (which only resolves string-literal keys)
+   * resolves it; a concatenated prefix reads as an undefined truncated key.
+   */
+  readonly labelKey: string;
+  /** Store option source feeding the typed-entry datalist (undefined = typed only). */
+  readonly optionSource?:
+    | 'aircraftImmatriculations'
+    | 'flightTypeCodes'
+    | 'locations'
+    | 'clubMemberNumbers'
+    | 'flightCrewTypes';
+}
+
+type MatchListControlMap = Pick<
+  ReturnType<AccountingForm['getRawValue']>,
+  | 'matchAircraftImmatriculations'
+  | 'matchStartTypes'
+  | 'matchFlightTypeCodes'
+  | 'matchStartLocations'
+  | 'matchLdgLocations'
+  | 'matchClubMemberNumbers'
+  | 'matchFlightCrewTypes'
+  | 'matchAircraftHomebases'
+  | 'matchMemberStates'
+>;
+
+const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
+  {
+    key: 'immatriculations',
+    control: 'matchAircraftImmatriculations',
+    field: 'aircraftImmatriculations',
+    labelKey: 'edit.matchLists.immatriculations',
+    optionSource: 'aircraftImmatriculations',
+  },
+  {
+    key: 'start-types',
+    control: 'matchStartTypes',
+    field: 'startTypes',
+    labelKey: 'edit.matchLists.startTypes',
+  },
+  {
+    key: 'flight-type-codes',
+    control: 'matchFlightTypeCodes',
+    field: 'flightTypeCodes',
+    labelKey: 'edit.matchLists.flightTypeCodes',
+    optionSource: 'flightTypeCodes',
+  },
+  {
+    key: 'start-locations',
+    control: 'matchStartLocations',
+    field: 'startLocations',
+    labelKey: 'edit.matchLists.startLocations',
+    optionSource: 'locations',
+  },
+  {
+    key: 'landing-locations',
+    control: 'matchLdgLocations',
+    field: 'ldgLocations',
+    labelKey: 'edit.matchLists.landingLocations',
+    optionSource: 'locations',
+  },
+  {
+    key: 'club-member-numbers',
+    control: 'matchClubMemberNumbers',
+    field: 'clubMemberNumbers',
+    labelKey: 'edit.matchLists.clubMemberNumbers',
+    optionSource: 'clubMemberNumbers',
+  },
+  {
+    key: 'flight-crew-types',
+    control: 'matchFlightCrewTypes',
+    field: 'flightCrewTypes',
+    labelKey: 'edit.matchLists.flightCrewTypes',
+    optionSource: 'flightCrewTypes',
+  },
+  {
+    key: 'aircraft-homebases',
+    control: 'matchAircraftHomebases',
+    field: 'aircraftHomebases',
+    labelKey: 'edit.matchLists.aircraftHomebases',
+    optionSource: 'locations',
+  },
+  {
+    key: 'member-states',
+    control: 'matchMemberStates',
+    field: 'memberStates',
+    labelKey: 'edit.matchLists.memberStates',
+  },
+];
 
 /**
  * AccountingRuleFilter edit form (`/accountingrules/new` + `/accountingrules/:id/edit`).
@@ -119,6 +239,7 @@ type AccountingForm = FormGroup<{
     AfPageComponent,
     AfPageHeaderComponent,
     AfPageErrorComponent,
+    MatchListControlComponent,
     TranslocoDirective,
   ],
   template: `
@@ -464,12 +585,42 @@ type AccountingForm = FormGroup<{
             }
 
             <!--
-              Match-list predicate sub-component (T-13) mounts here: the 10
-              {useAllExcept, matched[]} lists. T-12 leaves them at their defaults
-              (see loadedConfig() / matchListsDefault below); T-13 renders the
-              control + contributes the selected slice of filterConfig.
+              Match-list predicate sub-component (T-13): the nine visible
+              {useAllExcept, matched[]} lists (personCategories is dead in the
+              legacy form — migrated, no control). One parameterised
+              MatchListControlComponent instantiated per spec, each bound to its
+              own form control so the slice round-trips through filterConfig.
             -->
-            <div data-testid="accounting-rules-section-match-lists"></div>
+            <section class="flex flex-col gap-3" data-testid="accounting-rules-section-match-lists">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
+              >
+                {{ t('edit.sections.matchLists') }}
+              </h2>
+              <label class="flex items-center gap-2 cursor-pointer select-none text-sm">
+                <input
+                  type="checkbox"
+                  formControlName="extendMatchingFlightTypeCodesToGliderAndTowFlight"
+                  class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="accounting-rules-extend-flight-type-codes"
+                />
+                <span>{{ t('edit.matchLists.extendFlightTypeCodes') }}</span>
+              </label>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                @for (spec of matchListSpecs; track spec.key) {
+                  <af-match-list-control
+                    [listKey]="spec.key"
+                    [label]="t(spec.labelKey)"
+                    [options]="optionsFor(spec)"
+                    [useAllExceptLabel]="t('edit.matchLists.useAllExcept')"
+                    [addPlaceholder]="t('edit.matchLists.addPlaceholder')"
+                    [emptyLabel]="t('edit.matchLists.empty')"
+                    [removeLabel]="t('edit.matchLists.remove')"
+                    [formControlName]="spec.control"
+                  />
+                }
+              </div>
+            </section>
 
             <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
               <af-button htmlType="button" (clicked)="router.navigateByUrl('/accountingrules')">
@@ -513,6 +664,15 @@ export class AccountingEditPage {
   // (the select shows only the placeholder — never blocks save).
   protected readonly unitTypeOptions = computed(() => this.store.accountingUnitTypes());
 
+  // Suggestion tokens per match-list spec (T-13). Lifted off the store's
+  // lazily-loaded `matchListOptions`; an absent source resolves to typed-entry
+  // with no suggestions. Read in the template via `optionsFor(spec)`.
+  private readonly matchListOptions = this.store.matchListOptions;
+  protected optionsFor(spec: MatchListSpec): readonly string[] {
+    const source = spec.optionSource;
+    return source ? this.matchListOptions()[source] : [];
+  }
+
   protected readonly form: AccountingForm = this.fb.nonNullable.group({
     filterTypeLegacyId: this.fb.nonNullable.control('', [Validators.required]),
     ruleFilterName: this.fb.nonNullable.control('', [
@@ -540,7 +700,19 @@ export class AccountingEditPage {
     noLandingTaxForGlider: this.fb.nonNullable.control(false),
     noLandingTaxForTowingAircraft: this.fb.nonNullable.control(false),
     noLandingTaxForAircraft: this.fb.nonNullable.control(false),
+    matchAircraftImmatriculations: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchStartTypes: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchFlightTypeCodes: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchStartLocations: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchLdgLocations: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchClubMemberNumbers: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchFlightCrewTypes: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchAircraftHomebases: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    matchMemberStates: this.fb.nonNullable.control<MatchList>(emptyMatchList()),
+    extendMatchingFlightTypeCodesToGliderAndTowFlight: this.fb.nonNullable.control(false),
   });
+
+  protected readonly matchListSpecs = MATCH_LIST_SPECS;
 
   protected readonly saveSubmitted = signal(false);
   protected readonly notFound = signal(false);
@@ -606,6 +778,7 @@ export class AccountingEditPage {
   constructor() {
     this.store.loadFilterTypes();
     this.store.loadUnitTypes();
+    this.store.loadMatchListReferences();
 
     effect(() => {
       const id = this.filterId();
@@ -624,8 +797,14 @@ export class AccountingEditPage {
       const legacyId = this.store
         .filterTypes()
         .find((ty) => ty.id === detail.filterTypeId)?.legacyId;
-      this.loadedMatchLists.set(extractMatchListSlice(detail.filterConfig));
-      this.form.patchValue(detailToFormValue(detail, legacyId ?? null));
+      const slice = extractMatchListSlice(detail.filterConfig);
+      // personCategories is the one dead list with no control — preserved here
+      // so the round-trip never drops it (the rest are owned by form controls).
+      this.loadedMatchLists.set(slice);
+      this.form.patchValue({
+        ...detailToFormValue(detail, legacyId ?? null),
+        ...matchListSliceToFormValue(slice),
+      });
       if (!this.canMutate()) {
         this.form.disable({ emitEvent: false });
       }
@@ -722,12 +901,13 @@ export class AccountingEditPage {
       noLandingTaxForTowingAircraft: isNoLandingTax && v.noLandingTaxForTowingAircraft,
       noLandingTaxForAircraft: isNoLandingTax && v.noLandingTaxForAircraft,
       includeFlightTypeName: isAircraftFilter && v.includeFlightTypeName,
-      // Owned by T-13's flight-type-codes match-list; preserve the loaded value.
       extendMatchingFlightTypeCodesToGliderAndTowFlight:
-        this.loadedMatchLists().extendMatchingFlightTypeCodesToGliderAndTowFlight,
+        v.extendMatchingFlightTypeCodesToGliderAndTowFlight,
       includeThresholdText: isAircraftFilter && v.includeThresholdText,
-      // Match-lists are T-13; round-trip whatever the loaded detail carried.
-      ...this.loadedMatchLists().lists,
+      // The nine visible match-lists come from their form controls (T-13);
+      // personCategories (dead, no control) is preserved from the loaded detail.
+      ...formValueToMatchListMap(v),
+      personCategories: this.loadedMatchLists().lists.personCategories,
     };
 
     // Threshold text nulled when its toggle is off (legacy :139-141).
@@ -830,6 +1010,44 @@ function extractMatchListSlice(config: FilterConfig): MatchListSlice {
       memberStates: config.memberStates ?? def.lists.memberStates,
       personCategories: config.personCategories ?? def.lists.personCategories,
     },
+  };
+}
+
+// The loaded match-list slice → the form controls (T-13). `personCategories` is
+// intentionally omitted (no control; preserved separately on save).
+function matchListSliceToFormValue(
+  slice: MatchListSlice,
+): Partial<ReturnType<AccountingForm['getRawValue']>> {
+  const l = slice.lists;
+  return {
+    matchAircraftImmatriculations: l.aircraftImmatriculations,
+    matchStartTypes: l.startTypes,
+    matchFlightTypeCodes: l.flightTypeCodes,
+    matchStartLocations: l.startLocations,
+    matchLdgLocations: l.ldgLocations,
+    matchClubMemberNumbers: l.clubMemberNumbers,
+    matchFlightCrewTypes: l.flightCrewTypes,
+    matchAircraftHomebases: l.aircraftHomebases,
+    matchMemberStates: l.memberStates,
+    extendMatchingFlightTypeCodesToGliderAndTowFlight:
+      slice.extendMatchingFlightTypeCodesToGliderAndTowFlight,
+  };
+}
+
+// The form controls → the FilterConfig match-list slice on save (T-13).
+function formValueToMatchListMap(
+  v: ReturnType<AccountingForm['getRawValue']>,
+): Omit<MatchListMap, 'personCategories'> {
+  return {
+    aircraftImmatriculations: v.matchAircraftImmatriculations,
+    startTypes: v.matchStartTypes,
+    flightTypeCodes: v.matchFlightTypeCodes,
+    startLocations: v.matchStartLocations,
+    ldgLocations: v.matchLdgLocations,
+    clubMemberNumbers: v.matchClubMemberNumbers,
+    flightCrewTypes: v.matchFlightCrewTypes,
+    aircraftHomebases: v.matchAircraftHomebases,
+    memberStates: v.matchMemberStates,
   };
 }
 
