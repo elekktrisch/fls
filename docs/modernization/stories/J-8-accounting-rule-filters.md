@@ -114,7 +114,7 @@ The V4 migration (`reservations_planning_accounting`) built the accounting **sub
 
 Decomposed per do-ship §2 (one seam each; ≤8 files/≤5 new; ≥60% feature / ≤40% tech-debt riders = T-08, T-15). Migration journey → done-bar needs a green real-export fanout (T-10 binding + T-14 fanout assertion).
 
-- [ ] **T-01** — Spec stub `e2e/tests/accounting/accounting-rules-edit.spec.ts` (screen shape, selectors, thin asserts) + scaffold the per-journey proof-gallery page + link from the persistent index. *(e2e + gallery)*
+- [x] **T-01** — Spec stub `e2e/tests/accounting/accounting-rules-edit.spec.ts` (screen shape, selectors, thin asserts) + scaffold the per-journey proof-gallery page + link from the persistent index. *(e2e + gallery)*
 - [ ] **T-02** — Scope the per-push gate to J-8's own spec; move prior journeys' real-idp specs to mock-IdP (full real-idp regression → nightly + the §4 gate). *(ci.yml + frontmatter)*
 - [ ] **T-03** — Domain aggregate `AccountingRuleFilter` (server main): `extends SoftDeletableAggregate`, `@TenantId operating_club_id`, `filter_config` `@JdbcTypeCode(JSON)` typed config, `create()`/`update*()` factories, filter-type business rules (name + type required) on the aggregate; domain unit tests. *(domain)*
 - [ ] **T-04** — `AccountingRuleFilterRepository` port + `JpaAccountingRuleFilterRepository` (tenant-scoped list/by-id soft-delete-filtered finders, next `sort_indicator`). *(infra/repo)*

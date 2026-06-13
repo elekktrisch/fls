@@ -120,6 +120,23 @@
         "alpenflight:duplicate-code": "proof"
       },
       "pending": []
+    },
+    "J-8": {
+      "$note": [
+        "T-01 SCAFFOLD — registers the J-8 (AccountingRuleFilter config screen)",
+        "paired-shot contract so its per-journey proof page is declared from the",
+        "journey's first task (the operator's glanceable window exists early, T-01b).",
+        "J-8 replaces legacy masterdata/accountingRules/, so it carries paired",
+        "legacy<->AlpenFlight shots: `list` (the rule-filter table) + `form` (the",
+        "filter-type-driven edit form). NONE are captured yet — the screen lands",
+        "T-11/T-12/T-13 + the spec thickens T-14 — so all four are `pending`",
+        "(tolerated-absent, surfaced by the [shots-present] guard) until T-14 flips",
+        "them to `expected` once the parity spec + the fanout legacy capture produce",
+        "them. An empty `expected` means the guard reds on NOTHING for J-8 today",
+        "(scaffold-clean), exactly the J-5 pending-placeholder pattern."
+      ],
+      "expected": [],
+      "pending": ["legacy:list", "legacy:form", "alpenflight:list", "alpenflight:form"]
     }
   }
 }
