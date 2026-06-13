@@ -448,6 +448,14 @@ export class ReservationEditPage {
 
     // All-day toggle disables/enables the time controls (so `form.invalid`
     // doesn't gate on hidden required times). One effect, no manual subscribe.
+    // The control `disable()/enable()` calls run with `emitEvent: false` so they
+    // don't spuriously fire `valueChanges`, but that ALSO suppresses the form's
+    // `statusChanges` — which the `formStatus` signal (and thus `saveDisabled`)
+    // tracks. Without a follow-up emit the Save button stayed disabled after
+    // toggling all-day even though the form was now valid (the required time
+    // controls being disabled drop out of validity). A trailing
+    // `updateValueAndValidity()` (events ON) re-emits the form status so the
+    // disable binding re-reads.
     effect(() => {
       const controls = [this.form.controls.startTime, this.form.controls.endTime];
       if (this.isAllDay()) {
@@ -455,6 +463,7 @@ export class ReservationEditPage {
       } else {
         for (const c of controls) c.enable({ emitEvent: false });
       }
+      this.form.updateValueAndValidity();
     });
 
     // Conditional Second-Crew validator — toggle `required` on the control as the

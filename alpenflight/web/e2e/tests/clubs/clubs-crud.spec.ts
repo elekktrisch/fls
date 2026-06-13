@@ -175,7 +175,19 @@ test('clubs: editing the seeded row updates the list', async ({ page }) => {
   // ClubsStore, so when the page comes back the store re-bootstraps and
   // calls listClubs() against the mock — proving the PUT landed server-side
   // (mock-side here) rather than only patching the in-memory entity map.
-  await page.reload();
+  // Await the post-reload list re-fetch + the row's re-render before clicking:
+  // under suite-level load the bootstrap GET lags the reload's load event, so a
+  // bare click raced an un-rendered row (the flake this stabilises).
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.request().method() === 'GET' &&
+        new URL(r.url()).pathname === '/api/v1/clubs' &&
+        r.status() === 200,
+    ),
+    page.reload(),
+  ]);
+  await expect(page.getByTestId('club-row-seed-club-1')).toHaveText('Mountain Soaring');
   await page.getByTestId('club-row-seed-club-1').click();
   await expect(page).toHaveURL(/\/clubs\/.+\/edit$/);
   await expect(page.locator('#clubName')).toHaveValue('Mountain Soaring');

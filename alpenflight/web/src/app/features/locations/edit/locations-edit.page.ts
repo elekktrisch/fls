@@ -9,6 +9,7 @@ import {
   inject,
   runInInjectionContext,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
@@ -388,11 +389,13 @@ export class LocationsEditPage {
   protected readonly latitudeErrors = liveFieldErrors(this.form.controls.latitude);
   protected readonly longitudeErrors = liveFieldErrors(this.form.controls.longitude);
 
-  // Per-IOP-row live-error signals. The IOP rows are a dynamic FormArray built
-  // after construction (addIop / hydrate), so each row's four field signals are
-  // created lazily inside the component injector (`liveFieldErrors` needs a
-  // `DestroyRef`) and cached against the row's FormGroup. Keyed by the row
-  // identity so `@for (… track i)` re-reads return the same signal.
+  // Per-IOP-row live-error signals, created EAGERLY when the row's FormGroup is
+  // built (`makeIopGroup`) and cached against it. They must NOT be created from
+  // the template: `liveFieldErrors` calls `toSignal()`, and `toSignal()` inside a
+  // reactive context (a template expression, or an `effect`) throws NG0602 —
+  // which previously aborted the IOP row's render mid-way (the nested controls,
+  // the per-row testid for rows > 0, and the remove button silently vanished).
+  // `iopErrors()` is now a pure cache READ, safe to call from the template.
   private readonly iopFieldErrors = new WeakMap<
     IopForm,
     Record<keyof IopForm['controls'], Signal<ValidationErrors | null>>
@@ -402,17 +405,7 @@ export class LocationsEditPage {
     row: IopForm,
     field: keyof IopForm['controls'],
   ): Signal<ValidationErrors | null> {
-    let cached = this.iopFieldErrors.get(row);
-    if (!cached) {
-      cached = runInInjectionContext(this.injector, () => ({
-        pointName: liveFieldErrors(row.controls.pointName),
-        pointType: liveFieldErrors(row.controls.pointType),
-        direction: liveFieldErrors(row.controls.direction),
-        description: liveFieldErrors(row.controls.description),
-      }));
-      this.iopFieldErrors.set(row, cached);
-    }
-    return cached[field];
+    return this.iopFieldErrors.get(row)![field];
   }
 
   protected readonly saveSubmitted = signal(false);
@@ -519,7 +512,7 @@ export class LocationsEditPage {
   }
 
   private makeIopGroup(value: InOutboundPointFormShape): IopForm {
-    return this.fb.group({
+    const group: IopForm = this.fb.group({
       pointName: this.fb.nonNullable.control(value.pointName, [
         Validators.required,
         Validators.maxLength(100),
@@ -528,6 +521,22 @@ export class LocationsEditPage {
       direction: this.fb.nonNullable.control(value.direction, [Validators.maxLength(50)]),
       description: this.fb.nonNullable.control(value.description, [Validators.maxLength(500)]),
     });
+    // Build the row's live-error signals NOW (row-construction time), never from
+    // the template. `untracked` detaches any enclosing reactive context (the
+    // hydrate `effect`); `runInInjectionContext` supplies the DestroyRef that
+    // `liveFieldErrors`/`toSignal` need. See the `iopFieldErrors` note above.
+    this.iopFieldErrors.set(
+      group,
+      untracked(() =>
+        runInInjectionContext(this.injector, () => ({
+          pointName: liveFieldErrors(group.controls.pointName),
+          pointType: liveFieldErrors(group.controls.pointType),
+          direction: liveFieldErrors(group.controls.direction),
+          description: liveFieldErrors(group.controls.description),
+        })),
+      ),
+    );
+    return group;
   }
 }
 

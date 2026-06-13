@@ -245,6 +245,7 @@ function setupPersonsBackend(persons: MockPerson[]) {
     const method = req.method();
     const path = url.pathname;
     const idMatch = path.match(/^\/api\/v1\/persons\/(pn-[^/]+)$/);
+    const clubsCurrentMatch = path.match(/^\/api\/v1\/persons\/(pn-[^/]+)\/clubs\/current$/);
 
     if (method === 'GET' && path === '/api/v1/persons') {
       await route.fulfill({
@@ -374,6 +375,51 @@ function setupPersonsBackend(persons: MockPerson[]) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(persons[idx]),
+      });
+      return;
+    }
+    // J-26 T-04 forked-update: the edit-page Save now PUTs the caller-tenant
+    // PersonClub via `PUT /persons/{id}/clubs/current` whenever the form
+    // carries a hydrated membership (seedPerson has one). Without this handler
+    // the membership half falls through to the live mock-auth network → 401,
+    // the store errorPatches, no `person.updated` fires, and the edit page
+    // never navigates back to /persons. Full-replace + echo the authoritative
+    // person, mirroring the membership spec.
+    if (method === 'PUT' && clubsCurrentMatch) {
+      const person = persons.find((p) => p.id === clubsCurrentMatch[1]);
+      const pc = person?.memberships[0];
+      if (!person || !pc) {
+        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+        return;
+      }
+      const body = req.postDataJSON() as Partial<MockPersonClubResponse>;
+      person.memberships[0] = {
+        id: pc.id,
+        clubId: pc.clubId,
+        ...optional('memberNumber', body.memberNumber),
+        ...optional('memberStateId', body.memberStateId),
+        ...optional(
+          'memberStateName',
+          mockMemberStates.find((m) => m.id === body.memberStateId)?.name,
+        ),
+        isMotorPilot: body.isMotorPilot ?? false,
+        isTowPilot: body.isTowPilot ?? false,
+        isGliderInstructor: body.isGliderInstructor ?? false,
+        isGliderPilot: body.isGliderPilot ?? false,
+        isGliderTrainee: body.isGliderTrainee ?? false,
+        isPassenger: body.isPassenger ?? false,
+        isWinchOperator: body.isWinchOperator ?? false,
+        isMotorInstructor: body.isMotorInstructor ?? false,
+        receiveFlightReports: body.receiveFlightReports ?? false,
+        receiveAircraftReservationNotifications:
+          body.receiveAircraftReservationNotifications ?? false,
+        receivePlanningDayRoleReminder: body.receivePlanningDayRoleReminder ?? false,
+        isActive: body.isActive ?? false,
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(person),
       });
       return;
     }
