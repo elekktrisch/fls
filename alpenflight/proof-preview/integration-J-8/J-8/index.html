@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-8 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-8</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
+      <span class="summary-jid">J-8</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 2 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>221/merge</code> &middot; 2026-06-13T18:34:05.256Z
+      for this journey. Generated on <code>221/merge</code> &middot; 2026-06-13T20:54:33.952Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,19 +144,41 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-cc70a954f2816e5f619497d413caf4d9d2283408.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-84e1c92ecae5dc2af2cd583635cf75ba9961352d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, and creates an AccountingRuleFilter through the real backend — it renders in the /accountingrules list with its derived target and reopens with every field intact (core · flags · article-target incl. the filter_config deliveryLineText)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-22a992aed3cd52baa692ef855cd382d10e66be20.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-b58fcf5b3ada00f4e362151e98ad916b21dac28f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · selecting an AccountingRuleFilterType drives the conditional sections over the real reference-data catalog (article-target ∉{5,10} · recipient ==10 · aircraft-filter ==30 · no-landing-tax ==20) — the crux of the legacy form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-bf348661df054f9fee2c625acb28602b3ac2c44c.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-a0bb2eabaf387622a155467f3bb04c34842fe19d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a predicate match-list (aircraft immatriculations) round-trips its chips AND its 'use for all except listed' invert orientation through the real filter_config jsonb (load → flip toggle + add chip → save → reopen)</span></figcaption>
         </figure>
         </div>
-
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">list</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-accountingrules-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-accountingrules-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /accountingrules list — a created article-target rule renders with its server-derived target column (articleNumber + deliveryLineText), the rule-filter table to eyeball against the legacy ng-table (legacy peer in the fanout page)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">form</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-accountingrules-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-accountingrules-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /accountingrules edit form reopened over the real chain — every field round-trips (RuleFilterName · Description · the glider + stop-rule-engine flags · the article-target ArticleNumber + the filter_config-stored DeliveryLineText), the filter-type-driven edit form to eyeball against the legacy form (legacy peer in the fanout page)</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
