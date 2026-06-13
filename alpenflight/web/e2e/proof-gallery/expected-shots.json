@@ -101,17 +101,25 @@
     },
     "J-26": {
       "$note": [
-        "T-01 scaffold — hardening sprint (no new screen, no legacy peer: the",
-        "shots are AlpenFlight-only hardening evidence). The two views are the",
-        "real-idp hardening-J26.spec.ts parity PNGs (membership round-trip +",
-        "duplicate-FlightCode inline 409), written to testInfo.outputDir but",
-        "PENDING (tolerated-absent) while the spec cases are T-01 fixme stubs.",
-        "T-27 thickens the spec, wires the staging, and flips these to",
-        "`expected` with producedBy: proof (the per-push job runs the real-idp",
-        "spec that writes them — the J-7 read-side pattern)."
+        "Hardening sprint (no new screen, no legacy peer: the shots are",
+        "AlpenFlight-only hardening evidence). The two views are the real-idp",
+        "hardening-J26.spec.ts parity PNGs (membership round-trip + duplicate-",
+        "FlightCode inline 409), written to testInfo.outputDir.",
+        "",
+        "T-27 thickened the spec from T-01 fixme stubs to full real assertions",
+        "(≥1 active real-idp test) and flipped these PENDING -> EXPECTED with",
+        "producedBy: proof — the J-7 read-side pattern: the real-idp spec that",
+        "writes them runs in the PER-PUSH proof job (ci.yml alpenflight-proof,",
+        "is_baseline=false once active), NOT the fanout. So they are EXPECTED",
+        "(enforced) only in the `proof` context; in the `fanout` context they",
+        "are produced-elsewhere -> tolerated-absent (no false red)."
       ],
-      "expected": [],
-      "pending": ["alpenflight:membership", "alpenflight:duplicate-code"]
+      "expected": ["alpenflight:membership", "alpenflight:duplicate-code"],
+      "producedBy": {
+        "alpenflight:membership": "proof",
+        "alpenflight:duplicate-code": "proof"
+      },
+      "pending": []
     }
   }
 }

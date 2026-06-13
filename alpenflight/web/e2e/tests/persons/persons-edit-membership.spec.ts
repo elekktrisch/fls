@@ -271,11 +271,15 @@ function setupPersonsBackend(persons: MockPerson[], captured: CapturedPuts) {
         clubId: pc.clubId,
         ...(body.memberNumber ? { memberNumber: body.memberNumber } : {}),
         ...(body.memberStateId ? { memberStateId: body.memberStateId } : {}),
-        ...(body.memberStateId
-          ? {
-              memberStateName: mockMemberStates.find((m) => m.id === body.memberStateId)?.name,
-            }
-          : {}),
+        ...(() => {
+          const name = body.memberStateId
+            ? mockMemberStates.find((m) => m.id === body.memberStateId)?.name
+            : undefined;
+          // exactOptionalPropertyTypes: only emit memberStateName when it
+          // resolves to a definite string (an unresolved id leaves it absent,
+          // never `{ memberStateName: undefined }`).
+          return name ? { memberStateName: name } : {};
+        })(),
         isMotorPilot: body.isMotorPilot ?? false,
         isTowPilot: body.isTowPilot ?? false,
         isGliderInstructor: body.isGliderInstructor ?? false,

@@ -1039,6 +1039,20 @@ jobs:
               "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
               "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
           fi
+          # ----- J-26 hardening (membership / duplicate-code — AF-only) --------
+          # Hardening sprint: no new screen, no legacy parity peer (the shots are
+          # AlpenFlight-only hardening evidence). The view keys (membership,
+          # duplicate-code) match expected-shots.json J-26; the AF filenames match
+          # the PNGs the real-idp hardening-J26.spec.ts writes to test-results/
+          # BEFORE its deep assertions (so a partial red still stages them).
+          if [ "${PROOF_JOURNEY:-}" = "J-26" ]; then
+            add_af_only "J-26" "hardening" "membership" \
+              "alpenflight-hardening-membership.png" \
+              "AlpenFlight (hardening, T-04): a Person's membership edit re-opened after Save over the real chain — memberNumber, the toggled pilot-role flag and the changed member state all came back from the real backend (the data-loss fix: the form used to toast success while silently dropping them)"
+            add_af_only "J-26" "hardening" "duplicate-code" \
+              "alpenflight-hardening-duplicate-code.png" \
+              "AlpenFlight (hardening, T-05): creating a second flight type with a duplicate FlightCode over the real chain — the real ux_flight_type_club_code constraint / service pre-check returns a 409 that surfaces INLINE on the Code field (previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field)"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
