@@ -47,6 +47,9 @@
     "name" : "Articles",
     "description" : "Article CRUD (per-club tenant-scoped masterdata)."
   }, {
+    "name" : "AccountingReferenceData",
+    "description" : "Reference catalogs for the accounting rule-filter edit form (cross-tenant)."
+  }, {
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
@@ -3544,6 +3547,28 @@
         }
       }
     },
+    "/api/v1/flight-crew-types" : {
+      "get" : {
+        "tags" : [ "AccountingReferenceData" ],
+        "summary" : "List flight-crew types, ordered by legacy_int_id.",
+        "operationId" : "listFlightCrewTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of FlightCrewType reference projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlightCrewTypeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flight-cost-balance-types" : {
       "get" : {
         "tags" : [ "FlightCostBalanceTypes" ],
@@ -3903,6 +3928,50 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AuditEventPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounting-unit-types" : {
+      "get" : {
+        "tags" : [ "AccountingReferenceData" ],
+        "summary" : "List accounting unit types, ordered by legacy_int_id.",
+        "operationId" : "listAccountingUnitTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of AccountingUnitType reference projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AccountingUnitTypeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounting-rule-filter-types" : {
+      "get" : {
+        "tags" : [ "AccountingReferenceData" ],
+        "summary" : "List accounting rule-filter types, ordered by legacy_int_id. Carries legacyId — the SPA drives section visibility off it.",
+        "operationId" : "listAccountingRuleFilterTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of AccountingRuleFilterType reference projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AccountingRuleFilterTypeResponse"
+                  }
                 }
               }
             }
@@ -8355,6 +8424,27 @@
         },
         "required" : [ "flightTypeName", "id", "isFlightCostBalanceSelectable", "isForGliderFlights", "isForMotorFlights", "isForTowFlights" ]
       },
+      "FlightCrewTypeResponse" : {
+        "type" : "object",
+        "description" : "FlightCrewType listitem projection — drives the flightCrewTypes match-list dropdown on the accounting rule-filter edit form.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "legacyId" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "description" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "description", "id", "legacyId" ]
+      },
       "FlightCostBalanceTypeResponse" : {
         "type" : "object",
         "description" : "FlightCostBalanceType reference-list projection.",
@@ -8741,6 +8831,30 @@
           }
         }
       },
+      "AccountingUnitTypeResponse" : {
+        "type" : "object",
+        "description" : "AccountingUnitType listitem projection — drives the AccountingUnitType picker on the article-target section of the accounting rule-filter edit form.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "legacyId" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "shortName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "id", "legacyId", "name" ]
+      },
       "AccountingRuleFilterListItem" : {
         "type" : "object",
         "description" : "AccountingRuleFilter list-row projection — sorted by sort indicator.",
@@ -8768,6 +8882,30 @@
           }
         },
         "required" : [ "active", "filterTypeId", "id", "ruleFilterName", "sortIndicator", "target" ]
+      },
+      "AccountingRuleFilterTypeResponse" : {
+        "type" : "object",
+        "description" : "AccountingRuleFilterType listitem projection — drives the accounting rule-filter edit-form type picker. The accounting form keys its conditional-section visibility off legacyId (article-target ∉{5,10}, recipient ==10, aircraft-filter ==30, no-landing-tax ==20), so both id (UUID) and legacyId (int) are exposed.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "legacyId" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "id", "legacyId", "name" ]
       }
     },
     "securitySchemes" : {

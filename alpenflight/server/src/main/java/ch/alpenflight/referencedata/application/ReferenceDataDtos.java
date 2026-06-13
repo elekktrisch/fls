@@ -60,4 +60,32 @@ public final class ReferenceDataDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
             @Nullable String shortName,
             @Nullable String comment) {}
+
+    @Schema(description = "AccountingRuleFilterType listitem projection — drives the accounting "
+            + "rule-filter edit-form type picker. The accounting form keys its conditional-section "
+            + "visibility off legacyId (article-target ∉{5,10}, recipient ==10, aircraft-filter "
+            + "==30, no-landing-tax ==20), so both id (UUID) and legacyId (int) are exposed.")
+    public record AccountingRuleFilterTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int legacyId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
+            @Nullable String description) {}
+
+    @Schema(description = "AccountingUnitType listitem projection — drives the AccountingUnitType "
+            + "picker on the article-target section of the accounting rule-filter edit form.")
+    public record AccountingUnitTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int legacyId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
+            @Nullable String shortName) {}
+
+    @Schema(description = "FlightCrewType listitem projection — drives the flightCrewTypes "
+            + "match-list dropdown on the accounting rule-filter edit form.")
+    public record FlightCrewTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int legacyId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description) {}
 }

@@ -79,5 +79,21 @@
 # stance is superseded by ADR 0028's distinction: @MappedSuperclass for
 # boundary-clean shared mapped state, NOT for module-coupled behavior.
 #
+# Re-measured 2026-06-13 (J-8 T-07, accounting reference-data endpoints): 5009
+# (+182). Three new clone windows, all irreducible per-catalog reference-data
+# boilerplate — NOT logic duplication, and NOT covered by ADR 0028 (these are
+# read-only reference entities/DTOs, not soft-deletable aggregates):
+#   - 67t: the AccountingRuleFilterType vs AccountingUnitType reference entities
+#     clone the id/code/legacy_int_id/name column-declaration + getter block.
+#     Pure JPA field boilerplate, the same "each reference entity maps its own
+#     columns" shape AircraftType/CounterUnitType/AircraftState already follow;
+#     a @MappedSuperclass here would couple two unrelated catalogs for ~4 fields.
+#   - 60t + 55t: the three new listitem records in ReferenceDataDtos
+#     (AccountingRuleFilterTypeResponse / AccountingUnitTypeResponse /
+#     FlightCrewTypeResponse) clone each other's @Schema(requiredMode=REQUIRED)
+#     id/code/legacyId/name field declarations. Java records can't share fields
+#     via inheritance; this is the same per-resource DTO-record shape already
+#     baselined for reservations/planning above.
+#
 # Single non-comment, non-blank line = the token baseline.
-4827
+5009
