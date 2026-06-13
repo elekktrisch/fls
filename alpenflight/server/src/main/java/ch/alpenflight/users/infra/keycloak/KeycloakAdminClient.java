@@ -175,6 +175,18 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     .body(String.class);
             return readListOf(body, RealmRoleWire.class).stream().map(RealmRoleWire::toRef).toList();
         } catch (HttpStatusCodeException e) {
+            if (e.getStatusCode().value() == 404) {
+                // The KC identity for this sub is gone (deleted in KC, or a local
+                // t_user row whose keycloak_sub was never provisioned in the
+                // realm — e.g. a seed / bulk-import row). A user with no KC
+                // identity has no realm roles; treat as the empty mapping rather
+                // than failing. Without this, ONE orphaned row in the club blows
+                // up the whole GET /api/v1/users list (J-26 T-30c: 502 when the
+                // KC admin client is reachable, 400 when it is not — both the
+                // same single-row-not-found root cause). Mirrors
+                // findUsersByRoleName's 404 → empty handling.
+                return List.of();
+            }
             throw new UserDirectoryException(
                     "Keycloak read role-mappings (status " + e.getStatusCode().value() + ")", e);
         }
