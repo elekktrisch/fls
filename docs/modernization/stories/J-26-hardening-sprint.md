@@ -2,8 +2,9 @@
 id: J-26
 title: Hardening sprint — validation bugfixes, UX corrections, JDBC retirement, redundancy purge
 epic: cross-cutting (E-06/E-07/E-08 surfaces; E-13 proof infra)
-status: in_progress
+status: done
 started_at: 2026-06-12
+done_at: 2026-06-13
 journey0: false
 carved: true
 depends_on: [J-7]
@@ -160,6 +161,39 @@ CLUB-pgcopy (migration scope, pre-J-21).
 - [x] **T-08b** — (gap-hunter follow-up to T-08) close the spec-coverage gap on the af-field-errors transloco fix: the "renders TRANSLATED messages, never a raw `common.errors.*` key" AC rode on the unit test `field-errors.spec.ts` alone — no mock-inner-loop case asserted the RENDERED inline text is the translated prose. **DONE (FE/spec-only):** added a translated-text assertion to the person as-you-type case in `forms/validation-hardening.spec.ts` — clearing `lastname` (validators `[required, maxLength(100)]` → empty trips required ALONE, single message) now asserts the live debounced inline error renders the German prose `'Eingabe erforderlich.'` (`common.errors.required`; lang pinned `?lang=de` via `enterSection`) AND `.not.toContainText(/common\.errors\./)`, guarding the CLIENT-validator-key → translated path on an as-you-type error (the existing /clubs blur probe covered the touched-on-blur path; this covers as-you-type). Clarified the duplicate-key describe block (T-05/T-07): those cases assert 409 FIELD-ROUTING, not rendered text — the `message: 'common.errors.duplicate'` mock is a stand-in for the SERVER's problem-detail string (rendered verbatim; the real backend sends prose), NOT the client-validator-key path the T-08 AC owns, so it is deliberately never asserted as rendered text. Also fixed the stale header doc-comment ("THIN STUB: every case below is `test.fixme`") — all cases are now active (T-05..T-13 un-fixme'd them, T-27 thickened them); no `test.fixme` remains. **Gates:** spec re-run single-worker (`--workers=1`, §9 esbuild-deadlock avoidance) green; `tsc -p e2e/tsconfig.json` 0 errors; `playwright --list` compiles; prettier --check clean on the touched spec.
 
 - [x] **T-33** — (operator: IntelliJ unused-declaration sweep) triaged the SARIF export of 71 server `unused`-PARAMETER findings: ~63 are Spring-Data repository-interface query-binding params (`[iface]` — false positives, deletion breaks derived queries), ~7 are idiomatic `@ExceptionHandler(X.class)` dispatch params (trivial), and **1 genuine dead param** — `UsersService.softDelete(…, @Nullable Jwt callerJwt)` (threaded like invite/update but a delete isn't a role-grant; unused in body, sole caller `UsersController:112`). Removed it + the controller arg; `./gradlew check` green. The bulk of IntelliJ's global unused-declaration count is framework false-positive, NOT dead code — a CI whole-program unused tool (Qodana/jSparrow) would need a baseline + Spring-awareness, filed as a maintainability-tooling consideration.
+
+## Outcome (2026-06-13)
+
+Shipped on `integration/J-26`; gate green job-level on the final code sha (`f8a85241`):
+`alpenflight proof (real-idp, clean-seed)` ran J-26's OWN spec
+(`hardening-J26.spec.ts`, **is_baseline=false** — not the baseline fallback),
+dashboard + profile proof green, the Deployed-journey + Shots-present gallery
+guards green, `required` = success (jobs EXECUTED, not path-skipped). Full mock
+suite green. gap-hunter ×3 voted the code genuinely vertical (A/C real:true;
+B's only blocker — "proof not yet executed" — resolved by the green proof job).
+
+**User-facing fixes shipped:** person-membership data-loss (T-04), flight-type
+duplicate-code 409 (T-05) + Instructor×Observer XOR domain guard (T-06), club
+clubKey 409 (T-07), af-field-errors transloco + profile languageId (T-08),
+reservation Save-race (T-09), as-you-type inline validation on EVERY edit form
+(T-10/11/12), flight-edit validators + Save-gating (T-13), `/flight-types` nav
+entry + dual-role nav union (T-28).
+
+**Tech-debt shipped:** ADR-0027 JDBC retirement — 4 main-code conversions
+(T-14/15/16) + register re-affirm (T-17, KEEP-GiST recorded) + test-seeding to
+production-minted ids (TwoClubFixture + sweep factories, T-19a–d/T-20);
+@MappedSuperclass extract + ADR 0028, CPD 4883→4827 (T-21); FE complexity
+hotspot extraction (T-22/23, `applyLastContextThenPrefs` CRAP 210→13.8); fallow
+dead-code (T-24); proof-infra: test-results upload-on-failure (T-25) +
+staged==rendered gallery guard (T-26); nightly real-idp setup-java + KC env
+(T-03/T-29); the per-push baseline-derive gate fix (T-31/T-32); 1 genuine dead
+param from the IntelliJ unused-decl triage (T-33).
+
+**Deferred (filed as riders, NOT blocking — operator-approved merge):**
+3 pre-existing KC-26-upgrade-drift nightly reds (login ui_locales, register
+verify-mail, token-lifecycle silent-refresh — cross-journey, not J-26's
+vertical; nightly improved 7→3) + the Qodana whole-program unused-code tool.
+Both in `_BOYSCOUT.md` for the next journey.
 
 ## Assumptions made
 
