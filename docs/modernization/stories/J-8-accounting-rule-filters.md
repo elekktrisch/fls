@@ -23,7 +23,7 @@ acceptance:
 screen: /accountingrules (list + edit) — replacing legacy masterdata/accountingRules/
 headless_pulled_in: none (this is the CONFIG surface; the rules ENGINE that consumes these filters is J-9)
 migration: AccountingRuleFilter (+ reference data AccountingRuleFilterType, AccountingUnitType, FlightCrewType) — legacy flsserver accounting tables
-parity_test: alpenflight/web/e2e/tests/accounting/accounting-rules-edit.spec.ts
+parity_test: alpenflight/web/e2e/tests/real-idp/accounting-rules-parity.spec.ts
 mock_test: alpenflight/web/e2e/tests/accounting/   # journey-under-work's own mock-auth specs (T-02: per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly)
 adr_refs: [0005, 0008, 0022, 0027, 0024]
 ---
