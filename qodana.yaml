@@ -1,0 +1,79 @@
+#-------------------------------------------------------------------------------#
+#  Qodana — whole-program Java unused-code detection for the AlpenFlight server.
+#  J-8 T-15 (≤40% maintainability rider, _BOYSCOUT.md / J-26 gate, operator-
+#  approved 2026-06-13).
+#
+#  WHY Qodana (not just PMD/SpotBugs): PMD's dead-code rules
+#  (UnusedPrivateField/Method/Local/FormalParameter) are PER-FILE — they only see
+#  what is private/local to one compilation unit, so PMD reports 0 dead code in
+#  server main. The class of finding the operator's IntelliJ run surfaced — a
+#  declaration unused across the WHOLE program (a public method no caller invokes,
+#  an entity field nothing reads) — needs a whole-program reference model. Qodana
+#  is the Java twin of PMD/CPD + fallow: JetBrains' Dockerized runner for the SAME
+#  IntelliJ inspections, with a SARIF baseline ratchet (--baseline) identical in
+#  spirit to config/pmd/cpd-baseline.txt.
+#
+#  HARD CONSTRAINTS (measured at J-26 T-33 — the unused-declaration inspection is
+#  ~90% FALSE-POSITIVE on this Spring/JPA/Modulith stack: 63/71 server findings
+#  were Spring-Data repository query-binding params, 7 idiomatic @ExceptionHandler
+#  dispatch params, 1 genuine). So this MUST land:
+#    (a) REPORT-ONLY  — non-gating, like pmdMain.ignoreFailures=true / the
+#        cpdRatchet report-only posture. The qodana-scan CI job is its OWN
+#        workflow (.github/workflows/qodana.yml), continue-on-error, and is NOT
+#        in ci.yml's `required` aggregator `needs`. It can never red the build.
+#    (b) BASELINE     — qodana.sarif.json accepts today's state; the job gates
+#        only on NEW unused (--baseline qodana.sarif.json), the cpdRatchet spirit.
+#    (c) SPRING/JPA AWARE — qodana-jvm-community runs the SAME IntelliJ
+#        inspections, which model framework usage (Spring beans, @Autowired,
+#        Spring-Data repositories, JPA entities) so injected/derived-query members
+#        are not flagged as unused. We lean on the `qodana.recommended` profile
+#        (which carries the framework-aware `unused` inspection) and keep the
+#        Spring/JPA inspection categories ON. If noise stays high after the
+#        baseline, the licensed `qodana-jvm` linter models Spring deeper — a
+#        documented future upgrade, not needed for the report-only baseline.
+#-------------------------------------------------------------------------------#
+version: "1.0"
+
+# Free, no-token JVM linter. Runs the same IntelliJ inspections as the IDE,
+# including the whole-program, framework-aware `unused` declaration inspection.
+linter: jetbrains/qodana-jvm-community:latest
+
+# Profile: qodana.recommended carries the whole-program `unused` (unused
+# declaration) inspection AND the Spring/JPA framework inspections that teach the
+# reference model which members are framework-reachable (so a Spring-Data query
+# param / a JPA entity field is not a false "unused"). We keep that profile and
+# only ensure `unused` is enabled at WARNING (the finding the operator wants).
+profile:
+  base:
+    name: qodana.recommended
+  inspections:
+    # The whole-program unused-declaration inspection — the J-8 T-15 target.
+    - inspection: unused
+      enabled: true
+      severity: WARNING
+
+# Scope to the SERVER main source only — the 605 unused-declaration warnings the
+# operator saw were in the alpenflight server. Excludes the legacy reference
+# stacks (flsserver/flsweb), the web SPA (fallow covers that), tests, generated
+# code, and build output, so the report is the server production surface only.
+include:
+  - name: unused
+    paths:
+      - alpenflight/server/src/main/java
+
+# Keep the analysis off everything that is NOT the server production Java:
+# legacy reference repos, the web SPA, generated/build artifacts, and tests
+# (the unused-in-test class is noise — a test helper is reachable by reflection /
+# the test runner, not by the production reference graph).
+exclude:
+  - name: All
+    paths:
+      - flsserver
+      - flsweb
+      - alpenflight/web
+      - alpenflight/server/src/test
+      - alpenflight/server/build
+      - alpenflight/migration-bundle
+      - alpenflight/migration-tool
+      - docs
+      - e2e

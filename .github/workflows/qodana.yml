@@ -1,0 +1,136 @@
+name: qodana
+
+# Whole-program Java unused-code detection for the AlpenFlight server (J-8 T-15,
+# the ≤40% maintainability rider — operator-approved 2026-06-13). See qodana.yaml
+# at the repo root for the WHY + the HARD constraints.
+#
+# REPORT-ONLY, NEVER GATING — by design (HARD constraint (a), measured at J-26
+# T-33: the unused-declaration inspection is ~90% false-positive on this
+# Spring/JPA/Modulith stack). This is its OWN workflow, deliberately NOT a job in
+# ci.yml, so it can never enter ci.yml's `required` aggregator `needs` — the
+# branch-protection gate cannot turn red on a Qodana finding. The scan step is
+# additionally `continue-on-error: true`, and no downstream job consumes its
+# result, so even a hard crash of the scanner is a no-op for merge. It mirrors the
+# `pmdMain.ignoreFailures=true` / `cpdRatchet` report-only posture for the PMD/CPD
+# half (build.gradle.kts) and the `continue-on-error` fallow emit (ci.yml).
+#
+# The committed baseline `qodana.sarif.json` accepts today's state (the ~90%-FP
+# corpus); `--baseline` gates the report only on NEW unused declarations — the
+# same ratchet spirit as config/pmd/cpd-baseline.txt. A green "0 new" run is the
+# steady state; a non-zero `new` count surfaces in the report + the gallery panel
+# but still cannot fail the build.
+
+on:
+  # Only when the server Java surface, the Qodana config, or this workflow change
+  # — the scan is heavy (Docker linter + project indexing) and report-only, so it
+  # need not run on every push.
+  pull_request:
+    branches: [main, "integration/**"]
+    paths:
+      - 'alpenflight/server/src/main/java/**'
+      - 'qodana.yaml'
+      - 'qodana.sarif.json'
+      - '.github/workflows/qodana.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'alpenflight/server/src/main/java/**'
+      - 'qodana.yaml'
+      - 'qodana.sarif.json'
+      - '.github/workflows/qodana.yml'
+  workflow_dispatch:
+
+# A new commit on the same ref cancels an in-flight scan (the report-only result
+# of the older commit is moot).
+concurrency:
+  group: qodana-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only: the scan publishes nothing to the repo. The SARIF is an artifact +
+# the gallery feed, not a PR check annotation (which would imply a gate).
+permissions:
+  contents: read
+
+jobs:
+  qodana-scan:
+    name: qodana-scan (report-only)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The action needs the actual PR head commit, and a full history so the
+          # baseline diff resolves cleanly.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # The Qodana scan. REPORT-ONLY:
+      #   - `continue-on-error: true` — a non-zero exit (NEW findings vs the
+      #     baseline, OR a scanner crash) never fails the job.
+      #   - `--baseline qodana.sarif.json` — gate the report on NEW unused only
+      #     (space-separated args is the supported form; the comma form is
+      #     deprecated). The free, no-token Community JVM linter is declared in
+      #     qodana.yaml (`linter: jetbrains/qodana-jvm-community:latest`), which
+      #     the action reads — same IntelliJ inspections, Spring/JPA-aware
+      #     reference model. No `--linter` override here.
+      #   - `upload-result: false`, `post-pr-comment: false`, `use-annotations:
+      #     false`, no QODANA_TOKEN — no Qodana Cloud, no PR check/annotation that
+      #     would read as a gate. The SARIF is surfaced via the artifact + the
+      #     proof-gallery maintainability panel instead.
+      - name: Qodana scan (unused-declaration, report-only)
+        id: qodana
+        continue-on-error: true
+        uses: JetBrains/qodana-action@v2025.3.2
+        with:
+          args: --baseline qodana.sarif.json
+          upload-result: false
+          post-pr-comment: false
+          use-annotations: false
+          use-caches: true
+
+      # Stage the SARIF to the stable gallery maintainability path the panel
+      # consumes (mirrors how ci.yml stages pmd-main.xml/cpd-check.xml/fallow-*.json
+      # to public/alpenflight/proof/maintainability/). The proof-gallery generator's
+      # `parseQodana` reads `qodana-report.sarif.json` from that dir and renders a
+      # "BE unused code (Qodana)" row (fail-soft "no data" when absent). FAIL-SOFT:
+      # if the scan produced no SARIF, this is a no-op (the panel degrades to "no
+      # Qodana report").
+      - name: Stage Qodana SARIF for the proof-gallery panel (fail-soft)
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="public/alpenflight/proof/maintainability"
+          mkdir -p "$OUT"
+          # The action writes its results to ${{ runner.temp }}/qodana/results by
+          # default; qodana.sarif.json is the canonical SARIF name there.
+          SRC=""
+          for cand in \
+            "${{ runner.temp }}/qodana/results/qodana.sarif.json" \
+            "${RUNNER_TEMP:-/tmp}/qodana/results/qodana.sarif.json" \
+            "$GITHUB_WORKSPACE/qodana.sarif.json"; do
+            if [ -f "$cand" ]; then SRC="$cand"; break; fi
+          done
+          if [ -n "$SRC" ]; then
+            cp -f "$SRC" "$OUT/qodana-report.sarif.json"
+            echo "staged Qodana SARIF from $SRC" >&2
+          else
+            echo "no Qodana SARIF found to stage (panel degrades to 'no data')" >&2
+          fi
+          ls -l "$OUT" >&2 || true
+          exit 0
+
+      # Upload the raw SARIF + the staged gallery copy as artifacts for download.
+      # `always()` so the report is available even when the scan step reported
+      # new findings (its continue-on-error exit) — the report is the deliverable.
+      - name: Upload Qodana SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qodana-sarif-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/qodana/results/qodana.sarif.json
+            public/alpenflight/proof/maintainability/qodana-report.sarif.json
+          retention-days: 14
+          if-no-files-found: warn
