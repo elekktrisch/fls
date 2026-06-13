@@ -9,7 +9,10 @@ import static ch.alpenflight.flights.web.FlightsTestFixtures.seedPersonInClub;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.singletonCrew;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -46,8 +49,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a2");
     private static final String NAME_PREFIX = "IT_FTL_";
     private static final String KEY_PREFIX = "IT_FL";
     private static final String EXCLUDED_FROM_DELIVERY_ID =
@@ -56,16 +57,25 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    private UUID clubA;
+    private UUID clubB;
     private String tokenA;
     private String aircraftA;
 
     @BeforeEach
     void seed() {
-        cleanFlightRowsFor(jdbc, CLUB_A, CLUB_B);
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
-        tokenA = mintAdminToken(CLUB_A);
-        aircraftA = "ac-" + seedAircraftFor(jdbc, CLUB_A);
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        cleanFlightRowsFor(jdbc, clubA, clubB);
+        tokenA = mintAdminToken(clubA);
+        aircraftA = "ac-" + seedAircraftFor(jdbc, clubA);
     }
 
     @Test
@@ -96,7 +106,7 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         // before the orphan DELETE in one flush, tripping the partial-unique
         // ux_flight_crew_unique (SQLState 23505 → 400 "Invalid reference"). The
         // in-place reconcile keeps the unchanged row, so the link must 200.
-        String personId = "pn-" + seedPersonInClub(jdbc, CLUB_A);
+        String personId = "pn-" + seedPersonInClub(jdbc, clubA);
         Map<String, Object> gliderPayload = payload("GLIDER", aircraftA, "2026-05-01");
         gliderPayload.put("crew", singletonCrew(crewItem(personId, SEED_FLIGHT_CREW_TYPE_PIC)));
         String gliderId = readJson(post("/api/v1/flights", gliderPayload, tokenA))
@@ -184,8 +194,8 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         // Tow belongs to Club B. Club A's PUT can't see it — @TenantId hides
         // the row, so the lookup fails and the link is rejected. Mirrors the
         // IDOR-as-404 contract on read paths.
-        String tokenB = mintAdminToken(CLUB_B);
-        String aircraftB = "ac-" + seedAircraftFor(jdbc, CLUB_B);
+        String tokenB = mintAdminToken(clubB);
+        String aircraftB = "ac-" + seedAircraftFor(jdbc, clubB);
         String towB = readJson(post("/api/v1/flights",
                 payload("TOW", aircraftB, "2026-05-01"), tokenB)).get("id").asText();
 

@@ -7,11 +7,12 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   Validators,
   type FormGroup,
 } from '@angular/forms';
@@ -28,6 +29,8 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+
+import { liveFieldErrors } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
@@ -93,9 +96,7 @@ type ArticleForm = FormGroup<{
                 label="Article number"
                 for="ArticleNumber"
                 [required]="true"
-                [errors]="
-                  form.controls.articleNumber.touched ? form.controls.articleNumber.errors : null
-                "
+                [errors]="articleNumberErrors()"
               >
                 <af-input
                   inputId="ArticleNumber"
@@ -108,9 +109,7 @@ type ArticleForm = FormGroup<{
                 label="Name"
                 for="ArticleName"
                 [required]="true"
-                [errors]="
-                  form.controls.articleName.touched ? form.controls.articleName.errors : null
-                "
+                [errors]="articleNameErrors()"
               >
                 <af-input
                   inputId="ArticleName"
@@ -120,7 +119,7 @@ type ArticleForm = FormGroup<{
                 />
               </af-form-field>
             </div>
-            <af-form-field label="Short info" for="ArticleInfo">
+            <af-form-field label="Short info" for="ArticleInfo" [errors]="articleInfoErrors()">
               <af-input
                 inputId="ArticleInfo"
                 formControlName="articleInfo"
@@ -198,6 +197,20 @@ export class ArticlesEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
+  // J-26 T-10 — server-side number-duplicate routed through the `liveFieldErrors`
+  // async slot (rather than `setErrors`, which carries no `valueChanges` so the
+  // debounced stream would never re-read it). Cleared on retype (effect below).
+  private readonly articleNumberDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
+  // infra): debounced ~200ms, replacing the touched-only bindings and binding
+  // the previously-silent `articleInfo` (maxLength(250) but no inline error).
+  protected readonly articleNumberErrors = liveFieldErrors(this.form.controls.articleNumber, {
+    asyncErrors$: toObservable(this.articleNumberDuplicate),
+  });
+  protected readonly articleNameErrors = liveFieldErrors(this.form.controls.articleName);
+  protected readonly articleInfoErrors = liveFieldErrors(this.form.controls.articleInfo);
+
   constructor() {
     effect(() => {
       const id = this.articleId();
@@ -223,10 +236,7 @@ export class ArticlesEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       if (this.store.saveErrorKind() === 'number-duplicate') {
-        this.form.controls.articleNumber.setErrors({
-          ...(this.form.controls.articleNumber.errors ?? {}),
-          duplicate: true,
-        });
+        this.articleNumberDuplicate.set({ duplicate: true });
         this.form.controls.articleNumber.markAsTouched();
       }
     });
@@ -235,10 +245,8 @@ export class ArticlesEditPage {
     this.form.controls.articleNumber.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(() => {
-        if (this.form.controls.articleNumber.hasError('duplicate')) {
-          const errs = { ...this.form.controls.articleNumber.errors };
-          delete errs['duplicate'];
-          this.form.controls.articleNumber.setErrors(Object.keys(errs).length ? errs : null);
+        if (this.articleNumberDuplicate() !== null) {
+          this.articleNumberDuplicate.set(null);
         }
         if (this.store.saveErrorKind() === 'number-duplicate') {
           this.store.clearSaveError();

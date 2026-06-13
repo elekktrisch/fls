@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightAircraftType;
@@ -20,6 +21,8 @@ import ch.alpenflight.locations.domain.LocationRepository;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.FlightId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -45,9 +48,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c6-2c00-7001-8000-0000000000f1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c6-2c00-7001-8000-0000000000f2");
-
     /** {@code t_start_type} WINCH_LAUNCH / AEROTOW ids (V2 seed, fixed canonical UUIDs). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
@@ -62,31 +62,41 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
     @Autowired LocationRepository locations;
     @Autowired FlightTypeRepository flightTypes;
     @Autowired PersonRepository persons;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void cleanAndSeedClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_FRB_", "IT_FRB").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FRB_", "IT_FRB");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
     void rebuild_recreatesDeletedRows_withDecorationsAndTowBlock_andIsIdempotent() {
-        UUID gliderAc = seedAircraft(CLUB_A);
-        UUID towAc = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Rebuildheim");
-        UUID gliderType = seedFlightType(CLUB_A, "Strecke", "STR");
-        UUID towType = seedFlightType(CLUB_A, "Schlepp", "TOW");
+        UUID gliderAc = seedAircraft(clubA);
+        UUID towAc = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Rebuildheim");
+        UUID gliderType = seedFlightType(clubA, "Strecke", "STR");
+        UUID towType = seedFlightType(clubA, "Schlepp", "TOW");
         UUID pilot = seedPerson("Wieder", "Willi");
         UUID towPilot = seedPerson("Schlepp", "Sina");
 
-        UUID towId = seedTow(CLUB_A, towAc, LocalDate.of(2026, 5, 20),
+        UUID towId = seedTow(clubA, towAc, LocalDate.of(2026, 5, 20),
                 Instant.parse("2026-05-20T10:00:00Z"), Instant.parse("2026-05-20T10:12:00Z"),
                 loc, loc, towType, AEROTOW,
                 List.of(crew(towPilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
-        UUID gliderId = seedGlider(CLUB_A, gliderAc, LocalDate.of(2026, 5, 20),
+        UUID gliderId = seedGlider(clubA, gliderAc, LocalDate.of(2026, 5, 20),
                 Instant.parse("2026-05-20T10:00:00Z"), Instant.parse("2026-05-20T13:00:00Z"),
                 loc, loc, gliderType, AEROTOW,
                 List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Flight glider = flights.findByIdWithCrew(FlightId.of(gliderId)).orElseThrow();
             Flight tow = flights.findByIdWithCrew(FlightId.of(towId)).orElseThrow();
             glider.linkTow(tow);
@@ -95,18 +105,18 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
 
         // Simulate the bypass: the rows vanish (as if the flights had arrived
         // without ever passing repository.save).
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             rows.delete(rows.findByFlightId(gliderId).orElseThrow());
             rows.delete(rows.findByFlightId(towId).orElseThrow());
             assertThat(rows.findByFlightId(gliderId)).isEmpty();
             assertThat(rows.findByFlightId(towId)).isEmpty();
         });
 
-        FlightReportRebuildService.RebuildResult first = rebuild.rebuildForClub(CLUB_A);
+        FlightReportRebuildService.RebuildResult first = rebuild.rebuildForClub(clubA);
         assertThat(first.liveFlights()).isEqualTo(2);
         assertThat(first.orphanRowsDeleted()).isZero();
 
-        FlightReportRow gliderRow = rowOf(CLUB_A, gliderId);
+        FlightReportRow gliderRow = rowOf(clubA, gliderId);
         assertThat(gliderRow.getPilotName()).isEqualTo("Wieder Willi");
         assertThat(gliderRow.getStartLocationName()).isEqualTo("Rebuildheim");
         assertThat(gliderRow.getFlightCode()).isEqualTo("STR");
@@ -116,13 +126,13 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
         assertThat(gliderRow.getTowFlightId()).isEqualTo(towId);
         assertThat(gliderRow.getTowPilotName()).isEqualTo("Schlepp Sina");
         assertThat(gliderRow.getTowFlightCode()).isEqualTo("TOW");
-        assertThat(rowOf(CLUB_A, towId).getTowedGliderFlightId()).isEqualTo(gliderId);
+        assertThat(rowOf(clubA, towId).getTowedGliderFlightId()).isEqualTo(gliderId);
 
         // Idempotent: a second run repairs nothing and changes nothing.
-        FlightReportRebuildService.RebuildResult second = rebuild.rebuildForClub(CLUB_A);
+        FlightReportRebuildService.RebuildResult second = rebuild.rebuildForClub(clubA);
         assertThat(second.liveFlights()).isEqualTo(2);
         assertThat(second.orphanRowsDeleted()).isZero();
-        FlightReportRow gliderRowAfter = rowOf(CLUB_A, gliderId);
+        FlightReportRow gliderRowAfter = rowOf(clubA, gliderId);
         assertThat(gliderRowAfter.getPilotName()).isEqualTo("Wieder Willi");
         assertThat(gliderRowAfter.getTowFlightId()).isEqualTo(towId);
         assertThat(gliderRowAfter.getCrew()).hasSize(1);
@@ -132,10 +142,10 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
 
     @Test
     void rebuild_deletesOrphanedRows_whoseFlightWasSoftDeletedBehindTheProjectorsBack() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Base");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
-        UUID flightId = seedGlider(CLUB_A, aircraft, LocalDate.of(2026, 5, 15),
+        UUID aircraft = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Base");
+        UUID flightType = seedFlightType(clubA, "T", "T");
+        UUID flightId = seedGlider(clubA, aircraft, LocalDate.of(2026, 5, 15),
                 Instant.parse("2026-05-15T08:00:00Z"), Instant.parse("2026-05-15T09:00:00Z"),
                 loc, loc, flightType, WINCH_LAUNCH, List.of());
         assertThat(countRowsFor(flightId)).isEqualTo(1);
@@ -146,45 +156,45 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
         jdbc.update("UPDATE t_flight SET deleted_on = now() WHERE id = ?::uuid",
                 flightId.toString());
 
-        FlightReportRebuildService.RebuildResult result = rebuild.rebuildForClub(CLUB_A);
+        FlightReportRebuildService.RebuildResult result = rebuild.rebuildForClub(clubA);
         assertThat(result.orphanRowsDeleted()).isEqualTo(1);
         assertThat(countRowsFor(flightId)).isZero();
     }
 
     @Test
     void rebuild_isPerClub_andDoesNotTouchTheOtherTenantsRows() {
-        UUID acA = seedAircraft(CLUB_A);
-        UUID locA = seedLocation(CLUB_A, "BaseA");
-        UUID typeA = seedFlightType(CLUB_A, "TA", "TA");
-        UUID flightA = seedGlider(CLUB_A, acA, LocalDate.of(2026, 5, 15),
+        UUID acA = seedAircraft(clubA);
+        UUID locA = seedLocation(clubA, "BaseA");
+        UUID typeA = seedFlightType(clubA, "TA", "TA");
+        UUID flightA = seedGlider(clubA, acA, LocalDate.of(2026, 5, 15),
                 Instant.parse("2026-05-15T08:00:00Z"), Instant.parse("2026-05-15T09:00:00Z"),
                 locA, locA, typeA, WINCH_LAUNCH, List.of());
 
-        UUID acB = seedAircraft(CLUB_B);
-        UUID locB = seedLocation(CLUB_B, "BaseB");
-        UUID typeB = seedFlightType(CLUB_B, "TB", "TB");
-        UUID flightB = seedGlider(CLUB_B, acB, LocalDate.of(2026, 5, 16),
+        UUID acB = seedAircraft(clubB);
+        UUID locB = seedLocation(clubB, "BaseB");
+        UUID typeB = seedFlightType(clubB, "TB", "TB");
+        UUID flightB = seedGlider(clubB, acB, LocalDate.of(2026, 5, 16),
                 Instant.parse("2026-05-16T08:00:00Z"), Instant.parse("2026-05-16T09:00:00Z"),
                 locB, locB, typeB, WINCH_LAUNCH, List.of());
 
         // Both clubs lose their rows to the simulated bypass.
-        TenantTestContext.runAs(CLUB_A, () ->
+        TenantTestContext.runAs(clubA, () ->
                 rows.delete(rows.findByFlightId(flightA).orElseThrow()));
-        TenantTestContext.runAs(CLUB_B, () ->
+        TenantTestContext.runAs(clubB, () ->
                 rows.delete(rows.findByFlightId(flightB).orElseThrow()));
 
         // Rebuilding club A restores ONLY club A.
-        rebuild.rebuildForClub(CLUB_A);
+        rebuild.rebuildForClub(clubA);
         assertThat(countRowsFor(flightA)).isEqualTo(1);
         assertThat(countRowsFor(flightB)).isZero();
 
-        rebuild.rebuildForClub(CLUB_B);
+        rebuild.rebuildForClub(clubB);
         assertThat(countRowsFor(flightB)).isEqualTo(1);
         // The restored rows carry their own club's discriminator (read-only
         // JDBC assert of the stamped column — not a seeding write).
         assertThat(jdbc.queryForObject(
                 "SELECT operating_club_id FROM t_flight_report_row WHERE flight_id = ?::uuid",
-                UUID.class, flightB.toString())).isEqualTo(CLUB_B);
+                UUID.class, flightB.toString())).isEqualTo(clubB);
     }
 
     // ---------------------------------------------------------------- helpers

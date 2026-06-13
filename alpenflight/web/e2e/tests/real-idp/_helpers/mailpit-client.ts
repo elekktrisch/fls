@@ -58,6 +58,14 @@ export interface WaitForMessageOptions {
 /**
  * Poll Mailpit until a message addressed to `toAddress` arrives. Throws
  * if >1 message matches (test bug) or no message within timeout.
+ *
+ * Use this for a UNIQUE-per-run recipient (a fresh registration email, a
+ * run-tagged crew address): exactly one mail must land, and a second is a
+ * real duplicate-bug to surface. For a SHARED address that can legitimately
+ * receive more than one mail in a run (e.g. a club notification address the
+ * imminent pass mails once per day+1 planning day on a never-truncated
+ * tenant), use {@link waitForMessageWithSubject}, which keys on the
+ * expected subject instead of demanding a singleton inbox.
  */
 export async function waitForMessage(
   toAddress: string,
@@ -81,6 +89,55 @@ export async function waitForMessage(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error(`mailpit: no message to:${toAddress} within ${timeoutMs}ms`);
+}
+
+/**
+ * Poll Mailpit until a message to `toAddress` WITH the exact `subject`
+ * arrives, and return it. For a SHARED recipient address that can hold more
+ * than one legitimate mail in a run (the club notification address: the
+ * imminent pass mails it once per day+1 planning day, and a never-truncated
+ * tenant may carry a second day+1 day — `PlanningDayNotificationJobIT`
+ * proves "two day+1 days → two club mails" is the designed behavior). The
+ * singleton {@link waitForMessage} is wrong here — it false-fails on a
+ * co-located day+1's mail to the same address.
+ *
+ * Still NOT papering over: a real job duplicate (the SAME mail sent twice)
+ * would yield two messages with the SAME subject. We therefore assert that
+ * EVERY message to this address carries the expected subject — so an
+ * unexpected/extra template (e.g. a stray cancel, or a second template the
+ * job should not have sent) surfaces loud — and that the expected one is
+ * present. Keying on subject (the template identity) is the honest
+ * shared-address contract; an exact inbox-count assertion is not, because
+ * the count legitimately tracks the club's day+1 planning-day population.
+ */
+export async function waitForMessageWithSubject(
+  toAddress: string,
+  subject: string,
+  options: WaitForMessageOptions = {},
+): Promise<MailpitMessageDetail> {
+  const timeoutMs = options.timeoutMs ?? 15_000;
+  const intervalMs = options.intervalMs ?? 500;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const matches = await searchByTo(toAddress);
+    const wrongSubject = matches.find((m) => m.Subject !== subject);
+    if (wrongSubject) {
+      throw new Error(
+        `mailpit: a message to:${toAddress} has subject "${wrongSubject.Subject}" — ` +
+          `expected only "${subject}". An unexpected template landed at the shared ` +
+          `address; do not paper over.`,
+      );
+    }
+    const expected = matches.find((m) => m.Subject === subject);
+    if (expected) {
+      return fetchMessage(expected.ID);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `mailpit: no message to:${toAddress} with subject "${subject}" within ${timeoutMs}ms`,
+  );
 }
 
 /**

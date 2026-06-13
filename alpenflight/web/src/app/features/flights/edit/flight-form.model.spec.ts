@@ -65,6 +65,40 @@ describe('flight-form.model', () => {
     });
   });
 
+  describe('buildFlightForm — J-26 T-13 client required validators', () => {
+    it('opens INVALID with flightDate / glider aircraft / glider pilot all empty', () => {
+      const form = buildFlightForm(fb);
+      expect(form.invalid).toBe(true);
+      expect(form.controls.flightDate.hasError('required')).toBe(true);
+      expect(form.controls.glider.controls.aircraftId.hasError('required')).toBe(true);
+      expect(form.controls.glider.controls.pilotPersonId.hasError('required')).toBe(true);
+    });
+
+    it('becomes VALID only once all three required fields are present', () => {
+      const form = buildFlightForm(fb);
+      form.controls.flightDate.setValue('2026-07-01');
+      expect(form.invalid).toBe(true); // aircraft + pilot still empty
+      form.controls.glider.controls.aircraftId.setValue('ac-1');
+      expect(form.invalid).toBe(true); // pilot still empty
+      form.controls.glider.controls.pilotPersonId.setValue('pe-1');
+      expect(form.valid).toBe(true);
+    });
+
+    it('does NOT require the conditional TOW sub-group — a blank tow never blocks Save', () => {
+      const form = buildFlightForm(fb);
+      form.controls.flightDate.setValue('2026-07-01');
+      form.controls.glider.controls.aircraftId.setValue('ac-1');
+      form.controls.glider.controls.pilotPersonId.setValue('pe-1');
+      // Tow aircraft + tow pilot are still null …
+      expect(form.controls.tow.controls.aircraftId.value).toBeNull();
+      expect(form.controls.tow.controls.pilotPersonId.value).toBeNull();
+      // … yet the form is valid: the tow step is conditional (aerotow only).
+      expect(form.valid).toBe(true);
+      expect(form.controls.tow.controls.aircraftId.hasError('required')).toBe(false);
+      expect(form.controls.tow.controls.pilotPersonId.hasError('required')).toBe(false);
+    });
+  });
+
   describe('needsTowplane', () => {
     it('returns true for the aerotow start-type id', () => {
       expect(needsTowplane(TOWING)).toBe(true);

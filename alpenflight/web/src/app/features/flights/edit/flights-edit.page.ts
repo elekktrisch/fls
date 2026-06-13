@@ -10,7 +10,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormGroup,
@@ -19,6 +19,8 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+
+import { liveFieldErrors } from '@shared/util/form';
 
 import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
@@ -115,7 +117,7 @@ interface StepDescriptor {
           <af-button
             type="primary"
             data-testid="flight-submit-header"
-            [disabled]="saving()"
+            [disabled]="saving() || formInvalid()"
             (clicked)="finalSubmit()"
             >Save</af-button
           >
@@ -170,7 +172,12 @@ interface StepDescriptor {
           @switch (step()) {
             @case (0) {
               <section class="space-y-4" data-testid="flight-step-launch">
-                <af-form-field label="Flight date" [for]="'flight-edit-flightDate'">
+                <af-form-field
+                  label="Flight date"
+                  [for]="'flight-edit-flightDate'"
+                  [required]="true"
+                  [errors]="flightDateErrors()"
+                >
                   <af-input
                     type="date"
                     inputId="flight-edit-flightDate"
@@ -198,7 +205,12 @@ interface StepDescriptor {
             }
             @case (1) {
               <section formGroupName="glider" class="space-y-4" data-testid="flight-step-glider">
-                <af-form-field label="Aircraft" [for]="'flight-edit-glider-aircraft'">
+                <af-form-field
+                  label="Aircraft"
+                  [for]="'flight-edit-glider-aircraft'"
+                  [required]="true"
+                  [errors]="gliderAircraftErrors()"
+                >
                   <af-select
                     formControlName="aircraftId"
                     [options]="gliderAircraftOptions()"
@@ -212,7 +224,7 @@ interface StepDescriptor {
                     data-testid="flight-edit-glider-flightType"
                   />
                 </af-form-field>
-                <af-form-field label="Pilot">
+                <af-form-field label="Pilot" [required]="true" [errors]="gliderPilotErrors()">
                   <af-select
                     formControlName="pilotPersonId"
                     [options]="personOptions()"
@@ -326,7 +338,7 @@ interface StepDescriptor {
                   <af-button
                     data-testid="flight-submit-sticky"
                     type="primary"
-                    [disabled]="saving()"
+                    [disabled]="saving() || formInvalid()"
                     (clicked)="finalSubmit()"
                     >Save flight</af-button
                   >
@@ -387,6 +399,30 @@ export class FlightsEditPage {
 
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
+
+  // J-26 T-13 — Save gating: enabled ONLY when the form is VALID. A REACTIVE
+  // form-status signal (off `statusChanges`, seeded with the live status) drives
+  // it, not the non-reactive `form.invalid` getter — the OnPush + zoneless
+  // template only re-reads a getter on a CD tick, so a getter can lag the
+  // disable binding behind validity (the J-7 T-20 / J-26 T-09 race). `untracked`
+  // seeds the initial value; subsequent statusChanges re-render the button the
+  // instant a required field flips. The status is re-synced after hydrate (see
+  // patch(), which emits a statusChanges so an edit-load's valid form enables
+  // Save even though its patches run emitEvent:false).
+  private readonly formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
+  });
+  protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
+
+  // Inline as-you-type errors (J-6b `liveFieldErrors`, debounced ~200ms) on the
+  // three newly-required fields — flightDate + glider aircraft + glider pilot.
+  protected readonly flightDateErrors = liveFieldErrors(this.form.controls.flightDate);
+  protected readonly gliderAircraftErrors = liveFieldErrors(
+    this.form.controls.glider.controls.aircraftId,
+  );
+  protected readonly gliderPilotErrors = liveFieldErrors(
+    this.form.controls.glider.controls.pilotPersonId,
+  );
 
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -612,33 +648,20 @@ export class FlightsEditPage {
 
   protected async finalSubmit(): Promise<void> {
     if (this.saving()) return;
+    // Save is disabled while invalid, but Enter-to-submit on the last step
+    // (onEnter) can still reach here — surface the inline errors and bail
+    // rather than throwing in the snapshot mapper (J-26 T-13).
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
     this.saving.set(true);
     this.errorMessage.set(null);
     try {
       const snap = this.snapshot();
       const userSub = this.session.authenticatedUser()?.id ?? null;
-
-      if (this.mode() === 'new' || this.mode() === 'copy') {
-        await this.store.savePair(snap);
-      } else {
-        const versions = {
-          glider: this.store.currentVersion() ?? 1,
-          tow: this.store.currentTowVersion(),
-        };
-        await this.store.updatePair(snap, versions);
-      }
-
-      // Persist Copy-from-Last anchors for the next session.
-      if (userSub && snap.glider.startLocationId) {
-        await this.prefs.update(userSub, 'lastStartLocation', snap.glider.startLocationId);
-      }
-      if (userSub && snap.tow.aircraftId) {
-        await this.prefs.update(userSub, 'lastTowAircraftId', snap.tow.aircraftId);
-        if (snap.tow.pilotPersonId) {
-          await this.prefs.recordTowPilot(userSub, snap.tow.aircraftId, snap.tow.pilotPersonId);
-        }
-      }
-
+      await this.saveSnapshot(snap);
+      await this.persistFlightPrefs(userSub, snap);
       this.form.markAsPristine();
       await this.router.navigateByUrl('/flights');
     } catch (e) {
@@ -646,6 +669,40 @@ export class FlightsEditPage {
       this.errorMessage.set(err.message ?? 'Could not save flight');
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  /** Dispatch the create-pair vs update-pair save by the resolved route mode. */
+  private async saveSnapshot(snap: FlightFormSnapshot): Promise<void> {
+    if (this.mode() === 'new' || this.mode() === 'copy') {
+      await this.store.savePair(snap);
+      return;
+    }
+    await this.store.updatePair(snap, {
+      glider: this.store.currentVersion() ?? 1,
+      tow: this.store.currentTowVersion(),
+    });
+  }
+
+  /**
+   * Persist the Copy-from-Last anchors for the next session — start location,
+   * tow aircraft, and (per tow aircraft) the tow pilot. No-op without a signed-in
+   * user; each anchor is skipped when its source field is empty. Best-effort —
+   * a prefs write never blocks the save that already succeeded.
+   */
+  private async persistFlightPrefs(
+    userSub: string | null,
+    snap: FlightFormSnapshot,
+  ): Promise<void> {
+    if (!userSub) return;
+    if (snap.glider.startLocationId) {
+      await this.prefs.update(userSub, 'lastStartLocation', snap.glider.startLocationId);
+    }
+    if (snap.tow.aircraftId) {
+      await this.prefs.update(userSub, 'lastTowAircraftId', snap.tow.aircraftId);
+      if (snap.tow.pilotPersonId) {
+        await this.prefs.recordTowPilot(userSub, snap.tow.aircraftId, snap.tow.pilotPersonId);
+      }
     }
   }
 
@@ -792,6 +849,11 @@ export class FlightsEditPage {
     this.primaryAircraftIdSignal.set(snapshot.glider.aircraftId);
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
+    // The patches above run with `emitEvent: false`, so `statusChanges` never
+    // fires — the `formStatus` signal (and thus the Save gate) would stay at its
+    // initial INVALID value even after a valid edit-load hydrates. Recompute +
+    // EMIT once so the gate reflects the hydrated form (preserves pristine).
+    this.form.updateValueAndValidity({ onlySelf: false, emitEvent: true });
   }
 
   private patchSub(

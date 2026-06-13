@@ -6,12 +6,14 @@ import {
   effect,
   inject,
   signal,
+  type WritableSignal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   Validators,
   type FormGroup,
 } from '@angular/forms';
@@ -29,9 +31,15 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { liveFieldErrors } from '@shared/util/form';
+
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
-import { FlightTypesStore } from '../flight-types.store';
+import { FlightTypesStore, type SaveErrorKind } from '../flight-types.store';
+import {
+  INSTRUCTOR_OBSERVER_EXCLUSIVE,
+  instructorObserverExclusiveValidator,
+} from './instructor-observer-exclusive.validator';
 
 type FlightTypeForm = FormGroup<{
   flightTypeName: FormControl<string>;
@@ -106,9 +114,7 @@ type FlightTypeForm = FormGroup<{
                 label="Name"
                 for="FlightTypeName"
                 [required]="true"
-                [errors]="
-                  form.controls.flightTypeName.touched ? form.controls.flightTypeName.errors : null
-                "
+                [errors]="flightTypeNameErrors()"
               >
                 <af-input
                   inputId="FlightTypeName"
@@ -117,7 +123,7 @@ type FlightTypeForm = FormGroup<{
                   placeholder="Schulflug"
                 />
               </af-form-field>
-              <af-form-field label="Code" for="FlightCode">
+              <af-form-field label="Code" for="FlightCode" [errors]="flightCodeErrors()">
                 <af-input
                   inputId="FlightCode"
                   formControlName="flightCode"
@@ -125,15 +131,7 @@ type FlightTypeForm = FormGroup<{
                   placeholder="S"
                 />
               </af-form-field>
-              <af-form-field
-                label="Min. aircraft seats"
-                for="MinSeats"
-                [errors]="
-                  form.controls.minNrOfAircraftSeatsRequired.touched
-                    ? form.controls.minNrOfAircraftSeatsRequired.errors
-                    : null
-                "
-              >
+              <af-form-field label="Min. aircraft seats" for="MinSeats" [errors]="minSeatsErrors()">
                 <af-input
                   inputId="MinSeats"
                   type="number"
@@ -204,6 +202,7 @@ type FlightTypeForm = FormGroup<{
                   type="checkbox"
                   formControlName="isInstructorRequired"
                   class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="flight-types-flag-instructor"
                 />
                 <span>Instructor required</span>
               </label>
@@ -212,9 +211,20 @@ type FlightTypeForm = FormGroup<{
                   type="checkbox"
                   formControlName="isObserverPilotOrInstructorRequired"
                   class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="flight-types-flag-observer"
                 />
                 <span>Observer pilot or instructor required</span>
               </label>
+              @if (form.errors?.[instructorObserverExclusive]) {
+                <p
+                  class="text-sm text-red-600"
+                  role="alert"
+                  data-testid="flight-types-instructor-observer-error"
+                >
+                  Instructor required and Observer pilot or instructor required are mutually
+                  exclusive.
+                </p>
+              }
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -291,27 +301,59 @@ export class FlightTypesEditPage {
   protected readonly isCreate = computed(() => this.flightTypeId() === null);
   protected readonly canMutate = this.session.isClubAdmin;
 
-  protected readonly form: FlightTypeForm = this.fb.group({
-    flightTypeName: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.maxLength(100),
-    ]),
-    flightCode: this.fb.nonNullable.control('', [Validators.maxLength(30)]),
-    isInstructorRequired: this.fb.nonNullable.control(false),
-    isObserverPilotOrInstructorRequired: this.fb.nonNullable.control(false),
-    isCheckFlight: this.fb.nonNullable.control(false),
-    isPassengerFlight: this.fb.nonNullable.control(false),
-    isSoloFlight: this.fb.nonNullable.control(false),
-    isForGliderFlights: this.fb.nonNullable.control(false),
-    isForTowFlights: this.fb.nonNullable.control(false),
-    isForMotorFlights: this.fb.nonNullable.control(false),
-    isFlightCostBalanceSelectable: this.fb.nonNullable.control(false),
-    isCouponNumberRequired: this.fb.nonNullable.control(false),
-    isForAircraftReservationType: this.fb.nonNullable.control(false),
-    minNrOfAircraftSeatsRequired: this.fb.control<number | null>(null, [Validators.min(1)]),
-  });
+  /** Template handle for the group-level cross-field error key. */
+  protected readonly instructorObserverExclusive = INSTRUCTOR_OBSERVER_EXCLUSIVE;
+
+  protected readonly form: FlightTypeForm = this.fb.group(
+    {
+      flightTypeName: this.fb.nonNullable.control('', [
+        Validators.required,
+        Validators.maxLength(100),
+      ]),
+      flightCode: this.fb.nonNullable.control('', [Validators.maxLength(30)]),
+      isInstructorRequired: this.fb.nonNullable.control(false),
+      isObserverPilotOrInstructorRequired: this.fb.nonNullable.control(false),
+      isCheckFlight: this.fb.nonNullable.control(false),
+      isPassengerFlight: this.fb.nonNullable.control(false),
+      isSoloFlight: this.fb.nonNullable.control(false),
+      isForGliderFlights: this.fb.nonNullable.control(false),
+      isForTowFlights: this.fb.nonNullable.control(false),
+      isForMotorFlights: this.fb.nonNullable.control(false),
+      isFlightCostBalanceSelectable: this.fb.nonNullable.control(false),
+      isCouponNumberRequired: this.fb.nonNullable.control(false),
+      isForAircraftReservationType: this.fb.nonNullable.control(false),
+      minNrOfAircraftSeatsRequired: this.fb.control<number | null>(null, [Validators.min(1)]),
+    },
+    // Cross-field rule, mirrored from FlightType.updateFlags (the legacy DB
+    // CHECK forbade instructor + observer both set) — blocks Save client-side.
+    { validators: [instructorObserverExclusiveValidator] },
+  );
 
   protected readonly saveSubmitted = signal(false);
+
+  // J-26 T-11 — server-side name/code duplicates routed through the
+  // `liveFieldErrors` async slot (`inline-validation.ts` extension point) rather
+  // than `setErrors`, so the inline message surfaces under the as-you-type
+  // binding (a `setErrors` carries no `valueChanges`, so the debounced stream
+  // would never re-read it). Cleared the moment the user retypes (see
+  // clearDuplicateOnEdit below).
+  private readonly nameDuplicate = signal<ValidationErrors | null>(null);
+  private readonly codeDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit). Name + Code merge their server-duplicate 409 through the
+  // async slot.
+  protected readonly flightTypeNameErrors = liveFieldErrors(this.form.controls.flightTypeName, {
+    asyncErrors$: toObservable(this.nameDuplicate),
+  });
+  protected readonly flightCodeErrors = liveFieldErrors(this.form.controls.flightCode, {
+    asyncErrors$: toObservable(this.codeDuplicate),
+  });
+  protected readonly minSeatsErrors = liveFieldErrors(
+    this.form.controls.minNrOfAircraftSeatsRequired,
+  );
 
   constructor() {
     effect(() => {
@@ -341,34 +383,58 @@ export class FlightTypesEditPage {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
-      if (this.store.saveErrorKind() === 'name-duplicate') {
-        this.form.controls.flightTypeName.setErrors({
-          ...(this.form.controls.flightTypeName.errors ?? {}),
-          duplicate: true,
-        });
+      // 409s are field-routed by the problem-detail `field` (J-26 T-05):
+      // name vs code conflicts land inline on their own control. Routed through
+      // the live-errors async slot (J-26 T-11) so the message surfaces under the
+      // as-you-type binding (merged with any concurrent client error, never
+      // masking it).
+      const kind = this.store.saveErrorKind();
+      if (kind === 'name-duplicate') {
+        this.nameDuplicate.set({ duplicate: true });
         this.form.controls.flightTypeName.markAsTouched();
+      }
+      if (kind === 'code-duplicate') {
+        this.codeDuplicate.set({ duplicate: true });
+        this.form.controls.flightCode.markAsTouched();
       }
     });
 
     const destroyRef = inject(DestroyRef);
-    this.form.controls.flightTypeName.valueChanges
-      .pipe(takeUntilDestroyed(destroyRef))
-      .subscribe(() => {
-        if (this.form.controls.flightTypeName.hasError('duplicate')) {
-          const errs = { ...this.form.controls.flightTypeName.errors };
-          delete errs['duplicate'];
-          this.form.controls.flightTypeName.setErrors(Object.keys(errs).length ? errs : null);
-        }
-        if (this.store.saveErrorKind() === 'name-duplicate') {
-          this.store.clearSaveError();
-        }
-      });
+    this.clearDuplicateOnEdit(
+      this.form.controls.flightTypeName,
+      this.nameDuplicate,
+      'name-duplicate',
+      destroyRef,
+    );
+    this.clearDuplicateOnEdit(
+      this.form.controls.flightCode,
+      this.codeDuplicate,
+      'code-duplicate',
+      destroyRef,
+    );
 
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'flightType.created' || evt.kind === 'flightType.updated') {
         this.saveSubmitted.set(false);
         this.router.navigateByUrl('/flight-types');
+      }
+    });
+  }
+
+  /** Editing the control clears its inline duplicate error + the store's matching save error. */
+  private clearDuplicateOnEdit(
+    control: FormControl<string>,
+    duplicate: WritableSignal<ValidationErrors | null>,
+    kind: SaveErrorKind,
+    destroyRef: DestroyRef,
+  ): void {
+    control.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
+      if (duplicate() !== null) {
+        duplicate.set(null);
+      }
+      if (this.store.saveErrorKind() === kind) {
+        this.store.clearSaveError();
       }
     });
   }

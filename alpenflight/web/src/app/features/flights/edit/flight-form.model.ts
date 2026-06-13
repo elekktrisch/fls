@@ -1,4 +1,4 @@
-import { FormControl, FormGroup, NonNullableFormBuilder } from '@angular/forms';
+import { FormControl, FormGroup, NonNullableFormBuilder, Validators } from '@angular/forms';
 
 import { FlightCreateRequestFlightAircraftType } from '@api/generated/model';
 import type {
@@ -107,13 +107,32 @@ function buildCrewSubForm(fb: NonNullableFormBuilder): FormGroup<CrewSubForm> {
 }
 
 export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
+  const glider = buildCrewSubForm(fb);
+  // J-26 T-13 — minimum client required validators, matching the legacy
+  // Validate-job's required-field floor (FlightValidator.validateRequiredFields:
+  // flight date / pilot, plus the always-present aircraft). Applied only to the
+  // PRIMARY (glider) crew + the top-level flightDate; the TOW sub-group stays
+  // unvalidated because it is a CONDITIONAL step (rendered only for an aerotow
+  // start type) — a blank tow must never block Save on a non-towing flight.
+  // The remaining FlightValidator rules (start/landing times, locations, start
+  // type, landing count, the start-type arms) are the daily-validation-job's
+  // verdict (S-083, reuses FlightValidator), NOT a create/update gate: legacy
+  // saves an incomplete flight and flags it Invalid nightly. Mirroring that gate
+  // here would 400 every partial save the screen accepts today.
+  glider.controls.aircraftId.addValidators(Validators.required);
+  glider.controls.pilotPersonId.addValidators(Validators.required);
+  // addValidators registers the rule but does NOT re-run validation — the
+  // control keeps its stale VALID status until updateValueAndValidity recomputes
+  // it. Without this the form opens VALID (the gate would never trip).
+  glider.controls.aircraftId.updateValueAndValidity({ emitEvent: false });
+  glider.controls.pilotPersonId.updateValueAndValidity({ emitEvent: false });
   return fb.group<FlightFormShape>({
     flightId: fb.control<string | null>(null),
-    flightDate: fb.control<string | null>(null),
+    flightDate: fb.control<string | null>(null, Validators.required),
     startTypeId: fb.control<string | null>(null),
     canUpdateRecord: fb.control<boolean>(true),
     canDeleteRecord: fb.control<boolean>(true),
-    glider: buildCrewSubForm(fb),
+    glider,
     tow: buildCrewSubForm(fb),
   });
 }

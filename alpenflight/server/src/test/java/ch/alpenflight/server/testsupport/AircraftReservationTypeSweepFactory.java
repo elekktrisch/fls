@@ -1,7 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.reservations.domain.AircraftReservationType;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 
 /**
  * Minimal-object factory for {@link AircraftReservationType} consumed by the

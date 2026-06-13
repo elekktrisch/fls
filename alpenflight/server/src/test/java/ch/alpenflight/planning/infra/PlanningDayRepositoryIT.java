@@ -3,12 +3,17 @@ package ch.alpenflight.planning.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.planning.domain.PlanningDay;
 import ch.alpenflight.planning.domain.PlanningDayConflictException;
 import ch.alpenflight.planning.domain.PlanningDayRepository;
 import ch.alpenflight.planning.domain.PlanningDayRepository.ListRow;
 import ch.alpenflight.planning.domain.PlanningDayRepository.Page;
 import ch.alpenflight.platform.tenancy.Tenants;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
+import ch.alpenflight.reservations.domain.AircraftReservation;
+import ch.alpenflight.reservations.domain.AircraftReservationRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Instant;
@@ -42,8 +47,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c6-2c00-7001-8000-0000000000e1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c6-2c00-7001-8000-0000000000e2");
     private static final String NAME_PREFIX = "IT_PLN_";
     private static final String KEY_PREFIX = "IT_PL_";
 
@@ -54,39 +57,46 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
     private static final LocalDate YESTERDAY = TODAY.minusDays(1);
 
     @Autowired private PlanningDayRepository planningDays;
+    @Autowired private AircraftReservationRepository reservations;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
 
+    private UUID clubA;
+    private UUID clubB;
     private UUID locationA;
     private UUID locationB;
 
     @BeforeEach
     void seed() {
-        // Planning days + reservations FK to location/aircraft (RESTRICT); clear
-        // them before the fixture wipes the seed locations under these clubs.
-        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
-        locationA = seedLocation(CLUB_A);
-        locationB = seedLocation(CLUB_B);
+        // The fixture mints the two clubs and clears all their tenant-scoped
+        // children (planning days + reservations FK to location/aircraft with
+        // RESTRICT) in one global child→parent pass before re-minting.
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        locationA = seedLocation(clubA);
+        locationB = seedLocation(clubB);
     }
 
     @Test
     void future_page_returns_tenant_scoped_rows_in_date_order_excluding_past_and_other_club() {
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             // Insert out of order; future page must sort by planning_date asc.
-            planningDays.save(PlanningDay.create(CLUB_A, DAY_3, locationA, "third"));
-            planningDays.save(PlanningDay.create(CLUB_A, DAY_1, locationA, "first"));
-            planningDays.save(PlanningDay.create(CLUB_A, DAY_2, locationA, "second"));
-            planningDays.save(PlanningDay.create(CLUB_A, YESTERDAY, locationA, "past"));
+            planningDays.save(PlanningDay.create(clubA, DAY_3, locationA, "third"));
+            planningDays.save(PlanningDay.create(clubA, DAY_1, locationA, "first"));
+            planningDays.save(PlanningDay.create(clubA, DAY_2, locationA, "second"));
+            planningDays.save(PlanningDay.create(clubA, YESTERDAY, locationA, "past"));
             return null;
         });
         // Other club's future day — must NOT appear in A's page.
-        Tenants.runAs(CLUB_B,
-                () -> planningDays.save(PlanningDay.create(CLUB_B, DAY_1, locationB, "club-b")));
+        Tenants.runAs(clubB,
+                () -> planningDays.save(PlanningDay.create(clubB, DAY_1, locationB, "club-b")));
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             Page page = planningDays.findFuturePage(TODAY, 0, 100);
             assertThat(page.pageSize()).isEqualTo(100);
             assertThat(page.pageStart()).isZero();
@@ -107,15 +117,15 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void duplicate_club_date_location_save_surfaces_catchable_conflict() {
-        UUID firstId = Tenants.runAs(CLUB_A, () -> {
-            PlanningDay saved = planningDays.save(PlanningDay.create(CLUB_A, DAY_1, locationA, "dup"));
+        UUID firstId = Tenants.runAs(clubA, () -> {
+            PlanningDay saved = planningDays.save(PlanningDay.create(clubA, DAY_1, locationA, "dup"));
             return saved.getId();
         });
         assertThat(firstId).isNotNull();
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             assertThatThrownBy(() ->
-                    planningDays.save(PlanningDay.create(CLUB_A, DAY_1, locationA, "dup-again")))
+                    planningDays.save(PlanningDay.create(clubA, DAY_1, locationA, "dup-again")))
                     .as("duplicate (club,date,location) → catchable conflict, not a raw 500")
                     .isInstanceOf(PlanningDayConflictException.class);
             return null;
@@ -123,14 +133,14 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
         // Soft-deleting the first frees the (club,date,location) tuple — the
         // ux_pln_club_date_loc index is partial (WHERE deleted_on IS NULL, V4).
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             PlanningDay existing = planningDays.findActiveById(firstId).orElseThrow();
             existing.softDelete(null, java.time.Clock.systemUTC());
             planningDays.save(existing);
             planningDays.flush();
             // Same tuple now inserts cleanly.
             PlanningDay reinserted = planningDays.save(
-                    PlanningDay.create(CLUB_A, DAY_1, locationA, "reinserted"));
+                    PlanningDay.create(clubA, DAY_1, locationA, "reinserted"));
             assertThat(reinserted.getId()).isNotNull();
             return null;
         });
@@ -138,21 +148,21 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void per_day_reservation_count_joins_by_club_date_and_location() {
-        UUID aircraftA = seedAircraft(CLUB_A);
+        UUID aircraftA = seedAircraft(clubA);
         UUID pilot = seedPerson();
         // Two reservations on DAY_1 at locationA, one on DAY_1 at locationB,
-        // one on DAY_2 at locationA — all under CLUB_A.
-        seedReservation(CLUB_A, aircraftA, pilot, locationA, DAY_1, 8);
-        seedReservation(CLUB_A, aircraftA, pilot, locationA, DAY_1, 12);
-        seedReservation(CLUB_A, aircraftA, pilot, locationB, DAY_1, 8);
-        seedReservation(CLUB_A, aircraftA, pilot, locationA, DAY_2, 8);
+        // one on DAY_2 at locationA — all under clubA.
+        seedReservation(clubA, aircraftA, pilot, locationA, DAY_1, 8);
+        seedReservation(clubA, aircraftA, pilot, locationA, DAY_1, 12);
+        seedReservation(clubA, aircraftA, pilot, locationB, DAY_1, 8);
+        seedReservation(clubA, aircraftA, pilot, locationA, DAY_2, 8);
         // Other club's reservation on DAY_1 at locationA — must not be counted.
-        UUID aircraftB = seedAircraft(CLUB_B);
-        seedReservation(CLUB_B, aircraftB, pilot, locationB, DAY_1, 8);
+        UUID aircraftB = seedAircraft(clubB);
+        seedReservation(clubB, aircraftB, pilot, locationB, DAY_1, 8);
 
-        Tenants.runAs(CLUB_A, () -> {
+        Tenants.runAs(clubA, () -> {
             assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
-                    .as("two CLUB_A reservations on DAY_1 at locationA")
+                    .as("two clubA reservations on DAY_1 at locationA")
                     .isEqualTo(2);
             assertThat(planningDays.countReservationsForDay(DAY_2, locationA))
                     .isEqualTo(1);
@@ -160,24 +170,71 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                     .isZero();
             return null;
         });
-        // CLUB_B sees only its own reservation, not CLUB_A's.
-        Tenants.runAs(CLUB_B, () -> {
+        // clubB sees only its own reservation, not clubA's.
+        Tenants.runAs(clubB, () -> {
             assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
-                    .as("CLUB_B has no reservation at locationA")
+                    .as("clubB has no reservation at locationA")
                     .isZero();
+            return null;
+        });
+    }
+
+    /**
+     * J-26 T-16b — midnight-boundary proof of the UTC day window backing
+     * {@code countReservationsForDay}. The retired native probe truncated with
+     * {@code date(reservation_start)}, which applies the Postgres SESSION
+     * TimeZone; the replacement {@code countActiveOnDayAtLocation} compares the
+     * {@code timestamptz} start against the UTC instant window {@code [date 00:00
+     * UTC, date+1 00:00 UTC)}. Because both operands are instants (no
+     * tz-dependent {@code ::date} cast), the bucketing is independent of the
+     * runner's JVM tz and the DB session tz — and {@code hibernate.jdbc.time_zone}
+     * is NOT pinned to UTC in any profile, so this case is the only thing proving
+     * the boundary doesn't drift on a non-UTC CI runner.
+     *
+     * <p>Two reservations straddle the {@code DAY_1 → DAY_2} midnight: one at
+     * {@code DAY_1 23:30:00Z} (belongs to DAY_1 in UTC) and one at {@code DAY_2
+     * 00:30:00Z} (belongs to DAY_2). The DAY_1 count must include ONLY the 23:30Z
+     * row, and the DAY_2 count ONLY the 00:30Z row — neither leaking across the
+     * boundary. Seeded through the production save path (ADR 0027): an
+     * {@code Instant} binds to {@code timestamptz} as a true instant, so the seed
+     * itself carries no JVM-default-tz ambiguity.
+     */
+    @Test
+    void per_day_reservation_count_buckets_midnight_boundary_by_utc_window() {
+        UUID aircraftA = seedAircraft(clubA);
+        UUID pilot = seedPerson();
+
+        // 23:30Z on DAY_1 → DAY_1 bucket; 00:30Z on DAY_2 → DAY_2 bucket.
+        Instant lateOnDay1 = DAY_1.atStartOfDay(java.time.ZoneOffset.UTC)
+                .plusHours(23).plusMinutes(30).toInstant();
+        Instant earlyOnDay2 = DAY_2.atStartOfDay(java.time.ZoneOffset.UTC)
+                .plusMinutes(30).toInstant();
+
+        seedTimedReservation(aircraftA, pilot, locationA, lateOnDay1);
+        seedTimedReservation(aircraftA, pilot, locationA, earlyOnDay2);
+
+        Tenants.runAs(clubA, () -> {
+            assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
+                    .as("only the 23:30Z reservation belongs to DAY_1 in UTC "
+                            + "(the 00:30Z one is DAY_2, must not leak back)")
+                    .isEqualTo(1);
+            assertThat(planningDays.countReservationsForDay(DAY_2, locationA))
+                    .as("only the 00:30Z reservation belongs to DAY_2 in UTC "
+                            + "(the 23:30Z one is DAY_1, must not leak forward)")
+                    .isEqualTo(1);
             return null;
         });
     }
 
     @Test
     void cross_tenant_find_by_id_returns_empty() {
-        UUID dayId = Tenants.runAs(CLUB_A,
-                () -> planningDays.save(PlanningDay.create(CLUB_A, DAY_1, locationA, "a")).getId());
+        UUID dayId = Tenants.runAs(clubA,
+                () -> planningDays.save(PlanningDay.create(clubA, DAY_1, locationA, "a")).getId());
 
-        Tenants.runAs(CLUB_A, () ->
+        Tenants.runAs(clubA, () ->
                 assertThat(planningDays.findActiveById(dayId))
                         .as("own tenant sees its day").isPresent());
-        Tenants.runAs(CLUB_B, () ->
+        Tenants.runAs(clubB, () ->
                 assertThat(planningDays.findActiveById(dayId))
                         .as("other tenant cannot read club A's day (→ 404)").isEmpty());
     }
@@ -232,6 +289,21 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                 UUID.randomUUID().toString(), clubId.toString(), aircraftId.toString(),
                 pilotId.toString(), locationId.toString(),
                 java.sql.Timestamp.from(start), java.sql.Timestamp.from(end));
+    }
+
+    /**
+     * Seeds a 2-hour timed reservation starting at exactly {@code start} through
+     * the production save path (ADR 0027) under the row's operating club, so the
+     * {@code Instant} binds to {@code timestamptz} as a true instant — no
+     * {@code java.sql.Timestamp}/JVM-default-tz round-trip. Used by the
+     * midnight-boundary case where the stored instant must be exact.
+     */
+    private void seedTimedReservation(UUID aircraftId, UUID pilotId, UUID locationId,
+                                      Instant start) {
+        Instant end = start.plus(2, ChronoUnit.HOURS);
+        Tenants.runAs(clubA, () -> reservations.save(AircraftReservation.create(
+                clubA, aircraftId, pilotId, locationId, null, null,
+                start, end, false, null, "IT_PLN_boundary")));
     }
 
     private static String nano() {

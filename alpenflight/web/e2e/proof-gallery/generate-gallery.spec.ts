@@ -69,6 +69,14 @@ async function loadGenerator(): Promise<{
     renderNav?: boolean;
     perJourney?: boolean;
   };
+  extractScreenshots: (dir: string) => {
+    shots: { journey: string; side: string; view: string; imgPath?: string }[];
+    errors: string[];
+  };
+  renderedShotKeys: (
+    shots: { journey?: string; side?: string; view?: string; imgPath?: string }[],
+    journey?: string,
+  ) => Set<string>;
 }> {
   return import(pathToFileURL(GENERATOR).href);
 }
@@ -413,6 +421,138 @@ describe('generateGallery — parity screenshots (T-20)', () => {
         renderNav: false,
       }),
     ).toThrow(/no caption/);
+  });
+});
+
+/**
+ * J-26 T-26 — STAGED == RENDERED single source of truth.
+ *
+ * The bug it locks down: the pre-deploy SHOTS-PRESENT guard used to count
+ * `screenshots.json` entries with a PNG on disk (its OWN read), while the
+ * generator rendered the `extractScreenshots` shots (a DIFFERENT read). The two
+ * could disagree — the J-7 staged-≠-rendered drift, where the guard called the
+ * legacy three "present" yet the deployed page rendered only the AlpenFlight side.
+ * `renderedShotKeys` is now the SINGLE source: the generator renders exactly its
+ * keys, and the guard reads them via the same function. This proves: for any
+ * staged sidecar, the `<side>:<view>` keys `renderedShotKeys` reports are EXACTLY
+ * the keys the generated HTML carries an `<img alt="<side> <view>">` for — present
+ * == rendered, no third read.
+ */
+describe('generateGallery — staged == rendered single source (T-26)', () => {
+  // The J-7-shaped pair: legacy + alpenflight, three views. The drift case the
+  // rider names — a one-sided render must be DETECTABLE as a key mismatch.
+  const J7_PAIR = [
+    {
+      journey: 'J-7',
+      side: 'legacy',
+      view: 'picker',
+      file: 'legacy-picker.png',
+      caption: 'L picker',
+    },
+    {
+      journey: 'J-7',
+      side: 'alpenflight',
+      view: 'picker',
+      file: 'af-picker.png',
+      caption: 'AF picker',
+    },
+    {
+      journey: 'J-7',
+      side: 'legacy',
+      view: 'result',
+      file: 'legacy-result.png',
+      caption: 'L result',
+    },
+    {
+      journey: 'J-7',
+      side: 'alpenflight',
+      view: 'result',
+      file: 'af-result.png',
+      caption: 'AF result',
+    },
+  ];
+
+  /** The page-side render keys: one `<side>:<view>` per rendered figure `alt`. */
+  function renderedKeysFromHtml(html: string): Set<string> {
+    const keys = new Set<string>();
+    for (const m of html.matchAll(/<img\b[^>]*\balt="(legacy|alpenflight) ([^"]+)"[^>]*>/gi)) {
+      keys.add(`${m[1]!.toLowerCase()}:${m[2]!}`);
+    }
+    return keys;
+  }
+
+  it('renderedShotKeys == the keys the generated HTML actually renders (present == rendered)', async () => {
+    const { generateGallery, extractScreenshots, renderedShotKeys } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-ssot-'));
+    const screenshotsDir = makeShotDir(dir, J7_PAIR);
+
+    // What the GUARD now reads (the generator's own extract → key projection).
+    const { shots } = extractScreenshots(screenshotsDir);
+    const guardKeys = renderedShotKeys(shots, 'J-7');
+
+    // What the PAGE actually renders.
+    const { html } = generateGallery({
+      reportPath: emptyReport(dir),
+      outDir: resolve(dir, 'out'),
+      screenshotsDir,
+      renderNav: false,
+    });
+    const pageKeys = renderedKeysFromHtml(html);
+
+    // The invariant: the guard's "present" set IS the page's "rendered" set.
+    expect([...guardKeys].sort()).toEqual([...pageKeys].sort());
+    expect([...guardKeys].sort()).toEqual([
+      'alpenflight:picker',
+      'alpenflight:result',
+      'legacy:picker',
+      'legacy:result',
+    ]);
+  });
+
+  it('a ONE-SIDED stage (legacy dropped) shows up as a missing key in BOTH reads', async () => {
+    const { generateGallery, extractScreenshots, renderedShotKeys } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-ssot-'));
+    // Declare only the AlpenFlight side of each view — the staged-≠-rendered drift
+    // where the legacy PNGs never made it into the sidecar.
+    const oneSided = J7_PAIR.filter((s) => s.side === 'alpenflight');
+    const screenshotsDir = makeShotDir(dir, oneSided);
+
+    const { shots } = extractScreenshots(screenshotsDir);
+    const guardKeys = renderedShotKeys(shots, 'J-7');
+
+    const { html } = generateGallery({
+      reportPath: emptyReport(dir),
+      outDir: resolve(dir, 'out'),
+      screenshotsDir,
+      renderNav: false,
+    });
+    const pageKeys = renderedKeysFromHtml(html);
+
+    // Both reads agree the legacy side is ABSENT — the guard can no longer call it
+    // "present" while the page renders it "pending". This is the structural fix:
+    // the deployed-journey both-sides check (which compares the contract's expected
+    // pairs against exactly these page-render keys) now reds on the legacy miss.
+    expect(guardKeys.has('legacy:picker')).toBe(false);
+    expect(pageKeys.has('legacy:picker')).toBe(false);
+    expect([...guardKeys].sort()).toEqual([...pageKeys].sort());
+    expect([...guardKeys].sort()).toEqual(['alpenflight:picker', 'alpenflight:result']);
+  });
+
+  it('drops a declared-but-absent PNG from the rendered set (mirrors the AC5 throw)', async () => {
+    const { extractScreenshots, renderedShotKeys } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-ssot-'));
+    // Declare both legacy shots but only write the picker PNG — the result PNG is
+    // absent (the case the generator's AC5 link-check would throw on before render).
+    const screenshotsDir = makeShotDir(
+      dir,
+      J7_PAIR.filter((s) => s.side === 'legacy'),
+      { writeFiles: ['legacy-picker.png'] },
+    );
+    const { shots } = extractScreenshots(screenshotsDir);
+    const keys = renderedShotKeys(shots, 'J-7');
+    // The on-disk picker is a rendered key; the absent result is NOT — so the guard
+    // never counts a missing-PNG shot as present (it would otherwise mask a drop).
+    expect([...keys].sort()).toEqual(['legacy:picker']);
   });
 });
 

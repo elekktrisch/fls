@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightCrew;
@@ -18,6 +19,8 @@ import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -67,8 +70,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final UUID CLUB_A = UUID.fromString("019e30c5-2c00-7001-8000-0000000000b1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c5-2c00-7001-8000-0000000000b2");
 
     /** {@code t_start_type} WINCH_LAUNCH id (V2 seed) → legacy AircraftStartType.WinchLaunch int 2. */
     private static final UUID WINCH_LAUNCH_START_TYPE =
@@ -82,6 +83,12 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
     @Autowired LocationRepository locations;
     @Autowired FlightTypeRepository flightTypes;
     @Autowired PersonRepository persons;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     /** Club each seeded flight lives under — lets {@link #seedCrew} re-load it via the tenant-scoped repository. */
     private final Map<UUID, UUID> flightClubs = new HashMap<>();
@@ -91,23 +98,27 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         // Shared Testcontainers DB — TwoClubFixture pre-cleans this IT's tenant
         // rows from prior runs (ADR 0021 pre-clean, FK-ordered) and re-inserts
         // the two clubs.
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_FRC_", "IT_FRC").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FRC_", "IT_FRC");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
     void pageQuery_clubAdmin_returnsItemsAndSummaries() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID location = seedLocation(CLUB_A, "Birrfeld");
-        UUID flightType = seedFlightType(CLUB_A, "Schul", "SCH");
+        UUID aircraft = seedAircraft(clubA);
+        UUID location = seedLocation(clubA, "Birrfeld");
+        UUID flightType = seedFlightType(clubA, "Schul", "SCH");
         UUID pilot = seedPerson("Tester", "Anna");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:30:00Z");
-        UUID flight = seedFlight(CLUB_A, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
+        UUID flight = seedFlight(clubA, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
                 location, location, flightType);
         seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
 
-        String token = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         // Person-filtered → the summary person-branch populates.
         Map<String, Object> body = Map.of("searchFilter", Map.of(
                 "flightDateFrom", "2026-05-01",
@@ -133,22 +144,22 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void pageQuery_clubAFilteringByClubBLocation_seesNoClubBRows() {
-        UUID aircraftA = seedAircraft(CLUB_A);
-        UUID aircraftB = seedAircraft(CLUB_B);
-        UUID locationA = seedLocation(CLUB_A, "HomeA");
-        UUID ftA = seedFlightType(CLUB_A, "TypeA", "TA");
-        UUID ftB = seedFlightType(CLUB_B, "TypeB", "TB");
+        UUID aircraftA = seedAircraft(clubA);
+        UUID aircraftB = seedAircraft(clubB);
+        UUID locationA = seedLocation(clubA, "HomeA");
+        UUID ftA = seedFlightType(clubA, "TypeA", "TA");
+        UUID ftB = seedFlightType(clubB, "TypeB", "TB");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
         // Club A flight at locationA.
-        seedFlight(CLUB_A, aircraftA, LocalDate.of(2026, 5, 15), start, ldg,
+        seedFlight(clubA, aircraftA, LocalDate.of(2026, 5, 15), start, ldg,
                 locationA, locationA, ftA);
         // Club B flight that ALSO references locationA (cross-club filter target).
-        seedFlight(CLUB_B, aircraftB, LocalDate.of(2026, 5, 15), start, ldg,
+        seedFlight(clubB, aircraftB, LocalDate.of(2026, 5, 15), start, ldg,
                 locationA, locationA, ftB);
 
-        String token = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         Map<String, Object> body = Map.of("searchFilter", Map.of(
                 "locationId", "loc-" + locationA,
                 "towFlights", true));
@@ -164,16 +175,16 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void pageQuery_pilotRole_canRead() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID location = seedLocation(CLUB_A, "Loc");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
+        UUID aircraft = seedAircraft(clubA);
+        UUID location = seedLocation(clubA, "Loc");
+        UUID flightType = seedFlightType(clubA, "T", "T");
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
-        seedFlight(CLUB_A, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
+        seedFlight(clubA, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
                 location, location, flightType);
 
         // A low-privilege PILOT principal (the J-3 PILOT-403 lesson) must read.
-        String token = mintToken(CLUB_A, "PILOT");
+        String token = mintToken(clubA, "PILOT");
         ResponseEntity<String> res = post("/api/v1/flightreports/page/0/100",
                 Map.of(), token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -182,19 +193,19 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void exportExcel_streamsXlsxWithLegacyLayout() throws Exception {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID location = seedLocation(CLUB_A, "Birrfeld");
-        UUID flightType = seedFlightType(CLUB_A, "Schul", "SCH");
+        UUID aircraft = seedAircraft(clubA);
+        UUID location = seedLocation(clubA, "Birrfeld");
+        UUID flightType = seedFlightType(clubA, "Schul", "SCH");
         UUID pilot = seedPerson("Tester", "Anna");
 
         Instant start = Instant.parse("2026-05-15T08:05:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:35:00Z"); // 1h30m duration
         // WINCH_LAUNCH start type → legacy AircraftStartType.WinchLaunch int 2 (the StartType-int parity contract).
-        UUID flight = seedFlightWithStartType(CLUB_A, aircraft, LocalDate.of(2026, 5, 15),
+        UUID flight = seedFlightWithStartType(clubA, aircraft, LocalDate.of(2026, 5, 15),
                 start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE);
         seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
 
-        String token = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         Map<String, Object> body = Map.of("searchFilter", Map.of(
                 "flightDateFrom", "2026-05-01",
                 "flightDateTo", "2026-05-31"));

@@ -2,7 +2,10 @@ package ch.alpenflight.me.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,9 +58,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d2");
     private static final UUID LANG_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
@@ -65,16 +65,26 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
+    private UUID clubA;
+    private UUID clubB;
     private String aircraftAExternal;
     private String aircraftBExternal;
 
     @BeforeEach
     void seed() {
-        cleanUserRows(CLUB_A, CLUB_B);
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "sdash", "SDSH").seed();
-        aircraftAExternal = "ac-" + seedAircraft(CLUB_A);
-        aircraftBExternal = "ac-" + seedAircraft(CLUB_B);
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "sdash", "SDSH");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        cleanUserRows(clubA, clubB);
+        aircraftAExternal = "ac-" + seedAircraft(clubA);
+        aircraftBExternal = "ac-" + seedAircraft(clubB);
     }
 
     @Test
@@ -82,19 +92,19 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         // Club A: 2 flights; Club B: 3 flights. A tenant-scoped count from
         // club A's perspective would see only 2 — the sysadmin total must
         // include club B's 3 as well.
-        String adminA = adminToken(CLUB_A);
+        String adminA = adminToken(clubA);
         createFlight(adminA, aircraftAExternal);
         createFlight(adminA, aircraftAExternal);
 
-        String adminB = adminToken(CLUB_B);
+        String adminB = adminToken(clubB);
         createFlight(adminB, aircraftBExternal);
         createFlight(adminB, aircraftBExternal);
         createFlight(adminB, aircraftBExternal);
 
         // A user in each club (cross-tenant — no @TenantId on User).
-        seedUser(CLUB_A, "sdash-a");
-        seedUser(CLUB_B, "sdash-b1");
-        seedUser(CLUB_B, "sdash-b2");
+        seedUser(clubA, "sdash-a");
+        seedUser(clubB, "sdash-b1");
+        seedUser(clubB, "sdash-b2");
 
         JsonNode body = get(sysadminToken());
 
@@ -113,13 +123,13 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     @Test
     void requires_system_administrator_role_others_403() {
-        String clubAdmin = adminToken(CLUB_A);
+        String clubAdmin = adminToken(clubA);
         assertThat(rawGet(clubAdmin).getStatusCode())
                 .as("a CLUB_ADMINISTRATOR is not a sysadmin")
                 .isEqualTo(HttpStatus.FORBIDDEN);
 
         String pilot = jwts.mint(c -> c
-                .claim("clubId", CLUB_A.toString())
+                .claim("clubId", clubA.toString())
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
         assertThat(rawGet(pilot).getStatusCode())
                 .as("a PILOT is not a sysadmin")

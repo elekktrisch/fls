@@ -7,11 +7,13 @@ import ch.alpenflight.articles.application.ArticleDtos.ArticleCreateRequest;
 import ch.alpenflight.articles.application.ArticleDtos.ArticleDetail;
 import ch.alpenflight.articles.application.ArticlesService;
 import ch.alpenflight.articles.domain.ArticleNotFoundException;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.ArticleId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
-import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,11 +35,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
-    private static final String CLUB_A_LITERAL = "019e30c3-2c00-7001-8000-0000000000a1";
-    private static final String CLUB_B_LITERAL = "019e30c3-2c00-7001-8000-0000000000a2";
-    private static final UUID CLUB_A = UUID.fromString(CLUB_A_LITERAL);
-    private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
-
     private static final String TEST_NUMBER_PREFIX = "IT_ARTI_";
     private static final String TEST_KEY_PREFIX = "IT_AR";
 
@@ -45,41 +42,54 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ArticlesService articles;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seedTwoClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NUMBER_PREFIX, TEST_KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NUMBER_PREFIX, TEST_KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
     void tenant_filter_isolates_reads_and_persists_operating_club_id() {
-        ArticleDetail aRow = articles.registerArticle(payload(uniqueNumber()));
-        AtomicReference<ArticleDetail> bRowRef = new AtomicReference<>();
-        TenantTestContext.runAs(CLUB_B, () ->
-                bRowRef.set(articles.registerArticle(payload(uniqueNumber()))));
+        // The minted club id is runtime, so tenant A is entered via runAs here
+        // rather than a method-level @WithTenant literal.
+        TenantTestContext.runAs(clubA, () -> {
+            ArticleDetail aRow = articles.registerArticle(payload(uniqueNumber()));
+            AtomicReference<ArticleDetail> bRowRef = new AtomicReference<>();
+            TenantTestContext.runAs(clubB, () ->
+                    bRowRef.set(articles.registerArticle(payload(uniqueNumber()))));
 
-        assertThat(articles.listArticles(false))
-                .extracting(li -> li.id().toString())
-                .contains(aRow.id().toString())
-                .doesNotContain(bRowRef.get().id().toString());
+            assertThat(articles.listArticles(false))
+                    .extracting(li -> li.id().toString())
+                    .contains(aRow.id().toString())
+                    .doesNotContain(bRowRef.get().id().toString());
 
-        ArticleId bExternal = bRowRef.get().id();
-        assertThatThrownBy(() -> articles.getArticle(bExternal))
-                .isInstanceOf(ArticleNotFoundException.class);
+            ArticleId bExternal = bRowRef.get().id();
+            assertThatThrownBy(() -> articles.getArticle(bExternal))
+                    .isInstanceOf(ArticleNotFoundException.class);
 
-        Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM t_article WHERE id = ?::uuid "
-                        + "AND operating_club_id = ?::uuid",
-                Integer.class, aRow.id().value().toString(), CLUB_A.toString());
-        assertThat(matches).isEqualTo(1);
+            Integer matches = jdbc.queryForObject(
+                    "SELECT count(*) FROM t_article WHERE id = ?::uuid "
+                            + "AND operating_club_id = ?::uuid",
+                    Integer.class, aRow.id().value().toString(), clubA.toString());
+            assertThat(matches).isEqualTo(1);
+        });
     }
 
     @Test
     void same_number_under_two_clubs_does_not_collide() {
         String shared = uniqueNumber();
-        TenantTestContext.runAs(CLUB_A, () -> articles.registerArticle(payload(shared)));
-        TenantTestContext.runAs(CLUB_B, () -> articles.registerArticle(payload(shared)));
+        TenantTestContext.runAs(clubA, () -> articles.registerArticle(payload(shared)));
+        TenantTestContext.runAs(clubB, () -> articles.registerArticle(payload(shared)));
 
         Integer matches = jdbc.queryForObject(
                 "SELECT count(*) FROM t_article WHERE article_number = ?",
@@ -89,7 +99,7 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void no_tenant_context_yields_empty_reads() {
-        TenantTestContext.runAs(CLUB_A, () ->
+        TenantTestContext.runAs(clubA, () ->
                 articles.registerArticle(payload(uniqueNumber())));
         assertThat(articles.listArticles(false)).isEmpty();
     }

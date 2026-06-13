@@ -23,11 +23,12 @@ export class AppComponent {
   private readonly route = inject(ActivatedRoute);
   protected readonly session = inject(SessionStore);
 
-  // Per S-159: sysadmin has no managing tenant (no clubId claim), so the
-  // tenant-scoped pages render empty — sysadmin gets the cross-tenant Clubs
-  // surface only. Club-admins + regular users get the tenant sections (and
-  // Users for club-admins); Clubs is sysadmin-only (J-6b operator decision —
-  // a deliberate divergence from legacy, which showed Clubs to everyone).
+  // Per S-159: a sysadmin-ONLY principal has no managing tenant (no clubId
+  // claim), so the tenant-scoped pages render empty — it gets the cross-tenant
+  // Clubs surface only. Club-admins + regular users get the tenant sections
+  // (and Users for club-admins); a dual-role principal gets the role UNION
+  // (J-26 T-28). Clubs is sysadmin-only (J-6b operator decision — a deliberate
+  // divergence from legacy, which showed Clubs to everyone).
   // Section assembly is a pure helper (`navSectionsFor`) so the per-role
   // matrix is unit-testable without a TestBed.
   protected readonly sections = computed<readonly NavItem[]>(() =>

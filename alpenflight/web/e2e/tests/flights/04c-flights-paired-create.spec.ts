@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
+
 /**
  * Aerotow paired-create happy path + tow-fail rollback (S-067 AC).
  *
@@ -253,9 +255,11 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     // Tow step is rendered (start type = Aerotow from new-template).
     await expect(page.getByTestId('flight-step-2')).toBeVisible();
 
-    // Fill glider step.
+    // Fill glider step — pick the glider pilot (J-26 T-13 required field; the
+    // new-template's empty crew leaves it blank) + a comment.
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+    await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
     await page.getByTestId('flight-edit-glider-comment').locator('input').fill('paired-create');
     await page.screenshot({
       path: 'screenshots/flights/04c-02-glider-filled.png',
@@ -306,6 +310,9 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-form')).toBeVisible();
 
     await page.getByTestId('flight-step-next').click();
+    // Pick the glider pilot (J-26 T-13 required field) before advancing to tow.
+    await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+    await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');

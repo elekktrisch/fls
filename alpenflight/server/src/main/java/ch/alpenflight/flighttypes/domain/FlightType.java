@@ -1,15 +1,13 @@
 package ch.alpenflight.flighttypes.domain;
 
 import ch.alpenflight.platform.id.FlightTypeId;
-import ch.alpenflight.platform.persistence.PersistedAuditActor;
+import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -35,8 +33,12 @@ import org.springframework.data.domain.DomainEvents;
  *       or {@code >= 1}. Legacy treated 0 and NULL identically; the new stack
  *       rejects 0 at the DTO boundary and the aggregate enforces the same
  *       invariant for direct callers.</li>
- *   <li>Boolean flags are independently composable — no aggregate-level
- *       cross-flag rule on FlightType. The V3 schema carries no CHECK either.</li>
+ *   <li>{@code instructorRequired} and
+ *       {@code observerPilotOrInstructorRequired} are mutually exclusive
+ *       (legacy CHECK {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired}
+ *       forbids {@code (1,1)}); see {@link #updateFlags}. All other boolean
+ *       flags are independently composable. The V3 schema carries no CHECK —
+ *       the rule lives here.</li>
  * </ul>
  *
  * <p>Identity-bearing partial UNIQUE on
@@ -47,7 +49,7 @@ import org.springframework.data.domain.DomainEvents;
  */
 @Entity
 @Table(name = "t_flight_type")
-public class FlightType {
+public class FlightType extends SoftDeletableAggregate {
 
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_CODE_LENGTH = 30;
@@ -102,14 +104,6 @@ public class FlightType {
     @Column(name = "min_nr_of_aircraft_seats_required")
     private @Nullable Integer minNrOfAircraftSeatsRequired;
 
-    @Column(name = "deleted_on")
-    private @Nullable Instant deletedOn;
-
-    @Column(name = "deleted_by_user_id")
-    @PersistedAuditActor
-    @SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})
-    private @Nullable UUID deletedByUserId;
-
     protected FlightType() {
         // JPA.
     }
@@ -159,6 +153,18 @@ public class FlightType {
         assignFlightCode(newFlightCode);
     }
 
+    /**
+     * Replaces all eleven flags atomically. Rejects the contradictory
+     * combination {@code instructorRequired && observerPilotOrInstructorRequired}
+     * — "observer pilot OR instructor" is the weaker requirement, so pairing
+     * it with the strict "instructor required" is meaningless (legacy CHECK
+     * {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired});
+     * the guard fires before any assignment, so a rejected update leaves the
+     * aggregate unchanged. Covers create too ({@link #register} delegates here).
+     *
+     * @throws InstructorObserverExclusionException when both crew-requirement
+     *         flags are set
+     */
     public void updateFlags(boolean newInstructorRequired,
                             boolean newObserverPilotOrInstructorRequired,
                             boolean newCheckFlight,
@@ -170,6 +176,9 @@ public class FlightType {
                             boolean newFlightCostBalanceSelectable,
                             boolean newCouponNumberRequired,
                             boolean newForAircraftReservationType) {
+        if (newInstructorRequired && newObserverPilotOrInstructorRequired) {
+            throw new InstructorObserverExclusionException();
+        }
         this.instructorRequired = newInstructorRequired;
         this.observerPilotOrInstructorRequired = newObserverPilotOrInstructorRequired;
         this.checkFlight = newCheckFlight;
@@ -185,13 +194,6 @@ public class FlightType {
 
     public void changeMinSeats(@Nullable Integer newMinNrOfAircraftSeatsRequired) {
         assignMinSeats(newMinNrOfAircraftSeatsRequired);
-    }
-
-    public void softDelete(@Nullable UUID userId, Clock clock) {
-        if (this.deletedOn == null) {
-            this.deletedOn = Instant.now(clock);
-            this.deletedByUserId = userId;
-        }
     }
 
     /**
@@ -307,9 +309,5 @@ public class FlightType {
 
     public @Nullable Integer getMinNrOfAircraftSeatsRequired() {
         return minNrOfAircraftSeatsRequired;
-    }
-
-    public boolean isDeleted() {
-        return deletedOn != null;
     }
 }

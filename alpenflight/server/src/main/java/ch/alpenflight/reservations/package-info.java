@@ -35,6 +35,14 @@
  * cross-cutting consumer — the {@code tenancy.showcase} seed loader — may build
  * {@link ch.alpenflight.reservations.domain.AircraftReservation} aggregates
  * through their factory.
+ *
+ * <p>The {@code reservations.api} sub-package is a
+ * {@link org.springframework.modulith.NamedInterface named interface}
+ * ({@code reservation-count}) — the deliberate cross-module API. It carries
+ * {@link ch.alpenflight.reservations.api.ReservationCountPort}, the per-day
+ * reservation count {@code planning} consumes for its
+ * {@code NumberOfAircraftReservations} projection (J-26 T-16; replaces the
+ * retired {@code planning-day-reservation-count} native-SQL probe).
  */
 @org.springframework.modulith.ApplicationModule(
         type = org.springframework.modulith.ApplicationModule.Type.OPEN)

@@ -75,6 +75,64 @@ jobs:
           docker compose -p alpenflight-dev -f docker-compose.yml \
             up -d --wait --wait-timeout 240 postgres pgadmin keycloak
 
+      # J-26 T-30d — fail-loud Keycloak→Mailpit SMTP preflight. register.spec's
+      # verify-email path is the ONLY KC-sent-SMTP case in the suite and runs
+      # ONLY here (ci.yml's per-push proof spec never registers), so a broken
+      # KC→Mailpit hop surfaced as a silent mid-suite "no message within 15s"
+      # 15 specs later. Assert the two structural prerequisites UP FRONT so a
+      # gap reds the job early with a precise message (the T-29 host-vs-container
+      # DNS class, now for the KC container reaching the cross-project `mailpit`
+      # service over the external `alpenflight_shared` network):
+      #   1. KC's container env carries KEYCLOAK_SMTP_HOST=mailpit — the realm
+      #      import's ${KEYCLOAK_SMTP_HOST} placeholder is substituted from this
+      #      (KC 26.x replaces realm-JSON env placeholders on import by default);
+      #      a missing env leaves the literal `${...}` host → no delivery.
+      #   2. KC can DNS-resolve + TCP-connect to mailpit:1025 — the SMTP listener
+      #      the realm points at by service DNS. The image ships no nc/curl, so
+      #      probe with bash `/dev/tcp` (the same technique KC's own healthcheck uses).
+      - name: Preflight — Keycloak can reach Mailpit SMTP
+        run: |
+          set -euo pipefail
+          KC=alpenflight-dev-keycloak-1
+          echo "── KC SMTP env ─────────────────────────────"
+          SMTP_HOST="$(docker exec "$KC" printenv KEYCLOAK_SMTP_HOST || true)"
+          SMTP_PORT="$(docker exec "$KC" printenv KEYCLOAK_SMTP_PORT || true)"
+          echo "KEYCLOAK_SMTP_HOST=${SMTP_HOST:-<unset>} KEYCLOAK_SMTP_PORT=${SMTP_PORT:-<unset>}"
+          if [ "$SMTP_HOST" != "mailpit" ] || [ "$SMTP_PORT" != "1025" ]; then
+            echo "::error::KC container SMTP env is not mailpit:1025 — the realm's \
+          \${KEYCLOAK_SMTP_HOST}/\${KEYCLOAK_SMTP_PORT} placeholders won't resolve to the \
+          Mailpit service (no verify-email delivery). Check alpenflight/auth/.env.example \
+          is loaded as the keycloak env_file." >&2
+            exit 1
+          fi
+          echo "── KC → mailpit:1025 TCP reachability ──────"
+          # Probe from INSIDE the KC container with the same bash `/dev/tcp`
+          # technique the KC healthcheck uses (the image ships no nc/curl, but
+          # bash + /dev/tcp is present). A successful connect proves both the
+          # cross-project DNS (mailpit resolves over alpenflight_shared) and the
+          # SMTP listener — exactly the hop the verify-email send takes. Fails
+          # the job on a DNS or network gap instead of a silent mid-suite "no
+          # message" timeout.
+          if docker exec "$KC" bash -c 'exec 3<>/dev/tcp/mailpit/1025' 2>/dev/null; then
+            echo "OK: KC reached mailpit:1025 over alpenflight_shared"
+          else
+            echo "::error::KC cannot reach mailpit:1025 — cross-project DNS or SMTP \
+          listener gap on alpenflight_shared. The realm's smtpServer points at \
+          mailpit:1025 by service DNS; KC must join the shared network with mailpit \
+          (docker-compose.yml networks: [alpenflight_shared] on both)." >&2
+            docker exec "$KC" bash -c 'getent hosts mailpit || echo "DNS: mailpit unresolved"' >&2 || true
+            exit 1
+          fi
+
+      # Required for the two ./gradlew call sites below (flywayMigrate +
+      # bootJar): Gradle 9.4.1 needs JVM >= 17 and the runner default is 11.
+      # Mirrors ci.yml's alpenflight-proof job setup.
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
       - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
@@ -147,6 +205,24 @@ jobs:
           # canned dev password into the uploaded backend.log artifact. The
           # `dev` Spring profile must not log payloads at INFO either.
           LOGGING_LEVEL_ROOT: INFO
+          # J-26 T-29 — env parity with ci.yml's alpenflight-proof job
+          # (ci.yml:726-740). The backend runs as a HOST bootJar but Keycloak
+          # is a container host-published at localhost:8090 (compose
+          # `127.0.0.1:8090:8080`), so the compose-internal `http://keycloak:8080`
+          # is unresolvable from a host process. The `dev` profile already
+          # redirects JWKS + issuer to localhost:8090, but `keycloak.admin.base-url`
+          # (application.yml) still defaults to `http://keycloak:8080` — this
+          # nightly never got the override, so the migration-provisioning /
+          # user-directory admin client failed at ingest with "I/O error on
+          # POST http://keycloak:8080/...token" (bundle-ingest 500 ×3 + the
+          # clubadmin1 GET /api/v1/users 400, run 27397268241). Point the
+          # admin-base at the host port; the remaining four mirror
+          # ci.yml:737-740 verbatim for full parity.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
         run: |
           # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
           # not "server" — and the plain `jar` task also emits a non-executable
@@ -177,13 +253,24 @@ jobs:
       # reach the same Postgres the backend uses (synth bundle mode — J1/J2_REAL_*
       # unset → the full legacy→export half stays the fan-out workflow's job).
       #
-      # `--ignore-snapshots`-style scope note: the J-4 `tests/profile/` spec also
-      # matches the `real-idp` project's testMatch, but it asserts against the
-      # `@Profile("showcase")` pilot1 Person — which this CLEAN-seeded nightly
-      # stack does NOT load. It has its own showcase-seeded gating job
-      # (`alpenflight-profile-proof` in ci.yml), so we EXCLUDE it here via an
-      # explicit positive spec list (the real-idp/ dir) rather than the bare
-      # `--project` glob, so a clean-seed run can't red on a showcase-only spec.
+      # SHOWCASE-SPEC SCOPE NOTE — this CLEAN-seeded nightly only runs `flywayMigrate`
+      # (dev seeds V5..V39) and boots `SPRING_PROFILES_ACTIVE: dev`; it does NOT load
+      # the `@Profile("showcase")` seed (`./gradlew seedShowcase` — the deterministic
+      # 2-club / 14-flight / pilot1-PIC fixture). Two showcase-only specs must be
+      # kept OFF this run, each with its OWN showcase-seeded gating job in ci.yml:
+      #   1. J-4 `tests/profile/` self-edit spec → asserts the showcase pilot1 Person;
+      #      EXCLUDED structurally — it lives OUTSIDE the `e2e/tests/real-idp/` path
+      #      filter below (own job: `alpenflight-profile-proof`).
+      #   2. J-3 `tests/real-idp/start-dashboard.spec.ts` → asserts the showcase
+      #      club-1 dashboard counts (today=3 / pending=4) + the pilot last-flight
+      #      card off pilot1's seeded PIC flights. It lives INSIDE `tests/real-idp/`,
+      #      so the path filter alone can't drop it — without the showcase seed its
+      #      counts read the bare dev-seed totals (pending≠4, total<14) + the pilot
+      #      card is empty, reding 3 cases (J-26 T-30b, the cross-journey re-baseline
+      #      finding). EXCLUDED here via `--grep-invert 'showcase seed'` (its describe
+      #      title carries the unique `[showcase seed, real chain]` tag); its real
+      #      gating job is `alpenflight-dashboard-proof` in ci.yml, which loads the
+      #      showcase seed first and asserts these exact numbers green.
       - name: Run Playwright real-idp project (full cross-journey regression)
         id: pw
         working-directory: alpenflight/web
@@ -196,6 +283,7 @@ jobs:
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --grep-invert 'showcase seed' \
             e2e/tests/real-idp/
 
       - name: Collect logs on failure

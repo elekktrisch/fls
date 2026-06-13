@@ -1,13 +1,12 @@
 package ch.alpenflight.platform.tenancy;
 
+import ch.alpenflight.referencedata.domain.LanguageRepository;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.jspecify.annotations.Nullable;
-import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,9 +20,15 @@ import org.springframework.stereotype.Component;
  * locale resolves to {@code en} ({@link #FALLBACK_EN_ID}) — matches the
  * Keycloak default and the federated-IdP common case.
  *
- * <p>JDBC, not JPA: stays on the same aisle as {@link UserPrincipalLookup}
- * so the resolver runs in Hibernate's session-open path without
- * recursion. Cross-tenant table; no {@code @TenantId} to honor.
+ * <p>Reads through the {@link LanguageRepository} JPA port (ADR 0027 —
+ * JDBC retired at J-26 T-14). Unlike {@link UserPrincipalLookup}, this
+ * resolver is NOT on Hibernate's session-open path: it is invoked from
+ * {@code users.application.JitUserMaterializerImpl} inside the JIT servlet
+ * filter, which already opens its own JPA transaction
+ * ({@code UsersService.materializeFromJwt}, {@code REQUIRES_NEW}) — so a
+ * JPA read here does not recurse into the tenant resolver. {@code t_language}
+ * is system-global reference data (no {@code @TenantId}); not a native-SQL
+ * register concern.
  */
 @Component
 public class LanguageCodeLookup {
@@ -31,14 +36,11 @@ public class LanguageCodeLookup {
     public static final UUID FALLBACK_EN_ID =
             UUID.fromString("019e2e15-2c00-77d3-8000-0000000007d3");
 
-    private static final String SELECT_BY_CODE =
-            "SELECT id FROM t_language WHERE lower(code) = ?";
-
-    private final JdbcTemplate jdbc;
+    private final LanguageRepository languages;
     private final ConcurrentMap<String, UUID> cache = new ConcurrentHashMap<>();
 
-    public LanguageCodeLookup(JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
+    public LanguageCodeLookup(LanguageRepository languages) {
+        this.languages = languages;
     }
 
     /**
@@ -62,11 +64,6 @@ public class LanguageCodeLookup {
     }
 
     private Optional<UUID> queryFor(String lowerCode) {
-        try {
-            UUID id = jdbc.queryForObject(SELECT_BY_CODE, UUID.class, lowerCode);
-            return Optional.ofNullable(id);
-        } catch (EmptyResultDataAccessException e) {
-            return Optional.empty();
-        }
+        return languages.findIdByCodeIgnoreCase(lowerCode);
     }
 }

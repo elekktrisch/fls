@@ -88,6 +88,38 @@ describe('flight-form.defaults', () => {
       });
       expect(snap.glider.startLocationId).toBe('loc-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
     });
+
+    it('fills the full glider context field-set off a blank template (table-driven overlay)', () => {
+      const snap = buildDefaultsForNew(TEMPLATE_BLANK, LAST_CONTEXT_FULL, {});
+      expect(snap.glider.invoiceRecipientPersonId).toBe('pn-cccccccc-cccc-cccc-cccc-cccccccccccc');
+      expect(snap.glider.ldgLocationId).toBe('loc-cccccccc-cccc-cccc-cccc-cccccccccccc');
+      expect(snap.glider.inboundRoute).toBe('route-in');
+      // aircraftId is the explicit user pick — never borrowed from context.
+      expect(snap.glider.aircraftId).toBeNull();
+    });
+
+    it('leaves tow at its blank base when last-context carries no tow', () => {
+      // Omit `tow` (exactOptionalPropertyTypes forbids `tow: undefined`).
+      const { tow: _omit, ...ctxNoTow } = LAST_CONTEXT_FULL;
+      void _omit;
+      const snap = buildDefaultsForNew(TEMPLATE_BLANK, ctxNoTow, {});
+      expect(snap.tow.aircraftId).toBeNull();
+      expect(snap.tow.flightTypeId).toBeNull();
+      // The glider half still overlays from context.
+      expect(snap.glider.flightTypeId).toBe('ft-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    });
+
+    it('fills tow.ldgLocationId from ctx.tow while leaving an unset tow field null', () => {
+      const ctxPartialTow: FlightLastContextResponse = {
+        ...LAST_CONTEXT_FULL,
+        tow: { aircraftId: 'ac-tow-9', ldgLocationId: 'loc-tow-9' },
+      };
+      const snap = buildDefaultsForNew(TEMPLATE_BLANK, ctxPartialTow, {});
+      expect(snap.tow.aircraftId).toBe('ac-tow-9');
+      expect(snap.tow.ldgLocationId).toBe('loc-tow-9');
+      expect(snap.tow.flightTypeId).toBeNull();
+      expect(snap.tow.pilotPersonId).toBeNull();
+    });
   });
 
   describe('buildDefaultsForCopy', () => {

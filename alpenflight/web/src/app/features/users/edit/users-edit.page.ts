@@ -7,7 +7,8 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { debounceTime, merge } from 'rxjs';
 import {
   FormBuilder,
   FormControl,
@@ -34,6 +35,7 @@ import type {
   UserUpdateRequestRolesItem,
 } from '@api/generated/model';
 import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS, LocaleService } from '@shared/ui/locale';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import {
@@ -58,6 +60,21 @@ type UserForm = FormGroup<{
   OFFICE_USER: FormControl<boolean>;
   GUEST: FormControl<boolean>;
 }>;
+
+// The role-control keys, narrowly typed to the boolean controls on `UserForm`
+// (NOT the wider `UserUpdateRequestRolesItem`, which includes the non-control
+// SYSTEM_ADMINISTRATOR). Drives `checkedRoles` / the live-roles signal by
+// indexing the raw form value without the TS7053 the wider union triggers
+// (J-26 T-13 boyscout precedent: `form.controls[r]` index-fails for the same
+// reason). Order matches `CLUB_ADMIN_GRANTABLE_ROLES` — the submitted role set.
+type RoleKey = 'CLUB_ADMINISTRATOR' | 'FLIGHT_OPERATOR' | 'PILOT' | 'OFFICE_USER' | 'GUEST';
+const ROLE_KEYS: readonly RoleKey[] = [
+  'CLUB_ADMINISTRATOR',
+  'FLIGHT_OPERATOR',
+  'PILOT',
+  'OFFICE_USER',
+  'GUEST',
+];
 
 // Mirrors UserInviteRequest.username @Pattern in
 // `ch.alpenflight.users.application.UserDtos`. Drift here means inline
@@ -138,7 +155,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
               label="Username"
               for="Username"
               [required]="true"
-              [errors]="form.controls.username.touched ? form.controls.username.errors : null"
+              [errors]="usernameErrors()"
             >
               <af-input
                 inputId="Username"
@@ -154,7 +171,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             label="Friendly name"
             for="FriendlyName"
             [required]="true"
-            [errors]="form.controls.friendlyName.touched ? form.controls.friendlyName.errors : null"
+            [errors]="friendlyNameErrors()"
           >
             <af-input
               inputId="FriendlyName"
@@ -168,11 +185,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             label="Notification email"
             for="NotificationEmail"
             [required]="true"
-            [errors]="
-              form.controls.notificationEmail.touched
-                ? form.controls.notificationEmail.errors
-                : null
-            "
+            [errors]="notificationEmailErrors()"
           >
             <af-input
               inputId="NotificationEmail"
@@ -186,7 +199,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             </span>
           </af-form-field>
 
-          <af-form-field label="Phone" for="PhoneNumber">
+          <af-form-field label="Phone" for="PhoneNumber" [errors]="phoneNumberErrors()">
             <af-input
               inputId="PhoneNumber"
               formControlName="phoneNumber"
@@ -195,7 +208,7 @@ const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
             />
           </af-form-field>
 
-          <af-form-field label="Remarks" for="Remarks">
+          <af-form-field label="Remarks" for="Remarks" [errors]="remarksErrors()">
             <af-input inputId="Remarks" formControlName="remarks" data-testid="remarks-input" />
           </af-form-field>
 
@@ -345,11 +358,36 @@ export class UsersEditPage {
     GUEST: this.fb.control(false),
   });
 
-  // Surfaces only after the operator attempts submit so the field doesn't
-  // shout on first render. Checkbox `touched` flags are unreliable on
-  // groups; track explicit submission instead.
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit) and binding the previously-silent optional fields
+  // (phone / remarks) that carried a maxLength validator but rendered no inline
+  // error at all.
+  protected readonly usernameErrors = liveFieldErrors(this.form.controls.username);
+  protected readonly friendlyNameErrors = liveFieldErrors(this.form.controls.friendlyName);
+  protected readonly notificationEmailErrors = liveFieldErrors(
+    this.form.controls.notificationEmail,
+  );
+  protected readonly phoneNumberErrors = liveFieldErrors(this.form.controls.phoneNumber);
+  protected readonly remarksErrors = liveFieldErrors(this.form.controls.remarks);
+
+  // Roles ≥1 cross-field — now LIVE (J-26 T-12). The error surfaces once the
+  // user has interacted with the role checkboxes and unticked them all (the
+  // as-you-type bar), debounced ~200ms off the group value, OR after a submit
+  // attempt. Checkbox `touched` flags are unreliable on groups; track the first
+  // interaction via a debounced value-change signal instead of waiting for submit.
+  private readonly rolesInteracted = toSignal(
+    // `ROLE_KEYS` is narrowly typed to the boolean role controls (J-26 T-22),
+    // so `this.form.controls[r]` indexes cleanly — no TS7053, no `get(r)!`
+    // workaround (the T-13 boyscout this supersedes).
+    merge(...ROLE_KEYS.map((r) => this.form.controls[r].valueChanges)).pipe(debounceTime(200)),
+    { initialValue: undefined },
+  );
   protected readonly rolesEmptyError = computed(
-    () => this.submissionAttempted() && this.checkedRoles().length === 0,
+    () =>
+      (this.submissionAttempted() || this.rolesInteracted() !== undefined) &&
+      this.checkedRoles().length === 0,
   );
   private readonly submissionAttempted = signal(false);
 
@@ -441,65 +479,68 @@ export class UsersEditPage {
 
   protected onSubmit(): void {
     this.submissionAttempted.set(true);
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
     const checked = this.checkedRoles();
-    if (checked.length === 0) {
+    if (this.form.invalid || checked.length === 0) {
       this.form.markAllAsTouched();
       return;
     }
-    const v = this.form.getRawValue();
     this.saving.set(true);
-
     if (this.isCreate()) {
-      const req: UserInviteRequest = {
-        username: v.username.trim(),
-        friendlyName: v.friendlyName.trim(),
-        notificationEmail: v.notificationEmail.trim(),
-        languageId: v.languageId,
-        roles: checked,
-      };
-      const phone = v.phoneNumber.trim();
-      if (phone.length > 0) req.phoneNumber = phone;
-      const remarks = v.remarks.trim();
-      if (remarks.length > 0) req.remarks = remarks;
-      const pinned = this.pinnedPerson();
-      if (pinned !== null) req.personId = pinned.id;
-      this.store.invite(req);
+      this.store.invite(this.buildInviteRequest(checked));
       return;
     }
-
     const id = this.routeId();
     if (id === null) {
       this.saving.set(false);
       return;
     }
-    const existing = this.store.selectedUser();
-    const merged = mergeManagedRoles(existing?.roles ?? [], checked);
-    const req: UserUpdateRequest = {
-      friendlyName: v.friendlyName.trim(),
-      notificationEmail: v.notificationEmail.trim(),
-      languageId: v.languageId,
-      roles: merged,
-    };
-    const phone = v.phoneNumber.trim();
-    if (phone.length > 0) req.phoneNumber = phone;
-    const remarks = v.remarks.trim();
-    if (remarks.length > 0) req.remarks = remarks;
-    this.store.update({ id, req });
+    this.store.update({ id, req: this.buildUpdateRequest(checked) });
+  }
+
+  // Phone + remarks are the only optionals; `withOptionals` prunes the trimmed
+  // empties in one pass (J-26 T-22) instead of the `if (x.length > 0)` appends
+  // each branch grew. The optionals map is the SAME for invite + update — only
+  // the required base + the roles-diff differ.
+  private optionalContactFields(): { phoneNumber: string; remarks: string } {
+    const v = this.form.getRawValue();
+    return { phoneNumber: v.phoneNumber.trim(), remarks: v.remarks.trim() };
+  }
+
+  private buildInviteRequest(roles: UserUpdateRequestRolesItem[]): UserInviteRequest {
+    const v = this.form.getRawValue();
+    const pinned = this.pinnedPerson();
+    // `withOptionals` runtime-prunes the empty/undefined optionals; the cast
+    // narrows the `Partial<…>` (which `exactOptionalPropertyTypes` widens with
+    // `| undefined`) back to the DTO's exact optionals — sound at runtime.
+    return withOptionals(
+      {
+        username: v.username.trim(),
+        friendlyName: v.friendlyName.trim(),
+        notificationEmail: v.notificationEmail.trim(),
+        languageId: v.languageId,
+        roles,
+      },
+      { ...this.optionalContactFields(), personId: pinned?.id ?? undefined },
+    ) as UserInviteRequest;
+  }
+
+  private buildUpdateRequest(roles: UserUpdateRequestRolesItem[]): UserUpdateRequest {
+    const v = this.form.getRawValue();
+    const merged = mergeManagedRoles(this.store.selectedUser()?.roles ?? [], roles);
+    return withOptionals(
+      {
+        friendlyName: v.friendlyName.trim(),
+        notificationEmail: v.notificationEmail.trim(),
+        languageId: v.languageId,
+        roles: merged,
+      },
+      this.optionalContactFields(),
+    ) as UserUpdateRequest;
   }
 
   private checkedRoles(): UserUpdateRequestRolesItem[] {
     const v = this.form.getRawValue();
-    const checked: UserUpdateRequestRolesItem[] = [];
-    if (v.CLUB_ADMINISTRATOR) checked.push('CLUB_ADMINISTRATOR');
-    if (v.FLIGHT_OPERATOR) checked.push('FLIGHT_OPERATOR');
-    if (v.PILOT) checked.push('PILOT');
-    if (v.OFFICE_USER) checked.push('OFFICE_USER');
-    if (v.GUEST) checked.push('GUEST');
-    return checked;
+    return ROLE_KEYS.filter((r) => v[r]);
   }
 
   private hydrate(detail: UserResponse): void {

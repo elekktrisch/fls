@@ -38,6 +38,15 @@ exists to prevent.
 - **Migration honesty.** For a journey with legacy data: did the full chain
   (legacy seed → migrate → real e2e) actually run, or only the fast inner
   loop? Is the per-entity mapper real, or a passthrough that drops columns?
+- **New JDBC/native SQL (blocker).** Any new `JdbcTemplate` / `createNativeQuery`
+  in the diff without a matching `alpenflight/database/native-sql-register.md`
+  entry violates ADR 0027 (JPA-first; register = shrinking exception list for
+  structurally-pre-tenant seams only). The J-7 review loop cost 2 days because
+  this slipped to PR review.
+- **URL-only screens (blocker).** A new screen with no chrome entry point
+  (nav item / link, placed per legacy), or whose proof spec enters via
+  `page.goto` instead of through the nav, is a hollow vertical — users can't
+  reach what the gate "proved" (J-7 /flightreports miss).
 
 ## How you work
 

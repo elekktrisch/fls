@@ -15,6 +15,7 @@ import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import type { MePersonUpdateRequest } from '@api/generated/model';
+import { liveFieldErrors } from '@shared/util/form';
 
 import { ReferenceDataStore } from '../../core/reference-data/reference-data.store';
 
@@ -100,11 +101,7 @@ type PersonalForm = FormGroup<{
         </af-form-field>
 
         <!-- Editable address fields. -->
-        <af-form-field
-          [label]="t('address')"
-          for="PersonalAddress"
-          [errors]="form.controls.addressLine1.touched ? form.controls.addressLine1.errors : null"
-        >
+        <af-form-field [label]="t('address')" for="PersonalAddress" [errors]="addressLine1Errors()">
           <af-input
             inputId="PersonalAddress"
             formControlName="addressLine1"
@@ -113,7 +110,11 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('addressLine2')" for="PersonalAddressLine2">
+        <af-form-field
+          [label]="t('addressLine2')"
+          for="PersonalAddressLine2"
+          [errors]="addressLine2Errors()"
+        >
           <af-input
             inputId="PersonalAddressLine2"
             formControlName="addressLine2"
@@ -122,7 +123,7 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('zip')" for="PersonalZip">
+        <af-form-field [label]="t('zip')" for="PersonalZip" [errors]="zipErrors()">
           <af-input
             inputId="PersonalZip"
             formControlName="zip"
@@ -131,7 +132,7 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('city')" for="PersonalCity">
+        <af-form-field [label]="t('city')" for="PersonalCity" [errors]="cityErrors()">
           <af-input
             inputId="PersonalCity"
             formControlName="city"
@@ -140,7 +141,7 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('region')" for="PersonalRegion">
+        <af-form-field [label]="t('region')" for="PersonalRegion" [errors]="regionErrors()">
           <af-input
             inputId="PersonalRegion"
             formControlName="region"
@@ -160,7 +161,11 @@ type PersonalForm = FormGroup<{
         </af-form-field>
 
         <!-- Editable contact fields. -->
-        <af-form-field [label]="t('phonePrivate')" for="PersonalPhonePrivate">
+        <af-form-field
+          [label]="t('phonePrivate')"
+          for="PersonalPhonePrivate"
+          [errors]="privatePhoneErrors()"
+        >
           <af-input
             inputId="PersonalPhonePrivate"
             formControlName="privatePhone"
@@ -169,7 +174,11 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('mobilePhone')" for="PersonalMobilePhone">
+        <af-form-field
+          [label]="t('mobilePhone')"
+          for="PersonalMobilePhone"
+          [errors]="mobilePhoneErrors()"
+        >
           <af-input
             inputId="PersonalMobilePhone"
             formControlName="mobilePhone"
@@ -178,7 +187,11 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('phoneBusiness')" for="PersonalPhoneBusiness">
+        <af-form-field
+          [label]="t('phoneBusiness')"
+          for="PersonalPhoneBusiness"
+          [errors]="businessPhoneErrors()"
+        >
           <af-input
             inputId="PersonalPhoneBusiness"
             formControlName="businessPhone"
@@ -187,7 +200,7 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <af-form-field [label]="t('faxNumber')" for="PersonalFax">
+        <af-form-field [label]="t('faxNumber')" for="PersonalFax" [errors]="faxNumberErrors()">
           <af-input
             inputId="PersonalFax"
             formControlName="faxNumber"
@@ -198,7 +211,7 @@ type PersonalForm = FormGroup<{
         <af-form-field
           [label]="t('emailPrivate')"
           for="PersonalEmailPrivate"
-          [errors]="form.controls.emailPrivate.touched ? form.controls.emailPrivate.errors : null"
+          [errors]="emailPrivateErrors()"
         >
           <af-input
             inputId="PersonalEmailPrivate"
@@ -212,7 +225,7 @@ type PersonalForm = FormGroup<{
         <af-form-field
           [label]="t('emailBusiness')"
           for="PersonalEmailBusiness"
-          [errors]="form.controls.emailBusiness.touched ? form.controls.emailBusiness.errors : null"
+          [errors]="emailBusinessErrors()"
         >
           <af-input
             inputId="PersonalEmailBusiness"
@@ -295,6 +308,24 @@ export class ProfilePersonalTab {
     preferMailToBusinessMail: this.fb.control(false),
     birthday: this.fb.control(''),
   });
+
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only bindings (silent
+  // until blur/submit) and binding the previously-silent maxLength-only fields
+  // (addressLine2 / zip / city / region / privatePhone / mobilePhone /
+  // businessPhone / faxNumber) that rendered no inline error at all.
+  protected readonly addressLine1Errors = liveFieldErrors(this.form.controls.addressLine1);
+  protected readonly addressLine2Errors = liveFieldErrors(this.form.controls.addressLine2);
+  protected readonly zipErrors = liveFieldErrors(this.form.controls.zip);
+  protected readonly cityErrors = liveFieldErrors(this.form.controls.city);
+  protected readonly regionErrors = liveFieldErrors(this.form.controls.region);
+  protected readonly privatePhoneErrors = liveFieldErrors(this.form.controls.privatePhone);
+  protected readonly mobilePhoneErrors = liveFieldErrors(this.form.controls.mobilePhone);
+  protected readonly businessPhoneErrors = liveFieldErrors(this.form.controls.businessPhone);
+  protected readonly faxNumberErrors = liveFieldErrors(this.form.controls.faxNumber);
+  protected readonly emailPrivateErrors = liveFieldErrors(this.form.controls.emailPrivate);
+  protected readonly emailBusinessErrors = liveFieldErrors(this.form.controls.emailBusiness);
 
   constructor() {
     // Hydrate the form whenever the store's view lands (initial load + after a

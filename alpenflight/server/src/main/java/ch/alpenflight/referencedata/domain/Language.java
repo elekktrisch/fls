@@ -15,9 +15,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>First JPA mapping of {@code t_language} (ADR 0027 per-touch JDBC
  * retirement; introduced for {@code me.application.MeService}'s
- * language-code projection). {@code platform.tenancy.LanguageCodeLookup}
- * deliberately stays JDBC — it runs in Hibernate's session-open path and
- * must not recurse into JPA.
+ * language-code projection, then adopted by
+ * {@code platform.tenancy.LanguageCodeLookup}'s locale resolver at J-26
+ * T-14, retiring its last JdbcTemplate site).
  */
 @Entity
 @Table(name = "t_language")

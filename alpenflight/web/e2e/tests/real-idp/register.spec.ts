@@ -59,7 +59,15 @@ test.describe('register — real-idp', () => {
     // KC drops the user on its post-registration "verify-email required"
     // page. The exact URL varies (`/login-actions/required-action?...`);
     // we don't assert on it. The verify-link we click is the contract.
-    const message = await waitForMessage(user.email);
+    //
+    // Generous timeout: this is KC's FIRST SMTP send of the run — a cold
+    // FreeMarker template compile + the SMTP handshake to the `mailpit`
+    // service (cross-project container DNS on `alpenflight_shared`) add
+    // first-hit latency the steady-state 15s default does not budget for on
+    // a loaded CI runner. The verify-mail path runs ONLY in the nightly
+    // (ci.yml's per-push proof spec never registers), so this cold path is
+    // unbuffered by any warm-up. 45s stays well inside the per-test budget.
+    const message = await waitForMessage(user.email, { timeoutMs: 45_000 });
     const verifyHref = extractVerifyLink(message);
     await page.goto(verifyHref);
 

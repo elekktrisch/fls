@@ -7,6 +7,7 @@ import ch.alpenflight.flighttypes.application.FlightTypeDtos.FlightTypeCreateReq
 import ch.alpenflight.flighttypes.application.FlightTypeDtos.FlightTypeDetail;
 import ch.alpenflight.flighttypes.application.FlightTypeDtos.FlightTypeListItem;
 import ch.alpenflight.flighttypes.application.FlightTypeDtos.FlightTypeUpdateRequest;
+import ch.alpenflight.flighttypes.domain.DuplicateFlightTypeCodeException;
 import ch.alpenflight.flighttypes.domain.DuplicateFlightTypeNameException;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.flighttypes.domain.FlightTypeNotFoundException;
@@ -70,6 +71,7 @@ public class FlightTypesService {
         flightTypes.findActiveByName(name).ifPresent(existing -> {
             throw new DuplicateFlightTypeNameException(name);
         });
+        requireCodeAvailable(req.flightCode(), null);
 
         FlightType ft = FlightType.register(
                 name,
@@ -102,6 +104,7 @@ public class FlightTypesService {
                 .ifPresent(other -> {
                     throw new DuplicateFlightTypeNameException(name);
                 });
+        requireCodeAvailable(req.flightCode(), id);
 
         ft.rename(name);
         ft.changeFlightCode(req.flightCode());
@@ -156,6 +159,32 @@ public class FlightTypesService {
             }
             throw e;
         }
+    }
+
+    /**
+     * UX pre-check for the V3 partial UNIQUE {@code ux_flight_type_club_code}
+     * — the common duplicate-code case answers a clean 409 without ever
+     * hitting the constraint. Normalization mirrors the aggregate's
+     * {@code assignFlightCode} (strip; blank → no code, never a conflict).
+     * The race window is covered by the DataIntegrityViolation net in
+     * {@code FlightTypesExceptionHandler}.
+     *
+     * @param self the row being updated (its own code is not a conflict);
+     *             {@code null} on create
+     */
+    private void requireCodeAvailable(@Nullable String rawCode, @Nullable FlightTypeId self) {
+        if (rawCode == null) {
+            return;
+        }
+        String code = rawCode.strip();
+        if (code.isEmpty()) {
+            return;
+        }
+        flightTypes.findActiveByCode(code)
+                .filter(other -> self == null || !sameRow(other, self))
+                .ifPresent(other -> {
+                    throw new DuplicateFlightTypeCodeException(code);
+                });
     }
 
     private static boolean sameRow(FlightType other, FlightTypeId id) {

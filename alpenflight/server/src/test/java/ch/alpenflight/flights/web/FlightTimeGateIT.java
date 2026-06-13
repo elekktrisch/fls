@@ -9,11 +9,13 @@ import ch.alpenflight.flights.application.FlightStateTransitionService;
 import ch.alpenflight.flights.domain.FlightGateNotReachedException;
 import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.TransitionTrigger;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.FlightId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
-import ch.alpenflight.server.testsupport.WithTenant;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -57,41 +59,49 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
         }
     }
 
-    private static final UUID CLUB = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e1");
-    private static final UUID OTHER = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e2");
-
     @Autowired JdbcTemplate jdbc;
     @Autowired FlightStateTransitionService stateService;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    private UUID club;
+    private UUID other;
     private UUID aircraftId;
 
     @BeforeEach
     void setUp() {
-        cleanFlightRowsFor(jdbc, CLUB, OTHER);
-        new TwoClubFixture(jdbc, CLUB, OTHER, "tgateit", "TGIT").seed();
-        aircraftId = seedAircraftFor(jdbc, CLUB);
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "tgateit", "TGIT");
+        fixture.seed();
+        club = fixture.clubA();
+        other = fixture.clubB();
+        cleanFlightRowsFor(jdbc, club, other);
+        aircraftId = seedAircraftFor(jdbc, club);
     }
 
     @Test
-    @WithTenant("019e30c3-2c00-7001-8000-0000000000e1")
     void too_recent_flight_cannot_lock() {
         // today = 2026-01-01, gate = today-2d = 2025-12-30. A flight flown
         // 2025-12-31 (one day too recent) is rejected at the lock gate.
+        // The minted club id is runtime, so the tenant context is set via
+        // runAs here rather than the class-level @WithTenant literal.
         FlightId id = seedValidFlight(LocalDate.of(2025, 12, 31));
-        assertThatThrownBy(() ->
-                stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB))
-                .isInstanceOf(FlightGateNotReachedException.class);
-        // State unchanged in the DB.
-        assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.VALID.id());
-        assertThat(lockedAtOf(id.value())).isNull();
+        TenantTestContext.runAs(club, () -> {
+            assertThatThrownBy(() ->
+                    stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB))
+                    .isInstanceOf(FlightGateNotReachedException.class);
+            // State unchanged in the DB.
+            assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.VALID.id());
+            assertThat(lockedAtOf(id.value())).isNull();
+        });
     }
 
     @Test
-    @WithTenant("019e30c3-2c00-7001-8000-0000000000e1")
     void past_threshold_flight_locks_and_stamps_locked_at() {
         // flight_date == today-2d (2025-12-30) is on the boundary → allowed.
         FlightId id = seedValidFlight(LocalDate.of(2025, 12, 30));
-        TenantTestContext.runAs(CLUB, () ->
+        TenantTestContext.runAs(club, () ->
                 stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB));
         assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.LOCKED.id());
         // locked_at stamped from the fixed clock (2026-01-01T12:00Z).
@@ -112,7 +122,7 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
                         ?::uuid, 0)
                 """,
                 id.toString(),
-                CLUB.toString(),
+                club.toString(),
                 aircraftId.toString(),
                 flightDate.toString(),
                 FlightProcessState.VALID.id().toString());

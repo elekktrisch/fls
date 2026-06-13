@@ -35,6 +35,8 @@ five screens; not a single atomic action.
 - **Match the design reference.** For each screen find `docs/modernization/design-reference/screens-<feature>.jsx`
   (ADR-0024 pixel oracle) + put its STRUCTURE (e.g. calendar-vs-table, day/week) into "Spec must assert" — so
   the journey is carved to the design, not built-then-redesigned. Say "no reference" if absent.
+  **Name the chrome entry point** (nav placement per legacy's navigation-bar + role visibility) in the carve —
+  a screen with no nav item ships URL-only (J-7 /flightreports miss); the spec must enter through it.
 - **Map stories onto journeys.** For each candidate, list which existing
   `todo` stories collapse into it (they "roll up" — their ACs and any
   refinement become inputs, not lost). A story may inform more than one

@@ -124,6 +124,25 @@ class ClubsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void createClub_duplicateClubKey_returns_409_labeled_on_clubKey_field() {
+        // J-26 T-07: only ux_club_key can trip here (slugs are unique per
+        // call) — before the DIVE discrimination this was mislabeled as a
+        // bare slug 409 with no field diagnostic.
+        String clubKey = "K" + shortSuffix();
+        ResponseEntity<String> first = post("/api/v1/clubs",
+                createPayload("Key Owner", "key-a-" + suffix(), clubKey));
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ResponseEntity<String> second = post("/api/v1/clubs",
+                createPayload("Key Dup", "key-b-" + suffix(), clubKey));
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(second.getBody())
+                .as("the 409 must carry the problem-detail field=clubKey discriminator")
+                .isNotNull()
+                .contains("\"field\":\"clubKey\"");
+    }
+
+    @Test
     void updateClub_existing_returns_200_with_updated_body() {
         String slug = "orig-" + suffix();
         ResponseEntity<String> created = post("/api/v1/clubs",

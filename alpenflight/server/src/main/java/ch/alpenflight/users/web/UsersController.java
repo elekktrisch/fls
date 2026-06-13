@@ -109,7 +109,7 @@ public class UsersController {
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR') and @userAccess.canEdit(#id, #jwt)")
     public ResponseEntity<Void> deleteUser(@PathVariable UserId id,
                                            @AuthenticationPrincipal @Nullable Jwt jwt) {
-        service.softDelete(id, principalUserId(jwt), jwt);
+        service.softDelete(id, principalUserId(jwt));
         return ResponseEntity.noContent().build();
     }
 

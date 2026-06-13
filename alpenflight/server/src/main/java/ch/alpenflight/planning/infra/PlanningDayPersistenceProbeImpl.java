@@ -2,7 +2,7 @@ package ch.alpenflight.planning.infra;
 
 import ch.alpenflight.planning.domain.PlanningDay;
 import ch.alpenflight.planning.domain.PlanningDayConflictException;
-import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
+import ch.alpenflight.reservations.api.ReservationCountPort;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -23,37 +23,26 @@ import org.springframework.transaction.support.TransactionTemplate;
  * location)}.
  *
  * <p><strong>Per-day reservation count.</strong> {@link #countReservationsForDay}
- * is the one native SQL query (registered as
- * {@code planning-day-reservation-count} in {@code native-sql-register.md}): it
- * counts non-deleted {@code t_aircraft_reservation} rows for the caller's tenant
- * whose {@code date(reservation_start)} equals the planning date at the same
- * location. Hibernate's {@code @TenantId} discriminator does not filter native
- * SQL, so the query carries an explicit {@code operating_club_id = :tenantId}
- * predicate (resolved from the same {@link ClubTenantIdentifierResolver} the JPA
- * path uses, parameter-bound — never string-interpolated).
+ * (legacy {@code NumberOfAircraftReservations}) reads the figure through the
+ * {@code reservations} module's {@link ReservationCountPort} named interface
+ * (J-26 T-16) — {@code planning} no longer crosses into the
+ * {@code t_aircraft_reservation} table itself. The retired
+ * {@code planning-day-reservation-count} native-SQL probe (its register entry's
+ * own "Remove when") is gone: the port is plain JPA over {@code
+ * AircraftReservation}, tenant-filtered via Hibernate's {@code @TenantId}
+ * discriminator (this runs in a resolved request tenant context).
  */
 class PlanningDayPersistenceProbeImpl implements PlanningDayPersistenceProbe {
 
-    // date(reservation_start) compares the reservation's start DATE against the
-    // pure-DATE planning_date; deleted_on IS NULL excludes soft-deleted rows —
-    // mirrors the legacy NumberOfAircraftReservations (computed, never stored).
-    private static final String COUNT_SQL = """
-            SELECT count(*) FROM t_aircraft_reservation
-            WHERE operating_club_id = :tenantId
-              AND location_id = :locationId
-              AND deleted_on IS NULL
-              AND date(reservation_start) = :planningDate
-            """;
-
     private final EntityManager entityManager;
-    private final ClubTenantIdentifierResolver tenantResolver;
+    private final ReservationCountPort reservationCounts;
     private final TransactionTemplate tx;
 
     PlanningDayPersistenceProbeImpl(EntityManager entityManager,
-                                    ClubTenantIdentifierResolver tenantResolver,
+                                    ReservationCountPort reservationCounts,
                                     TransactionTemplate tx) {
         this.entityManager = entityManager;
-        this.tenantResolver = tenantResolver;
+        this.reservationCounts = reservationCounts;
         this.tx = tx;
     }
 
@@ -93,13 +82,10 @@ class PlanningDayPersistenceProbeImpl implements PlanningDayPersistenceProbe {
 
     @Override
     public long countReservationsForDay(LocalDate planningDate, UUID locationId) {
-        UUID tenantId = tenantResolver.resolveCurrentTenantIdentifier();
-        Object result = entityManager.createNativeQuery(COUNT_SQL)
-                .setParameter("tenantId", tenantId)
-                .setParameter("locationId", locationId)
-                .setParameter("planningDate", planningDate)
-                .getSingleResult();
-        return ((Number) result).longValue();
+        // Read the per-day reservation count through the reservations module's
+        // named-interface port (J-26 T-16) instead of the retired native probe —
+        // the port is plain JPA, tenant-filtered via @TenantId.
+        return reservationCounts.countActiveOnDateAtLocation(planningDate, locationId);
     }
 
     /** True iff {@code e} (or a cause) is the {@code ux_pln_club_date_loc} unique breach. */

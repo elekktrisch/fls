@@ -29,6 +29,8 @@ import type {
   AircraftUpdateRequest,
 } from '@api/generated/model';
 
+import { classifyApiError, type SaveErrorRule } from '@shared/util/form';
+
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 export type AircraftItem = AircraftListItem & { id: string };
@@ -266,30 +268,46 @@ export const AircraftStore = signalStore(
   }),
 );
 
+// Ordered classification rules (J-26 T-22, shared `classifyApiError`): 409 →
+// immatriculation duplicate (interpolating the submitted registration), 403 →
+// forbidden, else a `field`-prefixed validation echo, else the generic tail.
+function aircraftErrorRules(
+  immatriculation: string | null | undefined,
+): readonly SaveErrorRule<SaveErrorKind>[] {
+  return [
+    {
+      status: 409,
+      outcome: () => ({
+        saveError: immatriculation
+          ? `Immatriculation "${immatriculation}" is already in use.`
+          : 'Immatriculation is already in use.',
+        saveErrorKind: 'immatriculation-duplicate',
+      }),
+    },
+    {
+      status: 403,
+      outcome: () => ({
+        saveError: 'You are not authorized to perform this action on the selected aircraft.',
+        saveErrorKind: 'forbidden',
+      }),
+    },
+  ];
+}
+
 function errorPatch(
   e: HttpErrorResponse,
   immatriculation: string | null | undefined,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
-  if (e.status === 409) {
-    return {
-      saveError: immatriculation
-        ? `Immatriculation "${immatriculation}" is already in use.`
-        : 'Immatriculation is already in use.',
-      saveErrorKind: 'immatriculation-duplicate',
-    };
-  }
-  if (e.status === 403) {
-    return {
-      saveError: 'You are not authorized to perform this action on the selected aircraft.',
-      saveErrorKind: 'forbidden',
-    };
-  }
-  const body = e.error as { field?: string; message?: string } | null;
-  if (body && typeof body.message === 'string' && body.message.length > 0) {
-    return {
-      saveError: body.field ? `${body.field}: ${body.message}` : body.message,
-      saveErrorKind: 'other',
-    };
-  }
-  return { saveError: e.message, saveErrorKind: 'other' };
+  return classifyApiError(e, aircraftErrorRules(immatriculation), (body, err) => {
+    // Preserve the prior tail EXACTLY: a `field`-prefixed validation echo when
+    // the body carries a non-empty `message`, else the raw `e.message` (this
+    // store never read `detail`, so the generic chain is deliberately not used).
+    if (body && typeof body.message === 'string' && body.message.length > 0) {
+      return {
+        saveError: body.field ? `${body.field}: ${body.message}` : body.message,
+        saveErrorKind: 'other',
+      };
+    }
+    return { saveError: err.message, saveErrorKind: 'other' };
+  });
 }

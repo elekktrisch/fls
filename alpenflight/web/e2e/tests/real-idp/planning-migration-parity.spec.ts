@@ -25,7 +25,7 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
-import { waitForMessage, purgeMailpit } from './_helpers/mailpit-client';
+import { waitForMessage, waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
 
 /**
@@ -967,8 +967,19 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       ).toBeGreaterThanOrEqual(3);
 
       // IMMINENT mail landed at the CLUB address (planningday-ok — the day has a
-      // reservation). Exactly one because we purged + created exactly one day+1.
-      const clubMail = await waitForMessage(SEED_CLUB_NOTIFICATION_ADDRESS);
+      // reservation). The imminent pass mails the club address ONCE PER day+1
+      // planning day, and seed-club-1's tenant is never truncated — a prior /
+      // co-located run (or the V34 seed's day, if first-applied so it lands on
+      // day+1 relative to this run) can leave a SECOND day+1 day, so a second
+      // legit club mail to the SAME address is by design (PlanningDayNotificationJobIT:
+      // "two day+1 days → two club mails"). Key on the EXPECTED subject rather
+      // than demanding a singleton inbox — still fails loud if an UNEXPECTED
+      // template (e.g. a stray cancel) lands at the club address. The
+      // imminentMailCount >= 1 assertion above already models this delta.
+      const clubMail = await waitForMessageWithSubject(
+        SEED_CLUB_NOTIFICATION_ADDRESS,
+        'Flugbetriebstag findet statt',
+      );
       expect(
         clubMail.Subject,
         'the imminent club mail is the planningday-ok template (the day takes place)',

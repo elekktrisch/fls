@@ -7,12 +7,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   type AbstractControl,
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
+  type ValidationErrors,
   type ValidatorFn,
   Validators,
   type FormGroup,
@@ -34,6 +35,8 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
+
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { LocationsStore } from '../../locations/locations.store';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
@@ -43,6 +46,18 @@ import { AircraftStore } from '../aircraft.store';
 const IMMAT_PATTERN = /^[A-Z0-9-]{2,15}$/;
 const FLARM_PATTERN = /^[A-Fa-f0-9]{6}$/;
 const COMP_SIGN_PATTERN = /^[A-Za-z0-9]{1,5}$/;
+
+/**
+ * The immatriculation validator stack (required + 2..15 + upper-only pattern).
+ * Exported so the as-you-type wiring spec drives the SAME rules the form does
+ * (J-26 T-10) without re-declaring them — a single source of truth.
+ */
+export const immatriculationValidators: readonly ValidatorFn[] = [
+  Validators.required,
+  Validators.minLength(2),
+  Validators.maxLength(15),
+  Validators.pattern(IMMAT_PATTERN),
+];
 
 type AircraftForm = FormGroup<{
   aircraftTypeId: FormControl<string>;
@@ -154,11 +169,7 @@ type AircraftForm = FormGroup<{
                   label="Immatriculation"
                   for="Immatriculation"
                   [required]="true"
-                  [errors]="
-                    form.controls.immatriculation.touched
-                      ? form.controls.immatriculation.errors
-                      : null
-                  "
+                  [errors]="immatriculationErrors()"
                 >
                   <af-input
                     inputId="Immatriculation"
@@ -170,11 +181,7 @@ type AircraftForm = FormGroup<{
                 <af-form-field
                   label="Competition sign"
                   for="CompetitionSign"
-                  [errors]="
-                    form.controls.competitionSign.touched
-                      ? form.controls.competitionSign.errors
-                      : null
-                  "
+                  [errors]="competitionSignErrors()"
                 >
                   <af-input
                     inputId="CompetitionSign"
@@ -187,11 +194,7 @@ type AircraftForm = FormGroup<{
                   label="Type"
                   for="AircraftTypeId"
                   [required]="true"
-                  [errors]="
-                    form.controls.aircraftTypeId.touched
-                      ? form.controls.aircraftTypeId.errors
-                      : null
-                  "
+                  [errors]="aircraftTypeErrors()"
                 >
                   <af-select
                     inputId="AircraftTypeId"
@@ -203,21 +206,25 @@ type AircraftForm = FormGroup<{
                 </af-form-field>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <af-form-field label="Manufacturer" for="ManufacturerName">
+                <af-form-field
+                  label="Manufacturer"
+                  for="ManufacturerName"
+                  [errors]="manufacturerNameErrors()"
+                >
                   <af-input
                     inputId="ManufacturerName"
                     formControlName="manufacturerName"
                     autocomplete="off"
                   />
                 </af-form-field>
-                <af-form-field label="Model" for="AircraftModel">
+                <af-form-field label="Model" for="AircraftModel" [errors]="aircraftModelErrors()">
                   <af-input
                     inputId="AircraftModel"
                     formControlName="aircraftModel"
                     autocomplete="off"
                   />
                 </af-form-field>
-                <af-form-field label="Seats" for="NrOfSeats">
+                <af-form-field label="Seats" for="NrOfSeats" [errors]="nrOfSeatsErrors()">
                   <af-input
                     inputId="NrOfSeats"
                     type="number"
@@ -246,11 +253,7 @@ type AircraftForm = FormGroup<{
                   />
                 </af-form-field>
               </div>
-              <af-form-field
-                label="SPOT tracker link"
-                for="SpotLink"
-                [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
-              >
+              <af-form-field label="SPOT tracker link" for="SpotLink" [errors]="spotLinkErrors()">
                 <af-input-group>
                   <af-input
                     inputId="SpotLink"
@@ -312,7 +315,7 @@ type AircraftForm = FormGroup<{
                 {{ t('sections.technical') }}
               </h2>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <af-form-field label="MTOM (kg)" for="Mtom">
+                <af-form-field label="MTOM (kg)" for="Mtom" [errors]="mtomErrors()">
                   <af-input
                     inputId="Mtom"
                     type="number"
@@ -320,7 +323,11 @@ type AircraftForm = FormGroup<{
                     autocomplete="off"
                   />
                 </af-form-field>
-                <af-form-field label="Serial number" for="SerialNumber">
+                <af-form-field
+                  label="Serial number"
+                  for="SerialNumber"
+                  [errors]="aircraftSerialNumberErrors()"
+                >
                   <af-input
                     inputId="SerialNumber"
                     formControlName="aircraftSerialNumber"
@@ -330,11 +337,7 @@ type AircraftForm = FormGroup<{
                 <af-form-field
                   label="Year of manufacture"
                   for="YearOfManufacture"
-                  [errors]="
-                    form.controls.yearOfManufacture.touched
-                      ? form.controls.yearOfManufacture.errors
-                      : null
-                  "
+                  [errors]="yearOfManufactureErrors()"
                 >
                   <af-select
                     inputId="YearOfManufacture"
@@ -346,11 +349,7 @@ type AircraftForm = FormGroup<{
                 </af-form-field>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <af-form-field
-                  label="FLARM ID"
-                  for="FlarmId"
-                  [errors]="form.controls.flarmId.touched ? form.controls.flarmId.errors : null"
-                >
+                <af-form-field label="FLARM ID" for="FlarmId" [errors]="flarmIdErrors()">
                   <af-input
                     inputId="FlarmId"
                     formControlName="flarmId"
@@ -366,7 +365,7 @@ type AircraftForm = FormGroup<{
                     autocomplete="off"
                   />
                 </af-form-field>
-                <af-form-field label="Noise class" for="NoiseClass">
+                <af-form-field label="Noise class" for="NoiseClass" [errors]="noiseClassErrors()">
                   <af-input
                     inputId="NoiseClass"
                     formControlName="noiseClass"
@@ -396,7 +395,7 @@ type AircraftForm = FormGroup<{
                   </af-form-field>
                 }
               </div>
-              <af-form-field label="Comment" for="Comment">
+              <af-form-field label="Comment" for="Comment" [errors]="commentErrors()">
                 <af-input inputId="Comment" formControlName="comment" autocomplete="off" />
               </af-form-field>
             </section>
@@ -506,12 +505,7 @@ export class AircraftEditPage {
 
   protected readonly form: AircraftForm = this.fb.group({
     aircraftTypeId: this.fb.nonNullable.control('', [Validators.required]),
-    immatriculation: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.minLength(2),
-      Validators.maxLength(15),
-      Validators.pattern(IMMAT_PATTERN),
-    ]),
+    immatriculation: this.fb.nonNullable.control('', [...immatriculationValidators]),
     manufacturerName: this.fb.nonNullable.control('', [Validators.maxLength(100)]),
     aircraftModel: this.fb.nonNullable.control('', [Validators.maxLength(50)]),
     competitionSign: this.fb.nonNullable.control('', [
@@ -541,6 +535,39 @@ export class AircraftEditPage {
   });
 
   protected readonly saveSubmitted = signal(false);
+
+  // J-26 T-10 — server-side immatriculation-duplicate routed through the
+  // `liveFieldErrors` async slot (`inline-validation.ts` extension point) rather
+  // than `setErrors`, so the inline message surfaces under the as-you-type
+  // binding (a `setErrors` carries no `valueChanges`, so the debounced stream
+  // would never re-read it). Cleared the moment the user retypes (effect below).
+  private readonly immatriculationDuplicate = signal<ValidationErrors | null>(null);
+
+  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
+  // infra): each `af-form-field [errors]` tracks its control's errors debounced
+  // ~200ms and clears when valid — replacing the touched-only `[errors]="ctl.touched
+  // ? …"` bindings (silent until blur/submit) and binding the previously-silent
+  // optional fields (manufacturer/model/seats/MTOM/serial/noise class/comment)
+  // that carried a maxLength/min validator but rendered no inline error at all.
+  protected readonly immatriculationErrors = liveFieldErrors(this.form.controls.immatriculation, {
+    asyncErrors$: toObservable(this.immatriculationDuplicate),
+  });
+  protected readonly competitionSignErrors = liveFieldErrors(this.form.controls.competitionSign);
+  protected readonly aircraftTypeErrors = liveFieldErrors(this.form.controls.aircraftTypeId);
+  protected readonly manufacturerNameErrors = liveFieldErrors(this.form.controls.manufacturerName);
+  protected readonly aircraftModelErrors = liveFieldErrors(this.form.controls.aircraftModel);
+  protected readonly nrOfSeatsErrors = liveFieldErrors(this.form.controls.nrOfSeats);
+  protected readonly spotLinkErrors = liveFieldErrors(this.form.controls.spotLink);
+  protected readonly mtomErrors = liveFieldErrors(this.form.controls.mtom);
+  protected readonly aircraftSerialNumberErrors = liveFieldErrors(
+    this.form.controls.aircraftSerialNumber,
+  );
+  protected readonly yearOfManufactureErrors = liveFieldErrors(
+    this.form.controls.yearOfManufacture,
+  );
+  protected readonly flarmIdErrors = liveFieldErrors(this.form.controls.flarmId);
+  protected readonly noiseClassErrors = liveFieldErrors(this.form.controls.noiseClass);
+  protected readonly commentErrors = liveFieldErrors(this.form.controls.comment);
 
   private readonly aircraftTypeIdValue = toSignal(this.form.controls.aircraftTypeId.valueChanges, {
     initialValue: '',
@@ -609,26 +636,22 @@ export class AircraftEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       if (this.store.saveErrorKind() === 'immatriculation-duplicate') {
-        // Merge into existing errors so a concurrent format / length error
-        // isn't masked by the synthetic duplicate flag.
-        this.form.controls.immatriculation.setErrors({
-          ...(this.form.controls.immatriculation.errors ?? {}),
-          duplicate: true,
-        });
+        // Route through the live-errors async slot (merged with any concurrent
+        // client error via `mergeFieldErrors`, never masking it) so the inline
+        // message surfaces under the as-you-type binding.
+        this.immatriculationDuplicate.set({ duplicate: true });
         this.form.controls.immatriculation.markAsTouched();
       }
     });
 
     const destroyRef = inject(DestroyRef);
-    // Clear the synthetic `duplicate` flag the moment the user retypes the
+    // Clear the server-side `duplicate` flag the moment the user retypes the
     // immatriculation so Save re-enables without a blur dance.
     this.form.controls.immatriculation.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(() => {
-        if (this.form.controls.immatriculation.hasError('duplicate')) {
-          const errs = { ...this.form.controls.immatriculation.errors };
-          delete errs['duplicate'];
-          this.form.controls.immatriculation.setErrors(Object.keys(errs).length ? errs : null);
+        if (this.immatriculationDuplicate() !== null) {
+          this.immatriculationDuplicate.set(null);
         }
         if (this.store.saveErrorKind() === 'immatriculation-duplicate') {
           this.store.clearSaveError();
@@ -757,9 +780,16 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   };
 }
 
-function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
-  const v = form.getRawValue();
-  const req: AircraftCreateRequest = {
+// The required base + the shared optionals map (J-26 T-22 — both builders pass
+// the SAME pruning map to `withOptionals`, which drops every `''`/`null`/
+// `undefined` field in one pass instead of ~18 hand `if (v.x !== '') req.x = …`
+// branches per builder). `numberOrUndefined` maps the form's `null` sentinel to
+// `undefined` so `withOptionals` prunes it (it treats `null` AND `undefined` as
+// "not provided"); `''` text fields prune directly.
+type AircraftFormValue = ReturnType<AircraftForm['getRawValue']>;
+
+function aircraftRequestBase(v: AircraftFormValue) {
+  return {
     aircraftTypeId: v.aircraftTypeId,
     immatriculation: v.immatriculation.toUpperCase(),
     isTowingOrWinchRequired: v.isTowingOrWinchRequired,
@@ -767,57 +797,44 @@ function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
     isWinchStartAllowed: v.isWinchStartAllowed,
     isTowingAircraft: v.isTowingAircraft,
   };
-  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
-  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
-  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
-  if (v.flarmId !== '') req.flarmId = v.flarmId;
-  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
-  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
-  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
-  if (v.mtom !== null) req.mtom = v.mtom;
-  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
-  if (v.daecIndex !== null) req.daecIndex = v.daecIndex;
-  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
-  if (v.engineOperatingCounterUnitTypeId !== '') {
-    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
-  }
-  if (v.spotLink !== '') req.spotLink = v.spotLink;
-  if (v.comment !== '') req.comment = v.comment;
-  return req;
+}
+
+function aircraftSharedOptionals(v: AircraftFormValue) {
+  return {
+    manufacturerName: v.manufacturerName,
+    aircraftModel: v.aircraftModel,
+    competitionSign: v.competitionSign,
+    flarmId: v.flarmId,
+    aircraftSerialNumber: v.aircraftSerialNumber,
+    yearOfManufacture: v.yearOfManufacture === '' ? '' : yearToIso(v.yearOfManufacture),
+    noiseClass: v.noiseClass,
+    noiseLevel: v.noiseLevel ?? undefined,
+    mtom: v.mtom ?? undefined,
+    nrOfSeats: v.nrOfSeats ?? undefined,
+    daecIndex: v.daecIndex ?? undefined,
+    homebaseId: v.homebaseId,
+    engineOperatingCounterUnitTypeId: v.engineOperatingCounterUnitTypeId,
+    spotLink: v.spotLink,
+    comment: v.comment,
+  };
+}
+
+function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
+  const v = form.getRawValue();
+  // `withOptionals` returns `Base & Partial<Opt>`; under `exactOptionalPropertyTypes`
+  // the `Partial` widens each optional with `| undefined`, which the DTO's exact
+  // optionals reject. The runtime pruning guarantees no `undefined` survives on
+  // the object, so the narrowing cast is sound.
+  return withOptionals(aircraftRequestBase(v), aircraftSharedOptionals(v)) as AircraftCreateRequest;
 }
 
 function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   const v = form.getRawValue();
-  const req: AircraftUpdateRequest = {
-    aircraftTypeId: v.aircraftTypeId,
-    immatriculation: v.immatriculation.toUpperCase(),
-    isTowingOrWinchRequired: v.isTowingOrWinchRequired,
-    isTowingStartAllowed: v.isTowingStartAllowed,
-    isWinchStartAllowed: v.isWinchStartAllowed,
-    isTowingAircraft: v.isTowingAircraft,
-  };
-  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
-  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
-  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
-  if (v.flarmId !== '') req.flarmId = v.flarmId;
-  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
-  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
-  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
-  if (v.mtom !== null) req.mtom = v.mtom;
-  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
-  if (v.daecIndex !== null) req.daecIndex = v.daecIndex;
-  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
-  // flightOperatingCounterUnitTypeId is preserved from the loaded detail and
-  // echoed back unchanged — the master-data form has no UI for it (parity).
-  if (v.flightOperatingCounterUnitTypeId !== '') {
-    req.flightOperatingCounterUnitTypeId = v.flightOperatingCounterUnitTypeId;
-  }
-  if (v.engineOperatingCounterUnitTypeId !== '') {
-    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
-  }
-  if (v.spotLink !== '') req.spotLink = v.spotLink;
-  if (v.comment !== '') req.comment = v.comment;
-  return req;
+  return withOptionals(aircraftRequestBase(v), {
+    ...aircraftSharedOptionals(v),
+    // flightOperatingCounterUnitTypeId is preserved from the loaded detail and
+    // echoed back unchanged — the master-data form has no UI for it (parity).
+    // Create has no such field on the wire, so it's update-only here.
+    flightOperatingCounterUnitTypeId: v.flightOperatingCounterUnitTypeId,
+  }) as AircraftUpdateRequest;
 }

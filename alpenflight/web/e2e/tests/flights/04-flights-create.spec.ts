@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
+
 /**
  * Spec #04 (ported parity): driving the flight-edit wizard end-to-end to
  * create a glider flight. The legacy spec injected on `$scope` to bypass
@@ -178,11 +180,13 @@ test.describe('flight edit — create (parity port)', () => {
     // (not Aerotow) — only steps 0 (Launch) and 1 (Glider) render.
     await expect(page.getByTestId('flight-step-2')).toHaveCount(0);
 
-    // Move to step 2 (glider). Aircraft / pilot / flight type already
-    // defaulted from new-template; type a comment for parity-with-legacy
-    // assertion.
+    // Move to step 2 (glider). Aircraft / flight type defaulted from
+    // new-template; pick a pilot (J-26 T-13 made it a client-required field —
+    // the new-template's empty crew leaves it blank, so Save is gated until a
+    // pilot is chosen) + type a comment for the parity assertion.
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+    await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
     await page.getByTestId('flight-edit-glider-comment').locator('input').fill('parity create');
 
     await page.screenshot({ path: 'screenshots/flights/04-02-glider-filled.png', fullPage: true });

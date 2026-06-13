@@ -7,6 +7,7 @@ import type {
 import {
   flightDetailToFormSnapshot,
   templateToFormSnapshot,
+  type CrewSnapshot,
   type FlightFormSnapshot,
 } from './flight-form.model';
 import type { FlightPrefs } from './flight-prefs.service';
@@ -50,6 +51,58 @@ export function buildDefaultsForEdit(
   return flightDetailToFormSnapshot(glider, tow);
 }
 
+/**
+ * Empty-field overlay precedence: `base ?? source ?? null` for every listed
+ * `[snapshotKey, sourceKey]` pair (J-26 T-23). Each merge is "keep the base
+ * value when set, else borrow the source's, else `null`" — the smart-default
+ * rule (AC-DIR-5: never overwrite an explicit pick). Driving the 12 last-context
+ * merges off these tables instead of 12 inline `??` triplets collapses the
+ * function's branch count (fallow `applyLastContextThenPrefs` CRAP 210 hotspot).
+ */
+// The CrewSnapshot keys that hold a nullable id/route string (the only ones
+// ever overlaid from context) — restricting the pair tables to these keeps the
+// boolean/flag fields out of the merge so the clone-and-assign stays typed.
+type CrewStringKey = {
+  [K in keyof CrewSnapshot]: CrewSnapshot[K] extends string | null ? K : never;
+}[keyof CrewSnapshot];
+
+function coalesceCrew<S extends Record<string, unknown>>(
+  base: CrewSnapshot,
+  source: S,
+  pairs: readonly (readonly [CrewStringKey, keyof S])[],
+): CrewSnapshot {
+  const merged: CrewSnapshot = { ...base };
+  for (const [snapKey, sourceKey] of pairs) {
+    merged[snapKey] = base[snapKey] ?? (source[sourceKey] as string) ?? null;
+  }
+  return merged;
+}
+
+// Glider crew fields seeded from the flat last-context response (same names on
+// both sides). `aircraftId` is deliberately absent — the glider aircraft is the
+// user's explicit pick, never borrowed from context.
+const GLIDER_CTX_PAIRS = [
+  ['flightTypeId', 'flightTypeId'],
+  ['pilotPersonId', 'pilotPersonId'],
+  ['invoiceRecipientPersonId', 'invoiceRecipientPersonId'],
+  ['startLocationId', 'startLocationId'],
+  ['ldgLocationId', 'ldgLocationId'],
+  ['outboundRoute', 'outboundRoute'],
+  ['inboundRoute', 'inboundRoute'],
+  ['flightCostBalanceTypeId', 'flightCostBalanceTypeId'],
+] as const satisfies readonly (readonly [CrewStringKey, keyof FlightLastContextResponse])[];
+
+// Tow crew fields seeded from `ctx.tow` (TowContext) — only when present.
+const TOW_CTX_PAIRS = [
+  ['aircraftId', 'aircraftId'],
+  ['flightTypeId', 'flightTypeId'],
+  ['pilotPersonId', 'pilotPersonId'],
+  ['ldgLocationId', 'ldgLocationId'],
+] as const satisfies readonly (readonly [
+  CrewStringKey,
+  keyof NonNullable<FlightLastContextResponse['tow']>,
+])[];
+
 function applyLastContextThenPrefs(
   base: FlightFormSnapshot,
   ctx: FlightLastContextResponse | null,
@@ -59,28 +112,8 @@ function applyLastContextThenPrefs(
   const merged: FlightFormSnapshot = {
     ...base,
     startTypeId: base.startTypeId ?? ctx.startTypeId ?? null,
-    glider: {
-      ...base.glider,
-      flightTypeId: base.glider.flightTypeId ?? ctx.flightTypeId ?? null,
-      pilotPersonId: base.glider.pilotPersonId ?? ctx.pilotPersonId ?? null,
-      invoiceRecipientPersonId:
-        base.glider.invoiceRecipientPersonId ?? ctx.invoiceRecipientPersonId ?? null,
-      startLocationId: base.glider.startLocationId ?? ctx.startLocationId ?? null,
-      ldgLocationId: base.glider.ldgLocationId ?? ctx.ldgLocationId ?? null,
-      outboundRoute: base.glider.outboundRoute ?? ctx.outboundRoute ?? null,
-      inboundRoute: base.glider.inboundRoute ?? ctx.inboundRoute ?? null,
-      flightCostBalanceTypeId:
-        base.glider.flightCostBalanceTypeId ?? ctx.flightCostBalanceTypeId ?? null,
-    },
-    tow: ctx.tow
-      ? {
-          ...base.tow,
-          aircraftId: base.tow.aircraftId ?? ctx.tow.aircraftId ?? null,
-          flightTypeId: base.tow.flightTypeId ?? ctx.tow.flightTypeId ?? null,
-          pilotPersonId: base.tow.pilotPersonId ?? ctx.tow.pilotPersonId ?? null,
-          ldgLocationId: base.tow.ldgLocationId ?? ctx.tow.ldgLocationId ?? null,
-        }
-      : base.tow,
+    glider: coalesceCrew(base.glider, ctx, GLIDER_CTX_PAIRS),
+    tow: ctx.tow ? coalesceCrew(base.tow, ctx.tow, TOW_CTX_PAIRS) : base.tow,
   };
   return applyPrefsOverlay(merged, prefs);
 }

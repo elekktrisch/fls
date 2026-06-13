@@ -3,10 +3,12 @@
  * {@code planning.domain} ports (J-6 T-03).
  * {@link ch.alpenflight.planning.infra.JpaPlanningDayRepository} extends both
  * {@link ch.alpenflight.planning.domain.PlanningDayRepository} and Spring Data's
- * {@code JpaRepository<PlanningDay, UUID>}; the dedup-aware save + the native
- * per-day reservation count live in the {@code PlanningDayPersistenceProbe}
- * custom fragment (the count is the one tenant-scoped native escape hatch,
- * registered in {@code native-sql-register.md}).
+ * {@code JpaRepository<PlanningDay, UUID>}; the dedup-aware save lives in the
+ * {@code PlanningDayPersistenceProbe} custom fragment, which also surfaces the
+ * per-day reservation count by delegating to the {@code reservations} module's
+ * {@link ch.alpenflight.reservations.api.ReservationCountPort} named interface
+ * (J-26 T-16 — the count is no longer native SQL; the
+ * {@code planning-day-reservation-count} register hatch is retired).
  * {@link ch.alpenflight.planning.infra.JpaPlanningDayAssignmentTypeRepository}
  * gives the per-club assignment-type lookup its Spring Data binding.
  *

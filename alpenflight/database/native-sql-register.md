@@ -158,44 +158,63 @@ carries an expiry + removal plan.
   discriminator does not apply to native SQL, so the predicate is the explicit
   tenant gate. Soft-deleted rows excluded (`deleted_on IS NULL`); the edited row
   self-excluded (`:excludeId IS NULL OR id <> :excludeId`).
+- **Keep-vs-convert decision (J-26 T-17, 2026-06-12 — KEEP GiST):** re-affirm
+  pass weighed the derived-JPQL alternative
+  (`reservationStart < :end AND :start < reservationEnd`) and **rejected it.**
+  This is a genuine vendor-SQL-feature seam, not a complex-read that ADR 0027
+  would push into a read-model: (a) the `&&` range-overlap operator over the
+  `GENERATED ALWAYS AS … STORED` `reservation_range tstzrange` column
+  (V4:210-211) has **no JPQL/HQL form** — neither the operator nor a reference
+  to a generated range column is expressible; (b) the probe rides the partial
+  GiST index `ix_arv_aircraft_range_gist` (V4:245-246, `WHERE deleted_on IS
+  NULL`) for the sub-10ms point-probe the V4 design notes call out — a derived
+  JPQL form drops to a seq-scan-prone two-column compare with no index that fits
+  the half-open semantics; (c) the rule itself already lives on the aggregate
+  (`AircraftReservation.conflictsWith`) — this is purely the persistence fast
+  path, not business logic in SQL. The half-open `[)` boundary is encoded once
+  in the generated column, so there is no parity drift risk a hand-written JPQL
+  range compare would re-introduce. Decision: **stays native, keeps GiST.**
 - **Reviewer:** auto-registered with J-5 T-04; security-reviewer panel
-  (ship-time gate) re-confirms.
+  (ship-time gate) re-confirms; J-26 T-17 re-affirm pass (above).
 - **Approved:** 2026-06-06.
 - **Expires:** 2027-06-06
 - **Remove when:** Hibernate exposes a first-class range-overlap predicate over a
-  generated range column under the `@TenantId` filter, OR the conflict probe
-  moves to a derived JPQL `reservationStart < :end AND :start < reservationEnd`
-  form (loses the GiST index but stays tenant-filtered) if production query
-  plans show the index is unnecessary at per-club reservation counts.
+  generated range column under the `@TenantId` filter. (The derived-JPQL
+  fallback was evaluated and rejected in the J-26 T-17 decision above — only the
+  Hibernate-feature path retires this entry now.)
 
-### `planning-day-reservation-count` — `Per-planning-day aircraft-reservation count`
+## Re-affirm log
 
-- **Caller:** `src/main/java/ch/alpenflight/planning/infra/PlanningDayPersistenceProbeImpl.java`
-- **Tenant-scoped tables touched:** t_aircraft_reservation
-- **Justification:** the legacy `NumberOfAircraftReservations` is a *computed*
-  count (never stored — J-6 behavior oracle): the number of non-deleted
-  aircraft reservations for the caller's club whose `date(reservation_start)`
-  equals the planning day's pure-`DATE` `planning_date` at the same location.
-  The `date(timestamptz)` cast against a pure DATE has no JPQL form, and the
-  count reads the cross-module `t_aircraft_reservation` table — querying the
-  `reservations` `AircraftReservation` entity from `planning.infra` JPQL would
-  couple the two modules' persistence. Native SQL keeps the planning aggregate
-  decoupled and expresses the date cast directly; it is a read-only count
-  feeding the planning list/edit projection.
-- **Tenancy gate:** explicit `operating_club_id = :tenantId` predicate — the
-  tenant id is resolved from `ClubTenantIdentifierResolver` (same JWT →
-  `Tenants.runAs` carrier precedence the JPA path uses) and parameter-bound,
-  never caller-controlled string interpolation. Hibernate's `@TenantId`
-  discriminator does not apply to native SQL, so the predicate is the explicit
-  tenant gate. Soft-deleted reservations excluded (`deleted_on IS NULL`).
-- **Reviewer:** auto-registered with J-6 T-03; security-reviewer panel
-  (ship-time gate) re-confirms.
-- **Approved:** 2026-06-06.
-- **Expires:** 2027-06-06
-- **Remove when:** the planning module gains a read-model / projection that
-  carries the per-day reservation count without crossing into the reservations
-  table, OR a shared cross-module count port is introduced so `planning` reads
-  the figure through the `reservations` domain API instead of native SQL.
+- **J-26 T-17 (2026-06-12) — full re-affirm pass.** Every entry above was
+  re-checked against the live tree: the caller file still exists, still makes the
+  native/JDBC call, and the justification is still a structurally-pre-tenant /
+  vendor-SQL-feature / system-actor-null-tenant seam (not a "complex read" ADR
+  0027 would route to a read-model). Verdicts: all five **KEPT**
+  (`tenancy-provisioning-reference-data-seed`, `mutation-audit-event-system-actor-write`,
+  `persons-cross-tenant-membership-check`, `tenancy-showcase-seed-deterministic-ids`,
+  `reservations-conflict-gist-overlap-probe`). The conflict-probe keep-vs-convert
+  decision is recorded in-entry (KEEP GiST).
+- **Structurally-pre-tenant `t_user` JDBC sites — reviewed, no register entry
+  required (by design).** `platform/tenancy/UserPrincipalLookup.java` (Hibernate
+  tenant-resolver session-open path — resolves the JWT principal's `club_id`
+  *before* a tenant carrier exists, so it cannot run through JPA) and
+  `migrations/application/PreTenantUserLookup.java` (S-140 pre-tenant handshake
+  provisioning) both touch only `t_user`, which is **not** `@TenantId`-scoped
+  (the `User` aggregate is deliberately cross-tenant — scoping is an explicit
+  `WHERE u.club_id` predicate, see its javadoc). The register defends
+  tenant-scoped tables only (`NativeSqlRegisterTest` derives its roster from
+  `@TenantId`-bearing entities), so these are correctly absent — they stay JDBC
+  and stay off the register.
+- **Sites retired/converted by T-14/T-15/T-16 — confirmed gone from the native
+  inventory.** `LanguageCodeLookup` (T-14 → RM-4 `Language` JPA repo),
+  `JpaClubStateRepository` + `JpaCountryRepository` (T-15 → derived JPQL after the
+  V40 column-level ICU collation), `PlanningDayPersistenceProbeImpl`
+  (T-16 → `reservations.api.ReservationCountPort`), and `MeService` (RM-4) no
+  longer hold any `JdbcTemplate`/`createNativeQuery` call — the only remaining
+  textual hits in those files are javadoc notes recording the retirement. None
+  of those touched a tenant-scoped table, so none ever held a register entry to
+  remove; the two read-model retirements that *did* have entries are logged under
+  `## Retired`.
 
 When you need to add one:
 
@@ -213,6 +232,18 @@ When you need to add one:
 - `flight-report-read-model` — retired 2026-06-11 by ADR 0027 RM-3: the report
   read path is now plain JPA over `t_flight_report_row` (domain-maintained
   read-model, `JpaFlightReportReadAdapter`); the native-SQL caller was deleted.
+- `planning-day-reservation-count` — retired 2026-06-12 by J-26 T-16 (the
+  entry's own "Remove when"): a shared cross-module count port
+  (`reservations.api.ReservationCountPort`, a Spring Modulith `@NamedInterface`)
+  now exposes the per-day reservation count, so `planning` reads
+  `NumberOfAircraftReservations` through the `reservations` domain API instead
+  of native SQL. The implementation (`JpaReservationCountAdapter` →
+  `JpaAircraftReservationRepository.countActiveOnDayAtLocation`) is plain JPQL
+  over `AircraftReservation`: the `date(reservation_start) = :planningDate` cast
+  became a derived half-open UTC-day range
+  (`reservationStart >= dayStart AND reservationStart < dayStart + 1 day`),
+  tenant-filtered via Hibernate's `@TenantId` discriminator. The native caller
+  in `PlanningDayPersistenceProbeImpl` was deleted.
 
 ## Entry template
 

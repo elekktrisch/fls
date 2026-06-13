@@ -1,6 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { describe, expect, it } from 'vitest';
 
+import {
+  classifyApiError,
+  genericSaveErrorMessage,
+  problemDetailBody,
+  type SaveErrorRule,
+} from './error-patch';
 import { mapApiSaveError } from './save-error';
 import { withOptionals } from './optional-fields';
 
@@ -46,6 +52,73 @@ describe('mapApiSaveError', () => {
   it('uses the generic fallback as a last resort', () => {
     const e = new HttpErrorResponse({ status: 500, error: null });
     expect(mapApiSaveError(e, keyMessages, { fallback: 'Save failed.' })).toBe('Save failed.');
+  });
+});
+
+describe('classifyApiError', () => {
+  type Kind = 'forbidden' | 'conflict-self' | 'validation' | 'other';
+
+  const rules: readonly SaveErrorRule<Kind>[] = [
+    {
+      status: 403,
+      outcome: (b) => ({ saveError: b.detail ?? 'Not allowed.', saveErrorKind: 'forbidden' }),
+    },
+    {
+      status: 409,
+      when: (b) => /self/i.test(b.detail ?? ''),
+      outcome: (b) => ({ saveError: b.detail ?? '', saveErrorKind: 'conflict-self' }),
+    },
+    {
+      status: 400,
+      outcome: (b) => ({ saveError: b.detail ?? b.message ?? '', saveErrorKind: 'validation' }),
+    },
+  ];
+
+  const fallback = (b: ReturnType<typeof problemDetailBody>, e: HttpErrorResponse) => ({
+    saveError: genericSaveErrorMessage(b, e),
+    saveErrorKind: 'other' as Kind,
+  });
+
+  it('matches the first rule whose status equals the response status', () => {
+    const e = new HttpErrorResponse({ status: 403, error: { detail: 'No.' } });
+    expect(classifyApiError(e, rules, fallback)).toEqual({
+      saveError: 'No.',
+      saveErrorKind: 'forbidden',
+    });
+  });
+
+  it('skips a status-matching rule whose `when` predicate fails, then falls through', () => {
+    const e = new HttpErrorResponse({ status: 409, error: { detail: 'totally different' } });
+    // 409 self-rule `when` fails → no other 409 rule → generic fallback.
+    expect(classifyApiError(e, rules, fallback)).toEqual({
+      saveError: 'totally different',
+      saveErrorKind: 'other',
+    });
+  });
+
+  it('honours rule order: a passing `when` wins over the generic fallback', () => {
+    const e = new HttpErrorResponse({
+      status: 409,
+      error: { detail: 'a user cannot self-delete' },
+    });
+    expect(classifyApiError(e, rules, fallback).saveErrorKind).toBe('conflict-self');
+  });
+
+  it('falls back to body.detail ?? body.message ?? e.message when no rule matches', () => {
+    const e = new HttpErrorResponse({ status: 500, error: { message: 'boom' } });
+    expect(classifyApiError(e, rules, fallback)).toEqual({
+      saveError: 'boom',
+      saveErrorKind: 'other',
+    });
+  });
+
+  it('passes an empty body object to predicates/outcomes when error body is null', () => {
+    const e = new HttpErrorResponse({ status: 400, error: null });
+    // 400 rule fires with an empty body → no detail/message → empty saveError.
+    expect(classifyApiError(e, rules, fallback)).toEqual({
+      saveError: '',
+      saveErrorKind: 'validation',
+    });
   });
 });
 

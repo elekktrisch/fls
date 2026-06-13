@@ -3,10 +3,13 @@ package ch.alpenflight.multitenancy.leakage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.SweepFixtureContext;
 import ch.alpenflight.server.testsupport.TenantScopedEntityCatalog;
 import ch.alpenflight.server.testsupport.TenantScopedRowBuilders;
-import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.util.UUID;
@@ -52,16 +55,19 @@ import org.springframework.web.context.support.GenericWebApplicationContext;
  */
 class LeakageSweepIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c2");
     private static final String NAME_PREFIX = "IT_SWP_";
     private static final String KEY_PREFIX = "IT_S_";
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private GenericWebApplicationContext appContext;
+    @Autowired private ClubRepository clubRepo;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
 
     private TwoClubFixture clubs;
     private SweepFixtureContext ctx;
+    private UUID clubA;
+    private UUID clubB;
 
     static Stream<Class<?>> tenantScopedEntities() {
         return TenantScopedEntityCatalog.discoverTenantScopedEntities().stream();
@@ -69,10 +75,12 @@ class LeakageSweepIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        this.clubs = new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX);
+        this.clubs = new TwoClubFixture(jdbc, clubRepo, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         clubs.seed();
+        this.clubA = clubs.clubA();
+        this.clubB = clubs.clubB();
         TenantTestContext.clear();
-        this.ctx = new SweepFixtureContext(jdbc);
+        this.ctx = new SweepFixtureContext(appContext);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -80,10 +88,10 @@ class LeakageSweepIT extends PostgresIntegrationTest {
     @DisplayName("create-as-A is invisible to B (findAll + findById)")
     <E> void tenant_scoped_create_in_A_invisible_to_B(Class<E> entityClass) {
         JpaRepository<E, UUID> repo = repositoryFor(entityClass);
-        E persisted = saveAs(entityClass, repo, CLUB_A);
+        E persisted = saveAs(entityClass, repo, clubA);
         UUID id = idOf(persisted);
 
-        TenantTestContext.runAs(CLUB_B, () -> {
+        TenantTestContext.runAs(clubB, () -> {
             assertThat(repo.findById(id))
                     .as("findById under B must not see A's row for %s", entityClass.getSimpleName())
                     .isEmpty();
@@ -99,10 +107,10 @@ class LeakageSweepIT extends PostgresIntegrationTest {
     @DisplayName("create-as-A is visible to A (positive baseline)")
     <E> void tenant_scoped_returns_own_rows_under_self(Class<E> entityClass) {
         JpaRepository<E, UUID> repo = repositoryFor(entityClass);
-        E persisted = saveAs(entityClass, repo, CLUB_A);
+        E persisted = saveAs(entityClass, repo, clubA);
         UUID id = idOf(persisted);
 
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             assertThat(repo.findAll())
                     .as("positive baseline — findAll under A must include A's row for %s",
                             entityClass.getSimpleName())
@@ -120,7 +128,7 @@ class LeakageSweepIT extends PostgresIntegrationTest {
     @DisplayName("NO_TENANT sentinel — findAll returns zero rows")
     <E> void tenant_scoped_no_tenant_sentinel_read_returns_zero(Class<E> entityClass) {
         JpaRepository<E, UUID> repo = repositoryFor(entityClass);
-        saveAs(entityClass, repo, CLUB_A);
+        saveAs(entityClass, repo, clubA);
 
         TenantTestContext.runUnscoped(() -> assertThat(repo.findAll())
                 .as("NO_TENANT read on %s must be empty (Hibernate filters on nil UUID)",

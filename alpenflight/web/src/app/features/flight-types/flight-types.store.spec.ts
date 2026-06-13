@@ -163,6 +163,42 @@ describe('FlightTypesStore', () => {
     expect(store.saveErrorKind()).toBe('name-duplicate');
   });
 
+  it('create routes a 409 with field=flightCode to code-duplicate (not name-duplicate)', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      statusText: 'Conflict',
+      error: { field: 'flightCode', message: 'common.errors.duplicate' },
+    });
+    configure(
+      apiStub({
+        list: () => of([sampleItem]),
+        create: () => throwError(() => err),
+      }),
+    );
+    const store = TestBed.inject(FlightTypesStore);
+    store.create({ ...baseCreateReq, flightCode: 'S' });
+    expect(store.saveError()).toContain('"S"');
+    expect(store.saveError()).toContain('code');
+    expect(store.saveErrorKind()).toBe('code-duplicate');
+  });
+
+  it('update routes a 409 with field=flightCode to code-duplicate', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      statusText: 'Conflict',
+      error: { field: 'flightCode' },
+    });
+    configure(
+      apiStub({
+        list: () => of([sampleItem]),
+        update: () => throwError(() => err),
+      }),
+    );
+    const store = TestBed.inject(FlightTypesStore);
+    store.update({ id: sampleItem.id!, req: { ...baseUpdateReq, flightCode: 'S' } });
+    expect(store.saveErrorKind()).toBe('code-duplicate');
+  });
+
   it('create surfaces 403 as forbidden', () => {
     const err = new HttpErrorResponse({ status: 403, statusText: 'Forbidden' });
     configure(

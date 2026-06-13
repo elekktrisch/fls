@@ -2,10 +2,13 @@ package ch.alpenflight.deployments.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.platform.tenancy.TenantContextCarrier;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Clock;
@@ -32,8 +35,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class DeploymentContextIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d2");
+    private static final String NAME_PREFIX = "IT_DC_";
+    private static final String KEY_PREFIX = "IT_DC_";
 
     @Autowired
     private DeploymentContext deploymentContext;
@@ -44,18 +47,35 @@ class DeploymentContextIT extends PostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private ClubRepository clubs;
+
+    @Autowired
+    private CountryRepository countries;
+
+    @Autowired
+    private ClubStateRepository clubStates;
+
     private final Clock clock = Clock.systemUTC();
+    private UUID clubA;
+    private UUID clubB;
     private UUID activeDeploymentId;
 
     @BeforeEach
     void seed() {
-        // The previous test re-pointed CLUB_A/B at an IT-owned Deployment;
-        // ON DELETE RESTRICT on club.deployment_id blocks the cleanup
-        // DELETE unless we re-point them back first.
+        // A previous run re-pointed its (now-stale) clubs at an IT-owned
+        // Deployment; ON DELETE RESTRICT on club.deployment_id would block the
+        // fixture's by-slug cleanup DELETE unless those clubs are re-pointed
+        // back to the operator Deployment first. Keyed on the IT_DC_ deployment
+        // name (club-id-independent), so it runs before the fixture mints.
         jdbc.update("UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
                 + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_DC_%')");
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_DC_%'");
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_DC_", "IT_DC_").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
 
         UUID owner = UUID.fromString("00000000-0000-0000-0000-00000000d100");
         Deployment trial = Deployment.startTrial(clock, "IT_DC_active", owner);
@@ -66,7 +86,7 @@ class DeploymentContextIT extends PostgresIntegrationTest {
         // Re-point the two seed Clubs to this Deployment so forEachClub sees them.
         jdbc.update("UPDATE t_club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
                 activeDeploymentId.toString(),
-                CLUB_A.toString(), CLUB_B.toString());
+                clubA.toString(), clubB.toString());
     }
 
     @Test
@@ -77,7 +97,7 @@ class DeploymentContextIT extends PostgresIntegrationTest {
             observedTenants.add(TenantContextCarrier.current().orElse(null));
         });
 
-        assertThat(observedTenants).containsExactlyInAnyOrder(CLUB_A, CLUB_B);
+        assertThat(observedTenants).containsExactlyInAnyOrder(clubA, clubB);
     }
 
     @Test

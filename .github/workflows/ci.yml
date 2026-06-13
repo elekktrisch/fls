@@ -216,7 +216,24 @@ jobs:
               # job loads — running it here, clean-seed, would red. It already
               # has its own gating job, so we fall through to the baseline.)
               if [ -f "alpenflight/web/${spec}" ]; then
-                emit "$spec" "$jid" "false"; exit 0
+                # The file existing is NOT enough: a STUB spec whose every case
+                # is `test.fixme(` / `test.skip(` (the journey's parity_test
+                # authored at T-01, before its assertions are thickened) runs as
+                # a NO-OP here — zero captures, so the post-deploy
+                # deployed-journey guard then reds demanding a complete
+                # journey-under-work page that this run never produced (J-26
+                # T-31). Require ≥1 ACTIVE real-idp test before treating the
+                # spec as runnable. "Active" = a top-level `test(` declaration
+                # (NOT `test.fixme(` / `test.skip(` — those carry a `.` after
+                # `test`, so `^\s*test\(` excludes them; `test.describe(`
+                # grouping is likewise excluded — only the inner `test(` counts).
+                # When T-27 un-fixmes the assertions, this auto-flips to
+                # is_baseline=false with no workflow change.
+                if grep -qE '^[[:space:]]*test\(' "alpenflight/web/${spec}"; then
+                  emit "$spec" "$jid" "false"; exit 0
+                fi
+                echo "spec '${spec}' exists but has no active (non-fixme) real-idp test → baseline until thickened"
+                emit "$BASELINE" "$jid" "true"; exit 0
               fi
               echo "derived spec '${spec}' not found on disk → baseline (fail-safe)"
               emit "$BASELINE" "$jid" "true"; exit 0
@@ -817,6 +834,31 @@ jobs:
             --project=real-idp \
             "$SPEC"
 
+      # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
+      # trace.zip + the failure screenshot/video) BEFORE any later step mutates
+      # `test-results/`. The shots-present guard step below re-invokes Playwright
+      # (`--project=proof-gallery-links`), and Playwright CLEANS its output dir at
+      # the start of a run, deleting THIS spec's per-test artifacts — so by the
+      # time the always()-uploaded proof artifact runs (further down) the DOM
+      # snapshot + trace are already gone (only `proof-manifest.json` survives,
+      # which the gallery generator also reads). That left J-7 T-19's
+      # tenant-isolation + reservation reds undiagnosable from the run, forcing
+      # source+log+architecture reasoning. This step is gated on `failure()` so it
+      # only fires on a red run, and placed RIGHT AFTER the proof spec (before the
+      # maintainability / screenshot-staging / gallery / guard steps) so the
+      # artifacts are captured intact. Playwright writes per-test dirs to
+      # `alpenflight/web/test-results/<test>/` (NOT under `e2e/` — config has no
+      # `outputDir`, but the reporter pins the manifest there and the per-test
+      # output co-locates; verified empirically).
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-alpenflight-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
+
       # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
       # panel renders. PRODUCE + STAGE only (T-13 reads these paths; no panel
       # HTML here). FAIL-SOFT: a missing/failed report is informational and must
@@ -997,6 +1039,20 @@ jobs:
               "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
               "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
           fi
+          # ----- J-26 hardening (membership / duplicate-code — AF-only) --------
+          # Hardening sprint: no new screen, no legacy parity peer (the shots are
+          # AlpenFlight-only hardening evidence). The view keys (membership,
+          # duplicate-code) match expected-shots.json J-26; the AF filenames match
+          # the PNGs the real-idp hardening-J26.spec.ts writes to test-results/
+          # BEFORE its deep assertions (so a partial red still stages them).
+          if [ "${PROOF_JOURNEY:-}" = "J-26" ]; then
+            add_af_only "J-26" "hardening" "membership" \
+              "alpenflight-hardening-membership.png" \
+              "AlpenFlight (hardening, T-04): a Person's membership edit re-opened after Save over the real chain — memberNumber, the toggled pilot-role flag and the changed member state all came back from the real backend (the data-loss fix: the form used to toast success while silently dropping them)"
+            add_af_only "J-26" "hardening" "duplicate-code" \
+              "alpenflight-hardening-duplicate-code.png" \
+              "AlpenFlight (hardening, T-05): creating a second flight type with a duplicate FlightCode over the real chain — the real ux_flight_type_club_code constraint / service pre-check returns a 409 that surfaces INLINE on the Code field (previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field)"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -1027,9 +1083,20 @@ jobs:
           # changes job emits the J-0 baseline journey then) — harmless, that
           # page has no audit delta to show anyway.
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          # J-26 T-32 — a BASELINE run (the journey's own real-idp spec is not
+          # yet thickened → `proof_is_baseline=true`, the J-0 Locations spec
+          # actually ran) must produce a BASELINE-shaped gallery: drop
+          # --journey-under-work so the deployed preview carries the J-0 page +
+          # its 3 captions (the `Live link-check … (200 + captions)` step below,
+          # gated on is_baseline==true, greps for exactly those). Passing
+          # --journey-under-work here built the EMPTY journey page instead, so
+          # the J-0 captions were absent → that step red. When the real spec
+          # lands (is_baseline flips false), JUW returns and the J-26 page +
+          # its Maintainability delta render again.
+          PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
         run: |
           JUW_ARG=""
-          if [ -n "${PROOF_JOURNEY:-}" ]; then
+          if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
           fi
           # T-17b — per-push parity screenshots: feed the staged screenshots.json
@@ -1218,8 +1285,22 @@ jobs:
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
-          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+          # Empty on a baseline run: a baseline (J-0 fail-safe) produces NO
+          # journey-under-work captures by definition, so the deployed-journey
+          # guard must not demand a complete journey page. The guard
+          # `test.skip`s when GALLERY_DEPLOYED_JOURNEY is empty-string (falsy).
+          # The step `if:` already gates on `proof_is_baseline != 'true'`; this
+          # is the defense-in-depth twin closing the latent bug for any future
+          # path that reaches the guard on a baseline fallback (J-26 T-31).
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline == 'true' && '' || needs.changes.outputs.proof_journey }}
           GALLERY_LINKS_ONLY: '1'
+          # J-26 T-26 — this is the PER-PUSH proof deploy. The both-sides-of-every-
+          # declared-pair check enforces only the shots `producedBy: proof` (+
+          # untagged) so a read-side journey's fanout-produced legacy side (deployed
+          # by the fanout, not here) is tolerated-absent on this deploy rather than
+          # false-redding it. A pair both sides of which are proof/untagged must
+          # render BOTH sides here.
+          GALLERY_PROOF_CONTEXT: proof
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
@@ -1591,6 +1672,21 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/real-idp/start-dashboard.spec.ts
+
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded dashboard artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). Gated on `failure()`
+      # so it only fires on a red dashboard spec. Same path as the proof job —
+      # Playwright writes per-test dirs to `alpenflight/web/test-results/<test>/`.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-dashboard-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
 
       # Stage the 3 populated variant screenshots + write the J-3 screenshots.json
       # sidecar (greenfield → AlpenFlight-only, NO paired legacy shots) so the
@@ -1974,6 +2070,22 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/profile/self-edit.spec.ts
+
+      # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
+      # trace.zip + failure screenshot/video) BEFORE the staging/gallery steps run
+      # (the always()-uploaded profile artifact further down lands after the
+      # gallery generate step has consumed `test-results/`). This job is the
+      # REQUIRED /profile merge gate, so a red here blocks merge — exactly the
+      # case that must stay diagnosable from the run. Gated on `failure()`; same
+      # `alpenflight/web/test-results/<test>/` path as the other proof jobs.
+      - name: Upload Playwright test-results on failure (pre-gallery)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-profile-proof-${{ github.run_id }}
+          path: alpenflight/web/test-results/**
+          retention-days: 7
+          if-no-files-found: warn
 
       # Stage the 4 per-tab /profile screenshots + the J-4 screenshots.json
       # sidecar (AlpenFlight-only) so the gallery renders them under the J-4

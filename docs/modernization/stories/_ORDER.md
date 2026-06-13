@@ -18,7 +18,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 |---|---|---|---|---|---|---|
 | ✅ **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
 | ✅ **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016 (S-189 deferred→still todo) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
-| **J-0c** | **Fan-out migration parity proof (UI + video)** | E-02 | **J-0b** | S-028 (Location-scope slice), CLUB-pgcopy fix | full chain for **Location only**: legacy `flsweb` create→export→migrate+Keycloak→AlpenFlight per-club video | `Location` (real legacy→AlpenFlight) |
+| ✅ **J-0c** | **Fan-out migration parity proof (UI + video)** | E-02 | **J-0b** | S-028 (Location-scope slice), CLUB-pgcopy fix | full chain for **Location only**: legacy `flsweb` create→export→migrate+Keycloak→AlpenFlight per-club video | `Location` (real legacy→AlpenFlight) |
 | J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
 | 🔨 **J-2** | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064 (+reuses impl S-062a/b/c, S-063, S-067) | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
@@ -27,6 +27,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-6 | Planning days + setup | E-08 | J-5, J-2 | S-070, S-071, S-086 | `PlanningDay` | `planning/` → `/planning`, `/planningsetup` |
 | ✅ **J-6b** | **Reservations & Planning hardening + inline form validation** | E-08 | J-5, J-6 | — (operator field-test polish) | N/A — hardens J-5/J-6 | `/reservations` + `/planning` polish + shared edit-form + nav shell |
 | ✅ **J-7** | Flight reports + Excel export | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
+| 🔨 **J-26** | **Hardening sprint — bugfixes, UX corrections, JDBC retirement, redundancy purge** (operator-directed, no new features; ships NEXT — order ≠ id) | cross | J-7 | — (absorbs `_BOYSCOUT.md` riders) | N/A | hardening of shipped screens |
 | J-8 | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
 | J-9 | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
 | J-10 | Deliveries (invoice drafts) | E-09 | J-9 | S-078, S-080, S-089, S-090, S-150, S-029, S-087 | `Delivery`, `DeliveryItem` | `masterdata/deliveries/` → `/deliveries` |
@@ -47,10 +48,12 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 **✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-0b (#198),
 J-0c (#200), J-1 (#202), J-2 (#205), J-3 (#206), J-4 (#207), J-5 (#210), J-6 (#211),
-J-6b (#213), J-24 (#192), J-25 (#196). **Done, PR ready (awaiting merge):** **J-7**
-(Flight reports + Excel export — read-side payoff of J-2 + the first synchronous Excel export,
-homing the POI export infra + cell-parity harness; both gates green on `integration/J-7`; the
-fanout `23505` planning-assignment-dedupe bug was fixed here per operator). All other unmarked rows are `todo`.
+J-6b (#213), **J-7 (#215 + stacked #217 JPA-read-model, 2026-06-12)**, J-24 (#192),
+J-25 (#196). **🔨 = in flight:** **J-26** (hardening sprint, carved 2026-06-12 — the
+operator-directed no-new-features sprint: P0 validation bugfixes + UX corrections +
+ADR-0027 JDBC retirement + redundancy purge + the two [NEXT-JOURNEY PRIORITY] proof
+riders + the nightly real-idp setup-java fix; ships next, before J-8). All other
+unmarked rows are `todo`.
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 

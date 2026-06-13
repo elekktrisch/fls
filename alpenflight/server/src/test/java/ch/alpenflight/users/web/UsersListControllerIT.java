@@ -127,6 +127,49 @@ class UsersListControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void clubAdmin_orphanedKeycloakSubRow_stillRenders200_withEmptyRoles() {
+        // J-26 T-30c: a club row whose keycloak_sub has no KC identity (a seed /
+        // bulk-import row, or a KC user later deleted) makes the per-row
+        // role-mappings read miss. The FIXED KeycloakAdminClient maps that KC
+        // 404 to an empty role set; the directory mock here reproduces that
+        // contract (empty mappings, NOT a thrown UserDirectoryException). The
+        // whole list must still render 200 — one orphaned row may not blow up
+        // GET /api/v1/users (it 502'd when the KC admin client was reachable,
+        // 400 when it was not; both the same single-row-not-found root cause).
+        UUID orphanSub = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_user (id, club_id, username, friendly_name,
+                                    notification_email, language_id, keycloak_sub)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
+                """,
+                UUID.randomUUID().toString(), CLUB.toString(), "list-it-orphan",
+                "List IT Orphan", "orphan@example.com", LANG_DE.toString(), orphanSub.toString());
+
+        // Default stub already returns empty mappings for every sub (the
+        // fixed-adapter 404 → empty contract); make the orphan explicit.
+        when(directory.getRealmRoleMappings(orphanSub)).thenReturn(List.<RealmRoleRef>of());
+
+        ResponseEntity<String> res = get("/api/v1/users", adminToken);
+
+        assertThat(res.getStatusCode())
+                .as("an orphaned keycloak_sub row must not fail the list — body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = readJson(res);
+        JsonNode orphanRow = null;
+        for (JsonNode row : body) {
+            if ("list-it-orphan".equals(row.path("username").asText(null))) {
+                orphanRow = row;
+            }
+        }
+        assertThat(orphanRow)
+                .as("the orphaned-sub row is still listed")
+                .isNotNull();
+        assertThat(orphanRow.get("roles").isArray()).isTrue();
+        assertThat(orphanRow.get("roles")).isEmpty();
+    }
+
+    @Test
     void clubAdmin_symbolicClubIdClaim_listsUsers_returns200_tenantScoped() {
         // AC #13: "clubadmin1 opens the Users menu and the list renders
         // (no 400 Bad Request)." Drives the exact dev clubadmin1 principal

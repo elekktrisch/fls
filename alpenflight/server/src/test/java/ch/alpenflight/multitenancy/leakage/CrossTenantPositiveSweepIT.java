@@ -2,6 +2,9 @@ package ch.alpenflight.multitenancy.leakage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -37,12 +40,13 @@ import org.yaml.snakeyaml.Yaml;
  */
 class CrossTenantPositiveSweepIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d2");
     private static final String NAME_PREFIX = "IT_CTP_";
     private static final String KEY_PREFIX = "IT_X_";
 
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private ClubRepository clubRepo;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
 
     private TwoClubFixture clubs;
 
@@ -68,7 +72,7 @@ class CrossTenantPositiveSweepIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seedTwoClubs() {
-        this.clubs = new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX);
+        this.clubs = new TwoClubFixture(jdbc, clubRepo, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         clubs.seed();
         TenantTestContext.clear();
     }

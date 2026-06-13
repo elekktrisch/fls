@@ -54,6 +54,18 @@ const de = {
     },
     title: 'Flugzeuge',
   },
+  common: {
+    errors: {
+      duplicate: 'Wird bereits verwendet.',
+      email: 'Ungültige E-Mail-Adresse.',
+      max: 'Wert zu gross.',
+      maxlength: 'Eingabe zu lang.',
+      min: 'Wert zu klein.',
+      minlength: 'Eingabe zu kurz.',
+      pattern: 'Ungültiges Format.',
+      required: 'Eingabe erforderlich.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Weiter bearbeiten',

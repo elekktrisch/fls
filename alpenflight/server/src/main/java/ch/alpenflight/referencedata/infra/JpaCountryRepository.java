@@ -9,15 +9,16 @@ import org.springframework.data.jpa.repository.Query;
 
 /**
  * Spring Data adapter for {@link CountryRepository}. The {@code findAllOrdered}
- * sort uses Postgres ICU collation {@code "de-CH-x-icu"} so accented
- * Latin characters (Côte d'Ivoire, Curaçao, Réunion) sort inside their
- * letter group rather than at the end as default C collation would
- * place them. Native query because JPQL has no portable {@code COLLATE}.
+ * sort relies on the ICU collation {@code "de-CH-x-icu"} attached to the
+ * {@code t_country.name} COLUMN (Flyway V40) so accented Latin characters
+ * (Côte d'Ivoire, Curaçao, Réunion) sort inside their letter group rather than
+ * after the ASCII range as the default collation would place them. Because the
+ * collation lives on the column, a plain JPQL {@code ORDER BY} yields ICU
+ * order — no {@code nativeQuery} / {@code COLLATE} clause needed (ADR 0027).
  */
 public interface JpaCountryRepository extends JpaRepository<Country, UUID>, CountryRepository {
 
     @Override
-    @Query(value = "SELECT * FROM t_country ORDER BY name COLLATE \"de-CH-x-icu\"",
-            nativeQuery = true)
+    @Query("SELECT c FROM Country c ORDER BY c.name")
     List<Country> findAllOrdered();
 }

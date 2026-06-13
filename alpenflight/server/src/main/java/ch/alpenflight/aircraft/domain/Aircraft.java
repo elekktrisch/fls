@@ -1,6 +1,7 @@
 package ch.alpenflight.aircraft.domain;
 
 import ch.alpenflight.platform.id.AircraftId;
+import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,7 +11,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -76,7 +76,7 @@ import org.springframework.data.domain.DomainEvents;
  */
 @Entity
 @Table(name = "t_aircraft")
-public class Aircraft {
+public class Aircraft extends SoftDeletableAggregate {
 
     private static final int MAX_MANUFACTURER_LENGTH = 100;
     private static final int MAX_MODEL_LENGTH = 50;
@@ -171,13 +171,6 @@ public class Aircraft {
 
     @Column(name = "daec_index")
     private @Nullable Integer daecIndex;
-
-    @Column(name = "deleted_on")
-    private @Nullable Instant deletedOn;
-
-    @Column(name = "deleted_by_user_id")
-    @SuppressWarnings("UnusedVariable")
-    private @Nullable UUID deletedByUserId;
 
     @OneToMany(mappedBy = "aircraft",
             cascade = CascadeType.ALL,
@@ -425,13 +418,6 @@ public class Aircraft {
         this.aircraftOwnerPersonId = newOwnerPersonId;
     }
 
-    public void softDelete(@Nullable UUID userId, Clock clock) {
-        if (this.deletedOn == null) {
-            this.deletedOn = Instant.now(clock);
-            this.deletedByUserId = userId;
-        }
-    }
-
     /**
      * Spring Data publishes an {@link AircraftSaved} event on every
      * {@code AircraftRepository.save} (the Flight {@code @DomainEvents}
@@ -649,10 +635,6 @@ public class Aircraft {
 
     public @Nullable Integer getDaecIndex() {
         return daecIndex;
-    }
-
-    public boolean isDeleted() {
-        return deletedOn != null;
     }
 
     public List<AircraftStateHistoryEntry> getStateHistory() {

@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
+  type AbstractControl,
   FormBuilder,
   FormControl,
   ReactiveFormsModule,
@@ -314,7 +315,7 @@ type ReservationForm = FormGroup<{
                 <af-button
                   type="primary"
                   htmlType="submit"
-                  [disabled]="form.invalid || saveSubmitted() || store.overlapMessage() !== null"
+                  [disabled]="saveDisabled()"
                   data-testid="reservation-save-button"
                 >
                   {{ t('save') }}
@@ -359,6 +360,21 @@ export class ReservationEditPage {
   protected readonly isAllDay = toSignal(this.form.controls.isAllDay.valueChanges, {
     initialValue: false,
   });
+
+  // Live form-validity STATUS as a signal — `'VALID' | 'INVALID' | 'PENDING' |
+  // 'DISABLED'`. The save-disable binding tracks THIS (not the `form.invalid`
+  // getter, which the OnPush template only re-read on a CD tick, so the button
+  // could render enabled for a beat after the second-crew validator flipped the
+  // form back to invalid — J-7 T-20). `statusChanges` fires on every validity
+  // transition INCLUDING entering/leaving `'PENDING'`, so an async validator's
+  // pending window keeps Save disabled. Seeded with the current status so it is
+  // correct synchronously before the first emission.
+  private readonly formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
+  });
+  protected readonly saveDisabled = computed(() =>
+    saveDisabledFor(this.formStatus(), this.saveSubmitted(), this.store.overlapMessage() !== null),
+  );
 
   // Raw form value as a signal (includes disabled controls — all-day disables
   // the time fields). Drives the async overlap-validate effect so it re-runs on
@@ -432,6 +448,14 @@ export class ReservationEditPage {
 
     // All-day toggle disables/enables the time controls (so `form.invalid`
     // doesn't gate on hidden required times). One effect, no manual subscribe.
+    // The control `disable()/enable()` calls run with `emitEvent: false` so they
+    // don't spuriously fire `valueChanges`, but that ALSO suppresses the form's
+    // `statusChanges` — which the `formStatus` signal (and thus `saveDisabled`)
+    // tracks. Without a follow-up emit the Save button stayed disabled after
+    // toggling all-day even though the form was now valid (the required time
+    // controls being disabled drop out of validity). A trailing
+    // `updateValueAndValidity()` (events ON) re-emits the form status so the
+    // disable binding re-reads.
     effect(() => {
       const controls = [this.form.controls.startTime, this.form.controls.endTime];
       if (this.isAllDay()) {
@@ -439,15 +463,22 @@ export class ReservationEditPage {
       } else {
         for (const c of controls) c.enable({ emitEvent: false });
       }
+      this.form.updateValueAndValidity();
     });
 
     // Conditional Second-Crew validator — toggle `required` on the control as the
     // derived condition flips (`secondCrewRequired`, live since T-18 exposed the
-    // driving instructor/seat flags on the picker projections).
+    // driving instructor/seat flags on the picker projections). The
+    // `updateValueAndValidity()` EMITS (no `emitEvent: false`) so two things
+    // re-derive the instant the requirement flips: the control's
+    // `liveFieldErrors` stream (the inline message surfaces immediately, never a
+    // silent gap) and the form `statusChanges` the save-disable binding tracks
+    // (so the button flips disabled in lock-step — closes the J-7 T-20 race
+    // where the validator flipped but the disable binding lagged a CD tick).
     effect(() => {
       const ctl = this.form.controls.secondCrewPersonId;
       ctl.setValidators(this.secondCrewRequired() ? [Validators.required] : []);
-      ctl.updateValueAndValidity({ emitEvent: false });
+      ctl.updateValueAndValidity();
     });
 
     // Async overlap pre-check (T-06): when aircraft + start + end + all-day are
@@ -505,8 +536,16 @@ export class ReservationEditPage {
 
   protected onSubmit(): void {
     if (!this.canMutate()) return;
-    if (this.form.invalid || this.saveSubmitted()) {
+    // Gate on the live STATUS, not the `form.invalid` getter: a click that lands
+    // in the `'PENDING'` window (an async validator still resolving) must NOT
+    // dead-end silently. Surface inline feedback — mark every control touched AND
+    // re-emit each control's value so the debounced `liveFieldErrors` streams
+    // re-derive and the inline messages appear (they key off `valueChanges`, so
+    // `markAllAsTouched` alone leaves a freshly-required control's error silent —
+    // exactly the J-7 T-20 no-op this fixes).
+    if (this.form.status !== 'VALID' || this.saveSubmitted()) {
       this.form.markAllAsTouched();
+      surfaceFieldErrors(this.form);
       return;
     }
     this.saveSubmitted.set(true);
@@ -655,6 +694,48 @@ export function overlapProbe(
     },
     { excludeReservationId: editId ?? '' },
   );
+}
+
+/**
+ * Whether the Save control is disabled, derived from the form's live validity
+ * STATUS (not the cheaper `form.invalid` getter the template used to read). The
+ * status is one of `'VALID' | 'INVALID' | 'PENDING' | 'DISABLED'` — Save is
+ * enabled ONLY on `'VALID'`, so a `'PENDING'` window (an async validator still
+ * running, or the synchronous second-crew validator that flips AFTER the
+ * aircraft picker resolves `nrOfSeats`) keeps the button disabled instead of
+ * momentarily showing it enabled while the form is in fact still invalid
+ * (J-7 T-20 race). Also disabled while a save is in flight (`saveSubmitted`) or
+ * an overlap pre-check has flagged a conflict (`hasOverlap`).
+ *
+ * Pure → unit-tested across PENDING → INVALID → VALID transitions without a
+ * `TestBed`.
+ */
+export function saveDisabledFor(
+  formStatus: string | null,
+  saveSubmitted: boolean,
+  hasOverlap: boolean,
+): boolean {
+  return formStatus !== 'VALID' || saveSubmitted || hasOverlap;
+}
+
+/**
+ * Re-emit every enabled control's value so the debounced `liveFieldErrors`
+ * streams re-derive and any inline error message surfaces. The streams key off
+ * `valueChanges` (not touched/status), so a control that became required AFTER
+ * the user last typed (the conditional second-crew validator) would otherwise
+ * keep a silent slot. Called on a dead-end submit (form not `'VALID'`) so a
+ * genuine click during a pending/invalid beat produces VISIBLE feedback rather
+ * than the old `markAllAsTouched`-only no-op (J-7 T-20).
+ *
+ * `setValue(value)` with the default `emitEvent: true` pushes the SAME value
+ * through `valueChanges` (no data change) — the debounced stream re-reads
+ * `control.errors` and renders the message. Disabled controls (the all-day time
+ * fields) are skipped — they carry no validity.
+ */
+function surfaceFieldErrors(form: ReservationForm): void {
+  for (const ctl of Object.values<AbstractControl>(form.controls)) {
+    if (ctl.enabled) ctl.setValue(ctl.value);
+  }
 }
 
 /**

@@ -48,6 +48,18 @@ const en: Translations = {
     },
     title: 'Aircraft',
   },
+  common: {
+    errors: {
+      duplicate: 'Already in use.',
+      email: 'Invalid email address.',
+      max: 'Value too large.',
+      maxlength: 'Entry too long.',
+      min: 'Value too small.',
+      minlength: 'Entry too short.',
+      pattern: 'Invalid format.',
+      required: 'Entry required.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Keep editing',

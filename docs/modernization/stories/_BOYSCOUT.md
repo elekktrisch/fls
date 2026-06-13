@@ -12,6 +12,12 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-ship 2026-06-13, J-26 gate)
+
+- **[MAINTAINABILITY-TOOLING] Add Qodana (whole-program Java unused-code detection) — operator-approved 2026-06-13.** PMD/SpotBugs only catch per-file private/local unused (PMD reports 0 in server main); the global unused-declaration class the operator's IntelliJ run surfaced (605 across stacks; the server SARIF export = 71 unused-PARAMETER findings, triaged in J-26 T-33) needs a whole-program model. **Qodana is the fit** (the Java twin of PMD/CPD + fallow): JetBrains' Dockerized runner for the SAME IntelliJ inspections, free `qodana-jvm-community` linter (no token), `JetBrains/qodana-action` GitHub Action, SARIF output, and a **baseline-ratchet** (`--baseline qodana.sarif.json`) identical in spirit to `cpdRatchet`. **HARD constraints, measured at T-33:** the unused-declaration inspection is ~90% FALSE-POSITIVE on this Spring/JPA/Modulith stack (63/71 server findings were Spring-Data repository query-binding params, 7 idiomatic `@ExceptionHandler` dispatch params, 1 genuine) — so it MUST land (a) report-only first (non-gating, like `pmdMain.ignoreFailures=true`), (b) with a committed baseline accepting the current state + gating only on NEW unused, (c) leaning on Qodana's Spring/JPA awareness (Community runs the inspection; the licensed JVM linter models Spring deeper if noise stays high). Emit its report into the proof-gallery maintainability panel alongside PMD/CPD/fallow. SUBSTANTIAL tooling slice → ride a future journey's ≤40% maintainability budget (next journey), NOT bolted onto J-26. *(seam: new `qodana.yaml` + `qodana-scan` CI job + baseline + gallery maintainability-panel emit)* [[reference_fallow_maintainability_analyzer]] [[feedback_maintainability_includes_dupes_and_deadcode]]
+
+- **[KC-26 UPGRADE DRIFT] 3 cross-journey real-idp nightly reds (pre-existing, surfaced when J-26 T-03 re-enabled the 12-day-dead nightly).** NOT J-26's vertical (validation/JDBC) — KC-26-upgrade reconciliation that needs iterative live-stack debugging; J-26's OWN real-idp proof is green. T-30a/d authored first fixes that the gate proved insufficient: (1) `login.spec.ts:92` `?ui_locales=fr` → `<html lang="fr">` still renders `en` (KC 26 honors the param differently / login-theme or realm i18n-resolver — needs live-KC iteration, possibly a realm/theme config change); (2) `register.spec.ts:49` KC→Mailpit verify-mail never arrives (T-30d added a fail-loud SMTP preflight + 45s timeout — next dispatch's preflight output pinpoints DNS/SMTP vs KC-not-sending); (3) `token-lifecycle.spec.ts:47` silent-refresh still red after the wait-hardening (likely real KC-26 refresh-grant/SSO behavior, not timing). Each fix → ~25-min nightly dispatch → observe → repeat. Ride the next journey's gate (or a focused KC-26-reconciliation slice). *(seam: realm-export.json i18n/SMTP + login/token real-idp specs + KC 26 OIDC behavior)* [[project_real_idp_real_roles_catches_authz_gaps]]
+
 ## Pending (filed by form-validation parity audit 2026-06-09)
 
 Full analysis + per-form verified gaps: `docs/modernization/form-validation-parity-audit.md`
@@ -23,54 +29,61 @@ into one as-you-type sweep when a form-heavy journey lands. (Operator chose ride
 incl. the P0 safety items — 2026-06-09.)
 
 **P0 — safety / data-loss (below the legacy bar; each needs server + store + e2e):**
-- **Person edit silently DROPS all membership edits on update (data loss).** The `/edit` form
-  hydrates + lets you toggle memberNumber / memberStateId / isGlider|Motor|TowPilot, Save toasts
-  success, but `PersonUpdateRequest` omits them and `PUT /persons/{id}/clubs/current` (which EXISTS,
-  `PersonsController.java:139-144`) is never called. Wire the membership update in `persons.store.ts`
-  update (fields hydrated at `persons-edit.page.ts:387-400`, request omits at `:375-382`) + add an
-  edit-path e2e asserting role/memberNumber round-trip (only `persons-add-modal.spec.ts` exists, create-only).
-  *(seam: persons-edit update path + persons.store)*
-- **Flight-type FlightCode duplicate → raw 500** (reproduces the legacy bug). Add an
-  `@ExceptionHandler(DataIntegrityViolationException)` to `FlightTypesExceptionHandler` discriminating
-  `ux_flight_type_club_code` → 409 `field=flightCode` (mirror `LocationsExceptionHandler.java:83`) +
-  a `findActiveByCode` pre-check (`FlightTypesService.java:70,100,154`). **Coupled:** the store/effect
-  must route the 409 on the problem-detail `field` (name vs code) — today `flight-types.store.ts:229-236`
-  + `flight-types-edit.page.ts:344-350` send EVERY 409 to `flightTypeName`. *(seam: FlightTypesExceptionHandler + service + store 409 discrimination)*
-- **Flight-type Instructor × Observer mutual-exclusion enforced at NO layer** (legacy `CHECK` forbids
-  `(1,1)`). Add a cross-field validator (`flight-types-edit.page.ts:300-301`) **and** a domain XOR guard
-  in `FlightType.updateFlags()` (`FlightType.java:158-180`) — domain is the must-have (ADR-0022 §2);
-  optional DB CHECK (`V3:255-289`). *(seam: flight-type XOR — client + domain)*
-- **Club duplicate clubKey → 409 MISLABELED as a slug error on the wrong field.** `ClubsService.persist()`
-  (`:164-169`) maps *any* `DataIntegrityViolationException` → `SlugAlreadyExistsException`; distinguish
-  `ux_club_key` vs `ux_club_slug` before throwing → clean clubKey 409 (also fixes the latent "any future
-  t_club constraint → mislabeled slug" trap). *(seam: ClubsService DIVE discrimination)*
+- ~~**Person edit silently DROPS all membership edits on update (data loss).**~~ **SHIPPED J-26 T-04.**
+  `persons.store.ts` update takes an optional `membership: PersonClubRequest` and runs the two PUTs
+  sequentially (person → `clubs/current`); `person.updated` fires only after BOTH succeed (a failed
+  membership half surfaces in `saveError`, no false-success nav). The edit page echoes the
+  non-form-exposed flags (full-replace parity). Mock spec `persons/persons-edit-membership.spec.ts`
+  (captures both PUT payloads + UI round-trip) + the real-chain twin `real-idp/hardening-J26.spec.ts`
+  (T-27: re-open over the real backend). *(was: persons-edit update path + persons.store)*
+- ~~**Flight-type FlightCode duplicate → raw 500**~~ **SHIPPED J-26 T-05.** Service pre-check
+  (`findActiveByCode`, create + update, self-excluded) throws `DuplicateFlightTypeCodeException` → 409
+  `field=flightCode`; the `FlightTypesExceptionHandler` DIVE catch is the `ux_flight_type_club_code` race
+  net (other violations stay 500). Store `errorPatch` routes the 409 by problem-detail `field` (name vs
+  code no longer collapse onto flightTypeName); the Code field got its `[errors]` binding. IT + mock
+  case + the real-chain twin (T-27). *(was: FlightTypesExceptionHandler + service + store 409 discrimination)*
+- ~~**Flight-type Instructor × Observer mutual-exclusion enforced at NO layer**~~ **SHIPPED J-26 T-06.**
+  Domain XOR guard in `FlightType.updateFlags` (the must-have, ADR-0022 §2; create covered via `register`)
+  → `InstructorObserverExclusionException` → 400 `field=isObserverPilotOrInstructorRequired`; client
+  `instructorObserverExclusiveValidator` group validator + roles-section inline alert. Domain unit tests
+  + client vitest + XOR e2e case. NO DB CHECK (ADR 0022 §2). *(was: flight-type XOR — client + domain)*
+- ~~**Club duplicate clubKey → 409 MISLABELED as a slug error on the wrong field.**~~ **SHIPPED J-26 T-07.**
+  `ClubsService.persist()` discriminates the violated constraint (`ux_club_key` → `ClubKeyAlreadyExistsException`,
+  `ux_club_slug` → `SlugAlreadyExists`, unrecognized → rethrow); `ClubsExceptionHandler` gained the DIVE race
+  net for the commit-time flush path (clubKey → 409 `field=clubKey`). Store routes by problem-detail `field`;
+  the edit page marks the OFFENDING control. IT (red-first showed a raw 500, not the mislabel) + mock case.
+  *(was: ClubsService DIVE discrimination)*
 
 **P1 — client-parity regression / dead code:**
-- **Profile Account `languageId` lost its required validator** (legacy `profile.html:61` had it; only the
-  server `@NotNull` enforces now). Add `Validators.required` (`profile-account.tab.ts:174`). *(seam: profile-account tab)*
-- **Flight edit: dead `FlightValidator` + zero client validation.** `FlightValidator`/`FlightCompositeValidator`
-  author the full Validate-job rule set but are NEVER invoked on any path (`FlightsService.createFlight/updateFlight`
-  never call them); and the form has NO `Validators`, NO `[errors]`/`[required]` bindings, and Save is never
-  gated on validity (`flight-form.model.ts:79-118`, `flights-edit.page.ts:613-650`). Wire-or-delete the
-  validator + add client `required` on flightDate/aircraftId/pilot + gate Save on `form.invalid`.
-  *(seam: flights validator wiring + flight-form client validators)*
+- ~~**Profile Account `languageId` lost its required validator**~~ **SHIPPED J-26 T-08.** Restored
+  `Validators.required` on `languageId` + the touched-gated `[errors]` binding + `[allowClear]` on the
+  select + Save gated `form.invalid ||`; red-first class-instantiation vitest. Profile-account languageId
+  clear→error→Save-disabled→re-pick-recovers e2e case. *(was: profile-account tab)*
+- ~~**Flight edit: dead `FlightValidator` + zero client validation.**~~ **SHIPPED J-26 T-13.** Client fix
+  landed: `Validators.required` on flightDate + glider aircraft/pilot (tow stays unvalidated — conditional step)
+  + `[required]`/`[errors]` (J-6b `liveFieldErrors`) + Save gated on a reactive `formStatus` signal.
+  **FlightValidator VERDICT = KEEP** (not wired into create/update, not deleted): its rules are the nightly
+  Validate-job verdict (NOT a create/update gate — legacy saves incomplete flights + flags them nightly;
+  wiring would 400 partial saves the screen accepts), and it is the named still-pending dependency of **S-083**
+  (DailyFlightValidationJob, "reuses it") + S-101 (validation-rejection depth), covered by FlightValidatorTest +
+  FlightCompositeValidatorTest. Deleting it would discard the ported legacy rule set + force a re-port at S-083.
+  *(was: flights validator wiring + flight-form client validators)*
 
 **P2 — as-you-type sweep (mechanical, one shared infra; the systemic J-6b-bar miss):**
-- The J-6b as-you-type bar is wired ONLY on reservation-edit + planning-edit. **Replace `ctl.touched ?
-  ctl.errors : null` with debounced `liveFieldErrors` on every other form:** aircraft
-  (`aircraft-edit.page.ts:157-194,252,333-352`), article (`articles-edit.page.ts:96-113`), club
-  (`clubs-edit.page.ts:83-133`), flight-type (`flight-types-edit.page.ts:109-135`), location
-  (`locations-edit.page.ts:130-206`+IOP `:265-292`), person (`persons-edit.page.ts:104-131`), planning-setup
-  (`planning-setup.page.ts:130-157`), user (`users-edit.page.ts:141-175` + roles-≥1 live `:351-354`),
-  profile 4 tabs (`profile-account.tab.ts:88-104`, `profile-personal.tab.ts:106-215`, `profile-pilot.tab.ts:188-190`).
-  *(seam: per-form `liveFieldErrors` adoption — fold into one sweep)*
+- ~~The J-6b as-you-type bar is wired ONLY on reservation-edit + planning-edit. Replace `ctl.touched ?
+  ctl.errors : null` with debounced `liveFieldErrors` on every other form.~~ **SHIPPED J-26 T-10/T-11/T-12.**
+  All forms converted P2+P3 across three sweeps — T-10 aircraft/article/club, T-11 flight-type/location
+  (incl. IOP rows)/person, T-12 planning-setup/user (+ roles-≥1 live)/profile 4 tabs. Server-duplicate 409s
+  reroute through the `liveFieldErrors` async slot (`asyncErrors$`) so the debounced stream surfaces them
+  (a `setErrors` carries no `valueChanges`). Representative trio asserted (aircraft/person/flight-type) +
+  §8 component unit specs per sweep. *(was: per-form `liveFieldErrors` adoption — fold into one sweep)*
 
 **P3 — missing `[errors]` bindings (PREREQUISITE for P2 on these fields — validator present but never renders
 inline at all, even on submit; `af-form-field` defaults `errors` to null):**
-- Bind `[errors]` on the `af-form-field` for the ~30 silent fields: aircraft 7 (`:206-227,315-329,369-401`),
-  article articleInfo (`:123-130`), flight-type FlightCode (`:120-127`), location IOP rows (`:265-292`),
-  person city/mobile/memberNumber (`:142,151,160`), user phone/remarks (`:189-200`), profile 9
-  (`profile-account.tab.ts:116-123`, `profile-personal.tab.ts:116-196`). *(seam: af-form-field [errors] bindings)*
+- ~~Bind `[errors]` on the `af-form-field` for the ~30 silent fields.~~ **SHIPPED J-26 T-10/T-11/T-12** (folded
+  into the same three as-you-type sweeps): aircraft 7, article articleInfo, flight-type FlightCode, location
+  IOP rows, person city/mobile/memberNumber, user phone/remarks, profile 9 — all newly bound + live.
+  *(was: af-form-field [errors] bindings)*
 
 **P4 — server-roundtrip as-you-type pre-checks (submit-time 409 already CONFIRMED safe — UX only):**
 - Add a non-mutating `…/validate` endpoint + debounced store rxMethod (model on reservation overlap
@@ -81,10 +94,13 @@ inline at all, even on submit; `af-form-field` defaults `errors` to null):**
 **P5 — declined better-than-legacy / cosmetic (low):**
 - Planning-setup: client `start ≤ end` + `≥1 weekday` cross-field validators + error region
   (`planning-setup.page.ts:170-191,242-254`); planning info `maxLength(4000)` client-side
-  (`planning-edit.page.ts:376`). **Transloco-translate `af-field-errors`** — it renders the i18n KEY
-  verbatim (`common.errors.required`), no `t()` pipe (`af-field-errors.component.ts:12-13`). DIVE→400
-  handlers for reservation/planning FK→500 (phantom type/location/person ids — parity-met, lowest).
-  *(seam: planning-setup validators + af-field-errors transloco + reservation/planning DIVE handlers)*
+  (`planning-edit.page.ts:376`). ~~**Transloco-translate `af-field-errors`** — it renders the i18n KEY
+  verbatim (`common.errors.required`), no `t()` pipe.~~ **SHIPPED J-26 T-08** (`af-field-errors` renders
+  its mapped keys through an unscoped `*transloco="let t"`; the previously-NONEXISTENT `common.errors.*`
+  block — all 8 canonical keys — added to all four locales, red-first vitest resolving every
+  `errorTranslationKey` against every locale tree). DIVE→400 handlers for reservation/planning FK→500
+  (phantom type/location/person ids — parity-met, lowest, STILL PENDING).
+  *(remaining seam: planning-setup validators + reservation/planning DIVE handlers)*
 
 ## Retro-process flags
 
@@ -238,10 +254,16 @@ short-list + needs a committed config to stop crying wolf.
   WITHOUT replicating that `formToUpdateRequest`/`finalSubmit`/`errorPatch` complexity — extract the shared
   form↔request + error-patch helper so the new page lands low-CRAP (and the extraction can later absorb the
   aircraft/flights/users hotspots as each is touched). The non-J-5 hotspots (aircraft/users/persons edit
-  pages) ride their own next-touch journey, not J-5. *(seam: `*-edit.page.ts` form-mapping helper extraction
-  + the per-feature store `errorPatch`)*
-  Minor, same budget: drop the **3 unused files + 6 unused deps + 1 unresolved import** fallow lists once
-  the config lands (`fallow dead-code` enumerates). Not worth `fallow fix` (dead files only 1.1%).
+  pages) ride their own next-touch journey, not J-5. **SHIPPED (the J-26 hotspots) J-26 T-22/T-23:** the shared
+  `shared/util/form/error-patch.ts` `classifyApiError` (ordered `SaveErrorRule[]`) + the `withOptionals` form↔request
+  collapse absorbed aircraft/users/persons `errorPatch` + form-mapping (CRAP 160→13.8, 156→30, 132→30, …) and the
+  flights `applyLastContextThenPrefs` (CRAP 210→13.8) + `finalSubmit` (240→56). STILL PENDING (their own next-touch
+  journey): `flights/list/flights-list.page.ts` (24cyc, untouched), flights `store.errorPatch` (deliberately
+  unconverted — it's a 412/409 optimistic-lock state machine, not a kind-table). *(seam: `*-edit.page.ts`
+  form-mapping helper extraction + the per-feature store `errorPatch`)*
+  ~~Minor, same budget: drop the **3 unused files + 6 unused deps + 1 unresolved import** fallow lists.~~ **SHIPPED
+  J-26 T-24** (removed the dead `scripts/migrate-translations/` module + 5 redundant `@angular-eslint/*` devDeps;
+  3 fallow false-positives suppressed in `.fallowrc.json` so the snapshot is honest; fallow dead-code 12→1).
 
 - ~~**Java maintainability tool for `alpenflight/server` — add PMD + CPD (+ SpotBugs) (operator: "similar
   tool for Java").**~~ **Shipped J-5 T-11.** Added the gradle built-in **PMD** (7.25.0 — 7.7.0 hit a
@@ -444,17 +466,23 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-09, J-7 gate)
 
-- **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure** — a red
-  real-idp/fanout spec references its `error-context.md`/`trace.zip` but only `proof-manifest.json` survives
-  (the proof-gallery step overwrites the dir), so a gate red can't be diagnosed from the DOM snapshot/trace —
-  forcing source+log+architecture reasoning instead (J-7 T-19 hit this on BOTH the tenant-isolation + reservation
-  reds). Upload `test-results/**` as a separate failure artifact BEFORE the gallery step mutates the dir. *(seam:
-  ci.yml alpenflight-proof + fanout test-results upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
-- **Reservation Save enabled while form invalid (async validator race, J-7 T-20 observation).** The
-  second-crew-required validator flips AFTER the aircraft picker resolves `nrOfSeats`, so `reservation-save-button`
-  shows enabled (`saveDisabled:false`) for a beat while `form.invalid` is still true; clicking then early-returns
-  in `onSubmit` with no user feedback beyond `markAllAsTouched`. Not happy-path-blocking once crew is supplied, but
-  the button-disable binding and validator state momentarily disagree. *(seam: reservation-edit Save disable binding vs async second-crew validator)*
+- ~~**[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Proof job doesn't upload per-test `test-results/**` (error-context.md + trace.zip) on failure**~~ **SHIPPED J-26 T-25.**
+  Added an `actions/upload-artifact@v4` step gated on `if: failure()`, placed immediately AFTER each real-idp
+  Playwright `pw` step and BEFORE the staging/gallery/shots-present-guard steps that consume or mutate
+  `test-results/` (the guard re-invokes Playwright, which cleans the output dir → wipes the per-test
+  `error-context.md`/`trace.zip` the pre-existing always()-upload would otherwise have lost). Landed in all three
+  same-shape ci.yml jobs — `alpenflight-proof`, the J-3 `dashboard-proof`, and the REQUIRED J-4 `profile-proof` —
+  plus the `alpenflight-proof-fanout.yml` AlpenFlight parity step. Path `alpenflight/web/test-results/**`
+  (empirically verified: no `outputDir` in the Playwright config; per-test dirs land there), `retention-days: 7`,
+  distinct artifact name per job. actionlint green. *(was: ci.yml alpenflight-proof + fanout test-results
+  upload-artifact on failure, pre-gallery)* [[feedback_surface_proof_early_on_repeated_failure]]
+- ~~**Reservation Save enabled while form invalid (async validator race, J-7 T-20 observation).**~~ **SHIPPED J-26 T-09.**
+  The Save `[disabled]` now binds a `saveDisabled` computed off a `formStatus` signal
+  (`toSignal(form.statusChanges)`) via the pure `saveDisabledFor(status, …)` — Save enabled ONLY when status is
+  `'VALID'` (so `'PENDING'`/`'INVALID'` keep it disabled), replacing the non-reactive `form.invalid` getter the
+  OnPush template only re-read on a CD tick. The conditional second-crew validator effect now emits so the inline
+  error + form status re-derive in lock-step; a dead-end `onSubmit` surfaces field errors. Red-first 7-case unit
+  test on `saveDisabledFor` + reservation save-gating e2e case. *(was: reservation-edit Save disable binding vs async second-crew validator)*
 - **planning fixture club-B KC provisioning `beforeAll` can 45s-timeout under contention (J-7 T-20).** Did not
   reproduce on re-run (fanout `retries:1` absorbs it); if it recurs, bump that fixture's provisioning timeout
   or warm the KC admin client. *(seam: planning-migration-parity beforeAll club-B provisioning timeout)*
@@ -465,19 +493,21 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-10, J-7 gate — STRUCTURAL gallery)
 
-- **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**
-  The fanout legacy capture (`reporting-parity-J7.spec.ts`) PASSES and produces `legacy-flightreports-{picker,result,custom}.png`
-  + `legacy-reporting-parity-J7.webm` (confirmed in the run artifact under both `/tmp/fls-e2e-results/...` and the staged
-  `public/alpenflight/proof/screenshots/`), the J-7 `add_shot` calls for BOTH sides exist (fanout ~1091-1101), and the
-  shots-present guard ENFORCES the legacy three (passes) — yet the DEPLOYED J-7 page renders only the **alpenflight** side of
-  each of the 3 shot-pairs, legacy side = "pending". The fanout deployed LAST (07:03 vs CI 06:56), so it's NOT a deploy race —
-  the fanout's OWN `generate-gallery.mjs` run didn't emit/match the legacy J-7 `screenshots.json` entries the pairing reads.
-  Root cause is in the fanout `add_shot`→`screenshots.json`→generator pairing path (the guard checks PNG presence while the
-  generator pairs `screenshots.json` entries — the two disagree). **STRUCTURAL fix** (the operator's recurring gallery-plumbing
-  class — ride a journey's tech-debt budget, possibly the gallery re-arch): make the shots-present guard and the generator read
-  the SAME source of truth so "present" == "rendered", and assert the legacy SIDE of each declared pair actually renders on the
-  deployed page (extend the deployed-journey guard to check both sides of a pair, not just that the page is linked). *(seam:
-  alpenflight-proof-fanout.yml add_shot json emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
+- ~~**[NEXT-JOURNEY PRIORITY — retro 2026-06-12]** **Legacy-side parity shot renders "pending" though the PNG is produced + staged (staged-≠-rendered drift, J-7 T-22).**~~
+  **SHIPPED J-26 T-26.** Made staged==rendered STRUCTURAL: (1) new exported `renderedShotKeys(shots, journey)` in
+  `generate-gallery.mjs` is the SINGLE source of truth — it projects exactly the `extractScreenshots` shots the generator
+  RENDERS to the `<side>:<view>` keys; the `[shots-present]` guard's `loadStagedShotKeys` was rewritten to read through
+  `extractScreenshots` → `renderedShotKeys` (the generator's OWN render source), not an independent PNG glob, so "present"
+  (guard) is DEFINITIONALLY the generator's "rendered" set — one function, two callers. (2) the `[deployed-journey]` guard
+  (`tryAssertJourneyComplete`) now parses the deployed page's per-figure render keys (off each `<img alt="<side> <view>">`) and,
+  for every `expected` pair in `expected-shots.json`, asserts BOTH sides actually render on the deployed page — a declared pair
+  rendering only one side REDS (was: ≥1 asset + assets-200, which a half-pair passed trivially). Per-context tolerance mirrors
+  `[shots-present]` (`GALLERY_PROOF_CONTEXT` passed into BOTH deployed-journey steps: ci.yml=proof, fanout=fanout) so a side
+  `producedBy` the OTHER context is tolerated-absent on this deploy; `pending`/un-captured shots are never asserted (the
+  all-pending early-journey case stays green). Proof: 3 new generator unit tests reproduce the drift on a fixture (a one-sided
+  J-7 stage) and prove `renderedShotKeys` == the page's rendered keys; `pnpm test:scripts` 56 green; browserless link-check +
+  `[shots-present]` (J-1) green; actionlint clean on both workflows. *(was seam: alpenflight-proof-fanout.yml add_shot json
+  emission + generate-gallery.mjs pair render + deployed-journey guard both-sides)*
   [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
 
 ## Pending (filed by PR #215 review, 2026-06-10 — ADR 0027 JPA-first / no-JDBC)
@@ -496,10 +526,14 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   migrations ingest + register)*
 - **Retire the remaining main-code JDBC/native sites per-module on next touch (ADR 0027 §1).** 14 main-source files
   at filing time; structurally-pre-tenant seams stay register-listed (`UserPrincipalLookup`, `PreTenantUserLookup`,
-  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). Convert-on-touch candidates (`MeService` DONE in RM-4, incl. its `JpaUserRepository.languageExists`
-  native→JPQL boyscout): `JpaUserRepository` (remaining native), 
-  `JpaPersonRepository`, `JpaClubStateRepository`, `JpaCountryRepository`, `PlanningDayPersistenceProbeImpl`,
-  `AircraftReservationConflictProbeImpl`, `ShowcaseSeeder`, `LanguageCodeLookup`. *(seam: per-module infra layer)*
+  `ReferenceDataSeeder`, `MutationAuditEventListener` system-actor write). **SHIPPED J-26 T-14/T-15/T-16:**
+  `LanguageCodeLookup` → RM-4 `Language` JPA repo (T-14); `JpaClubStateRepository` + `JpaCountryRepository`
+  native→JPQL via the V40 ICU-collation column move (T-15); `PlanningDayPersistenceProbeImpl` → the
+  `ReservationCountPort` (`@NamedInterface`, T-16). `MeService` was DONE in RM-4 (incl. its
+  `JpaUserRepository.languageExists` native→JPQL boyscout). Register re-affirm pass (T-17) recorded the
+  conflict-probe keep-GiST decision + all 5 escape hatches re-affirmed. STILL PENDING convert-on-touch:
+  `JpaUserRepository` (remaining native), `JpaPersonRepository` (cross-tenant check),
+  `AircraftReservationConflictProbeImpl` (KEEP-GiST recorded T-17), `ShowcaseSeeder`. *(seam: per-module infra layer)*
 - **IT seeding: raw-JDBC → production-code per-touch (ADR 0027 §3).** ~85 ITs (incl. `TenantScopedRowBuilders` /
   `TwoClubFixture` consumers) seed via `JdbcTemplate`; convert each file the next time it's materially edited —
   convention, NOT a sweep story. J-7's own two ITs converted in PR #215 as the pattern reference. ADR 0021
@@ -509,12 +543,15 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   the migration round-trip family's bundle clubs `…04be`/`…0bb8` are also referenced by Audit*/Clubs* ITs — give a
   class ITS OWN club ids when touching it; production-reserved ids (ShowcaseSeeder, V-seeds) are off-limits as
   foreign fixture clubs). *(seam: server src/test, per-touch)*
-- **Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).** Five
-  aggregates now share the byte-identical softDelete(userId, clock) + @DomainEvents emit-on-save one-liner
-  shape (Flight, Aircraft, Person, Location, FlightType); the cpd-baseline has declined a @MappedSuperclass
-  three times while the clone count grew. Next server-side journey: either extract the lifecycle base
-  (soft-delete fields + saved-event hook) or write down the final verdict in an ADR so the ratchet file
-  stops re-litigating it. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt)*
+- **~~Lifecycle-boilerplate @MappedSuperclass — revisit the declined abstraction (CPD trio, J-7 RM-2).~~**
+  RESOLVED J-26 T-21 (ADR 0028). The "five aggregates" framing was loose: the empirical CPD clone was the
+  56-token triplet across Aircraft / FlightType / Location only (Flight + Person have divergent softDelete
+  signatures, never cloned). Verdict = EXTRACT the boundary-clean half: soft-delete state +
+  softDelete(userId, clock) + isDeleted() moved to the new @MappedSuperclass
+  `platform.persistence.SoftDeletableAggregate` (the three extend it); the @DomainEvents saved-event hook
+  STAYS per-aggregate (lifting it couples the shared kernel to each module's *Saved event — Modulith/ADR 0023
+  boundary violation). cpd-baseline ratcheted 4883→4827; ADR 0028 is the standing reference so the ratchet
+  stops re-litigating. *(seam: domain aggregates' lifecycle block + cpd-baseline.txt — done)*
 - **Fanout has NO reporting spec over MIGRATED data (predates the read-model conversion; found at RM-5).** The
   fanout's AlpenFlight parity step runs J-0c/J-1/J-2/J-5/J-6 migration-parity specs — `/flightreports` over the
   migrated dataset has never been e2e-asserted (the J-7 reporting specs run against the CLEAN seed in ci.yml; the
@@ -523,3 +560,23 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
   location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
   *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
+
+## Pending (filed by J-26 T-20, 2026-06-12 — IT-seeding conversion remainder, empirically measured)
+
+- **IT seeding: per-IT raw-JDBC seeders → production code, PER-TOUCH (ADR 0027 §3).** The shared seeders are now
+  done — TwoClubFixture's club seed (T-19), and the 5 Sweep factories + `SweepFixtureContext.jdbc()` (T-20,
+  converted to production save paths). The standing remainder is the **per-IT** seeders: of the **84** server
+  test files touching `JdbcTemplate` (verified by grep, not estimated), **44 SEED (raw `INSERT`)** and **40 use
+  JDBC purely for assertion (`SELECT`) / hard teardown (`DELETE`)**. The 40 assert/teardown files are NOT the
+  §3 anti-pattern (no domain-invariant bypass — a hard `DELETE` that bypasses soft-delete is legitimate test
+  infra) and should stay JDBC. The ~44 seed files convert **one file at a time, on its next material edit** —
+  ADR 0027 §3's own rule is per-touch, NOT a sweep story (an 84-file sweep is explicitly forbidden). *(seam:
+  `server/src/test`, per-touch)*
+- **Pinned-id aggregate seeds legitimately stay JDBC (the @GeneratedValue + Hibernate-7-overwrite wall).** When an
+  IT must seed an aggregate at an **externally-pinned** id (a consumer asserts on that exact id), production save
+  paths cannot deliver it: aggregate roots use `@GeneratedValue(UUID)` and Hibernate 7's `UuidGenerator`
+  (a `BeforeExecutionGenerator`) OVERWRITES any reflection-set id at insert — so save/persist/stateless-insert
+  all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
+  the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. The convertible case — the parent's
+  id is minted by the seed and merely passed to the child (no external pin) — is the clean win T-20 executed
+  across all 5 Sweep factories. *(seam: `server/src/test`, per-touch)*

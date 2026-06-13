@@ -3,11 +3,13 @@ package ch.alpenflight.clubs.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.clubs.domain.MemberState;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
-import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,8 +30,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a2");
     private static final String TEST_NAME_PREFIX = "IT_MSTI_";
     private static final String TEST_KEY_PREFIX = "IT_M_"; // club_key is VARCHAR(10) — keep prefix tight.
 
@@ -41,40 +41,59 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
     @Autowired
     private JpaMemberStateRepository memberStates;
 
+    @Autowired
+    private ClubRepository clubs;
+
+    @Autowired
+    private CountryRepository countries;
+
+    @Autowired
+    private ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
+
     @BeforeEach
     void seed() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
-        TenantTestContext.runAs(CLUB_A, () -> memberStates.save(new MemberState("Active member")));
-        TenantTestContext.runAs(CLUB_A, () -> memberStates.save(new MemberState("Suspended")));
-        TenantTestContext.runAs(CLUB_B, () -> memberStates.save(new MemberState("Trial flight")));
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        TenantTestContext.runAs(clubA, () -> memberStates.save(new MemberState("Active member")));
+        TenantTestContext.runAs(clubA, () -> memberStates.save(new MemberState("Suspended")));
+        TenantTestContext.runAs(clubB, () -> memberStates.save(new MemberState("Trial flight")));
     }
 
     @Test
-    @WithTenant("019e30c3-2c00-7001-8000-0000000000a1")
     void findAll_under_tenant_A_returns_only_A_rows() {
-        assertThat(memberStates.findAll())
-                .extracting(MemberState::getName)
-                .containsExactlyInAnyOrder("Active member", "Suspended");
-    }
-
-    @Test
-    @WithTenant("019e30c3-2c00-7001-8000-0000000000a1")
-    void runAs_switches_tenant_inside_test() {
-        assertThat(memberStates.findAll()).hasSize(2);
-        TenantTestContext.runAs(CLUB_B, () ->
+        // The minted club id is runtime, so tenant A is entered via runAs here
+        // rather than the method-level @WithTenant literal.
+        TenantTestContext.runAs(clubA, () ->
                 assertThat(memberStates.findAll())
                         .extracting(MemberState::getName)
-                        .containsExactly("Trial flight"));
-        assertThat(memberStates.findAll()).hasSize(2);
+                        .containsExactlyInAnyOrder("Active member", "Suspended"));
     }
 
     @Test
-    @WithTenant("019e30c3-2c00-7001-8000-0000000000a1")
+    void runAs_switches_tenant_inside_test() {
+        TenantTestContext.runAs(clubA, () -> {
+            assertThat(memberStates.findAll()).hasSize(2);
+            TenantTestContext.runAs(clubB, () ->
+                    assertThat(memberStates.findAll())
+                            .extracting(MemberState::getName)
+                            .containsExactly("Trial flight"));
+            assertThat(memberStates.findAll()).hasSize(2);
+        });
+    }
+
+    @Test
     void insert_writes_correct_club_id_to_db() {
-        MemberState saved = memberStates.save(new MemberState("Honorary"));
+        MemberState saved = TenantTestContext.runAs(clubA,
+                () -> memberStates.save(new MemberState("Honorary")));
         Integer matches = jdbc.queryForObject(
                 "SELECT count(*) FROM t_member_state WHERE id = ?::uuid AND club_id = ?::uuid",
-                Integer.class, saved.getId().toString(), CLUB_A.toString());
+                Integer.class, saved.getId().toString(), clubA.toString());
         assertThat(matches).isEqualTo(1);
     }
 

@@ -1,0 +1,2030 @@
+{
+  "$schema": "https://raw.githubusercontent.com/schemastore/schemastore/master/src/schemas/json/sarif-2.1.0-rtm.5.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "IntelliJ IDEA",
+          "version": "261.23567.138",
+          "informationUri": "https://www.jetbrains.com?utm_source=product&utm_medium=link&utm_campaign=IU&utm_content=2026.1",
+          "rules": [
+            {
+              "id": "unused",
+              "name": "Unused declaration"
+            }
+          ],
+          "language": "en-US",
+          "contents": [
+            "localizedData",
+            "nonLocalizedData"
+          ],
+          "isComprehensive": false
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "workingDirectory": {
+            "uri": "file:///C:/Users/roman/IdeaProjects/second-coding/fls/"
+          }
+        }
+      ],
+      "language": "en-US",
+      "results": [
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'locationId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightRepository.java"
+                },
+                "region": {
+                  "startLine": 157,
+                  "startColumn": 41,
+                  "endLine": 157,
+                  "endColumn": 51,
+                  "charOffset": 6843,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "locationId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/domain/FlightCostBalanceTypeRepository.java"
+                },
+                "region": {
+                  "startLine": 19,
+                  "startColumn": 51,
+                  "endLine": 19,
+                  "endColumn": 53,
+                  "charOffset": 623,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/web/ClubsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 42,
+                  "startColumn": 72,
+                  "endLine": 42,
+                  "endColumn": 73,
+                  "charOffset": 1924,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/articles/domain/ArticleRepository.java"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 43,
+                  "endLine": 24,
+                  "endColumn": 45,
+                  "charOffset": 780,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservationRepository.java"
+                },
+                "region": {
+                  "startLine": 89,
+                  "startColumn": 55,
+                  "endLine": 89,
+                  "endColumn": 57,
+                  "charOffset": 3889,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/web/ClubsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 37,
+                  "startColumn": 63,
+                  "endLine": 37,
+                  "endColumn": 64,
+                  "charOffset": 1717,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'number' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/articles/domain/ArticleRepository.java"
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 49,
+                  "endLine": 26,
+                  "endColumn": 55,
+                  "charOffset": 834,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "number"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/deployments/web/DeploymentsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 32,
+                  "startColumn": 69,
+                  "endLine": 32,
+                  "endColumn": 70,
+                  "charOffset": 1410,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'dayEnd' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservationRepository.java"
+                },
+                "region": {
+                  "startLine": 143,
+                  "startColumn": 74,
+                  "endLine": 143,
+                  "endColumn": 80,
+                  "charOffset": 6371,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "dayEnd"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'now' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/domain/MigrationUploadRepository.java"
+                },
+                "region": {
+                  "startLine": 29,
+                  "startColumn": 47,
+                  "endLine": 29,
+                  "endColumn": 50,
+                  "charOffset": 1022,
+                  "charLength": 3,
+                  "snippet": {
+                    "text": "now"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'personId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightReportRowRepository.java"
+                },
+                "region": {
+                  "startLine": 55,
+                  "startColumn": 49,
+                  "endLine": 55,
+                  "endColumn": 57,
+                  "charOffset": 2249,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "personId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/web/FlightsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 87,
+                  "endLine": 82,
+                  "endColumn": 88,
+                  "charOffset": 4087,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'userId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/domain/MigrationUploadRepository.java"
+                },
+                "region": {
+                  "startLine": 19,
+                  "startColumn": 55,
+                  "endLine": 19,
+                  "endColumn": 61,
+                  "charOffset": 647,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "userId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'personId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 79,
+                  "startColumn": 51,
+                  "endLine": 79,
+                  "endColumn": 59,
+                  "charOffset": 3469,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "personId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'processStateId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightRepository.java"
+                },
+                "region": {
+                  "startLine": 101,
+                  "startColumn": 44,
+                  "endLine": 101,
+                  "endColumn": 58,
+                  "charOffset": 4330,
+                  "charLength": 14,
+                  "snippet": {
+                    "text": "processStateId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'lastname' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 85,
+                  "startColumn": 70,
+                  "endLine": 85,
+                  "endColumn": 78,
+                  "charOffset": 3812,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "lastname"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'callerJwt' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"
+                },
+                "region": {
+                  "startLine": 318,
+                  "startColumn": 82,
+                  "endLine": 318,
+                  "endColumn": 91,
+                  "charOffset": 14587,
+                  "charLength": 9,
+                  "snippet": {
+                    "text": "callerJwt"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/web/FlightsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 164,
+                  "startColumn": 96,
+                  "endLine": 164,
+                  "endColumn": 97,
+                  "charOffset": 8077,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'locationId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 63,
+                  "startColumn": 61,
+                  "endLine": 63,
+                  "endColumn": 71,
+                  "charOffset": 2961,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "locationId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'lowerCasedEmail' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 82,
+                  "startColumn": 43,
+                  "endLine": 82,
+                  "endColumn": 58,
+                  "charOffset": 3632,
+                  "charLength": 15,
+                  "snippet": {
+                    "text": "lowerCasedEmail"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/LocationRepository.java"
+                },
+                "region": {
+                  "startLine": 47,
+                  "startColumn": 44,
+                  "endLine": 47,
+                  "endColumn": 46,
+                  "charOffset": 1744,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'firstname' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 85,
+                  "startColumn": 52,
+                  "endLine": 85,
+                  "endColumn": 61,
+                  "charOffset": 3794,
+                  "charLength": 9,
+                  "snippet": {
+                    "text": "firstname"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/web/FlightsExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 173,
+                  "startColumn": 84,
+                  "endLine": 173,
+                  "endColumn": 85,
+                  "charOffset": 8523,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'personId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 76,
+                  "startColumn": 51,
+                  "endLine": 76,
+                  "endColumn": 59,
+                  "charOffset": 3282,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "personId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 51,
+                  "startColumn": 47,
+                  "endLine": 51,
+                  "endColumn": 49,
+                  "charOffset": 2283,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'towedGliderFlightId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightReportRowRepository.java"
+                },
+                "region": {
+                  "startLine": 38,
+                  "startColumn": 56,
+                  "endLine": 38,
+                  "endColumn": 75,
+                  "charOffset": 1447,
+                  "charLength": 19,
+                  "snippet": {
+                    "text": "towedGliderFlightId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightCompositeValidator.java"
+                },
+                "region": {
+                  "startLine": 34,
+                  "startColumn": 40,
+                  "endLine": 34,
+                  "endColumn": 42,
+                  "charOffset": 1453,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'idempotencyKey' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/deployments/domain/DeploymentRepository.java"
+                },
+                "region": {
+                  "startLine": 34,
+                  "startColumn": 52,
+                  "endLine": 34,
+                  "endColumn": 66,
+                  "charOffset": 1366,
+                  "charLength": 14,
+                  "snippet": {
+                    "text": "idempotencyKey"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'ownerKeycloakSub' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/deployments/domain/DeploymentRepository.java"
+                },
+                "region": {
+                  "startLine": 46,
+                  "startColumn": 49,
+                  "endLine": 46,
+                  "endColumn": 65,
+                  "charOffset": 1929,
+                  "charLength": 16,
+                  "snippet": {
+                    "text": "ownerKeycloakSub"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'deploymentId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubRepository.java"
+                },
+                "region": {
+                  "startLine": 48,
+                  "startColumn": 43,
+                  "endLine": 48,
+                  "endColumn": 55,
+                  "charOffset": 1938,
+                  "charLength": 12,
+                  "snippet": {
+                    "text": "deploymentId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'keycloakSub' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 49,
+                  "startColumn": 46,
+                  "endLine": 49,
+                  "endColumn": 57,
+                  "charOffset": 1808,
+                  "charLength": 11,
+                  "snippet": {
+                    "text": "keycloakSub"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'asOf' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 94,
+                  "startColumn": 48,
+                  "endLine": 94,
+                  "endColumn": 52,
+                  "charOffset": 4598,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "asOf"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/domain/MigrationRunRepository.java"
+                },
+                "region": {
+                  "startLine": 14,
+                  "startColumn": 42,
+                  "endLine": 14,
+                  "endColumn": 44,
+                  "charOffset": 371,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'icaoCode' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/LocationRepository.java"
+                },
+                "region": {
+                  "startLine": 50,
+                  "startColumn": 62,
+                  "endLine": 50,
+                  "endColumn": 70,
+                  "charOffset": 1890,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "icaoCode"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 70,
+                  "startColumn": 42,
+                  "endLine": 70,
+                  "endColumn": 44,
+                  "charOffset": 2942,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'name' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/domain/FlightTypeRepository.java"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 50,
+                  "endLine": 24,
+                  "endColumn": 54,
+                  "charOffset": 821,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "name"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'clubId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 36,
+                  "startColumn": 41,
+                  "endLine": 36,
+                  "endColumn": 47,
+                  "charOffset": 1310,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "clubId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'username' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 51,
+                  "startColumn": 53,
+                  "endLine": 51,
+                  "endColumn": 61,
+                  "charOffset": 1875,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "username"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'clubId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 58,
+                  "startColumn": 33,
+                  "endLine": 58,
+                  "endColumn": 39,
+                  "charOffset": 2124,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "clubId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'currentTenantId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 76,
+                  "startColumn": 66,
+                  "endLine": 76,
+                  "endColumn": 81,
+                  "charOffset": 3297,
+                  "charLength": 15,
+                  "snippet": {
+                    "text": "currentTenantId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'typeCodes' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/AircraftRepository.java"
+                },
+                "region": {
+                  "startLine": 54,
+                  "startColumn": 72,
+                  "endLine": 54,
+                  "endColumn": 81,
+                  "charOffset": 2077,
+                  "charLength": 9,
+                  "snippet": {
+                    "text": "typeCodes"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'dayStart' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservationRepository.java"
+                },
+                "region": {
+                  "startLine": 143,
+                  "startColumn": 56,
+                  "endLine": 143,
+                  "endColumn": 64,
+                  "charOffset": 6353,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "dayStart"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'asOf' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservationRepository.java"
+                },
+                "region": {
+                  "startLine": 136,
+                  "startColumn": 50,
+                  "endLine": 136,
+                  "endColumn": 54,
+                  "charOffset": 6092,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "asOf"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'e' is not used"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/provisioning/web/ProvisioningExceptionHandler.java"
+                },
+                "region": {
+                  "startLine": 56,
+                  "startColumn": 80,
+                  "endLine": 56,
+                  "endColumn": 81,
+                  "charOffset": 2343,
+                  "charLength": 1,
+                  "snippet": {
+                    "text": "e"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'keycloakSub' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 40,
+                  "startColumn": 49,
+                  "endLine": 40,
+                  "endColumn": 60,
+                  "charOffset": 1413,
+                  "charLength": 11,
+                  "snippet": {
+                    "text": "keycloakSub"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'flightCode' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/domain/FlightTypeRepository.java"
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 50,
+                  "endLine": 26,
+                  "endColumn": 60,
+                  "charOffset": 878,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "flightCode"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'excludeId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 78,
+                  "startColumn": 56,
+                  "endLine": 78,
+                  "endColumn": 65,
+                  "charOffset": 3890,
+                  "charLength": 9,
+                  "snippet": {
+                    "text": "excludeId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'normalizedImmatriculation' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/AircraftRepository.java"
+                },
+                "region": {
+                  "startLine": 62,
+                  "startColumn": 59,
+                  "endLine": 62,
+                  "endColumn": 84,
+                  "charOffset": 2292,
+                  "charLength": 25,
+                  "snippet": {
+                    "text": "normalizedImmatriculation"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'slug' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubRepository.java"
+                },
+                "region": {
+                  "startLine": 33,
+                  "startColumn": 33,
+                  "endLine": 33,
+                  "endColumn": 37,
+                  "charOffset": 1249,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "slug"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'flightTypeId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightRepository.java"
+                },
+                "region": {
+                  "startLine": 164,
+                  "startColumn": 43,
+                  "endLine": 164,
+                  "endColumn": 55,
+                  "charOffset": 7137,
+                  "charLength": 12,
+                  "snippet": {
+                    "text": "flightTypeId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'locationId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 77,
+                  "startColumn": 70,
+                  "endLine": 77,
+                  "endColumn": 80,
+                  "charOffset": 3823,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "locationId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/AircraftRepository.java"
+                },
+                "region": {
+                  "startLine": 60,
+                  "startColumn": 44,
+                  "endLine": 60,
+                  "endColumn": 46,
+                  "charOffset": 2228,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/domain/MigrationUploadRepository.java"
+                },
+                "region": {
+                  "startLine": 21,
+                  "startColumn": 45,
+                  "endLine": 21,
+                  "endColumn": 47,
+                  "charOffset": 701,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'birthday' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 85,
+                  "startColumn": 90,
+                  "endLine": 85,
+                  "endColumn": 98,
+                  "charOffset": 3832,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "birthday"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'planningDate' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 77,
+                  "startColumn": 51,
+                  "endLine": 77,
+                  "endColumn": 63,
+                  "charOffset": 3804,
+                  "charLength": 12,
+                  "snippet": {
+                    "text": "planningDate"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'flightDate' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightRepository.java"
+                },
+                "region": {
+                  "startLine": 109,
+                  "startColumn": 38,
+                  "endLine": 109,
+                  "endColumn": 48,
+                  "charOffset": 4706,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "flightDate"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/domain/FlightTypeRepository.java"
+                },
+                "region": {
+                  "startLine": 22,
+                  "startColumn": 46,
+                  "endLine": 22,
+                  "endColumn": 48,
+                  "charOffset": 766,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'languageId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 75,
+                  "startColumn": 33,
+                  "endLine": 75,
+                  "endColumn": 43,
+                  "charOffset": 2841,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "languageId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'personId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/PersonRepository.java"
+                },
+                "region": {
+                  "startLine": 73,
+                  "startColumn": 53,
+                  "endLine": 73,
+                  "endColumn": 61,
+                  "charOffset": 3115,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "personId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'flightId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightReportRowRepository.java"
+                },
+                "region": {
+                  "startLine": 22,
+                  "startColumn": 51,
+                  "endLine": 22,
+                  "endColumn": 59,
+                  "charOffset": 812,
+                  "charLength": 8,
+                  "snippet": {
+                    "text": "flightId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubRepository.java"
+                },
+                "region": {
+                  "startLine": 30,
+                  "startColumn": 40,
+                  "endLine": 30,
+                  "endColumn": 42,
+                  "charOffset": 1148,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'aircraftId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightRepository.java"
+                },
+                "region": {
+                  "startLine": 149,
+                  "startColumn": 41,
+                  "endLine": 149,
+                  "endColumn": 51,
+                  "charOffset": 6520,
+                  "charLength": 10,
+                  "snippet": {
+                    "text": "aircraftId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'code' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/LanguageRepository.java"
+                },
+                "region": {
+                  "startLine": 25,
+                  "startColumn": 50,
+                  "endLine": 25,
+                  "endColumn": 54,
+                  "charOffset": 905,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "code"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/LocationRepository.java"
+                },
+                "region": {
+                  "startLine": 44,
+                  "startColumn": 54,
+                  "endLine": 44,
+                  "endColumn": 56,
+                  "charOffset": 1622,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'towFlightId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightReportRowRepository.java"
+                },
+                "region": {
+                  "startLine": 31,
+                  "startColumn": 48,
+                  "endLine": 31,
+                  "endColumn": 59,
+                  "charOffset": 1125,
+                  "charLength": 11,
+                  "snippet": {
+                    "text": "towFlightId"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'planningDate' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 63,
+                  "startColumn": 42,
+                  "endLine": 63,
+                  "endColumn": 54,
+                  "charOffset": 2942,
+                  "charLength": 12,
+                  "snippet": {
+                    "text": "planningDate"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'planningDate' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDayRepository.java"
+                },
+                "region": {
+                  "startLine": 105,
+                  "startColumn": 50,
+                  "endLine": 105,
+                  "endColumn": 62,
+                  "charOffset": 5193,
+                  "charLength": 12,
+                  "snippet": {
+                    "text": "planningDate"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'states' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/deployments/domain/DeploymentRepository.java"
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 66,
+                  "endLine": 26,
+                  "endColumn": 72,
+                  "charOffset": 1045,
+                  "charLength": 6,
+                  "snippet": {
+                    "text": "states"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'slug' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubRepository.java"
+                },
+                "region": {
+                  "startLine": 36,
+                  "startColumn": 42,
+                  "endLine": 36,
+                  "endColumn": 46,
+                  "charOffset": 1390,
+                  "charLength": 4,
+                  "snippet": {
+                    "text": "slug"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'id' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
+                },
+                "region": {
+                  "startLine": 38,
+                  "startColumn": 40,
+                  "endLine": 38,
+                  "endColumn": 42,
+                  "charOffset": 1359,
+                  "charLength": 2,
+                  "snippet": {
+                    "text": "id"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "unused",
+          "kind": "fail",
+          "level": "warning",
+          "message": {
+            "text": "Parameter 'excludeId' is not used in any implementation"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "..\\ile://C:/Users/roman/IdeaProjects/second-coding/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubRepository.java"
+                },
+                "region": {
+                  "startLine": 36,
+                  "startColumn": 53,
+                  "endLine": 36,
+                  "endColumn": 62,
+                  "charOffset": 1401,
+                  "charLength": 9,
+                  "snippet": {
+                    "text": "excludeId"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "newlineSequences": [
+        "\r\n",
+        "\n"
+      ]
+    }
+  ]
+}

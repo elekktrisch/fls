@@ -1,6 +1,7 @@
 package ch.alpenflight.locations.domain;
 
 import ch.alpenflight.platform.id.LocationId;
+import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -9,8 +10,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,7 +41,7 @@ import org.springframework.data.domain.DomainEvents;
  */
 @Entity
 @Table(name = "t_location")
-public class Location {
+public class Location extends SoftDeletableAggregate {
 
     private static final Pattern ICAO_PATTERN = Pattern.compile("^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$");
     private static final int MAX_NAME_LENGTH = 100;
@@ -116,15 +115,6 @@ public class Location {
 
     @Column(name = "is_fast_entry_record", nullable = false)
     private boolean fastEntryRecord;
-
-    @Column
-    private @Nullable Instant deletedOn;
-
-    // Set on soft-delete; never read by domain or service code — kept for the
-    // forensic trail S-027 will surface via the audit log.
-    @Column
-    @SuppressWarnings("UnusedVariable")
-    private @Nullable UUID deletedByUserId;
 
     @OneToMany(mappedBy = "location",
             cascade = CascadeType.ALL,
@@ -260,13 +250,6 @@ public class Location {
         }
     }
 
-    public void softDelete(@Nullable UUID userId, Clock clock) {
-        if (this.deletedOn == null) {
-            this.deletedOn = Instant.now(clock);
-            this.deletedByUserId = userId;
-        }
-    }
-
     /**
      * Spring Data publishes a {@link LocationSaved} event on every
      * {@code LocationRepository.save} (the Flight {@code @DomainEvents}
@@ -384,10 +367,6 @@ public class Location {
 
     public boolean isFastEntryRecord() {
         return fastEntryRecord;
-    }
-
-    public boolean isDeleted() {
-        return deletedOn != null;
     }
 
     public List<InOutboundPoint> getInOutboundPoints() {

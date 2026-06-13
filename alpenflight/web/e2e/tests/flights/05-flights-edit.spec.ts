@@ -100,7 +100,13 @@ async function stubFlightDetail(
           airState: 'LANDED',
           processStateId: 'ps-1',
           version: 7,
-          crew: [{ personId: PERSON_PILOT, flightCrewTypeId: 'pilot' }],
+          // Real pilot crew-type UUID (FLIGHT_CREW_TYPE_PILOT) — the form
+          // resolves the pilot slot by this id; J-26 T-13's required pilot
+          // validator needs it to hydrate (was a bare 'pilot' string that the
+          // form never matched, so Save would stay gated).
+          crew: [
+            { personId: PERSON_PILOT, flightCrewTypeId: '019e2e15-2c00-76b0-8000-0000000036b0' },
+          ],
           comment: 'before edit',
         }),
       });

@@ -50,6 +50,18 @@ const fr: Translations = {
     },
     title: 'Aéronefs',
   },
+  common: {
+    errors: {
+      duplicate: 'Déjà utilisé.',
+      email: 'Adresse e-mail invalide.',
+      max: 'Valeur trop grande.',
+      maxlength: 'Saisie trop longue.',
+      min: 'Valeur trop petite.',
+      minlength: 'Saisie trop courte.',
+      pattern: 'Format invalide.',
+      required: 'Saisie obligatoire.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Continuer la modification',

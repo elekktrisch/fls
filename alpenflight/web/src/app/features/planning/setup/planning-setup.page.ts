@@ -26,7 +26,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
-import { withOptionals } from '@shared/util/form';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { PlanningStore } from '../planning.store';
@@ -127,7 +127,7 @@ const WEEKDAYS: readonly {
                 [label]="t('startDate')"
                 for="SetupStart"
                 [required]="true"
-                [errors]="form.controls.startDate.touched ? form.controls.startDate.errors : null"
+                [errors]="startDateErrors()"
               >
                 <af-input
                   inputId="SetupStart"
@@ -140,7 +140,7 @@ const WEEKDAYS: readonly {
                 [label]="t('endDate')"
                 for="SetupEnd"
                 [required]="true"
-                [errors]="form.controls.endDate.touched ? form.controls.endDate.errors : null"
+                [errors]="endDateErrors()"
               >
                 <af-input
                   inputId="SetupEnd"
@@ -154,7 +154,7 @@ const WEEKDAYS: readonly {
               [label]="t('location')"
               for="SetupLocation"
               [required]="true"
-              [errors]="form.controls.locationId.touched ? form.controls.locationId.errors : null"
+              [errors]="locationIdErrors()"
             >
               <af-select
                 inputId="SetupLocation"
@@ -252,6 +252,14 @@ export class PlanningSetupPage {
     everySunday: this.fb.nonNullable.control(true),
     info: this.fb.nonNullable.control(''),
   });
+
+  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
+  // infra): each required `af-form-field [errors]` tracks its control's errors
+  // debounced ~200ms and clears when valid — replacing the touched-only
+  // bindings (silent until blur/submit).
+  protected readonly startDateErrors = liveFieldErrors(this.form.controls.startDate);
+  protected readonly endDateErrors = liveFieldErrors(this.form.controls.endDate);
+  protected readonly locationIdErrors = liveFieldErrors(this.form.controls.locationId);
 
   protected readonly locationOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),

@@ -168,4 +168,24 @@ public interface JpaAircraftReservationRepository
             + "where t.deletedOn is null "
             + "order by t.reservationTypeName asc")
     List<AircraftReservationRepository.TypeListItem> findActiveTypeListItems();
+
+    /**
+     * Per-day count backing the cross-module
+     * {@link ch.alpenflight.reservations.api.ReservationCountPort} (J-26 T-16):
+     * non-deleted reservations within the caller's tenant whose start falls in
+     * the half-open day window {@code [dayStart, dayEnd)} at {@code locationId}.
+     * Plain JPQL — tenant-implicit ({@code @TenantId}) + soft-delete filtered;
+     * the half-open {@code reservationStart >= dayStart AND reservationStart <
+     * dayEnd} range is the JPA equivalent of the retired native
+     * {@code date(reservation_start) = :planningDate} cast (the caller passes the
+     * UTC day bounds). No native SQL — this replaces the
+     * {@code planning-day-reservation-count} register hatch.
+     */
+    @Query("select count(r) from AircraftReservation r "
+            + "where r.deletedOn is null "
+            + "and r.locationId = :locationId "
+            + "and r.reservationStart >= :dayStart and r.reservationStart < :dayEnd")
+    long countActiveOnDayAtLocation(@Param("dayStart") Instant dayStart,
+                                    @Param("dayEnd") Instant dayEnd,
+                                    @Param("locationId") UUID locationId);
 }

@@ -16,7 +16,6 @@ import ch.alpenflight.reservations.domain.AircraftReservationType;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.Function;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Per-entity row-builder registry consumed by the S-024 leakage sweep. One
@@ -91,7 +90,4 @@ public final class TenantScopedRowBuilders {
     private static String uniqueName(String label) {
         return SWEEP_PREFIX + label + "_" + Long.toString(System.nanoTime(), 36);
     }
-
-    /** Fixture context handed to each row builder — JDBC lookups for seeded reference data. */
-    public record SweepFixtureContext(JdbcTemplate jdbc) {}
 }

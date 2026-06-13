@@ -15,18 +15,18 @@ import java.util.UUID;
  *       than a raw constraint-violation 500). Mirrors J-5's reservation
  *       conflict surfacing.</li>
  *   <li>{@link #countReservationsForDay} — the legacy
- *       {@code NumberOfAircraftReservations}: a count over the cross-module,
- *       tenant-scoped {@code t_aircraft_reservation} table keyed by
- *       {@code date(reservation_start) == planning_date} + same club + same
- *       location. Native SQL (the {@code date()} cast + cross-module table keep
- *       it out of the planning aggregate's JPQL), registered in
- *       {@code native-sql-register.md}.</li>
+ *       {@code NumberOfAircraftReservations}: a count of the day's aircraft
+ *       reservations at the same location. Since J-26 T-16 this reads through
+ *       the {@code reservations} module's
+ *       {@link ch.alpenflight.reservations.api.ReservationCountPort} named
+ *       interface (plain JPA, {@code @TenantId}-filtered) instead of the retired
+ *       {@code planning-day-reservation-count} native-SQL probe, so
+ *       {@code planning} no longer reaches into {@code t_aircraft_reservation}.</li>
  * </ul>
  *
  * <p>Implemented by {@link PlanningDayPersistenceProbeImpl}, which injects the
- * {@code EntityManager} + the tenant resolver to bind the explicit
- * {@code operating_club_id} predicate the native count needs (Hibernate's
- * {@code @TenantId} discriminator does not apply to native SQL).
+ * {@code EntityManager} ({@link #saveDedup} flush) + the
+ * {@link ch.alpenflight.reservations.api.ReservationCountPort} (the count).</p>
  */
 interface PlanningDayPersistenceProbe {
 

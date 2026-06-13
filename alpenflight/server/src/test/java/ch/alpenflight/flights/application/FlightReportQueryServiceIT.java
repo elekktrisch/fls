@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.flights.application.FlightReportDtos.FlightReportDataRecord;
 import ch.alpenflight.flights.application.FlightReportDtos.FlightReportFilter;
 import ch.alpenflight.flights.application.FlightReportDtos.FlightReportResult;
@@ -24,6 +25,8 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.PersonId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -51,9 +54,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c4-2c00-7001-8000-0000000000a1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c4-2c00-7001-8000-0000000000a2");
-
     private static final int TYPE_GLIDER = 1;
     private static final int TYPE_TOW = 2;
     private static final int TYPE_MOTOR = 4;
@@ -65,41 +65,48 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
     @Autowired LocationRepository locations;
     @Autowired FlightTypeRepository flightTypes;
     @Autowired PersonRepository persons;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
-    private TwoClubFixture clubs;
+    private UUID clubA;
+    private UUID clubB;
 
     /** Club each seeded flight lives under — lets {@link #seedCrew} re-load it via the tenant-scoped repository. */
     private final Map<UUID, UUID> flightClubs = new HashMap<>();
 
     @BeforeEach
     void seedClubs() {
-        clubs = new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_FRQ_", "IT_FRQ");
-        clubs.seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FRQ_", "IT_FRQ");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
     void filteredQuery_returnsMatchingRows_withDecorationsAndDuration() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID location = seedLocation(CLUB_A, "Birrfeld");
-        UUID flightType = seedFlightType(CLUB_A, "Schul", "SCH");
+        UUID aircraft = seedAircraft(clubA);
+        UUID location = seedLocation(clubA, "Birrfeld");
+        UUID flightType = seedFlightType(clubA, "Schul", "SCH");
         UUID pilot = seedPerson("Tester", "Anna");
         UUID copilot = seedPerson("Berg", "Beat");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:30:00Z");
-        UUID gliderInWindow = seedFlight(CLUB_A, TYPE_GLIDER, aircraft,
+        UUID gliderInWindow = seedFlight(clubA, TYPE_GLIDER, aircraft,
                 LocalDate.of(2026, 5, 15), start, ldg, location, location, flightType,
                 FlightProcessState.VALID.id(), null, true);
         seedCrew(gliderInWindow, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
         seedCrew(gliderInWindow, copilot, FlightCrewTypeIds.CO_PILOT);
 
         // Outside the date window — must be excluded.
-        seedFlight(CLUB_A, TYPE_GLIDER, aircraft,
+        seedFlight(clubA, TYPE_GLIDER, aircraft,
                 LocalDate.of(2026, 1, 1), Instant.parse("2026-01-01T08:00:00Z"),
                 Instant.parse("2026-01-01T09:00:00Z"), location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
         // A MOTOR flight in the window — excluded because motor flag is off.
-        seedFlight(CLUB_A, TYPE_MOTOR, aircraft,
+        seedFlight(clubA, TYPE_MOTOR, aircraft,
                 LocalDate.of(2026, 5, 16), start, ldg, location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
 
@@ -107,7 +114,7 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, null, true, false, false);
 
-        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult result = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         assertThat(result.totalRows()).isEqualTo(1);
@@ -133,33 +140,33 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void tenantIsolation_clubBFlight_neverReturnedToClubA() {
-        UUID aircraftA = seedAircraft(CLUB_A);
-        UUID aircraftB = seedAircraft(CLUB_B);
+        UUID aircraftA = seedAircraft(clubA);
+        UUID aircraftB = seedAircraft(clubB);
         // Club B uses club A's location id as its filter target — the cross-club
         // case. The legacy tenancy hole would leak B's flight; the corrected
         // query scopes by tenant so A sees only A's flight.
-        UUID locationA = seedLocation(CLUB_A, "Homebase");
-        UUID flightTypeA = seedFlightType(CLUB_A, "TypeA", "TA");
-        UUID flightTypeB = seedFlightType(CLUB_B, "TypeB", "TB");
+        UUID locationA = seedLocation(clubA, "Homebase");
+        UUID flightTypeA = seedFlightType(clubA, "TypeA", "TA");
+        UUID flightTypeB = seedFlightType(clubB, "TypeB", "TB");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
-        UUID flightA = seedFlight(CLUB_A, TYPE_GLIDER, aircraftA,
+        UUID flightA = seedFlight(clubA, TYPE_GLIDER, aircraftA,
                 LocalDate.of(2026, 5, 15), start, ldg, locationA, locationA, flightTypeA,
                 FlightProcessState.VALID.id(), null, false);
-        UUID flightB = seedFlight(CLUB_B, TYPE_GLIDER, aircraftB,
+        UUID flightB = seedFlight(clubB, TYPE_GLIDER, aircraftB,
                 LocalDate.of(2026, 5, 15), start, ldg, locationA, locationA, flightTypeB,
                 FlightProcessState.VALID.id(), null, false);
 
         // Club A, filtering by its own location, sees only its flight.
         FlightReportFilter filterA = new FlightReportFilter(null, null, null,
                 new LocationId(locationA), true, true, true);
-        FlightReportResult aResult = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult aResult = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filterA, 0, 100, false, true));
         assertThat(ids(aResult)).containsExactly(flightA);
 
         // Club B, scoped to B, sees only its flight (and not A's).
-        FlightReportResult bResult = TenantTestContext.runAs(CLUB_B,
+        FlightReportResult bResult = TenantTestContext.runAs(clubB,
                 () -> service.getReportPage(
                         new FlightReportFilter(null, null, null, null, true, true, true),
                         0, 100, false, true));
@@ -168,24 +175,24 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void aerotow_gliderRow_carriesNestedTowBlock_andTowHasBackRef() {
-        UUID gliderAc = seedAircraft(CLUB_A);
-        UUID towAc = seedAircraft(CLUB_A);
-        UUID home = seedLocation(CLUB_A, "Schänis");
-        UUID gliderType = seedFlightType(CLUB_A, "Streckenflug", "STR");
-        UUID towType = seedFlightType(CLUB_A, "Schlepp", "TOW");
+        UUID gliderAc = seedAircraft(clubA);
+        UUID towAc = seedAircraft(clubA);
+        UUID home = seedLocation(clubA, "Schänis");
+        UUID gliderType = seedFlightType(clubA, "Streckenflug", "STR");
+        UUID towType = seedFlightType(clubA, "Schlepp", "TOW");
         UUID gliderPilot = seedPerson("Vogel", "Vera");
         UUID towPilot = seedPerson("Schlepp", "Sven");
 
         Instant towStart = Instant.parse("2026-05-20T10:00:00Z");
         Instant towLdg = Instant.parse("2026-05-20T10:12:00Z");
-        UUID tow = seedFlight(CLUB_A, TYPE_TOW, towAc,
+        UUID tow = seedFlight(clubA, TYPE_TOW, towAc,
                 LocalDate.of(2026, 5, 20), towStart, towLdg, home, home, towType,
                 FlightProcessState.VALID.id(), null, false);
         seedCrew(tow, towPilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         Instant gliderStart = Instant.parse("2026-05-20T10:00:00Z");
         Instant gliderLdg = Instant.parse("2026-05-20T13:00:00Z");
-        UUID glider = seedFlight(CLUB_A, TYPE_GLIDER, gliderAc,
+        UUID glider = seedFlight(clubA, TYPE_GLIDER, gliderAc,
                 LocalDate.of(2026, 5, 20), gliderStart, gliderLdg, home, home, gliderType,
                 FlightProcessState.VALID.id(), tow, false);
         seedCrew(glider, gliderPilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
@@ -194,7 +201,7 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         FlightReportFilter filter = new FlightReportFilter(
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, null, true, false, true);
-        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult result = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         assertThat(ids(result)).containsExactlyInAnyOrder(glider, tow);
@@ -219,26 +226,26 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void personFilter_includesPilotRoles_excludesPassenger() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID location = seedLocation(CLUB_A, "Loc");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
+        UUID aircraft = seedAircraft(clubA);
+        UUID location = seedLocation(clubA, "Loc");
+        UUID flightType = seedFlightType(clubA, "T", "T");
         UUID person = seedPerson("Filter", "Felix");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
-        UUID asPilot = seedFlight(CLUB_A, TYPE_GLIDER, aircraft,
+        UUID asPilot = seedFlight(clubA, TYPE_GLIDER, aircraft,
                 LocalDate.of(2026, 5, 15), start, ldg, location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
         seedCrew(asPilot, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
-        UUID asPassenger = seedFlight(CLUB_A, TYPE_GLIDER, aircraft,
+        UUID asPassenger = seedFlight(clubA, TYPE_GLIDER, aircraft,
                 LocalDate.of(2026, 5, 16), start, ldg, location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
         seedCrew(asPassenger, person, FlightCrewTypeIds.PASSENGER);
 
         FlightReportFilter filter = new FlightReportFilter(null, null,
                 new PersonId(person), null, true, true, true);
-        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult result = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         assertThat(ids(result)).containsExactly(asPilot);
@@ -248,11 +255,11 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void personBranch_groupsByCrewFunction_correctsTotalFlights_andSplitsInstructorSolo() {
-        UUID glider = seedAircraft(CLUB_A);
-        UUID motor = seedAircraft(CLUB_A);
-        UUID tow = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Base");
-        UUID ft = seedFlightType(CLUB_A, "T", "T");
+        UUID glider = seedAircraft(clubA);
+        UUID motor = seedAircraft(clubA);
+        UUID tow = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Base");
+        UUID ft = seedFlightType(clubA, "T", "T");
         UUID person = seedPerson("Pic", "Paul");
         UUID other = seedPerson("Co", "Carla");
 
@@ -260,41 +267,41 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         Instant l = Instant.parse("2026-05-15T09:00:00Z"); // 60 min each
 
         // Pilot (Glider): 2 flights, ldgs 2 + 1 (with onStart 1 on one).
-        UUID g1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 15), s, l,
+        UUID g1 = seedFlight(clubA, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 15), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 2, (short) 0);
         seedCrew(g1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
-        UUID g2 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 16), s, l,
+        UUID g2 = seedFlight(clubA, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 16), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 1);
         seedCrew(g2, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         // Pilot (Motor): 1 flight as pilot.
-        UUID m1 = seedFlight(CLUB_A, TYPE_MOTOR, motor, LocalDate.of(2026, 5, 17), s, l,
+        UUID m1 = seedFlight(clubA, TYPE_MOTOR, motor, LocalDate.of(2026, 5, 17), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 3, (short) 0);
         seedCrew(m1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         // Pilot (Towing): 1 flight as pilot.
-        UUID t1 = seedFlight(CLUB_A, TYPE_TOW, tow, LocalDate.of(2026, 5, 18), s, l,
+        UUID t1 = seedFlight(clubA, TYPE_TOW, tow, LocalDate.of(2026, 5, 18), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 4, (short) 0);
         seedCrew(t1, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         // Copilot: 1 flight where person is copilot.
-        UUID c1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 19), s, l,
+        UUID c1 = seedFlight(clubA, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 19), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
         seedCrew(c1, other, FlightCrewTypeIds.PILOT_OR_STUDENT);
         seedCrew(c1, person, FlightCrewTypeIds.CO_PILOT);
 
         // Instructor (non-solo) + Instructor (solo) split.
-        UUID i1 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 20), s, l,
+        UUID i1 = seedFlight(clubA, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 20), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
         seedCrew(i1, person, FlightCrewTypeIds.FLIGHT_INSTRUCTOR);
-        UUID i2 = seedFlight(CLUB_A, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 21), s, l,
+        UUID i2 = seedFlight(clubA, TYPE_GLIDER, glider, LocalDate.of(2026, 5, 21), s, l,
                 loc, loc, ft, FlightProcessState.VALID.id(), null, true, (short) 1, (short) 0);
         seedCrew(i2, person, FlightCrewTypeIds.FLIGHT_INSTRUCTOR);
 
         FlightReportFilter filter = new FlightReportFilter(
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 new PersonId(person), null, true, true, true);
-        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult result = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         List<FlightReportDtos.FlightReportSummary> sums = result.summaries();
@@ -325,29 +332,29 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void locationBranch_groupsByFlightTypeName_alphabetical_withTotal() {
-        UUID ac = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Home");
-        UUID away = seedLocation(CLUB_A, "Away");
-        UUID streckenflug = seedFlightType(CLUB_A, "Streckenflug", "STR");
-        UUID schulung = seedFlightType(CLUB_A, "Schulung", "SCH");
+        UUID ac = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Home");
+        UUID away = seedLocation(clubA, "Away");
+        UUID streckenflug = seedFlightType(clubA, "Streckenflug", "STR");
+        UUID schulung = seedFlightType(clubA, "Schulung", "SCH");
 
         Instant s = Instant.parse("2026-05-15T08:00:00Z");
         Instant l = Instant.parse("2026-05-15T09:00:00Z");
 
         // Same-airfield flight (start==ldg==loc): starts = nrOfLdgs (3) + onStart (0).
-        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 15), s, l,
+        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 15), s, l,
                 loc, loc, schulung, FlightProcessState.VALID.id(), null, false, (short) 3, (short) 0);
         // Fly-in (start away, ldg here): ldgs counts nrOfLdgs (2); starts term = nrOfLdgs-1 = 1.
-        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 16), s, l,
+        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 16), s, l,
                 away, loc, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 2, (short) 0);
         // Fly-out (start here, ldg away): ldgs 0 here; starts term = nrOfLdgs (1).
-        seedFlight(CLUB_A, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 17), s, l,
+        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 17), s, l,
                 loc, away, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
 
         FlightReportFilter filter = new FlightReportFilter(
                 LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31),
                 null, new LocationId(loc), true, true, true);
-        FlightReportResult result = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult result = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         List<FlightReportDtos.FlightReportSummary> sums = result.summaries();
@@ -373,27 +380,27 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
     @Test
     void summaries_tenantScoped_clubBFlightsDoNotInflateClubASummary() {
-        UUID acA = seedAircraft(CLUB_A);
-        UUID acB = seedAircraft(CLUB_B);
-        UUID locA = seedLocation(CLUB_A, "Shared");
-        UUID ftA = seedFlightType(CLUB_A, "TypeX", "X");
-        UUID ftB = seedFlightType(CLUB_B, "TypeX", "X");
+        UUID acA = seedAircraft(clubA);
+        UUID acB = seedAircraft(clubB);
+        UUID locA = seedLocation(clubA, "Shared");
+        UUID ftA = seedFlightType(clubA, "TypeX", "X");
+        UUID ftB = seedFlightType(clubB, "TypeX", "X");
         UUID person = seedPerson("Shared", "Sam");
 
         Instant s = Instant.parse("2026-05-15T08:00:00Z");
         Instant l = Instant.parse("2026-05-15T09:00:00Z");
 
-        UUID fa = seedFlight(CLUB_A, TYPE_GLIDER, acA, LocalDate.of(2026, 5, 15), s, l,
+        UUID fa = seedFlight(clubA, TYPE_GLIDER, acA, LocalDate.of(2026, 5, 15), s, l,
                 locA, locA, ftA, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
         seedCrew(fa, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
         // Club B flight with the SAME person as pilot — must not leak into A's summary.
-        UUID fb = seedFlight(CLUB_B, TYPE_GLIDER, acB, LocalDate.of(2026, 5, 15), s, l,
+        UUID fb = seedFlight(clubB, TYPE_GLIDER, acB, LocalDate.of(2026, 5, 15), s, l,
                 locA, locA, ftB, FlightProcessState.VALID.id(), null, false, (short) 5, (short) 0);
         seedCrew(fb, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         FlightReportFilter filter = new FlightReportFilter(null, null,
                 new PersonId(person), null, true, true, true);
-        FlightReportResult aResult = TenantTestContext.runAs(CLUB_A,
+        FlightReportResult aResult = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         var pg = summary(aResult.summaries(), "Pilot (Glider)");

@@ -5,7 +5,10 @@ import static ch.alpenflight.flights.web.FlightsTestFixtures.createPayload;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.seedAircraftFor;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,11 +46,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    // Distinct UUIDs per IT so we don't collide with FlightsControllerIT /
-    // FlightsTenantIsolationIT when JUnit runs them in the same JVM.
-    private static final UUID CLUB_UUID = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d1");
-    private static final UUID OTHER_CLUB_UUID = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d2");
-    private static final String CLUB_ID = CLUB_UUID.toString();
 
     private static final UUID NOT_PROCESSED = UUID.fromString("019e2e15-2c00-7a98-8000-000000003a98");
     private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
@@ -56,21 +54,31 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    // Distinct minted clubs per IT so we don't collide with FlightsControllerIT /
+    // FlightsTenantIsolationIT when JUnit runs them in the same JVM.
+    private UUID clubUuid;
+    private UUID otherClubUuid;
     private String adminToken;
     private String aircraftIdExternal;
 
     @BeforeEach
     void setUp() {
-        adminToken = jwts.mint(c -> c
-                .claim("clubId", CLUB_ID)
-                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        cleanFlightRowsFor(jdbc, CLUB_UUID, OTHER_CLUB_UUID);
         // Seed both clubs via the existing fixture (handles aircraft + child
         // cleanup + the complex club FK chain).
-        new TwoClubFixture(jdbc, CLUB_UUID, OTHER_CLUB_UUID,
-                "patchit", "PAIT").seed();
-        UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "patchit", "PAIT");
+        fixture.seed();
+        clubUuid = fixture.clubA();
+        otherClubUuid = fixture.clubB();
+        adminToken = jwts.mint(c -> c
+                .claim("clubId", clubUuid.toString())
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
+        cleanFlightRowsFor(jdbc, clubUuid, otherClubUuid);
+        UUID aid = seedAircraftFor(jdbc, clubUuid);
         aircraftIdExternal = "ac-" + aid;
     }
 
@@ -137,8 +145,8 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void cross_tenant_flight_returns_404() {
-        // Seed a flight under OTHER_CLUB_UUID and try to PATCH it with our token.
-        UUID otherAircraft = seedAircraftFor(jdbc, OTHER_CLUB_UUID);
+        // Seed a flight under otherClubUuid and try to PATCH it with our token.
+        UUID otherAircraft = seedAircraftFor(jdbc, otherClubUuid);
         UUID otherFlightId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_flight (id, operating_club_id, aircraft_id,
@@ -151,7 +159,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
                         ?::uuid, 0)
                 """,
                 otherFlightId.toString(),
-                OTHER_CLUB_UUID.toString(),
+                otherClubUuid.toString(),
                 otherAircraft.toString(),
                 VALID.toString());
 

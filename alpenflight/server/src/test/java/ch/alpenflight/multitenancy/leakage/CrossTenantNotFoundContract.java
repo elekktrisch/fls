@@ -2,7 +2,10 @@ package ch.alpenflight.multitenancy.leakage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -49,20 +52,30 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(JwtTestFixture.class)
 abstract class CrossTenantNotFoundContract extends PostgresIntegrationTest {
 
-    /** Stable UUIDs for the two-club fixture; subclass-shared. */
-    protected static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e1");
-    protected static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e2");
-
     private static final String NAME_PREFIX = "IT_XTNF_";
     private static final String KEY_PREFIX = "IT_F_";
 
     @Autowired protected TestRestTemplate rest;
     @Autowired protected JwtTestFixture jwts;
     @Autowired protected JdbcTemplate jdbc;
+    @Autowired protected ClubRepository clubs;
+    @Autowired protected CountryRepository countries;
+    @Autowired protected ClubStateRepository clubStates;
+
+    /**
+     * Minted two-club ids; subclass-shared. Captured after the production-create
+     * fixture seeds (J-26 T-19) — no longer pinned constants.
+     */
+    protected UUID clubA;
+    protected UUID clubB;
 
     @BeforeEach
     void seedTwoClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
         TenantTestContext.clear();
     }
 
@@ -89,12 +102,12 @@ abstract class CrossTenantNotFoundContract extends PostgresIntegrationTest {
 
     @Test
     void controller_get_with_other_tenant_id_returns_404() {
-        // CLUB_A creates a row; CLUB_B's authenticated user fetches its
+        // clubA creates a row; clubB's authenticated user fetches its
         // external id and must receive 404 (not 403 — existence is not
         // leaked).
-        String foreignId = createUnderTenant(CLUB_A);
+        String foreignId = createUnderTenant(clubA);
         String tokenAsB = jwts.mint(c -> c
-                .claim("clubId", CLUB_B.toString())
+                .claim("clubId", clubB.toString())
                 .claim("realm_access", Map.of("roles", List.of(roleClaim()))));
 
         HttpHeaders headers = new HttpHeaders();
