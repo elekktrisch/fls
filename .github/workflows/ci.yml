@@ -1039,6 +1039,29 @@ jobs:
               "Legacy flsweb: the custom-report builder - date range + flight-type toggles + person/location selector" \
               "AlpenFlight: the custom-report builder form - From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
           fi
+          # ----- J-8 accounting rule filters (list/form — view keys match the
+          # fanout + expected-shots.json J-8) --------------------------------
+          # MIGRATION journey, but PER-CONTEXT producing (J-7 T-16 pattern, T-21):
+          # only the AlpenFlight halves are produced in the PER-PUSH proof context.
+          # The clean-seed real chain `accounting-rules-parity.spec.ts` runs HERE
+          # (the alpenflight-proof real-idp specs) and writes
+          # alpenflight-accountingrules-{list,form}.png to test-results/. The LEGACY
+          # halves are producible ONLY in the fanout (the flsweb stack runs there),
+          # so expected-shots.json tags legacy:list/form `producedBy: fanout` →
+          # tolerated-absent in this `proof` context. Hence add_af_only (not
+          # add_pair): we stage only the two AF halves the per-push run produces; the
+          # legacy peer is rendered in the fanout page (and from the committed
+          # capture-once refs). The view keys (list/form) + AF filenames match the
+          # fanout's J-8 add_shot declarations (alpenflight-proof-fanout.yml ~L1196)
+          # so the per-push page reads identically to the nightly page's AF column.
+          if [ "${PROOF_JOURNEY:-}" = "J-8" ]; then
+            add_af_only "J-8" "accounting" "list" \
+              "alpenflight-accountingrules-list.png" \
+              "AlpenFlight: the /accountingrules list — a created article-target rule renders with its server-derived target column (articleNumber + deliveryLineText), the rule-filter table to eyeball against the legacy ng-table (legacy peer in the fanout page)"
+            add_af_only "J-8" "accounting" "form" \
+              "alpenflight-accountingrules-form.png" \
+              "AlpenFlight: the /accountingrules edit form reopened over the real chain — every field round-trips (RuleFilterName · Description · the glider + stop-rule-engine flags · the article-target ArticleNumber + the filter_config-stored DeliveryLineText), the filter-type-driven edit form to eyeball against the legacy form (legacy peer in the fanout page)"
+          fi
           # ----- J-26 hardening (membership / duplicate-code — AF-only) --------
           # Hardening sprint: no new screen, no legacy parity peer (the shots are
           # AlpenFlight-only hardening evidence). The view keys (membership,
