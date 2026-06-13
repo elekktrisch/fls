@@ -355,6 +355,12 @@ public final class TwoClubFixture {
         // are gone (cross-club references). aircraft_aircraft_state and
         // aircraft_operating_counter cascade via their FKs.
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id IN (" + in + ")", ids);
+        // t_user is CROSS-tenant (not @TenantId-scoped → absent from the catalog
+        // loop below), but t_user.club_id → t_club is ON DELETE RESTRICT, so any
+        // user under a seed club blocks deleteClubs(). With production-minted club
+        // ids (T-19b) a consumer's own cleanUserRows() keys on THIS run's ids and
+        // can't reach a PRIOR run's users, so the fixture must clear them itself.
+        jdbc.update("DELETE FROM t_user WHERE club_id IN (" + in + ")", ids);
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
             String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);

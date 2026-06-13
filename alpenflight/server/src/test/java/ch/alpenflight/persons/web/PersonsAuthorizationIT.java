@@ -2,7 +2,10 @@ package ch.alpenflight.persons.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,11 +44,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(JwtTestFixture.class)
 class PersonsAuthorizationIT extends PostgresIntegrationTest {
 
-    private static final String CLUB_A_LITERAL = "019e30c3-2c00-7001-8000-0000000000a3";
-    private static final String CLUB_B_LITERAL = "019e30c3-2c00-7001-8000-0000000000a4";
-    private static final UUID CLUB_A = UUID.fromString(CLUB_A_LITERAL);
-    private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
-
     private static final String TEST_NAME_PREFIX = "IT_PAU_";
     private static final String TEST_KEY_PREFIX = "IT_PA_";
 
@@ -54,14 +52,23 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    private UUID clubA;
+    private UUID clubB;
     private String clubAAdminToken;
 
     @BeforeEach
     void seed() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
         clubAAdminToken = jwts.mint(c -> c
-                .claim("clubId", CLUB_A_LITERAL)
+                .claim("clubId", clubA.toString())
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
@@ -77,7 +84,7 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
                 personId.toString(), "OnlyInB", "Smith");
         jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                personClubId.toString(), personId.toString(), CLUB_B.toString());
+                personClubId.toString(), personId.toString(), clubB.toString());
 
         // CLUB_A admin asks for the Person. The service finds it by PK
         // (cross-tenant) but `hasActiveMembershipInCurrentTenant` returns
@@ -98,7 +105,7 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
                 personA.toString(), "AnnaA", "Smith");
         jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcA.toString(), personA.toString(), CLUB_A.toString());
+                pcA.toString(), personA.toString(), clubA.toString());
 
         UUID personB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b01b");
         UUID pcB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b02b");
@@ -106,7 +113,7 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
                 personB.toString(), "BobB", "Jones");
         jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcB.toString(), personB.toString(), CLUB_B.toString());
+                pcB.toString(), personB.toString(), clubB.toString());
 
         ResponseEntity<String> res = get("/api/v1/persons");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);

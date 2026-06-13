@@ -2,7 +2,10 @@ package ch.alpenflight.me.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -56,9 +59,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class ClubDashboardControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c2");
 
     private static final UUID INVALID = UUID.fromString("019e2e15-2c00-7a99-8000-000000003a99");
     private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
@@ -72,20 +72,30 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
+    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
+    private UUID clubA;
+    private UUID clubB;
     private String aircraftAExternal;
 
     @BeforeEach
     void seed() {
-        cleanFlightRows(CLUB_A, CLUB_B);
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "cdash", "CDSH").seed();
-        aircraftAExternal = "ac-" + seedAircraft(CLUB_A);
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "cdash", "CDSH");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        cleanFlightRows(clubA, clubB);
+        aircraftAExternal = "ac-" + seedAircraft(clubA);
     }
 
     @Test
     void clubAdmin_counts_today_and_pending_scoped_to_own_club() {
-        String adminA = adminToken(CLUB_A);
-        String aircraftB = "ac-" + seedAircraft(CLUB_B);
+        String adminA = adminToken(clubA);
+        String aircraftB = "ac-" + seedAircraft(clubB);
 
         // Club A: 3 flights today (2 NotProcessed + 1 Valid) → today = 3.
         createFlight(adminA, aircraftAExternal, TODAY, null);           // today, NotProcessed
@@ -97,7 +107,7 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
         // pending (NotProcessed + Invalid) = 2 + 1 = 3; Valid rows excluded.
 
         // Club B noise: a flight today + a NotProcessed — must NOT leak into A's counts.
-        String adminB = adminToken(CLUB_B);
+        String adminB = adminToken(clubB);
         createFlight(adminB, aircraftB, TODAY, null);
         createFlight(adminB, aircraftB, PAST, INVALID);
 
@@ -113,12 +123,12 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     @Test
     void counts_are_tenant_isolated_clubB_sees_only_its_own() {
         // Club A has flights; Club B has exactly one (today, NotProcessed).
-        String adminA = adminToken(CLUB_A);
+        String adminA = adminToken(clubA);
         createFlight(adminA, aircraftAExternal, TODAY, null);
         createFlight(adminA, aircraftAExternal, TODAY, null);
 
-        String aircraftB = "ac-" + seedAircraft(CLUB_B);
-        String adminB = adminToken(CLUB_B);
+        String aircraftB = "ac-" + seedAircraft(clubB);
+        String adminB = adminToken(clubB);
         createFlight(adminB, aircraftB, TODAY, null);
 
         JsonNode body = get("/api/v1/me/club-dashboard", adminB);
@@ -131,7 +141,7 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     @Test
     void pilot_without_clubAdmin_role_is_rejected_403() {
         String pilot = jwts.mint(c -> c
-                .claim("clubId", CLUB_A.toString())
+                .claim("clubId", clubA.toString())
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
         ResponseEntity<String> res = rawGet("/api/v1/me/club-dashboard", pilot);
         assertThat(res.getStatusCode())

@@ -2,8 +2,11 @@ package ch.alpenflight.persons.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonRepository;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -28,17 +31,25 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c3");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c4");
     private static final String NAME_PREFIX = "IT_PRT_";
     private static final String KEY_PREFIX = "IT_PR_";
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private PersonRepository persons;
+    @Autowired private ClubRepository clubs;
+    @Autowired private CountryRepository countries;
+    @Autowired private ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seed() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
         TenantTestContext.clear();
     }
 
@@ -51,12 +62,12 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
                 personId.toString(), "MultiClub", "Pilot");
         jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcId.toString(), personId.toString(), CLUB_B.toString());
+                pcId.toString(), personId.toString(), clubB.toString());
 
         // Caller acts as CLUB_A — a tenant that doesn't share any
         // membership with this Person. Flight.crew_id resolution in S-058
         // must still find the Person via PK regardless.
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Optional<Person> found = persons.findActiveById(personId);
             assertThat(found)
                     .as("Person PK load is cross-tenant by design (sacred cow); "
@@ -66,7 +77,7 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
         });
 
         // Same Person reachable under CLUB_B (the home tenant).
-        TenantTestContext.runAs(CLUB_B, () ->
+        TenantTestContext.runAs(clubB, () ->
                 assertThat(persons.findActiveById(personId)).isPresent());
 
         // And reachable outside any tenant context — sysadmin admin paths
@@ -86,9 +97,9 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
                 personId.toString(), "BInB", "Only");
         jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcId.toString(), personId.toString(), CLUB_B.toString());
+                pcId.toString(), personId.toString(), clubB.toString());
 
-        TenantTestContext.runAs(CLUB_A, () ->
+        TenantTestContext.runAs(clubA, () ->
                 assertThat(persons.findActiveListRowsInCurrentTenant())
                         .as("Per-tenant list JOINs through PersonClub; the @TenantId on the "
                                 + "junction scopes the result away from foreign-tenant Persons")
