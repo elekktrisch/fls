@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-13T03:08:59.647">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-13T03:29:50.147">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/application/AircraftsService.java">
 <violation beginline="73" endline="80" begincolumn="28" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.application" class="AircraftsService" method="AircraftsService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
@@ -7,21 +7,21 @@ Avoid long parameter lists (8 parameters - threshold is 8).
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/Aircraft.java">
 <violation beginline="79" endline="79" begincolumn="14" endcolumn="22" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'Aircraft' has a total cyclomatic complexity of 107 (highest 10).
+The class 'Aircraft' has a total cyclomatic complexity of 104 (highest 10).
 </violation>
 <violation beginline="79" endline="79" begincolumn="14" endcolumn="22" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
 Too many fields
 </violation>
-<violation beginline="208" endline="232" begincolumn="36" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="register" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="201" endline="225" begincolumn="36" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="register" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (25 parameters - threshold is 8).
 </violation>
-<violation beginline="259" endline="259" begincolumn="17" endcolumn="33" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="updateMasterdata" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="252" endline="252" begincolumn="17" endcolumn="33" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="updateMasterdata" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'updateMasterdata(String, String, String, String, String, LocalDate, String, BigDecimal, Integer, Integer, UUID, UUID, UUID, UUID, String, boolean, boolean, boolean, boolean, String, Integer)' has a cyclomatic complexity of 10.
 </violation>
-<violation beginline="259" endline="279" begincolumn="33" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="updateMasterdata" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="252" endline="272" begincolumn="33" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="updateMasterdata" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (21 parameters - threshold is 8).
 </violation>
-<violation beginline="385" endline="392" begincolumn="50" endcolumn="115" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="recordCounter" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="378" endline="385" begincolumn="50" endcolumn="115" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" method="recordCounter" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
 </violation>
 </file>
@@ -114,21 +114,21 @@ The method 'parseIfMatch(String)' has a cyclomatic complexity of 10.
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/domain/FlightType.java">
-<violation beginline="126" endline="139" begincolumn="38" endcolumn="86" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flighttypes.domain" class="FlightType" method="register" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="116" endline="129" begincolumn="38" endcolumn="86" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flighttypes.domain" class="FlightType" method="register" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (14 parameters - threshold is 8).
 </violation>
-<violation beginline="178" endline="188" begincolumn="28" endcolumn="67" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flighttypes.domain" class="FlightType" method="updateFlags" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="168" endline="178" begincolumn="28" endcolumn="67" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flighttypes.domain" class="FlightType" method="updateFlags" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (11 parameters - threshold is 8).
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/Location.java">
-<violation beginline="45" endline="45" begincolumn="14" endcolumn="22" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'Location' has a total cyclomatic complexity of 69 (highest 9).
+<violation beginline="44" endline="44" begincolumn="14" endcolumn="22" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The class 'Location' has a total cyclomatic complexity of 66 (highest 9).
 </violation>
-<violation beginline="45" endline="45" begincolumn="14" endcolumn="22" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
+<violation beginline="44" endline="44" begincolumn="14" endcolumn="22" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
 Too many fields
 </violation>
-<violation beginline="138" endline="155" begincolumn="34" endcolumn="59" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="128" endline="145" begincolumn="34" endcolumn="59" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.locations.domain" class="Location" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (18 parameters - threshold is 8).
 </violation>
 </file>
