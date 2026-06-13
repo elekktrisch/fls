@@ -2,8 +2,44 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.96.0",
-  "elapsed_ms": 409,
+  "elapsed_ms": 404,
   "findings": [
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "<component>",
+      "line": 836,
+      "col": 0,
+      "cyclomatic": 40,
+      "cognitive": 52,
+      "line_count": 406,
+      "param_count": 0,
+      "exceeded": "both",
+      "severity": "critical",
+      "component_rollup": {
+        "component": "accounting-edit.page",
+        "class_worst_function": "detailToFormValue",
+        "class_cyclomatic": 24,
+        "class_cognitive": 23,
+        "template_path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+        "template_cyclomatic": 16,
+        "template_cognitive": 29
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `accounting-edit.page` to reduce component complexity (rolled-up cyclomatic 40 = 24 on `detailToFormValue` + 16 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
+        }
+      ]
+    },
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
       "name": "<component>",
@@ -77,6 +113,42 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "detailToFormValue",
+      "line": 836,
+      "col": 0,
+      "cyclomatic": 24,
+      "cognitive": 23,
+      "line_count": 36,
+      "param_count": 2,
+      "exceeded": "all",
+      "severity": "critical",
+      "crap": 600.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `detailToFormValue` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `detailToFormValue` to reduce complexity (extract helper functions, simplify branching)",
+          "note": "Consider splitting into smaller functions with single responsibilities"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "<component>",
       "line": 114,
@@ -109,6 +181,42 @@
           "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-component-worst-method"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "formToRequest",
+      "line": 707,
+      "col": 23,
+      "cyclomatic": 22,
+      "cognitive": 20,
+      "line_count": 63,
+      "param_count": 1,
+      "exceeded": "all",
+      "severity": "critical",
+      "crap": 506.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `formToRequest` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `formToRequest` to reduce complexity (extract helper functions, simplify branching)",
+          "note": "Consider splitting into smaller functions with single responsibilities"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
         }
       ]
     },
@@ -433,6 +541,42 @@
           "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-component-worst-method"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "<template>",
+      "line": 108,
+      "col": 0,
+      "cyclomatic": 16,
+      "cognitive": 29,
+      "line_count": 370,
+      "param_count": 0,
+      "exceeded": "cognitive_crap",
+      "severity": "critical",
+      "crap": 272.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `<template>` to reduce template complexity (simplify control flow and bindings)",
+          "note": "Consider splitting complex template branches into smaller components or simpler bindings"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
         }
       ]
     },
@@ -841,6 +985,36 @@
           "description": "Suppress with an inline comment above the Angular decorator",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "extractMatchListSlice",
+      "line": 815,
+      "col": 0,
+      "cyclomatic": 12,
+      "cognitive": 11,
+      "line_count": 20,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "critical",
+      "crap": 156.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `extractMatchListSlice` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
         }
       ]
     },
@@ -1775,6 +1949,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "onSubmit",
+      "line": 679,
+      "col": 20,
+      "cyclomatic": 6,
+      "cognitive": 6,
+      "line_count": 20,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `onSubmit` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "durationBlock",
       "line": 81,
@@ -2255,6 +2459,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "<arrow>",
+      "line": 621,
+      "col": 11,
+      "cyclomatic": 5,
+      "cognitive": 3,
+      "line_count": 12,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<arrow>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/shared/ui/organisms/af-autocomplete/af-autocomplete.component.ts",
       "name": "onSelect",
       "line": 151,
@@ -2467,7 +2701,7 @@
     {
       "path": "src/app/features/accounting/accounting.store.ts",
       "name": "<arrow>",
-      "line": 288,
+      "line": 309,
       "col": 51,
       "cyclomatic": 5,
       "cognitive": 4,
@@ -2557,29 +2791,29 @@
   ],
   "summary": {
     "files_analyzed": 213,
-    "functions_analyzed": 1631,
-    "functions_above_threshold": 80,
+    "functions_analyzed": 1662,
+    "functions_above_threshold": 87,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 163,
-    "average_maintainability": 92.3,
+    "files_scored": 164,
+    "average_maintainability": 92.2,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
-    "severity_critical_count": 16,
+    "severity_critical_count": 21,
     "severity_high_count": 27,
-    "severity_moderate_count": 37
+    "severity_moderate_count": 39
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
     "dead_export_pct": 0.0,
-    "avg_cyclomatic": 2.0,
+    "avg_cyclomatic": 2.1,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 3.8,
+    "duplication_pct": 3.7,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.3,
+    "maintainability_avg": 92.2,
     "maintainability_low_pct": 0.0,
     "unused_dep_count": 0,
     "unused_deps_per_k_files": 0.0,
@@ -2591,17 +2825,17 @@
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1032,
-      "total_lines": 28345,
-      "files_scored": 163,
+      "total_lines": 29372,
+      "files_scored": 164,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 87.2,
-      "medium_risk": 6.6,
+      "low_risk": 87.0,
+      "medium_risk": 6.7,
       "high_risk": 2.6,
-      "very_high_risk": 3.6
+      "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 35.6,
+    "functions_over_60_loc_per_k": 36.7,
     "unit_interfacing_profile": {
       "low_risk": 97.1,
       "medium_risk": 2.6,
@@ -2610,7 +2844,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.8,
-    "total_loc": 28345
+    "total_loc": 29372
   },
   "health_score": {
     "formula_version": 2,
@@ -2631,6 +2865,20 @@
     }
   },
   "file_scores": [
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "fan_in": 1,
+      "fan_out": 11,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 85.9,
+      "total_cyclomatic": 124,
+      "total_cognitive": 107,
+      "function_count": 28,
+      "lines": 872,
+      "crap_max": 600.0,
+      "crap_above_threshold": 6
+    },
     {
       "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
       "fan_in": 1,
@@ -3067,7 +3315,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 40,
+      "fan_in": 41,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -3165,15 +3413,15 @@
     },
     {
       "path": "src/app/features/accounting/accounting.store.ts",
-      "fan_in": 1,
+      "fan_in": 2,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.17,
       "maintainability_index": 90.5,
-      "total_cyclomatic": 51,
+      "total_cyclomatic": 54,
       "total_cognitive": 9,
-      "function_count": 42,
-      "lines": 298,
+      "function_count": 45,
+      "lines": 319,
       "crap_max": 30.0,
       "crap_above_threshold": 1
     },
@@ -4190,12 +4438,12 @@
       "fan_in": 1,
       "fan_out": 3,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.17,
-      "maintainability_index": 90.9,
+      "complexity_density": 0.21,
+      "maintainability_index": 90.8,
       "total_cyclomatic": 6,
       "total_cognitive": 0,
       "function_count": 6,
-      "lines": 35,
+      "lines": 29,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4887,7 +5135,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 58,
+      "fan_in": 59,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -4922,6 +5170,12 @@
     "shallow_clone": true
   },
   "large_functions": [
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "<template>",
+      "line": 108,
+      "line_count": 370
+    },
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
       "name": "<template>",
@@ -5043,16 +5297,16 @@
       "line_count": 151
     },
     {
+      "path": "src/app/features/accounting/accounting.store.ts",
+      "name": "<arrow>",
+      "line": 120,
+      "line_count": 140
+    },
+    {
       "path": "src/app/features/planning/setup/planning-setup.page.ts",
       "name": "<template>",
       "line": 84,
       "line_count": 131
-    },
-    {
-      "path": "src/app/features/accounting/accounting.store.ts",
-      "name": "<arrow>",
-      "line": 115,
-      "line_count": 124
     },
     {
       "path": "src/app/features/users/edit/person-picker.component.ts",
@@ -5211,6 +5465,12 @@
       "line_count": 74
     },
     {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "constructor",
+      "line": 606,
+      "line_count": 72
+    },
+    {
       "path": "src/app/features/profile/profile-shell.page.ts",
       "name": "<template>",
       "line": 39,
@@ -5263,6 +5523,12 @@
       "name": "<template>",
       "line": 21,
       "line_count": 64
+    },
+    {
+      "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
+      "name": "formToRequest",
+      "line": 707,
+      "line_count": 63
     },
     {
       "path": "src/app/core/events/me-events.service.ts",
@@ -5345,7 +5611,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_9cef8e3beb7db2bc"
+      "analysis_run_id": "run_18192ab11af64972"
     }
   }
 }
