@@ -29,6 +29,8 @@ import type {
   PersonUpdateRequest,
 } from '@api/generated/model';
 
+import { classifyApiError, type ProblemDetailBody, type SaveErrorRule } from '@shared/util/form';
+
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 export type PersonItem = PersonListItem & { id: string };
@@ -248,43 +250,64 @@ export const PersonsStore = signalStore(
   }),
 );
 
-function errorPatch(e: HttpErrorResponse): { saveError: string; saveErrorKind: SaveErrorKind } {
-  if (e.status === 403) {
-    return {
-      saveError: 'You are not authorized to perform this action on the selected person.',
-      saveErrorKind: 'forbidden',
-    };
-  }
-  if (e.status === 409) {
-    const body = e.error as { type?: string; detail?: string } | null;
-    if (body?.type?.includes('cross-tenant')) {
-      return {
+// Ordered classification rules (J-26 T-23, shared `classifyApiError`): 403 →
+// forbidden, then the two 409 `type`-URN discriminators (cross-tenant delete
+// block / duplicate-membership) ahead of the broad 409 catch-all. Each rule
+// keeps its prior hardcoded fallback message verbatim. The generic tail (a
+// `field`-prefixed validation echo when the body carries a non-empty
+// detail/message, else `e.message`) stays in `fallback` — it covers 400 and
+// every other status exactly as the prior cascade's bottom did.
+function personErrorRules(): readonly SaveErrorRule<SaveErrorKind>[] {
+  const typeOf = (b: ProblemDetailBody) => b.type ?? '';
+  return [
+    {
+      status: 403,
+      outcome: () => ({
+        saveError: 'You are not authorized to perform this action on the selected person.',
+        saveErrorKind: 'forbidden',
+      }),
+    },
+    {
+      status: 409,
+      when: (b) => typeOf(b).includes('cross-tenant'),
+      outcome: (b) => ({
         saveError:
-          body.detail ??
+          b.detail ??
           'Person has active memberships in other clubs and cannot be deleted from here.',
         saveErrorKind: 'cross-tenant-blocked',
-      };
-    }
-    if (body?.type?.includes('duplicate-membership')) {
-      return {
-        saveError: body.detail ?? 'Person already has an active membership in this club.',
+      }),
+    },
+    {
+      status: 409,
+      when: (b) => typeOf(b).includes('duplicate-membership'),
+      outcome: (b) => ({
+        saveError: b.detail ?? 'Person already has an active membership in this club.',
         saveErrorKind: 'duplicate-membership',
-      };
-    }
-    return {
-      saveError: body?.detail ?? 'Conflict — operation refused by the server.',
-      saveErrorKind: 'other',
-    };
-  }
-  const body = e.error as { field?: string; detail?: string; message?: string } | null;
-  if (body) {
-    const msg = body.detail ?? body.message ?? '';
+      }),
+    },
+    {
+      status: 409,
+      outcome: (b) => ({
+        saveError: b.detail ?? 'Conflict — operation refused by the server.',
+        saveErrorKind: 'other',
+      }),
+    },
+  ];
+}
+
+function errorPatch(e: HttpErrorResponse): { saveError: string; saveErrorKind: SaveErrorKind } {
+  return classifyApiError(e, personErrorRules(), (body, err) => {
+    // Prior non-409/403 tail EXACTLY: a `field`-prefixed echo when the body
+    // carries a non-empty `detail`/`message`, else the raw `e.message`. The
+    // empty-`msg` branch falls to `err.message` (NOT `genericSaveErrorMessage`,
+    // which would surface an empty `''` detail) to stay byte-identical.
+    const msg = body ? (body.detail ?? body.message ?? '') : '';
     if (msg.length > 0) {
       return {
-        saveError: body.field ? `${body.field}: ${msg}` : msg,
+        saveError: body?.field ? `${body.field}: ${msg}` : msg,
         saveErrorKind: 'other',
       };
     }
-  }
-  return { saveError: e.message, saveErrorKind: 'other' };
+    return { saveError: err.message, saveErrorKind: 'other' };
+  });
 }

@@ -25,7 +25,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
-import { liveFieldErrors } from '@shared/util/form';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import type {
   PersonClubRequest,
@@ -327,66 +327,16 @@ export class PersonsEditPage {
     }
     const v = this.form.getRawValue();
     this.saving.set(true);
-    // exactOptionalPropertyTypes: true forbids `email?: string` being
-    // assigned `string | undefined`; spread the optional fields only when
-    // they have a non-empty value.
-    const optionalContact: {
-      emailPrivate?: string;
-      mobilePhone?: string;
-      city?: string;
-    } = {};
-    const trimmedEmail = v.email.trim();
-    if (trimmedEmail.length > 0) optionalContact.emailPrivate = trimmedEmail;
-    const trimmedMobile = v.mobilePhone.trim();
-    if (trimmedMobile.length > 0) optionalContact.mobilePhone = trimmedMobile;
-    const trimmedCity = v.city.trim();
-    if (trimmedCity.length > 0) optionalContact.city = trimmedCity;
 
     if (this.isCreate()) {
-      const optionalMembership: { memberNumber?: string; memberStateId?: string } = {};
-      const trimmedMember = v.memberNumber.trim();
-      if (trimmedMember.length > 0) optionalMembership.memberNumber = trimmedMember;
-      if (v.memberStateId !== null && v.memberStateId.length > 0) {
-        optionalMembership.memberStateId = v.memberStateId;
-      }
-      const req: PersonCreateRequest = {
-        firstname: v.firstname.trim(),
-        lastname: v.lastname.trim(),
-        ...optionalContact,
-        preferMailToBusinessMail: false,
-        receiveOwnedAircraftStatisticReports: false,
-        enableAddress: false,
-        initialClubMembership: {
-          ...optionalMembership,
-          isMotorPilot: v.isMotorPilot,
-          isTowPilot: v.isTowPilot,
-          isGliderInstructor: false,
-          isGliderPilot: v.isGliderPilot,
-          isGliderTrainee: false,
-          isPassenger: false,
-          isWinchOperator: false,
-          isMotorInstructor: false,
-          receiveFlightReports: false,
-          receiveAircraftReservationNotifications: false,
-          receivePlanningDayRoleReminder: false,
-          isActive: true,
-        },
-      };
-      this.store.create(req);
+      this.store.create(personCreateRequest(v));
     } else {
       const id = this.routeId();
       if (id === null) {
         this.saving.set(false);
         return;
       }
-      const req: PersonUpdateRequest = {
-        firstname: v.firstname.trim(),
-        lastname: v.lastname.trim(),
-        ...optionalContact,
-        preferMailToBusinessMail: false,
-        receiveOwnedAircraftStatisticReports: false,
-        enableAddress: false,
-      };
+      const req = personUpdateRequest(v);
       // J-26 T-04: PUT /persons/{id} ignores membership fields BY DESIGN —
       // memberNumber / memberState / role flags live on the caller-tenant
       // PersonClub and go through PUT /persons/{id}/clubs/current. Forward
@@ -411,26 +361,26 @@ export class PersonsEditPage {
     if (!pc) {
       return undefined;
     }
-    const membership: PersonClubRequest = {
-      isMotorPilot: v.isMotorPilot,
-      isGliderPilot: v.isGliderPilot,
-      isTowPilot: v.isTowPilot,
-      isGliderInstructor: pc.isGliderInstructor,
-      isGliderTrainee: pc.isGliderTrainee,
-      isPassenger: pc.isPassenger,
-      isWinchOperator: pc.isWinchOperator,
-      isMotorInstructor: pc.isMotorInstructor,
-      receiveFlightReports: pc.receiveFlightReports,
-      receiveAircraftReservationNotifications: pc.receiveAircraftReservationNotifications,
-      receivePlanningDayRoleReminder: pc.receivePlanningDayRoleReminder,
-      isActive: pc.isActive,
-    };
-    const trimmedMember = v.memberNumber.trim();
-    if (trimmedMember.length > 0) membership.memberNumber = trimmedMember;
-    if (v.memberStateId !== null && v.memberStateId.length > 0) {
-      membership.memberStateId = v.memberStateId;
-    }
-    return membership;
+    // FULL REPLACE: every flag the form does NOT expose is echoed from the
+    // loaded detail (an absent primitive boolean lands as false server-side).
+    // The form-driven flags + the optional memberNumber/memberStateId override.
+    return withOptionals(
+      {
+        isMotorPilot: v.isMotorPilot,
+        isGliderPilot: v.isGliderPilot,
+        isTowPilot: v.isTowPilot,
+        isGliderInstructor: pc.isGliderInstructor,
+        isGliderTrainee: pc.isGliderTrainee,
+        isPassenger: pc.isPassenger,
+        isWinchOperator: pc.isWinchOperator,
+        isMotorInstructor: pc.isMotorInstructor,
+        receiveFlightReports: pc.receiveFlightReports,
+        receiveAircraftReservationNotifications: pc.receiveAircraftReservationNotifications,
+        receivePlanningDayRoleReminder: pc.receivePlanningDayRoleReminder,
+        isActive: pc.isActive,
+      },
+      membershipOptionals(v),
+    ) as PersonClubRequest;
   }
 
   private hydrate(detail: PersonResponse): void {
@@ -448,4 +398,74 @@ export class PersonsEditPage {
       isTowPilot: pc?.isTowPilot ?? false,
     });
   }
+}
+
+type PersonFormValue = ReturnType<PersonForm['getRawValue']>;
+
+// Form→request mapping (J-26 T-23): the optional-contact + optional-membership
+// `if (trimmed.length > 0) req.x = …` chains collapse onto the shared
+// `withOptionals` (one pruning pass — `''`/`null`/`undefined` drop, matching the
+// prior trim-then-conditional-spread byte-for-byte; the form already trims/normalises).
+
+/** Email / mobile / city — trimmed, dropped when blank (`emailPrivate` is the wire name). */
+function contactOptionals(v: PersonFormValue) {
+  return {
+    emailPrivate: v.email.trim(),
+    mobilePhone: v.mobilePhone.trim(),
+    city: v.city.trim(),
+  };
+}
+
+/** memberNumber (trimmed) + memberStateId (`null` sentinel → dropped). */
+function membershipOptionals(v: PersonFormValue) {
+  return {
+    memberNumber: v.memberNumber.trim(),
+    memberStateId: v.memberStateId ?? undefined,
+  };
+}
+
+function personCreateRequest(v: PersonFormValue): PersonCreateRequest {
+  // `withOptionals` widens optionals with `| undefined`; the runtime pruning
+  // guarantees none survive, so the narrowing cast to the exact-optional DTO
+  // is sound (same cast the aircraft builders use — see aircraft-edit.page.ts).
+  return withOptionals(
+    {
+      firstname: v.firstname.trim(),
+      lastname: v.lastname.trim(),
+      preferMailToBusinessMail: false,
+      receiveOwnedAircraftStatisticReports: false,
+      enableAddress: false,
+      initialClubMembership: withOptionals(
+        {
+          isMotorPilot: v.isMotorPilot,
+          isTowPilot: v.isTowPilot,
+          isGliderInstructor: false,
+          isGliderPilot: v.isGliderPilot,
+          isGliderTrainee: false,
+          isPassenger: false,
+          isWinchOperator: false,
+          isMotorInstructor: false,
+          receiveFlightReports: false,
+          receiveAircraftReservationNotifications: false,
+          receivePlanningDayRoleReminder: false,
+          isActive: true,
+        },
+        membershipOptionals(v),
+      ),
+    },
+    contactOptionals(v),
+  ) as PersonCreateRequest;
+}
+
+function personUpdateRequest(v: PersonFormValue): PersonUpdateRequest {
+  return withOptionals(
+    {
+      firstname: v.firstname.trim(),
+      lastname: v.lastname.trim(),
+      preferMailToBusinessMail: false,
+      receiveOwnedAircraftStatisticReports: false,
+      enableAddress: false,
+    },
+    contactOptionals(v),
+  ) as PersonUpdateRequest;
 }

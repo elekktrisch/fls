@@ -247,3 +247,77 @@ describe('PersonsStore — forked update (person + current-club membership)', ()
     expect(store.saveErrorKind()).not.toBeNull();
   });
 });
+
+/**
+ * J-26 T-23 — the store `errorPatch` is now routed through the shared
+ * `classifyApiError` rule table (shared/util/form/error-patch.ts). These cases
+ * pin the discriminant `saveErrorKind` the edit page binds inline so the fold
+ * stays byte-identical to the prior hand-rolled cascade. Driven through the
+ * public `update` path (the person PUT throws the crafted error).
+ */
+describe('PersonsStore — errorPatch classification (J-26 T-23 classifyApiError fold)', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  function dispatchUpdateError(error: HttpErrorResponse) {
+    configure(personsServiceStub({ update: () => throwError(() => error) }));
+    const store = TestBed.inject(PersonsStore);
+    store.update({ id: PERSON_ID, req: updateReq });
+    return store;
+  }
+
+  it('403 → forbidden with the hardcoded message', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({ status: 403, statusText: 'Forbidden' }),
+    );
+    expect(store.saveErrorKind()).toBe('forbidden');
+    expect(store.saveError()).toBe(
+      'You are not authorized to perform this action on the selected person.',
+    );
+  });
+
+  it('409 cross-tenant URN → cross-tenant-blocked (detail surfaced)', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({
+        status: 409,
+        error: { type: 'urn:problem:cross-tenant-delete', detail: 'Active elsewhere.' },
+      }),
+    );
+    expect(store.saveErrorKind()).toBe('cross-tenant-blocked');
+    expect(store.saveError()).toBe('Active elsewhere.');
+  });
+
+  it('409 duplicate-membership URN → duplicate-membership', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({
+        status: 409,
+        error: { type: 'urn:problem:duplicate-membership' },
+      }),
+    );
+    expect(store.saveErrorKind()).toBe('duplicate-membership');
+    expect(store.saveError()).toBe('Person already has an active membership in this club.');
+  });
+
+  it('409 with no recognised URN → other (broad conflict catch-all)', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({ status: 409, error: { detail: 'Some conflict.' } }),
+    );
+    expect(store.saveErrorKind()).toBe('other');
+    expect(store.saveError()).toBe('Some conflict.');
+  });
+
+  it('400 with field+message → field-prefixed other (the generic tail)', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({ status: 400, error: { field: 'email', message: 'invalid' } }),
+    );
+    expect(store.saveErrorKind()).toBe('other');
+    expect(store.saveError()).toBe('email: invalid');
+  });
+
+  it('empty body → other with the raw e.message (never an empty detail)', () => {
+    const store = dispatchUpdateError(
+      new HttpErrorResponse({ status: 500, statusText: 'Server Error', error: null }),
+    );
+    expect(store.saveErrorKind()).toBe('other');
+    expect(store.saveError()).not.toBe('');
+  });
+});

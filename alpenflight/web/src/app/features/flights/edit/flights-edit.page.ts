@@ -660,28 +660,8 @@ export class FlightsEditPage {
     try {
       const snap = this.snapshot();
       const userSub = this.session.authenticatedUser()?.id ?? null;
-
-      if (this.mode() === 'new' || this.mode() === 'copy') {
-        await this.store.savePair(snap);
-      } else {
-        const versions = {
-          glider: this.store.currentVersion() ?? 1,
-          tow: this.store.currentTowVersion(),
-        };
-        await this.store.updatePair(snap, versions);
-      }
-
-      // Persist Copy-from-Last anchors for the next session.
-      if (userSub && snap.glider.startLocationId) {
-        await this.prefs.update(userSub, 'lastStartLocation', snap.glider.startLocationId);
-      }
-      if (userSub && snap.tow.aircraftId) {
-        await this.prefs.update(userSub, 'lastTowAircraftId', snap.tow.aircraftId);
-        if (snap.tow.pilotPersonId) {
-          await this.prefs.recordTowPilot(userSub, snap.tow.aircraftId, snap.tow.pilotPersonId);
-        }
-      }
-
+      await this.saveSnapshot(snap);
+      await this.persistFlightPrefs(userSub, snap);
       this.form.markAsPristine();
       await this.router.navigateByUrl('/flights');
     } catch (e) {
@@ -689,6 +669,40 @@ export class FlightsEditPage {
       this.errorMessage.set(err.message ?? 'Could not save flight');
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  /** Dispatch the create-pair vs update-pair save by the resolved route mode. */
+  private async saveSnapshot(snap: FlightFormSnapshot): Promise<void> {
+    if (this.mode() === 'new' || this.mode() === 'copy') {
+      await this.store.savePair(snap);
+      return;
+    }
+    await this.store.updatePair(snap, {
+      glider: this.store.currentVersion() ?? 1,
+      tow: this.store.currentTowVersion(),
+    });
+  }
+
+  /**
+   * Persist the Copy-from-Last anchors for the next session — start location,
+   * tow aircraft, and (per tow aircraft) the tow pilot. No-op without a signed-in
+   * user; each anchor is skipped when its source field is empty. Best-effort —
+   * a prefs write never blocks the save that already succeeded.
+   */
+  private async persistFlightPrefs(
+    userSub: string | null,
+    snap: FlightFormSnapshot,
+  ): Promise<void> {
+    if (!userSub) return;
+    if (snap.glider.startLocationId) {
+      await this.prefs.update(userSub, 'lastStartLocation', snap.glider.startLocationId);
+    }
+    if (snap.tow.aircraftId) {
+      await this.prefs.update(userSub, 'lastTowAircraftId', snap.tow.aircraftId);
+      if (snap.tow.pilotPersonId) {
+        await this.prefs.recordTowPilot(userSub, snap.tow.aircraftId, snap.tow.pilotPersonId);
+      }
     }
   }
 
