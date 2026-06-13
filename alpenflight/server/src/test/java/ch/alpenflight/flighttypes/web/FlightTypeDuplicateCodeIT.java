@@ -5,7 +5,10 @@ import static ch.alpenflight.flighttypes.web.FlightTypesTestFixtures.uniqueName;
 import static ch.alpenflight.flighttypes.web.FlightTypesTestFixtures.updatePayload;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,7 +16,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +38,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * bug). Covers create-duplicate and update-to-someone-else's-code; keeping
  * one's OWN code on update stays 200 (self-exclusion).
  *
- * <p>Seeds its club via the shared {@link TwoClubFixture} under a
- * class-unique UUID pair (RM-5) — no club-id literal shared with any other
- * IT class, no production-reserved id.
+ * <p>Seeds its club via the shared {@link TwoClubFixture} production-create
+ * path (J-26 T-19) — the club ids are minted by JPA, so no club-id literal is
+ * shared with any other IT class.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -46,21 +48,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightTypeDuplicateCodeIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    /** Class-unique club pair (RM-5); CLUB_B only completes the fixture's pre-clean scope. */
-    private static final UUID CLUB_A = UUID.fromString("019e30c9-2c00-7001-8000-0000000000c1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c9-2c00-7001-8000-0000000000c2");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
 
     private String clubAdminToken;
 
     @BeforeEach
     void seedClubsAndMintToken() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_FTDC_", "IT_FTDC").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FTDC_", "IT_FTDC");
+        fixture.seed();
         clubAdminToken = jwts.mint(c -> c
-                .claim("clubId", CLUB_A.toString())
+                .claim("clubId", fixture.clubA().toString())
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 

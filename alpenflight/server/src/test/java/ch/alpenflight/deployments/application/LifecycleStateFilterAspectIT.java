@@ -2,10 +2,13 @@ package ch.alpenflight.deployments.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.platform.tenancy.TenantContextCarrier;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.time.Clock;
@@ -35,9 +38,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 @Import(LifecycleStateFilterAspectIT.TestJobConfig.class)
 class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000e2");
-
     @Autowired
     private DeploymentRepository deployments;
 
@@ -47,7 +47,19 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private ClubRepository clubs;
+
+    @Autowired
+    private CountryRepository countries;
+
+    @Autowired
+    private ClubStateRepository clubStates;
+
     private final Clock clock = Clock.systemUTC();
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seed() {
@@ -55,14 +67,18 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
                 + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_AS_%')");
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_AS_%'");
         testJob.reset();
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_AS_", "IT_AS_").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_AS_", "IT_AS_");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
 
         UUID activeOwner = UUID.fromString("00000000-0000-0000-0000-00000000e100");
         Deployment active = Deployment.startTrial(clock, "IT_AS_active", activeOwner);
         active.activateSubscription("cus", "sub", clock);
         UUID activeId = deployments.save(active).getId();
         jdbc.update("UPDATE t_club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
-                activeId.toString(), CLUB_A.toString(), CLUB_B.toString());
+                activeId.toString(), clubA.toString(), clubB.toString());
 
         UUID trialOwner = UUID.fromString("00000000-0000-0000-0000-00000000e200");
         deployments.save(Deployment.startTrial(clock, "IT_AS_trial", trialOwner));
@@ -76,7 +92,7 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         // Deployment — the operator Deployment plus the IT-owned ones
         // contribute. Assert presence of the two IT Clubs (the aspect's
         // tenant-switching behavior) rather than an exact count.
-        assertThat(testJob.observedTenants()).contains(CLUB_A, CLUB_B);
+        assertThat(testJob.observedTenants()).contains(clubA, clubB);
     }
 
     @Test

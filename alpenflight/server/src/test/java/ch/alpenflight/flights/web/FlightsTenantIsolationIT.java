@@ -4,7 +4,10 @@ import static ch.alpenflight.flights.web.FlightsTestFixtures.cleanFlightRowsFor;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.seedAircraftFor;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -48,33 +51,41 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000f1");
-    private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000f2");
     private static final String NAME_PREFIX = "IT_FTI_";
     private static final String KEY_PREFIX = "IT_FT";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void seedTwoClubs() {
-        cleanFlightRowsFor(jdbc, CLUB_A, CLUB_B);
         // Aircraft is cross-tenant since S-058 (reverts S-159); TwoClubFixture
         // wipes aircraft rows under the seed clubs explicitly before delete-clubs.
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
+        cleanFlightRowsFor(jdbc, clubA, clubB);
     }
 
     @Test
     void getFlight_acrossTenant_returns_404() {
-        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
-        String clubAToken = mintToken(CLUB_A);
+        UUID aircraftA = seedAircraftFor(jdbc, clubA);
+        String clubAToken = mintToken(clubA);
         Map<String, Object> body = body("GLIDER", "ac-" + aircraftA);
         ResponseEntity<String> created = post("/api/v1/flights", body, clubAToken);
         String flightId = readJson(created).get("id").asText();
 
         // Caller in Club B: 404 (the row is invisible under B's @TenantId scope).
-        String clubBToken = mintToken(CLUB_B);
+        String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = get("/api/v1/flights/" + flightId, clubBToken);
         assertThat(res.getStatusCode())
                 .as("Cross-tenant access surfaces as 404, NOT 403 (IDOR contract)")
@@ -88,8 +99,8 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         // guessing the id. The new stack scopes structurally via @TenantId —
         // Club B's PUT against Club A's flight id finds no row → 404 (the
         // write never reaches the aggregate), NOT a silent cross-tenant edit.
-        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
-        String clubAToken = mintToken(CLUB_A);
+        UUID aircraftA = seedAircraftFor(jdbc, clubA);
+        String clubAToken = mintToken(clubA);
         ResponseEntity<String> created = post("/api/v1/flights",
                 body("GLIDER", "ac-" + aircraftA), clubAToken);
         String flightId = readJson(created).get("id").asText();
@@ -97,8 +108,8 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         // Club B targets A's flight id with B's own (valid) aircraft in the
         // body so the 404 can only come from the tenant-scoped row lookup,
         // not from a body-validation or FK failure.
-        UUID aircraftB = seedAircraftFor(jdbc, CLUB_B);
-        String clubBToken = mintToken(CLUB_B);
+        UUID aircraftB = seedAircraftFor(jdbc, clubB);
+        String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = put("/api/v1/flights/" + flightId,
                 updateBody("ac-" + aircraftB), clubBToken);
         assertThat(res.getStatusCode())
@@ -108,7 +119,7 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         // The owning club's flight is untouched (no cross-tenant write landed).
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE id = ?::uuid AND operating_club_id = ?::uuid",
-                Integer.class, rawId(flightId), CLUB_A.toString());
+                Integer.class, rawId(flightId), clubA.toString());
         assertThat(count).isEqualTo(1);
     }
 
@@ -117,13 +128,13 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         // Oracle #24: legacy delete loads by id with NO ClubId filter. The new
         // stack scopes structurally — Club B's DELETE against Club A's flight
         // id finds no row → 404, and A's row stays alive (not soft-deleted).
-        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
-        String clubAToken = mintToken(CLUB_A);
+        UUID aircraftA = seedAircraftFor(jdbc, clubA);
+        String clubAToken = mintToken(clubA);
         ResponseEntity<String> created = post("/api/v1/flights",
                 body("GLIDER", "ac-" + aircraftA), clubAToken);
         String flightId = readJson(created).get("id").asText();
 
-        String clubBToken = mintToken(CLUB_B);
+        String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = delete("/api/v1/flights/" + flightId, clubBToken);
         assertThat(res.getStatusCode())
                 .as("Cross-tenant DELETE surfaces as 404, NOT 403 or a silent delete (oracle #24)")
@@ -133,7 +144,7 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         Integer liveCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE id = ?::uuid"
                         + " AND operating_club_id = ?::uuid AND deleted_on IS NULL",
-                Integer.class, rawId(flightId), CLUB_A.toString());
+                Integer.class, rawId(flightId), clubA.toString());
         assertThat(liveCount)
                 .as("the owning club's flight is not soft-deleted by a foreign DELETE")
                 .isEqualTo(1);
@@ -145,8 +156,8 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         // creating a Flight against Club A's aircraft must persist —
         // Aircraft is cross-tenant; only the Flight's operating_club_id
         // carries the @TenantId discriminator.
-        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
-        String clubBToken = mintToken(CLUB_B);
+        UUID aircraftA = seedAircraftFor(jdbc, clubA);
+        String clubBToken = mintToken(clubB);
         Map<String, Object> body = body("GLIDER", "ac-" + aircraftA);
         ResponseEntity<String> res = post("/api/v1/flights", body, clubBToken);
         assertThat(res.getStatusCode())
@@ -155,16 +166,16 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid",
-                Integer.class, CLUB_B.toString());
+                Integer.class, clubB.toString());
         assertThat(count).isEqualTo(1);
     }
 
     @Test
     void list_isolates_flights_per_tenant() {
-        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
-        UUID aircraftB = seedAircraftFor(jdbc, CLUB_B);
-        String clubAToken = mintToken(CLUB_A);
-        String clubBToken = mintToken(CLUB_B);
+        UUID aircraftA = seedAircraftFor(jdbc, clubA);
+        UUID aircraftB = seedAircraftFor(jdbc, clubB);
+        String clubAToken = mintToken(clubA);
+        String clubBToken = mintToken(clubB);
         ResponseEntity<String> aCreated =
                 post("/api/v1/flights", body("GLIDER", "ac-" + aircraftA), clubAToken);
         ResponseEntity<String> bCreated =

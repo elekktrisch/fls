@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightAircraftType;
@@ -20,6 +21,8 @@ import ch.alpenflight.locations.domain.LocationRepository;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.FlightId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -46,9 +49,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
 
-    private static final UUID CLUB_A = UUID.fromString("019e30c6-2c00-7001-8000-0000000000f5");
-    private static final UUID CLUB_B = UUID.fromString("019e30c6-2c00-7001-8000-0000000000f6");
-
     /** {@code t_start_type} WINCH_LAUNCH / AEROTOW ids (V2 seed, fixed canonical UUIDs). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
@@ -62,26 +62,36 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
     @Autowired LocationRepository locations;
     @Autowired FlightTypeRepository flightTypes;
     @Autowired PersonRepository persons;
+    @Autowired ClubRepository clubs;
+    @Autowired CountryRepository countries;
+    @Autowired ClubStateRepository clubStates;
+
+    private UUID clubA;
+    private UUID clubB;
 
     @BeforeEach
     void cleanAndSeedClubs() {
-        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_FRN_", "IT_FRN").seed();
+        TwoClubFixture fixture =
+                new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FRN_", "IT_FRN");
+        fixture.seed();
+        clubA = fixture.clubA();
+        clubB = fixture.clubB();
     }
 
     @Test
     void aircraftRename_updatesOwnRow_andTowBlockOnTheGlidersRow() {
-        UUID gliderAc = seedAircraft(CLUB_A);
-        UUID towAc = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Base");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
-        UUID towId = seedTow(CLUB_A, towAc, loc, flightType, List.of());
-        UUID gliderId = seedGlider(CLUB_A, gliderAc, loc, flightType, AEROTOW, List.of());
-        linkTow(CLUB_A, gliderId, towId);
+        UUID gliderAc = seedAircraft(clubA);
+        UUID towAc = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Base");
+        UUID flightType = seedFlightType(clubA, "T", "T");
+        UUID towId = seedTow(clubA, towAc, loc, flightType, List.of());
+        UUID gliderId = seedGlider(clubA, gliderAc, loc, flightType, AEROTOW, List.of());
+        linkTow(clubA, gliderId, towId);
 
         // Production update path: load → aggregate mutator → save, under the
         // mutating principal's tenant (the listener's affected-flight lookup
         // rides @TenantId).
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Aircraft tow = loadAircraft(towAc);
             tow.rename("HB-NEW1");
             aircraftRepository.save(tow);
@@ -98,21 +108,21 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
 
     @Test
     void personRename_updatesPilotAndTowPilotNames() {
-        UUID gliderAc = seedAircraft(CLUB_A);
-        UUID towAc = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Base");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
+        UUID gliderAc = seedAircraft(clubA);
+        UUID towAc = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Base");
+        UUID flightType = seedFlightType(clubA, "T", "T");
         UUID pilot = seedPerson("Alt", "Anna");
         UUID towPilot = seedPerson("Schlepp", "Sepp");
-        UUID towId = seedTow(CLUB_A, towAc, loc, flightType,
+        UUID towId = seedTow(clubA, towAc, loc, flightType,
                 List.of(crew(towPilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
-        UUID gliderId = seedGlider(CLUB_A, gliderAc, loc, flightType, AEROTOW,
+        UUID gliderId = seedGlider(clubA, gliderAc, loc, flightType, AEROTOW,
                 List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
-        linkTow(CLUB_A, gliderId, towId);
+        linkTow(clubA, gliderId, towId);
         assertThat(rowOf(gliderId).getPilotName()).isEqualTo("Alt Anna");
         assertThat(rowOf(gliderId).getTowPilotName()).isEqualTo("Schlepp Sepp");
 
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Person p = persons.findActiveById(pilot).orElseThrow();
             p.rename("Anna", "Neu", null, null);
             persons.save(p);
@@ -130,13 +140,13 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
 
     @Test
     void locationRename_updatesStartAndLdgNames() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Altfeld");
-        UUID flightType = seedFlightType(CLUB_A, "T", "T");
-        UUID flightId = seedGlider(CLUB_A, aircraft, loc, flightType, WINCH_LAUNCH, List.of());
+        UUID aircraft = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Altfeld");
+        UUID flightType = seedFlightType(clubA, "T", "T");
+        UUID flightId = seedGlider(clubA, aircraft, loc, flightType, WINCH_LAUNCH, List.of());
         assertThat(rowOf(flightId).getStartLocationName()).isEqualTo("Altfeld");
 
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Location location = locations.findActiveById(loc).orElseThrow();
             location.rename("Neufeld", null);
             locations.save(location);
@@ -150,14 +160,14 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
 
     @Test
     void flightTypeRename_updatesTypeNameAndCode() {
-        UUID aircraft = seedAircraft(CLUB_A);
-        UUID loc = seedLocation(CLUB_A, "Base");
-        UUID flightType = seedFlightType(CLUB_A, "Schulung", "SCH");
-        UUID flightId = seedGlider(CLUB_A, aircraft, loc, flightType, WINCH_LAUNCH, List.of());
+        UUID aircraft = seedAircraft(clubA);
+        UUID loc = seedLocation(clubA, "Base");
+        UUID flightType = seedFlightType(clubA, "Schulung", "SCH");
+        UUID flightId = seedGlider(clubA, aircraft, loc, flightType, WINCH_LAUNCH, List.of());
         assertThat(rowOf(flightId).getFlightTypeName()).isEqualTo("Schulung");
         assertThat(rowOf(flightId).getFlightCode()).isEqualTo("SCH");
 
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             FlightType ft = flightTypes.findActiveById(flightType).orElseThrow();
             ft.rename("Weiterbildung");
             ft.changeFlightCode("WB");
@@ -174,19 +184,19 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
         // (the crew-child lookup is not tenant-discriminated; out-of-tenant
         // ids must no-op, not delete).
         UUID pilot = seedPerson("Geteilt", "Greta");
-        UUID acA = seedAircraft(CLUB_A);
-        UUID locA = seedLocation(CLUB_A, "BaseA");
-        UUID typeA = seedFlightType(CLUB_A, "TA", "TA");
-        UUID flightA = seedGlider(CLUB_A, acA, locA, typeA, WINCH_LAUNCH,
+        UUID acA = seedAircraft(clubA);
+        UUID locA = seedLocation(clubA, "BaseA");
+        UUID typeA = seedFlightType(clubA, "TA", "TA");
+        UUID flightA = seedGlider(clubA, acA, locA, typeA, WINCH_LAUNCH,
                 List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
-        UUID acB = seedAircraft(CLUB_B);
-        UUID locB = seedLocation(CLUB_B, "BaseB");
-        UUID typeB = seedFlightType(CLUB_B, "TB", "TB");
-        UUID flightB = seedGlider(CLUB_B, acB, locB, typeB, WINCH_LAUNCH,
+        UUID acB = seedAircraft(clubB);
+        UUID locB = seedLocation(clubB, "BaseB");
+        UUID typeB = seedFlightType(clubB, "TB", "TB");
+        UUID flightB = seedGlider(clubB, acB, locB, typeB, WINCH_LAUNCH,
                 List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
 
         // Rename under club A's tenant context (a club-A admin's request).
-        TenantTestContext.runAs(CLUB_A, () -> {
+        TenantTestContext.runAs(clubA, () -> {
             Person p = persons.findActiveById(pilot).orElseThrow();
             p.rename("Greta", "Umbenannt", null, null);
             persons.save(p);
@@ -197,7 +207,7 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
         // club A's transaction (cross-tenant rows are structurally out of
         // reach under @TenantId — documented RM-2 limitation, repaired by the
         // club's next flight save or rebuild).
-        FlightReportRow rowB = TenantTestContext.runAs(CLUB_B,
+        FlightReportRow rowB = TenantTestContext.runAs(clubB,
                 () -> rows.findByFlightId(flightB).orElseThrow());
         assertThat(rowB.getPilotName()).isEqualTo("Geteilt Greta");
     }
@@ -209,7 +219,7 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
     // reference-data id lookups.
 
     private FlightReportRow rowOf(UUID flightId) {
-        return TenantTestContext.runAs(CLUB_A, () -> rows.findByFlightId(flightId)
+        return TenantTestContext.runAs(clubA, () -> rows.findByFlightId(flightId)
                 .orElseThrow(() -> new AssertionError("no report row for flight " + flightId)));
     }
 
