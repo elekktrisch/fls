@@ -69,7 +69,12 @@ class FixtureTableNamingConventionTest {
             // PlanningDayAssignments` (JOIN to PlanningDays + the kept-first remap);
             // the assignment-remap IT seeds that staging table verbatim. Legacy
             // source name, not a new-stack t_ table.
-            "planningdayassignments");
+            "planningdayassignments",
+            // J-8 T-10: the ACCOUNTING_RULE_FILTER producer SELECT reads `FROM
+            // AccountingRuleFilters` (sort-indicator renumber + JSON_VALUE target
+            // extraction); AccountingRuleFilterProducerDedupeIT seeds that staging
+            // table verbatim. Legacy MSSQL source name, not a new-stack t_ table.
+            "accountingrulefilters");
 
     /**
      * Narrowed to SQL-context-only patterns: {@code DELETE FROM} /
