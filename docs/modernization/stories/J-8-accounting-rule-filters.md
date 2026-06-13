@@ -2,7 +2,8 @@
 id: J-8
 title: Accounting rule filters
 epic: E-09
-status: todo
+status: in_progress
+started_at: 2026-06-13
 journey0: false
 carved: true
 depends_on: [J-1]
@@ -95,6 +96,41 @@ nightly reds (login `ui_locales`, register verify-mail, token-lifecycle
 silent-refresh — could ride here or its own KC-26 slice); the gallery re-arch
 slice; orval explicit `operationId`s; e2e prettier/tsc normalization;
 clubadmin4 + V29 removal. `/do-ship` adjudicates which fit this gate.
+
+## Going-in state (verified at ship time — carve's "greenfield" was wrong on the migration substrate)
+
+The V4 migration (`reservations_planning_accounting`) built the accounting **substrate ahead**, but it was never wired to a domain/UI/consumer and the fanout has never exported it:
+
+- ✅ **Schema** (V4): `t_accounting_rule_filter` (`operating_club_id` `@TenantId`, `filter_config JSONB`, `article_target`/`recipient_target` `VARCHAR(50)`, `is_charged_to_club_internal`, `sort_indicator`), GIN index on `filter_config`, **identity UNIQUE `ux_arf_club_sort_partial` on (operating_club_id, sort_indicator) WHERE deleted_on IS NULL** (← the collision-IT seam, NOT name — legacy has no name UNIQUE and `RuleFilterName` is nullable per oracle). Reference tables `t_accounting_rule_filter_type` + `t_accounting_unit_type`.
+- ✅ **Mapper** `migration-bundle/.../accounting/AccountingRuleFilterMapper.java` (folds all 10 `Matched*`/`UseRuleForAll*ExceptListed` pairs → `filter_config` `{useAllExcept, matched[]}`; flags/ranges/threshold too) + unit test; registered `KnownMappers:71`; `EntityType.ACCOUNTING_RULE_FILTER(Group.ACCOUNTING)`.
+- ⚠️ **Reference seed incomplete:** V4 seeds filter-types `{10,20,30,40,50,60,70,80}` — **missing 5 (DoNotInvoice) + 55 (StartTax)** (real enum per oracle). A real club's type-5/55 row → FK 23503 at fanout.
+- ❌ **Producer SELECT binding absent** — no `ACCOUNTING_RULE_FILTER` in `MapperLegacyBindings`; entity sits in `MapperBindingContractTest.KNOWN_UNBOUND:102`. Mapper has never run against the real MSSQL schema (authored ≠ proven).
+- ❌ **`DeliveryLineText` + `RecipientName` dropped** by the mapper (not in `buildFilterConfig`, no column) — must find a home in `filter_config` so the form round-trips them (AC: "reload round-trips every field").
+- ❌ **Domain aggregate / service / controller / reference endpoints / web feature** — none. This is the bulk of the build.
+
+**Legacy parity facts (oracle, load-bearing):** filter-type ids → visible sections — article-target (∉{5,10}), recipient-target (==10), aircraft-filter duration/threshold (==30), no-landing-tax (==20); 10 match-lists each `{useAllExcept default true, matched[]}` (personCategories is **dead/commented-out** in the legacy form → migrate data, build no control); cross-tenant Update/Delete is a **legacy tenant-leak BUG** → new stack scopes by `@TenantId`, cross-tenant mutation → 404; per-type required-field rules are **NEW** business logic (legacy enforces only name client-side) → keep minimal: name + filter-type required (on the aggregate, ADR 0022 §2), no per-type target requirement (legacy permits empty targets).
+
+## Tasks
+
+Decomposed per do-ship §2 (one seam each; ≤8 files/≤5 new; ≥60% feature / ≤40% tech-debt riders = T-08, T-15). Migration journey → done-bar needs a green real-export fanout (T-10 binding + T-14 fanout assertion).
+
+- [ ] **T-01** — Spec stub `e2e/tests/accounting/accounting-rules-edit.spec.ts` (screen shape, selectors, thin asserts) + scaffold the per-journey proof-gallery page + link from the persistent index. *(e2e + gallery)*
+- [ ] **T-02** — Scope the per-push gate to J-8's own spec; move prior journeys' real-idp specs to mock-IdP (full real-idp regression → nightly + the §4 gate). *(ci.yml + frontmatter)*
+- [ ] **T-03** — Domain aggregate `AccountingRuleFilter` (server main): `extends SoftDeletableAggregate`, `@TenantId operating_club_id`, `filter_config` `@JdbcTypeCode(JSON)` typed config, `create()`/`update*()` factories, filter-type business rules (name + type required) on the aggregate; domain unit tests. *(domain)*
+- [ ] **T-04** — `AccountingRuleFilterRepository` port + `JpaAccountingRuleFilterRepository` (tenant-scoped list/by-id soft-delete-filtered finders, next `sort_indicator`). *(infra/repo)*
+- [ ] **T-05** — `AccountingRuleFiltersService` + `AccountingRuleFilterDtos` (create/update/detail/list); `filter_config` (de)serialize to typed config; article/recipient target assignment by type; cross-tenant load → 404; `AuditTrail.record` on every mutation. *(application)*
+- [ ] **T-06** — `AccountingRuleFiltersController` (CRUD + list) + per-feature exception handler (404/400); satisfy `ControllerAuditCoverageTest`; `@PreAuthorize` CLUB_ADMINISTRATOR. *(web)*
+- [ ] **T-07** — Reference-data endpoints: filter-types, accounting-unit-types, flight-crew-types (read-only GET from seeded tables/enum + DTOs). *(web/referencedata)*
+- [ ] **T-08** — *(≤40% rider — orval operationIds)* Set explicit `@Operation(operationId=…)` on the accounting + reference endpoints (ideally project-wide) so the generated client is stable before the FE consumes it (kills positional-`getN`). *(operationId rider — _BOYSCOUT J-3)*
+- [ ] **T-09** — Additive migration (V41): seed filter-types **5 (DoNotInvoice) + 55 (StartTax)**; seed/confirm flight-crew-types reference; reconcile `DeliveryLineText`/`RecipientName` home in `filter_config`. *(migration/seed)*
+- [ ] **T-10** — Producer SELECT binding in `MapperLegacyBindings` (extract ArticleNumber from legacy `ArticleTarget` JSON, member-number from `RecipientTarget`, all `Matched*` + flags); remove `ACCOUNTING_RULE_FILTER` from `KNOWN_UNBOUND`; **real-producer collision/orphan round-trip IT** for `ux_arf_club_sort_partial` (sort_indicator dedupe/renumber) — reds in `check`, not the fanout. *(migration mapper + IT)*
+- [ ] **T-11** — Web feature scaffold `features/accounting/`: route + `accounting.store.ts` (load/create/update/delete via orval) + `accounting-list.page.ts` + **nav entry under masterdata (chrome-reachable — spec ENTERS via nav)**. *(web feature)*
+- [ ] **T-12** — `accounting-edit.page.ts` core + conditional sections (article-target / recipient-target / aircraft-filter duration+threshold / no-landing-tax show/hide per filter-type) + J-6b `liveFieldErrors` bar + `classifyApiError`/`withOptionals`. *(web edit — the crux)*
+- [ ] **T-13** — Match-lists sub-component: the visible predicate lists each with its "use for all except listed" invert toggle (immatriculations, start-types, flight-type-codes, start/landing locations, club-member-numbers, crew-types, homebase, member-states), round-tripping `{useAllExcept, matched[]}`. *(web match-list control)*
+- [ ] **T-14** — Thicken the spec to full real assertions from the oracle (filter-type drives sections; match-lists round-trip; cross-tenant 404; migrated-filter renders with config intact) — mock inner-loop + real-idp gate spec; add the AlpenFlight-side accounting parity assertion to the fanout. *(spec + fanout)*
+- [ ] **T-15** — *(≤40% rider — maintainability tooling)* Qodana whole-program unused-code: `qodana.yaml` + `qodana-scan` CI job **report-only**, committed baseline (~90% FP measured), Spring/JPA-aware linter, emit into the proof-gallery maintainability panel. *(Qodana rider — _BOYSCOUT J-26)*
+
+**Deferred to the §4 gate / future slices (noted, not pre-committed):** the 3 KC-26 nightly reds (surface at the full real-idp regression; become tasks if they block the gate); the gallery re-arch slices; e2e prettier/tsc; clubadmin4+V29 removal. *(`_BOYSCOUT.md`)*
 
 ## Assumptions made
 
