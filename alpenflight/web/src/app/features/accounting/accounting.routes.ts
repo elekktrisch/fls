@@ -10,25 +10,19 @@ export const ACCOUNTING_ROUTES: Routes = [
     loadComponent: () => import('./list/accounting-list.page').then((m) => m.AccountingListPage),
   },
   {
-    // T-12 fills these with the real edit form (filter-type-driven conditional
-    // sections + the J-6b liveFieldErrors bar). Until then a placeholder
-    // component resolves the route so the list's "new" button + row navigation
-    // land somewhere.
+    // The edit form: core fields + the filter-type-legacyId-driven conditional
+    // sections (article-target / recipient-target / aircraft-filter /
+    // no-landing-tax) + the J-6b liveFieldErrors bar (T-12). The match-list
+    // predicate sub-component (T-13) mounts inside the page.
     path: 'new',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./edit/accounting-edit-placeholder.page').then(
-        (m) => m.AccountingEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/accounting-edit.page').then((m) => m.AccountingEditPage),
   },
   {
     path: ':id/edit',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./edit/accounting-edit-placeholder.page').then(
-        (m) => m.AccountingEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/accounting-edit.page').then((m) => m.AccountingEditPage),
   },
 ];

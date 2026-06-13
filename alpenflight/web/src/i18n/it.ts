@@ -2,6 +2,48 @@ import type { Translations } from './de';
 
 const it: Translations = {
   accounting: {
+    edit: {
+      cancel: 'Annulla',
+      fields: {
+        accountingUnitType: 'Unità di fatturazione',
+        accountingUnitTypePlaceholder: 'Seleziona unità',
+        active: 'Attivo',
+        articleNumber: 'Numero articolo',
+        chargedToClubInternal: 'Addebitato internamente al club',
+        deliveryLineText: 'Testo riga di consegna',
+        description: 'Descrizione',
+        filterType: 'Tipo di filtro',
+        filterTypePlaceholder: 'Seleziona tipo',
+        flightDurationUnlimited: 'Durata volo illimitata',
+        forGlider: 'Per voli a vela',
+        forMotor: 'Per voli a motore',
+        forTowing: 'Per voli di traino',
+        includeFlightTypeName: 'Includi tipo di volo nel testo di prenotazione',
+        includeThresholdText: 'Includi testo soglia',
+        maxFlightDuration: 'Durata massima (secondi)',
+        minFlightDuration: 'Durata minima (secondi)',
+        name: 'Nome',
+        noLandingTaxForAircraft: 'Nessuna tassa di atterraggio per aeromobile',
+        noLandingTaxForGlider: 'Nessuna tassa di atterraggio per aliante',
+        noLandingTaxForTowing: 'Nessuna tassa di atterraggio per aereo da traino',
+        recipientMemberNumber: 'Numero socio destinatario',
+        recipientName: 'Nome destinatario',
+        stopRuleEngine: 'Arresta il motore delle regole all’applicazione',
+        thresholdText: 'Testo soglia',
+      },
+      loading: 'Caricamento della regola di fatturazione…',
+      notFound: 'Questa regola di fatturazione non esiste.',
+      save: 'Salva',
+      sections: {
+        aircraftFilter: 'Filtro aeromobile',
+        articleTarget: 'Destinazione articolo',
+        core: 'Dati anagrafici',
+        noLandingTax: 'Nessuna tassa di atterraggio',
+        recipientTarget: 'Destinazione destinatario',
+      },
+      title: 'Modifica regola di fatturazione',
+      titleNew: 'Nuova regola di fatturazione',
+    },
     list: {
       columns: {
         active: 'Attivo',

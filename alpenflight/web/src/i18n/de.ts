@@ -6,6 +6,48 @@
  */
 const de = {
   accounting: {
+    edit: {
+      cancel: 'Abbrechen',
+      fields: {
+        accountingUnitType: 'Abrechnungseinheit',
+        accountingUnitTypePlaceholder: 'Einheit wählen',
+        active: 'Aktiv',
+        articleNumber: 'Artikelnummer',
+        chargedToClubInternal: 'Vereinsintern verrechnet',
+        deliveryLineText: 'Lieferpositionstext',
+        description: 'Beschreibung',
+        filterType: 'Filtertyp',
+        filterTypePlaceholder: 'Typ wählen',
+        flightDurationUnlimited: 'Flugdauer unbegrenzt',
+        forGlider: 'Für Segelflüge',
+        forMotor: 'Für Motorflüge',
+        forTowing: 'Für Schleppflüge',
+        includeFlightTypeName: 'Flugart im Buchungstext angeben',
+        includeThresholdText: 'Schwellentext angeben',
+        maxFlightDuration: 'Maximale Dauer (Sekunden)',
+        minFlightDuration: 'Minimale Dauer (Sekunden)',
+        name: 'Name',
+        noLandingTaxForAircraft: 'Keine Landetaxe für Flugzeug',
+        noLandingTaxForGlider: 'Keine Landetaxe für Segelflugzeug',
+        noLandingTaxForTowing: 'Keine Landetaxe für Schleppflugzeug',
+        recipientMemberNumber: 'Mitgliedsnummer Empfänger',
+        recipientName: 'Empfängername',
+        stopRuleEngine: 'Regel-Engine bei Anwendung stoppen',
+        thresholdText: 'Schwellentext',
+      },
+      loading: 'Abrechnungsregel wird geladen…',
+      notFound: 'Diese Abrechnungsregel existiert nicht.',
+      save: 'Speichern',
+      sections: {
+        aircraftFilter: 'Flugzeugfilter',
+        articleTarget: 'Artikelziel',
+        core: 'Stammdaten',
+        noLandingTax: 'Keine Landetaxe',
+        recipientTarget: 'Empfängerziel',
+      },
+      title: 'Abrechnungsregel bearbeiten',
+      titleNew: 'Neue Abrechnungsregel',
+    },
     list: {
       columns: {
         active: 'Aktiv',

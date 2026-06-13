@@ -27,6 +27,7 @@ import type {
   AccountingRuleFilterListItem,
   AccountingRuleFilterTypeResponse,
   AccountingRuleFilterWriteRequest,
+  AccountingUnitTypeResponse,
 } from '@api/generated/model';
 
 import { classifyApiError, type SaveErrorRule } from '@shared/util/form';
@@ -48,6 +49,9 @@ interface AccountingExtraState {
   // Reference catalog (T-07): the filter types, keyed for the list's type
   // column + (T-12) the edit form's section-driving select.
   filterTypes: readonly AccountingRuleFilterTypeResponse[];
+  // Unit-type catalog (T-07): feeds the edit form's article-target section
+  // AccountingUnitType select (T-12). Lazy-loaded on edit-form entry.
+  accountingUnitTypes: readonly AccountingUnitTypeResponse[];
   isLoading: boolean;
   isLoadingDetail: boolean;
   loadError: string | null;
@@ -60,6 +64,7 @@ const initialExtra: AccountingExtraState = {
   selectedId: null,
   selectedDetail: null,
   filterTypes: [],
+  accountingUnitTypes: [],
   isLoading: false,
   isLoadingDetail: false,
   loadError: null,
@@ -151,6 +156,21 @@ export const AccountingStore = signalStore(
           ),
         ),
       );
+      const loadUnitTypes = rxMethod<void>(
+        pipe(
+          switchMap(() =>
+            referenceApi.listAccountingUnitTypes().pipe(
+              tapResponse({
+                next: (types: AccountingUnitTypeResponse[]) =>
+                  patchState(store, { accountingUnitTypes: types }),
+                // A failed catalog load leaves the unit-type select empty — it
+                // never blocks the edit form (the unit-type is optional).
+                error: () => patchState(store, { accountingUnitTypes: [] }),
+              }),
+            ),
+          ),
+        ),
+      );
       return {
         select(id: string | null): void {
           patchState(store, { selectedId: id, selectedDetail: null });
@@ -160,6 +180,7 @@ export const AccountingStore = signalStore(
         },
         loadAll,
         loadFilterTypes,
+        loadUnitTypes,
         getDetail: rxMethod<string>(
           pipe(
             tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),

@@ -2,6 +2,48 @@ import type { Translations } from './de';
 
 const fr: Translations = {
   accounting: {
+    edit: {
+      cancel: 'Annuler',
+      fields: {
+        accountingUnitType: 'Unité de facturation',
+        accountingUnitTypePlaceholder: 'Choisir une unité',
+        active: 'Actif',
+        articleNumber: 'Numéro d’article',
+        chargedToClubInternal: 'Facturé en interne au club',
+        deliveryLineText: 'Texte de ligne de livraison',
+        description: 'Description',
+        filterType: 'Type de filtre',
+        filterTypePlaceholder: 'Choisir un type',
+        flightDurationUnlimited: 'Durée de vol illimitée',
+        forGlider: 'Pour les vols planeur',
+        forMotor: 'Pour les vols moteur',
+        forTowing: 'Pour les vols de remorquage',
+        includeFlightTypeName: 'Inclure le type de vol dans le texte de réservation',
+        includeThresholdText: 'Inclure le texte de seuil',
+        maxFlightDuration: 'Durée maximale (secondes)',
+        minFlightDuration: 'Durée minimale (secondes)',
+        name: 'Nom',
+        noLandingTaxForAircraft: 'Pas de taxe d’atterrissage pour avion',
+        noLandingTaxForGlider: 'Pas de taxe d’atterrissage pour planeur',
+        noLandingTaxForTowing: 'Pas de taxe d’atterrissage pour remorqueur',
+        recipientMemberNumber: 'Numéro de membre du destinataire',
+        recipientName: 'Nom du destinataire',
+        stopRuleEngine: 'Arrêter le moteur de règles une fois appliqué',
+        thresholdText: 'Texte de seuil',
+      },
+      loading: 'Chargement de la règle de facturation…',
+      notFound: 'Cette règle de facturation n’existe pas.',
+      save: 'Enregistrer',
+      sections: {
+        aircraftFilter: 'Filtre aéronef',
+        articleTarget: 'Cible article',
+        core: 'Données de base',
+        noLandingTax: 'Pas de taxe d’atterrissage',
+        recipientTarget: 'Cible destinataire',
+      },
+      title: 'Modifier la règle de facturation',
+      titleNew: 'Nouvelle règle de facturation',
+    },
     list: {
       columns: {
         active: 'Actif',

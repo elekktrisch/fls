@@ -3,15 +3,15 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 /**
  * J-8 — AccountingRuleFilter config screen (`/accountingrules` list + edit).
  *
- * SPEC STUB (T-01). The screen does not exist yet — this file commits the SCREEN
- * SHAPE: the `data-testid` contract, the nav entry, the conditional-section flow,
- * the match-list invert toggle, the required-field inline errors, and the
- * cross-tenant 404. Every test that exercises the not-yet-built screen is
- * `test.fixme(...)` with a one-line note; T-14 thickens them to live assertions
- * (mock inner-loop) + flips the real-idp gate spec on. The ONE assertion that can
- * run today is the nav-entry presence (the chrome-reachable contract) — but the
- * `/accountingrules` route + nav item land in T-11, so even that is fixme until
- * the feature scaffold exists.
+ * SPEC STUB (T-01), reconciled to the REAL client shape (T-12). The screen's
+ * `data-testid` contract, the nav entry, the conditional-section flow, the
+ * match-list invert toggle, the required-field inline errors, and the
+ * cross-tenant 404 are committed here. T-11 landed the list + nav (the first two
+ * tests). T-12 builds the edit core + the four filter-type-driven conditional
+ * sections + the J-6b `liveFieldErrors` bar, flipping the create/round-trip,
+ * filter-type-drives-sections, and required-field tests live. T-13 (match-list
+ * sub-component) and T-14 (cross-tenant 404 + full real-idp gate spec) flip the
+ * remaining two.
  *
  * Booted under the `chromium` (mock-auth) project: the principal is a mocked
  * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR (the dual-role mock persona, see
@@ -22,38 +22,34 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * Legacy contract (flsweb/src/masterdata/accountingRules/, read at carve):
  *   - List: accountingRuleFilters-table.html — club's filters, tenant-scoped.
  *   - Edit: accountingRuleFilters-edit.html + AccountingRuleFiltersEditController.js.
- *     The load-bearing behavior is `AccountingRuleFilterTypeId`-driven section
+ *     The load-bearing behavior is the filter-type-legacyId-driven section
  *     visibility (legacy predicate fns):
- *       targetTypeArticleVisible()   → type ∉ {5, 10}   (Article + DeliveryLineText + AccountingUnitType)
- *       targetTypeRecipientVisible() → type == 10        (recipient member-number)
- *       isRuleTypeAircraftFilter()   → type == 30        (flight-duration range + ThresholdText)
- *       isRuleTypeNoLandingTax()     → type == 20        (no-landing-tax sections)
- *     Match-lists (each with a `UseRuleForAll<X>ExceptListed` invert toggle):
- *       MatchedAircraftImmatriculations, MatchedStartTypes, MatchedFlightTypeCodes,
- *       MatchedStartLocations, MatchedLdgLocations, MatchedClubMemberNumbers.
+ *       targetTypeArticleVisible()   → legacyId ∉ {5, 10}  (Article + DeliveryLineText + AccountingUnitType)
+ *       targetTypeRecipientVisible() → legacyId == 10        (recipient member-number)
+ *       isRuleTypeAircraftFilter()   → legacyId == 30        (flight-duration range + ThresholdText)
+ *       isRuleTypeNoLandingTax()     → legacyId == 20        (no-landing-tax sections)
+ *     Match-lists (each with a `useAllExcept` invert toggle) are T-13.
  *
  * Parity facts (J-8 journey "Legacy parity facts", oracle):
- *   - filter-type 5 = DoNotInvoice, 10 = recipient-target, 20 = no-landing-tax,
+ *   - filter-type legacyId 5 = DoNotInvoice, 10 = recipient-target, 20 = no-landing-tax,
  *     30 = aircraft-filter (duration/threshold), 55 = StartTax.
  *   - each match-list config is `{useAllExcept (default true), matched[]}`.
  *   - cross-tenant Update/Delete is a legacy tenant-leak BUG → the new stack
- *     scopes by `@TenantId`, so a cross-tenant load → 404.
+ *     scopes by @TenantId, so a cross-tenant load → 404.
  *   - required-field rules are NEW: name + filter-type required (on the aggregate,
  *     ADR 0022 §2); legacy permits empty targets (no per-type target requirement).
  *
- * Coverage (shape committed now; fixme until the screen lands):
- *   - nav entry under masterdata reaches /accountingrules (ENTER via nav, not goto).
- *   - list renders the club's rule-filter rows (name, type, active), tenant-scoped.
- *   - create via the edit form → appears in the list → reload round-trips fields.
- *   - selecting an AccountingRuleFilterType shows/hides the conditional sections.
- *   - a match-list with its "use for all except listed" invert toggle round-trips.
- *   - required fields (filter type, name) block Save with inline as-you-type errors.
- *   - cross-tenant GET of another club's filter → 404.
+ * Real client shape (T-11 store + generated orval client):
+ *   - filter-type catalog: `[{id (uuid), code, legacyId, name}]`; the form drives
+ *     section visibility off `legacyId`, sends BOTH `filterTypeId` + `filterTypeLegacyId`.
+ *   - WriteRequest carries `filterConfig` (9 boolean flags always present +
+ *     threshold/duration + the 10 `{useAllExcept, matched[]}` match-lists).
+ *   - Detail round-trips `filterTypeId`, `filterConfig`, `articleTarget`/`recipientTarget`.
  */
 
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
-// AccountingRuleFilterType ids (oracle enum). Drives conditional sections.
+// AccountingRuleFilterType legacyIds (oracle enum). Drives conditional sections.
 const TYPE_ARTICLE_TARGET = 40; // ∉ {5,10} → article-target sections visible
 const TYPE_RECIPIENT_TARGET = 10; // recipient member-number section
 const TYPE_NO_LANDING_TAX = 20; // no-landing-tax sections
@@ -64,85 +60,164 @@ interface MockMatchList {
   matched: string[];
 }
 
-interface MockRuleFilterDetail {
-  id: string;
-  ruleFilterName: string;
-  accountingRuleFilterTypeId: number;
-  active: boolean;
-  stopRuleEngineWhenRuleApplied: boolean;
-  description?: string;
-  isForGliderFlights: boolean;
-  isForTowFlights: boolean;
-  isForMotorFlights: boolean;
-  // article-target (type ∉ {5,10})
-  articleId?: string;
-  deliveryLineText?: string;
-  accountingUnitTypeId?: number;
-  // recipient-target (type == 10)
-  recipientClubMemberNumber?: string;
-  recipientName?: string;
-  // aircraft-filter (type == 30)
+interface MockFilterConfig {
+  isRuleForGliderFlights: boolean;
+  isRuleForTowingFlights: boolean;
+  isRuleForMotorFlights: boolean;
+  noLandingTaxForGlider: boolean;
+  noLandingTaxForTowingAircraft: boolean;
+  noLandingTaxForAircraft: boolean;
+  includeFlightTypeName: boolean;
+  extendMatchingFlightTypeCodesToGliderAndTowFlight: boolean;
+  includeThresholdText: boolean;
+  thresholdText?: string;
   minFlightTimeInSecondsMatchingValue?: number;
   maxFlightTimeInSecondsMatchingValue?: number;
-  thresholdText?: string;
-  // match-lists (each {useAllExcept, matched[]})
-  matchedAircraftImmatriculations: MockMatchList;
-  matchedStartTypes: MockMatchList;
-  matchedFlightTypeCodes: MockMatchList;
-  matchedStartLocations: MockMatchList;
-  matchedLdgLocations: MockMatchList;
-  matchedClubMemberNumbers: MockMatchList;
+  deliveryLineText?: string;
+  recipientName?: string;
+  aircraftImmatriculations: MockMatchList;
+  startTypes: MockMatchList;
+  flightTypeCodes: MockMatchList;
+  startLocations: MockMatchList;
+  ldgLocations: MockMatchList;
+  clubMemberNumbers: MockMatchList;
+}
+
+interface MockRuleFilterDetail {
+  id: string;
+  filterTypeId: string;
+  accountingUnitTypeId?: string;
+  ruleFilterName: string;
+  description?: string;
+  active: boolean;
+  sortIndicator: number;
+  stopRuleEngineWhenApplied: boolean;
+  chargedToClubInternal: boolean;
+  // article-target (legacyId ∉ {5,10})
+  articleTarget?: string;
+  // recipient-target (legacyId == 10)
+  recipientTarget?: string;
+  filterConfig: MockFilterConfig;
 }
 
 interface MockRuleFilterListItem {
   id: string;
+  filterTypeId: string;
   ruleFilterName: string;
-  accountingRuleFilterTypeId: number;
   active: boolean;
+  sortIndicator: number;
+  target: string;
 }
+
+// Filter-type catalog (the real reference-data shape: uuid id + legacyId int).
+// The form's section-driving select binds the `legacyId`.
+const FILTER_TYPE_UUIDS: Record<number, string> = {
+  5: '019e2e15-2c00-7658-8000-000000004658',
+  10: '019e2e15-2c00-7652-8000-000000004652',
+  20: '019e2e15-2c00-7653-8000-000000004653',
+  30: '019e2e15-2c00-7654-8000-000000004654',
+  40: '019e2e15-2c00-7655-8000-000000004655',
+  55: '019e2e15-2c00-7659-8000-000000004659',
+};
+
+const mockFilterTypes = [
+  { id: FILTER_TYPE_UUIDS[5], code: 'DO_NOT_INVOICE', legacyId: 5, name: 'Do not invoice' },
+  {
+    id: FILTER_TYPE_UUIDS[10],
+    code: 'RECIPIENT',
+    legacyId: TYPE_RECIPIENT_TARGET,
+    name: 'Recipient',
+  },
+  {
+    id: FILTER_TYPE_UUIDS[20],
+    code: 'NO_LANDING_TAX',
+    legacyId: TYPE_NO_LANDING_TAX,
+    name: 'No landing tax',
+  },
+  {
+    id: FILTER_TYPE_UUIDS[30],
+    code: 'AIRCRAFT_FILTER',
+    legacyId: TYPE_AIRCRAFT_FILTER,
+    name: 'Aircraft filter',
+  },
+  {
+    id: FILTER_TYPE_UUIDS[40],
+    code: 'ARTICLE_TARGET',
+    legacyId: TYPE_ARTICLE_TARGET,
+    name: 'Article target',
+  },
+  { id: FILTER_TYPE_UUIDS[55], code: 'START_TAX', legacyId: 55, name: 'Start tax' },
+];
 
 function emptyList(): MockMatchList {
   return { useAllExcept: true, matched: [] };
 }
 
+function defaultFilterConfig(): MockFilterConfig {
+  return {
+    isRuleForGliderFlights: false,
+    isRuleForTowingFlights: false,
+    isRuleForMotorFlights: false,
+    noLandingTaxForGlider: false,
+    noLandingTaxForTowingAircraft: false,
+    noLandingTaxForAircraft: false,
+    includeFlightTypeName: false,
+    extendMatchingFlightTypeCodesToGliderAndTowFlight: false,
+    includeThresholdText: false,
+    aircraftImmatriculations: emptyList(),
+    startTypes: emptyList(),
+    flightTypeCodes: emptyList(),
+    startLocations: emptyList(),
+    ldgLocations: emptyList(),
+    clubMemberNumbers: emptyList(),
+  };
+}
+
 const seededArticleFilter: MockRuleFilterDetail = {
   id: 'arf-019e30c3-2c00-7001-8000-000000000001',
+  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET],
   ruleFilterName: 'Landing fee — gliders',
-  accountingRuleFilterTypeId: TYPE_ARTICLE_TARGET,
   active: true,
-  stopRuleEngineWhenRuleApplied: false,
+  sortIndicator: 1,
+  stopRuleEngineWhenApplied: false,
+  chargedToClubInternal: false,
   description: 'Standard landing fee for glider flights',
-  isForGliderFlights: true,
-  isForTowFlights: false,
-  isForMotorFlights: false,
-  articleId: 'art-019e30c3-2c00-7001-8000-0000000000a1',
-  deliveryLineText: 'Landing fee',
-  accountingUnitTypeId: 1,
-  matchedAircraftImmatriculations: { useAllExcept: false, matched: ['HB-3001'] },
-  matchedStartTypes: emptyList(),
-  matchedFlightTypeCodes: emptyList(),
-  matchedStartLocations: emptyList(),
-  matchedLdgLocations: emptyList(),
-  matchedClubMemberNumbers: emptyList(),
+  articleTarget: 'A-100',
+  filterConfig: {
+    ...defaultFilterConfig(),
+    isRuleForGliderFlights: true,
+    deliveryLineText: 'Landing fee',
+    aircraftImmatriculations: { useAllExcept: false, matched: ['HB-3001'] },
+  },
 };
 
 const mockClubs = [{ id: CLUB_A_ID, name: 'Test Club A', slug: 'test-club-a' }];
 
-const mockFilterTypes = [
-  { id: 5, name: 'Do not invoice' },
-  { id: TYPE_RECIPIENT_TARGET, name: 'Recipient' },
-  { id: TYPE_NO_LANDING_TAX, name: 'No landing tax' },
-  { id: TYPE_AIRCRAFT_FILTER, name: 'Aircraft filter' },
-  { id: TYPE_ARTICLE_TARGET, name: 'Article target' },
-  { id: 55, name: 'Start tax' },
-];
+function legacyIdFor(filterTypeId: string): number {
+  return mockFilterTypes.find((ty) => ty.id === filterTypeId)?.legacyId ?? 0;
+}
+
+function targetFor(d: MockRuleFilterDetail): string {
+  const legacyId = legacyIdFor(d.filterTypeId);
+  if (legacyId === TYPE_RECIPIENT_TARGET && d.recipientTarget) {
+    const name = d.filterConfig.recipientName;
+    return name ? `${name} (${d.recipientTarget})` : d.recipientTarget;
+  }
+  if (legacyId !== 5 && legacyId !== TYPE_RECIPIENT_TARGET && d.articleTarget) {
+    const text = d.filterConfig.deliveryLineText;
+    return text ? `${d.articleTarget} (${text})` : d.articleTarget;
+  }
+  return '';
+}
 
 function toListItem(d: MockRuleFilterDetail): MockRuleFilterListItem {
   return {
     id: d.id,
+    filterTypeId: d.filterTypeId,
     ruleFilterName: d.ruleFilterName,
-    accountingRuleFilterTypeId: d.accountingRuleFilterTypeId,
     active: d.active,
+    sortIndicator: d.sortIndicator,
+    target: targetFor(d),
   };
 }
 
@@ -180,10 +255,12 @@ async function stubReferenceData(page: Page): Promise<void> {
 /**
  * In-memory `/api/v1/accounting-rule-filters` backend. Mirrors the
  * flight-types stub shape: GET list, GET by id (404 when absent — the
- * cross-tenant case), POST (201 + Location), PUT, DELETE.
+ * cross-tenant case), POST (201 + Location), PUT, DELETE. POST/PUT echo a
+ * full Detail back from the WriteRequest body (the create→round-trip path).
  */
 function setupAccountingRulesBackend(items: MockRuleFilterDetail[]) {
   let nextId = 1000;
+  let nextSort = items.length + 1;
   return async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -211,11 +288,11 @@ function setupAccountingRulesBackend(items: MockRuleFilterDetail[]) {
       return;
     }
     if (method === 'POST' && path === '/api/v1/accounting-rule-filters') {
-      const body = req.postDataJSON() as Omit<MockRuleFilterDetail, 'id'>;
-      const created: MockRuleFilterDetail = {
-        ...body,
+      const body = req.postDataJSON() as MockWriteRequest;
+      const created = detailFromWrite(body, {
         id: `arf-019e30c3-2c00-7001-8000-${String(nextId++).padStart(12, '0')}`,
-      };
+        sortIndicator: nextSort++,
+      });
       items.push(created);
       await route.fulfill({
         status: 201,
@@ -226,14 +303,14 @@ function setupAccountingRulesBackend(items: MockRuleFilterDetail[]) {
       return;
     }
     if (method === 'PUT' && idMatch) {
-      const body = req.postDataJSON() as Omit<MockRuleFilterDetail, 'id'>;
+      const body = req.postDataJSON() as MockWriteRequest;
       const idx = items.findIndex((f) => f.id === idMatch[1]);
       if (idx === -1) {
         await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
         return;
       }
       const prev = items[idx]!;
-      items[idx] = { ...prev, ...body, id: prev.id };
+      items[idx] = detailFromWrite(body, { id: prev.id, sortIndicator: prev.sortIndicator });
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -255,6 +332,46 @@ function setupAccountingRulesBackend(items: MockRuleFilterDetail[]) {
   };
 }
 
+interface MockWriteRequest {
+  filterTypeId: string;
+  filterTypeLegacyId?: number;
+  accountingUnitTypeId?: string;
+  ruleFilterName: string;
+  description?: string;
+  active?: boolean;
+  stopRuleEngineWhenApplied?: boolean;
+  chargedToClubInternal?: boolean;
+  articleNumber?: string;
+  deliveryLineText?: string;
+  recipientMemberNumber?: string;
+  recipientName?: string;
+  filterConfig: MockFilterConfig;
+}
+
+/** Project a WriteRequest onto the Detail shape the server returns (round-trip). */
+function detailFromWrite(
+  body: MockWriteRequest,
+  fixed: { id: string; sortIndicator: number },
+): MockRuleFilterDetail {
+  const detail: MockRuleFilterDetail = {
+    id: fixed.id,
+    filterTypeId: body.filterTypeId,
+    ruleFilterName: body.ruleFilterName,
+    active: body.active ?? true,
+    sortIndicator: fixed.sortIndicator,
+    stopRuleEngineWhenApplied: body.stopRuleEngineWhenApplied ?? false,
+    chargedToClubInternal: body.chargedToClubInternal ?? false,
+    filterConfig: { ...defaultFilterConfig(), ...body.filterConfig },
+  };
+  if (body.accountingUnitTypeId) detail.accountingUnitTypeId = body.accountingUnitTypeId;
+  if (body.description) detail.description = body.description;
+  if (body.articleNumber) detail.articleTarget = body.articleNumber;
+  if (body.recipientMemberNumber) detail.recipientTarget = body.recipientMemberNumber;
+  if (body.deliveryLineText) detail.filterConfig.deliveryLineText = body.deliveryLineText;
+  if (body.recipientName) detail.filterConfig.recipientName = body.recipientName;
+  return detail;
+}
+
 async function bootBackend(page: Page, items: MockRuleFilterDetail[]): Promise<void> {
   await stubReferenceData(page);
   await page.route('**/api/v1/accounting-rule-filters**', setupAccountingRulesBackend(items));
@@ -264,9 +381,6 @@ async function bootBackend(page: Page, items: MockRuleFilterDetail[]): Promise<v
 test('accounting-rules: a nav entry under masterdata reaches /accountingrules (ENTER via nav)', async ({
   page,
 }) => {
-  // T-11 adds the `/accountingrules` route + the nav item; until then there is
-  // no nav link to click. The spec ENTERS via the nav link (never bare-goto)
-  // per the journey AC — assert the link exists, then click it.
   await bootBackend(page, [{ ...seededArticleFilter }]);
 
   await page.goto('/clubs?lang=de');
@@ -282,8 +396,8 @@ test('accounting-rules: a nav entry under masterdata reaches /accountingrules (E
 test('accounting-rules: list renders the club’s rule filters (name, type, active)', async ({
   page,
 }) => {
-  // T-11 builds the list page. Tenant-scoped: the backend stub only ever
-  // returns this club's rows (the @TenantId finder).
+  // Tenant-scoped: the backend stub only ever returns this club's rows (the
+  // @TenantId finder).
   await bootBackend(page, [{ ...seededArticleFilter }]);
 
   await page.goto('/accountingrules');
@@ -296,17 +410,16 @@ test('accounting-rules: list renders the club’s rule filters (name, type, acti
 });
 
 // ── create + round-trip ──────────────────────────────────────────────────────
-test.fixme('accounting-rules: create via the edit form → appears in the list → reload round-trips', async ({
+test('accounting-rules: create via the edit form → appears in the list → reload round-trips', async ({
   page,
 }) => {
-  // T-11 (list + nav) + T-12 (edit core) + T-13 (match-lists) build this.
   await bootBackend(page, [{ ...seededArticleFilter }]);
 
   await page.goto('/accountingrules');
   await page.getByTestId('accounting-rules-new-button').locator('button').click();
   await expect(page).toHaveURL('/accountingrules/new');
 
-  // core fields — filter-type drives the rest of the form (T-12 crux).
+  // core fields — the filter-type drives the rest of the form (T-12 crux).
   await page.getByTestId('accounting-rules-filter-type').selectOption(String(TYPE_ARTICLE_TARGET));
   await page.locator('#RuleFilterName').fill('Tow fee');
   await page.getByTestId('accounting-rules-flag-towing').check();
@@ -318,18 +431,19 @@ test.fixme('accounting-rules: create via the edit form → appears in the list �
     .filter({ hasText: 'Tow fee' });
   await expect(created).toBeVisible();
 
-  // reload round-trips: re-open the created row, the name persisted.
+  // reload round-trips: re-open the created row, the name + flag persisted.
   await created.click();
   await expect(page).toHaveURL(/\/accountingrules\/.+\/edit$/);
   await page.reload();
   await expect(page.locator('#RuleFilterName')).toHaveValue('Tow fee');
+  await expect(page.getByTestId('accounting-rules-flag-towing')).toBeChecked();
 });
 
 // ── filter-type drives the conditional sections (the legacy form crux) ─────────
-test.fixme('accounting-rules: selecting a filter-type shows/hides the conditional sections', async ({
+test('accounting-rules: selecting a filter-type shows/hides the conditional sections', async ({
   page,
 }) => {
-  // T-12 builds the show/hide. Mirrors the legacy predicate matrix:
+  // Mirrors the legacy predicate matrix keyed off the type's legacyId:
   //   article-target (∉{5,10}) → article section visible, recipient hidden
   //   recipient-target (==10)  → recipient section visible, article hidden
   //   aircraft-filter (==30)   → flight-duration + threshold visible
@@ -379,12 +493,12 @@ test.fixme('accounting-rules: a match-list "use for all except listed" toggle pe
 });
 
 // ── required-field inline errors (J-6b liveFieldErrors, NOT touched-gated) ─────
-test.fixme('accounting-rules: required fields (filter type, name) block Save with inline errors', async ({
+test('accounting-rules: required fields (filter type, name) block Save with inline errors', async ({
   page,
 }) => {
-  // T-12 wires the J-6b `liveFieldErrors` bar. name + filter-type are required
-  // on the aggregate (ADR 0022 §2); as-you-type debounced inline errors, NOT
-  // the legacy touched-gated pattern. Empty required fields keep Save disabled.
+  // name + filter-type are required on the aggregate (ADR 0022 §2); as-you-type
+  // debounced inline errors, NOT the legacy touched-gated pattern. Empty
+  // required fields keep Save disabled.
   await bootBackend(page, [{ ...seededArticleFilter }]);
   await page.goto('/accountingrules/new');
 

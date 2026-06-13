@@ -2,6 +2,48 @@ import type { Translations } from './de';
 
 const en: Translations = {
   accounting: {
+    edit: {
+      cancel: 'Cancel',
+      fields: {
+        accountingUnitType: 'Accounting unit',
+        accountingUnitTypePlaceholder: 'Select unit',
+        active: 'Active',
+        articleNumber: 'Article number',
+        chargedToClubInternal: 'Charged to club internal',
+        deliveryLineText: 'Delivery line text',
+        description: 'Description',
+        filterType: 'Filter type',
+        filterTypePlaceholder: 'Select type',
+        flightDurationUnlimited: 'Flight duration unlimited',
+        forGlider: 'For glider flights',
+        forMotor: 'For motor flights',
+        forTowing: 'For towing flights',
+        includeFlightTypeName: 'Include flight type in booking text',
+        includeThresholdText: 'Include threshold text',
+        maxFlightDuration: 'Maximum duration (seconds)',
+        minFlightDuration: 'Minimum duration (seconds)',
+        name: 'Name',
+        noLandingTaxForAircraft: 'No landing tax for aircraft',
+        noLandingTaxForGlider: 'No landing tax for glider',
+        noLandingTaxForTowing: 'No landing tax for towing aircraft',
+        recipientMemberNumber: 'Recipient member number',
+        recipientName: 'Recipient name',
+        stopRuleEngine: 'Stop rule engine when applied',
+        thresholdText: 'Threshold text',
+      },
+      loading: 'Loading accounting rule…',
+      notFound: 'This accounting rule does not exist.',
+      save: 'Save',
+      sections: {
+        aircraftFilter: 'Aircraft filter',
+        articleTarget: 'Article target',
+        core: 'Master data',
+        noLandingTax: 'No landing tax',
+        recipientTarget: 'Recipient target',
+      },
+      title: 'Edit accounting rule',
+      titleNew: 'New accounting rule',
+    },
     list: {
       columns: {
         active: 'Active',
