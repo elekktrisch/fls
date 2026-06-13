@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.96.0",
-  "elapsed_ms": 397,
+  "elapsed_ms": 409,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -1715,6 +1715,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/list/accounting-list.page.ts",
+      "name": "<template>",
+      "line": 21,
+      "col": 0,
+      "cyclomatic": 6,
+      "cognitive": 6,
+      "line_count": 64,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/articles/edit/articles-edit.page.ts",
       "name": "<template>",
       "line": 47,
@@ -2435,6 +2465,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/accounting.store.ts",
+      "name": "<arrow>",
+      "line": 288,
+      "col": 51,
+      "cyclomatic": 5,
+      "cognitive": 4,
+      "line_count": 9,
+      "param_count": 2,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<arrow>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/reporting/results/report-results.page.ts",
       "name": "rangeLabel",
       "line": 287,
@@ -2496,19 +2556,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 209,
-    "functions_analyzed": 1579,
-    "functions_above_threshold": 78,
+    "files_analyzed": 213,
+    "functions_analyzed": 1631,
+    "functions_above_threshold": 80,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 160,
+    "files_scored": 163,
     "average_maintainability": 92.3,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 16,
     "severity_high_count": 27,
-    "severity_moderate_count": 35
+    "severity_moderate_count": 37
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
@@ -2526,35 +2586,35 @@
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 209,
-      "total_exports": 466,
+      "total_files": 213,
+      "total_exports": 473,
       "dead_files": 0,
       "dead_exports": 0,
-      "duplicated_lines": 1011,
-      "total_lines": 27800,
-      "files_scored": 160,
+      "duplicated_lines": 1032,
+      "total_lines": 28345,
+      "files_scored": 163,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 86.9,
-      "medium_risk": 6.8,
-      "high_risk": 2.7,
-      "very_high_risk": 3.5
+      "low_risk": 87.2,
+      "medium_risk": 6.6,
+      "high_risk": 2.6,
+      "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 35.5,
+    "functions_over_60_loc_per_k": 35.6,
     "unit_interfacing_profile": {
-      "low_risk": 97.0,
-      "medium_risk": 2.7,
+      "low_risk": 97.1,
+      "medium_risk": 2.6,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
-    "coupling_high_pct": 1.3,
-    "total_loc": 27800
+    "coupling_high_pct": 1.8,
+    "total_loc": 28345
   },
   "health_score": {
     "formula_version": 2,
-    "score": 89.3,
+    "score": 89.1,
     "grade": "A",
     "penalties": {
       "dead_files": 0.0,
@@ -2566,7 +2626,7 @@
       "unused_deps": 0.0,
       "circular_deps": 0.0,
       "unit_size": 10.0,
-      "coupling": 0.7,
+      "coupling": 0.9,
       "duplication": 0.0
     }
   },
@@ -3007,7 +3067,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 39,
+      "fan_in": 40,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -3032,6 +3092,20 @@
       "lines": 335,
       "crap_max": 42.0,
       "crap_above_threshold": 2
+    },
+    {
+      "path": "src/app/features/accounting/list/accounting-list.page.ts",
+      "fan_in": 1,
+      "fan_out": 7,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.07,
+      "maintainability_index": 89.6,
+      "total_cyclomatic": 8,
+      "total_cognitive": 7,
+      "function_count": 2,
+      "lines": 111,
+      "crap_max": 42.0,
+      "crap_above_threshold": 1
     },
     {
       "path": "src/app/features/persons/list/persons-list.page.ts",
@@ -3086,6 +3160,20 @@
       "total_cognitive": 7,
       "function_count": 3,
       "lines": 162,
+      "crap_max": 30.0,
+      "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/accounting/accounting.store.ts",
+      "fan_in": 1,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.17,
+      "maintainability_index": 90.5,
+      "total_cyclomatic": 51,
+      "total_cognitive": 9,
+      "function_count": 42,
+      "lines": 298,
       "crap_max": 30.0,
       "crap_above_threshold": 1
     },
@@ -3610,14 +3698,14 @@
     {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 20,
+      "fan_out": 21,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.36,
-      "maintainability_index": 77.0,
-      "total_cyclomatic": 44,
+      "complexity_density": 0.35,
+      "maintainability_index": 77.1,
+      "total_cyclomatic": 46,
       "total_cognitive": 0,
-      "function_count": 44,
-      "lines": 122,
+      "function_count": 46,
+      "lines": 131,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -3827,7 +3915,7 @@
       "total_cyclomatic": 5,
       "total_cognitive": 4,
       "function_count": 1,
-      "lines": 69,
+      "lines": 74,
       "crap_max": 5.1,
       "crap_above_threshold": 0
     },
@@ -4098,6 +4186,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/accounting/accounting.routes.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.17,
+      "maintainability_index": 90.9,
+      "total_cyclomatic": 6,
+      "total_cognitive": 0,
+      "function_count": 6,
+      "lines": 35,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/aircraft/aircraft.routes.ts",
       "fan_in": 1,
       "fan_out": 3,
@@ -4337,7 +4439,7 @@
     },
     {
       "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 10,
+      "fan_in": 11,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.09,
@@ -4785,7 +4887,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 57,
+      "fan_in": 58,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -4793,7 +4895,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 49,
+      "lines": 52,
       "crap_max": 1.2,
       "crap_above_threshold": 0
     },
@@ -4945,6 +5047,12 @@
       "name": "<template>",
       "line": 84,
       "line_count": 131
+    },
+    {
+      "path": "src/app/features/accounting/accounting.store.ts",
+      "name": "<arrow>",
+      "line": 115,
+      "line_count": 124
     },
     {
       "path": "src/app/features/users/edit/person-picker.component.ts",
@@ -5151,6 +5259,12 @@
       "line_count": 65
     },
     {
+      "path": "src/app/features/accounting/list/accounting-list.page.ts",
+      "name": "<template>",
+      "line": 21,
+      "line_count": 64
+    },
+    {
       "path": "src/app/core/events/me-events.service.ts",
       "name": "openStream",
       "line": 154,
@@ -5231,7 +5345,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_19df33b81f0a8768"
+      "analysis_run_id": "run_9cef8e3beb7db2bc"
     }
   }
 }
