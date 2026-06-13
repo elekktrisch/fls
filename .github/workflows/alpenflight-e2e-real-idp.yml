@@ -204,13 +204,24 @@ jobs:
       # reach the same Postgres the backend uses (synth bundle mode — J1/J2_REAL_*
       # unset → the full legacy→export half stays the fan-out workflow's job).
       #
-      # `--ignore-snapshots`-style scope note: the J-4 `tests/profile/` spec also
-      # matches the `real-idp` project's testMatch, but it asserts against the
-      # `@Profile("showcase")` pilot1 Person — which this CLEAN-seeded nightly
-      # stack does NOT load. It has its own showcase-seeded gating job
-      # (`alpenflight-profile-proof` in ci.yml), so we EXCLUDE it here via an
-      # explicit positive spec list (the real-idp/ dir) rather than the bare
-      # `--project` glob, so a clean-seed run can't red on a showcase-only spec.
+      # SHOWCASE-SPEC SCOPE NOTE — this CLEAN-seeded nightly only runs `flywayMigrate`
+      # (dev seeds V5..V39) and boots `SPRING_PROFILES_ACTIVE: dev`; it does NOT load
+      # the `@Profile("showcase")` seed (`./gradlew seedShowcase` — the deterministic
+      # 2-club / 14-flight / pilot1-PIC fixture). Two showcase-only specs must be
+      # kept OFF this run, each with its OWN showcase-seeded gating job in ci.yml:
+      #   1. J-4 `tests/profile/` self-edit spec → asserts the showcase pilot1 Person;
+      #      EXCLUDED structurally — it lives OUTSIDE the `e2e/tests/real-idp/` path
+      #      filter below (own job: `alpenflight-profile-proof`).
+      #   2. J-3 `tests/real-idp/start-dashboard.spec.ts` → asserts the showcase
+      #      club-1 dashboard counts (today=3 / pending=4) + the pilot last-flight
+      #      card off pilot1's seeded PIC flights. It lives INSIDE `tests/real-idp/`,
+      #      so the path filter alone can't drop it — without the showcase seed its
+      #      counts read the bare dev-seed totals (pending≠4, total<14) + the pilot
+      #      card is empty, reding 3 cases (J-26 T-30b, the cross-journey re-baseline
+      #      finding). EXCLUDED here via `--grep-invert 'showcase seed'` (its describe
+      #      title carries the unique `[showcase seed, real chain]` tag); its real
+      #      gating job is `alpenflight-dashboard-proof` in ci.yml, which loads the
+      #      showcase seed first and asserts these exact numbers green.
       - name: Run Playwright real-idp project (full cross-journey regression)
         id: pw
         working-directory: alpenflight/web
@@ -223,6 +234,7 @@ jobs:
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --grep-invert 'showcase seed' \
             e2e/tests/real-idp/
 
       - name: Collect logs on failure
