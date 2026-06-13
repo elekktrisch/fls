@@ -315,7 +315,7 @@ public class UsersService {
         }
     }
 
-    public void softDelete(UserId id, @Nullable UUID callerUserId, @Nullable Jwt callerJwt) {
+    public void softDelete(UserId id, @Nullable UUID callerUserId) {
         User u = loadInCurrentTenantOrThrow(id);
         UUID rowId = requireId(u);
         if (callerUserId == null) {
