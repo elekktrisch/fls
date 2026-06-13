@@ -531,30 +531,32 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
     try {
       await loginAsMigratedTestClubAdmin(page, migratedAdmin);
 
-      // The legacy fixture (`100 Insert AccountingRuleFilters.sql`) seeds the
-      // TestClub recipient-target rule `FGZO Passagierflug Gutschein auf FGZO
-      // Konto 999007 buchen` (type 10, RecipientTarget member 999007). Assert the
-      // migrated filter by its IDENTIFYING legacy name (not a bare count) — proving
-      // the legacy AccountingRuleFilter round-tripped, not that "some row exists".
+      // The DETERMINISTIC legacy fixture (`_test-fixture.sql` §4, applied last,
+      // the rows the e2e suite relies on) seeds the TestClub article-target rule
+      // `FlightTime: Glider per minute` (type 30 ∉ {5,10}) with
+      // `ArticleTarget = {"ArticleNumber":"5001","DeliveryLineText":"Glider
+      // flight minutes"}`. Assert the migrated filter by its IDENTIFYING legacy
+      // name (not a bare count) — proving the legacy AccountingRuleFilter
+      // round-tripped, not that "some row exists". (Keying on a `_test-fixture`
+      // fixed-UUID row, NOT a `100 Insert` row — the latter loads `tolerant=1`
+      // and references other clubs, so it is less deterministic.)
       const list = await ctx.request.get(BASE, { headers: { authorization: migratedBearer } });
       expect(list.status(), 'the migrated TestClub lists its migrated filters').toBe(200);
       const items = (await list.json()) as ListItem[];
-      const migrated = items.find((f) =>
-        f.ruleFilterName.startsWith('FGZO Passagierflug Gutschein'),
-      );
+      const migrated = items.find((f) => f.ruleFilterName === 'FlightTime: Glider per minute');
       expect(
         migrated,
-        `the migrated legacy AccountingRuleFilter (name starting "FGZO Passagierflug Gutschein") ` +
-          `must be present for the migrated TestClub — the legacy→export→migrate→render round-trip. ` +
+        `the migrated legacy AccountingRuleFilter "FlightTime: Glider per minute" must be present ` +
+          `for the migrated TestClub — the legacy→export→migrate→render round-trip. ` +
           `Got ${items.length} row(s): ${JSON.stringify(items.map((f) => f.ruleFilterName))}`,
       ).toBeTruthy();
 
-      // Its predicate filter_config migrated intact — read the full detail and
-      // assert the legacy RecipientTarget member number + recipient name landed in
-      // the migrated config (the recipient-target this rule routes to). The legacy
-      // RecipientTarget JSON carries `PersonClubMemberNumber: "999007"` +
-      // `RecipientName: "FGZO Passagierflug Gutschein"` (mapper folds these into
-      // recipient_target + filter_config.recipientName).
+      // Its predicate config migrated intact — read the full detail and assert
+      // the legacy ArticleTarget extracted to `articleTarget` AND the
+      // DeliveryLineText folded into `filter_config` (the T-10 mapper
+      // reconciliation point — the producer SELECT's JSON_VALUE scalar extraction
+      // + the buildFilterConfig deliveryLineText fold). The list's derived target
+      // column ('5001 (Glider flight minutes)') is the read-side proof both landed.
       const detailRes = await ctx.request.get(`${BASE}/${migrated!.id}`, {
         headers: { authorization: migratedBearer },
       });
@@ -563,13 +565,17 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
       );
       const detail = (await detailRes.json()) as Detail;
       expect(
-        detail.recipientTarget,
-        'the migrated filter carries its legacy RecipientTarget member number (999007)',
-      ).toBe('999007');
+        detail.articleTarget,
+        'the migrated filter carries its legacy ArticleTarget article number (5001)',
+      ).toBe('5001');
       expect(
-        detail.filterConfig,
-        'the migrated filter carries a non-empty predicate filter_config',
-      ).toBeTruthy();
+        (detail.filterConfig as { deliveryLineText?: string }).deliveryLineText,
+        'the legacy DeliveryLineText folded into the migrated filter_config',
+      ).toBe('Glider flight minutes');
+      expect(
+        migrated!.target,
+        'the list target column derives from the migrated article + delivery-line text',
+      ).toBe('5001 (Glider flight minutes)');
 
       // It renders on the migrated TestClub admin's /accountingrules list (the
       // screen wires to the migrated data). Identify by its bare-UUID id — a
@@ -590,9 +596,10 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
         journey: 'J-8',
         caption:
           'J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub ' +
-          'recipient-target rule "FGZO Passagierflug Gutschein", member 999007), exported + migrated ' +
+          'article-target rule "FlightTime: Glider per minute", article 5001), exported + migrated ' +
           'through the live chain, renders in the migrated club’s /accountingrules list with its ' +
-          'predicate filter_config (recipient target) intact (full legacy→export→migrate→Keycloak→UI)',
+          'predicate config intact — the ArticleTarget number + the DeliveryLineText folded into ' +
+          'filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)',
         acTag: 'happy',
       });
     }

@@ -733,7 +733,7 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 25
@@ -742,11 +742,15 @@ jobs:
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
-          # J-5: the migrated-reservation render block rides the SAME real export
-          # the J-0c fan-out spec ingests (the T-07-bound reservation rows are in
-          # the real bundle). Flag the real path so the J-5 migrated-data describe
-          # runs (it `test.skip`s when unset, so the per-push synth gate doesn't
-          # false-green); the J-5 clean-seed real chain always runs.
+          # J-5/J-6/J-8: the migrated-data render blocks ride the SAME real export
+          # the J-0c fan-out spec ingests (the T-07-bound reservation rows, the
+          # T-11 planning rows, AND the T-10-bound AccountingRuleFilter rows are
+          # all in the real bundle — the export iterates EntityType.values(), so
+          # ACCOUNTING_RULE_FILTER is included). Flag the real path so each
+          # migrated-data describe runs (each `test.skip`s on !useRealBundle()
+          # when unset, so the per-push synth gate doesn't false-green); the
+          # clean-seed real chains always run. J-8's accounting migrated block
+          # reads the SAME J5_BUNDLE_SOURCE flag (shared useRealBundle() helper).
           J5_BUNDLE_SOURCE: real
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
@@ -759,7 +763,8 @@ jobs:
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
             e2e/tests/real-idp/flight-migration-parity.spec.ts \
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
-            e2e/tests/real-idp/planning-migration-parity.spec.ts
+            e2e/tests/real-idp/planning-migration-parity.spec.ts \
+            e2e/tests/real-idp/accounting-rules-parity.spec.ts
 
       # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
       # trace.zip + failure screenshot/video) BEFORE the staging + gallery + guard
