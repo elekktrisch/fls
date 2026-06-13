@@ -20,6 +20,9 @@
     "name" : "Planning days",
     "description" : "Planning-day CRUD (tenant-scoped; 409 on duplicate club+date+location; update/delete gated to admin-or-creator)."
   }, {
+    "name" : "AccountingRuleFilters",
+    "description" : "AccountingRuleFilter CRUD (per-club tenant-scoped billing-rule config)."
+  }, {
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
   }, {
@@ -1359,6 +1362,122 @@
           },
           "404" : {
             "description" : "No active reservation with that id in the tenant."
+          }
+        }
+      }
+    },
+    "/api/v1/accounting-rule-filters/{id}" : {
+      "get" : {
+        "tags" : [ "AccountingRuleFilters" ],
+        "summary" : "Read a single AccountingRuleFilter by id.",
+        "operationId" : "getAccountingRuleFilter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "AccountingRuleFilter detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active filter with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "AccountingRuleFilters" ],
+        "summary" : "Update an AccountingRuleFilter.",
+        "operationId" : "updateAccountingRuleFilter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccountingRuleFilterWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active filter with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "AccountingRuleFilters" ],
+        "summary" : "Soft-delete an AccountingRuleFilter.",
+        "operationId" : "deleteAccountingRuleFilter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active filter with that id (includes cross-tenant lookup)."
           }
         }
       }
@@ -2791,6 +2910,65 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounting-rule-filters" : {
+      "get" : {
+        "tags" : [ "AccountingRuleFilters" ],
+        "summary" : "List the caller's tenant AccountingRuleFilters, ordered by sort indicator.",
+        "operationId" : "listAccountingRuleFilters",
+        "responses" : {
+          "200" : {
+            "description" : "Array of AccountingRuleFilter list-row projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AccountingRuleFilterListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "AccountingRuleFilters" ],
+        "summary" : "Create a new AccountingRuleFilter in the caller's tenant.",
+        "operationId" : "createAccountingRuleFilter",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AccountingRuleFilterWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountingRuleFilterDetail"
                 }
               }
             }
@@ -5543,6 +5721,209 @@
           }
         },
         "required" : [ "aircraftId", "end", "id", "isAllDay", "locationId", "operatingClubId", "pilotPersonId", "start" ]
+      },
+      "AccountingRuleFilterWriteRequest" : {
+        "type" : "object",
+        "description" : "Create/update payload for an AccountingRuleFilter in the caller's tenant.",
+        "properties" : {
+          "filterTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "filterTypeLegacyId" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "accountingUnitTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "ruleFilterName" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "stopRuleEngineWhenApplied" : {
+            "type" : "boolean"
+          },
+          "chargedToClubInternal" : {
+            "type" : "boolean"
+          },
+          "articleNumber" : {
+            "type" : "string",
+            "maxLength" : 50,
+            "minLength" : 0
+          },
+          "deliveryLineText" : {
+            "type" : "string"
+          },
+          "recipientMemberNumber" : {
+            "type" : "string",
+            "maxLength" : 50,
+            "minLength" : 0
+          },
+          "recipientName" : {
+            "type" : "string"
+          },
+          "filterConfig" : {
+            "$ref" : "#/components/schemas/FilterConfig"
+          }
+        },
+        "required" : [ "filterConfig", "filterTypeId", "ruleFilterName" ]
+      },
+      "FilterConfig" : {
+        "type" : "object",
+        "properties" : {
+          "isRuleForGliderFlights" : {
+            "type" : "boolean"
+          },
+          "isRuleForTowingFlights" : {
+            "type" : "boolean"
+          },
+          "isRuleForMotorFlights" : {
+            "type" : "boolean"
+          },
+          "noLandingTaxForGlider" : {
+            "type" : "boolean"
+          },
+          "noLandingTaxForTowingAircraft" : {
+            "type" : "boolean"
+          },
+          "noLandingTaxForAircraft" : {
+            "type" : "boolean"
+          },
+          "includeFlightTypeName" : {
+            "type" : "boolean"
+          },
+          "extendMatchingFlightTypeCodesToGliderAndTowFlight" : {
+            "type" : "boolean"
+          },
+          "includeThresholdText" : {
+            "type" : "boolean"
+          },
+          "thresholdText" : {
+            "type" : "string"
+          },
+          "minFlightTimeInSecondsMatchingValue" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "maxFlightTimeInSecondsMatchingValue" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "minEngineTimeInSecondsMatchingValue" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "maxEngineTimeInSecondsMatchingValue" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "aircraftImmatriculations" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "startTypes" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "flightTypeCodes" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "startLocations" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "ldgLocations" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "clubMemberNumbers" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "flightCrewTypes" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "aircraftHomebases" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "memberStates" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "personCategories" : {
+            "$ref" : "#/components/schemas/MatchList"
+          },
+          "deliveryLineText" : {
+            "type" : "string"
+          },
+          "recipientName" : {
+            "type" : "string"
+          }
+        }
+      },
+      "MatchList" : {
+        "type" : "object",
+        "properties" : {
+          "useAllExcept" : {
+            "type" : "boolean"
+          },
+          "matched" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "AccountingRuleFilterDetail" : {
+        "type" : "object",
+        "description" : "AccountingRuleFilter detail projection — full round-trip payload.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "filterTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "accountingUnitTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "ruleFilterName" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "sortIndicator" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "stopRuleEngineWhenApplied" : {
+            "type" : "boolean"
+          },
+          "chargedToClubInternal" : {
+            "type" : "boolean"
+          },
+          "articleTarget" : {
+            "type" : "string"
+          },
+          "recipientTarget" : {
+            "type" : "string"
+          },
+          "filterConfig" : {
+            "$ref" : "#/components/schemas/FilterConfig"
+          }
+        },
+        "required" : [ "active", "chargedToClubInternal", "filterConfig", "filterTypeId", "id", "ruleFilterName", "sortIndicator", "stopRuleEngineWhenApplied" ]
       },
       "UserInviteRequest" : {
         "type" : "object",
@@ -8359,6 +8740,34 @@
             "type" : "string"
           }
         }
+      },
+      "AccountingRuleFilterListItem" : {
+        "type" : "object",
+        "description" : "AccountingRuleFilter list-row projection — sorted by sort indicator.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "ruleFilterName" : {
+            "type" : "string"
+          },
+          "filterTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "sortIndicator" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "target" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "active", "filterTypeId", "id", "ruleFilterName", "sortIndicator", "target" ]
       }
     },
     "securitySchemes" : {
