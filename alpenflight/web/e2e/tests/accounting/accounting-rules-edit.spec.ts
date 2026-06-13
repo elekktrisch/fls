@@ -81,6 +81,12 @@ interface MockFilterConfig {
   startLocations: MockMatchList;
   ldgLocations: MockMatchList;
   clubMemberNumbers: MockMatchList;
+  flightCrewTypes: MockMatchList;
+  aircraftHomebases: MockMatchList;
+  memberStates: MockMatchList;
+  // dead in the legacy form (no control) → migrated data preserved untouched
+  // through a save (T-13). Carried here so the round-trip asserts it survives.
+  personCategories: MockMatchList;
 }
 
 interface MockRuleFilterDetail {
@@ -170,12 +176,16 @@ function defaultFilterConfig(): MockFilterConfig {
     startLocations: emptyList(),
     ldgLocations: emptyList(),
     clubMemberNumbers: emptyList(),
+    flightCrewTypes: emptyList(),
+    aircraftHomebases: emptyList(),
+    memberStates: emptyList(),
+    personCategories: emptyList(),
   };
 }
 
 const seededArticleFilter: MockRuleFilterDetail = {
   id: 'arf-019e30c3-2c00-7001-8000-000000000001',
-  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET],
+  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET]!,
   ruleFilterName: 'Landing fee — gliders',
   active: true,
   sortIndicator: 1,
@@ -188,6 +198,38 @@ const seededArticleFilter: MockRuleFilterDetail = {
     isRuleForGliderFlights: true,
     deliveryLineText: 'Landing fee',
     aircraftImmatriculations: { useAllExcept: false, matched: ['HB-3001'] },
+  },
+};
+
+/**
+ * A filter carrying ALL 9 visible match-lists at distinct, identifiable values
+ * (each with a distinct `useAllExcept` orientation so the invert toggle's state
+ * round-trips per list) PLUS a non-default `personCategories` — the dead list
+ * with no control (T-13) — to prove it is preserved untouched through a save.
+ */
+const seededFullMatchListFilter: MockRuleFilterDetail = {
+  id: 'arf-019e30c3-2c00-7001-8000-000000000002',
+  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET]!,
+  ruleFilterName: 'Full match-list rule',
+  active: true,
+  sortIndicator: 2,
+  stopRuleEngineWhenApplied: false,
+  chargedToClubInternal: false,
+  articleTarget: 'A-300',
+  filterConfig: {
+    ...defaultFilterConfig(),
+    // each list distinct value + orientation → per-list round-trip is unambiguous
+    aircraftImmatriculations: { useAllExcept: false, matched: ['HB-3001'] },
+    startTypes: { useAllExcept: true, matched: ['1'] },
+    flightTypeCodes: { useAllExcept: false, matched: ['77', '88'] },
+    startLocations: { useAllExcept: true, matched: ['LSZK'] },
+    ldgLocations: { useAllExcept: false, matched: ['LSGE'] },
+    clubMemberNumbers: { useAllExcept: true, matched: ['363289'] },
+    flightCrewTypes: { useAllExcept: false, matched: ['1'] },
+    aircraftHomebases: { useAllExcept: true, matched: ['LSZK'] },
+    memberStates: { useAllExcept: false, matched: ['ACTIVE'] },
+    // the dead, control-less list — must survive a save untouched.
+    personCategories: { useAllExcept: false, matched: ['PASSENGER'] },
   },
 };
 
@@ -419,10 +461,20 @@ test('accounting-rules: create via the edit form → appears in the list → rel
   await page.getByTestId('accounting-rules-new-button').locator('button').click();
   await expect(page).toHaveURL('/accountingrules/new');
 
-  // core fields — the filter-type drives the rest of the form (T-12 crux).
+  // core fields — the filter-type drives the rest of the form (T-12 crux). An
+  // article-target type (40 ∉ {5,10}) opens the article section, so the
+  // round-trip exercises EVERY persisted axis: core text + the 3 always-on
+  // boolean flags + the article-target fields (articleNumber + the
+  // deliveryLineText that lives inside filterConfig).
   await page.getByTestId('accounting-rules-filter-type').selectOption(String(TYPE_ARTICLE_TARGET));
   await page.locator('#RuleFilterName').fill('Tow fee');
+  await page.locator('#Description').fill('Tow fee for the towing aircraft');
   await page.getByTestId('accounting-rules-flag-towing').check();
+  await page.getByTestId('accounting-rules-flag-stop-rule-engine').check();
+  // article-target fields (the section is visible for type 40): articleNumber
+  // is a top-level write field; deliveryLineText folds into filterConfig.
+  await page.locator('#ArticleNumber').fill('A-200');
+  await page.locator('#DeliveryLineText').fill('Tow charge');
   await page.getByTestId('accounting-rules-save-button').locator('button').click();
 
   await expect(page).toHaveURL('/accountingrules');
@@ -430,13 +482,31 @@ test('accounting-rules: create via the edit form → appears in the list → rel
     .locator('[data-testid^="accounting-rules-row-"]')
     .filter({ hasText: 'Tow fee' });
   await expect(created).toBeVisible();
+  // The list's derived target column proves articleNumber + deliveryLineText
+  // (filterConfig) both round-tripped server-side ('A-200 (Tow charge)'). The
+  // target renders in the sibling `#secondary` template under its own
+  // `accounting-rules-target-<id>` testid, not inside the row link.
+  const createdId = (await created.getAttribute('data-testid'))!.replace(
+    'accounting-rules-row-',
+    '',
+  );
+  await expect(page.getByTestId(`accounting-rules-target-${createdId}`)).toContainText(
+    'A-200 (Tow charge)',
+  );
 
-  // reload round-trips: re-open the created row, the name + flag persisted.
+  // reload round-trips: re-open the created row, EVERY field persisted — core
+  // text, the boolean flags, AND the article-target fields incl. the
+  // filterConfig-stored deliveryLineText.
   await created.click();
   await expect(page).toHaveURL(/\/accountingrules\/.+\/edit$/);
   await page.reload();
   await expect(page.locator('#RuleFilterName')).toHaveValue('Tow fee');
+  await expect(page.locator('#Description')).toHaveValue('Tow fee for the towing aircraft');
   await expect(page.getByTestId('accounting-rules-flag-towing')).toBeChecked();
+  await expect(page.getByTestId('accounting-rules-flag-stop-rule-engine')).toBeChecked();
+  await expect(page.getByTestId('accounting-rules-flag-glider')).not.toBeChecked();
+  await expect(page.locator('#ArticleNumber')).toHaveValue('A-200');
+  await expect(page.locator('#DeliveryLineText')).toHaveValue('Tow charge');
 });
 
 // ── filter-type drives the conditional sections (the legacy form crux) ─────────
@@ -457,22 +527,39 @@ test('accounting-rules: selecting a filter-type shows/hides the conditional sect
   const noLandingTaxSection = page.getByTestId('accounting-rules-section-no-landing-tax');
   const typeSelect = page.getByTestId('accounting-rules-filter-type');
 
+  // article-target (∉{5,10}): article section ON, the other three OFF.
   await typeSelect.selectOption(String(TYPE_ARTICLE_TARGET));
   await expect(articleSection).toBeVisible();
   await expect(recipientSection).toBeHidden();
+  await expect(aircraftSection).toBeHidden();
+  await expect(noLandingTaxSection).toBeHidden();
 
+  // recipient-target (==10): recipient section ON, article OFF (the exclusive
+  // article-vs-recipient swap), aircraft/no-landing-tax OFF.
   await typeSelect.selectOption(String(TYPE_RECIPIENT_TARGET));
   await expect(recipientSection).toBeVisible();
   await expect(articleSection).toBeHidden();
+  await expect(aircraftSection).toBeHidden();
+  await expect(noLandingTaxSection).toBeHidden();
 
+  // aircraft-filter (==30): the flight-duration/threshold section ON; the
+  // article section is also visible (30 ∉ {5,10}); recipient + no-landing OFF.
   await typeSelect.selectOption(String(TYPE_AIRCRAFT_FILTER));
   await expect(aircraftSection).toBeVisible();
+  await expect(articleSection).toBeVisible();
+  await expect(recipientSection).toBeHidden();
+  await expect(noLandingTaxSection).toBeHidden();
 
+  // no-landing-tax (==20): the no-landing-tax section ON; 20 ∉ {5,10} so the
+  // article section is visible too; recipient + aircraft-filter OFF.
   await typeSelect.selectOption(String(TYPE_NO_LANDING_TAX));
   await expect(noLandingTaxSection).toBeVisible();
+  await expect(articleSection).toBeVisible();
+  await expect(recipientSection).toBeHidden();
+  await expect(aircraftSection).toBeHidden();
 });
 
-// ── match-list invert toggle round-trips ─────────────────────────────────────
+// ── match-list invert toggle round-trips (the seeded single-list case) ─────────
 test('accounting-rules: a match-list "use for all except listed" toggle persists', async ({
   page,
 }) => {
@@ -490,6 +577,89 @@ test('accounting-rules: a match-list "use for all except listed" toggle persists
   await expect(page).toHaveURL('/accountingrules');
   await page.getByTestId(`accounting-rules-row-${seededArticleFilter.id}`).click();
   await expect(page.getByTestId('accounting-rules-immatriculations-use-all-except')).toBeChecked();
+});
+
+// ── full 9-list round-trip + personCategories survives untouched ──────────────
+test('accounting-rules: ALL 9 visible match-lists round-trip (chips + invert toggle) and the dead personCategories list survives a save untouched', async ({
+  page,
+}) => {
+  // The full match-list parity (J-8 AC: "the predicate match-lists round-trip …
+  // EACH with its 'use for ALL except listed' toggle"). The seeded filter
+  // carries all 9 visible lists at distinct values + orientations, plus a
+  // non-default personCategories (dead, control-less, T-13). We assert the load
+  // reflects every list, edit ONE list, save, reopen, and confirm (a) every
+  // OTHER list is unchanged AND (b) personCategories — which has no control and
+  // is lifted from the loaded detail on save — survived the write untouched.
+  await bootBackend(page, [{ ...seededFullMatchListFilter }]);
+  const id = seededFullMatchListFilter.id;
+  await page.goto(`/accountingrules/${id}/edit`);
+  await expect(page.getByTestId('accounting-rules-edit-form')).toBeVisible();
+
+  // Every list's invert toggle reflects its seeded orientation on load.
+  const toggles: Record<string, boolean> = {
+    immatriculations: false,
+    'start-types': true,
+    'flight-type-codes': false,
+    'start-locations': true,
+    'landing-locations': false,
+    'club-member-numbers': true,
+    'flight-crew-types': false,
+    'aircraft-homebases': true,
+    'member-states': false,
+  };
+  for (const [list, useAllExcept] of Object.entries(toggles)) {
+    const toggle = page.getByTestId(`accounting-rules-${list}-use-all-except`);
+    if (useAllExcept) {
+      await expect(toggle, `${list} invert toggle loads checked`).toBeChecked();
+    } else {
+      await expect(toggle, `${list} invert toggle loads unchecked`).not.toBeChecked();
+    }
+  }
+  // The seeded chips render per list (a representative spot-check across lists).
+  await expect(page.getByTestId('accounting-rules-immatriculations-chip-HB-3001')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-flight-type-codes-chip-77')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-flight-type-codes-chip-88')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-club-member-numbers-chip-363289')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-member-states-chip-ACTIVE')).toBeVisible();
+
+  // Edit exactly ONE list: add a chip to immatriculations + flip its toggle.
+  await page.getByTestId('accounting-rules-immatriculations-add').fill('HB-9999');
+  await page.getByTestId('accounting-rules-immatriculations-add-button').locator('button').click();
+  await expect(page.getByTestId('accounting-rules-immatriculations-chip-HB-9999')).toBeVisible();
+  await page.getByTestId('accounting-rules-immatriculations-use-all-except').check();
+
+  // Capture the PUT body so we can assert personCategories was written back
+  // verbatim (it has no control → the page lifts it from the loaded detail).
+  const put = page.waitForRequest(
+    (req) =>
+      req.method() === 'PUT' &&
+      new URL(req.url()).pathname.startsWith('/api/v1/accounting-rule-filters/'),
+  );
+  await page.getByTestId('accounting-rules-save-button').locator('button').click();
+  const putBody = (await (await put).postDataJSON()) as MockWriteRequest;
+  expect(
+    putBody.filterConfig.personCategories,
+    'the dead personCategories list is written back verbatim (preserved from the loaded detail)',
+  ).toEqual({ useAllExcept: false, matched: ['PASSENGER'] });
+
+  // Reopen — the edited list round-tripped AND every untouched list is intact.
+  await expect(page).toHaveURL('/accountingrules');
+  await page.getByTestId(`accounting-rules-row-${id}`).click();
+  await expect(page.getByTestId('accounting-rules-edit-form')).toBeVisible();
+
+  // The edited immatriculations list: new chip present, toggle flipped to checked.
+  await expect(page.getByTestId('accounting-rules-immatriculations-chip-HB-3001')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-immatriculations-chip-HB-9999')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-immatriculations-use-all-except')).toBeChecked();
+  // Every OTHER list's chips + orientation are unchanged after the save.
+  await expect(page.getByTestId('accounting-rules-flight-type-codes-chip-77')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-flight-type-codes-chip-88')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-club-member-numbers-chip-363289')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-member-states-chip-ACTIVE')).toBeVisible();
+  await expect(page.getByTestId('accounting-rules-start-types-use-all-except')).toBeChecked();
+  await expect(
+    page.getByTestId('accounting-rules-landing-locations-use-all-except'),
+  ).not.toBeChecked();
 });
 
 // ── required-field inline errors (J-6b liveFieldErrors, NOT touched-gated) ─────
@@ -512,17 +682,19 @@ test('accounting-rules: required fields (filter type, name) block Save with inli
 });
 
 // ── cross-tenant isolation ───────────────────────────────────────────────────
-test.fixme('accounting-rules: cross-tenant GET of another club’s filter → 404', async ({
-  page,
-}) => {
+test('accounting-rules: cross-tenant GET of another club’s filter → 404', async ({ page }) => {
   // The legacy stack leaks cross-tenant Update/Delete (a BUG); the new stack
   // scopes by @TenantId, so another club's id is never in this club's list →
   // GET by that id → 404 → the edit page surfaces a not-found, not the row.
+  // (T-12 wired `accounting-rules-not-found` to a `not-found` saveErrorKind on a
+  // detail-load failure; this activates that path.)
   await bootBackend(page, [{ ...seededArticleFilter }]);
   const otherClubFilterId = 'arf-019e30c3-2c00-7001-8000-0000000000ff';
 
   await page.goto(`/accountingrules/${otherClubFilterId}/edit`);
 
   await expect(page.getByTestId('accounting-rules-not-found')).toBeVisible();
+  // The edit form must NOT render for a not-found (cross-tenant) id.
+  await expect(page.getByTestId('accounting-rules-edit-form')).toHaveCount(0);
   await expect(page.locator('#RuleFilterName')).toHaveCount(0);
 });
