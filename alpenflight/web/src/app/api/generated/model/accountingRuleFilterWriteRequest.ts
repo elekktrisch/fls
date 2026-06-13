@@ -20,8 +20,11 @@ export type AccountingRuleFilterWriteRequest = {
      */
   ruleFilterName: string;
   description?: string;
+  /** Filter active (absent = true, the legacy default). */
   active?: boolean;
+  /** Stop the rule engine when this rule applies (absent = false). */
   stopRuleEngineWhenApplied?: boolean;
+  /** Charge the recipient to the club internally (absent = false; sent only for recipient filters). */
   chargedToClubInternal?: boolean;
   /**
      * @minLength 0
