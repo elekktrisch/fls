@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>224/merge</code> &middot; 2026-06-14T17:19:40.340Z
+      assertion it proves. Generated on <code>224/merge</code> &middot; 2026-06-14T20:04:03.475Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -142,26 +142,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-c613933feaeb9ab60e1f9fb112b6bc0e2cd0e014.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4948e1836eb5aa3f9e16356560fbf61bdf0e67ea.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-43c24e1e1a2d8e1ca582a68be452e45ceff2e6d5.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -183,7 +169,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey" open>
+      <details class="journey">
         <summary>
           <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
           <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
@@ -285,12 +271,22 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-9</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-9</span> <span class="status success">2 proofs</span><span class="summary-counts">2 videos · 0 screenshots</span></span>
+          <span class="summary-caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-88ec6989ff40f6b14363b322834cbf0c3ce80e01.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-e91efb3ce40b8602eb14951af99b2cec46b8c69e.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
+        </figure>
+        </div>
+
       </details>
       <details class="journey pending-journey">
         <summary>

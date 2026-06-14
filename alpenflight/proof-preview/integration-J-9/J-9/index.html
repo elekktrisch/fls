@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-0c</title>
+<title>AlpenFlight proof — J-9</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-0c — proof</h1>
+    <h1>J-9 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-0c</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 0 screenshots</span>
+      <span class="summary-jid">J-9</span> <span class="status success">2 proofs</span> <span class="summary-counts">2 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -143,18 +143,22 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 
   <section class="journey-page">
         <div class="proofs">
-        <figure class="proof legacy-proof">
-          <video controls preload="metadata" src="../videos/legacy-locations-fanout-J0c.webm"></video>
-          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-88ec6989ff40f6b14363b322834cbf0c3ce80e01.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-e91efb3ce40b8602eb14951af99b2cec46b8c69e.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
         </figure>
         </div>
 
         <section class="maintainability">
-          <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
+          <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
           <tr>
-            <th>FE delta (this journey)</th>
-            <td class="muted">— historical per-journey delta not reconstructable (only the current branch's diff is). Snapshot below applies repo-wide.</td>
+            <th>FE delta (this journey vs main)</th>
+            <td>complexity <strong>0</strong> · duplication <strong>0</strong> · dead-code <strong>0</strong> · verdict <strong>unknown</strong></td>
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
@@ -170,7 +174,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
-          <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>
+          <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>J-9</strong></p>
         </section>
   </section>
 
