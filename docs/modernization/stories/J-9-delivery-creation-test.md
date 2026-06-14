@@ -2,7 +2,8 @@
 id: J-9
 title: Delivery creation test (rules-engine proof)
 epic: E-09
-status: todo
+status: in_progress
+started_at: 2026-06-14
 journey0: false
 carved: true
 depends_on: [J-8, J-2]
@@ -94,6 +95,43 @@ to the new discipline from the start: **why-only comments, self-explanatory code
 body** ([[feedback_self_explanatory_no_history_comments]]); the new harness form on the J-6b
 `liveFieldErrors` bar + the shared `shared/util/form/` helpers; the nav entry nests under the J-8
 "Masterdata" dropdown (`enterViaNav`).
+
+## Going-in state + operator decisions (ship-time, verified)
+
+**Substrate (V4, like J-8's accounting):** `t_delivery` / `t_delivery_item` / `t_delivery_creation_test` (+`_item`) schemas ALL exist; `DeliveryMapper`+`DeliveryItemMapper` authored + registered but `KNOWN_UNBOUND` (no producer binding — **J-10's**, leave them). **All domain code + the rules engine are ABSENT** — J-9 builds them. The engine reads J-8 `AccountingRuleFilter.filter_config` + J-2 `Flight` (towFlightId, crew).
+
+**Engine pipeline ORDER = the legacy CODE order (NOT doc §3 / the carve):** IgnoreFlight(5) → Recipient(10) → DeliveryDetails → DeliveryItem[ NoLandingTax(20) → FlightTime(30) loop → EngineTime(80) loop → InstructorFee(40) → **tow-recurse** → AdditionalFuelFee(50) → StartTax(55) → LandingTax(60)+OnStartLocation → VsfFee(70)+OnStartLocation ]. FlightTime loop: `min < active ≤ max` (min-EXCL/max-INCL), bill `active−min`, reset active→min; min=0 → bill all. Zero→none; tier-gap→silent unbilled remainder (legacy, reproduce); dup-article→add-to-existing line; InstructorFee always-new-line.
+
+**Operator decisions (2026-06-14, sacred-cow scoping):**
+- **Credits DEFERRED.** J-9 ports the **pure decrement path** (seed no credits; engine ignores PersonFlightTimeCredit balances/DiscountInPercent/over-credit split/transaction writes). The credit sub-engine is a **named follow-up journey** (file via `/do-plan` — own corpus + the `PersonFlightTimeCreditTransaction` side-effects).
+- **Filter order = `ORDER BY sort_indicator, id`** (deterministic; documented divergence from legacy's no-ORDER-BY bug, which made recipient first-match + tier order depend on clustered-PK/GUID order).
+
+## Tasks
+
+Per do-ship §2 (one seam each). J-9 LEADS with the rules-engine feature; the ≤70% burndown riders ride it (WORKFLOW-SLIM early — it greens main's red `alpenflight e2e` + speeds J-9's own gate). Migration: no new mapper (Delivery mappers are J-10's; harness greenfield) — the done-bar proves the engine over MIGRATED J-2 flights + J-8 filters (T-19 fanout).
+
+- [ ] **T-01** — spec stub `e2e/tests/accounting/delivery-creation-test.spec.ts` (list / edit / dry-run / run+diff; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only model). *(e2e + gallery)*
+- [ ] **T-02** — gate scoping: J-9 `mock_test`/`parity_test` frontmatter so per-push runs only J-9's specs. *(ci.yml + frontmatter)*
+- [ ] **T-03** — *(≤70% rider — WORKFLOW-SLIM; greens main)* shard the mock chromium suite into a parallel `--shard=i/n` matrix (`reporter: blob` + a `merge-reports` deploy job, each shard <5min) + move `workers` top-level in `playwright.config.ts` (+`--workers=1` real-idp); keeps the 5-min ceiling, greens `alpenflight e2e`. *(ci.yml + alpenflight-e2e.yml + playwright.config)*
+- [ ] **T-04** — *(≤70% rider — HELPER-PRUNE)* delete the 3 verified-redundant `@helper` cases in `forms/validation-hardening.spec.ts` (covered by FlightTypeDuplicateCodeIT / ClubsControllerIT / FlightTypeDomainTest). *(spec)*
+- [ ] **T-05** — engine value objects: `DeliveryItemDetails` + `RuleBasedDeliveryDetails` accumulator (in-memory; `GetUnitQuantity`/`GetUnitTypeString` Min/Sec/Ldgs/StartOrFlight conversions) + domain unit tests. *(accounting/domain)*
+- [ ] **T-06** — the matching framework (`BaseAccountingRule`-equiv): AND of aircraft-type bitmask + immat + start-type + flight-type(+extend) + start/ldg locations + crew(member#/crew-type/member-state) + homebase, over a Flight × FilterConfig; the `useAllExcept × empty/non-empty` matrix. *(accounting/domain)*
+- [ ] **T-07** — *(S-073)* IgnoreFlight(5) short-circuit + Recipient(10) first-match-wins (`stopRuleEngineWhenApplied`) + the 2 FlightCostPaidBy fallback rules + unit tests. *(accounting/domain)*
+- [ ] **T-08** — *(S-074 — HIGHEST RISK, line-by-line + side-by-side review)* the FlightTime decrement loop (min-excl/max-incl Between; bill active−min, reset→min; tiered/zero/gap/dup-article) + unit tests. *(accounting/domain)*
+- [ ] **T-09** — *(S-075)* the EngineTime decrement loop (engine-counter delta; same loop; no credit branch) + unit tests. *(accounting/domain)*
+- [ ] **T-10** — *(S-076)* single-pass rule types: NoLandingTax(20)+suppression flags, LandingTax(60)+OnStartLocation, StartTax(55), InstructorFee(40 always-new-line), AdditionalFuelFee(50), VsfFee(70)+OnStartLocation + unit tests. *(accounting/domain — may overflow → split)*
+- [ ] **T-11** — *(S-077)* glider→tow recursion via `towFlightId` (recurse the line-item pipeline on the tow flight, shared accumulator, position continuity) + unit tests. *(accounting/domain)*
+- [ ] **T-12** — the engine orchestrator: runs the stages in the legacy CODE order; loads active filters `ORDER BY sort_indicator, id` (operator); credits-absent (operator); emits `RuleBasedDeliveryDetails` + matched-filter-ids. *(accounting/application)*
+- [ ] **T-13** — `DeliveryCreationTest` aggregate + repo mapping the existing V4 `t_delivery_creation_test`(+item) (`@TenantId`, jsonb `expected_delivery`, the 9 `Ignore*` flags, `must_not_create…`, the `last_test_*` run-state) + domain tests. *(accounting/domain+infra)*
+- [ ] **T-14** — `DeliveryCreationTestsService` + DTOs + controller (list/get/create/update/delete) + audit (ControllerAuditCoverage + AuditRedaction) + cross-tenant 404. *(accounting/application+web — may overflow → split CRUD vs endpoints)*
+- [ ] **T-15** — the dry-run endpoint (`generateExampleDelivery`: run engine, return DeliveryItems, NO persist) + the run-test endpoint (run engine vs `expected_delivery`, persist `last_test_*`, the exact field-by-field diff gated by `Ignore*` flags, matched-rule-ids). *(accounting/application+web)*
+- [ ] **T-16** — web feature scaffold: orval regen + `features/accounting/` deliverycreationtests route + store + list page + **nav entry under the Masterdata dropdown (chrome-reachable)**. *(web)*
+- [ ] **T-17** — edit page: pick Flight → "Create test delivery" (dry-run) fills expected items → save/round-trip; "Run test" → Success/Failure; matched-rule links → `/accountingrules`; J-6b `liveFieldErrors`. *(web)*
+- [ ] **T-18** — the **diff-rendering UI** (run-failure → which DeliveryItems differed; the operator's daily rule-tuning tool, S-079). *(web)*
+- [ ] **T-19** — thicken the spec to full real assertions (tiered FlightTime items; IgnoreFlight→no delivery; recipient first-match; tow recursion; diff on mismatch; cross-tenant 404) — mock inner-loop + real-idp gate spec; point `parity_test` at the real-idp spec. *(spec)*
+- [ ] **T-20** — *(S-107)* the combinatorial corpus (C11): representative flight×rule cases reproducing the legacy engine bit-exact, as ITs; + the **fanout assertion** running the engine/harness over MIGRATED J-2 flights + J-8 filters (the engine done-bar; no new mapper). *(IT + fanout)*
+
+**Deferred (filed, not built here):** the **PersonFlightTimeCredit/discount sub-engine** → a new `/do-plan` roadmap journey (operator-chosen defer). The heavy **GALLERY-SIMPLIFY** multi-journey-plumbing deletion + the project-wide **COMMENT-STRIP**/**HISTORY→GIT** sweeps ride a lighter burndown journey (J-9 builds new code to the why-only/contract-only discipline from the start; per-touch strip only). LEGACY-BUG noted for the gate: tier-gap silent unbilled remainder — reproduced, surfaced to operator, not "fixed".
 
 ## Assumptions made
 
