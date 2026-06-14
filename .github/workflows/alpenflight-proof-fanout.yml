@@ -78,8 +78,19 @@ jobs:
       - name: Restore packages
         working-directory: flsserver/src
         run: |
-          for proj in FLS.Server.Web/FLS.Server.WebApi.csproj \
-                       FLS.Server.Console/FLS.Server.Console.csproj ; do
+          # Restore every project xbuild compiles: `nuget restore <csproj>` does
+          # NOT restore referenced projects' packages.config, so a cold cache
+          # (integration-branch dispatch) otherwise misses FLS.Common /
+          # FLS.Data.WebApi packages (EnterpriseLibrary, System.Linq.Dynamic).
+          for proj in \
+              FLS.Common/FLS.Common.csproj \
+              FLS.Server.Interfaces/FLS.Server.Interfaces.csproj \
+              FLS.Data.WebApi/FLS.Data.WebApi.csproj \
+              Alpinely.TownCrier/Alpinely.TownCrier.csproj \
+              FLS.Server.Data/FLS.Server.Data.csproj \
+              FLS.Server.Service/FLS.Server.Service.csproj \
+              FLS.Server.Web/FLS.Server.WebApi.csproj \
+              FLS.Server.Console/FLS.Server.Console.csproj ; do
             mono /usr/local/bin/nuget.exe restore "$proj" -SolutionDirectory .
           done
 
@@ -133,6 +144,11 @@ jobs:
 
       - name: yarn install (if cache miss)
         if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        env:
+          # phantomjs (transitive via highcharts@0.0.11) downloads its binary from
+          # a dead default CDN, failing a cold yarn install; the webpack build never
+          # runs phantomjs. Point it at the live Medium GitHub mirror.
+          PHANTOMJS_CDNURL: https://github.com/Medium/phantomjs/releases/download/v1.9.19
         run: |
           rm -rf /tmp/flsweb-build
           cp -r flsweb /tmp/flsweb-build
