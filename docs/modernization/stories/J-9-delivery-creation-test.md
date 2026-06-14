@@ -25,6 +25,7 @@ screen: /deliverycreationtests (list + edit + diff) — replacing legacy masterd
 headless_pulled_in: the rules engine (S-073–077, IgnoreFlight/Recipient/FlightTime-loop/EngineTime-loop/single-pass/tow-recursion) — homed by the deliveryCreationTests harness (test affordance; the real product consumer is J-10 Deliveries)
 migration: N/A — harness entities are greenfield; the engine reads MIGRATED Flights (J-2) + AccountingRuleFilters (J-8) as inputs
 parity_test: alpenflight/web/e2e/tests/accounting/delivery-creation-test.spec.ts
+mock_test: alpenflight/web/e2e/tests/accounting/   # per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly
 adr_refs: [0005, 0008, 0022, 0027]
 ---
 
@@ -111,7 +112,7 @@ body** ([[feedback_self_explanatory_no_history_comments]]); the new harness form
 Per do-ship §2 (one seam each). J-9 LEADS with the rules-engine feature; the ≤70% burndown riders ride it (WORKFLOW-SLIM early — it greens main's red `alpenflight e2e` + speeds J-9's own gate). Migration: no new mapper (Delivery mappers are J-10's; harness greenfield) — the done-bar proves the engine over MIGRATED J-2 flights + J-8 filters (T-19 fanout).
 
 - [x] **T-01** — spec stub `e2e/tests/accounting/delivery-creation-test.spec.ts` (list / edit / dry-run / run+diff; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only model). *(e2e + gallery)*
-- [ ] **T-02** — gate scoping: J-9 `mock_test`/`parity_test` frontmatter so per-push runs only J-9's specs. *(ci.yml + frontmatter)*
+- [x] **T-02** — gate scoping: J-9 `mock_test`/`parity_test` frontmatter so per-push runs only J-9's specs. *(ci.yml + frontmatter)*
 - [ ] **T-03** — *(≤70% rider — WORKFLOW-SLIM; greens main)* shard the mock chromium suite into a parallel `--shard=i/n` matrix (`reporter: blob` + a `merge-reports` deploy job, each shard <5min) + move `workers` top-level in `playwright.config.ts` (+`--workers=1` real-idp); keeps the 5-min ceiling, greens `alpenflight e2e`. *(ci.yml + alpenflight-e2e.yml + playwright.config)*
 - [ ] **T-04** — *(≤70% rider — HELPER-PRUNE)* delete the 3 verified-redundant `@helper` cases in `forms/validation-hardening.spec.ts` (covered by FlightTypeDuplicateCodeIT / ClubsControllerIT / FlightTypeDomainTest). *(spec)*
 - [ ] **T-05** — engine value objects: `DeliveryItemDetails` + `RuleBasedDeliveryDetails` accumulator (in-memory; `GetUnitQuantity`/`GetUnitTypeString` Min/Sec/Ldgs/StartOrFlight conversions) + domain unit tests. *(accounting/domain)*
