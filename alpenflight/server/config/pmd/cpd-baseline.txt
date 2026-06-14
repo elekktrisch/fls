@@ -107,5 +107,12 @@
 # the legacy keeps separate. They differ only in their seed source, active
 # accessor (flight vs engine time), predicate range, and filter type — by design.
 #
+# Re-measured 2026-06-14 (J-9 T-13, DeliveryCreationTest aggregate + repo): 5254
+# (-74). The new harness aggregate added NO net duplication — extending
+# SoftDeletableAggregate (ADR 0028) and delegating free-text normalization to the
+# shared-kernel FreeText.normalize (instead of re-cloning AccountingRuleFilter's
+# private normalizeText) kept the new code clone-free, and the measurement landed
+# below the prior baseline. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5328
+5254

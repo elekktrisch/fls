@@ -1,6 +1,7 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.accounting.domain.AccountingRuleFilter;
+import ch.alpenflight.accounting.domain.DeliveryCreationTest;
 import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
@@ -91,7 +92,14 @@ public final class TenantScopedRowBuilders {
             // table) is satisfied from the pinned V4 seed id, so only
             // operating_club_id fails fail-closed under NO_TENANT (see
             // AccountingRuleFilterSweepFactory; V41 realigned its tenant FK name).
-            Map.entry(AccountingRuleFilter.class, AccountingRuleFilterSweepFactory::build)
+            Map.entry(AccountingRuleFilter.class, AccountingRuleFilterSweepFactory::build),
+            // J-9 delivery-creation-test harness aggregate. Its one non-tenant FK
+            // (flight_id → t_flight) is seeded under the FK club, so only
+            // operating_club_id fails fail-closed under NO_TENANT (see
+            // DeliveryCreationTestSweepFactory; V43 realigned its tenant FK name).
+            // Its DeliveryCreationTestItem child is aggregate-internal WITHOUT
+            // @TenantId (FlightCrew pattern) — deliberately NOT a sweep participant.
+            Map.entry(DeliveryCreationTest.class, DeliveryCreationTestSweepFactory::build)
     );
 
     private static String uniqueName(String label) {

@@ -150,6 +150,52 @@ audit:
           - recipientTarget
           - deletedOn
           - deletedByUserId
+      DeliveryCreationTest:
+        # J-9 / S-073. The rules-engine regression harness. The two delivery
+        # payloads (expectedDelivery / lastTestCreatedDelivery jsonb) can carry
+        # recipient names (V4 COMMENT pii_blob: true) and are @AuditRedact on the
+        # entity fields, so they land "[redacted]"; everything else is structural
+        # harness config / run-state, safe to log verbatim.
+        allow:
+          - id
+          - operatingClubId
+          - flightId
+          - active
+          - testName
+          - description
+          - expectedMatchedFilterIds
+          - mustNotCreateDeliveryForFlight
+          - ignoreRecipientName
+          - ignoreRecipientAddress
+          - ignoreRecipientPersonId
+          - ignoreRecipientClubMemberNumber
+          - ignoreDeliveryInformation
+          - ignoreAdditionalInformation
+          - ignoreItemPositioning
+          - ignoreItemText
+          - ignoreItemAdditionalInformation
+          - lastTestRunOn
+          - lastTestSuccessful
+          - lastTestResultMessage
+          - lastTestMatchedFilterIds
+          - items
+          - deletedOn
+          - deletedByUserId
+      DeliveryCreationTestItem:
+        # Aggregate-internal expected-line snapshot. Article/unit/quantity/price
+        # are billing structure, not member PII; item_text / additional_information
+        # are free text the operator types to describe the line (no member data).
+        allow:
+          - id
+          - operatingClubId
+          - position
+          - articleNumber
+          - itemText
+          - additionalInformation
+          - quantity
+          - unitPrice
+          - unitTypeCode
+          - discountInPercent
       Club:
         # `name` matches the ClubResponse DTO field; `clubname` matches the
         # Club entity field. Service-layer callers may pass either shape;
