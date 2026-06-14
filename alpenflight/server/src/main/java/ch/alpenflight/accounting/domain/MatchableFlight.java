@@ -31,6 +31,7 @@ public final class MatchableFlight {
     private final FlightAircraftType flightAircraftType;
     private final @Nullable String immatriculation;
     private final @Nullable String flightTypeCode;
+    private final @Nullable String flightTypeName;
     private final @Nullable String startTypeId;
     private final @Nullable String startLocationIcao;
     private final @Nullable String ldgLocationIcao;
@@ -47,6 +48,7 @@ public final class MatchableFlight {
         this.flightAircraftType = builder.flightAircraftType;
         this.immatriculation = builder.immatriculation;
         this.flightTypeCode = builder.flightTypeCode;
+        this.flightTypeName = builder.flightTypeName;
         this.startTypeId = builder.startTypeId;
         this.startLocationIcao = builder.startLocationIcao;
         this.ldgLocationIcao = builder.ldgLocationIcao;
@@ -78,6 +80,16 @@ public final class MatchableFlight {
 
     public @Nullable String flightTypeCode() {
         return flightTypeCode;
+    }
+
+    /**
+     * The human flight-type name (legacy {@code FlightType.FlightTypeName}), used
+     * only in an emitted line's {@code itemText} when a filter sets
+     * {@code includeFlightTypeName} — distinct from {@link #flightTypeCode()},
+     * which the matcher compares.
+     */
+    public @Nullable String flightTypeName() {
+        return flightTypeName;
     }
 
     public @Nullable String startTypeId() {
@@ -179,6 +191,7 @@ public final class MatchableFlight {
         private final FlightAircraftType flightAircraftType;
         private @Nullable String immatriculation;
         private @Nullable String flightTypeCode;
+        private @Nullable String flightTypeName;
         private @Nullable String startTypeId;
         private @Nullable String startLocationIcao;
         private @Nullable String ldgLocationIcao;
@@ -205,6 +218,11 @@ public final class MatchableFlight {
 
         public Builder flightTypeCode(@Nullable String value) {
             this.flightTypeCode = value;
+            return this;
+        }
+
+        public Builder flightTypeName(@Nullable String value) {
+            this.flightTypeName = value;
             return this;
         }
 

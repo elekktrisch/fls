@@ -48,8 +48,8 @@ class RecipientStageTest {
         var loser = new Recipient(null, "222", "Second Loser", null, null);
 
         STAGE.run(acc, glider(), List.of(
-                new RuleFilterInput(firstId, winner, gliderRule()),
-                new RuleFilterInput(secondId, loser, gliderRule())));
+                RuleFilterInput.of(firstId, winner, gliderRule()),
+                RuleFilterInput.of(secondId, loser, gliderRule())));
 
         assertThat(acc.recipient()).isEqualTo(winner);
         assertThat(acc.getMatchedFilterIds()).containsExactly(firstId);
@@ -62,7 +62,7 @@ class RecipientStageTest {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
         assertThatThrownBy(() -> STAGE.run(acc, glider(),
-                List.of(new RuleFilterInput(UUID.randomUUID(), null, gliderRule()))))
+                List.of(RuleFilterInput.of(UUID.randomUUID(), null, gliderRule()))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

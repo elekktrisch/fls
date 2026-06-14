@@ -17,8 +17,26 @@ import org.jspecify.annotations.Nullable;
  * the legacy null-{@code RecipientTarget} case the recipient rule throws on. It
  * is unused by {@link IgnoreFlightStage} (a DoNotInvoice filter only flips a
  * flag) — pass {@code null} there.
+ *
+ * <p>{@code articleNumber} + {@code accountingUnitType} are the item-emitting
+ * facets the line-billing stages ({@link FlightTimeStage}, and EngineTime /
+ * single-pass stages to come) need but which the aggregate cannot hand the
+ * domain directly: {@code articleNumber} lives on the filter's {@code article_target}
+ * column and {@code accountingUnitType} is resolved from the filter's
+ * {@code accounting_unit_type_id} UUID. The orchestrator (T-12) resolves both and
+ * supplies them; they are {@code null} for filters that emit no line (recipient /
+ * ignore), and pass {@link #of} there.
  */
 public record RuleFilterInput(
         UUID filterId,
         @Nullable Recipient recipientTarget,
-        FilterConfig filterConfig) {}
+        @Nullable String articleNumber,
+        @Nullable AccountingUnitType accountingUnitType,
+        FilterConfig filterConfig) {
+
+    /** A non-line-emitting filter (recipient / ignore): no article / unit. */
+    public static RuleFilterInput of(
+            UUID filterId, @Nullable Recipient recipientTarget, FilterConfig filterConfig) {
+        return new RuleFilterInput(filterId, recipientTarget, null, null, filterConfig);
+    }
+}

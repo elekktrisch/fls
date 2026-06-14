@@ -53,8 +53,8 @@ class IgnoreFlightStageTest {
         UUID matchingId = UUID.randomUUID();
 
         STAGE.run(acc, glider(), List.of(
-                new RuleFilterInput(nonMatchingId, null, motorRule()),
-                new RuleFilterInput(matchingId, null, gliderRule())));
+                RuleFilterInput.of(nonMatchingId, null, motorRule()),
+                RuleFilterInput.of(matchingId, null, gliderRule())));
 
         assertThat(acc.isDoNotInvoiceFlight()).isTrue();
         assertThat(acc.getMatchedFilterIds()).containsExactly(matchingId);
@@ -65,7 +65,7 @@ class IgnoreFlightStageTest {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
         STAGE.run(acc, glider(), List.of(
-                new RuleFilterInput(UUID.randomUUID(), null, motorRule())));
+                RuleFilterInput.of(UUID.randomUUID(), null, motorRule())));
 
         assertThat(acc.isDoNotInvoiceFlight()).isFalse();
         assertThat(acc.getMatchedFilterIds()).isEmpty();
