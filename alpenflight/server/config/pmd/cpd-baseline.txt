@@ -126,5 +126,10 @@
 # boilerplate the planning/reservation DTO and RFC-7807 advice clones above are
 # already baselined for. The service + DTOs added no new clones.
 #
+# Re-measured 2026-06-14 (J-9 T-22, FlightId rebind on the harness dry-run +
+# DTOs): 5310 (-71). Binding FlightId (not bare UUID) on the example endpoint +
+# the write/list/detail DTOs collapsed a controller/DTO clone window; no logic
+# change. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5381
+5310

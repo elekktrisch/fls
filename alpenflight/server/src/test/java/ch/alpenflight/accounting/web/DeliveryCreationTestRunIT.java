@@ -113,7 +113,7 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
 
     @Test
     void dryRun_returns_engine_items_without_persisting_a_run_state() {
-        ResponseEntity<String> example = get(BASE + "/example/" + flightA, adminA);
+        ResponseEntity<String> example = get(BASE + "/example/" + FlightId.of(flightA).toExternal(), adminA);
         assertThat(example.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode body = readJson(example);
@@ -170,7 +170,7 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
 
     @Test
     void create_with_expectedDelivery_persists_set_then_run_succeeds() {
-        JsonNode example = readJson(get(BASE + "/example/" + flightA, adminA));
+        JsonNode example = readJson(get(BASE + "/example/" + FlightId.of(flightA).toExternal(), adminA));
 
         String id = createHarnessCapturingExpected();
 
@@ -215,7 +215,7 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
      * the service's {@code captureExpected} persists the expected set.
      */
     private String createHarnessCapturingExpected() {
-        JsonNode example = readJson(get(BASE + "/example/" + flightA, adminA));
+        JsonNode example = readJson(get(BASE + "/example/" + FlightId.of(flightA).toExternal(), adminA));
 
         Map<String, Object> payload = harnessPayload();
         payload.put("expectedDelivery", asMap(example.get("delivery")));
@@ -262,11 +262,9 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
 
     private Map<String, Object> harnessPayload() {
         Map<String, Object> body = new HashMap<>();
-        body.put("flightId", flightA.toString());
+        body.put("flightId", FlightId.of(flightA).toExternal());
         body.put("testName", "Run harness");
         body.put("active", true);
-        // T-12 deferral: the engine leaves the two info texts NULL, so a green
-        // harness ignores them; recipient + address have no expected values here.
         body.put("ignoreDeliveryInformation", true);
         body.put("ignoreAdditionalInformation", true);
         body.put("ignoreRecipientName", true);

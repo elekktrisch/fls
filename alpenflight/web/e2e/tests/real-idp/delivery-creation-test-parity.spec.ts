@@ -370,7 +370,11 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 
       // Author a fresh harness capturing the current engine output (the SUCCESS
       // baseline) through the real chain.
-      await page.goto('/deliverycreationtests/new?lang=en');
+      await page.goto('/start?lang=en');
+      await enterViaNav(page, '/deliverycreationtests');
+      await expect(page).toHaveURL('/deliverycreationtests');
+      await page.getByTestId('dct-new-button').locator('button').click();
+      await expect(page).toHaveURL('/deliverycreationtests/new');
       await page.getByTestId('dct-name').locator('input').fill('Glider — perturbed rule');
       await page.getByTestId('dct-flight-picker').selectOption(scenario.flightId);
       await page.getByTestId('dct-create-test-delivery').locator('button').click();
