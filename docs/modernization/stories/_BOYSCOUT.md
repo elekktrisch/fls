@@ -28,12 +28,20 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   *(seam: `generate-gallery.mjs` + delete `generate-previews-index.mjs` + `proof-gallery-links.spec.ts`
   + `expected-shots.json` + the gallery deploy/staging steps across `ci.yml` + `alpenflight-proof-fanout.yml`)*
   [[feedback_proof_gallery_per_journey_one_bookmark]] [[feedback_surface_proof_early_on_repeated_failure]]
-- **[WORKFLOW-SLIM] Cut the YAML ~4.5k→~2k + speed the gate.** Extract the repeated per-journey blocks
-  into composite actions (`.github/actions/`); shard the cross-journey real-idp at the §4 gate (keep
-  the coverage — operator decision — just parallelize); **quarantine the 3 KC-26 specs** so their retries
-  stop blowing the 15-min step timeout; the GALLERY-SIMPLIFY cut removes the staging blocks. **Folds the
-  J-8 proof-harness-transient rider** (the `[deployed-journey]` 60s gh-pages wall + the KC-26 step-timeout).
-  *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + new composites)*
+- **[WORKFLOW-SLIM] Cut the YAML ~4.5k→~2k + speed the gate (keep the 5-min mock-suite ceiling).** Extract
+  the repeated per-journey blocks into composite actions (`.github/actions/`); shard the cross-journey
+  real-idp at the §4 gate (keep the coverage — operator decision — just parallelize); **quarantine the 3
+  KC-26 specs** so their retries stop blowing the 15-min step timeout; the GALLERY-SIMPLIFY cut removes the
+  staging blocks. **Folds the J-8 proof-harness-transient rider** (the `[deployed-journey]` 60s gh-pages wall
+  + the KC-26 step-timeout). **Root cause already found (J-9 carve, 2026-06-14):** Playwright `workers` is a
+  TOP-LEVEL option, so the per-project `workers: 4` in `playwright.config.ts` is a **silent no-op** (same
+  trap as the removed per-project `maxFailures`) — the mock suite ran 2 workers and timed out at the 5-min
+  cap since J-26. Stopgap PR #222 forces `--workers=4` on the chromium CLI invocation (keeps the ceiling).
+  WORKFLOW-SLIM should make it permanent: **move `workers` to the top-level config** (and pass `--workers=1`
+  to the real-idp invocation, whose per-project `workers: 1` is the same no-op) + **HELPER-PRUNE** the
+  redundant specs so the suite stays under 5 min as it grows. The operator's bar: **5 min is the ceiling —
+  prune/parallelize, never buy wall time.**
+  *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + `alpenflight-e2e.yml` + `playwright.config.ts` workers + new composites)*
 - **[COMMENT-STRIP] Self-explanatory code, why-only comments.** Remove all what/narration/history/
   task-attribution comments (`T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"/non-load-bearing
   migration `COMMENT` narration) per the new bar; keep a rare load-bearing *why*, preferred as a named
