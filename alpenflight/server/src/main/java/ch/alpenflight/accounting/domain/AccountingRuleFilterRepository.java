@@ -30,6 +30,15 @@ public interface AccountingRuleFilterRepository {
     List<AccountingRuleFilter> findAllActiveOrderedBySort();
 
     /**
+     * The caller's tenant's active (non-deleted) filters ordered by
+     * {@code (sortIndicator, id)} — the engine load order. The {@code id}
+     * tie-break makes recipient first-match-wins + FlightTime tier order fully
+     * deterministic; legacy had no ORDER BY, so that order silently depended on
+     * clustered-PK / GUID order (documented divergence, operator decision).
+     */
+    List<AccountingRuleFilter> findActiveForEngineOrdered();
+
+    /**
      * The active filter with this id WITHIN the caller's tenant, or empty when
      * it does not exist OR belongs to another club (the {@code @TenantId}
      * discriminator makes a cross-tenant row invisible). This is the
