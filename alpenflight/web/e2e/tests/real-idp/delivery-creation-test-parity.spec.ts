@@ -161,7 +161,12 @@ async function seedScenario(
   api: APIRequestContext,
   bearer: string,
   createdFilters: string[],
-): Promise<{ flightId: string; ftFilterId: string; ltFilterId: string }> {
+): Promise<{
+  flightId: string;
+  ftFilterId: string;
+  ltFilterId: string;
+  ltWrite: Record<string, unknown>;
+}> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
 
   const flightRes = await api.post(FLIGHTS, {
@@ -201,7 +206,7 @@ async function seedScenario(
     deliveryLineText: 'Flugzeit',
     filterConfig: filterConfig({ isRuleForGliderFlights: true }),
   });
-  const ltFilterId = await createFilter(api, bearer, createdFilters, {
+  const ltWrite: Record<string, unknown> = {
     filterTypeId: FILTER_TYPE_LANDING_TAX,
     filterTypeLegacyId: LEGACY_LANDING_TAX,
     accountingUnitTypeId: UNIT_LANDINGS,
@@ -210,9 +215,10 @@ async function seedScenario(
     articleNumber: LT_ARTICLE,
     deliveryLineText: 'Landetaxe',
     filterConfig: filterConfig({ isRuleForGliderFlights: true }),
-  });
+  };
+  const ltFilterId = await createFilter(api, bearer, createdFilters, ltWrite);
 
-  return { flightId, ftFilterId, ltFilterId };
+  return { flightId, ftFilterId, ltFilterId, ltWrite };
 }
 
 function articleNumbers(items: DeliveryItem[] | undefined): string[] {
@@ -232,7 +238,12 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
   let adminBearer: string;
   /** A real second club + admin (club B) — the cross-tenant-404 probe. */
   let twoClubs: TwoClubFixture;
-  let scenario: { flightId: string; ftFilterId: string; ltFilterId: string };
+  let scenario: {
+    flightId: string;
+    ftFilterId: string;
+    ltFilterId: string;
+    ltWrite: Record<string, unknown>;
+  };
   /** Filters created in seed-club-1 — deleted in afterAll (retry-isolation). */
   const createdFilters: string[] = [];
   /** Harness ids created in seed-club-1 — deleted in afterAll. */
@@ -404,13 +415,11 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
       // The operator's daily rule-tuning move: change a rule so the engine now
       // emits a DIFFERENT line for the landing tax — a real divergence the harness
       // must catch (not a DB tamper). Re-point the LandingTax filter to a new
-      // article number via the real J-8 PUT.
-      const ltDetail = await ctx.request
-        .get(`${FILTERS}/${scenario.ltFilterId}`, { headers: { authorization: adminBearer } })
-        .then((r) => r.json());
+      // article number via the real J-8 PUT (the write-request shape, not the
+      // detail projection — the detail omits the required filterTypeLegacyId).
       const putRes = await ctx.request.put(`${FILTERS}/${scenario.ltFilterId}`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
-        data: { ...ltDetail, articleNumber: 'ART-LT-CHANGED' },
+        data: { ...scenario.ltWrite, articleNumber: 'ART-LT-CHANGED' },
       });
       expect(putRes.status(), `filter PUT must 200 — got ${putRes.status()}`).toBe(200);
 
@@ -430,14 +439,10 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     } finally {
       // Restore the LandingTax filter so the SUCCESS test stays order-independent.
       await ctx.request
-        .get(`${FILTERS}/${scenario.ltFilterId}`, { headers: { authorization: adminBearer } })
-        .then((r) => r.json())
-        .then((d) =>
-          ctx.request.put(`${FILTERS}/${scenario.ltFilterId}`, {
-            headers: { authorization: adminBearer, 'content-type': 'application/json' },
-            data: { ...d, articleNumber: LT_ARTICLE },
-          }),
-        )
+        .put(`${FILTERS}/${scenario.ltFilterId}`, {
+          headers: { authorization: adminBearer, 'content-type': 'application/json' },
+          data: scenario.ltWrite,
+        })
         .catch((err) => console.warn(`[J-9] filter restore: ${(err as Error).message}`));
       await ctx.close();
       await proofVideo(page, testInfo, {
