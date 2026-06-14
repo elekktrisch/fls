@@ -9,6 +9,7 @@ import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
+import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
@@ -100,7 +101,7 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         JsonNode body = readJson(created);
         String id = body.get("id").asText();
         assertThat(body.get("testName").asText()).isEqualTo("Tiered FlightTime");
-        assertThat(body.get("flightId").asText()).isEqualTo(flightA.toString());
+        assertThat(body.get("flightId").asText()).isEqualTo(FlightId.of(flightA).toExternal());
 
         URI loc = created.getHeaders().getLocation();
         assertThat(loc).isNotNull();
@@ -182,7 +183,7 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
     @Test
     void create_omittingOptionalBooleans_returns_201_with_legacy_defaults() {
         Map<String, Object> body = new HashMap<>();
-        body.put("flightId", flightA.toString());
+        body.put("flightId", FlightId.of(flightA).toExternal());
         body.put("testName", "No-flags harness");
         // active + mustNotCreateDeliveryForFlight + the 9 ignore flags are all
         // omitted — the SPA only sends the toggles the operator touches. Each is
@@ -220,7 +221,7 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
 
     private static Map<String, Object> payload(UUID flightId, String name) {
         Map<String, Object> body = new HashMap<>();
-        body.put("flightId", flightId.toString());
+        body.put("flightId", FlightId.of(flightId).toExternal());
         body.put("testName", name);
         body.put("description", "daily tuning tool");
         body.put("active", true);

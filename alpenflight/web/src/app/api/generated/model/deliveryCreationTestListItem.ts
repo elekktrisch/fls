@@ -12,6 +12,7 @@
 export type DeliveryCreationTestListItem = {
   id: string;
   testName: string;
+  /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   flightId: string;
   active: boolean;
   /** Last run's result (null = never run). */

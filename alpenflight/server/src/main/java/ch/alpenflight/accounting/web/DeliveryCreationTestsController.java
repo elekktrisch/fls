@@ -6,6 +6,7 @@ import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCr
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.ExampleDeliveryResult;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.RunTestResult;
 import ch.alpenflight.accounting.application.DeliveryCreationTestsService;
+import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -133,8 +134,8 @@ public class DeliveryCreationTestsController {
             description = "No flight with that id (includes cross-tenant lookup).")
     @GetMapping("/example/{flightId}")
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
-    public ExampleDeliveryResult exampleDeliveryForFlight(@PathVariable UUID flightId) {
-        return service.exampleDeliveryForFlight(flightId);
+    public ExampleDeliveryResult exampleDeliveryForFlight(@PathVariable("flightId") FlightId flightId) {
+        return service.exampleDeliveryForFlight(flightId.value());
     }
 
     @Operation(operationId = "runDeliveryCreationTest",

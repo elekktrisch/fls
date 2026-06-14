@@ -12,6 +12,7 @@ import type { DeliveryDetailsSnapshot } from './deliveryDetailsSnapshot';
  */
 export type DeliveryCreationTestDetail = {
   id: string;
+  /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   flightId: string;
   testName: string;
   description?: string;

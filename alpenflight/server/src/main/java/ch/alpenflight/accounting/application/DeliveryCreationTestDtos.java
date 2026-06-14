@@ -1,6 +1,7 @@
 package ch.alpenflight.accounting.application;
 
 import ch.alpenflight.accounting.domain.DeliveryDetailsSnapshot;
+import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -41,7 +42,7 @@ public final class DeliveryCreationTestDtos {
     public record DeliveryCreationTestListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String testName,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID flightId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightId flightId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
             @Schema(description = "Last run's result (null = never run).") @Nullable Boolean lastTestSuccessful,
             @Schema(description = "When the harness was last run (null = never run).") @Nullable Instant lastTestRunOn) {}
@@ -49,7 +50,7 @@ public final class DeliveryCreationTestDtos {
     @Schema(description = "DeliveryCreationTest detail projection — full round-trip payload.")
     public record DeliveryCreationTestDetail(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID flightId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightId flightId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String testName,
             @Nullable String description,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
@@ -90,7 +91,7 @@ public final class DeliveryCreationTestDtos {
      */
     @Schema(description = "Create/update payload for a DeliveryCreationTest in the caller's tenant.")
     public record DeliveryCreationTestWriteRequest(
-            @NotNull UUID flightId,
+            @NotNull FlightId flightId,
             @NotBlank @Size(max = 250) String testName,
             @Nullable String description,
             @Schema(description = "Captured dry-run output to persist as the expected set (absent = leave unchanged).")

@@ -3818,7 +3818,8 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "responses" : {
@@ -5533,7 +5534,8 @@
         "properties" : {
           "flightId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "testName" : {
             "type" : "string",
@@ -5681,7 +5683,8 @@
           },
           "flightId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "testName" : {
             "type" : "string"
@@ -9000,7 +9003,8 @@
           },
           "flightId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "active" : {
             "type" : "boolean"

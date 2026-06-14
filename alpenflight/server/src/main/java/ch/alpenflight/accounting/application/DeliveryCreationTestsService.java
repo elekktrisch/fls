@@ -14,6 +14,7 @@ import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
+import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
 import java.util.List;
@@ -98,7 +99,7 @@ public class DeliveryCreationTestsService {
     public DeliveryCreationTestDetail create(DeliveryCreationTestWriteRequest req) {
         DeliveryCreationTest test = DeliveryCreationTest.create(
                 resolveTenantOrThrow(),
-                req.flightId(),
+                req.flightId().value(),
                 req.testName(),
                 req.description(),
                 orDefault(req.active(), true),
@@ -115,7 +116,7 @@ public class DeliveryCreationTestsService {
         DeliveryCreationTest test = loadOrThrow(id);
         DeliveryCreationTestDetail before = toDetail(test);
         test.update(
-                req.flightId(),
+                req.flightId().value(),
                 req.testName(),
                 req.description(),
                 orDefault(req.active(), true),
@@ -242,7 +243,7 @@ public class DeliveryCreationTestsService {
         IgnoreFlags flags = test.getIgnoreFlags();
         return new DeliveryCreationTestDetail(
                 requireId(test),
-                requireFlightId(test),
+                FlightId.of(requireFlightId(test)),
                 test.getTestName(),
                 test.getDescription(),
                 test.isActive(),
@@ -269,7 +270,7 @@ public class DeliveryCreationTestsService {
         return new DeliveryCreationTestListItem(
                 requireId(test),
                 test.getTestName(),
-                requireFlightId(test),
+                FlightId.of(requireFlightId(test)),
                 test.isActive(),
                 test.getLastTestSuccessful(),
                 test.getLastTestRunOn());

@@ -11,6 +11,7 @@ import type { DeliveryDetailsSnapshot } from './deliveryDetailsSnapshot';
  * Create/update payload for a DeliveryCreationTest in the caller's tenant.
  */
 export type DeliveryCreationTestWriteRequest = {
+  /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   flightId: string;
   /**
      * @minLength 0
