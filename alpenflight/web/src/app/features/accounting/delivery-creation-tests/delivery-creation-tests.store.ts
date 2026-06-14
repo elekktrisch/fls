@@ -21,6 +21,7 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import { DeliveryCreationTestsService } from '@api/generated/delivery-creation-tests/delivery-creation-tests.service';
+import { FlightsService } from '@api/generated/flights/flights.service';
 import type {
   DeliveryCreationTestDetail,
   DeliveryCreationTestListItem,
@@ -36,6 +37,12 @@ import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 export type DeliveryCreationTestItem = DeliveryCreationTestListItem & { id: string };
 export type DeliveryCreationTestDetailLoaded = DeliveryCreationTestDetail & { id: string };
 
+/** The Flight picker option the edit form runs the harness against (id + label). */
+export interface FlightPickerOption {
+  id: string;
+  label: string;
+}
+
 // 403 → the CLUB_ADMINISTRATOR gate (every harness endpoint is admin-gated);
 // 404 → a cross-tenant or deleted row (the @TenantId finder never returns
 // another club's test). Everything else falls through to the generic tail.
@@ -49,6 +56,9 @@ interface DeliveryCreationTestsExtraState {
   // edit-form entry so a stale run never bleeds across tests.
   exampleResult: ExampleDeliveryResult | null;
   runResult: RunTestResult | null;
+  // The Flight picker source for the edit form. Lazily loaded; the harness runs
+  // the engine against the selected flight (the dry-run + the run-test input).
+  flightOptions: FlightPickerOption[];
   isLoading: boolean;
   isLoadingDetail: boolean;
   isExampleLoading: boolean;
@@ -65,6 +75,7 @@ const initialExtra: DeliveryCreationTestsExtraState = {
   selectedDetail: null,
   exampleResult: null,
   runResult: null,
+  flightOptions: [],
   isLoading: false,
   isLoadingDetail: false,
   isExampleLoading: false,
@@ -75,6 +86,31 @@ const initialExtra: DeliveryCreationTestsExtraState = {
   notFound: false,
   lastRefreshedAt: null,
 };
+
+/** A human label for the picker — best of date / immat / pilot the row carries. */
+function flightOptionLabel(row: Record<string, unknown>): string {
+  const parts = [row['flightDate'], row['aircraftImmatriculation'], row['pilotName']]
+    .filter((v): v is string => typeof v === 'string' && v.length > 0)
+    .map((v) => v);
+  return parts.length > 0 ? parts.join(' · ') : String(row['id'] ?? '');
+}
+
+/**
+ * Normalize the flights endpoint to picker options. The real client returns a
+ * keyset envelope (`{items}`); the mock-route harness fulfils a bare array — so
+ * accept either shape rather than coupling the picker to one wire form.
+ */
+function toFlightOptions(payload: unknown): FlightPickerOption[] {
+  const rows: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { items?: unknown }).items)
+      ? (payload as { items: unknown[] }).items
+      : [];
+  return rows
+    .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+    .filter((r) => typeof r['id'] === 'string')
+    .map((r) => ({ id: r['id'] as string, label: flightOptionLabel(r) }));
+}
 
 function withListItemId(t: DeliveryCreationTestListItem): DeliveryCreationTestItem {
   if (!t.id) {
@@ -115,152 +151,175 @@ export const DeliveryCreationTestsStore = signalStore(
     hasError: computed(() => loadError() !== null || saveError() !== null),
     selectedTest: computed(() => selectedDetail()),
   })),
-  withMethods((store, api = inject(DeliveryCreationTestsService), bus = inject(MUTATION_BUS)) => {
-    const loadAll = rxMethod<void>(
-      pipe(
-        tap(() => patchState(store, { isLoading: true, loadError: null })),
-        switchMap(() =>
-          api.listDeliveryCreationTest().pipe(
-            tapResponse({
-              next: (items: DeliveryCreationTestListItem[]) =>
-                patchState(store, setAllEntities(items.map(withListItemId)), {
-                  isLoading: false,
-                  lastRefreshedAt: Date.now(),
+  withMethods(
+    (
+      store,
+      api = inject(DeliveryCreationTestsService),
+      flights = inject(FlightsService),
+      bus = inject(MUTATION_BUS),
+    ) => {
+      const loadAll = rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { isLoading: true, loadError: null })),
+          switchMap(() =>
+            api.listDeliveryCreationTest().pipe(
+              tapResponse({
+                next: (items: DeliveryCreationTestListItem[]) =>
+                  patchState(store, setAllEntities(items.map(withListItemId)), {
+                    isLoading: false,
+                    lastRefreshedAt: Date.now(),
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { loadError: e.message, isLoading: false }),
+              }),
+            ),
+          ),
+        ),
+      );
+      return {
+        select(id: string | null): void {
+          patchState(store, {
+            selectedId: id,
+            selectedDetail: null,
+            exampleResult: null,
+            runResult: null,
+            notFound: false,
+          });
+        },
+        clearSaveError(): void {
+          patchState(store, { saveError: null, saveErrorKind: null });
+        },
+        loadAll,
+        getDetail: rxMethod<string>(
+          pipe(
+            tap(() =>
+              patchState(store, { isLoadingDetail: true, saveError: null, notFound: false }),
+            ),
+            switchMap((id) =>
+              api.getDeliveryCreationTest(id).pipe(
+                tapResponse({
+                  next: (d: DeliveryCreationTestDetail) =>
+                    patchState(store, {
+                      selectedDetail: withDetailId(d),
+                      isLoadingDetail: false,
+                    }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, errorPatch(e), {
+                      isLoadingDetail: false,
+                      notFound: e.status === 404,
+                    }),
                 }),
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { loadError: e.message, isLoading: false }),
-            }),
-          ),
-        ),
-      ),
-    );
-    return {
-      select(id: string | null): void {
-        patchState(store, {
-          selectedId: id,
-          selectedDetail: null,
-          exampleResult: null,
-          runResult: null,
-          notFound: false,
-        });
-      },
-      clearSaveError(): void {
-        patchState(store, { saveError: null, saveErrorKind: null });
-      },
-      loadAll,
-      getDetail: rxMethod<string>(
-        pipe(
-          tap(() => patchState(store, { isLoadingDetail: true, saveError: null, notFound: false })),
-          switchMap((id) =>
-            api.getDeliveryCreationTest(id).pipe(
-              tapResponse({
-                next: (d: DeliveryCreationTestDetail) =>
-                  patchState(store, {
-                    selectedDetail: withDetailId(d),
-                    isLoadingDetail: false,
-                  }),
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e), {
-                    isLoadingDetail: false,
-                    notFound: e.status === 404,
-                  }),
-              }),
+              ),
             ),
           ),
         ),
-      ),
-      create: rxMethod<DeliveryCreationTestWriteRequest>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap((req) =>
-            api.createDeliveryCreationTest(req).pipe(
-              tapResponse({
-                next: (d: DeliveryCreationTestDetail) => {
-                  const detail = withDetailId(d);
-                  patchState(store, addEntity(listItemFromDetail(detail)), {
-                    selectedDetail: detail,
-                  });
-                  bus.next({ kind: 'delivery-creation-test.created', id: detail.id });
-                  loadAll();
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
-              }),
+        create: rxMethod<DeliveryCreationTestWriteRequest>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap((req) =>
+              api.createDeliveryCreationTest(req).pipe(
+                tapResponse({
+                  next: (d: DeliveryCreationTestDetail) => {
+                    const detail = withDetailId(d);
+                    patchState(store, addEntity(listItemFromDetail(detail)), {
+                      selectedDetail: detail,
+                    });
+                    bus.next({ kind: 'delivery-creation-test.created', id: detail.id });
+                    loadAll();
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      update: rxMethod<{ id: string; req: DeliveryCreationTestWriteRequest }>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap(({ id, req }) =>
-            api.updateDeliveryCreationTest(id, req).pipe(
-              tapResponse({
-                next: (d: DeliveryCreationTestDetail) => {
-                  const detail = withDetailId(d);
-                  patchState(store, setEntity(listItemFromDetail(detail)), {
-                    selectedDetail: detail,
-                  });
-                  bus.next({ kind: 'delivery-creation-test.updated', id: detail.id });
-                  loadAll();
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
-              }),
+        update: rxMethod<{ id: string; req: DeliveryCreationTestWriteRequest }>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap(({ id, req }) =>
+              api.updateDeliveryCreationTest(id, req).pipe(
+                tapResponse({
+                  next: (d: DeliveryCreationTestDetail) => {
+                    const detail = withDetailId(d);
+                    patchState(store, setEntity(listItemFromDetail(detail)), {
+                      selectedDetail: detail,
+                    });
+                    bus.next({ kind: 'delivery-creation-test.updated', id: detail.id });
+                    loadAll();
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      delete: rxMethod<string>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap((id) =>
-            api.deleteDeliveryCreationTest(id).pipe(
-              tapResponse({
-                next: () => {
-                  patchState(store, removeEntity(id), { selectedDetail: null });
-                  bus.next({ kind: 'delivery-creation-test.deleted', id });
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
-              }),
+        delete: rxMethod<string>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap((id) =>
+              api.deleteDeliveryCreationTest(id).pipe(
+                tapResponse({
+                  next: () => {
+                    patchState(store, removeEntity(id), { selectedDetail: null });
+                    bus.next({ kind: 'delivery-creation-test.deleted', id });
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      // Dry-run the engine for the picked flight — fills the expected-item set
-      // WITHOUT persisting (T-17's "Create test delivery"). Failure leaves the
-      // form usable; the dry-run never blocks save.
-      exampleForFlight: rxMethod<string>(
-        pipe(
-          tap(() => patchState(store, { isExampleLoading: true, saveError: null })),
-          switchMap((flightId) =>
-            api.exampleDeliveryForFlight(flightId).pipe(
-              tapResponse({
-                next: (r: ExampleDeliveryResult) =>
-                  patchState(store, { exampleResult: r, isExampleLoading: false }),
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e), { isExampleLoading: false }),
-              }),
+        // Dry-run the engine for the picked flight — fills the expected-item set
+        // WITHOUT persisting (T-17's "Create test delivery"). Failure leaves the
+        // form usable; the dry-run never blocks save.
+        exampleForFlight: rxMethod<string>(
+          pipe(
+            tap(() => patchState(store, { isExampleLoading: true, saveError: null })),
+            switchMap((flightId) =>
+              api.exampleDeliveryForFlight(flightId).pipe(
+                tapResponse({
+                  next: (r: ExampleDeliveryResult) =>
+                    patchState(store, { exampleResult: r, isExampleLoading: false }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, errorPatch(e), { isExampleLoading: false }),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      // Run the engine vs the stored expectation (T-17 "Run test"); the verdict +
-      // diff + matched-rule ids feed T-17's result panel and T-18's diff UI.
-      run: rxMethod<string>(
-        pipe(
-          tap(() => patchState(store, { isRunning: true, saveError: null })),
-          switchMap((id) =>
-            api.runDeliveryCreationTest(id).pipe(
-              tapResponse({
-                next: (r: RunTestResult) => patchState(store, { runResult: r, isRunning: false }),
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e), { isRunning: false }),
-              }),
+        // Run the engine vs the stored expectation (T-17 "Run test"); the verdict +
+        // diff + matched-rule ids feed T-17's result panel and T-18's diff UI.
+        run: rxMethod<string>(
+          pipe(
+            tap(() => patchState(store, { isRunning: true, saveError: null })),
+            switchMap((id) =>
+              api.runDeliveryCreationTest(id).pipe(
+                tapResponse({
+                  next: (r: RunTestResult) => patchState(store, { runResult: r, isRunning: false }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, errorPatch(e), { isRunning: false }),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-    };
-  }),
+        // The Flight picker source for the edit form. The flights endpoint shape
+        // is normalized (envelope or bare array) by `toFlightOptions`.
+        loadFlightOptions: rxMethod<void>(
+          pipe(
+            switchMap(() =>
+              flights.list().pipe(
+                tapResponse({
+                  next: (payload) => patchState(store, { flightOptions: toFlightOptions(payload) }),
+                  error: () => patchState(store, { flightOptions: [] }),
+                }),
+              ),
+            ),
+          ),
+        ),
+      };
+    },
+  ),
   withHooks({
     onInit(store) {
       const bus = inject(MUTATION_BUS);

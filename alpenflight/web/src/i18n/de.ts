@@ -142,6 +142,45 @@ const de = {
   deliveryCreationTests: {
     title: 'Lieferungserstellungstests',
     new: 'Neuer Test',
+    edit: {
+      title: 'Test bearbeiten',
+      titleNew: 'Neuer Test',
+      loading: 'Wird geladen …',
+      notFound: 'Dieser Test wurde nicht gefunden.',
+      cancel: 'Abbrechen',
+      save: 'Speichern',
+      run: 'Test ausführen',
+      createTestDelivery: 'Testlieferung erstellen',
+      expectedEmpty: 'Noch keine erwarteten Positionen. Erstelle eine Testlieferung.',
+      fields: {
+        name: 'Name',
+        flight: 'Flug',
+        flightPlaceholder: 'Flug wählen',
+        description: 'Beschreibung',
+        active: 'Aktiv',
+        mustNotCreateDelivery: 'Flug darf keine Lieferung erzeugen',
+      },
+      sections: {
+        ignoreFlags: 'Vergleich-Ausnahmen',
+        expected: 'Erwartete Positionen',
+      },
+      ignoreFlags: {
+        recipientName: 'Empfängername ignorieren',
+        recipientAddress: 'Empfängeradresse ignorieren',
+        recipientPersonId: 'Empfänger-Person ignorieren',
+        recipientClubMemberNumber: 'Mitgliedsnummer ignorieren',
+        deliveryInformation: 'Lieferinformation ignorieren',
+        additionalInformation: 'Zusatzinformation ignorieren',
+        itemPositioning: 'Positionierung ignorieren',
+        itemText: 'Positionstext ignorieren',
+        itemAdditionalInformation: 'Positions-Zusatzinformation ignorieren',
+      },
+      result: {
+        success: 'Erfolgreich',
+        failure: 'Fehlgeschlagen',
+        matchedRules: 'Angewandte Regeln',
+      },
+    },
     list: {
       columns: {
         name: 'Name',

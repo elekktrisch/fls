@@ -136,6 +136,45 @@ const en: Translations = {
   deliveryCreationTests: {
     title: 'Delivery creation tests',
     new: 'New test',
+    edit: {
+      title: 'Edit test',
+      titleNew: 'New test',
+      loading: 'Loading …',
+      notFound: 'This test was not found.',
+      cancel: 'Cancel',
+      save: 'Save',
+      run: 'Run test',
+      createTestDelivery: 'Create test delivery',
+      expectedEmpty: 'No expected items yet. Create a test delivery.',
+      fields: {
+        name: 'Name',
+        flight: 'Flight',
+        flightPlaceholder: 'Choose a flight',
+        description: 'Description',
+        active: 'Active',
+        mustNotCreateDelivery: 'Flight must not create a delivery',
+      },
+      sections: {
+        ignoreFlags: 'Comparison exceptions',
+        expected: 'Expected items',
+      },
+      ignoreFlags: {
+        recipientName: 'Ignore recipient name',
+        recipientAddress: 'Ignore recipient address',
+        recipientPersonId: 'Ignore recipient person',
+        recipientClubMemberNumber: 'Ignore member number',
+        deliveryInformation: 'Ignore delivery information',
+        additionalInformation: 'Ignore additional information',
+        itemPositioning: 'Ignore positioning',
+        itemText: 'Ignore item text',
+        itemAdditionalInformation: 'Ignore item additional information',
+      },
+      result: {
+        success: 'Success',
+        failure: 'Failure',
+        matchedRules: 'Matched rules',
+      },
+    },
     list: {
       columns: {
         name: 'Name',

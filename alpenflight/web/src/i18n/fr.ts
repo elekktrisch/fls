@@ -138,6 +138,45 @@ const fr: Translations = {
   deliveryCreationTests: {
     title: 'Tests de création de livraison',
     new: 'Nouveau test',
+    edit: {
+      title: 'Modifier le test',
+      titleNew: 'Nouveau test',
+      loading: 'Chargement …',
+      notFound: 'Ce test est introuvable.',
+      cancel: 'Annuler',
+      save: 'Enregistrer',
+      run: 'Exécuter le test',
+      createTestDelivery: 'Créer une livraison de test',
+      expectedEmpty: 'Aucune ligne attendue. Crée une livraison de test.',
+      fields: {
+        name: 'Nom',
+        flight: 'Vol',
+        flightPlaceholder: 'Choisir un vol',
+        description: 'Description',
+        active: 'Actif',
+        mustNotCreateDelivery: 'Le vol ne doit pas générer de livraison',
+      },
+      sections: {
+        ignoreFlags: 'Exceptions de comparaison',
+        expected: 'Lignes attendues',
+      },
+      ignoreFlags: {
+        recipientName: 'Ignorer le nom du destinataire',
+        recipientAddress: 'Ignorer l’adresse du destinataire',
+        recipientPersonId: 'Ignorer la personne destinataire',
+        recipientClubMemberNumber: 'Ignorer le numéro de membre',
+        deliveryInformation: 'Ignorer l’information de livraison',
+        additionalInformation: 'Ignorer l’information complémentaire',
+        itemPositioning: 'Ignorer le positionnement',
+        itemText: 'Ignorer le texte de ligne',
+        itemAdditionalInformation: 'Ignorer l’information complémentaire de ligne',
+      },
+      result: {
+        success: 'Réussi',
+        failure: 'Échoué',
+        matchedRules: 'Règles appliquées',
+      },
+    },
     list: {
       columns: {
         name: 'Nom',

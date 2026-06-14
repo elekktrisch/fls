@@ -65,7 +65,10 @@ const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
 const FLIGHT_ID = 'flt-019e30c3-2c00-7001-8000-000000000010';
 
+// Mirrors the generated DeliveryItemDetails (jsonb snapshot item). The harness
+// compares articleNumber / quantity / unitType / itemText; position rides along.
 interface MockDeliveryItem {
+  position?: number;
   articleNumber: string;
   itemText: string;
   quantity: number;
@@ -81,7 +84,7 @@ interface MockDeliveryCreationTest {
   expectedDeliveryItems: MockDeliveryItem[];
   lastTestSuccessful?: boolean;
   lastTestResultMessage?: string;
-  lastTestMatchedAccountingRuleFilterIds?: string[];
+  lastTestMatchedFilterIds?: string[];
 }
 
 interface MockDeliveryCreationTestListItem {
@@ -114,11 +117,13 @@ const seededTest: MockDeliveryCreationTest = {
   flightId: FLIGHT_ID,
   expectedDeliveryItems: tieredExpectedItems,
   lastTestSuccessful: true,
-  lastTestMatchedAccountingRuleFilterIds: [MATCHED_RULE_ID],
+  lastTestMatchedFilterIds: [MATCHED_RULE_ID],
 };
 
 const mockClubs = [{ id: CLUB_A_ID, name: 'Test Club A', slug: 'test-club-a' }];
 
+// The real flights client returns a keyset envelope (`{items}`); the picker
+// normalizes either shape. The picker uses `id` as the option value + a label.
 const mockFlights = [
   {
     id: FLIGHT_ID,
@@ -152,17 +157,50 @@ async function stubReferenceData(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockFlights),
+      body: JSON.stringify({ items: mockFlights }),
     }),
   );
 }
 
+/**
+ * Project a mock test onto the generated DeliveryCreationTestDetail shape: the
+ * expected items nest under `expectedDelivery.items`, the ignore flags + the two
+ * required id arrays are present. The two text-field ignores default ON (the
+ * T-12 engine leaves those snapshot fields null).
+ */
+function toDetail(t: MockDeliveryCreationTest): Record<string, unknown> {
+  return {
+    id: t.id,
+    flightId: t.flightId,
+    testName: t.name,
+    description: t.description,
+    active: t.active,
+    mustNotCreateDeliveryForFlight: false,
+    ignoreRecipientName: false,
+    ignoreRecipientAddress: false,
+    ignoreRecipientPersonId: false,
+    ignoreRecipientClubMemberNumber: false,
+    ignoreDeliveryInformation: true,
+    ignoreAdditionalInformation: true,
+    ignoreItemPositioning: false,
+    ignoreItemText: false,
+    ignoreItemAdditionalInformation: false,
+    expectedDelivery: { items: t.expectedDeliveryItems },
+    expectedMatchedFilterIds: t.lastTestMatchedFilterIds ?? [],
+    lastTestSuccessful: t.lastTestSuccessful,
+    lastTestResultMessage: t.lastTestResultMessage,
+    lastTestMatchedFilterIds: t.lastTestMatchedFilterIds ?? [],
+  };
+}
+
+// The real write request carries NO expected-item set (the captured expectation
+// rides the create/update via the dry-run that preceded save — see the harness
+// service); the in-memory backend captures the last dry-run output on POST/PUT.
 interface MockWriteRequest {
-  name: string;
+  testName: string;
   description?: string;
   active?: boolean;
   flightId: string;
-  expectedDeliveryItems: MockDeliveryItem[];
 }
 
 /**
@@ -181,6 +219,10 @@ function setupBackend(
   opts: { runOutcome?: { successful: boolean; engineItems: MockDeliveryItem[] } } = {},
 ) {
   let nextId = 1000;
+  // The most recent dry-run output — captured as the expected set on the next
+  // create/update (the harness has no separate capture endpoint; the dry-run
+  // that precedes save is what the backend persists).
+  let lastDryRunItems: MockDeliveryItem[] = [];
   return async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -190,14 +232,22 @@ function setupBackend(
     const runMatch = path.match(/^\/api\/v1\/deliverycreationtests\/(dct-[^/]+)\/run$/);
     const exampleMatch = path.match(/^\/api\/v1\/deliverycreationtests\/example\/(flt-[^/]+)$/);
 
-    if (method === 'POST' && exampleMatch) {
+    // Dry-run is a GET (generated `exampleDeliveryForFlight`); returns the
+    // ExampleDeliveryResult envelope — items nested under `delivery.items`.
+    if (method === 'GET' && exampleMatch) {
+      lastDryRunItems = tieredExpectedItems;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ deliveryItems: tieredExpectedItems }),
+        body: JSON.stringify({
+          delivery: { items: tieredExpectedItems },
+          matchedFilterIds: [MATCHED_RULE_ID],
+        }),
       });
       return;
     }
+    // Run-test is a POST; returns the RunTestResult envelope — engine output
+    // nested under `lastTestCreatedDelivery.items`, matched ids as filter ids.
     if (method === 'POST' && runMatch) {
       const found = items.find((t) => t.id === runMatch[1]);
       if (!found) {
@@ -212,8 +262,8 @@ function setupBackend(
         body: JSON.stringify({
           lastTestSuccessful: successful,
           lastTestResultMessage: successful ? '' : 'Items differ',
-          lastTestCreatedDeliveryItems: engineItems,
-          lastTestMatchedAccountingRuleFilterIds: [MATCHED_RULE_ID],
+          lastTestCreatedDelivery: { items: engineItems },
+          lastTestMatchedFilterIds: [MATCHED_RULE_ID],
         }),
       });
       return;
@@ -233,7 +283,7 @@ function setupBackend(
       await route.fulfill({
         status: found ? 200 : 404,
         contentType: 'application/json',
-        body: JSON.stringify(found ?? {}),
+        body: JSON.stringify(found ? toDetail(found) : {}),
       });
       return;
     }
@@ -241,10 +291,12 @@ function setupBackend(
       const body = req.postDataJSON() as MockWriteRequest;
       const created: MockDeliveryCreationTest = {
         id: `dct-019e30c3-2c00-7001-8000-${String(nextId++).padStart(12, '0')}`,
-        name: body.name,
+        name: body.testName,
         active: body.active ?? true,
         flightId: body.flightId,
-        expectedDeliveryItems: body.expectedDeliveryItems ?? [],
+        // The captured expectation rides the create: the dry-run that preceded
+        // save is what the backend persists as the expected set.
+        expectedDeliveryItems: lastDryRunItems,
       };
       if (body.description) created.description = body.description;
       items.push(created);
@@ -252,7 +304,7 @@ function setupBackend(
         status: 201,
         contentType: 'application/json',
         headers: { Location: `/api/v1/deliverycreationtests/${created.id}` },
-        body: JSON.stringify(created),
+        body: JSON.stringify(toDetail(created)),
       });
       return;
     }
@@ -266,15 +318,16 @@ function setupBackend(
       const prev = items[idx]!;
       items[idx] = {
         ...prev,
-        name: body.name,
+        name: body.testName,
         active: body.active ?? prev.active,
         flightId: body.flightId,
-        expectedDeliveryItems: body.expectedDeliveryItems ?? prev.expectedDeliveryItems,
+        expectedDeliveryItems:
+          lastDryRunItems.length > 0 ? lastDryRunItems : prev.expectedDeliveryItems,
       };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(items[idx]),
+        body: JSON.stringify(toDetail(items[idx]!)),
       });
       return;
     }
@@ -330,7 +383,7 @@ test('delivery-creation-test: list renders the club’s tests (name, active, las
 });
 
 // ── create: dry-run → fill expected items → save → round-trip ────────────────
-test.fixme('delivery-creation-test: create a test, dry-run the engine to fill expected items, save → appears → reload round-trips', async ({
+test('delivery-creation-test: create a test, dry-run the engine to fill expected items, save → appears → reload round-trips', async ({
   page,
 }) => {
   await bootBackend(page, [{ ...seededTest }]);
@@ -339,7 +392,7 @@ test.fixme('delivery-creation-test: create a test, dry-run the engine to fill ex
   await page.getByTestId('dct-new-button').locator('button').click();
   await expect(page).toHaveURL('/deliverycreationtests/new');
 
-  await page.getByTestId('dct-name').fill('Motor — single-pass fees');
+  await page.getByTestId('dct-name').locator('input').fill('Motor — single-pass fees');
   await page.getByTestId('dct-flight-picker').selectOption(FLIGHT_ID);
 
   // Create test delivery = the dry-run: the engine runs (NOT persisted) and
@@ -358,17 +411,19 @@ test.fixme('delivery-creation-test: create a test, dry-run the engine to fill ex
   await created.click();
   await expect(page).toHaveURL(/\/deliverycreationtests\/.+\/edit$/);
   await page.reload();
-  await expect(page.getByTestId('dct-name')).toHaveValue('Motor — single-pass fees');
+  await expect(page.getByTestId('dct-name').locator('input')).toHaveValue(
+    'Motor — single-pass fees',
+  );
   await expect(page.getByTestId('dct-expected-item-0')).toContainText('A-FT-1');
 });
 
 // ── run: Success + matched-rule links → /accountingrules ─────────────────────
-test.fixme('delivery-creation-test: run a matching test → Success + matched-rule links navigate to /accountingrules', async ({
+test('delivery-creation-test: run a matching test → Success + matched-rule links navigate to /accountingrules', async ({
   page,
 }) => {
   await bootBackend(page, [{ ...seededTest }]);
 
-  await page.goto(`/deliverycreationtests/${seededTest.id}/edit`);
+  await page.goto(`/deliverycreationtests/${seededTest.id}/edit?lang=en`);
   await page.getByTestId('dct-run').locator('button').click();
 
   await expect(page.getByTestId('dct-result')).toContainText('Success');
@@ -402,7 +457,7 @@ test.fixme('delivery-creation-test: run a test whose engine output differs → F
 });
 
 // ── cross-tenant isolation ───────────────────────────────────────────────────
-test.fixme('delivery-creation-test: cross-tenant GET of another club’s test → 404 (not-found, no edit form)', async ({
+test('delivery-creation-test: cross-tenant GET of another club’s test → 404 (not-found, no edit form)', async ({
   page,
 }) => {
   // The new stack scopes by @TenantId, so another club's id is never in this
