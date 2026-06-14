@@ -18,6 +18,13 @@ it delivers no AlpenFlight functionality; if a debt item is too big for one jour
 split it across the next 2-3 journeys' budgets. A standalone journey is *only* genuinely new
 vertical AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
 
+> **⏳ Debt-burndown window (set by /do-retro 2026-06-14 — TEMPORARY).** The next ~2-3 journeys
+> run inverted: **≥30% feature / ≤70% tech-debt**, to clear the spike this retro filed (gallery
+> rewrite, workflow slim, comment strip, history→git). Each still LEADS with a real feature +
+> green-Playwright path (the modernization never fully stalls). **Revert to ≤40% once the
+> GALLERY-SIMPLIFY + WORKFLOW-SLIM + COMMENT-STRIP riders clear** (`_BOYSCOUT.md`); when carving a
+> journey after they're gone, drop back to 60/40 and delete this marker.
+
 **Budget for the unforeseen.** The gate always surfaces real work the carve can't see (hidden bugs, infra
 surprises, parity gaps). Carve with explicit slack: a journey's task count growing from gate-revealed work is
 expected + budgeted, not a re-carve trigger. Re-carve only when the journey's SHAPE is wrong, not when it
