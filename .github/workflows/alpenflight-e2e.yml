@@ -110,7 +110,11 @@ jobs:
         # retries are 0 in CI (flake-mask off). 5 minutes is the budget
         # — if the suite grows past it, prune low-value specs rather
         # than buy more wall time (the iteration loop is the constraint
-        # worth optimizing for).
+        # worth optimizing for). `--workers=4` is the lever to stay under
+        # it: Playwright `workers` is a TOP-LEVEL option, so the per-project
+        # `workers: 4` in playwright.config.ts is a silent no-op (same trap
+        # as the removed per-project maxFailures) and CI fell to the default
+        # (cores/2 = 2). Forced here for the chromium invocation only.
         #
         # `continue-on-error: false` (default): a test failure fails the
         # job. The downstream "Assemble", "Upload artifact" and "Deploy
@@ -118,7 +122,7 @@ jobs:
         # is still published when the suite is red — that's what makes
         # the failure surface diagnosable.
         timeout-minutes: 5
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium --workers=4
 
       - name: Assemble publishable bundle
         if: always()
