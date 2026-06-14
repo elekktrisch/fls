@@ -64,6 +64,20 @@ public final class RuleBasedDeliveryDetails {
         return positioned;
     }
 
+    /**
+     * Appends an emitted line at the next sequential position WITHOUT the
+     * by-article coalescing {@link #addItem} does. The legacy InstructorFeeRule
+     * always builds a brand-new line (it never checks for an existing same-article
+     * line the way the other single-pass fee rules do), so two matching
+     * instructor-fee filters with the same article must yield two distinct lines —
+     * a non-derivable quirk this bypass preserves.
+     */
+    public DeliveryItemDetails addLineWithoutCoalesce(DeliveryItemDetails item) {
+        DeliveryItemDetails positioned = item.withPosition(deliveryItems.size() + 1);
+        deliveryItems.add(positioned);
+        return positioned;
+    }
+
     public void markFilterMatched(UUID filterId) {
         matchedFilterIds.add(filterId);
     }

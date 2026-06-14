@@ -2,6 +2,9 @@ package ch.alpenflight.accounting.domain;
 
 import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails.Recipient;
 import ch.alpenflight.flights.domain.FlightAircraftType;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -28,6 +31,10 @@ import org.jspecify.annotations.Nullable;
  */
 public final class MatchableFlight {
 
+    // .NET Convert.ToDecimal(double) keeps 15 significant digits.
+    private static final MathContext DOTNET_DOUBLE_TO_DECIMAL =
+            new MathContext(15, RoundingMode.HALF_EVEN);
+
     private final FlightAircraftType flightAircraftType;
     private final @Nullable String immatriculation;
     private final @Nullable String flightTypeCode;
@@ -48,6 +55,7 @@ public final class MatchableFlight {
     private final @Nullable Integer nrOfLdgsOnStartLocation;
     private final boolean noStartTimeInformation;
     private final boolean noLdgTimeInformation;
+    private final @Nullable String instructorDisplayName;
 
     private MatchableFlight(Builder builder) {
         this.flightAircraftType = builder.flightAircraftType;
@@ -70,6 +78,7 @@ public final class MatchableFlight {
         this.nrOfLdgsOnStartLocation = builder.nrOfLdgsOnStartLocation;
         this.noStartTimeInformation = builder.noStartTimeInformation;
         this.noLdgTimeInformation = builder.noLdgTimeInformation;
+        this.instructorDisplayName = builder.instructorDisplayName;
     }
 
     public static Builder builder(FlightAircraftType flightAircraftType) {
@@ -180,6 +189,29 @@ public final class MatchableFlight {
     }
 
     /**
+     * The flight's zero-based duration in fractional minutes — the value
+     * InstructorFee / AdditionalFuelFee pass through {@code quantityFrom(.., MIN)}.
+     *
+     * <p>Bit-exact with legacy {@code Convert.ToDecimal(FlightDurationZeroBased.TotalMinutes)}:
+     * .NET computes {@code TotalMinutes} as a {@code double} (seconds / 60.0) then
+     * {@code Convert.ToDecimal(double)} rounds it to 15 significant digits. The
+     * same double division + 15-sig-digit rounding reproduces that decimal so a
+     * migrated flight's instructor/fuel quantity diffs bit-exact.
+     */
+    public BigDecimal flightDurationMinutes() {
+        return new BigDecimal(flightDurationSeconds / 60.0, DOTNET_DOUBLE_TO_DECIMAL);
+    }
+
+    /**
+     * The instructor's display name (legacy {@code Flight.InstructorDisplayName}),
+     * used only in the InstructorFee line's {@code itemText}; {@code null} when the
+     * flight carries no instructor.
+     */
+    public @Nullable String instructorDisplayName() {
+        return instructorDisplayName;
+    }
+
+    /**
      * The flight's landing count (legacy {@code NrOfLdgs}), the LandingTax line
      * quantity; {@code null} reproduces the legacy {@code GetValueOrDefault(1)}.
      */
@@ -253,6 +285,7 @@ public final class MatchableFlight {
                 .nrOfLdgsOnStartLocation(nrOfLdgsOnStartLocation)
                 .noStartTimeInformation(noStartTimeInformation)
                 .noLdgTimeInformation(noLdgTimeInformation)
+                .instructorDisplayName(instructorDisplayName)
                 .build();
     }
 
@@ -304,6 +337,7 @@ public final class MatchableFlight {
         private @Nullable Integer nrOfLdgsOnStartLocation;
         private boolean noStartTimeInformation;
         private boolean noLdgTimeInformation;
+        private @Nullable String instructorDisplayName;
 
         private Builder(FlightAircraftType flightAircraftType) {
             if (flightAircraftType == null) {
@@ -404,6 +438,11 @@ public final class MatchableFlight {
 
         public Builder noLdgTimeInformation(boolean value) {
             this.noLdgTimeInformation = value;
+            return this;
+        }
+
+        public Builder instructorDisplayName(@Nullable String value) {
+            this.instructorDisplayName = value;
             return this;
         }
 

@@ -82,13 +82,15 @@ public final class LandingTaxStage {
                 || (accumulator.isNoLandingTaxForTowFlight() && flight.isTow());
     }
 
-    private void emit(RuleBasedDeliveryDetails accumulator,
-                      RuleFilterInput filter,
-                      int quantity) {
+    // Shared by VsfFeeStage: emit a count-quantity line (text = deliveryLineText
+    // alone), coalescing by article via addItem.
+    static void emit(RuleBasedDeliveryDetails accumulator,
+                     RuleFilterInput filter,
+                     int quantity) {
         String articleNumber = Objects.requireNonNull(filter.articleNumber(),
-                "LandingTax filter must carry an articleNumber");
+                "Count-quantity filter must carry an articleNumber");
         AccountingUnitType unit = Objects.requireNonNull(filter.accountingUnitType(),
-                "LandingTax filter must carry an accountingUnitType");
+                "Count-quantity filter must carry an accountingUnitType");
         accumulator.addItem(new DeliveryItemDetails(
                 0,
                 articleNumber,
@@ -100,11 +102,11 @@ public final class LandingTaxStage {
         accumulator.markFilterMatched(filter.filterId());
     }
 
-    private static int quantityOrDefault(@Nullable Integer count) {
+    static int quantityOrDefault(@Nullable Integer count) {
         return count == null ? 1 : count;
     }
 
-    private static int defaultZero(@Nullable Integer count) {
+    static int defaultZero(@Nullable Integer count) {
         return count == null ? 0 : count;
     }
 
