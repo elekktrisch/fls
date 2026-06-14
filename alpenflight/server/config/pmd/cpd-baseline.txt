@@ -95,5 +95,17 @@
 #     via inheritance; this is the same per-resource DTO-record shape already
 #     baselined for reservations/planning above.
 #
+# Re-measured 2026-06-14 (J-9 T-09, EngineTime decrement loop): 5328 (+319).
+# The whole +319 is EngineTimeStage cloning FlightTimeStage — the loop, the
+# min-excl/max-incl predicate, the bill/decrement, the 4-way itemText. This is
+# REQUIRED, not accidental: the legacy AircraftEngineTimeRule and
+# AircraftFlightTimeRule are themselves near-identical sibling rule classes, and
+# the sacred-cow mandate is a line-by-line port (do NOT rewrite from
+# understanding; customer invoices depend on current behavior). Collapsing the
+# two stages into a shared decrement engine would (a) defeat the side-by-side
+# parity review the port exists to enable and (b) couple two filter-type loops
+# the legacy keeps separate. They differ only in their seed source, active
+# accessor (flight vs engine time), predicate range, and filter type — by design.
+#
 # Single non-comment, non-blank line = the token baseline.
-5009
+5328
