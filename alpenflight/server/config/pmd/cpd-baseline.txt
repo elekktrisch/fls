@@ -114,5 +114,17 @@
 # private normalizeText) kept the new code clone-free, and the measurement landed
 # below the prior baseline. Lock the gain.
 #
+# Re-measured 2026-06-14 (J-9 T-14, DeliveryCreationTest CRUD controller): 5381
+# (+127). The whole +127 is the controller's softDelete endpoint + the
+# principalUserId(jwt) audit-user resolver block — the byte-identical
+# @DeleteMapping + @AuthenticationPrincipal Jwt → resolveUserIdFor idiom every
+# tenant-scoped CRUD controller carries (72t cloning AccountingRuleFilters, 55t
+# cloning Articles/FlightTypes/Locations/Persons/Reservations). It is the
+# mandated controller shape, not logic duplication: extracting it would need a
+# shared controller base class that would diverge all six existing controllers
+# and lift JWT/audit wiring into a cross-module kernel — the same per-resource
+# boilerplate the planning/reservation DTO and RFC-7807 advice clones above are
+# already baselined for. The service + DTOs added no new clones.
+#
 # Single non-comment, non-blank line = the token baseline.
-5254
+5381
