@@ -396,10 +396,18 @@ test('delivery-creation-test: create a test, dry-run the engine to fill expected
   await page.getByTestId('dct-flight-picker').selectOption(FLIGHT_ID);
 
   // Create test delivery = the dry-run: the engine runs (NOT persisted) and
-  // fills the expected DeliveryItem set (the tiered FlightTime output here).
+  // fills the expected DeliveryItem set. The FlightTime decrement loop emits a
+  // TIERED set (the sacred-cow R3 mechanism: 30min @ A-FT-1, 30min @ A-FT-2,
+  // remainder @ A-FT-3), so all three rows render with their per-tier quantity +
+  // unit — the load-bearing tiered shape, not just the endpoints.
   await page.getByTestId('dct-create-test-delivery').locator('button').click();
-  await expect(page.getByTestId('dct-expected-item-0')).toContainText('A-FT-1');
-  await expect(page.getByTestId('dct-expected-item-2')).toContainText('A-FT-3');
+  for (const [i, item] of tieredExpectedItems.entries()) {
+    const row = page.getByTestId(`dct-expected-item-${i}`);
+    await expect(row).toContainText(item.articleNumber);
+    await expect(row).toContainText(String(item.quantity));
+    await expect(row).toContainText(item.unitType);
+  }
+  await expect(page.getByTestId('dct-expected-item-3')).toHaveCount(0);
 
   await page.getByTestId('dct-save-button').locator('button').click();
   await expect(page).toHaveURL('/deliverycreationtests');
@@ -414,7 +422,9 @@ test('delivery-creation-test: create a test, dry-run the engine to fill expected
   await expect(page.getByTestId('dct-name').locator('input')).toHaveValue(
     'Motor — single-pass fees',
   );
+  // The persisted expectation round-trips the full tiered set, not just tier 1.
   await expect(page.getByTestId('dct-expected-item-0')).toContainText('A-FT-1');
+  await expect(page.getByTestId('dct-expected-item-2')).toContainText('A-FT-3');
 });
 
 // ── run: Success + matched-rule links → /accountingrules ─────────────────────
