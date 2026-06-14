@@ -65,6 +65,18 @@ const WEB_SERVER = process.env['GALLERY_LINKS_ONLY']
 
 export default defineConfig({
   testDir: './tests',
+  // `workers` is a TOP-LEVEL option — Playwright ignores a per-project `workers`
+  // (the same silent no-op as per-project `maxFailures`), so it MUST live here to
+  // take effect. CI gets 4 to match the ubuntu-22.04 runner's 4 vCPUs (Playwright's
+  // default is cores/2 = 2); off-CI the key is omitted (conditional spread) so the
+  // default applies — under `exactOptionalPropertyTypes` `workers: undefined` is
+  // not assignable. CAUTION: the `real-idp` project must stay SERIAL (one realm +
+  // one Mailpit inbox → parallel registration races KC user-exists + Mailpit poll
+  // contention). It would otherwise inherit this top-level count, so EVERY
+  // real-idp CLI invocation passes `--workers=1` explicitly (grep `--project=real-idp`
+  // across .github/workflows/). The chromium PR/dashboard suite is sharded across
+  // parallel CI jobs (alpenflight-e2e.yml) AND fans out to these 4 workers per shard.
+  ...(process.env['CI'] ? { workers: 4 } : {}),
   // Skip the parity-port masterdata specs that are not on the current
   // critical path (flights, clubs, navigation, landing). They cover real
   // CRUD surfaces, but their happy-paths add ~22 tests and the 5-minute
@@ -136,12 +148,10 @@ export default defineConfig({
       // backend, no flaky cross-process timing). Retries here mask flake
       // instead of fixing it.
       retries: 0,
-      // 4 parallel workers in CI to match ubuntu-22.04's core count. ng
-      // serve is shared (one webServer instance) so worker count only
-      // fans out browser contexts. Off-CI the key is omitted (conditional
-      // spread) so Playwright applies its default — under
-      // `exactOptionalPropertyTypes` `workers: undefined` is not assignable.
-      ...(process.env['CI'] ? { workers: 4 } : {}),
+      // `workers` is set TOP-LEVEL (see config head) — a per-project entry here is
+      // a silent no-op (same trap as `maxFailures` below). ng serve is shared (one
+      // webServer instance) so the top-level worker count only fans out browser
+      // contexts; the chromium suite additionally shards across parallel CI jobs.
       // NOTE: `maxFailures` is a SUITE-level TestConfig option, not a per-project
       // one (Playwright has no per-project fail-fast cap), so a project-level
       // entry is silently ignored at runtime. It lived here as a no-op; removed
@@ -192,10 +202,11 @@ export default defineConfig({
         // `proof-gallery-links` project deliberately gets NO launchOptions.
         launchOptions: CHROMIUM_LAUNCH_OPTIONS,
       },
-      // Single worker against one realm + one Mailpit inbox — parallel
-      // registration races against KC user-exists checks and Mailpit
-      // poll contention. Nightly opt-in suite; parallelism isn't worth
-      // the complexity.
+      // Serial-ness (one realm + one Mailpit inbox; parallel registration races
+      // KC user-exists + Mailpit poll contention) is enforced by `--workers=1` on
+      // every real-idp CLI invocation, NOT here: `workers` is top-level-only, so a
+      // per-project value is a silent no-op (it would otherwise inherit the top-level
+      // CI count of 4). Kept as documentation of the required posture.
       workers: 1,
       // One retry in CI catches Mailpit-delivery jitter without masking
       // real bugs. Local: zero retries — diagnose, don't paper over.

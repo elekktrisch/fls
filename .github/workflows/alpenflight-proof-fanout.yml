@@ -699,9 +699,11 @@ jobs:
         env:
           J0C_HANDSHAKE_OUT: ${{ github.workspace }}/j0c-handshake.json
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/real-idp/mint-handshake.spec.ts
 
       # ========================================================================
@@ -789,9 +791,11 @@ jobs:
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
             e2e/tests/real-idp/flight-migration-parity.spec.ts \

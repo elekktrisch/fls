@@ -829,9 +829,13 @@ jobs:
             SPEC='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
           fi
           echo "running per-push proof spec for ${PROOF_JOURNEY:-?}: ${SPEC}"
+          # --workers=1: real-idp must run serial (one realm + one Mailpit inbox);
+          # `workers` is top-level-only so the project's per-project value is a no-op
+          # and would otherwise inherit the top-level CI count.
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             "$SPEC"
 
       # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
@@ -1691,9 +1695,11 @@ jobs:
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/real-idp/start-dashboard.spec.ts
 
       # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
@@ -2089,9 +2095,11 @@ jobs:
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/profile/self-edit.spec.ts
 
       # J-26 T-25 — capture the per-test failure artifacts (error-context.md +
