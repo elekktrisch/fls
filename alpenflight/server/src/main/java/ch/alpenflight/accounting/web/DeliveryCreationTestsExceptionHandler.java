@@ -2,6 +2,7 @@ package ch.alpenflight.accounting.web;
 
 import ch.alpenflight.accounting.application.DeliveryCreationTestNotFoundException;
 import ch.alpenflight.accounting.domain.InvalidDeliveryCreationTestException;
+import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *       — also the cross-tenant case: the {@code @TenantId} filter makes another
  *       club's row invisible, so a cross-tenant id is a uniform 404, never a 403
  *       that would confirm the row exists.</li>
+ *   <li>{@link FlightNotFoundException} (flights domain) → {@code 404} — the
+ *       dry-run endpoint resolves a flight directly; a missing / cross-tenant
+ *       flight id is the same uniform 404 (the Flights handler is scoped to its
+ *       own controller, so this surface re-maps it locally).</li>
  *   <li>{@link InvalidDeliveryCreationTestException} (domain) → {@code 400} — the
  *       aggregate's invariants (testName non-blank, flightId present, length cap).
  *       Bean-validation ({@code @NotBlank}/{@code @NotNull}/{@code @Size}) catches
@@ -42,6 +47,15 @@ class DeliveryCreationTestsExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
         pd.setType(TYPE_NOT_FOUND);
         pd.setTitle("DeliveryCreationTest not found");
+        pd.setDetail(e.getMessage());
+        return ProblemResponses.problem(pd);
+    }
+
+    @ExceptionHandler(FlightNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleFlightNotFound(FlightNotFoundException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        pd.setType(TYPE_NOT_FOUND);
+        pd.setTitle("Flight not found");
         pd.setDetail(e.getMessage());
         return ProblemResponses.problem(pd);
     }

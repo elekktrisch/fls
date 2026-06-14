@@ -106,4 +106,28 @@ public final class DeliveryCreationTestDtos {
                     @Nullable Boolean ignoreItemText,
             @Schema(description = "Ignore item-additional-information mismatch in the diff (absent = false).")
                     @Nullable Boolean ignoreItemAdditionalInformation) {}
+
+    /**
+     * The dry-run result — the engine output for a flight WITHOUT persistence
+     * (legacy {@code generateExampleDelivery}). The SPA edit form uses it to FILL
+     * the expected set when authoring a harness.
+     */
+    @Schema(description = "Dry-run engine output for a flight — no persistence (fills the expected set).")
+    public record ExampleDeliveryResult(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) DeliveryDetailsSnapshot delivery,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> matchedFilterIds) {}
+
+    /**
+     * The run-test result — the engine ran against the harness's stored flight and
+     * was diffed against the expected set (legacy {@code LastTestSuccessful} /
+     * {@code LastTestResultMessage} / {@code LastTestCreatedDeliveryDetails} /
+     * {@code LastTestMatchedAccountingRuleFilterIds}). Persisted as the harness's
+     * run-state before being returned.
+     */
+    @Schema(description = "Run-test result — pass/fail + the field-by-field diff message + the engine output.")
+    public record RunTestResult(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean lastTestSuccessful,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String lastTestResultMessage,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) DeliveryDetailsSnapshot lastTestCreatedDelivery,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> lastTestMatchedFilterIds) {}
 }

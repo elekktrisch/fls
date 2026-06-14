@@ -166,6 +166,11 @@ public final class RuleBasedDeliveryDetails {
         return Set.copyOf(matchedFilterIds);
     }
 
+    /** Matched filter ids in match (insertion) order — the harness persists this list. */
+    public List<UUID> matchedFilterIdsInOrder() {
+        return List.copyOf(matchedFilterIds);
+    }
+
     /**
      * The invoice recipient a {@code Recipient} rule resolves to — the
      * member-number + name subset of the legacy {@code RecipientDetails} the

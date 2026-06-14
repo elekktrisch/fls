@@ -3,9 +3,14 @@ package ch.alpenflight.accounting.application;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestDetail;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestListItem;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestWriteRequest;
+import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.ExampleDeliveryResult;
+import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.RunTestResult;
 import ch.alpenflight.accounting.domain.DeliveryCreationTest;
 import ch.alpenflight.accounting.domain.DeliveryCreationTestRepository;
+import ch.alpenflight.accounting.domain.DeliveryDetailsSnapshot;
+import ch.alpenflight.accounting.domain.DeliveryDiff;
 import ch.alpenflight.accounting.domain.IgnoreFlags;
+import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
@@ -61,15 +66,18 @@ public class DeliveryCreationTestsService {
     private static final String AUDIT_ENTITY_TYPE = "DeliveryCreationTest";
 
     private final DeliveryCreationTestRepository tests;
+    private final AccountingDeliveryEngine engine;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final Clock clock;
     private final AuditTrail auditTrail;
 
     public DeliveryCreationTestsService(DeliveryCreationTestRepository tests,
+                                        AccountingDeliveryEngine engine,
                                         ClubTenantIdentifierResolver tenantResolver,
                                         Clock clock,
                                         AuditTrail auditTrail) {
         this.tests = tests;
+        this.engine = engine;
         this.tenantResolver = tenantResolver;
         this.clock = clock;
         this.auditTrail = auditTrail;
@@ -125,6 +133,49 @@ public class DeliveryCreationTestsService {
         tests.save(test);
         auditTrail.record(AuditAction.DELETE,
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
+    }
+
+    /**
+     * Dry-runs the engine for a flight and returns the would-be delivery WITHOUT
+     * persisting anything (legacy {@code generateExampleDelivery}) — the SPA fills
+     * a new harness's expected set from this. A missing / cross-tenant flight is
+     * invisible under {@code @TenantId} → {@code FlightNotFoundException} (404).
+     */
+    @Transactional(readOnly = true)
+    public ExampleDeliveryResult exampleDeliveryForFlight(UUID flightId) {
+        RuleBasedDeliveryDetails computed = engine.computeForFlight(flightId);
+        return new ExampleDeliveryResult(
+                DeliveryDetailsSnapshot.of(computed),
+                computed.matchedFilterIdsInOrder());
+    }
+
+    /**
+     * Runs the engine against the harness's stored flight, diffs the output
+     * against the expected set (gated by the nine {@link IgnoreFlags} +
+     * {@code mustNotCreateDeliveryForFlight}), records the run-state on the
+     * aggregate and returns the result. A MUTATION → audited.
+     */
+    public RunTestResult runTest(UUID id) {
+        DeliveryCreationTest test = loadOrThrow(id);
+        DeliveryCreationTestDetail before = toDetail(test);
+
+        RuleBasedDeliveryDetails computed = engine.computeForFlight(requireFlightId(test));
+        DeliveryDetailsSnapshot created = DeliveryDetailsSnapshot.of(computed);
+        List<UUID> matchedIds = computed.matchedFilterIdsInOrder();
+
+        DeliveryDiff.Result diff = DeliveryDiff.compare(
+                test.getExpectedDelivery(),
+                created,
+                test.isMustNotCreateDeliveryForFlight(),
+                test.getIgnoreFlags());
+
+        test.recordRun(diff.successful(), diff.message(), created, matchedIds, clock.instant());
+        DeliveryCreationTest saved = persist(test);
+
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_ENTITY_TYPE, id, before, toDetail(saved)));
+
+        return new RunTestResult(diff.successful(), diff.message(), created, matchedIds);
     }
 
     // -- loading / persistence --------------------------------------------------

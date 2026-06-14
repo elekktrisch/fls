@@ -3,6 +3,8 @@ package ch.alpenflight.accounting.web;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestDetail;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestListItem;
 import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.DeliveryCreationTestWriteRequest;
+import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.ExampleDeliveryResult;
+import ch.alpenflight.accounting.application.DeliveryCreationTestDtos.RunTestResult;
 import ch.alpenflight.accounting.application.DeliveryCreationTestsService;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
@@ -122,6 +124,28 @@ public class DeliveryCreationTestsController {
                                                            @AuthenticationPrincipal @Nullable Jwt jwt) {
         service.delete(id, principalUserId(jwt));
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(operationId = "exampleDeliveryForFlight",
+            summary = "Dry-run the engine for a flight — return the would-be delivery, NO persistence.")
+    @ApiResponse(responseCode = "200", description = "The engine output + matched-filter ids (not persisted).")
+    @ApiResponse(responseCode = "404",
+            description = "No flight with that id (includes cross-tenant lookup).")
+    @GetMapping("/example/{flightId}")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    public ExampleDeliveryResult exampleDeliveryForFlight(@PathVariable UUID flightId) {
+        return service.exampleDeliveryForFlight(flightId);
+    }
+
+    @Operation(operationId = "runDeliveryCreationTest",
+            summary = "Run the harness: engine vs the stored expected set, persist the run-state, return the diff.")
+    @ApiResponse(responseCode = "200", description = "Pass/fail + the field-by-field diff + the engine output.")
+    @ApiResponse(responseCode = "404",
+            description = "No active harness with that id (includes cross-tenant lookup).")
+    @PostMapping("/{id}/run")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    public RunTestResult runDeliveryCreationTest(@PathVariable UUID id) {
+        return service.runTest(id);
     }
 
     private @Nullable UUID principalUserId(@Nullable Jwt jwt) {

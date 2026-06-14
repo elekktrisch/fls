@@ -2480,6 +2480,44 @@
         }
       }
     },
+    "/api/v1/deliverycreationtests/{id}/run" : {
+      "post" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Run the harness: engine vs the stored expected set, persist the run-state, return the diff.",
+        "operationId" : "runDeliveryCreationTest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Pass/fail + the field-by-field diff + the engine output.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunTestResult"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active harness with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunTestResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
@@ -3762,6 +3800,44 @@
                   "items" : {
                     "$ref" : "#/components/schemas/FlightCostBalanceTypeResponse"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deliverycreationtests/example/{flightId}" : {
+      "get" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Dry-run the engine for a flight — return the would-be delivery, NO persistence.",
+        "operationId" : "exampleDeliveryForFlight",
+        "parameters" : [ {
+          "name" : "flightId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The engine output + matched-filter ids (not persisted).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExampleDeliveryResult"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No flight with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExampleDeliveryResult"
                 }
               }
             }
@@ -7345,6 +7421,29 @@
         },
         "required" : [ "flightTypeName" ]
       },
+      "RunTestResult" : {
+        "type" : "object",
+        "description" : "Run-test result — pass/fail + the field-by-field diff message + the engine output.",
+        "properties" : {
+          "lastTestSuccessful" : {
+            "type" : "boolean"
+          },
+          "lastTestResultMessage" : {
+            "type" : "string"
+          },
+          "lastTestCreatedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot"
+          },
+          "lastTestMatchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        },
+        "required" : [ "lastTestCreatedDelivery", "lastTestMatchedFilterIds", "lastTestResultMessage", "lastTestSuccessful" ]
+      },
       "ClubCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a new club.",
@@ -8905,6 +9004,23 @@
           }
         },
         "required" : [ "active", "flightId", "id", "testName" ]
+      },
+      "ExampleDeliveryResult" : {
+        "type" : "object",
+        "description" : "Dry-run engine output for a flight — no persistence (fills the expected set).",
+        "properties" : {
+          "delivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot"
+          },
+          "matchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        },
+        "required" : [ "delivery", "matchedFilterIds" ]
       },
       "CountryResponse" : {
         "type" : "object",
