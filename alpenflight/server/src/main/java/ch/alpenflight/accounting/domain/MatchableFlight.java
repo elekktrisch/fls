@@ -1,5 +1,6 @@
 package ch.alpenflight.accounting.domain;
 
+import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails.Recipient;
 import ch.alpenflight.flights.domain.FlightAircraftType;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,9 @@ public final class MatchableFlight {
     private final @Nullable String towFlightTypeCode;
     private final List<String> towedFlightTypeCodes;
     private final List<MatchableCrew> crew;
+    private final int flightCostBalanceTypeId;
+    private final @Nullable Recipient flightCostInvoiceRecipient;
+    private final @Nullable Recipient pilot;
 
     private MatchableFlight(Builder builder) {
         this.flightAircraftType = builder.flightAircraftType;
@@ -51,6 +55,9 @@ public final class MatchableFlight {
         this.towFlightTypeCode = builder.towFlightTypeCode;
         this.towedFlightTypeCodes = List.copyOf(builder.towedFlightTypeCodes);
         this.crew = List.copyOf(builder.crew);
+        this.flightCostBalanceTypeId = builder.flightCostBalanceTypeId;
+        this.flightCostInvoiceRecipient = builder.flightCostInvoiceRecipient;
+        this.pilot = builder.pilot;
     }
 
     public static Builder builder(FlightAircraftType flightAircraftType) {
@@ -111,6 +118,37 @@ public final class MatchableFlight {
     }
 
     /**
+     * The legacy {@code FlightCostBalanceTypeId} as its legacy int (resolved
+     * from the flight's cost-balance-type reference by the engine orchestrator;
+     * {@code 0} when the flight has none, mirroring {@code GetValueOrDefault}).
+     * The two recipient fallback rules switch on it: CostsPaidByPerson=5 →
+     * invoice-recipient crew member; PilotPaysAllCosts=1 / NoInstructorFee=4 →
+     * pilot.
+     */
+    public int flightCostBalanceTypeId() {
+        return flightCostBalanceTypeId;
+    }
+
+    /**
+     * The pre-resolved recipient for the flight's {@code FlightCostInvoiceRecipient}
+     * crew member (legacy FlightCrewType=10), or {@code null} when the flight
+     * carries no such crew row. Resolution (person → name + member-number) is
+     * the orchestrator's (T-12) job so the fallback rules stay JPA-free.
+     */
+    public @Nullable Recipient flightCostInvoiceRecipient() {
+        return flightCostInvoiceRecipient;
+    }
+
+    /**
+     * The pre-resolved recipient for the flight's pilot, or {@code null} when
+     * unresolved. Same orchestrator-resolves-it contract as
+     * {@link #flightCostInvoiceRecipient()}.
+     */
+    public @Nullable Recipient pilot() {
+        return pilot;
+    }
+
+    /**
      * One resolved crew row. {@code memberNumber} / {@code memberStateId} are
      * the values resolved from the crew person's PersonClub for the delivery's
      * club; a {@code null} signals the person has NO PersonClub for that club —
@@ -149,6 +187,9 @@ public final class MatchableFlight {
         private @Nullable String towFlightTypeCode;
         private List<String> towedFlightTypeCodes = new ArrayList<>();
         private List<MatchableCrew> crew = new ArrayList<>();
+        private int flightCostBalanceTypeId;
+        private @Nullable Recipient flightCostInvoiceRecipient;
+        private @Nullable Recipient pilot;
 
         private Builder(FlightAircraftType flightAircraftType) {
             if (flightAircraftType == null) {
@@ -204,6 +245,21 @@ public final class MatchableFlight {
 
         public Builder crew(List<MatchableCrew> value) {
             this.crew = new ArrayList<>(value);
+            return this;
+        }
+
+        public Builder flightCostBalanceTypeId(int value) {
+            this.flightCostBalanceTypeId = value;
+            return this;
+        }
+
+        public Builder flightCostInvoiceRecipient(@Nullable Recipient value) {
+            this.flightCostInvoiceRecipient = value;
+            return this;
+        }
+
+        public Builder pilot(@Nullable Recipient value) {
+            this.pilot = value;
             return this;
         }
 
