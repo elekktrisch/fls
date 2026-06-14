@@ -14,6 +14,10 @@ import { proofVideo } from './_helpers/proof-video';
 import {
   loginAsReservationAdmin,
   captureReservationAdminBearer,
+  resolveMigratedTestClubAdmin,
+  loginAsMigratedTestClubAdmin,
+  useRealBundle,
+  type MigratedClubAdmin,
 } from './_helpers/reservation-parity-fixture';
 import {
   provisionTwoClubs,
@@ -89,6 +93,11 @@ interface DeliveryItem {
   itemText?: string;
   quantity?: number;
   unitType?: string;
+}
+
+interface MigratedFlightItem {
+  id: string;
+  flightAircraftType?: string;
 }
 
 interface DctDetail {
@@ -506,6 +515,118 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
       expect(crossRun.status(), 'club B cannot run club A’s harness').toBe(404);
     } finally {
       await ctx.close();
+    }
+  });
+});
+
+// ===========================================================================
+// MIGRATED-DATA real chain — the engine done-bar over migrated J-2 flights +
+// J-8 filters (S-107). The fanout's REAL legacy export migrates the TestClub:
+// the §5 historical glider flight (47-min, 1 ldg at LSZK) AND the §4
+// `FlightTime: Glider per minute` AccountingRuleFilter (article 5001, glider-
+// scoped, min=0 ⇒ bills the whole duration). Running the harness dry-run over a
+// migrated flight must drive the migrated filter through the engine → an
+// article-5001 line — proving producer-bound J-8 filters + J-2 flights reach the
+// rules engine end to end, no new mapper. Rides the SAME real bundle the J-0c
+// fan-out spec ingests; runs only when the fanout's real export ran.
+// ===========================================================================
+const MIGRATED_FT_ARTICLE = '5001';
+
+test.describe('Delivery creation test harness — migrated inputs drive the engine (real-idp)', () => {
+  test.describe.configure({ mode: 'serial', retries: 0 });
+
+  test.skip(
+    !useRealBundle(),
+    'the migrated-input engine run requires the real legacy export (J5_BUNDLE_SOURCE=real, fanout only)',
+  );
+
+  let baseURL: string;
+  let migratedAdmin: MigratedClubAdmin;
+  let migratedBearer: string;
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    // The migrated CLUB gets a fresh provisioned UUID, so resolve the loginable
+    // admin by OWNERSHIP (the J-5/J-8 migrated-read pattern) — it owns the same
+    // migrated TestClub the §4 filters + §5 flight reconciled onto.
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    migratedAdmin = resolved.admin;
+    migratedBearer = resolved.bearer;
+  });
+
+  test('[migration/parity] a migrated glider flight + the migrated FlightTime filter drive the engine → an article-5001 line', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsMigratedTestClubAdmin(page, migratedAdmin);
+
+      // List the migrated TestClub's glider flights. The deterministic §5
+      // historical flight (FlightAircraftType GliderFlight) is among them; the
+      // engine dry-run over a glider flight must drive the migrated glider-scoped
+      // FlightTime filter (article 5001).
+      const flightsRes = await ctx.request.get(`${FLIGHTS}?limit=200`, {
+        headers: { authorization: migratedBearer },
+      });
+      expect(flightsRes.status(), 'the migrated TestClub lists its migrated flights').toBe(200);
+      const flightItems =
+        ((await flightsRes.json()) as { items?: MigratedFlightItem[] }).items ?? [];
+      const gliderFlights = flightItems.filter((f) => f.flightAircraftType === 'GLIDER');
+      expect(
+        gliderFlights.length,
+        `the migrated TestClub must carry a migrated glider flight (the §5 historical flight) — ` +
+          `got ${flightItems.length} flight(s)`,
+      ).toBeGreaterThan(0);
+
+      // Dry-run the engine (GET example, no persist) over each migrated glider
+      // until one drives the migrated FlightTime filter → an article-5001 item.
+      // (The §5 glider, billed at min=0 over its whole duration, must.)
+      let article5001Item: DeliveryItem | undefined;
+      for (const flight of gliderFlights) {
+        const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
+          headers: { authorization: migratedBearer },
+        });
+        if (exampleRes.status() !== 200) {
+          continue;
+        }
+        const example = (await exampleRes.json()) as { delivery?: { items?: DeliveryItem[] } };
+        const item = (example.delivery?.items ?? []).find(
+          (i) => i.articleNumber === MIGRATED_FT_ARTICLE,
+        );
+        if (item) {
+          article5001Item = item;
+          break;
+        }
+      }
+
+      expect(
+        article5001Item,
+        `the engine, run over a MIGRATED glider flight, must emit the migrated FlightTime filter's ` +
+          `article ${MIGRATED_FT_ARTICLE} line (the migrated J-8 filter + J-2 flight drove the engine) — ` +
+          `proving the producer-bound inputs reach the rules engine end to end`,
+      ).toBeTruthy();
+      // min=0 ⇒ the whole flight duration billed as one positive minute quantity.
+      expect(article5001Item!.unitType).toBe('Minuten');
+      expect(article5001Item!.quantity ?? 0).toBeGreaterThan(0);
+
+      await page.goto('/deliverycreationtests?lang=en');
+      await expect(page.getByTestId('dct-table')).toBeVisible();
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-dct-migrated-inputs.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-9',
+        caption:
+          'J-9 · migrated inputs drive the engine · the rules engine, run over a MIGRATED TestClub ' +
+          'glider flight + the migrated J-8 "FlightTime: Glider per minute" filter (article 5001), ' +
+          'produces the expected delivery line — the producer-bound J-8 filters + J-2 flights drive ' +
+          'the sacred-cow engine end to end over real migrated data (the engine done-bar)',
+        acTag: 'happy',
+      });
     }
   });
 });
