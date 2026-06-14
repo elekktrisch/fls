@@ -642,3 +642,23 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. The convertible case — the parent's
   id is minted by the seed and merely passed to the child (no external pin) — is the clean win T-20 executed
   across all 5 Sweep factories. *(seam: `server/src/test`, per-touch)*
+
+## Pending (filed by J-9, 2026-06-14 — fanout parity, surfaced once the legacy builds were fixed)
+
+The fanout's legacy builds are now fixed (cold-cache NuGet solution restore + phantomjs temp-dir/CDN —
+shipped in J-9), so the parity specs run for the first time on an integration branch and expose two
+pre-existing issues. Neither blocks J-9 (migration N/A; engine proven via the real-idp clean-seed run +
+corpus IT). Both ride the next migration-touching journey's gate.
+
+- **Migration-bundle-ingest 409 across the shared parity harness.** `ensureSharedMigrationBundle` →
+  `ingestBundle` 409s with `DEPLOYMENT_EXISTS` after the first spec ingests — the migration deployment is
+  async (`non-terminal`), and the harness re-ingests / reads migrated data before it reaches `COMPLETED`.
+  Breaks the real-bundle migrated parity for J-0c/J-5/J-6 (and starves J-9's migrated read). Fix: poll the
+  deployment to `COMPLETED` after ingest, and treat `409 DEPLOYMENT_EXISTS` as "reuse `existingDeploymentId`"
+  rather than throwing. *(seam: `alpenflight/web/e2e/tests/real-idp/_helpers/fan-out-parity-fixture.ts`)*
+- **J-9 migrated done-bar: no article-5001 over migrated data.** The `[migration/parity]` spec finds
+  migrated glider flights but the engine emits no article-5001 line — the migrated "FlightTime: Glider per
+  minute" filter isn't applying. Investigate whether the deployment-timing fix above resolves it, else
+  whether the legacy TestClub export carries a glider flight + an article-5001 FlightTime filter at all.
+  Also strengthen the assertion from `unitType+qty>0` toward bit-exact once it runs. *(seam:
+  `alpenflight/web/e2e/tests/real-idp/delivery-creation-test-parity.spec.ts` migrated block + the TestClub seed)*

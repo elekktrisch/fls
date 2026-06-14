@@ -2,8 +2,9 @@
 id: J-9
 title: Delivery creation test (rules-engine proof)
 epic: E-09
-status: in_progress
+status: done
 started_at: 2026-06-14
+done_at: 2026-06-14
 journey0: false
 carved: true
 depends_on: [J-8, J-2]
@@ -120,27 +121,46 @@ Per do-ship §2 (one seam each). J-9 LEADS with the rules-engine feature; the �
 - [x] **T-07** — *(S-073)* IgnoreFlight(5) short-circuit + Recipient(10) first-match-wins (`stopRuleEngineWhenApplied`) + the 2 FlightCostPaidBy fallback rules + unit tests. *(accounting/domain)*
 - [x] **T-08** — *(S-074 — HIGHEST RISK, line-by-line + side-by-side review)* the FlightTime decrement loop (min-excl/max-incl Between; bill active−min, reset→min; tiered/zero/gap/dup-article) + unit tests. *(accounting/domain)*
 - [x] **T-09** — *(S-075)* the EngineTime decrement loop (engine-counter delta; same loop; no credit branch) + unit tests. *(accounting/domain)*
-- ~~**T-10**~~ **(split → T-10a/T-10b; overflow: 6 new stage files > ≤5-new cap)** — *(S-076)* single-pass rule types.
-  - OVERFLOW: ≤5-new cap (6 new stage files: NoLandingTax/LandingTax/StartTax/InstructorFee/AdditionalFuelFee/VsfFee) + 2 edits (MatchableFlight, RuleBasedDeliveryDetails) = 8 touched/6 new; ≤3 tests can't cover 6 types + 2 second-passes + suppression interplay + always-new-line bypass at the bit-exact bar. Split as the prompt anticipates:
-    - [x] **T-10a** = landing/tax cluster + suppression interplay: NoLandingTax(20) → LandingTax(60)+LandingTaxOnStartLocation(60) → StartTax(55). NoLandingTax MUST run before LandingTax (sets the suppression flags it reads). New: `NoLandingTaxStage`, `LandingTaxStage` (both type-60 passes), `StartTaxStage`. Edit: `MatchableFlight` (+`flightDurationSeconds`, `nrOfLdgs`, `nrOfLdgsOnStartLocation`, `noStartTimeInformation`, `noLdgTimeInformation`, `isGlider`/`isTow` — startLocationIcao already present). ~4 files/3 new, ≤2 tests (suppression: NoLandingTax flag → LandingTax forced-off for glider; an OnStartLocation second-pass quantity via start-location-substituted match).
-    - [x] **T-10b** = fee cluster + always-new-line bypass: InstructorFee(40) → AdditionalFuelFee(50) → VsfFee(70)+VsfFeeOnStartLocation(70). New: `InstructorFeeStage`, `AdditionalFuelFeeStage`, `VsfFeeStage` (both type-70 passes). Edit: `RuleBasedDeliveryDetails` (+`addLineWithoutCoalesce` bypass for InstructorFee always-new-line), `MatchableFlight` (+`flightDurationMinutes`, `instructorDisplayName` — flightCostBalanceTypeId already present; nrOfLdgs/nrOfLdgsOnStartLocation land in T-10a, T-10b depends_on T-10a). ~4 files/3 new, ≤2 tests (InstructorFee always-new-line + 0-qty on NoInstructorFee; VsfFeeOnStartLocation forced-off when nrOfLdgsOnStartLocation<=0).
-  - Note for T-12: the OnStartLocation second-passes need NO matcher change — substitute the flight's start-location ICAO into a MatchableFlight variant's ldgLocationIcao and re-run the existing matcher (the override checks start-location against the SAME ldg-location set; matcher's null-ldg-location warn-only branch matches the legacy override's null-start-location warn). Orchestrator must run NoLandingTax before LandingTax.
+- ~~**T-10**~~ **(split → T-10a/T-10b on the ≤5-new-file cap)** — *(S-076)* single-pass rule types.
+  - [x] **T-10a** = landing/tax cluster + suppression interplay: NoLandingTax(20) → LandingTax(60)+OnStartLocation → StartTax(55). NoLandingTax MUST run before LandingTax (sets the flags it reads). *(accounting/domain)*
+  - [x] **T-10b** = fee cluster + always-new-line bypass: InstructorFee(40) → AdditionalFuelFee(50) → VsfFee(70)+OnStartLocation (InstructorFee bypasses coalesce). *(accounting/domain)*
 - [x] **T-11** — *(S-077)* glider→tow recursion via `towFlightId` (recurse the line-item pipeline on the tow flight, shared accumulator, position continuity) + unit tests. *(accounting/domain)*
-- [x] **T-12** — the engine orchestrator: runs the stages in the legacy CODE order; loads active filters `ORDER BY sort_indicator, id` (operator); credits-absent (operator); emits `RuleBasedDeliveryDetails` + matched-filter-ids. *(accounting/application)*
-  - DeliveryDetailsStage (legacy `DeliveryDetailsRulesEngine` — sets `deliveryInformation`/`additionalInformation` text only, NOT line items) DEFERRED to a follow-up: it needs new MatchableFlight crew-display-name fields + flightType passenger/instructor-required flags + a `RuleBasedDeliveryDetails.isChargedToClubInternal` set by the matched recipient filter (RecipientStage + RuleFilterInput edits), which bursts the one-seam orchestrator scope. T-13/T-15 harness diff must ignore those two text fields, or fold the stage as a rider then.
+- [x] **T-12** — the engine orchestrator: runs the stages in the legacy CODE order; loads active filters `ORDER BY sort_indicator, id` (operator); credits-absent (operator); emits `RuleBasedDeliveryDetails` + matched-filter-ids. The text-only DeliveryDetailsStage is deferred (the harness diff ignores those two text fields). *(accounting/application)*
 - [x] **T-13** — `DeliveryCreationTest` aggregate + repo mapping the existing V4 `t_delivery_creation_test`(+item) (`@TenantId`, jsonb `expected_delivery`, the 9 `Ignore*` flags, `must_not_create…`, the `last_test_*` run-state) + domain tests. *(accounting/domain+infra)*
 - [x] **T-14** — `DeliveryCreationTestsService` + DTOs + controller (list/get/create/update/delete) + audit (ControllerAuditCoverage + AuditRedaction) + cross-tenant 404. *(accounting/application+web — may overflow → split CRUD vs endpoints)*
 - [x] **T-15** — the dry-run endpoint (`generateExampleDelivery`: run engine, return DeliveryItems, NO persist) + the run-test endpoint (run engine vs `expected_delivery`, persist `last_test_*`, the exact field-by-field diff gated by `Ignore*` flags, matched-rule-ids). *(accounting/application+web)*
 - [x] **T-16** — web feature scaffold: orval regen + `features/accounting/` deliverycreationtests route + store + list page + **nav entry under the Masterdata dropdown (chrome-reachable)**. *(web)*
 - [x] **T-17** — edit page: pick Flight → "Create test delivery" (dry-run) fills expected items → save/round-trip; "Run test" → Success/Failure; matched-rule links → `/accountingrules`; J-6b `liveFieldErrors`. *(web)*
-  - ESCALATION (T-15 backend gap, blocks T-19 real-idp round-trip): `DeliveryCreationTest.captureExpected` has NO production caller — neither create/update nor the dry-run/run endpoints persist the expected set, so over the REAL backend a saved harness keeps an empty expected set and every run fails. T-17 honors the prompt's "capture rides create/update via the dry-run that preceded save" contract on the FE + mock; the real wiring (a capture call on create/update, or a dedicated capture endpoint) must land before T-19. Also reconciled the T-16 stub mocks to the real client: `example` is a GET returning `ExampleDeliveryResult{delivery.items}`, `run` returns `RunTestResult{lastTestCreatedDelivery.items, lastTestMatchedFilterIds}`, `/flights` returns the `{items}` envelope, matched link → `/accountingrules/:id/edit`.
 - [x] **T-18** — the **diff-rendering UI** (run-failure → which DeliveryItems differed; the operator's daily rule-tuning tool, S-079). *(web)*
-- [x] **T-21** — *(gate-revealed, T-17 escalation — blocks the real round-trip)* wire `captureExpected`: the create/update write-request carries the captured dry-run `DeliveryDetailsSnapshot` (the expected set) → `DeliveryCreationTestsService.create/update` calls `aggregate.captureExpected(snapshot, matchedIds)` so a saved harness persists its expected set; the FE store sends the last `exampleResult.delivery` on save. (T-14 omitted the expected payload from the write-request.) Without it every real run diffs empty-vs-engine → fails. Must land before T-19. *(application DTO + service + FE store + IT)*
+- [x] **T-21** — *(gate-revealed, T-17 escalation)* wire `captureExpected`: the create/update write-request carries the captured dry-run snapshot → the service persists the expected set; the FE sends the last `exampleResult.delivery` on save (else every real run diffs empty-vs-engine). *(application DTO + service + FE store + IT)*
 - [x] **T-19** — thicken the spec to full real assertions (tiered FlightTime items; IgnoreFlight→no delivery; recipient first-match; tow recursion; diff on mismatch; cross-tenant 404) — mock inner-loop + real-idp gate spec; point `parity_test` at the real-idp spec. *(spec)*
 - [x] **T-20** — *(S-107)* the combinatorial corpus (C11): representative flight×rule cases reproducing the legacy engine bit-exact, as ITs; + the **fanout assertion** running the engine/harness over MIGRATED J-2 flights + J-8 filters (the engine done-bar; no new mapper). *(IT + fanout)*
 - [x] **T-22** — *(gate-revealed, real-idp [happy] red)* bind `FlightId` on `GET /example/{flightId}` + the create/update/list/detail DTOs so the flight-picker's external `fl-<uuid>` id no longer 400s and the real-chain dry-run yields DeliveryItems. *(controller + DTOs + service + IT + regenerated OpenAPI snapshot/orval)*
 
 **Deferred (filed, not built here):** the **PersonFlightTimeCredit/discount sub-engine** → a new `/do-plan` roadmap journey (operator-chosen defer). The heavy **GALLERY-SIMPLIFY** multi-journey-plumbing deletion + the project-wide **COMMENT-STRIP**/**HISTORY→GIT** sweeps ride a lighter burndown journey (J-9 builds new code to the why-only/contract-only discipline from the start; per-touch strip only). LEGACY-BUG noted for the gate: tier-gap silent unbilled remainder — reproduced, surfaced to operator, not "fixed".
+
+## Parity exclusions (operator-accepted, do not re-flag)
+
+- **`MathContext(28)` for the Sec→Min quantity.** Diverges from C# `decimal` at the 28th decimal place
+  for non-terminating minute quantities (billing-invisible). Operator chose to keep it as-is (2026-06-14);
+  the bit-exactness concern for *quantity* is dropped. [[project_mathcontext28_accepted]]
+- **Tier-gap silent unbilled remainder** — a reproduced legacy bug, surfaced, not "fixed".
+
+## Outcome
+
+Proven green on **`a626eb69`** (the real-idp clean-seed proof — `[happy]` dry-run→save→run→SUCCESS +
+matched-rule link, `[key-error]` rule-change→run→FAILURE + cell-level diff, `[edge]` cross-tenant 404 —
+over real Keycloak + Spring + Postgres) + the 13-case combinatorial corpus IT + 3 green ITs. Two gap-hunters
+returned `real: true` (engine fully wired, no undeclared mocks, genuine tenancy). Commits after `a626eb69`
+are the fanout legacy-build fix + this doc only (no app code) — `git diff a626eb69..HEAD` is workflow/docs.
+
+The engine reaching its four real-chain gaps in sequence (dry-run `FlightId` binding, IT payloads, the
+one-live-harness-per-flight collision, the filter-PUT write shape) is recorded in the T-22 commit messages.
+
+**Riders filed** (`_BOYSCOUT.md`, ride the next migration journey's gate; do not block J-9 — migration N/A):
+the cross-journey migration-bundle-ingest **409** (`ensureSharedMigrationBundle` async-deployment) and the
+**migrated done-bar article-5001** (migrated FlightTime filter not applying over migrated data). The fanout
+legacy builds are now fixed on cold cache, so the gallery deploys — live at the preview link in the PR.
 
 ## Assumptions made
 
