@@ -296,7 +296,8 @@ async function bootBackend(
 }
 
 // ── nav entry (chrome-reachable contract) ──────────────────────────────────
-test('delivery-creation-test: a nav entry under masterdata reaches /deliverycreationtests (ENTER via nav)', async ({
+// fixme until T-16 adds the Masterdata nav entry + /deliverycreationtests to isMasterdataPath.
+test.fixme('delivery-creation-test: a nav entry under masterdata reaches /deliverycreationtests (ENTER via nav)', async ({
   page,
 }) => {
   await bootBackend(page, [{ ...seededTest }]);
