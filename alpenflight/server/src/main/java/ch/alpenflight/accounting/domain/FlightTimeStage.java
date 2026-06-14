@@ -76,8 +76,8 @@ public final class FlightTimeStage {
             return false;
         }
         long active = accumulator.getActiveFlightTimeInSeconds();
-        long min = minSeconds(filter.filterConfig());
-        long max = maxSeconds(filter.filterConfig());
+        long min = filter.filterConfig().minFlightTimeSeconds();
+        long max = filter.filterConfig().maxFlightTimeSeconds();
         return active > min && active <= max;
     }
 
@@ -92,7 +92,7 @@ public final class FlightTimeStage {
                 "FlightTime filter must carry an accountingUnitType");
 
         int active = accumulator.getActiveFlightTimeInSeconds();
-        long min = minSeconds(filter.filterConfig());
+        long min = filter.filterConfig().minFlightTimeSeconds();
 
         int lineSeconds;
         if (min == 0) {
@@ -129,15 +129,5 @@ public final class FlightTimeStage {
             text.append(' ').append(config.thresholdText());
         }
         return text.toString();
-    }
-
-    private static long minSeconds(FilterConfig config) {
-        Integer min = config.minFlightTimeInSecondsMatchingValue();
-        return min == null ? 0L : min;
-    }
-
-    private static long maxSeconds(FilterConfig config) {
-        Integer max = config.maxFlightTimeInSecondsMatchingValue();
-        return max == null ? Long.MAX_VALUE : max;
     }
 }
