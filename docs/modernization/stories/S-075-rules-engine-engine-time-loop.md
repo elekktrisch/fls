@@ -3,6 +3,7 @@ id: S-075
 title: Rules-engine port — EngineTime decrement loop
 epic: E-09
 status: todo
+rolled_up_into: J-9
 depends_on: [S-074]
 acceptance:
   - Same shape as S-074, but operating on `ActiveEngineTime` instead of `ActiveFlightTime`.
