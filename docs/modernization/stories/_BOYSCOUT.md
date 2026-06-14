@@ -37,10 +37,13 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   TOP-LEVEL option, so the per-project `workers: 4` in `playwright.config.ts` is a **silent no-op** (same
   trap as the removed per-project `maxFailures`) — the mock suite ran 2 workers and timed out at the 5-min
   cap since J-26. Stopgap PR #222 forces `--workers=4` on the chromium CLI invocation (keeps the ceiling).
-  WORKFLOW-SLIM should make it permanent: **move `workers` to the top-level config** (and pass `--workers=1`
-  to the real-idp invocation, whose per-project `workers: 1` is the same no-op) + **HELPER-PRUNE** the
-  redundant specs so the suite stays under 5 min as it grows. The operator's bar: **5 min is the ceiling —
-  prune/parallelize, never buy wall time.**
+  **VERIFIED 2026-06-14: parallelism ALONE is insufficient** — a dispatch with `--workers=4` ran 4 workers
+  but STILL timed out at 5 min (157 tests on a 4-core runner). So WORKFLOW-SLIM must **SHARD the mock suite
+  into parallel sub-5-min CI jobs** (a `--shard=i/n` matrix + `reporter: blob` + a `merge-reports` deploy job
+  — each shard keeps the 5-min ceiling) AND **HELPER-PRUNE** the redundant specs; moving `workers` top-level
+  (+ `--workers=1` for real-idp, whose per-project `workers:1` is the same no-op) is necessary but not
+  sufficient. The 12-min control run proved the suite is green-but-slow (157 passed), so this is purely a
+  throughput problem. The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
   *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + `alpenflight-e2e.yml` + `playwright.config.ts` workers + new composites)*
 - **[COMMENT-STRIP] Self-explanatory code, why-only comments.** Remove all what/narration/history/
   task-attribution comments (`T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"/non-load-bearing
