@@ -133,6 +133,24 @@ const en: Translations = {
       required: 'Entry required.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Delivery creation tests',
+    new: 'New test',
+    list: {
+      columns: {
+        name: 'Name',
+        active: 'Active',
+        result: 'Last result',
+      },
+      results: {
+        pass: 'Success',
+        fail: 'Failure',
+        never: 'Not run yet',
+      },
+      readonlyBanner:
+        'Read-only. Your club’s delivery creation tests are managed by your club administrator.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Keep editing',

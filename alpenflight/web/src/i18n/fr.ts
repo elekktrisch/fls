@@ -135,6 +135,24 @@ const fr: Translations = {
       required: 'Saisie obligatoire.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Tests de création de livraison',
+    new: 'Nouveau test',
+    list: {
+      columns: {
+        name: 'Nom',
+        active: 'Actif',
+        result: 'Dernier résultat',
+      },
+      results: {
+        pass: 'Réussi',
+        fail: 'Échoué',
+        never: 'Jamais exécuté',
+      },
+      readonlyBanner:
+        'Lecture seule. Les tests de création de livraison de ton club sont gérés par ton administrateur de club.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Continuer la modification',

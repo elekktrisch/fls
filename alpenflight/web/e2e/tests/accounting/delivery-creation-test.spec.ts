@@ -86,7 +86,8 @@ interface MockDeliveryCreationTest {
 
 interface MockDeliveryCreationTestListItem {
   id: string;
-  name: string;
+  testName: string;
+  flightId: string;
   active: boolean;
   lastTestSuccessful?: boolean;
 }
@@ -128,7 +129,12 @@ const mockFlights = [
 ];
 
 function toListItem(t: MockDeliveryCreationTest): MockDeliveryCreationTestListItem {
-  const item: MockDeliveryCreationTestListItem = { id: t.id, name: t.name, active: t.active };
+  const item: MockDeliveryCreationTestListItem = {
+    id: t.id,
+    testName: t.name,
+    flightId: t.flightId,
+    active: t.active,
+  };
   if (t.lastTestSuccessful !== undefined) item.lastTestSuccessful = t.lastTestSuccessful;
   return item;
 }
@@ -160,7 +166,7 @@ interface MockWriteRequest {
 }
 
 /**
- * In-memory `/api/v1/delivery-creation-tests` backend. GET list, GET by id
+ * In-memory `/api/v1/deliverycreationtests` backend. GET list, GET by id
  * (404 when absent — the cross-tenant case), POST (201 + Location), PUT, DELETE.
  * Plus the two engine endpoints:
  *   POST .../example/:flightId — the dry-run; returns the expected item set,
@@ -180,9 +186,9 @@ function setupBackend(
     const url = new URL(req.url());
     const method = req.method();
     const path = url.pathname;
-    const idMatch = path.match(/^\/api\/v1\/delivery-creation-tests\/(dct-[^/]+)$/);
-    const runMatch = path.match(/^\/api\/v1\/delivery-creation-tests\/(dct-[^/]+)\/run$/);
-    const exampleMatch = path.match(/^\/api\/v1\/delivery-creation-tests\/example\/(flt-[^/]+)$/);
+    const idMatch = path.match(/^\/api\/v1\/deliverycreationtests\/(dct-[^/]+)$/);
+    const runMatch = path.match(/^\/api\/v1\/deliverycreationtests\/(dct-[^/]+)\/run$/);
+    const exampleMatch = path.match(/^\/api\/v1\/deliverycreationtests\/example\/(flt-[^/]+)$/);
 
     if (method === 'POST' && exampleMatch) {
       await route.fulfill({
@@ -212,7 +218,7 @@ function setupBackend(
       });
       return;
     }
-    if (method === 'GET' && path === '/api/v1/delivery-creation-tests') {
+    if (method === 'GET' && path === '/api/v1/deliverycreationtests') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -231,7 +237,7 @@ function setupBackend(
       });
       return;
     }
-    if (method === 'POST' && path === '/api/v1/delivery-creation-tests') {
+    if (method === 'POST' && path === '/api/v1/deliverycreationtests') {
       const body = req.postDataJSON() as MockWriteRequest;
       const created: MockDeliveryCreationTest = {
         id: `dct-019e30c3-2c00-7001-8000-${String(nextId++).padStart(12, '0')}`,
@@ -245,7 +251,7 @@ function setupBackend(
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        headers: { Location: `/api/v1/delivery-creation-tests/${created.id}` },
+        headers: { Location: `/api/v1/deliverycreationtests/${created.id}` },
         body: JSON.stringify(created),
       });
       return;
@@ -292,12 +298,11 @@ async function bootBackend(
   opts: { runOutcome?: { successful: boolean; engineItems: MockDeliveryItem[] } } = {},
 ): Promise<void> {
   await stubReferenceData(page);
-  await page.route('**/api/v1/delivery-creation-tests**', setupBackend(items, opts));
+  await page.route('**/api/v1/deliverycreationtests**', setupBackend(items, opts));
 }
 
 // ── nav entry (chrome-reachable contract) ──────────────────────────────────
-// fixme until T-16 adds the Masterdata nav entry + /deliverycreationtests to isMasterdataPath.
-test.fixme('delivery-creation-test: a nav entry under masterdata reaches /deliverycreationtests (ENTER via nav)', async ({
+test('delivery-creation-test: a nav entry under masterdata reaches /deliverycreationtests (ENTER via nav)', async ({
   page,
 }) => {
   await bootBackend(page, [{ ...seededTest }]);
@@ -310,7 +315,7 @@ test.fixme('delivery-creation-test: a nav entry under masterdata reaches /delive
 });
 
 // ── list ───────────────────────────────────────────────────────────────────
-test.fixme('delivery-creation-test: list renders the club’s tests (name, active, last-result) tenant-scoped', async ({
+test('delivery-creation-test: list renders the club’s tests (name, active, last-result) tenant-scoped', async ({
   page,
 }) => {
   await bootBackend(page, [{ ...seededTest }]);

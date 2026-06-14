@@ -134,6 +134,24 @@ const it: Translations = {
       required: 'Campo obbligatorio.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Test di creazione consegna',
+    new: 'Nuovo test',
+    list: {
+      columns: {
+        name: 'Nome',
+        active: 'Attivo',
+        result: 'Ultimo risultato',
+      },
+      results: {
+        pass: 'Riuscito',
+        fail: 'Fallito',
+        never: 'Mai eseguito',
+      },
+      readonlyBanner:
+        'Sola lettura. I test di creazione consegna del tuo club sono gestiti dal tuo amministratore di club.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Continua a modificare',

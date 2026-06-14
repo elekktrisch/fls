@@ -139,6 +139,24 @@ const de = {
       required: 'Eingabe erforderlich.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Lieferungserstellungstests',
+    new: 'Neuer Test',
+    list: {
+      columns: {
+        name: 'Name',
+        active: 'Aktiv',
+        result: 'Letztes Ergebnis',
+      },
+      results: {
+        pass: 'Erfolgreich',
+        fail: 'Fehlgeschlagen',
+        never: 'Noch nicht ausgeführt',
+      },
+      readonlyBanner:
+        'Schreibgeschützt. Die Lieferungserstellungstests deines Vereins werden von deinem Vereinsadministrator verwaltet.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Weiter bearbeiten',
