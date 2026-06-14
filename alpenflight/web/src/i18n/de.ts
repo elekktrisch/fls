@@ -180,6 +180,17 @@ const de = {
         failure: 'Fehlgeschlagen',
         matchedRules: 'Angewandte Regeln',
       },
+      diff: {
+        heading: 'Abweichende Positionen',
+        position: 'Position {{position}}',
+        fields: {
+          articleNumber: 'Artikelnummer',
+          quantity: 'Menge',
+          unitType: 'Einheit',
+          itemText: 'Positionstext',
+          discountInPercent: 'Rabatt %',
+        },
+      },
     },
     list: {
       columns: {

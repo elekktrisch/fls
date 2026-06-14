@@ -26,7 +26,6 @@ import type {
 } from '@api/generated/model';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
-import { AfFieldErrorsComponent } from '@ui/molecules/af-field-errors';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
@@ -37,6 +36,7 @@ import { liveFieldErrors, withOptionals } from '@shared/util/form';
 import { MUTATION_BUS } from '../../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../../core/session/session.store';
 import { DeliveryCreationTestsStore } from '../delivery-creation-tests.store';
+import { type DiffRow, deliveryItemDiff } from './delivery-item-diff';
 
 // The engine leaves these two snapshot text fields null (T-12 DeliveryDetailsStage
 // deferral), so the harness must ignore them or every run fails the diff — they
@@ -67,42 +67,46 @@ interface IgnoreFlagSpec {
 }
 
 const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
-  { control: 'ignoreRecipientName', testid: 'ignore-recipient-name', labelKey: 'recipientName' },
+  {
+    control: 'ignoreRecipientName',
+    testid: 'ignore-recipient-name',
+    labelKey: 'edit.ignoreFlags.recipientName',
+  },
   {
     control: 'ignoreRecipientAddress',
     testid: 'ignore-recipient-address',
-    labelKey: 'recipientAddress',
+    labelKey: 'edit.ignoreFlags.recipientAddress',
   },
   {
     control: 'ignoreRecipientPersonId',
     testid: 'ignore-recipient-person-id',
-    labelKey: 'recipientPersonId',
+    labelKey: 'edit.ignoreFlags.recipientPersonId',
   },
   {
     control: 'ignoreRecipientClubMemberNumber',
     testid: 'ignore-recipient-club-member-number',
-    labelKey: 'recipientClubMemberNumber',
+    labelKey: 'edit.ignoreFlags.recipientClubMemberNumber',
   },
   {
     control: 'ignoreDeliveryInformation',
     testid: 'ignore-delivery-information',
-    labelKey: 'deliveryInformation',
+    labelKey: 'edit.ignoreFlags.deliveryInformation',
   },
   {
     control: 'ignoreAdditionalInformation',
     testid: 'ignore-additional-information',
-    labelKey: 'additionalInformation',
+    labelKey: 'edit.ignoreFlags.additionalInformation',
   },
   {
     control: 'ignoreItemPositioning',
     testid: 'ignore-item-positioning',
-    labelKey: 'itemPositioning',
+    labelKey: 'edit.ignoreFlags.itemPositioning',
   },
-  { control: 'ignoreItemText', testid: 'ignore-item-text', labelKey: 'itemText' },
+  { control: 'ignoreItemText', testid: 'ignore-item-text', labelKey: 'edit.ignoreFlags.itemText' },
   {
     control: 'ignoreItemAdditionalInformation',
     testid: 'ignore-item-additional-information',
-    labelKey: 'itemAdditionalInformation',
+    labelKey: 'edit.ignoreFlags.itemAdditionalInformation',
   },
 ];
 
@@ -133,7 +137,6 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
     RouterLink,
     AfButtonComponent,
     AfInputComponent,
-    AfFieldErrorsComponent,
     AfFormFieldComponent,
     AfPageComponent,
     AfPageHeaderComponent,
@@ -249,7 +252,7 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
                       class="w-4 h-4 accent-brand-500 cursor-pointer"
                       [attr.data-testid]="'dct-' + flag.testid"
                     />
-                    <span>{{ t('edit.ignoreFlags.' + flag.labelKey) }}</span>
+                    <span>{{ t(flag.labelKey) }}</span>
                   </label>
                 }
               </div>
@@ -341,6 +344,34 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
                   >{{ run.lastTestResultMessage }}</pre
                 >
               }
+              <!-- Cell-level diff: on a Failure, the engine output differed from
+                   the stored expectation — show which item fields diverged, with
+                   the engine's (actual) value flagged red. The operator's daily
+                   rule-tuning read. -->
+              @if (!run.lastTestSuccessful && runDiff().length > 0) {
+                <div class="flex flex-col gap-2" data-testid="dct-diff">
+                  <span class="text-xs font-medium text-slate-600 uppercase tracking-wide">
+                    {{ t('edit.diff.heading') }}
+                  </span>
+                  @for (row of runDiff(); track row.position) {
+                    <div
+                      class="flex flex-col gap-1 text-sm tabular border border-red-200 bg-red-50 px-2 py-1"
+                      [attr.data-testid]="'dct-diff-item-' + row.position"
+                    >
+                      <span class="text-xs font-medium text-slate-600">
+                        {{ t('edit.diff.position', { position: row.position + 1 }) }}
+                      </span>
+                      @for (cell of row.cells; track cell.field) {
+                        <div class="flex flex-wrap items-baseline gap-x-2">
+                          <span class="text-slate-500">{{ t(cell.labelKey) }}:</span>
+                          <span class="text-slate-500 line-through">{{ cell.expected }}</span>
+                          <span class="font-medium text-red-700">{{ cell.created }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
               @if (run.lastTestMatchedFilterIds.length > 0) {
                 <div class="flex flex-col gap-1">
                   <span class="text-xs font-medium text-slate-600 uppercase tracking-wide">
@@ -409,6 +440,18 @@ export class DeliveryCreationTestsEditPage {
     const example = this.store.exampleResult();
     if (example) return example.delivery.items ?? [];
     return this.store.selectedTest()?.expectedDelivery.items ?? [];
+  });
+
+  // On a Failure the run diffed the engine output against the STORED expectation
+  // (not the live dry-run preview) — so the diff pairs `lastTestCreatedDelivery`
+  // against the saved `expectedDelivery`, position-by-position, surfacing only
+  // the rows whose fields diverge (empty list on a Success).
+  protected readonly runDiff = computed<DiffRow[]>(() => {
+    const run = this.store.runResult();
+    if (!run || run.lastTestSuccessful) return [];
+    const created = run.lastTestCreatedDelivery.items ?? [];
+    const expected = this.store.selectedTest()?.expectedDelivery.items ?? [];
+    return deliveryItemDiff(expected, created);
   });
 
   private readonly formStatus = toSignal(this.form.statusChanges, {

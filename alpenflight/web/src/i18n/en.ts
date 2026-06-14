@@ -174,6 +174,17 @@ const en: Translations = {
         failure: 'Failure',
         matchedRules: 'Matched rules',
       },
+      diff: {
+        heading: 'Differing items',
+        position: 'Position {{position}}',
+        fields: {
+          articleNumber: 'Article number',
+          quantity: 'Quantity',
+          unitType: 'Unit',
+          itemText: 'Item text',
+          discountInPercent: 'Discount %',
+        },
+      },
     },
     list: {
       columns: {

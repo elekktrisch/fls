@@ -176,6 +176,17 @@ const fr: Translations = {
         failure: 'Échoué',
         matchedRules: 'Règles appliquées',
       },
+      diff: {
+        heading: 'Lignes divergentes',
+        position: 'Position {{position}}',
+        fields: {
+          articleNumber: 'Numéro d’article',
+          quantity: 'Quantité',
+          unitType: 'Unité',
+          itemText: 'Texte de ligne',
+          discountInPercent: 'Remise %',
+        },
+      },
     },
     list: {
       columns: {

@@ -175,6 +175,17 @@ const it: Translations = {
         failure: 'Fallito',
         matchedRules: 'Regole applicate',
       },
+      diff: {
+        heading: 'Righe divergenti',
+        position: 'Posizione {{position}}',
+        fields: {
+          articleNumber: 'Numero articolo',
+          quantity: 'Quantità',
+          unitType: 'Unità',
+          itemText: 'Testo riga',
+          discountInPercent: 'Sconto %',
+        },
+      },
     },
     list: {
       columns: {

@@ -434,7 +434,7 @@ test('delivery-creation-test: run a matching test → Success + matched-rule lin
 });
 
 // ── run-failure: the cell-level diff UI ──────────────────────────────────────
-test.fixme('delivery-creation-test: run a test whose engine output differs → Failure + the diff shows which items differed', async ({
+test('delivery-creation-test: run a test whose engine output differs → Failure + the diff shows which items differed', async ({
   page,
 }) => {
   // The engine returns a perturbed tier-2 quantity, so the run verdict is
