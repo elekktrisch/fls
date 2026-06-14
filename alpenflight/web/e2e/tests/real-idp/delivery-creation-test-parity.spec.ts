@@ -249,12 +249,19 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     scenario = await seedScenario(cleanupCtx.request, adminBearer, createdFilters);
   });
 
-  test.afterAll(async () => {
+  // ux_dct_club_flight_partial permits one live harness per (club, flight), and
+  // every test authors on the one shared seeded flight — so each must drop its
+  // harness before the next creates, else the second create 409s.
+  test.afterEach(async () => {
     for (const id of createdHarnesses) {
       await cleanupCtx.request
         .delete(`${DCT}/${id}`, { headers: { authorization: adminBearer } })
         .catch((err) => console.warn(`[J-9] harness cleanup ${id}: ${(err as Error).message}`));
     }
+    createdHarnesses.length = 0;
+  });
+
+  test.afterAll(async () => {
     for (const id of createdFilters) {
       await cleanupCtx.request
         .delete(`${FILTERS}/${id}`, { headers: { authorization: adminBearer } })
