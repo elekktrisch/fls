@@ -110,7 +110,7 @@ body** ([[feedback_self_explanatory_no_history_comments]]); the new harness form
 
 Per do-ship §2 (one seam each). J-9 LEADS with the rules-engine feature; the ≤70% burndown riders ride it (WORKFLOW-SLIM early — it greens main's red `alpenflight e2e` + speeds J-9's own gate). Migration: no new mapper (Delivery mappers are J-10's; harness greenfield) — the done-bar proves the engine over MIGRATED J-2 flights + J-8 filters (T-19 fanout).
 
-- [ ] **T-01** — spec stub `e2e/tests/accounting/delivery-creation-test.spec.ts` (list / edit / dry-run / run+diff; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only model). *(e2e + gallery)*
+- [x] **T-01** — spec stub `e2e/tests/accounting/delivery-creation-test.spec.ts` (list / edit / dry-run / run+diff; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only model). *(e2e + gallery)*
 - [ ] **T-02** — gate scoping: J-9 `mock_test`/`parity_test` frontmatter so per-push runs only J-9's specs. *(ci.yml + frontmatter)*
 - [ ] **T-03** — *(≤70% rider — WORKFLOW-SLIM; greens main)* shard the mock chromium suite into a parallel `--shard=i/n` matrix (`reporter: blob` + a `merge-reports` deploy job, each shard <5min) + move `workers` top-level in `playwright.config.ts` (+`--workers=1` real-idp); keeps the 5-min ceiling, greens `alpenflight e2e`. *(ci.yml + alpenflight-e2e.yml + playwright.config)*
 - [ ] **T-04** — *(≤70% rider — HELPER-PRUNE)* delete the 3 verified-redundant `@helper` cases in `forms/validation-hardening.spec.ts` (covered by FlightTypeDuplicateCodeIT / ClubsControllerIT / FlightTypeDomainTest). *(spec)*
