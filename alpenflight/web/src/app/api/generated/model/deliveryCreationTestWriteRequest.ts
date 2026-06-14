@@ -5,6 +5,7 @@
  * Glider club operations platform. Source of truth for the SPA-generated TS client.
  * OpenAPI spec version: 0.0.1
  */
+import type { DeliveryDetailsSnapshot } from './deliveryDetailsSnapshot';
 
 /**
  * Create/update payload for a DeliveryCreationTest in the caller's tenant.
@@ -17,6 +18,10 @@ export type DeliveryCreationTestWriteRequest = {
      */
   testName: string;
   description?: string;
+  /** Captured dry-run output to persist as the expected set (absent = leave unchanged). */
+  expectedDelivery?: DeliveryDetailsSnapshot;
+  /** Matched AccountingRuleFilter ids from the captured dry-run (absent = empty). */
+  expectedMatchedFilterIds?: string[];
   /** Harness active (absent = true, the legacy default). */
   active?: boolean;
   /** Assert the flight produces NO delivery (absent = false). */

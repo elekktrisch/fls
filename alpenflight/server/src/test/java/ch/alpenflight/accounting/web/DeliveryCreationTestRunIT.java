@@ -168,24 +168,78 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         assertThat(run.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ----- harness authoring (dry-run fills expected, like the SPA edit form) -----
-
-    private String createHarnessCapturingExpected() {
+    @Test
+    void create_with_expectedDelivery_persists_set_then_run_succeeds() {
         JsonNode example = readJson(get(BASE + "/example/" + flightA, adminA));
-        JsonNode delivery = example.get("delivery");
 
+        String id = createHarnessCapturingExpected();
+
+        // The write-request expected set + matched ids round-tripped through the
+        // production create path (not a raw UPDATE) — the round-trip impossible
+        // before captureExpected had a caller.
+        JsonNode reloaded = readJson(get(BASE + "/" + id, adminA));
+        assertThat(reloaded.get("expectedDelivery").get("items").size()).isEqualTo(2);
+        assertThat(articleNumbers(reloaded.get("expectedDelivery").get("items")))
+                .containsExactly("ART-FT", "ART-LT");
+        assertThat(reloaded.get("expectedMatchedFilterIds").size())
+                .isEqualTo(example.get("matchedFilterIds").size());
+
+        // The relational item children were rebuilt from the captured snapshot.
+        Long itemCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_delivery_creation_test_item "
+                        + "WHERE delivery_creation_test_id = ?::uuid",
+                Long.class, id);
+        assertThat(itemCount).isEqualTo(2L);
+
+        ResponseEntity<String> run = post(BASE + "/" + id + "/run", null, adminA);
+        assertThat(run.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readJson(run).get("lastTestSuccessful").asBoolean()).isTrue();
+    }
+
+    @Test
+    void create_without_expectedDelivery_leaves_no_expected_items() {
         ResponseEntity<String> created = post(BASE, harnessPayload(), adminA);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String id = readJson(created).get("id").asText();
 
-        // Capture the dry-run as the expected set straight in the table (the SPA
-        // does it via a follow-up save; the engine/diff seam under test doesn't
-        // own a capture endpoint).
-        jdbc.update(
-                "UPDATE t_delivery_creation_test SET expected_delivery = ?::jsonb "
-                        + "WHERE id = ?::uuid",
-                delivery.toString(), id);
-        return id;
+        JsonNode reloaded = readJson(get(BASE + "/" + id, adminA));
+        assertThat(reloaded.get("expectedDelivery").get("items").size()).isZero();
+        assertThat(reloaded.get("expectedMatchedFilterIds").size()).isZero();
+    }
+
+    // ----- harness authoring (dry-run fills expected, like the SPA edit form) -----
+
+    /**
+     * Authors a harness the way the SPA does: dry-run the engine, then save with
+     * the captured {@code expectedDelivery} + matched ids in the write request so
+     * the service's {@code captureExpected} persists the expected set.
+     */
+    private String createHarnessCapturingExpected() {
+        JsonNode example = readJson(get(BASE + "/example/" + flightA, adminA));
+
+        Map<String, Object> payload = harnessPayload();
+        payload.put("expectedDelivery", asMap(example.get("delivery")));
+        payload.put("expectedMatchedFilterIds", asList(example.get("matchedFilterIds")));
+
+        ResponseEntity<String> created = post(BASE, payload, adminA);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return readJson(created).get("id").asText();
+    }
+
+    private static Object asMap(JsonNode node) {
+        try {
+            return MAPPER.convertValue(node, Map.class);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Failed to convert delivery snapshot", e);
+        }
+    }
+
+    private static Object asList(JsonNode node) {
+        try {
+            return MAPPER.convertValue(node, List.class);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Failed to convert matched-filter ids", e);
+        }
     }
 
     private void bumpFirstExpectedItemQuantity(String id) {

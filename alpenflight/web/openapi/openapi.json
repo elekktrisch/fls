@@ -5543,6 +5543,18 @@
           "description" : {
             "type" : "string"
           },
+          "expectedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot",
+            "description" : "Captured dry-run output to persist as the expected set (absent = leave unchanged)."
+          },
+          "expectedMatchedFilterIds" : {
+            "type" : "array",
+            "description" : "Matched AccountingRuleFilter ids from the captured dry-run (absent = empty).",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
           "active" : {
             "type" : "boolean",
             "description" : "Harness active (absent = true, the legacy default)."
@@ -5589,6 +5601,75 @@
           }
         },
         "required" : [ "flightId", "testName" ]
+      },
+      "DeliveryDetailsSnapshot" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryItemDetails"
+            }
+          },
+          "recipient" : {
+            "$ref" : "#/components/schemas/Recipient"
+          },
+          "deliveryInformation" : {
+            "type" : "string"
+          },
+          "additionalInformation" : {
+            "type" : "string"
+          }
+        }
+      },
+      "DeliveryItemDetails" : {
+        "type" : "object",
+        "properties" : {
+          "position" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "articleNumber" : {
+            "type" : "string"
+          },
+          "itemText" : {
+            "type" : "string"
+          },
+          "additionalInformation" : {
+            "type" : "string"
+          },
+          "quantity" : {
+            "type" : "number"
+          },
+          "discountInPercent" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unitType" : {
+            "type" : "string"
+          }
+        }
+      },
+      "Recipient" : {
+        "type" : "object",
+        "properties" : {
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "personClubMemberNumber" : {
+            "type" : "string"
+          },
+          "recipientName" : {
+            "type" : "string"
+          },
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          }
+        }
       },
       "DeliveryCreationTestDetail" : {
         "type" : "object",
@@ -5677,75 +5758,6 @@
           }
         },
         "required" : [ "active", "expectedDelivery", "expectedMatchedFilterIds", "flightId", "id", "ignoreAdditionalInformation", "ignoreDeliveryInformation", "ignoreItemAdditionalInformation", "ignoreItemPositioning", "ignoreItemText", "ignoreRecipientAddress", "ignoreRecipientClubMemberNumber", "ignoreRecipientName", "ignoreRecipientPersonId", "lastTestMatchedFilterIds", "mustNotCreateDeliveryForFlight", "testName" ]
-      },
-      "DeliveryDetailsSnapshot" : {
-        "type" : "object",
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/DeliveryItemDetails"
-            }
-          },
-          "recipient" : {
-            "$ref" : "#/components/schemas/Recipient"
-          },
-          "deliveryInformation" : {
-            "type" : "string"
-          },
-          "additionalInformation" : {
-            "type" : "string"
-          }
-        }
-      },
-      "DeliveryItemDetails" : {
-        "type" : "object",
-        "properties" : {
-          "position" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "articleNumber" : {
-            "type" : "string"
-          },
-          "itemText" : {
-            "type" : "string"
-          },
-          "additionalInformation" : {
-            "type" : "string"
-          },
-          "quantity" : {
-            "type" : "number"
-          },
-          "discountInPercent" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "unitType" : {
-            "type" : "string"
-          }
-        }
-      },
-      "Recipient" : {
-        "type" : "object",
-        "properties" : {
-          "personId" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "personClubMemberNumber" : {
-            "type" : "string"
-          },
-          "recipientName" : {
-            "type" : "string"
-          },
-          "firstname" : {
-            "type" : "string"
-          },
-          "lastname" : {
-            "type" : "string"
-          }
-        }
       },
       "ClubUpdateRequest" : {
         "type" : "object",

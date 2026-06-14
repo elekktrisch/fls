@@ -77,14 +77,26 @@ public final class DeliveryCreationTestDtos {
     /**
      * The create + update payload. Legacy drives both POST and PUT from the same
      * edit form, so one write-request shape serves both endpoints and the service
-     * maps it through one path. The expected-delivery set and run-state are NOT on
-     * this request — a dry-run captures the expected set (T-15).
+     * maps it through one path.
+     *
+     * <p>{@code expectedDelivery} + {@code expectedMatchedFilterIds} carry the
+     * dry-run output the SPA captured ({@code exampleResult.delivery} /
+     * {@code .matchedFilterIds}) — both nullable, because a harness can be saved
+     * before its first dry-run (no expectation yet, legal). When present they
+     * become the harness's persisted expected set via the aggregate's
+     * {@code captureExpected}; without them the run-state is untouched. The
+     * {@code lastTest*} run-state stays read-only here — owned by the run-test
+     * endpoint (T-15).
      */
     @Schema(description = "Create/update payload for a DeliveryCreationTest in the caller's tenant.")
     public record DeliveryCreationTestWriteRequest(
             @NotNull UUID flightId,
             @NotBlank @Size(max = 250) String testName,
             @Nullable String description,
+            @Schema(description = "Captured dry-run output to persist as the expected set (absent = leave unchanged).")
+                    @Nullable DeliveryDetailsSnapshot expectedDelivery,
+            @Schema(description = "Matched AccountingRuleFilter ids from the captured dry-run (absent = empty).")
+                    @Nullable List<UUID> expectedMatchedFilterIds,
             @Schema(description = "Harness active (absent = true, the legacy default).") @Nullable Boolean active,
             @Schema(description = "Assert the flight produces NO delivery (absent = false).")
                     @Nullable Boolean mustNotCreateDeliveryForFlight,

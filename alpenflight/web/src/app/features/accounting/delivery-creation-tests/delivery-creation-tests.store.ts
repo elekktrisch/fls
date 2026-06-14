@@ -127,6 +127,24 @@ function withDetailId(d: DeliveryCreationTestDetail): DeliveryCreationTestDetail
 }
 
 /**
+ * Fold the last dry-run output into the write request so a saved harness persists
+ * the expected set the operator just captured (the backend's `captureExpected`
+ * runs only when `expectedDelivery` is present). No dry-run captured → send the
+ * request as-is, leaving any previously persisted expectation untouched.
+ */
+function withCapturedExpected(
+  req: DeliveryCreationTestWriteRequest,
+  example: ExampleDeliveryResult | null,
+): DeliveryCreationTestWriteRequest {
+  if (!example) return req;
+  return {
+    ...req,
+    expectedDelivery: example.delivery,
+    expectedMatchedFilterIds: example.matchedFilterIds,
+  };
+}
+
+/**
  * Project the detail onto the list-row shape for an optimistic post-save patch;
  * `loadAll()` after the mutation settles `lastTest*` to the authoritative value.
  */
@@ -217,7 +235,7 @@ export const DeliveryCreationTestsStore = signalStore(
           pipe(
             tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
             switchMap((req) =>
-              api.createDeliveryCreationTest(req).pipe(
+              api.createDeliveryCreationTest(withCapturedExpected(req, store.exampleResult())).pipe(
                 tapResponse({
                   next: (d: DeliveryCreationTestDetail) => {
                     const detail = withDetailId(d);
@@ -237,19 +255,21 @@ export const DeliveryCreationTestsStore = signalStore(
           pipe(
             tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
             switchMap(({ id, req }) =>
-              api.updateDeliveryCreationTest(id, req).pipe(
-                tapResponse({
-                  next: (d: DeliveryCreationTestDetail) => {
-                    const detail = withDetailId(d);
-                    patchState(store, setEntity(listItemFromDetail(detail)), {
-                      selectedDetail: detail,
-                    });
-                    bus.next({ kind: 'delivery-creation-test.updated', id: detail.id });
-                    loadAll();
-                  },
-                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
-                }),
-              ),
+              api
+                .updateDeliveryCreationTest(id, withCapturedExpected(req, store.exampleResult()))
+                .pipe(
+                  tapResponse({
+                    next: (d: DeliveryCreationTestDetail) => {
+                      const detail = withDetailId(d);
+                      patchState(store, setEntity(listItemFromDetail(detail)), {
+                        selectedDetail: detail,
+                      });
+                      bus.next({ kind: 'delivery-creation-test.updated', id: detail.id });
+                      loadAll();
+                    },
+                    error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
+                  }),
+                ),
             ),
           ),
         ),

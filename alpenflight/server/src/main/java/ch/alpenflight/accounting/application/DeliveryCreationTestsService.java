@@ -104,6 +104,7 @@ public class DeliveryCreationTestsService {
                 orDefault(req.active(), true),
                 orDefault(req.mustNotCreateDeliveryForFlight(), false),
                 ignoreFlagsOf(req));
+        captureExpectedIfSupplied(test, req);
         DeliveryCreationTestDetail created = toDetail(persist(test));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id(), created));
@@ -120,6 +121,7 @@ public class DeliveryCreationTestsService {
                 orDefault(req.active(), true),
                 orDefault(req.mustNotCreateDeliveryForFlight(), false),
                 ignoreFlagsOf(req));
+        captureExpectedIfSupplied(test, req);
         DeliveryCreationTestDetail after = toDetail(persist(test));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id, before, after));
@@ -203,6 +205,23 @@ public class DeliveryCreationTestsService {
     }
 
     // -- request → VO -----------------------------------------------------------
+
+    /**
+     * Persists the captured dry-run output as the harness's expected set when the
+     * write request carries one. A harness saved without a prior dry-run omits the
+     * payload (legal) — its expected set then stays whatever it already held, so a
+     * round-trip without re-capturing never clears a previously captured set.
+     */
+    private static void captureExpectedIfSupplied(DeliveryCreationTest test,
+                                                  DeliveryCreationTestWriteRequest req) {
+        if (req.expectedDelivery() == null) {
+            return;
+        }
+        List<UUID> matchedIds = req.expectedMatchedFilterIds() == null
+                ? List.of()
+                : req.expectedMatchedFilterIds();
+        test.captureExpected(req.expectedDelivery(), matchedIds);
+    }
 
     private static IgnoreFlags ignoreFlagsOf(DeliveryCreationTestWriteRequest req) {
         return new IgnoreFlags(
