@@ -502,6 +502,8 @@ ${screenshotsBlock}`;
  *                         `vital_signs.{maintainability_avg,duplication_pct,dead_file_pct}`)
  *   - pmd-main.xml        BE complexity/dead-code violation count (one <violation> each)
  *   - cpd-check.xml       BE duplication (sum of <duplication tokens> over total tokens)
+ *   - qodana-report.sarif.json  BE whole-program unused-declaration scan (J-8 T-15);
+ *                         SARIF results count + new-vs-baseline (report-only ratchet)
  *
  * FAIL-SOFT: every artifact may be ABSENT on a given run (the T-12 producer is
  * `continue-on-error`). A missing/malformed file becomes `null` and renders
@@ -609,7 +611,38 @@ export function parseCpd(xml) {
 }
 
 /**
- * Load + parse all 4 maintainability artifacts from `<outDir>/maintainability/`.
+ * Parse the BE Qodana SARIF report (the whole-program unused-declaration scan,
+ * J-8 T-15). Qodana emits SARIF 2.1.0: findings live in `runs[].results[]`. When
+ * a `--baseline` is applied each result carries a `baselineState` ∈ {new,
+ * unchanged, absent} — `new` is the ratchet signal (a finding NOT in the
+ * committed baseline = NEW unused code this branch introduced). Without a
+ * baseline every result is just counted as `total`. Returns
+ *   { total, newFindings }  (newFindings = NEW vs the baseline, or null when no
+ *   baselineState is present — i.e. the baseline wasn't applied this run)
+ * or null if the file is absent/unparseable. JSON-only, no SARIF dep — the
+ * report is informational (fail-soft), same posture as the PMD/CPD/fallow rows.
+ */
+export function parseQodana(json) {
+  if (!json || typeof json !== 'object') return null;
+  const runs = Array.isArray(json.runs) ? json.runs : [];
+  let total = 0;
+  let newFindings = 0;
+  let sawBaselineState = false;
+  for (const run of runs) {
+    const results = Array.isArray(run?.results) ? run.results : [];
+    for (const r of results) {
+      total += 1;
+      if (typeof r?.baselineState === 'string') {
+        sawBaselineState = true;
+        if (r.baselineState === 'new') newFindings += 1;
+      }
+    }
+  }
+  return { total, newFindings: sawBaselineState ? newFindings : null };
+}
+
+/**
+ * Load + parse all maintainability artifacts from `<outDir>/maintainability/`.
  * Returns a structured summary where any absent artifact is `null`. Never throws.
  * `showDelta` flags whether THIS page is the journey-under-work (whose fallow
  * audit delta is the current branch's diff — see SCOPE HONESTY above).
@@ -620,8 +653,9 @@ export function loadMaintainability(outDir, { showDelta = false } = {}) {
   const health = parseFallowHealth(readJsonSoft(resolve(dir, 'fallow-health.json')));
   const pmd = parsePmd(readTextSoft(resolve(dir, 'pmd-main.xml')));
   const cpd = parseCpd(readTextSoft(resolve(dir, 'cpd-check.xml')));
-  const present = Boolean(audit || health || pmd || cpd);
-  return { audit, health, pmd, cpd, present, showDelta };
+  const qodana = parseQodana(readJsonSoft(resolve(dir, 'qodana-report.sarif.json')));
+  const present = Boolean(audit || health || pmd || cpd || qodana);
+  return { audit, health, pmd, cpd, qodana, present, showDelta };
 }
 
 /**
@@ -662,7 +696,7 @@ function renderMaintainabilityPanel(maint, { reportHref = 'maintainability/', jo
         : roll.level === 'red'
           ? 'failure'
           : 'neutral';
-  const { audit, health, pmd, cpd, present, showDelta } = maint;
+  const { audit, health, pmd, cpd, qodana, present, showDelta } = maint;
 
   if (!present) {
     return `        <section class="maintainability">
@@ -704,6 +738,17 @@ function renderMaintainabilityPanel(maint, { reportHref = 'maintainability/', jo
           </tr>`
     : `          <tr><th>BE duplication (CPD)</th><td class="muted">— no CPD report</td></tr>`;
 
+  // BE Qodana (J-8 T-15) — whole-program unused-declaration scan. `newFindings`
+  // is the ratchet signal (NEW unused vs the committed baseline); `null` means
+  // no baseline was applied this run (then we only show the total). The report
+  // is REPORT-ONLY — a non-zero count never gates; this row is informational.
+  const qodanaRow = qodana
+    ? `          <tr>
+            <th>BE unused code (Qodana)</th>
+            <td><strong>${numOrDash(qodana.total)}</strong> findings${qodana.newFindings === null ? '' : ` · <strong>${numOrDash(qodana.newFindings)}</strong> new vs baseline`} <span class="meta">(report-only)</span></td>
+          </tr>`
+    : `          <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>`;
+
   return `        <section class="maintainability">
           <h4>Maintainability <span class="status ${pillClass}">${esc(roll.label)}</span></h4>
           <table class="maint-table">
@@ -711,6 +756,7 @@ ${deltaRow}
 ${healthRow}
 ${pmdRow}
 ${cpdRow}
+${qodanaRow}
           </table>
           <p class="meta"><a href="${esc(reportHref)}">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)${journeyUnderWork ? ` · delta scoped to <strong>${esc(journeyUnderWork)}</strong>` : ''}</p>
         </section>`;
@@ -1198,6 +1244,7 @@ export function writeMaintainabilityIndex(outDir) {
     ['fallow-health.json', 'fallow health (FE repo snapshot)'],
     ['pmd-main.xml', 'PMD (BE complexity + dead-code)'],
     ['cpd-check.xml', 'CPD (BE duplication)'],
+    ['qodana-report.sarif.json', 'Qodana (BE whole-program unused-declaration SARIF)'],
   ].filter(([f]) => existsSync(resolve(dir, f)));
   if (!artifacts.length) return null;
   const items = artifacts
@@ -1278,7 +1325,13 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   const outMaint = resolve(outDir, 'maintainability');
   if (!existsSync(outMaint) && existsSync(fixtureMaint)) {
     mkdirSync(outMaint, { recursive: true });
-    for (const f of ['fallow-audit.json', 'fallow-health.json', 'pmd-main.xml', 'cpd-check.xml']) {
+    for (const f of [
+      'fallow-audit.json',
+      'fallow-health.json',
+      'pmd-main.xml',
+      'cpd-check.xml',
+      'qodana-report.sarif.json',
+    ]) {
       const src = resolve(fixtureMaint, f);
       if (existsSync(src)) copyFileSync(src, resolve(outMaint, f));
     }

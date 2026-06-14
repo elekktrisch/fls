@@ -1,16 +1,27 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
+import { filter, map, startWith } from 'rxjs';
 
 import { AfIconComponent } from '../../atoms/af-icon';
 import { AfLangPickerComponent } from '../../molecules/af-lang-picker';
 import { ViewportService } from '../../viewport';
 
+/**
+ * A top-level nav entry is EITHER a leaf (carries `path`, links straight to a
+ * route) OR a group (carries `children`, no `path` — opens a dropdown / nested
+ * drawer block listing its children). The `children`-on-NavItem model keeps the
+ * input surface a single flat array; the component branches on `path` presence.
+ */
 export interface NavItem {
-  readonly path: string;
+  /** Present on a leaf; absent on a group. */
+  readonly path?: string;
   readonly label: string;
   readonly icon?: string;
+  /** Present on a group; absent on a leaf. A group never carries `path`. */
+  readonly children?: readonly NavItem[];
 }
 
 export interface UserSummary {
@@ -74,15 +85,58 @@ export interface UserSummary {
       <!-- Section tabs (above md only) -->
       @if (isWide()) {
         <nav class="flex items-stretch gap-1 h-full ml-2" aria-label="Primary">
-          @for (item of items(); track item.path) {
-            <a
-              [routerLink]="item.path"
-              routerLinkActive="!text-slate-900 !border-brand-500"
-              class="inline-flex items-center px-3.5 text-[15px] text-slate-600 no-underline border-b-2 border-transparent -mb-px hover:text-slate-900"
-              [attr.data-testid]="'af-nav-section-' + item.path"
-            >
-              {{ item.label }}
-            </a>
+          @for (item of items(); track item.label) {
+            @if (item.children; as children) {
+              <!-- Group: a "Label ▾" trigger opening an nz-dropdown of children.
+                   The trigger shows ACTIVE (brand-500) when ANY child route is
+                   active (groupActive(), a computed over the children + url). -->
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 px-3.5 text-[15px] text-slate-600 bg-transparent border-0 border-b-2 border-transparent -mb-px cursor-pointer hover:text-slate-900"
+                [class.!text-slate-900]="groupActive(children)"
+                [class.!border-brand-500]="groupActive(children)"
+                nz-dropdown
+                [nzDropdownMenu]="groupMenu"
+                nzTrigger="click"
+                nzPlacement="bottomLeft"
+                [attr.data-testid]="'af-nav-group-' + slug(item.label)"
+              >
+                {{ item.label }}
+                <af-icon name="chevron-down" [size]="16" />
+              </button>
+              <nz-dropdown-menu #groupMenu="nzDropdownMenu">
+                <ul
+                  class="list-none m-0 p-1 min-w-[12.5rem] bg-white border border-slate-200"
+                  role="menu"
+                >
+                  @for (child of children; track child.path) {
+                    <li role="none">
+                      <a
+                        role="menuitem"
+                        [routerLink]="child.path"
+                        routerLinkActive="!text-brand-700 !bg-slate-50"
+                        class="flex items-center gap-2.5 w-full px-3 py-2 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
+                        [attr.data-testid]="'af-nav-section-' + child.path"
+                      >
+                        @if (child.icon) {
+                          <af-icon [name]="child.icon" [size]="16" />
+                        }
+                        <span>{{ child.label }}</span>
+                      </a>
+                    </li>
+                  }
+                </ul>
+              </nz-dropdown-menu>
+            } @else {
+              <a
+                [routerLink]="item.path"
+                routerLinkActive="!text-slate-900 !border-brand-500"
+                class="inline-flex items-center px-3.5 text-[15px] text-slate-600 no-underline border-b-2 border-transparent -mb-px hover:text-slate-900"
+                [attr.data-testid]="'af-nav-section-' + item.path"
+              >
+                {{ item.label }}
+              </a>
+            }
           }
         </nav>
       }
@@ -170,25 +224,73 @@ export interface UserSummary {
       (nzOnClose)="closeDrawer()"
     >
       <ng-container *nzDrawerContent>
-        <nav aria-label="Primary mobile">
-          <ul class="list-none m-0 p-0 flex flex-col gap-1">
-            @for (item of items(); track item.path) {
-              <li>
-                <a
-                  [routerLink]="item.path"
-                  routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
-                  class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
-                  (click)="closeDrawer()"
-                >
-                  @if (item.icon) {
-                    <af-icon [name]="item.icon" [size]="18" />
+        <!-- Drawer nav renders its section testids ONLY below md. The desktop
+             header nav (above) renders the same af-nav-section-[path] testids;
+             gating the drawer on !isWide() keeps each testid a SINGLE match per
+             viewport (else af-nav-section-/clubs resolves to 2 elements and
+             strict-mode locators violate). -->
+        @if (!isWide()) {
+          <nav aria-label="Primary mobile">
+            <ul class="list-none m-0 p-0 flex flex-col gap-1">
+              @for (item of items(); track item.label) {
+                <li>
+                  @if (item.children; as children) {
+                    <!-- Group: an expandable block; the parent label toggles the
+                       nested child list (parent is a label, not a route). -->
+                    <button
+                      type="button"
+                      class="flex items-center gap-2.5 w-full py-3 px-2 text-slate-900 bg-transparent border-0 border-l-[3px] border-transparent cursor-pointer text-left"
+                      [class.!text-brand-700]="groupActive(children)"
+                      [class.!border-brand-500]="groupActive(children)"
+                      [attr.aria-expanded]="isGroupOpen(item.label)"
+                      [attr.data-testid]="'af-nav-group-' + slug(item.label)"
+                      (click)="toggleGroup(item.label)"
+                    >
+                      @if (item.icon) {
+                        <af-icon [name]="item.icon" [size]="18" />
+                      }
+                      <span class="flex-1">{{ item.label }}</span>
+                      <af-icon name="chevron-down" [size]="16" />
+                    </button>
+                    @if (isGroupOpen(item.label)) {
+                      <ul class="list-none m-0 p-0 flex flex-col gap-1 ml-5">
+                        @for (child of children; track child.path) {
+                          <li>
+                            <a
+                              [routerLink]="child.path"
+                              routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
+                              class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
+                              [attr.data-testid]="'af-nav-section-' + child.path"
+                              (click)="closeDrawer()"
+                            >
+                              @if (child.icon) {
+                                <af-icon [name]="child.icon" [size]="18" />
+                              }
+                              <span>{{ child.label }}</span>
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    }
+                  } @else {
+                    <a
+                      [routerLink]="item.path"
+                      routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
+                      class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
+                      [attr.data-testid]="'af-nav-section-' + item.path"
+                      (click)="closeDrawer()"
+                    >
+                      @if (item.icon) {
+                        <af-icon [name]="item.icon" [size]="18" />
+                      }
+                      <span>{{ item.label }}</span>
+                    </a>
                   }
-                  <span>{{ item.label }}</span>
-                </a>
-              </li>
-            }
-          </ul>
-        </nav>
+                </li>
+              }
+            </ul>
+          </nav>
+        }
         <div class="h-px bg-slate-200 my-3" aria-hidden="true"></div>
         <af-lang-picker ariaLabel="Language" />
       </ng-container>
@@ -198,6 +300,7 @@ export interface UserSummary {
 export class AfNavBarComponent {
   readonly #viewport = inject(ViewportService);
   readonly #atLeastMd = this.#viewport.isAtLeast('md');
+  readonly #router = inject(Router);
 
   readonly items = input.required<readonly NavItem[]>();
   readonly title = input<string>('AlpenFlight');
@@ -207,6 +310,47 @@ export class AfNavBarComponent {
   readonly #drawerOpen = signal(false);
   protected readonly drawerOpen = this.#drawerOpen.asReadonly();
   protected readonly isWide = computed(() => this.#atLeastMd());
+
+  /** Drawer group-block expanded state (mobile), keyed by group label. */
+  readonly #openGroups = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * Current url as a signal (zoneless — bridge NavigationEnd, seed with the
+   * router's current url so the first paint already reflects the active route).
+   * `groupActive()` reads this to light the parent when a child is active.
+   */
+  readonly #url = toSignal(
+    this.#router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map((e) => e.urlAfterRedirects),
+      startWith(this.#router.url),
+    ),
+    { initialValue: this.#router.url },
+  );
+
+  /** A group is active when the current url matches any of its children's paths. */
+  protected groupActive(children: readonly NavItem[]): boolean {
+    const url = this.#url();
+    return children.some((c) => !!c.path && (url === c.path || url.startsWith(`${c.path}/`)));
+  }
+
+  /** Stable testid slug from a group label (`Masterdata` → `masterdata`). */
+  protected slug(label: string): string {
+    return label.toLowerCase().replace(/\s+/g, '-');
+  }
+
+  protected isGroupOpen(label: string): boolean {
+    return this.#openGroups().has(label);
+  }
+  protected toggleGroup(label: string): void {
+    const next = new Set(this.#openGroups());
+    if (next.has(label)) {
+      next.delete(label);
+    } else {
+      next.add(label);
+    }
+    this.#openGroups.set(next);
+  }
 
   protected openDrawer(): void {
     this.#drawerOpen.set(true);

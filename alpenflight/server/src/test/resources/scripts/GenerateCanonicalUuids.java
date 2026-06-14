@@ -274,16 +274,19 @@ public class GenerateCanonicalUuids {
 
         // S-014 reference tables.
 
-        // accounting_rule_filter_type — 8 rows per legacy
-        // database/FLSTest/3 insert/3 Insert Static Data.sql (AccountingRuleFilterTypeId
-        // values: 10, 20, 30, 40, 50, 60, 70, 80; one filter type per per-line-item /
-        // recipient-routing concern). The code rule strategies in
-        // FLS.Server.Service/Accounting/Rules/*.cs (DoNotInvoiceFlightRule,
-        // StartTaxRule, FlightCostPaidByPilotRule, etc.) are CODE strategies that
-        // execute when a filter matches — they are NOT seeded as filter types.
+        // accounting_rule_filter_type — 10 rows per the legacy
+        // AccountingRuleFilterTypeId enum (AccountingRuleFilterTypeId values:
+        // 5, 10, 20, 30, 40, 50, 55, 60, 70, 80; one filter type per per-line-item /
+        // recipient-routing concern). Indices 0..7 (RECIPIENT…ENGINE_TIME, legacy
+        // 10..80) shipped in V4; indices 8..9 (DO_NOT_INVOICE legacy 5 /
+        // START_TAX legacy 55) were added by V42 (J-8 T-09) — a real club may hold
+        // AccountingRuleFilter rows of type 5/55, so they must be seeded as filter
+        // types or the migration FK-fails at fanout. APPEND new codes; never
+        // reorder — index drives the canonical UUID.
         String[] accountingRuleFilterTypes = {
                 "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
-                "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME"};
+                "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME",
+                "DO_NOT_INVOICE", "START_TAX"};
         out.println();
         out.println("# accounting_rule_filter_type:");
         for (int i = 0; i < accountingRuleFilterTypes.length; i++) {

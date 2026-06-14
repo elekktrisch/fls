@@ -545,6 +545,62 @@ export async function seedFanOutParity(
 }
 
 /**
+ * Worker-scoped memo of the ONE shared real-bundle ingest+provision (J-8 T-17).
+ *
+ * The shared real legacy TestClub bundle (the J-0c fan-out export) carries the
+ * rows EVERY migrated-data consumer reads — the migrated Location (J-0c), the
+ * reservation (J-5), the planning rows (J-6), AND the AccountingRuleFilter rows
+ * (J-8). It is sealed to ONE single-use `uploadId`, so it must be POSTed to
+ * `.../bundle` EXACTLY ONCE per run; a second POST of the same uploadId 409s
+ * (`BUNDLE_PRIOR_RUN_FAILED`). Memoizing the `seedFanOutParity` call in this
+ * worker-scoped promise (real-idp is `workers:1`, so the whole real-bundle
+ * invocation is ONE process → module state is shared across all specs) makes
+ * the ingest order-INDEPENDENT: whichever migrated spec runs first triggers it,
+ * everyone else awaits the cached promise. This closes the J-8 T-17 bug where
+ * `accounting-rules-parity` (alphabetically BEFORE `fan-out-migration-parity`)
+ * raced ahead of provisioning under Playwright's spec-sort, and removes the
+ * latent alphabetical-luck fragility for reservations/planning too.
+ *
+ * Mirrors the `tokenPromise` worker-singleton pattern in `keycloak-admin.ts`.
+ */
+let sharedBundlePromise: Promise<FanOutParityFixture> | undefined;
+
+/**
+ * Ensure the shared real-bundle migration has been ingested + its per-club
+ * admins provisioned, exactly once per worker. Idempotent: the first caller
+ * runs `seedFanOutParity`; subsequent callers (any other migrated-data spec)
+ * await the same cached promise rather than re-ingesting the single-use bundle.
+ * On failure the memo is cleared so a retry (synth path) can re-attempt.
+ *
+ * REAL-bundle only: callers gate on `useRealBundle()` before invoking. The
+ * `attempt` is always 0 in real mode (`retries:0`), so no per-retry uploadId
+ * re-mint is needed here — that concern is synth-only, where `fan-out` calls
+ * `seedFanOutParity` directly with `testInfo.retry`.
+ */
+export async function ensureSharedMigrationBundle(
+  browser: Browser,
+  baseURL: string,
+): Promise<FanOutParityFixture> {
+  if (sharedBundlePromise) return sharedBundlePromise;
+  sharedBundlePromise = (async () => {
+    const context = await browser.newContext({ baseURL });
+    try {
+      return await seedFanOutParity(browser, context.request, baseURL);
+    } finally {
+      await context.close();
+    }
+  })();
+  try {
+    return await sharedBundlePromise;
+  } catch (err) {
+    // Clear the memo on failure so a (synth-path) retry re-attempts rather than
+    // re-throwing a stale rejected promise.
+    sharedBundlePromise = undefined;
+    throw err;
+  }
+}
+
+/**
  * Log a migrated club admin in through the SPA + Keycloak login form, landing
  * on the authed root. The page's storageState is the per-club session — the
  * `clubId` claim (provisioned club UUID) resolves the tenant, and

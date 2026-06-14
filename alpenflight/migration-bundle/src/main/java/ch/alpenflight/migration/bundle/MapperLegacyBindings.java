@@ -1045,6 +1045,130 @@ public final class MapperLegacyBindings {
                             ?, ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.ACCOUNTING_RULE_FILTER, new Binding(
+                    // Tenant-scoped accounting-rule aggregate root
+                    // (AccountingRuleFilterMapper, J-8 T-10): legacy
+                    // AccountingRuleFilters.AccountingRuleFilterId →
+                    // t_accounting_rule_filter.id; operating_club_id is the @TenantId
+                    // per V4, set from the real legacy ClubId column. NOT fan-out —
+                    // one legacy row → one row, legacy_guid → id (like FLIGHT_TYPE).
+                    //
+                    // filter_type_id + accounting_unit_type_id are emitted by the
+                    // mapper as the synthetic new UUID(0, legacyIntId) and resolved
+                    // ingest-side via the mapper's referenceLookups() against the
+                    // V4/V42-seeded t_accounting_rule_filter_type / t_accounting_unit_type
+                    // legacy_int_id (NOT bundle EntityType FKs) — so the SELECT projects
+                    // the raw legacy int columns AccountingRuleFilterTypeId /
+                    // AccountingUnitTypeId verbatim.
+                    //
+                    // TARGET JSON-BLOB EXTRACTION (project_synth_bundle_doesnt_validate
+                    // _producer_select): the legacy ArticleTarget / RecipientTarget are
+                    // nvarchar(max) JSON blobs (JsonConvert.SerializeObject of
+                    // ArticleTargetDetails {ArticleNumber, DeliveryLineText} /
+                    // RecipientDetails {PersonClubMemberNumber, RecipientName, …} —
+                    // AccountingRuleFilterMappingExtensions.cs:75/256/347/359). The new
+                    // article_target / recipient_target are VARCHAR(50) scalars, so the
+                    // producer extracts the bare scalar via T-SQL JSON_VALUE aliased to
+                    // the name the mapper reads; the descriptive DeliveryLineText /
+                    // RecipientName ride filter_config (read by buildFilterConfig).
+                    // Dumping the whole blob into VARCHAR(50) would overflow.
+                    //
+                    // The Matched* columns are JSON arrays (the mapper parses them as
+                    // such) and are projected verbatim — the mapper's
+                    // appendJsonArrayElements does the parse, not the SELECT.
+                    //
+                    // SORT-INDICATOR RENUMBER ON COLLISION (ux_arf_club_sort_partial,
+                    // J-8 T-10): V4's partial UNIQUE (operating_club_id, sort_indicator)
+                    // WHERE deleted_on IS NULL forbids per-club sort-indicator dups, but
+                    // legacy SortIndicator is int NULL + dup-prone (no such legacy
+                    // constraint). A real club with two rows sharing a SortIndicator (or
+                    // NULL) would 23505 at the 2nd INSERT — the §4 fanout blocker. So the
+                    // producer RENUMBERS: ROW_NUMBER() OVER (PARTITION BY ClubId ORDER BY
+                    // SortIndicator, CreatedOn, AccountingRuleFilterId) assigns each LIVE
+                    // row a dense, distinct 1..N per club (ACCOUNTING_RULE_SORT_RENUMBERED).
+                    // The CASE … SortIndicator IS NULL THEN 0 ELSE 1 lead-key forces NULL
+                    // indicators FIRST identically on BOTH dialects (T-SQL ASC is NULLS
+                    // FIRST, Postgres ASC is NULLS LAST — the explicit CASE makes the
+                    // ordering dialect-portable so the test container and the live MSSQL
+                    // agree); ORDER BY SortIndicator then preserves the legacy intended
+                    // order, CreatedOn + the GUID are deterministic tiebreaks. The renumber
+                    // partitions ONLY over the rows the partial index covers (WHERE
+                    // IsDeleted = 0, the J-6 soft-delete-blind dedupe rider) so a
+                    // soft-deleted row never consumes a live row's index nor collides.
+                    // Soft-deleted rows are dropped (legacy IsDeleted = 1 is the new
+                    // deleted_on convention; the other tenant mappers carry deleted_on
+                    // but legacy AccountingRuleFilters has BOTH IsDeleted and DeletedOn,
+                    // and the partial UNIQUE only covers deleted_on IS NULL — exporting a
+                    // soft-deleted row with a renumbered live index would be wrong, so we
+                    // filter them out entirely, consistent with the partial-index
+                    // semantics). Locked by AccountingRuleFilterProducerDedupeIT.
+                    // ROW_NUMBER() OVER + JSON_VALUE are T-SQL native (the live legacy
+                    // MSSQL dialect) and evaluate identically on the Postgres test
+                    // container.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT AccountingRuleFilterId, ClubId,
+                           AccountingRuleFilterTypeId, AccountingUnitTypeId,
+                           RuleFilterName, Description, IsActive,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY ClubId
+                               ORDER BY CASE WHEN SortIndicator IS NULL THEN 0 ELSE 1 END,
+                                        SortIndicator, CreatedOn, AccountingRuleFilterId
+                           ) AS SortIndicator,
+                           StopRuleEngineWhenRuleApplied, IsChargedToClubInternal,
+                           JSON_VALUE(ArticleTarget, '$.ArticleNumber') AS ArticleTarget,
+                           JSON_VALUE(ArticleTarget, '$.DeliveryLineText') AS DeliveryLineText,
+                           JSON_VALUE(RecipientTarget, '$.PersonClubMemberNumber')
+                               AS RecipientTarget,
+                           JSON_VALUE(RecipientTarget, '$.RecipientName') AS RecipientName,
+                           IsRuleForGliderFlights, IsRuleForTowingFlights,
+                           IsRuleForMotorFlights,
+                           NoLandingTaxForGlider, NoLandingTaxForTowingAircraft,
+                           NoLandingTaxForAircraft,
+                           IncludeFlightTypeName,
+                           ExtendMatchingFlightTypeCodesToGliderAndTowFlight,
+                           IncludeThresholdText, ThresholdText,
+                           MinFlightTimeInSecondsMatchingValue,
+                           MaxFlightTimeInSecondsMatchingValue,
+                           MinEngineTimeInSecondsMatchingValue,
+                           MaxEngineTimeInSecondsMatchingValue,
+                           UseRuleForAllAircraftsExceptListed,
+                           MatchedAircraftImmatriculations,
+                           UseRuleForAllStartTypesExceptListed, MatchedStartTypes,
+                           UseRuleForAllFlightTypesExceptListed, MatchedFlightTypeCodes,
+                           UseRuleForAllStartLocationsExceptListed, MatchedStartLocations,
+                           UseRuleForAllLdgLocationsExceptListed, MatchedLdgLocations,
+                           UseRuleForAllClubMemberNumbersExceptListed,
+                           MatchedClubMemberNumbers,
+                           UseRuleForAllFlightCrewTypesExceptListed, MatchedFlightCrewTypes,
+                           UseRuleForAllAircraftsOnHomebaseExceptListed,
+                           MatchedAircraftsHomebase,
+                           UseRuleForAllMemberStatesExceptListed, MatchedMemberStates,
+                           UseRuleForAllPersonCategoriesExceptListed,
+                           MatchedPersonCategories,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM AccountingRuleFilters
+                    WHERE IsDeleted = 0
+                    """,
+                    "t_accounting_rule_filter",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 19 params match
+                    // AccountingRuleFilterMapper.columns() order.
+                    """
+                    INSERT INTO t_accounting_rule_filter (
+                      id, operating_club_id, filter_type_id, accounting_unit_type_id,
+                      rule_filter_name, description, is_active, sort_indicator,
+                      stop_rule_engine_when_applied, is_charged_to_club_internal,
+                      article_target, recipient_target, filter_config,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

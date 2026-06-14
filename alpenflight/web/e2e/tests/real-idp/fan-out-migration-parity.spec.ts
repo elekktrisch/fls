@@ -10,6 +10,7 @@ import {
 import {
   loginAsMigratedAdmin,
   seedFanOutParity,
+  ensureSharedMigrationBundle,
   type FanOutParityFixture,
 } from './_helpers/fan-out-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
@@ -124,10 +125,22 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     // Seeds through the REAL migration endpoint — fan-out + Keycloak provision
     // both run live. ~30-60s (Gradle seeder + ingest); covered by the
     // real-idp project's 60s timeout.
-    // Pass the retry index so a re-run mints a FRESH handshake/uploadId (synth
-    // path) — a prior failed ingest sealed its upload FAILED, and re-POSTing it
-    // would 409 BUNDLE_PRIOR_RUN_FAILED.
-    fixture = await seedFanOutParity(browser, request, baseURL, testInfo.retry);
+    //
+    // REAL-bundle mode: route through the worker-scoped `ensureSharedMigrationBundle`
+    // singleton (J-8 T-17) so the SINGLE single-use real bundle is ingested EXACTLY
+    // ONCE regardless of which migrated-data spec the Playwright spec-sort runs first.
+    // The shared bundle carries the rows the J-5/J-6/J-8 migrated blocks read too, and
+    // `accounting-rules-parity` sorts BEFORE this file — so the consumer that wins the
+    // race triggers the ingest and this `beforeAll` shares the cached result instead of
+    // re-POSTing the same uploadId (which would 409 BUNDLE_PRIOR_RUN_FAILED).
+    //
+    // SYNTH mode (per-push/nightly): the migrated-data consumer blocks `test.skip` on
+    // `!useRealBundle()`, so NOTHING else ingests — keep the direct call with
+    // `testInfo.retry` so a Playwright retry re-handshakes a FRESH uploadId (a prior
+    // failed ingest sealed its upload FAILED).
+    fixture = REAL_BUNDLE
+      ? await ensureSharedMigrationBundle(browser, baseURL)
+      : await seedFanOutParity(browser, request, baseURL, testInfo.retry);
   });
 
   test('club-A admin sees the migrated Location under its random name', async ({

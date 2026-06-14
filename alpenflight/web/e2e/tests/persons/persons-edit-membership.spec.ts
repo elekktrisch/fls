@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { enterViaNav } from '../_helpers/nav';
+
 /**
  * J-26 T-04 — persons membership data-loss fix (mock inner loop).
  *
@@ -315,11 +317,11 @@ test('persons edit: memberNumber + role toggle + memberState round-trip through 
   await stubReferenceData(page);
   await page.route('**/api/v1/persons**', setupPersonsBackend(persons, captured));
 
-  // CHROME ENTRY: app shell → Persons nav section → list row → edit form.
+  // CHROME ENTRY: app shell → Masterdata group → Persons nav section → list row
+  // → edit form. Persons moved under the Masterdata dropdown (J-8 T-22a); the
+  // helper opens that group first, then clicks the nested entry.
   await page.goto('/start?lang=de');
-  const section = page.getByTestId('af-nav-section-/persons');
-  await expect(section, 'the /persons nav section is chrome-reachable').toBeVisible();
-  await section.click();
+  await enterViaNav(page, '/persons');
   await expect(page).toHaveURL(/\/persons$/);
   await page.getByTestId(`person-row-${PERSON_ID}`).click();
   await expect(page).toHaveURL(/\/persons\/pn-.+\/edit$/);

@@ -2,8 +2,10 @@ package ch.alpenflight.migration.bundle.accounting;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,13 +49,51 @@ import org.jspecify.annotations.Nullable;
  * the {@code ObjectMapper} + concrete node types, never polymorphic
  * deserialisation.
  *
- * <p>The {@code MatchedXxx} legacy columns are comma-separated text
- * lists. Split on comma, trim each element, drop blanks — surface as
- * a JSON string array. Empty / NULL legacy → empty array.
+ * <p><strong>The {@code MatchedXxx} legacy columns are JSON arrays</strong>
+ * (T-10 reconciliation against the real legacy schema). The legacy C#
+ * {@code AccountingRuleFilterMappingExtensions} serialises every match-list
+ * via {@code JsonConvert.SerializeObject(List<…>)} ({@code :331-340}) and
+ * deserialises via {@code JsonConvert.DeserializeObject<List<…>>}
+ * ({@code :240-250}) — so the {@code nvarchar(max)} columns hold JSON arrays
+ * ({@code ["HB-3170","HB-1234"]}, {@code [1,2]}, {@code ["<guid>"]}), NOT
+ * comma-separated text. This mapper parses each column as a JSON array and
+ * normalises every element to a trimmed string → {@code matched: String[]}
+ * (ints/Guids surface as their string form, matching {@link
+ * ch.alpenflight.accounting.domain.FilterConfig.MatchList}'s uniform
+ * {@code String[]}). Empty array / NULL / blank legacy → empty array. (The
+ * prior {@code rawList.split(",")} corrupted a JSON array into a single
+ * element {@code ["[\"HB-3170\"]"]} — the classic producer-SELECT format
+ * gap the synth bundle never caught.)
+ *
+ * <p><strong>{@code ArticleTarget} / {@code RecipientTarget} are JSON
+ * blobs, not scalars</strong> (T-10). Legacy {@code ArticleTarget}
+ * {@code nvarchar(max)} = {@code {ArticleNumber, DeliveryLineText}}
+ * ({@code ArticleTargetDetails}); {@code RecipientTarget} =
+ * {@code {PersonClubMemberNumber, RecipientName, …}}
+ * ({@code RecipientDetails}). The producer SELECT extracts the scalars via
+ * MSSQL {@code JSON_VALUE}: {@code ArticleTarget.ArticleNumber} →
+ * {@code article_target VARCHAR(50)}, {@code RecipientTarget
+ * .PersonClubMemberNumber} → {@code recipient_target}; the descriptive
+ * {@code DeliveryLineText} + {@code RecipientName} ride
+ * {@code filter_config} (so the form round-trips them per the AC "reload
+ * round-trips every field"). Reading the whole blob into the
+ * {@code VARCHAR(50)} columns would overflow / dump garbage.
+ *
+ * <p><strong>{@code filter_type_id} + {@code accounting_unit_type_id}
+ * resolve via {@link #referenceLookups()}</strong> (T-10): both carry the
+ * synthetic {@code new UUID(0, legacyIntId)} and the ingest joins
+ * {@code t_accounting_rule_filter_type} / {@code t_accounting_unit_type}
+ * on {@code legacy_int_id} (V4 seed + V42 added types 5/55).
  *
  * <p>{@code (operating_club_id, sort_indicator)} UNIQUE partial
- * collisions: producer-side re-number on detection +
- * {@code ACCOUNTING_RULE_SORT_RENUMBERED} warning. Mapper passes through.
+ * collisions (ux_arf_club_sort_partial): the legacy {@code SortIndicator}
+ * is dup-prone {@code int NULL} (no such legacy constraint). The producer
+ * SELECT RENUMBERS on collision via {@code ROW_NUMBER() OVER (PARTITION BY
+ * ClubId ORDER BY SortIndicator, CreatedOn)} over the soft-delete-LIVE rows
+ * the partial index covers ({@code WHERE IsDeleted = 0}), so every exported
+ * row carries a DISTINCT {@code sort_indicator} for its club —
+ * {@code ACCOUNTING_RULE_SORT_RENUMBERED}. Mapper passes the renumbered
+ * value through. Locked by {@code AccountingRuleFilterProducerDedupeIT}.
  *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
@@ -146,6 +186,33 @@ public final class AccountingRuleFilterMapper implements Mapper {
         // legacy_int_id (entities outside EntityType — same pattern as
         // FlightMapper's process_state_id / flight_cost_balance_type_id).
         return List.of(EntityType.CLUB);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // operating_club_id → CLUB is off-convention: the resolver's <target>_id
+        // default would look for a club_id column (which does not exist on
+        // t_accounting_rule_filter), leave operating_club_id as the legacy GUID,
+        // and FK-violate fk_accounting_rule_filter_operating_club_id (23503) at
+        // INSERT. Declared explicitly (the FlightMapper idiom for its @TenantId).
+        return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
+    }
+
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        // filter_type_id + accounting_unit_type_id carry the synthetic
+        // new UUID(0, legacyIntId) (writeNdjson uses legacyIntIdToUuidString /
+        // optionalLegacyIntIdAsUuidString) for V4/V42-seeded reference rows
+        // OUTSIDE EntityType — resolved structurally against each seed table's
+        // legacy_int_id (ux_arft_legacy_int_id / ux_aut_legacy_int_id point
+        // lookups), exactly like FlightMapper's process_state_id. Without these
+        // the ingest leaves the synthetic UUID verbatim and the row FK-violates
+        // fk_arf_filter_type_id at INSERT (T-09 finding — load-bearing for ALL
+        // filter types). filter_type_id is required (NOT NULL); a NULL
+        // accounting_unit_type_id is skipped by the resolver.
+        return List.of(
+                new ReferenceLookup(FILTER_TYPE_ID, "t_accounting_rule_filter_type"),
+                new ReferenceLookup(ACCOUNTING_UNIT_TYPE_ID, "t_accounting_unit_type"));
     }
 
     @Override
@@ -250,22 +317,77 @@ public final class AccountingRuleFilterMapper implements Mapper {
         putOptionalInt(config, "maxEngineTimeInSecondsMatchingValue",
                 source.getObject("MaxEngineTimeInSecondsMatchingValue", Integer.class));
 
+        // The descriptive text fields that travel with the article/recipient
+        // targets (T-03 added them to FilterConfig; T-10 emits them). The
+        // producer SELECT extracts them from the legacy JSON blobs via
+        // JSON_VALUE(ArticleTarget,'$.DeliveryLineText') AS DeliveryLineText /
+        // JSON_VALUE(RecipientTarget,'$.RecipientName') AS RecipientName. The
+        // bare scalars (ArticleNumber / member-number) live in the
+        // article_target / recipient_target columns, NOT here.
+        putOptionalString(config, "deliveryLineText", source.getString("DeliveryLineText"));
+        putOptionalString(config, "recipientName", source.getString("RecipientName"));
+
         for (BooleanPair pair : BOOLEAN_PAIRS) {
             com.fasterxml.jackson.databind.node.ObjectNode pairNode = config.putObject(pair.jsonKey);
             pairNode.put("useAllExcept", source.getBoolean(pair.useAllExceptColumn));
             com.fasterxml.jackson.databind.node.ArrayNode matched = pairNode.putArray("matched");
-            String rawList = source.getString(pair.matchedColumn);
-            if (rawList != null) {
-                for (String element : rawList.split(",")) {
-                    String trimmed = element.trim();
-                    if (!trimmed.isEmpty()) {
-                        matched.add(trimmed);
-                    }
-                }
-            }
+            appendJsonArrayElements(matched, source.getString(pair.matchedColumn));
         }
 
         return config;
+    }
+
+    /**
+     * Parse a legacy {@code MatchedXxx} column — a {@code JsonConvert
+     * .SerializeObject(List<…>)} JSON array (legacy C#
+     * {@code AccountingRuleFilterMappingExtensions:331-340}) — and append every
+     * element as a trimmed string to {@code matched}. Ints / Guids surface as
+     * their string form (uniform {@code String[]} per {@code FilterConfig
+     * .MatchList}). NULL / blank / {@code "null"} / empty-array legacy → no
+     * elements appended (empty matched array, preserving the inversion flag).
+     * Blank elements are dropped.
+     *
+     * <p>A column that is NOT valid JSON (legacy dirty data) is treated as a
+     * single scalar value — defensive, never throws mid-stream: a malformed
+     * predicate must not abort a multi-million-row export.
+     */
+    private static void appendJsonArrayElements(
+            com.fasterxml.jackson.databind.node.ArrayNode matched, @Nullable String rawJson) {
+        if (rawJson == null) {
+            return;
+        }
+        String trimmed = rawJson.trim();
+        if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)) {
+            return;
+        }
+        JsonNode parsed;
+        try {
+            parsed = JSON.readTree(trimmed);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException notJson) {
+            // Legacy dirty data: not a JSON array — keep the raw value as one
+            // trimmed element rather than aborting the export.
+            if (!trimmed.isEmpty()) {
+                matched.add(trimmed);
+            }
+            return;
+        }
+        if (parsed.isArray()) {
+            for (JsonNode element : parsed) {
+                if (element.isNull()) {
+                    continue;
+                }
+                String value = element.asText().trim();
+                if (!value.isEmpty()) {
+                    matched.add(value);
+                }
+            }
+        } else if (!parsed.isNull()) {
+            // A bare scalar (legacy single-value column not wrapped in an array).
+            String value = parsed.asText().trim();
+            if (!value.isEmpty()) {
+                matched.add(value);
+            }
+        }
     }
 
     private static void putOptionalString(

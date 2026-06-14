@@ -1,16 +1,22 @@
 package ch.alpenflight.referencedata.application;
 
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AccountingRuleFilterTypeResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AccountingUnitTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CounterUnitTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.FlightCrewTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
+import ch.alpenflight.referencedata.domain.AccountingRuleFilterTypeRepository;
+import ch.alpenflight.referencedata.domain.AccountingUnitTypeRepository;
 import ch.alpenflight.referencedata.domain.AircraftStateRepository;
 import ch.alpenflight.referencedata.domain.AircraftTypeRepository;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CounterUnitTypeRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
+import ch.alpenflight.referencedata.domain.FlightCrewTypeRepository;
 import ch.alpenflight.referencedata.domain.LocationTypeRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -32,19 +38,28 @@ public class ReferenceDataService {
     private final AircraftTypeRepository aircraftTypes;
     private final AircraftStateRepository aircraftStates;
     private final CounterUnitTypeRepository counterUnitTypes;
+    private final AccountingRuleFilterTypeRepository accountingRuleFilterTypes;
+    private final AccountingUnitTypeRepository accountingUnitTypes;
+    private final FlightCrewTypeRepository flightCrewTypes;
 
     public ReferenceDataService(CountryRepository countries,
                                 ClubStateRepository clubStates,
                                 LocationTypeRepository locationTypes,
                                 AircraftTypeRepository aircraftTypes,
                                 AircraftStateRepository aircraftStates,
-                                CounterUnitTypeRepository counterUnitTypes) {
+                                CounterUnitTypeRepository counterUnitTypes,
+                                AccountingRuleFilterTypeRepository accountingRuleFilterTypes,
+                                AccountingUnitTypeRepository accountingUnitTypes,
+                                FlightCrewTypeRepository flightCrewTypes) {
         this.countries = countries;
         this.clubStates = clubStates;
         this.locationTypes = locationTypes;
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
         this.counterUnitTypes = counterUnitTypes;
+        this.accountingRuleFilterTypes = accountingRuleFilterTypes;
+        this.accountingUnitTypes = accountingUnitTypes;
+        this.flightCrewTypes = flightCrewTypes;
     }
 
     public List<CountryResponse> listCountries() {
@@ -76,6 +91,24 @@ public class ReferenceDataService {
     public List<CounterUnitTypeResponse> listCounterUnitTypes() {
         return counterUnitTypes.findAllByOrderByCodeAsc().stream()
                 .map(ReferenceDataMapper::toCounterUnitTypeResponse)
+                .toList();
+    }
+
+    public List<AccountingRuleFilterTypeResponse> listAccountingRuleFilterTypes() {
+        return accountingRuleFilterTypes.findAllByOrderByLegacyIntIdAsc().stream()
+                .map(ReferenceDataMapper::toAccountingRuleFilterTypeResponse)
+                .toList();
+    }
+
+    public List<AccountingUnitTypeResponse> listAccountingUnitTypes() {
+        return accountingUnitTypes.findAllByOrderByLegacyIntIdAsc().stream()
+                .map(ReferenceDataMapper::toAccountingUnitTypeResponse)
+                .toList();
+    }
+
+    public List<FlightCrewTypeResponse> listFlightCrewTypes() {
+        return flightCrewTypes.findAllByOrderByLegacyIntIdAsc().stream()
+                .map(ReferenceDataMapper::toFlightCrewTypeResponse)
                 .toList();
     }
 }

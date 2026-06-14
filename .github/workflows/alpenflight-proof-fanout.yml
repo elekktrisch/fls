@@ -519,6 +519,39 @@ jobs:
             tests/reporting/reporting-parity-J7.spec.ts
 
       # ========================================================================
+      # 2h. J-8 T-18 — legacy ACCOUNTING-RULE-FILTER parity spec. Read-only
+      #     walkthrough of the seeded rule-filter list + one rule's edit form
+      #     (`masterdata/accountingRules/`) in the flsweb UI; records the legacy
+      #     accounting parity video + writes the legacy-accountingrules-{list,form}.png
+      #     screenshots. The SAME legacy stack (already up) + the SAME deterministic
+      #     FLSTest seed the J-0c..J-7 specs used — the spec self-seeds ONE
+      #     article-target rule via the REST API (so the list is populated + an
+      #     edit-form is reachable), then deletes it; no extra fixture seeding, runs
+      #     on this one fanout run alongside T-04 + the others. Paired side-by-side
+      #     with J-8's AlpenFlight accounting shots (alpenflight-accountingrules-
+      #     {list,form}.png, written by accounting-rules-parity.spec.ts in step 6)
+      #     in the gallery via the legacy-video sidecar (step 7b) + screenshots.json
+      #     (step 7). Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-8 T-18 legacy accounting parity spec (records legacy video)
+        id: legacy-pw-accounting
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Same
+        # contract as the J-1/J-2/J-4/J-5/J-6/J-7 steps above: `if: always()` (runs
+        # even after a prior failure) AND `continue-on-error: true` (its own failure
+        # neither fails the job nor cascade-skips the unguarded downstream gate
+        # steps — incl. the real alpenflight-export producer-SELECT validation that
+        # proves the T-10 AccountingRuleFilter bindings, + the AlpenFlight parity
+        # specs).
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 12
+        run: |
+          npx playwright test \
+            --project=accounting \
+            tests/accounting/accounting-parity-J8.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -733,7 +766,7 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 25
@@ -742,11 +775,15 @@ jobs:
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
-          # J-5: the migrated-reservation render block rides the SAME real export
-          # the J-0c fan-out spec ingests (the T-07-bound reservation rows are in
-          # the real bundle). Flag the real path so the J-5 migrated-data describe
-          # runs (it `test.skip`s when unset, so the per-push synth gate doesn't
-          # false-green); the J-5 clean-seed real chain always runs.
+          # J-5/J-6/J-8: the migrated-data render blocks ride the SAME real export
+          # the J-0c fan-out spec ingests (the T-07-bound reservation rows, the
+          # T-11 planning rows, AND the T-10-bound AccountingRuleFilter rows are
+          # all in the real bundle — the export iterates EntityType.values(), so
+          # ACCOUNTING_RULE_FILTER is included). Flag the real path so each
+          # migrated-data describe runs (each `test.skip`s on !useRealBundle()
+          # when unset, so the per-push synth gate doesn't false-green); the
+          # clean-seed real chains always run. J-8's accounting migrated block
+          # reads the SAME J5_BUNDLE_SOURCE flag (shared useRealBundle() helper).
           J5_BUNDLE_SOURCE: real
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
@@ -759,7 +796,8 @@ jobs:
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
             e2e/tests/real-idp/flight-migration-parity.spec.ts \
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
-            e2e/tests/real-idp/planning-migration-parity.spec.ts
+            e2e/tests/real-idp/planning-migration-parity.spec.ts \
+            e2e/tests/real-idp/accounting-rules-parity.spec.ts
 
       # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
       # trace.zip + failure screenshot/video) BEFORE the staging + gallery + guard
@@ -835,6 +873,8 @@ jobs:
           PLAN_WEBM="$(find /tmp/fls-e2e-results -path '*planning-parity-J6*' -name '*.webm' | head -1 || true)"
           # J-7 — legacy reporting picker+canned-result+custom-builder parity video (T-01/T-22).
           REP_WEBM="$(find /tmp/fls-e2e-results -path '*reporting-parity-J7*' -name '*.webm' | head -1 || true)"
+          # J-8 — legacy accounting-rule-filter list+edit-form parity video (T-18).
+          ACCT_WEBM="$(find /tmp/fls-e2e-results -path '*accounting-parity-J8*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -891,6 +931,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-7\",\"file\":\"reporting-parity-J7.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_REP")},"
           else
             echo "No J-7 reporting .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$ACCT_WEBM" ]; then
+            cp "$ACCT_WEBM" "$STAGE/accounting-parity-J8.webm"
+            CAP_ACCT="Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit form (filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections) — the legacy masterdata/accountingRules screens to eyeball against AlpenFlight's /accountingrules list + filter-type-driven edit form"
+            VIDEOS="$VIDEOS{\"journey\":\"J-8\",\"file\":\"accounting-parity-J8.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_ACCT")},"
+          else
+            echo "No J-8 accounting .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -1125,6 +1172,31 @@ jobs:
             "AlpenFlight: a canned report's results page — derived filter panel, grouped summary (corrected TotalFlights), and the flights table with nested tow rows"
           add_shot "alpenflight/web/test-results" "alpenflight-flightreports-custom.png" "J-7" "alpenflight" "custom" \
             "AlpenFlight: the custom-report builder form — From/To date range, Glider/Motor/Tow toggles, conditional person/location selector, as-you-type validation"
+
+          # ----- J-8 T-18 — accounting-rule-filter parity SCREENSHOTS (legacy + AlpenFlight)
+          # Migration journey: J-8 REPLACES the legacy masterdata/accountingRules/
+          # screens, so its parity is a legitimate legacy→AlpenFlight before/after
+          # across TWO views (list + form) — the same view keys as
+          # e2e/legacy-reference/accounting/PENDING.md + expected-shots.json (J-8).
+          # The legacy PNGs are captured here at the fanout (the accounting-parity-J8
+          # spec drives the legacy stack the Alpine/musl dev box can't run) under
+          # /tmp/fls-e2e-results; the AlpenFlight PNGs land under
+          # alpenflight/web/test-results (the accounting-rules-parity spec's
+          # clean-seed real chain, step 6, writes them on EVERY fanout run — not
+          # gated on the real bundle). Both sides are produced HERE in the fanout
+          # (the J-1..J-6 migration-journey model: no producedBy tag, enforced in
+          # BOTH contexts), unlike J-7's read-side proof-context AF shots. A missing
+          # PNG drops that one entry (add_shot no-ops it) — the post-stage
+          # SHOTS-PRESENT guard (below) catches an EXPECTED shot going missing per
+          # expected-shots.json (J-8's list+form flip pending -> expected at T-18).
+          add_shot "/tmp/fls-e2e-results" "legacy-accountingrules-list.png" "J-8" "legacy" "list" \
+            "Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) — the legacy rule-filter ng-table, paired before/after against AlpenFlight's /accountingrules list"
+          add_shot "/tmp/fls-e2e-results" "legacy-accountingrules-form.png" "J-8" "legacy" "form" \
+            "Legacy flsweb: one rule's edit form — the filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections — paired against AlpenFlight's filter-type-driven rule-filter edit form"
+          add_shot "alpenflight/web/test-results" "alpenflight-accountingrules-list.png" "J-8" "alpenflight" "list" \
+            "AlpenFlight: the /accountingrules list — a created article-target rule renders with its server-derived target column (articleNumber + deliveryLineText), the rule-filter table to eyeball against the legacy ng-table"
+          add_shot "alpenflight/web/test-results" "alpenflight-accountingrules-form.png" "J-8" "alpenflight" "form" \
+            "AlpenFlight: the rule-filter edit form, fully populated with the article-target conditional section open (core text · the boolean flags · article number + delivery-line text) — the filter-type-driven field set to eyeball side-by-side against the legacy edit form"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
@@ -1510,5 +1582,5 @@ jobs:
       - name: Mark job failed if a gating spec was red (post-publish)
         if: ${{ steps.legacy-pw.outcome != 'success' || steps.pw.outcome != 'success' }}
         run: |
-          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs (J-0c+J-1+J-2): ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}; legacy J-2 flight parity video (non-blocking): ${{ steps.legacy-pw-flight.outcome }}; legacy J-4 /profile parity video (non-blocking): ${{ steps.legacy-pw-profile.outcome }}; AlpenFlight J-4 /profile shots: curled from per-push gallery (no in-fanout capture)" >&2
+          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs (J-0c+J-1+J-2): ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}; legacy J-2 flight parity video (non-blocking): ${{ steps.legacy-pw-flight.outcome }}; legacy J-4 /profile parity video (non-blocking): ${{ steps.legacy-pw-profile.outcome }}; legacy J-8 accounting parity video (non-blocking): ${{ steps.legacy-pw-accounting.outcome }}; AlpenFlight J-4 /profile shots: curled from per-push gallery (no in-fanout capture)" >&2
           exit 1

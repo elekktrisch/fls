@@ -44,6 +44,7 @@ async function loadGenerator(): Promise<{
   navGalleryHref: (href: string, siteBase?: string) => string;
   parsePmd: (xml: string | null) => { total: number; complexity: number; deadCode: number } | null;
   parseCpd: (xml: string | null) => { groups: number; dupPct: number | null } | null;
+  parseQodana: (json: unknown) => { total: number; newFindings: number | null } | null;
   parseFallowAudit: (json: unknown) => {
     verdict: string;
     deadIntroduced: number;
@@ -729,7 +730,14 @@ function readOut(outDir: string, ...segs: string[]): string {
 function writeMaint(
   outDir: string,
   files: Partial<
-    Record<'fallow-audit.json' | 'fallow-health.json' | 'pmd-main.xml' | 'cpd-check.xml', string>
+    Record<
+      | 'fallow-audit.json'
+      | 'fallow-health.json'
+      | 'pmd-main.xml'
+      | 'cpd-check.xml'
+      | 'qodana-report.sarif.json',
+      string
+    >
   >,
 ): void {
   const dir = resolve(outDir, 'maintainability');
@@ -763,6 +771,29 @@ const SAMPLE_CPD =
   '<duplication lines="10" tokens="20"><file/></duplication>' +
   '</pmd-cpd>';
 
+// A minimal Qodana SARIF report (J-8 T-15). 3 results: 1 NEW vs baseline + 2
+// unchanged — the shape `--baseline` produces (every result carries a
+// baselineState). Mirrors the real `unused` (unused-declaration) inspection rows.
+const SAMPLE_QODANA = JSON.stringify({
+  version: '2.1.0',
+  runs: [
+    {
+      tool: { driver: { name: 'QDJVMC' } },
+      results: [
+        { ruleId: 'unused', level: 'warning', baselineState: 'new' },
+        { ruleId: 'unused', level: 'warning', baselineState: 'unchanged' },
+        { ruleId: 'unused', level: 'warning', baselineState: 'unchanged' },
+      ],
+    },
+  ],
+});
+// A Qodana SARIF with NO baseline applied — results carry no baselineState, so
+// the parser reports `newFindings: null` (total only, no ratchet delta).
+const SAMPLE_QODANA_NO_BASELINE = JSON.stringify({
+  version: '2.1.0',
+  runs: [{ results: [{ ruleId: 'unused' }, { ruleId: 'unused' }] }],
+});
+
 describe('parse helpers (T-13a) — fail-soft artifact parsing', () => {
   it('parsePmd counts total + complexity + dead-code by rule', async () => {
     const { parsePmd } = await loadGenerator();
@@ -777,10 +808,36 @@ describe('parse helpers (T-13a) — fail-soft artifact parsing', () => {
     expect(cpd?.dupPct).toBeCloseTo(3.0, 5);
   });
 
+  it('parseQodana counts total findings + new-vs-baseline (the ratchet signal)', async () => {
+    const { parseQodana } = await loadGenerator();
+    // 3 results, 1 baselineState=new → total 3, newFindings 1.
+    expect(parseQodana(JSON.parse(SAMPLE_QODANA))).toEqual({ total: 3, newFindings: 1 });
+  });
+
+  it('parseQodana reports newFindings:null when no baseline was applied (no baselineState)', async () => {
+    const { parseQodana } = await loadGenerator();
+    // 2 results, neither carries a baselineState → total 2, newFindings null.
+    expect(parseQodana(JSON.parse(SAMPLE_QODANA_NO_BASELINE))).toEqual({
+      total: 2,
+      newFindings: null,
+    });
+  });
+
+  it('parseQodana tolerates an empty/malformed SARIF (0 findings, null on absent)', async () => {
+    const { parseQodana } = await loadGenerator();
+    // A SARIF with no runs/results is a clean scan → 0 findings, not null.
+    expect(parseQodana({ version: '2.1.0', runs: [] })).toEqual({ total: 0, newFindings: null });
+    expect(parseQodana({ runs: [{ results: [] }] })).toEqual({ total: 0, newFindings: null });
+    // Absent/non-object input → null (the artifact wasn't emitted this run).
+    expect(parseQodana(null)).toBeNull();
+    expect(parseQodana('not-an-object')).toBeNull();
+  });
+
   it('every parser returns null on absent/empty input (never throws)', async () => {
-    const { parsePmd, parseCpd, parseFallowAudit } = await loadGenerator();
+    const { parsePmd, parseCpd, parseFallowAudit, parseQodana } = await loadGenerator();
     expect(parsePmd(null)).toBeNull();
     expect(parseCpd(null)).toBeNull();
+    expect(parseQodana(null)).toBeNull();
     expect(parseFallowAudit(null)).toBeNull();
     expect(parseFallowAudit({})).toEqual({
       verdict: 'unknown',
@@ -847,6 +904,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
         'fallow-health.json': SAMPLE_HEALTH,
         'pmd-main.xml': SAMPLE_PMD,
         'cpd-check.xml': SAMPLE_CPD,
+        'qodana-report.sarif.json': SAMPLE_QODANA,
       });
     }
     const result = generateGallery({
@@ -940,6 +998,11 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     expect(j0).toContain('<strong>3</strong> violations');
     // BE CPD: 3.0% duplicated.
     expect(j0).toContain('3.0%');
+    // BE Qodana (J-8 T-15): 3 findings · 1 new vs baseline, report-only row.
+    expect(j0).toContain('BE unused code (Qodana)');
+    expect(j0).toContain('<strong>3</strong> findings');
+    expect(j0).toContain('<strong>1</strong> new vs baseline');
+    expect(j0).toContain('(report-only)');
 
     // J-2 is NOT the journey-under-work → snapshot only, no false delta.
     const j2 = readOut(outDir, 'J-2', 'index.html');
@@ -973,6 +1036,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     const j0 = readOut(outDir, 'J-0', 'index.html');
     expect(j0).toContain('<strong>3</strong> violations'); // PMD parsed
     expect(j0).toContain('no fallow health data'); // health absent → graceful
+    expect(j0).toContain('no Qodana report'); // Qodana absent → graceful
   });
 
   // T-14 — the per-push CI gallery step must pass the journey id EXPLICITLY via

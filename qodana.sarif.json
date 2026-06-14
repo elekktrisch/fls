@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "QDJVMC",
+          "fullName": "Qodana Community for JVM",
+          "informationUri": "https://www.jetbrains.com/qodana/",
+          "rules": []
+        }
+      },
+      "results": [],
+      "properties": {
+        "qodana.baseline.note": "PLACEHOLDER empty-results baseline — J-8 T-15. The local Qodana run on the dev box was OOM-killed (exit 137) during project opening: the qodana-jvm-community linter's IntelliJ indexing of the multi-module Gradle composite build needs ~6-8G of heap and only ~2G was free on the shared LXC box (MaxRAMPercentage=70). So this empty baseline ships as the going-in state and the FIRST `qodana-scan` CI run (a CI runner has the headroom) becomes the baseline-establishing run: with `--baseline qodana.sarif.json` against THIS empty file, every current unused-declaration finding (~605 expected across stacks, scoped here to alpenflight/server main; ~90% false-positive per the J-26 T-33 triage — Spring-Data query params + @ExceptionHandler dispatch params) reports as NEW. ONE-TIME FOLLOW-UP: download the `qodana-sarif-<run_id>` artifact from that first CI run (or read it from the gallery maintainability panel's staged `qodana-report.sarif.json`) and commit it over this file to lock the baseline — thereafter the report gates only on genuinely NEW unused code. The job is REPORT-ONLY (its own workflow, continue-on-error, NOT in ci.yml's required aggregator) so a high first-run NEW count never reds the build."
+      }
+    }
+  ]
+}

@@ -587,10 +587,15 @@ class ReservationsBaselineIntegrationTest {
     // ============================================================================
 
     @Test
-    void accounting_rule_filter_type_seeded_with_8_canonical_codes() throws Exception {
+    void accounting_rule_filter_type_seeded_with_10_canonical_codes() throws Exception {
+        // V4 seeded indices 0..7 (legacy 10..80); V42 (J-8 T-09) added
+        // DO_NOT_INVOICE (legacy 5) + START_TAX (legacy 55) so all 10 filter-type
+        // legacy ids resolve to a seeded reference row (else a type-5/55 migrated
+        // AccountingRuleFilter FK-fails at fanout via fk_arf_filter_type_id).
         List<String> expectedCodes = List.of(
                 "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
-                "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME");
+                "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME",
+                "DO_NOT_INVOICE", "START_TAX");
         assertSeededCodes("t_accounting_rule_filter_type", expectedCodes);
         for (String code : expectedCodes) {
             assertCodeMapsToUuid("t_accounting_rule_filter_type", code,
@@ -606,8 +611,10 @@ class ReservationsBaselineIntegrationTest {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             assertThat(ids)
-                    .as("legacy AccountingRuleFilterTypeId values per FLSTest seed: 10, 20, 30, 40, 50, 60, 70, 80")
-                    .containsExactly(10, 20, 30, 40, 50, 60, 70, 80);
+                    .as("legacy AccountingRuleFilterTypeId enum: 5 (DoNotInvoice), 10, 20, 30, "
+                            + "40, 50, 55 (StartTax), 60, 70, 80 — all 10 must resolve so a "
+                            + "real club's type-5/55 filter migrates without an FK 23503")
+                    .containsExactly(5, 10, 20, 30, 40, 50, 55, 60, 70, 80);
         }
     }
 

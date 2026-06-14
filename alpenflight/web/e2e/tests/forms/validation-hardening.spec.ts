@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { selectAfOption } from '../_helpers/af-select';
+import { enterViaNav } from '../_helpers/nav';
 
 /**
  * J-26 VALIDATION HARDENING — mock inner-loop spec.
@@ -85,9 +86,10 @@ const mockAircraft = [
  */
 async function enterSection(page: Page, sectionPath: string): Promise<void> {
   await page.goto('/start?lang=de');
-  const section = page.getByTestId(`af-nav-section-${sectionPath}`);
-  await expect(section, `the ${sectionPath} nav section is chrome-reachable`).toBeVisible();
-  await section.click();
+  // Masterdata sections now nest under the Masterdata nav group (J-8 T-22a);
+  // enterViaNav opens that dropdown first for nested paths and clicks top-level
+  // sections (e.g. /flights, /reservations, /clubs) directly.
+  await enterViaNav(page, sectionPath);
 }
 
 /**

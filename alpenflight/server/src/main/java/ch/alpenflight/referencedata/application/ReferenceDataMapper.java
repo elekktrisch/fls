@@ -1,16 +1,22 @@
 package ch.alpenflight.referencedata.application;
 
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AccountingRuleFilterTypeResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AccountingUnitTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CounterUnitTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.FlightCrewTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
+import ch.alpenflight.referencedata.domain.AccountingRuleFilterType;
+import ch.alpenflight.referencedata.domain.AccountingUnitType;
 import ch.alpenflight.referencedata.domain.AircraftState;
 import ch.alpenflight.referencedata.domain.AircraftType;
 import ch.alpenflight.referencedata.domain.ClubState;
 import ch.alpenflight.referencedata.domain.CounterUnitType;
 import ch.alpenflight.referencedata.domain.Country;
+import ch.alpenflight.referencedata.domain.FlightCrewType;
 import ch.alpenflight.referencedata.domain.LocationType;
 import java.util.Objects;
 
@@ -65,5 +71,35 @@ final class ReferenceDataMapper {
                 unit.getName(),
                 unit.getShortName(),
                 unit.getComment());
+    }
+
+    static AccountingRuleFilterTypeResponse toAccountingRuleFilterTypeResponse(
+            AccountingRuleFilterType type) {
+        return new AccountingRuleFilterTypeResponse(
+                Objects.requireNonNull(type.getId(),
+                        "Cannot map an AccountingRuleFilterType without id"),
+                type.getCode(),
+                type.getLegacyIntId(),
+                type.getName(),
+                type.getDescription());
+    }
+
+    static AccountingUnitTypeResponse toAccountingUnitTypeResponse(AccountingUnitType type) {
+        return new AccountingUnitTypeResponse(
+                Objects.requireNonNull(type.getId(),
+                        "Cannot map an AccountingUnitType without id"),
+                type.getCode(),
+                type.getLegacyIntId(),
+                type.getName(),
+                type.getShortName());
+    }
+
+    static FlightCrewTypeResponse toFlightCrewTypeResponse(FlightCrewType type) {
+        return new FlightCrewTypeResponse(
+                Objects.requireNonNull(type.getId(),
+                        "Cannot map a FlightCrewType without id"),
+                type.getCode(),
+                type.getLegacyIntId(),
+                type.getDescription());
     }
 }

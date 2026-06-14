@@ -3,6 +3,7 @@ id: S-072
 title: AccountingRuleFilter + filter-type CRUD
 epic: E-09
 status: todo
+rolled_up_into: J-8
 depends_on: [S-014, S-053, S-054]
 acceptance:
   - `AccountingRuleFilter` + `AccountingRuleFilterType` + `AccountingUnitType` + `FlightCrewType` entities ported, `@TenantId`'d on the filter (filter types and unit types are reference data).

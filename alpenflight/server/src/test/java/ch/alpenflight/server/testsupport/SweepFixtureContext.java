@@ -51,6 +51,16 @@ public final class SweepFixtureContext {
 
     private static final AtomicInteger AIRCRAFT_COUNTER = new AtomicInteger(0);
 
+    /**
+     * Pinned V4 seed UUID for the {@code RECIPIENT} accounting-rule-filter type
+     * (legacy_int_id 10). Used as the {@code filter_type_id} FK parent for the
+     * AccountingRuleFilter sweep row — reference data shared by every club, so a
+     * canonical id is referenced directly (no domain repo exists for filter-types
+     * until J-8 T-07, and the sweep needs only a valid FK target).
+     */
+    private static final UUID RECIPIENT_FILTER_TYPE_ID =
+            UUID.fromString("019e2e15-2c00-7650-8000-000000004650");
+
     private final WebApplicationContext appContext;
     private final Repositories repositories;
 
@@ -174,6 +184,16 @@ public final class SweepFixtureContext {
         return firstReferenceId(rows.isEmpty() ? null
                 : rows.getFirst().getId() == null ? null : rows.getFirst().getId().value(),
                 "t_country");
+    }
+
+    /**
+     * The pinned V4 seed id of the {@code RECIPIENT} accounting-rule-filter type
+     * — the {@code filter_type_id} FK parent for the AccountingRuleFilter sweep
+     * row. Reference data, not tenant-scoped, so a canonical id is returned
+     * directly (no DB read; mirrors the {@code FlightProcessState} enum-id usage).
+     */
+    public UUID firstAccountingRuleFilterTypeId() {
+        return RECIPIENT_FILTER_TYPE_ID;
     }
 
     /** First seeded location-type id (V3 reference data; ordered list). */
