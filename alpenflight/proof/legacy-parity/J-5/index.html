@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-5 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-5</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 3 screenshots</span>
+      <span class="summary-jid">J-5</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-14T06:48:40.564Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-15T07:05:44.576Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,28 +144,24 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-7134dece37288736dc96b2d450b98037d69aa927.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-db2819b4d764516e30d158ded7f5de59da7405e4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-caff17d98275fc1bf1f45d7faeab16be742a5fb1.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-8c8adcaf5eb076c5f8e85c502abf3ba7b8c1ff99.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-54e3d57c167484d9252d297997426594d62982b6.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-a80687db53755236d8a39fa29eada0a54a1f59a2.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-31d7348798320bee0f8e5913be5f0e5a38a582af.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-eac0e847c1cdd7a2e7db418d17f033bc7056c0b0.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-0e14664a24730459c4afcd90fae586f7e6fc2039.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-766413e2ed34fe2987bf179b55eaa6a0ce5331f4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-8fa24e74b4bc25c284e16692e44c8169bc41aa61.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
@@ -210,16 +206,17 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
-            <td>score <strong>89.3</strong> (A) · maintainability <strong>92.3</strong> · duplication <strong>3.8%</strong> · dead files <strong>0.0%</strong></td>
+            <td>score <strong>89.1</strong> (A) · maintainability <strong>92.1</strong> · duplication <strong>3.7%</strong> · dead files <strong>0.0%</strong></td>
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>70</strong> violations · complexity <strong>70</strong> · dead-code <strong>0</strong></td>
+            <td><strong>80</strong> violations · complexity <strong>80</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.5%</strong> duplicated · <strong>61</strong> clone groups</td>
+            <td><strong>3.4%</strong> duplicated · <strong>67</strong> clone groups</td>
           </tr>
+          <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
           <p class="meta"><a href="../maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)</p>
         </section>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-6</title>
+<title>AlpenFlight proof — J-9</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-6 — proof</h1>
+    <h1>J-9 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-6</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 3 screenshots</span>
+      <span class="summary-jid">J-9</span> <span class="status success">2 proofs</span> <span class="summary-counts">2 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -144,63 +144,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-776d4343859e804329a58d97e067cb21dc2161ec.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-a65103d716e57acf1cfb2e5c16355b1213872514.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-5e27e40147f11880276f3c01a888941ef0c7af57.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-3a6ff59d08720ff05151a641a1b0a3a066447ce4.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-bd8b6a074c03bd043f63104750176bf9c161812e.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-cad2f9357f14874baef12cec5eea278887da7cd5.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-c65d7f85cfb4bbe0ee0af73db81547eb4359d1bb.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-6e4b2b44e96a4c7b8de52f819cfba7679c9b415a.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
         </figure>
         </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-planning-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) with the V34 seed days + a created row — the future-days list to eyeball against the legacy planning table</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-planning-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">setup</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-planning-setup-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-setup-form.png" alt="alpenflight setup" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
           <table class="maint-table">
