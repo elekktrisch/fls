@@ -380,41 +380,61 @@ test.describe('Deliveries — migrated legacy deliveries render (real-idp)', () 
         data: {},
       });
       expect(pageRes.status(), 'the migrated TestClub lists its migrated deliveries').toBe(200);
-      const body = (await pageRes.json()) as { items: { id: string; recipientName: string }[] };
+      const body = (await pageRes.json()) as {
+        items: { id: string; deliveryNumber: number | null; recipientName: string }[];
+      };
       expect(
         body.items.length,
         'the migrated TestClub must carry ≥1 migrated legacy delivery (the migrated done-bar — ' +
           'binds the Delivery + DeliveryItem mappers)',
       ).toBeGreaterThan(0);
 
-      // The first migrated delivery's view round-trips its line items + the frozen
-      // recipient (a migrated invoice-draft is engine output frozen at delivery
-      // time, never re-resolved). Re-GET, not the paged body, for the detail.
-      const first = body.items[0]!;
-      const detail = (await ctx.request
-        .get(`${DELIVERIES}/${first.id}`, { headers: { authorization: migratedBearer } })
-        .then((r) => r.json())) as DeliveryDetail;
+      // Locate the deterministic seed (101 Insert Deliveries.sql): DeliveryNumber
+      // 2026001 parses to the integer delivery_number, recipient "Wegmueller". Find
+      // it by its known number rather than list position — ordering is not asserted.
+      const seededRow = body.items.find((d) => d.deliveryNumber === 2026001);
       expect(
-        detail.items.length,
-        'a migrated delivery must carry its migrated line items (DeliveryItem mapper bound)',
-      ).toBeGreaterThan(0);
-      const recipientFrozen =
-        (detail.recipient.lastName ?? '') !== '' || (detail.recipient.city ?? '') !== '';
-      expect(recipientFrozen, 'a migrated delivery carries its frozen recipient snapshot').toBe(
-        true,
-      );
+        seededRow,
+        'the seeded TestClub delivery (delivery_number 2026001, recipient Wegmueller) must migrate',
+      ).toBeTruthy();
+      expect(seededRow!.recipientName).toContain('Wegmueller');
+
+      // The migrated delivery's view round-trips its frozen line items + recipient
+      // bit-exactly (a migrated invoice-draft is engine output frozen at delivery
+      // time, never re-resolved). Re-GET, not the paged body, for the detail.
+      const detail = (await ctx.request
+        .get(`${DELIVERIES}/${seededRow!.id}`, { headers: { authorization: migratedBearer } })
+        .then((r) => r.json())) as DeliveryDetail;
+
+      // process_state_id 10 (Prepared): the source flight is Valid (legacy 30),
+      // IsFurtherProcessed 0 → the producer's CASE falls through to 10.
+      expect(detail.processStateId).toBe(10);
+
+      // The three seeded line items migrate position-ordered, article-resolved.
+      expect(detail.items.length).toBe(3);
+      const byPosition = [...detail.items].sort((a, b) => a.position - b.position);
+      expect(byPosition.map((i) => i.position)).toEqual([10, 20, 30]);
+      expect(byPosition.map((i) => i.articleNumber)).toEqual(['5001', '6001', '5001']);
+      expect(byPosition.map((i) => i.unitType)).toEqual(['Min', 'Ldgs', 'Min']);
+      expect(byPosition.map((i) => Number(i.quantity))).toEqual([47, 1, 5]);
+      expect(byPosition[0]!.itemText).toBe('Glider flight minutes');
+      expect(byPosition[1]!.itemText).toBe('Landegebuehr LSZK');
+
+      // The frozen 9-field recipient snapshot (OR Art. 957a passthrough).
+      expect(detail.recipient.lastName).toBe('Wegmueller');
+      expect(detail.recipient.city).toBe('Bern');
 
       // Render the list + view in the real screen.
       await page.goto(`/deliveries?lang=en`);
       await expect(page.getByTestId('del-table')).toBeVisible();
-      await expect(page.getByTestId(`del-row-${first.id}`)).toBeVisible();
+      await expect(page.getByTestId(`del-row-${seededRow!.id}`)).toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-deliveries-migrated-list.png`,
         fullPage: true,
       });
 
-      await page.getByTestId(`del-row-${first.id}`).click();
-      await expect(page).toHaveURL(`/deliveries/${first.id}`);
+      await page.getByTestId(`del-row-${seededRow!.id}`).click();
+      await expect(page).toHaveURL(`/deliveries/${seededRow!.id}`);
       await expect(page.getByTestId('del-detail')).toBeVisible();
       await expect(page.getByTestId('del-item-0')).toBeVisible();
       await page.screenshot({
