@@ -1169,6 +1169,195 @@ public final class MapperLegacyBindings {
                             ?, ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.ARTICLE, new Binding(
+                    // Tenant-scoped catalog aggregate (ArticleMapper): legacy
+                    // Articles.ArticleId → t_article.id; operating_club_id is the @TenantId
+                    // per V3, from the real legacy ClubId. NOT fan-out — one legacy row →
+                    // one row, legacy_guid → id. The DeliveryItem producer resolves
+                    // article_id by (ClubId, ArticleNumber) against this stream's
+                    // legacy_id_map_article, so DELIVERY_ITEM cannot migrate without ARTICLE.
+                    //
+                    // Soft-deleted rows (IsDeleted = 1) are dropped — ux_article_club_number
+                    // is partial (deleted_on IS NULL) and the mapper hard-fails (never
+                    // silently dedupes) a live (operating_club_id, article_number) collision,
+                    // so exporting a soft-deleted row with a live number would 23505 a real
+                    // article. Legacy ASP.NET artifacts dropped: OwnerId, OwnershipType,
+                    // RecordState, IsDeleted.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT ArticleId, ClubId, ArticleNumber, ArticleName, ArticleInfo,
+                           Description, IsActive,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM Articles
+                    WHERE IsDeleted = 0
+                    """,
+                    "t_article",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 13 params match
+                    // ArticleMapper.columns() order.
+                    """
+                    INSERT INTO t_article (
+                      id, operating_club_id, article_number, article_name, article_info,
+                      description, is_active,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.DELIVERY, new Binding(
+                    // Tenant-scoped invoice-delivery aggregate root (DeliveryMapper):
+                    // legacy Deliveries.DeliveryId → t_delivery.id; operating_club_id is
+                    // the @TenantId per V4, set from the real legacy ClubId. NOT fan-out —
+                    // one legacy row → one row, legacy_guid → id (like FLIGHT_TYPE).
+                    //
+                    // STATE PROMOTION (project_synth_bundle_doesnt_validate_producer_select):
+                    // legacy Deliveries has NO ProcessStateId — state lives on
+                    // Flights.ProcessStateId + Deliveries.IsFurtherProcessed. The V4 schema
+                    // promotes it to first-class on Delivery, so the producer LEFT JOINs the
+                    // optional Flight and derives the SMALLINT enum the mapper reads as
+                    // ResolvedProcessStateId: IsFurtherProcessed wins → 20 (Booked); else
+                    // Flights.ProcessStateId 60 → 20, 50 → 10, 45 → 30; everything else (incl.
+                    // a Delivery with no Flight) → 10 (Prepared). A CASE expression, dialect-
+                    // portable across the live MSSQL producer + the PG test container.
+                    //
+                    // DELIVERY-NUMBER PARSE (V19 reshape): legacy DeliveryNumber is operator-
+                    // formatted NVARCHAR; V4 reshapes to INTEGER + a legacy_delivery_number_text
+                    // parity column. TRY_CONVERT(INT, …) (T-SQL native; the PG test container
+                    // gets a CAST-on-all-digits shim in the IT staging table) yields the integer
+                    // into ResolvedDeliveryNumber on parse success (text NULL), or NULL +
+                    // the raw text into ResolvedLegacyDeliveryNumberText on parse failure.
+                    // NO dedupe on a parse-collision: two distinct texts parsing to the SAME
+                    // integer for one club surface as ux_dlv_club_number_partial 23505 at
+                    // ingest — silently renumbering would corrupt the Swiss OR Art. 957a
+                    // legal-record invoice number (the ArticleMapper hard-fail idiom). Locked
+                    // by DeliveryProducerCollisionOrphanIT.
+                    //
+                    // recipient_person_id → cross-tenant PERSON (FK ON DELETE SET NULL, V4).
+                    // The resolver leaves a FULL_PORT FK verbatim on a miss → an unmigrated
+                    // recipient would 23503 at INSERT (SET NULL fires only on DELETE). So the
+                    // producer LEFT JOINs Persons and emits NULL RecipientPersonId when the
+                    // recipient is not in the export — the frozen recipient_* snapshot (9
+                    // scalar passthroughs) still renders. flight_id → same-tenant FLIGHT
+                    // (RESTRICT): an unmigrated flight is a real integrity break and 23503s.
+                    //
+                    // Legacy ASP.NET artifacts dropped: OwnerId, OwnershipType, RecordState,
+                    // IsDeleted, IsFurtherProcessed (collapsed into ResolvedProcessStateId).
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT d.DeliveryId, d.ClubId,
+                           CASE
+                               WHEN d.IsFurtherProcessed = 1 THEN 20
+                               WHEN f.ProcessStateId = 60 THEN 20
+                               WHEN f.ProcessStateId = 50 THEN 10
+                               WHEN f.ProcessStateId = 45 THEN 30
+                               ELSE 10
+                           END AS ResolvedProcessStateId,
+                           d.FlightId,
+                           p.PersonId AS RecipientPersonId,
+                           d.RecipientName, d.RecipientFirstname, d.RecipientLastname,
+                           d.RecipientAddressLine1, d.RecipientAddressLine2,
+                           d.RecipientZipCode, d.RecipientCity, d.RecipientCountryName,
+                           d.RecipientPersonClubMemberNumber,
+                           d.DeliveryInformation, d.AdditionalInformation,
+                           TRY_CONVERT(INT, d.DeliveryNumber) AS ResolvedDeliveryNumber,
+                           CASE WHEN TRY_CONVERT(INT, d.DeliveryNumber) IS NULL
+                                THEN d.DeliveryNumber END AS ResolvedLegacyDeliveryNumberText,
+                           d.DeliveredOn, d.BatchId,
+                           d.CreatedOn, d.CreatedByUserId, d.ModifiedOn, d.ModifiedByUserId,
+                           d.DeletedOn, d.DeletedByUserId
+                    FROM Deliveries d
+                    LEFT JOIN Flights f ON f.FlightId = d.FlightId
+                    LEFT JOIN Persons p ON p.PersonId = d.RecipientPersonId
+                    """,
+                    "t_delivery",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 26 params match
+                    // DeliveryMapper.columns() order.
+                    """
+                    INSERT INTO t_delivery (
+                      id, operating_club_id, process_state_id,
+                      flight_id, recipient_person_id,
+                      recipient_name, recipient_firstname, recipient_lastname,
+                      recipient_address_line1, recipient_address_line2,
+                      recipient_zip_code, recipient_city, recipient_country_name,
+                      recipient_person_club_member_number,
+                      delivery_information, additional_information,
+                      delivery_number, legacy_delivery_number_text,
+                      delivered_on, batch_id,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.DELIVERY_ITEM, new Binding(
+                    // Tenant-scoped delivery line item (DeliveryItemMapper): legacy
+                    // DeliveryItems.DeliveryItemId → t_delivery_item.id. NOT fan-out —
+                    // legacy_guid → id. Legacy DeliveryItems has NO ClubId, ArticleId, or
+                    // UnitPrice; all are denormalised/resolved producer-side
+                    // (project_synth_bundle_doesnt_validate_producer_select):
+                    //
+                    //  * OperatingClubId — denormalised from the parent Delivery's ClubId
+                    //    (INNER JOIN Deliveries; the item's club IS its delivery's club, the
+                    //    V4 invariant). INNER, not LEFT: a DeliveryItem with no parent
+                    //    Delivery is malformed legacy data, dropped by the join.
+                    //  * ResolvedArticleId — the legacy Article GUID resolved by
+                    //    (ClubId, ArticleNumber): the mapper declares ARTICLE in foreignKeys(),
+                    //    so the FK rewriter maps this legacy GUID through legacy_id_map_article.
+                    //    LEFT JOIN Articles emits the legacy ArticleId; an item whose
+                    //    (club, number) has no migrated Article leaves the GUID unresolved
+                    //    → the article_id RESTRICT FK 23503s at INSERT (the orphan is a real
+                    //    invoice-integrity break, never silently dropped — Swiss OR Art. 957a).
+                    //  * ResolvedUnitPrice — legacy has no price column; V4 unit_price defaults
+                    //    0. The read screen is display-only this iteration; emit the 0 default
+                    //    (the write-side back-fill from the article master is J-10b/S-016).
+                    //
+                    // Legacy ASP.NET artifacts dropped: OwnerId, OwnershipType, RecordState,
+                    // IsDeleted.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT di.DeliveryItemId, d.ClubId AS OperatingClubId, di.DeliveryId,
+                           di.Position,
+                           a.ArticleId AS ResolvedArticleId, di.ArticleNumber,
+                           di.ItemText, di.AdditionalInformation,
+                           di.Quantity,
+                           CAST(0 AS NUMERIC(12, 4)) AS ResolvedUnitPrice,
+                           di.DiscountInPercent, di.UnitType,
+                           di.CreatedOn, di.CreatedByUserId,
+                           di.ModifiedOn, di.ModifiedByUserId,
+                           di.DeletedOn, di.DeletedByUserId
+                    FROM DeliveryItems di
+                    JOIN Deliveries d ON d.DeliveryId = di.DeliveryId
+                    LEFT JOIN Articles a
+                        ON a.ClubId = d.ClubId AND a.ArticleNumber = di.ArticleNumber
+                    """,
+                    "t_delivery_item",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 18 params match
+                    // DeliveryItemMapper.columns() order.
+                    """
+                    INSERT INTO t_delivery_item (
+                      id, operating_club_id, delivery_id, position,
+                      article_id, article_number, item_text, additional_information,
+                      quantity, unit_price, discount_in_percent, unit_type_code,
+                      created_on, created_by_user_id,
+                      modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

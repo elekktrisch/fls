@@ -243,12 +243,11 @@ class MapperLegacyBindingsTest {
 
     @Test
     void unregisteredEntityStillFailsLoudly() {
-        // Guard the fail-closed contract survives the registry growth. FLIGHT +
-        // its reference closure (START_TYPE / FLIGHT_TYPE / FLIGHT_CREW) are now
-        // bound (J-2 T-07), so the negative case points at a genuinely still-
-        // unbound EntityType — DELIVERY has an authored mapper + KnownMappers
-        // entry but no MapperLegacyBindings entry yet (its binding lands at J-9/J-10).
-        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.DELIVERY))
+        // Guard the fail-closed contract survives the registry growth. The ARTICLE /
+        // DELIVERY / DELIVERY_ITEM closure is now bound (J-10 T-05), so the negative
+        // case points at a genuinely still-unbound EntityType — AUDIT_LOG has an
+        // authored mapper + KnownMappers entry but no MapperLegacyBindings entry yet.
+        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.AUDIT_LOG))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No legacy binding registered");
     }
