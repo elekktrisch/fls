@@ -38,17 +38,18 @@ invent a parallel convention.
 - **Two parallel jobs.** Own the journey-gate workflow: `alpenflight-proof` (required; legacy→seed→migrate→real,
   uploads the pass video) + `parity-legacy-video` (non-blocking; legacy FLS+`flsweb` on the same fixture). Both
   seed independently from the **deterministic** fixture → run in parallel, no shared state.
-- **A proof the operator can't click isn't done.** Deploy the heavy-chain gallery to a **journey-agnostic
-  namespaced subpath** (`destination_dir`+`keep_files`, never `publish_dir: public`; not a per-journey name),
-  branch-preview it pre-merge, gate deploy on `!cancelled()` (survives a partial-red run), and **auto-post the
-  gallery link as a sticky PR comment** (resolve the PR from `github.ref_name`; fail-soft). After deploy, run
-  the **deployed-link-check** (browserless `request`-based crawl of the LIVE gallery — every link returns 200,
-  modelling gh-pages dir→`index.html` semantics) so a deployed dead link can't ship green.
-- **ONE source per journey; verify the DEPLOYED page, never the unit test** (J-6 T-17). The per-journey page
-  is complete every push — it pairs the **committed `e2e/legacy-reference/<feature>/` screenshots** (legacy
-  frozen, captured once) against fresh AlpenFlight captures + videos; no per-push-vs-fanout split / freshest-wins
-  tie-break. A green generator test while the deployed page was wrong recurred ~4× in J-6: after any gallery
-  change, `curl` the deployed bookmark + page + EVERY asset (200) — "verified" = you fetched the live artifact.
+- **A proof the operator can't click isn't done.** Deploy the gallery to the stable bookmark subpath
+  (`destination_dir`, gate on `!cancelled()` so a partial-red still deploys), **auto-post the link as a sticky
+  PR comment** (resolve the PR from `github.ref_name`; fail-soft), then run the **deployed-link-check**
+  (browserless `request` crawl of the LIVE page — every link/asset 200, modelling gh-pages dir→`index.html`;
+  allow CDN-propagation slack so the check doesn't race the push).
+- **ONE page, the CURRENT journey only** ([[feedback_proof_gallery_per_journey_one_bookmark]]). The bookmark
+  renders ONLY the in-flight journey: committed `e2e/legacy-reference/<feature>/` shots (legacy frozen, captured
+  once) paired against fresh AlpenFlight captures + videos + the migration round-trip. **No all-journeys index,
+  no per-merged-journey history pages, no per-push/fanout/legacy-parity sub-paths** — merged journeys' proof
+  lives in their PRs (history is in git). **Verify the DEPLOYED page, never the unit test** (a green generator
+  while the deployed page was wrong recurred ~4× in J-6): after any gallery change, `curl` the bookmark + EVERY
+  asset (200). *(The GALLERY-SIMPLIFY rider collapses the old multi-journey plumbing to this — author to it.)*
 - **Helper tags.** An e2e case exercising *logic / an error case* (not
   UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
   <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.

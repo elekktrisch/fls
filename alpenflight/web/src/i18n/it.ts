@@ -134,6 +134,74 @@ const it: Translations = {
       required: 'Campo obbligatorio.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Test di creazione consegna',
+    new: 'Nuovo test',
+    edit: {
+      title: 'Modifica test',
+      titleNew: 'Nuovo test',
+      loading: 'Caricamento …',
+      notFound: 'Questo test non è stato trovato.',
+      cancel: 'Annulla',
+      save: 'Salva',
+      run: 'Esegui test',
+      createTestDelivery: 'Crea consegna di test',
+      expectedEmpty: 'Nessuna riga attesa. Crea una consegna di test.',
+      fields: {
+        name: 'Nome',
+        flight: 'Volo',
+        flightPlaceholder: 'Scegli un volo',
+        description: 'Descrizione',
+        active: 'Attivo',
+        mustNotCreateDelivery: 'Il volo non deve generare una consegna',
+      },
+      sections: {
+        ignoreFlags: 'Eccezioni di confronto',
+        expected: 'Righe attese',
+      },
+      ignoreFlags: {
+        recipientName: 'Ignora nome destinatario',
+        recipientAddress: 'Ignora indirizzo destinatario',
+        recipientPersonId: 'Ignora persona destinataria',
+        recipientClubMemberNumber: 'Ignora numero socio',
+        deliveryInformation: 'Ignora informazione di consegna',
+        additionalInformation: 'Ignora informazione aggiuntiva',
+        itemPositioning: 'Ignora posizionamento',
+        itemText: 'Ignora testo riga',
+        itemAdditionalInformation: 'Ignora informazione aggiuntiva riga',
+      },
+      result: {
+        success: 'Riuscito',
+        failure: 'Fallito',
+        matchedRules: 'Regole applicate',
+      },
+      diff: {
+        heading: 'Righe divergenti',
+        position: 'Posizione {{position}}',
+        fields: {
+          articleNumber: 'Numero articolo',
+          quantity: 'Quantità',
+          unitType: 'Unità',
+          itemText: 'Testo riga',
+          discountInPercent: 'Sconto %',
+        },
+      },
+    },
+    list: {
+      columns: {
+        name: 'Nome',
+        active: 'Attivo',
+        result: 'Ultimo risultato',
+      },
+      results: {
+        pass: 'Riuscito',
+        fail: 'Fallito',
+        never: 'Mai eseguito',
+      },
+      readonlyBanner:
+        'Sola lettura. I test di creazione consegna del tuo club sono gestiti dal tuo amministratore di club.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Continua a modificare',

@@ -122,6 +122,16 @@ export const routes: Routes = [
       import('@features/accounting/accounting.routes').then((m) => m.ACCOUNTING_ROUTES),
   },
   {
+    // `/deliverycreationtests` — the rules-engine test harness (J-9), replacing
+    // legacy masterdata/deliveryCreationTests/. CLUB_ADMINISTRATOR-gated on the
+    // server; the nav entry lives under the Masterdata group (nav-sections.ts).
+    path: 'deliverycreationtests',
+    loadChildren: () =>
+      import('@features/accounting/delivery-creation-tests/delivery-creation-tests.routes').then(
+        (m) => m.DELIVERY_CREATION_TESTS_ROUTES,
+      ),
+  },
+  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),

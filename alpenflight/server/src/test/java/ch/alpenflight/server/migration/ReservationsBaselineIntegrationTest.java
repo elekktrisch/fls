@@ -797,19 +797,28 @@ class ReservationsBaselineIntegrationTest {
     }
 
     @Test
-    void delivery_creation_test_expected_matched_filter_ids_is_bigint_array_not_fk() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT data_type, udt_name FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
-                                + "AND column_name='expected_matched_filter_ids'")) {
-            assertThat(rs.next()).isTrue();
-            assertThat(rs.getString("data_type"))
-                    .as("expected_matched_filter_ids must be ARRAY (deleted filter is legitimate regression signal — NOT FK-enforced)")
-                    .isEqualTo("ARRAY");
-            assertThat(rs.getString("udt_name"))
-                    .as("element type must be int8 (bigint[])")
-                    .isEqualTo("_int8");
+    void delivery_creation_test_matched_filter_ids_are_uuid_array_not_fk() throws Exception {
+        // V43 retyped both arrays bigint[] -> uuid[]: the J-9 engine + the J-8
+        // AccountingRuleFilter use UUID ids, and the harness links matched rules
+        // to /accountingrules/<uuid>, which a bigint[] could not hold. Still NOT
+        // FK-enforced — a deleted filter is a legitimate regression signal.
+        for (String col : List.of("expected_matched_filter_ids", "last_test_matched_filter_ids")) {
+            try (Connection conn = dataSource.getConnection();
+                    var stmt = conn.prepareStatement(
+                            "SELECT data_type, udt_name FROM information_schema.columns "
+                                    + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
+                                    + "AND column_name=?")) {
+                stmt.setString(1, col);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertThat(rs.next()).as("%s must exist", col).isTrue();
+                    assertThat(rs.getString("data_type"))
+                            .as("%s must be ARRAY", col)
+                            .isEqualTo("ARRAY");
+                    assertThat(rs.getString("udt_name"))
+                            .as("%s element type must be uuid (uuid[]) after V43", col)
+                            .isEqualTo("_uuid");
+                }
+            }
         }
     }
 

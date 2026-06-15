@@ -3,6 +3,7 @@ id: S-077
 title: Rules-engine port — glider→tow recursion via TowFlightId
 epic: E-09
 status: todo
+rolled_up_into: J-9
 depends_on: [S-076, S-063]
 acceptance:
   - For a glider flight with `tow_flight_id` set, the rules engine recurses into the tow flight after processing the glider flight's items.

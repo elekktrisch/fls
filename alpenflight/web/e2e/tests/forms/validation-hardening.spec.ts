@@ -33,10 +33,7 @@ import { enterViaNav } from '../_helpers/nav';
  *      J-7 /flightreports hollow-screen miss the done-bar names). A
  *      `af-nav-section-/flight-types` entry must be added.
  *
- * ── PLANNED CASES (J-26 "Spec must assert" §forms/validation-hardening) ──────
- *   [key-error] duplicate FlightCode → inline 409 ON the flightCode field (T-05)
- *   [key-error] Instructor × Observer XOR → blocked client-side (T-06)
- *   [key-error] duplicate clubKey → 409 labeled on the clubKey field (T-07)
+ * ── CASES (J-26 "Spec must assert" §forms/validation-hardening) ─────────────
  *   [happy]     af-field-errors renders TRANSLATED text, never a raw
  *               `common.errors.*` key (T-08) + profile languageId required (T-08)
  *   [happy]     as-you-type debounced (~200ms) trio: aircraft (T-10),
@@ -44,6 +41,11 @@ import { enterViaNav } from '../_helpers/nav';
  *   [edge]      flight edit: Save gated on client required validators (T-13)
  *   [edge]      reservation Save disable state tracks form validity across the
  *               async second-crew validator (T-09)
+ *
+ * The three duplicate-key / cross-field error-path cases (dup FlightCode 409,
+ * dup clubKey 409, Instructor×Observer XOR) are owned cheaper by their backend
+ * twins — FlightTypeDuplicateCodeIT, ClubsControllerIT, FlightTypeDomainTest —
+ * so they are not re-asserted here.
  *
  * Grounded in docs/modernization/form-validation-parity-audit.md (legacy =
  * minimum bar, operator 2026-06-09). Debounce/inline conventions follow the
@@ -102,161 +104,9 @@ function fieldErrors(page: Page, controlLocator: Locator): Locator {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Inline 409 FIELD-ROUTING — the duplicate-key fixes (T-05 / T-07).
-//
-// These cases assert WHICH FIELD a server 409 routes to, NOT the rendered text.
-// The mock `message: 'common.errors.duplicate'` below is a STAND-IN for the
-// server's problem-detail `detail` string (a SERVER message, shown as-is) — it
-// is deliberately never asserted as rendered text. The af-field-errors transloco
-// fix (T-08) translates CLIENT-side validator KEYS through transloco; a
-// server-supplied message string is rendered verbatim (and the real backend
-// sends human prose there, e.g. the 409 detail). The translated-text path the
-// T-08 AC owns is asserted on the client-validator cases below (the /clubs
-// required probe + the person as-you-type case), not here.
-// ═════════════════════════════════════════════════════════════════════════════
-test.describe('J-26 duplicate-key 409 routes to the offending field (mock inner loop)', () => {
-  // Error-path logic, not wiring — the server 409 envelope is covered by
-  // FlightTypeDuplicateCodeIT; this case asserts the CLIENT field-routing.
-  // covered-by: FlightTypeDuplicateCodeIT
-  test(
-    '[key-error] flight-type duplicate FlightCode → inline 409 on the flightCode field, not a raw 500',
-    { tag: '@helper' },
-    async ({ page }) => {
-      // T-05: backend DIVE discrimination (`ux_flight_type_club_code` →
-      // 409 field=flightCode) + store 409 field-routing (name vs code no longer
-      // collapse onto flightTypeName). Mock shape: the POST answers 409 with the
-      // problem-detail `field: 'flightCode'`.
-      await page.route('**/api/v1/flight-types', (route) =>
-        route.request().method() === 'POST'
-          ? route.fulfill({
-              status: 409,
-              json: { field: 'flightCode', message: 'common.errors.duplicate' },
-            })
-          : route.fulfill({ json: mockFlightTypes }),
-      );
-
-      // Chrome entry: nav section (PREREQ 2 — `/flight-types` nav entry) → list →
-      // New → form.
-      await enterSection(page, '/flight-types');
-      await page.getByTestId('flight-types-new-button').click();
-      await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
-
-      await page.locator('#FlightTypeName').fill('Duplikat');
-      await page.locator('#FlightCode').fill('S'); // duplicates the seeded code
-      await page.getByTestId('flight-types-save-button').click();
-
-      // The 409 lands INLINE on the Code field — not on flightTypeName, not a
-      // raw 500 toast (the legacy-reproducing bug this fixes).
-      await expect(fieldErrors(page, page.locator('#FlightCode'))).toBeVisible();
-      await expect(fieldErrors(page, page.locator('#FlightTypeName'))).toHaveCount(0);
-
-      await page.screenshot({
-        path: 'screenshots/forms/10-duplicate-flightcode-409.png',
-        fullPage: true,
-      });
-    },
-  );
-
-  // Error-path logic, not wiring — the server 409 envelope (DIVE
-  // discrimination ux_club_key vs ux_club_slug) is covered by
-  // ClubsControllerIT; this case asserts the CLIENT field-routing.
-  // covered-by: ClubsControllerIT
-  test(
-    '[key-error] club duplicate clubKey → 409 labeled on the clubKey field (not the slug)',
-    { tag: '@helper' },
-    async ({ page }) => {
-      // T-07: clubKey is CREATE-only (the field renders on /clubs/new and is
-      // immutable on edit — ClubUpdateRequest carries no clubKey), so the
-      // duplicate can only trip on POST. Mock shape: the POST answers the
-      // T-07 problem-detail (`field: 'clubKey'`); before the fix the server
-      // mislabeled this as a bare slug 409 → inline error on the WRONG field.
-      await page.route('**/api/v1/countries**', (route) =>
-        route.fulfill({ json: [{ id: COUNTRY_ID, iso2Code: 'CH', name: 'Switzerland' }] }),
-      );
-      await page.route('**/api/v1/club-states**', (route) =>
-        route.fulfill({ json: [{ id: CLUB_STATE_ID, code: 'ACTIVE', name: 'Active' }] }),
-      );
-      await page.route('**/api/v1/clubs', (route) =>
-        route.request().method() === 'POST'
-          ? route.fulfill({
-              status: 409,
-              json: { field: 'clubKey', message: 'common.errors.duplicate' },
-            })
-          : route.fulfill({ json: mockClubs }),
-      );
-
-      // Chrome entry: the Clubs section IS in the mock (sysadmin-branch) nav.
-      await enterSection(page, '/clubs');
-      await page.getByRole('button', { name: 'New club' }).click();
-      await expect(page.getByTestId('clubs-edit-form')).toBeVisible();
-
-      await page.locator('#clubName').fill('Duplikat Club');
-      await page.locator('#clubSlug').fill('duplikat-club');
-      await page.locator('#clubKey').fill('SC1'); // duplicates the seeded key
-      await page.getByTestId('clubs-country-select').locator('nz-select').click();
-      await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
-      await page.getByTestId('clubs-club-state-select').locator('nz-select').click();
-      await page.locator('nz-option-item').filter({ hasText: 'Active' }).click();
-      await page.getByTestId('clubs-save-button').click();
-
-      // 409 on the clubKey field — NOT the slug field's error.
-      await expect(fieldErrors(page, page.locator('#clubKey'))).toBeVisible();
-      await expect(fieldErrors(page, page.locator('#clubSlug'))).toHaveCount(0);
-
-      await page.screenshot({
-        path: 'screenshots/forms/12-duplicate-clubkey-409.png',
-        fullPage: true,
-      });
-    },
-  );
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// CROSS-FIELD + TRANSLATED ERRORS (T-06 / T-08).
+// CROSS-FIELD + TRANSLATED ERRORS (T-08).
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('J-26 cross-field validator + translated messages (mock inner loop)', () => {
-  // Error-path logic, not wiring — the cross-field rule itself is covered by
-  // instructor-observer-exclusive.validator.spec.ts (client) and
-  // FlightTypeDomainTest (the domain guard in FlightType.updateFlags).
-  // covered-by: FlightTypeDomainTest
-  test(
-    '[key-error] flight-type Instructor × Observer both set → blocked by the client cross-field validator',
-    { tag: '@helper' },
-    async ({ page }) => {
-      // T-06: the group-level instructorObserverExclusiveValidator marks the
-      // form invalid → inline alert in the roles section + Save disabled; no
-      // request ever leaves the client (the domain guard's 400 is the raw-API
-      // safety net).
-      await page.route('**/api/v1/flight-types', (route) =>
-        route.fulfill({ json: mockFlightTypes }),
-      );
-
-      await enterSection(page, '/flight-types');
-      await page.getByTestId('flight-types-new-button').click();
-      await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
-
-      await page.locator('#FlightTypeName').fill('XOR-Test');
-      await page.getByTestId('flight-types-flag-instructor').check();
-      await page.getByTestId('flight-types-flag-observer').check();
-
-      // Both set → cross-field error visible in the roles section + Save blocked.
-      await expect(page.getByTestId('flight-types-section-roles').getByRole('alert')).toBeVisible();
-      await expect(page.getByTestId('flight-types-save-button').locator('button')).toBeDisabled();
-
-      await page.screenshot({
-        path: 'screenshots/forms/11-instructor-observer-blocked.png',
-        fullPage: true,
-      });
-
-      // Unchecking one flag clears the block — the operator can recover inline.
-      await page.getByTestId('flight-types-flag-observer').uncheck();
-      await expect(page.getByTestId('flight-types-section-roles').getByRole('alert')).toHaveCount(
-        0,
-      );
-      await expect(page.getByTestId('flight-types-save-button').locator('button')).toBeEnabled();
-    },
-  );
-
   test('[happy] af-field-errors renders TRANSLATED text — no raw common.errors.* key visible', async ({
     page,
   }) => {

@@ -31,6 +31,11 @@ public interface JpaAccountingRuleFilterRepository
     List<AccountingRuleFilter> findAllActiveOrderedBySort();
 
     @Override
+    @Query("select arf from AccountingRuleFilter arf where arf.deletedOn is null "
+            + "order by arf.sortIndicator asc, arf.id asc")
+    List<AccountingRuleFilter> findActiveForEngineOrdered();
+
+    @Override
     @Query("select arf from AccountingRuleFilter arf "
             + "where arf.id = :id and arf.deletedOn is null")
     Optional<AccountingRuleFilter> findActiveById(@Param("id") UUID id);

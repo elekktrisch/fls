@@ -133,6 +133,74 @@ const en: Translations = {
       required: 'Entry required.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Delivery creation tests',
+    new: 'New test',
+    edit: {
+      title: 'Edit test',
+      titleNew: 'New test',
+      loading: 'Loading …',
+      notFound: 'This test was not found.',
+      cancel: 'Cancel',
+      save: 'Save',
+      run: 'Run test',
+      createTestDelivery: 'Create test delivery',
+      expectedEmpty: 'No expected items yet. Create a test delivery.',
+      fields: {
+        name: 'Name',
+        flight: 'Flight',
+        flightPlaceholder: 'Choose a flight',
+        description: 'Description',
+        active: 'Active',
+        mustNotCreateDelivery: 'Flight must not create a delivery',
+      },
+      sections: {
+        ignoreFlags: 'Comparison exceptions',
+        expected: 'Expected items',
+      },
+      ignoreFlags: {
+        recipientName: 'Ignore recipient name',
+        recipientAddress: 'Ignore recipient address',
+        recipientPersonId: 'Ignore recipient person',
+        recipientClubMemberNumber: 'Ignore member number',
+        deliveryInformation: 'Ignore delivery information',
+        additionalInformation: 'Ignore additional information',
+        itemPositioning: 'Ignore positioning',
+        itemText: 'Ignore item text',
+        itemAdditionalInformation: 'Ignore item additional information',
+      },
+      result: {
+        success: 'Success',
+        failure: 'Failure',
+        matchedRules: 'Matched rules',
+      },
+      diff: {
+        heading: 'Differing items',
+        position: 'Position {{position}}',
+        fields: {
+          articleNumber: 'Article number',
+          quantity: 'Quantity',
+          unitType: 'Unit',
+          itemText: 'Item text',
+          discountInPercent: 'Discount %',
+        },
+      },
+    },
+    list: {
+      columns: {
+        name: 'Name',
+        active: 'Active',
+        result: 'Last result',
+      },
+      results: {
+        pass: 'Success',
+        fail: 'Failure',
+        never: 'Not run yet',
+      },
+      readonlyBanner:
+        'Read-only. Your club’s delivery creation tests are managed by your club administrator.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Keep editing',

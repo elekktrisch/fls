@@ -106,6 +106,26 @@ public record FilterConfig(
     }
 
     /**
+     * The flight-time tier window's lower bound in seconds, the legacy
+     * {@code MinFlightTimeInSecondsMatchingValue ?? 0}. The window is
+     * min-EXCLUSIVE (legacy {@code Between} {@code includeMinValue: false}).
+     */
+    public long minFlightTimeSeconds() {
+        Integer min = minFlightTimeInSecondsMatchingValue;
+        return min == null ? 0L : min;
+    }
+
+    /**
+     * The flight-time tier window's upper bound in seconds, the legacy
+     * {@code MaxFlightTimeInSecondsMatchingValue ?? long.MaxValue}. The window is
+     * max-INCLUSIVE (legacy {@code Between} {@code includeMaxValue: true}).
+     */
+    public long maxFlightTimeSeconds() {
+        Integer max = maxFlightTimeInSecondsMatchingValue;
+        return max == null ? Long.MAX_VALUE : max;
+    }
+
+    /**
      * One predicate list with its include/exclude inversion toggle. The legacy
      * {@code UseRuleForAllXxxExceptListed} flag → {@link #useAllExcept}: when
      * {@code true} the rule applies to ALL values EXCEPT those listed; when

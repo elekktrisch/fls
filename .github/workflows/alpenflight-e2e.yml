@@ -20,6 +20,16 @@ name: alpenflight e2e
 #     ran this twice on one commit — the `alpenflight-e2e-${{ github.ref }}`
 #     concurrency groups don't cancel across refs — so `push` is `main`-only.)
 #
+# SHARDING (the 5-min step ceiling is the operator's hard bar — parallelize, never
+# buy wall time): the full chromium suite is 157+ tests; a single job — even at 4
+# workers — exceeds 5 min, so the run is split across a `shard: [1,2,3]` matrix.
+# Each shard runs ~1/3 of the tests at 4 workers (~2 min test wall + ~30s ng-serve
+# boot, comfortably under the 5-min step `timeout-minutes`) and emits a `blob`
+# report; the dependent `merge-reports` job stitches the blobs into one HTML report
+# and owns the gh-pages publish. The workflow conclusion is red iff a SHARD's test
+# step failed (each shard fails its own matrix job on a real test failure;
+# `fail-fast: false` lets the others finish so the merged report is complete).
+#
 # gh-pages publication uses `keep_files: true` and namespaces under
 # /alpenflight/. The legacy nightly workflow (`nightly.yml`) now publishes
 # under /legacy/ with the same `keep_files: true` policy, so the two
@@ -43,20 +53,22 @@ concurrency:
   group: alpenflight-e2e-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Single source of truth for the shard count: the matrix below and the
+  # `--shard=i/N` denominator must agree, so N lives here.
+  SHARD_TOTAL: 3
+
 jobs:
   playwright:
-    name: Run Playwright
+    name: Run Playwright (shard ${{ matrix.shard }})
     runs-on: ubuntu-22.04
-    # `contents: write` lets the gh-pages deploy step push to the
-    # gh-pages branch. Without it the deploy fails with 403 even though
-    # the test job otherwise has no need for write access.
-    permissions:
-      contents: write
-    # Hard ceiling. Suite + ng-serve boot fit in <5 min when green;
-    # 8 min absorbs a cold pnpm/playwright cache. `maxFailures: 3` in
-    # the Playwright config bails the test run itself; this is the
-    # backstop when the runner itself stalls.
-    timeout-minutes: 8
+    strategy:
+      # Run every shard even when one fails — a shard's red is the workflow's
+      # red signal, but the others must still finish so `merge-reports` has the
+      # full report and the failing shard is diagnosable alongside the rest.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -106,24 +118,120 @@ jobs:
       - name: Run Playwright
         id: pw
         working-directory: alpenflight/web
-        # Step-level cap. Per-test timeout is 30s; maxFailures is 3;
-        # retries are 0 in CI (flake-mask off). 5 minutes is the budget
-        # — if the suite grows past it, prune low-value specs rather
-        # than buy more wall time (the iteration loop is the constraint
-        # worth optimizing for).
+        # Per-shard step ceiling — the operator's hard bar. ~1/3 of the suite at
+        # 4 workers (top-level `workers` in playwright.config.ts) + ~30s ng-serve
+        # boot fits well inside 5 min. If a shard grows past it, add a shard or
+        # prune low-value specs — NEVER raise this (the iteration loop is the
+        # constraint worth optimizing for). Per-test timeout 30s; retries 0 in CI.
         #
-        # `continue-on-error: false` (default): a test failure fails the
-        # job. The downstream "Assemble", "Upload artifact" and "Deploy
-        # to gh-pages" steps all guard with `if: always()` so the report
-        # is still published when the suite is red — that's what makes
-        # the failure surface diagnosable.
+        # `--reporter=blob` (overrides the config's html/json reporters for the
+        # shard): each shard writes `blob-report/report-<shard>.zip`, which the
+        # `merge-reports` job stitches into one HTML report. `--workers=4` is
+        # belt-and-suspenders over the top-level config so the shard fans out to
+        # the runner's 4 vCPUs regardless of config drift.
+        #
+        # `continue-on-error: false` (default): a shard's test failure fails this
+        # matrix job — that IS the workflow's red signal. The report still
+        # publishes because `merge-reports` is gated `!cancelled()`.
         timeout-minutes: 5
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+        run: >
+          pnpm exec playwright test
+          --config=e2e/playwright.config.ts
+          --project=chromium
+          --shard=${{ matrix.shard }}/${{ env.SHARD_TOTAL }}
+          --workers=4
+          --reporter=blob
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-blob-report-${{ matrix.shard }}
+          path: alpenflight/web/blob-report
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload shard screenshots
+        # Each shard runs a subset of specs, so it produces a PARTIAL
+        # screenshots/ tree; merge-reports collects all shards' shots for the
+        # dashboard gallery. `warn` (not `error`): a shard may legitimately run
+        # only specs that take no screenshots.
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-screenshots-${{ matrix.shard }}
+          path: alpenflight/web/screenshots
+          retention-days: 1
+          if-no-files-found: warn
+
+  merge-reports:
+    name: Merge reports + publish dashboard
+    needs: [playwright]
+    runs-on: ubuntu-22.04
+    # `!cancelled()` keeps this alive when a shard's test step was red — the whole
+    # point of publishing is reading the failing run's report. It does NOT run on
+    # a genuine cancel (push-superseded).
+    if: ${{ !cancelled() }}
+    # `contents: write` lets the gh-pages deploy step push to the gh-pages branch.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/all-blob-reports
+          pattern: alpenflight-blob-report-*
+          merge-multiple: true
+
+      - name: Download shard screenshots
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/screenshots
+          pattern: alpenflight-screenshots-*
+          merge-multiple: true
+
+      - name: Merge blob reports into HTML
+        working-directory: alpenflight/web
+        # Stitches the per-shard blobs into the single `playwright-report/` HTML
+        # the dashboard publishes. `merge-reports` itself does NOT fail on test
+        # failures — the red signal is the `playwright` matrix job; this job is
+        # `!cancelled()` so the report publishes even when a shard was red.
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
 
       - name: Assemble publishable bundle
         if: always()
         env:
-          PW_OUTCOME: ${{ steps.pw.outcome }}
+          # The dashboard headline reflects the suite outcome: red if ANY shard's
+          # test job failed, success otherwise. `needs.playwright.result` is the
+          # aggregate matrix result (success/failure/cancelled/skipped).
+          PW_OUTCOME: ${{ needs.playwright.result == 'success' && 'success' || 'failure' }}
         run: |
           mkdir -p public/alpenflight
           if [ -d alpenflight/web/playwright-report ]; then
@@ -175,10 +283,10 @@ jobs:
           if-no-files-found: warn
 
       - name: Deploy to gh-pages
-        # `always()` keeps this step alive when the Playwright step is
-        # red — the whole point of publishing is that you can read the
-        # failing run's report. Convention is `always()` first so it's
-        # clear the implicit `success()` gate is intentionally lifted.
+        # `always()` keeps this step alive when a shard was red — the whole point
+        # of publishing is that you can read the failing run's report. Convention
+        # is `always()` first so it's clear the implicit `success()` gate is
+        # intentionally lifted.
         if: ${{ always() && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -187,4 +295,4 @@ jobs:
           publish_branch: gh-pages
           keep_files: true
           enable_jekyll: false
-          commit_message: "alpenflight e2e: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+          commit_message: "alpenflight e2e: ${{ needs.playwright.result }} for ${{ github.sha }}"

@@ -12,6 +12,58 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
+
+These four are the ≤70% burndown spike (`/do-plan` marker). Each rides a journey LEADING with a real
+feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40%.
+
+- **[GALLERY-SIMPLIFY] One gallery page, current journey only.** Collapse the proof gallery to a single
+  stable-bookmark page rendering ONLY the in-flight journey — paired legacy↔AlpenFlight list+form +
+  pass video + migration round-trip. **Delete:** the all-journeys index (`generate-previews-index.mjs`),
+  per-merged-journey history pages, the per-push/fanout/legacy-parity sub-path split, the per-journey
+  staging blocks + multi-context `producedBy` shots logic. Keep one deploy + the deployed-link-check
+  (with CDN-propagation slack). Merged journeys' proof lives in their PRs (history is in git). **This
+  SUPERSEDES every prior gallery rider** (the 4→1 / 2→1 collapses, the proof-index-regression patches,
+  the structural post-deploy guard, the paired-shots-per-push, the shots-present guard — all fold here).
+  *(seam: `generate-gallery.mjs` + delete `generate-previews-index.mjs` + `proof-gallery-links.spec.ts`
+  + `expected-shots.json` + the gallery deploy/staging steps across `ci.yml` + `alpenflight-proof-fanout.yml`)*
+  [[feedback_proof_gallery_per_journey_one_bookmark]] [[feedback_surface_proof_early_on_repeated_failure]]
+- **[WORKFLOW-SLIM] Cut the YAML ~4.5k→~2k + speed the gate (keep the 5-min mock-suite ceiling).** Extract
+  the repeated per-journey blocks into composite actions (`.github/actions/`); shard the cross-journey
+  real-idp at the §4 gate (keep the coverage — operator decision — just parallelize); **quarantine the 3
+  KC-26 specs** so their retries stop blowing the 15-min step timeout; the GALLERY-SIMPLIFY cut removes the
+  staging blocks. **Folds the J-8 proof-harness-transient rider** (the `[deployed-journey]` 60s gh-pages wall
+  + the KC-26 step-timeout). **Root cause already found (J-9 carve, 2026-06-14):** Playwright `workers` is a
+  TOP-LEVEL option, so the per-project `workers: 4` in `playwright.config.ts` is a **silent no-op** (same
+  trap as the removed per-project `maxFailures`) — the mock suite ran 2 workers and timed out at the 5-min
+  cap since J-26. Stopgap PR #222 forces `--workers=4` on the chromium CLI invocation (keeps the ceiling).
+  **VERIFIED 2026-06-14: parallelism ALONE is insufficient** — a dispatch with `--workers=4` ran 4 workers
+  but STILL timed out at 5 min (157 tests on a 4-core runner). So WORKFLOW-SLIM must **SHARD the mock suite
+  into parallel sub-5-min CI jobs** (a `--shard=i/n` matrix + `reporter: blob` + a `merge-reports` deploy job
+  — each shard keeps the 5-min ceiling) AND **HELPER-PRUNE** the redundant specs; moving `workers` top-level
+  (+ `--workers=1` for real-idp, whose per-project `workers:1` is the same no-op) is necessary but not
+  sufficient. The 12-min control run proved the suite is green-but-slow (157 passed), so this is purely a
+  throughput problem. The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
+  *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + `alpenflight-e2e.yml` + `playwright.config.ts` workers + new composites)*
+- **[COMMENT-STRIP] Self-explanatory code, why-only comments.** Remove all what/narration/history/
+  task-attribution comments (`T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"/non-load-bearing
+  migration `COMMENT` narration) per the new bar; keep a rare load-bearing *why*, preferred as a named
+  symbol / test name / ADR ref. **Per-touch** (the files the next journeys edit); server main is ~28%
+  comment lines, so a bounded focused sweep can take a burndown journey's slot. The do-* skills now
+  enforce this going-forward. *(seam: per-touch across `alpenflight/{server,web,migration-bundle,migration-tool}`
+  + e2e specs + the workflow YAML)* [[feedback_self_explanatory_no_history_comments]]
+- **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
+  task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
+  (J-7 bloated to 719 lines) + any "Original (for trace)" blocks; that history is in git/commit messages.
+  Per-touch (the in-flight + next journeys; don't churn merged ones). The do-* skills now enforce it.
+  *(seam: `docs/modernization/stories/*.md` per-touch)* [[feedback_self_explanatory_no_history_comments]]
+- **[HELPER-PRUNE] Drop 3 redundant `@helper` e2e cases.** `alpenflight/web/e2e/tests/forms/validation-hardening.spec.ts`
+  carries 3 `@helper`-tagged logic/error cases whose cheaper backend twins exist + own the logic:
+  dup-FlightCode 409 (`covered-by: FlightTypeDuplicateCodeIT`), dup-clubKey (`ClubsControllerIT`),
+  Instructor×Observer XOR (`FlightTypeDomainTest`) — all three classes verified present. Delete those 3
+  e2e cases (keep the wiring/happy-path cases); the IT/domain tests cover the logic far cheaper. `/do-ship`
+  re-confirms each backend test green before deleting. *(seam: validation-hardening.spec.ts @helper cases)*
+
 ## Pending (filed by /do-ship 2026-06-13, J-8 gate)
 
 - **[PROOF-HARNESS TRANSIENTS] two non-blocking run-level reds the J-8 gate surfaced (proof infra, not vertical).** (a) The fanout `[deployed-journey]` link-check (`proof-gallery-links.spec.ts:683`) has a **60s Playwright test timeout** that races gh-pages CDN propagation — the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a propagation pre-wait). (b) The full real-idp regression hits the workflow's **15-min step timeout** because the 3 KC-26 specs' retries exhaust the wall (`token-lifecycle` is the last file, so nothing J-8-relevant was truncated). Raise the step timeout OR quarantine the 3 KC-26 specs so their retries stop consuming the budget. Both are harness hardening; neither is a J-8 behavior red. *(seam: proof-gallery-links.spec.ts test timeout + alpenflight-e2e-real-idp.yml step timeout / KC-26 quarantine)* [[false_green_derive_fallback]]
@@ -20,10 +72,7 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 
-- ~~**[MAINTAINABILITY-TOOLING] Add Qodana (whole-program Java unused-code detection) — operator-approved 2026-06-13.**~~ **SHIPPED J-8 T-15** (report-only): `qodana.yaml` (jvm-community, Spring/JPA-aware profile, server-main scope) + a dedicated `.github/workflows/qodana.yml` `qodana-scan` job (`continue-on-error`, NOT in `required`, `--baseline qodana.sarif.json`) + a `parseQodana` panel row in the gallery maintainability section. **One-time follow-up STILL PENDING:** the committed `qodana.sarif.json` is a PLACEHOLDER empty baseline (the local Docker run OOM-killed on the LXC box); the first CI `qodana-scan` run establishes the real baseline → download its `qodana-sarif-<run_id>` artifact + commit it over the placeholder. *(rides the next journey that touches CI / a maintainability slot)*
-
-  Original (for trace):
-  **[MAINTAINABILITY-TOOLING] Add Qodana (whole-program Java unused-code detection) — operator-approved 2026-06-13.** PMD/SpotBugs only catch per-file private/local unused (PMD reports 0 in server main); the global unused-declaration class the operator's IntelliJ run surfaced (605 across stacks; the server SARIF export = 71 unused-PARAMETER findings, triaged in J-26 T-33) needs a whole-program model. **Qodana is the fit** (the Java twin of PMD/CPD + fallow): JetBrains' Dockerized runner for the SAME IntelliJ inspections, free `qodana-jvm-community` linter (no token), `JetBrains/qodana-action` GitHub Action, SARIF output, and a **baseline-ratchet** (`--baseline qodana.sarif.json`) identical in spirit to `cpdRatchet`. **HARD constraints, measured at T-33:** the unused-declaration inspection is ~90% FALSE-POSITIVE on this Spring/JPA/Modulith stack (63/71 server findings were Spring-Data repository query-binding params, 7 idiomatic `@ExceptionHandler` dispatch params, 1 genuine) — so it MUST land (a) report-only first (non-gating, like `pmdMain.ignoreFailures=true`), (b) with a committed baseline accepting the current state + gating only on NEW unused, (c) leaning on Qodana's Spring/JPA awareness (Community runs the inspection; the licensed JVM linter models Spring deeper if noise stays high). Emit its report into the proof-gallery maintainability panel alongside PMD/CPD/fallow. SUBSTANTIAL tooling slice → ride a future journey's ≤40% maintainability budget (next journey), NOT bolted onto J-26. *(seam: new `qodana.yaml` + `qodana-scan` CI job + baseline + gallery maintainability-panel emit)* [[reference_fallow_maintainability_analyzer]] [[feedback_maintainability_includes_dupes_and_deadcode]]
+- ~~**[MAINTAINABILITY-TOOLING] Add Qodana (whole-program Java unused-code detection) — operator-approved 2026-06-13.**~~ **SHIPPED J-8 T-15** (report-only): `qodana.yaml` (jvm-community, Spring/JPA-aware profile, server-main scope) + a dedicated `.github/workflows/qodana.yml` `qodana-scan` job (`continue-on-error`, NOT in `required`, `--baseline qodana.sarif.json`) + a `parseQodana` panel row in the gallery maintainability section. **One-time follow-up STILL PENDING:** the committed `qodana.sarif.json` is a PLACEHOLDER empty baseline (the local Docker run OOM-killed on the LXC box); the first CI `qodana-scan` run establishes the real baseline → download its `qodana-sarif-<run_id>` artifact + commit it over the placeholder. *(rides the next journey that touches CI / a maintainability slot)* [[reference_fallow_maintainability_analyzer]]
 
 - **[KC-26 UPGRADE DRIFT] 3 cross-journey real-idp nightly reds (pre-existing, surfaced when J-26 T-03 re-enabled the 12-day-dead nightly).** NOT J-26's vertical (validation/JDBC) — KC-26-upgrade reconciliation that needs iterative live-stack debugging; J-26's OWN real-idp proof is green. T-30a/d authored first fixes that the gate proved insufficient: (1) `login.spec.ts:92` `?ui_locales=fr` → `<html lang="fr">` still renders `en` (KC 26 honors the param differently / login-theme or realm i18n-resolver — needs live-KC iteration, possibly a realm/theme config change); (2) `register.spec.ts:49` KC→Mailpit verify-mail never arrives (T-30d added a fail-loud SMTP preflight + 45s timeout — next dispatch's preflight output pinpoints DNS/SMTP vs KC-not-sending); (3) `token-lifecycle.spec.ts:47` silent-refresh still red after the wait-hardening (likely real KC-26 refresh-grant/SSO behavior, not timing). Each fix → ~25-min nightly dispatch → observe → repeat. Ride the next journey's gate (or a focused KC-26-reconciliation slice). *(seam: realm-export.json i18n/SMTP + login/token real-idp specs + KC 26 OIDC behavior)* [[project_real_idp_real_roles_catches_authz_gaps]]
 
@@ -593,3 +642,23 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. The convertible case — the parent's
   id is minted by the seed and merely passed to the child (no external pin) — is the clean win T-20 executed
   across all 5 Sweep factories. *(seam: `server/src/test`, per-touch)*
+
+## Pending (filed by J-9, 2026-06-14 — fanout parity, surfaced once the legacy builds were fixed)
+
+The fanout's legacy builds are now fixed (cold-cache NuGet solution restore + phantomjs temp-dir/CDN —
+shipped in J-9), so the parity specs run for the first time on an integration branch and expose two
+pre-existing issues. Neither blocks J-9 (migration N/A; engine proven via the real-idp clean-seed run +
+corpus IT). Both ride the next migration-touching journey's gate.
+
+- **Migration-bundle-ingest 409 across the shared parity harness.** `ensureSharedMigrationBundle` →
+  `ingestBundle` 409s with `DEPLOYMENT_EXISTS` after the first spec ingests — the migration deployment is
+  async (`non-terminal`), and the harness re-ingests / reads migrated data before it reaches `COMPLETED`.
+  Breaks the real-bundle migrated parity for J-0c/J-5/J-6 (and starves J-9's migrated read). Fix: poll the
+  deployment to `COMPLETED` after ingest, and treat `409 DEPLOYMENT_EXISTS` as "reuse `existingDeploymentId`"
+  rather than throwing. *(seam: `alpenflight/web/e2e/tests/real-idp/_helpers/fan-out-parity-fixture.ts`)*
+- **J-9 migrated done-bar: no article-5001 over migrated data.** The `[migration/parity]` spec finds
+  migrated glider flights but the engine emits no article-5001 line — the migrated "FlightTime: Glider per
+  minute" filter isn't applying. Investigate whether the deployment-timing fix above resolves it, else
+  whether the legacy TestClub export carries a glider flight + an article-5001 FlightTime filter at all.
+  Also strengthen the assertion from `unitType+qty>0` toward bit-exact once it runs. *(seam:
+  `alpenflight/web/e2e/tests/real-idp/delivery-creation-test-parity.spec.ts` migrated block + the TestClub seed)*

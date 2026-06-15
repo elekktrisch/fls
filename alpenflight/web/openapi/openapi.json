@@ -23,6 +23,9 @@
     "name" : "AccountingRuleFilters",
     "description" : "AccountingRuleFilter CRUD (per-club tenant-scoped billing-rule config)."
   }, {
+    "name" : "DeliveryCreationTests",
+    "description" : "DeliveryCreationTest CRUD (per-club tenant-scoped rules-engine regression harness)."
+  }, {
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
   }, {
@@ -882,6 +885,122 @@
           },
           "404" : {
             "description" : "No active FlightType with that id."
+          }
+        }
+      }
+    },
+    "/api/v1/deliverycreationtests/{id}" : {
+      "get" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Read a single DeliveryCreationTest by id.",
+        "operationId" : "getDeliveryCreationTest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "DeliveryCreationTest detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active harness with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Update a DeliveryCreationTest.",
+        "operationId" : "updateDeliveryCreationTest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeliveryCreationTestWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active harness with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Soft-delete a DeliveryCreationTest.",
+        "operationId" : "deleteDeliveryCreationTest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active harness with that id (includes cross-tenant lookup)."
           }
         }
       }
@@ -2302,6 +2421,103 @@
         }
       }
     },
+    "/api/v1/deliverycreationtests" : {
+      "get" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "List the caller's tenant DeliveryCreationTests, ordered by name.",
+        "operationId" : "listDeliveryCreationTest",
+        "responses" : {
+          "200" : {
+            "description" : "Array of DeliveryCreationTest list-row projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/DeliveryCreationTestListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Create a new DeliveryCreationTest in the caller's tenant.",
+        "operationId" : "createDeliveryCreationTest",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeliveryCreationTestWriteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeliveryCreationTestDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deliverycreationtests/{id}/run" : {
+      "post" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Run the harness: engine vs the stored expected set, persist the run-state, return the diff.",
+        "operationId" : "runDeliveryCreationTest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Pass/fail + the field-by-field diff + the engine output.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunTestResult"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active harness with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RunTestResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
@@ -3584,6 +3800,45 @@
                   "items" : {
                     "$ref" : "#/components/schemas/FlightCostBalanceTypeResponse"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deliverycreationtests/example/{flightId}" : {
+      "get" : {
+        "tags" : [ "DeliveryCreationTests" ],
+        "summary" : "Dry-run the engine for a flight — return the would-be delivery, NO persistence.",
+        "operationId" : "exampleDeliveryForFlight",
+        "parameters" : [ {
+          "name" : "flightId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The engine output + matched-filter ids (not persisted).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExampleDeliveryResult"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No flight with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ExampleDeliveryResult"
                 }
               }
             }
@@ -5273,6 +5528,240 @@
         },
         "required" : [ "flightTypeName", "id", "isCheckFlight", "isCouponNumberRequired", "isFlightCostBalanceSelectable", "isForAircraftReservationType", "isForGliderFlights", "isForMotorFlights", "isForTowFlights", "isInstructorRequired", "isObserverPilotOrInstructorRequired", "isPassengerFlight", "isSoloFlight" ]
       },
+      "DeliveryCreationTestWriteRequest" : {
+        "type" : "object",
+        "description" : "Create/update payload for a DeliveryCreationTest in the caller's tenant.",
+        "properties" : {
+          "flightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "testName" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "expectedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot",
+            "description" : "Captured dry-run output to persist as the expected set (absent = leave unchanged)."
+          },
+          "expectedMatchedFilterIds" : {
+            "type" : "array",
+            "description" : "Matched AccountingRuleFilter ids from the captured dry-run (absent = empty).",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "active" : {
+            "type" : "boolean",
+            "description" : "Harness active (absent = true, the legacy default)."
+          },
+          "mustNotCreateDeliveryForFlight" : {
+            "type" : "boolean",
+            "description" : "Assert the flight produces NO delivery (absent = false)."
+          },
+          "ignoreRecipientName" : {
+            "type" : "boolean",
+            "description" : "Ignore recipient-name mismatch in the diff (absent = false)."
+          },
+          "ignoreRecipientAddress" : {
+            "type" : "boolean",
+            "description" : "Ignore recipient-address mismatch in the diff (absent = false)."
+          },
+          "ignoreRecipientPersonId" : {
+            "type" : "boolean",
+            "description" : "Ignore recipient-person-id mismatch in the diff (absent = false)."
+          },
+          "ignoreRecipientClubMemberNumber" : {
+            "type" : "boolean",
+            "description" : "Ignore recipient-club-member-number mismatch in the diff (absent = false)."
+          },
+          "ignoreDeliveryInformation" : {
+            "type" : "boolean",
+            "description" : "Ignore delivery-information mismatch in the diff (absent = false)."
+          },
+          "ignoreAdditionalInformation" : {
+            "type" : "boolean",
+            "description" : "Ignore additional-information mismatch in the diff (absent = false)."
+          },
+          "ignoreItemPositioning" : {
+            "type" : "boolean",
+            "description" : "Ignore item-positioning mismatch in the diff (absent = false)."
+          },
+          "ignoreItemText" : {
+            "type" : "boolean",
+            "description" : "Ignore item-text mismatch in the diff (absent = false)."
+          },
+          "ignoreItemAdditionalInformation" : {
+            "type" : "boolean",
+            "description" : "Ignore item-additional-information mismatch in the diff (absent = false)."
+          }
+        },
+        "required" : [ "flightId", "testName" ]
+      },
+      "DeliveryDetailsSnapshot" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryItemDetails"
+            }
+          },
+          "recipient" : {
+            "$ref" : "#/components/schemas/Recipient"
+          },
+          "deliveryInformation" : {
+            "type" : "string"
+          },
+          "additionalInformation" : {
+            "type" : "string"
+          }
+        }
+      },
+      "DeliveryItemDetails" : {
+        "type" : "object",
+        "properties" : {
+          "position" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "articleNumber" : {
+            "type" : "string"
+          },
+          "itemText" : {
+            "type" : "string"
+          },
+          "additionalInformation" : {
+            "type" : "string"
+          },
+          "quantity" : {
+            "type" : "number"
+          },
+          "discountInPercent" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "unitType" : {
+            "type" : "string"
+          }
+        }
+      },
+      "Recipient" : {
+        "type" : "object",
+        "properties" : {
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "personClubMemberNumber" : {
+            "type" : "string"
+          },
+          "recipientName" : {
+            "type" : "string"
+          },
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          }
+        }
+      },
+      "DeliveryCreationTestDetail" : {
+        "type" : "object",
+        "description" : "DeliveryCreationTest detail projection — full round-trip payload.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "flightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "testName" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "mustNotCreateDeliveryForFlight" : {
+            "type" : "boolean"
+          },
+          "ignoreRecipientName" : {
+            "type" : "boolean"
+          },
+          "ignoreRecipientAddress" : {
+            "type" : "boolean"
+          },
+          "ignoreRecipientPersonId" : {
+            "type" : "boolean"
+          },
+          "ignoreRecipientClubMemberNumber" : {
+            "type" : "boolean"
+          },
+          "ignoreDeliveryInformation" : {
+            "type" : "boolean"
+          },
+          "ignoreAdditionalInformation" : {
+            "type" : "boolean"
+          },
+          "ignoreItemPositioning" : {
+            "type" : "boolean"
+          },
+          "ignoreItemText" : {
+            "type" : "boolean"
+          },
+          "ignoreItemAdditionalInformation" : {
+            "type" : "boolean"
+          },
+          "expectedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot"
+          },
+          "expectedMatchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "lastTestSuccessful" : {
+            "type" : "boolean",
+            "description" : "Last run's result (null = never run)."
+          },
+          "lastTestResultMessage" : {
+            "type" : "string",
+            "description" : "Last run's diff message (null = never run)."
+          },
+          "lastTestRunOn" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When the harness was last run (null = never run)."
+          },
+          "lastTestCreatedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot",
+            "description" : "The engine output captured by the last run (null = never run)."
+          },
+          "lastTestMatchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        },
+        "required" : [ "active", "expectedDelivery", "expectedMatchedFilterIds", "flightId", "id", "ignoreAdditionalInformation", "ignoreDeliveryInformation", "ignoreItemAdditionalInformation", "ignoreItemPositioning", "ignoreItemText", "ignoreRecipientAddress", "ignoreRecipientClubMemberNumber", "ignoreRecipientName", "ignoreRecipientPersonId", "lastTestMatchedFilterIds", "mustNotCreateDeliveryForFlight", "testName" ]
+      },
       "ClubUpdateRequest" : {
         "type" : "object",
         "description" : "Payload to update a club. `clubKey` is immutable post-create.",
@@ -6947,6 +7436,29 @@
         },
         "required" : [ "flightTypeName" ]
       },
+      "RunTestResult" : {
+        "type" : "object",
+        "description" : "Run-test result — pass/fail + the field-by-field diff message + the engine output.",
+        "properties" : {
+          "lastTestSuccessful" : {
+            "type" : "boolean"
+          },
+          "lastTestResultMessage" : {
+            "type" : "string"
+          },
+          "lastTestCreatedDelivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot"
+          },
+          "lastTestMatchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        },
+        "required" : [ "lastTestCreatedDelivery", "lastTestMatchedFilterIds", "lastTestResultMessage", "lastTestSuccessful" ]
+      },
       "ClubCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a new club.",
@@ -8477,6 +8989,54 @@
           }
         },
         "required" : [ "code", "description", "id", "isForGlider", "isForMotor", "isForTow", "isPersonForInvoiceRequired" ]
+      },
+      "DeliveryCreationTestListItem" : {
+        "type" : "object",
+        "description" : "DeliveryCreationTest list-row projection — tenant-scoped, ordered by name.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "testName" : {
+            "type" : "string"
+          },
+          "flightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "lastTestSuccessful" : {
+            "type" : "boolean",
+            "description" : "Last run's result (null = never run)."
+          },
+          "lastTestRunOn" : {
+            "type" : "string",
+            "format" : "date-time",
+            "description" : "When the harness was last run (null = never run)."
+          }
+        },
+        "required" : [ "active", "flightId", "id", "testName" ]
+      },
+      "ExampleDeliveryResult" : {
+        "type" : "object",
+        "description" : "Dry-run engine output for a flight — no persistence (fills the expected set).",
+        "properties" : {
+          "delivery" : {
+            "$ref" : "#/components/schemas/DeliveryDetailsSnapshot"
+          },
+          "matchedFilterIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        },
+        "required" : [ "delivery", "matchedFilterIds" ]
       },
       "CountryResponse" : {
         "type" : "object",

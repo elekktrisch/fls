@@ -48,10 +48,11 @@ describe('navSectionsFor', () => {
     // Club-admin-only masterdata items + Clubs are hidden for a regular user.
     expect(allPaths(flags)).not.toContain('/users');
     expect(allPaths(flags)).not.toContain('/accountingrules');
+    expect(allPaths(flags)).not.toContain('/deliverycreationtests');
     expect(allPaths(flags)).not.toContain('/clubs');
   });
 
-  it('club-admin: Masterdata group ALSO carries Users + Accounting rules; NO Clubs', () => {
+  it('club-admin: Masterdata group ALSO carries Users + Accounting rules + Delivery creation tests; NO Clubs', () => {
     const flags = { isSystemAdmin: false, isClubAdmin: true };
     expect(masterdataPaths(flags)).toEqual([
       '/aircraft',
@@ -60,6 +61,7 @@ describe('navSectionsFor', () => {
       '/flight-types',
       '/users',
       '/accountingrules',
+      '/deliverycreationtests',
     ]);
     expect(topLabels(flags)).not.toContain('/clubs');
     // Reservations + Flights stay top-level (not under Masterdata).
@@ -99,6 +101,7 @@ describe('navSectionsFor', () => {
       '/flight-types',
       '/users',
       '/accountingrules',
+      '/deliverycreationtests',
     ]);
   });
 

@@ -139,6 +139,74 @@ const de = {
       required: 'Eingabe erforderlich.',
     },
   },
+  deliveryCreationTests: {
+    title: 'Lieferungserstellungstests',
+    new: 'Neuer Test',
+    edit: {
+      title: 'Test bearbeiten',
+      titleNew: 'Neuer Test',
+      loading: 'Wird geladen …',
+      notFound: 'Dieser Test wurde nicht gefunden.',
+      cancel: 'Abbrechen',
+      save: 'Speichern',
+      run: 'Test ausführen',
+      createTestDelivery: 'Testlieferung erstellen',
+      expectedEmpty: 'Noch keine erwarteten Positionen. Erstelle eine Testlieferung.',
+      fields: {
+        name: 'Name',
+        flight: 'Flug',
+        flightPlaceholder: 'Flug wählen',
+        description: 'Beschreibung',
+        active: 'Aktiv',
+        mustNotCreateDelivery: 'Flug darf keine Lieferung erzeugen',
+      },
+      sections: {
+        ignoreFlags: 'Vergleich-Ausnahmen',
+        expected: 'Erwartete Positionen',
+      },
+      ignoreFlags: {
+        recipientName: 'Empfängername ignorieren',
+        recipientAddress: 'Empfängeradresse ignorieren',
+        recipientPersonId: 'Empfänger-Person ignorieren',
+        recipientClubMemberNumber: 'Mitgliedsnummer ignorieren',
+        deliveryInformation: 'Lieferinformation ignorieren',
+        additionalInformation: 'Zusatzinformation ignorieren',
+        itemPositioning: 'Positionierung ignorieren',
+        itemText: 'Positionstext ignorieren',
+        itemAdditionalInformation: 'Positions-Zusatzinformation ignorieren',
+      },
+      result: {
+        success: 'Erfolgreich',
+        failure: 'Fehlgeschlagen',
+        matchedRules: 'Angewandte Regeln',
+      },
+      diff: {
+        heading: 'Abweichende Positionen',
+        position: 'Position {{position}}',
+        fields: {
+          articleNumber: 'Artikelnummer',
+          quantity: 'Menge',
+          unitType: 'Einheit',
+          itemText: 'Positionstext',
+          discountInPercent: 'Rabatt %',
+        },
+      },
+    },
+    list: {
+      columns: {
+        name: 'Name',
+        active: 'Aktiv',
+        result: 'Letztes Ergebnis',
+      },
+      results: {
+        pass: 'Erfolgreich',
+        fail: 'Fehlgeschlagen',
+        never: 'Noch nicht ausgeführt',
+      },
+      readonlyBanner:
+        'Schreibgeschützt. Die Lieferungserstellungstests deines Vereins werden von deinem Vereinsadministrator verwaltet.',
+    },
+  },
   flight: {
     conflict: {
       cancel: 'Weiter bearbeiten',

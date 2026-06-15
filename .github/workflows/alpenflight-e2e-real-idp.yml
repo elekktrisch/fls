@@ -280,9 +280,13 @@ jobs:
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
         run: |
+          # --workers=1: real-idp must run serial (one realm + one Mailpit inbox →
+          # parallel registration races KC user-exists + Mailpit poll contention);
+          # `workers` is top-level-only so the project's per-project value is a no-op.
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             --grep-invert 'showcase seed' \
             e2e/tests/real-idp/
 

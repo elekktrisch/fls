@@ -95,5 +95,41 @@
 #     via inheritance; this is the same per-resource DTO-record shape already
 #     baselined for reservations/planning above.
 #
+# Re-measured 2026-06-14 (J-9 T-09, EngineTime decrement loop): 5328 (+319).
+# The whole +319 is EngineTimeStage cloning FlightTimeStage — the loop, the
+# min-excl/max-incl predicate, the bill/decrement, the 4-way itemText. This is
+# REQUIRED, not accidental: the legacy AircraftEngineTimeRule and
+# AircraftFlightTimeRule are themselves near-identical sibling rule classes, and
+# the sacred-cow mandate is a line-by-line port (do NOT rewrite from
+# understanding; customer invoices depend on current behavior). Collapsing the
+# two stages into a shared decrement engine would (a) defeat the side-by-side
+# parity review the port exists to enable and (b) couple two filter-type loops
+# the legacy keeps separate. They differ only in their seed source, active
+# accessor (flight vs engine time), predicate range, and filter type — by design.
+#
+# Re-measured 2026-06-14 (J-9 T-13, DeliveryCreationTest aggregate + repo): 5254
+# (-74). The new harness aggregate added NO net duplication — extending
+# SoftDeletableAggregate (ADR 0028) and delegating free-text normalization to the
+# shared-kernel FreeText.normalize (instead of re-cloning AccountingRuleFilter's
+# private normalizeText) kept the new code clone-free, and the measurement landed
+# below the prior baseline. Lock the gain.
+#
+# Re-measured 2026-06-14 (J-9 T-14, DeliveryCreationTest CRUD controller): 5381
+# (+127). The whole +127 is the controller's softDelete endpoint + the
+# principalUserId(jwt) audit-user resolver block — the byte-identical
+# @DeleteMapping + @AuthenticationPrincipal Jwt → resolveUserIdFor idiom every
+# tenant-scoped CRUD controller carries (72t cloning AccountingRuleFilters, 55t
+# cloning Articles/FlightTypes/Locations/Persons/Reservations). It is the
+# mandated controller shape, not logic duplication: extracting it would need a
+# shared controller base class that would diverge all six existing controllers
+# and lift JWT/audit wiring into a cross-module kernel — the same per-resource
+# boilerplate the planning/reservation DTO and RFC-7807 advice clones above are
+# already baselined for. The service + DTOs added no new clones.
+#
+# Re-measured 2026-06-14 (J-9 T-22, FlightId rebind on the harness dry-run +
+# DTOs): 5310 (-71). Binding FlightId (not bare UUID) on the example endpoint +
+# the write/list/detail DTOs collapsed a controller/DTO clone window; no logic
+# change. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5009
+5310

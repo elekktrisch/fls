@@ -78,10 +78,11 @@ jobs:
       - name: Restore packages
         working-directory: flsserver/src
         run: |
-          for proj in FLS.Server.Web/FLS.Server.WebApi.csproj \
-                       FLS.Server.Console/FLS.Server.Console.csproj ; do
-            mono /usr/local/bin/nuget.exe restore "$proj" -SolutionDirectory .
-          done
+          # Restore the whole solution: projects reference packages declared in
+          # OTHER projects' packages.config (e.g. Console uses Microsoft.Owin.Hosting,
+          # declared in FLS.Server.Tests), so a per-csproj restore misses them on a
+          # cold cache (integration-branch dispatch) — only a warm cache hid it.
+          mono /usr/local/bin/nuget.exe restore FLS.sln
 
       - name: xbuild projects (Debug)
         working-directory: flsserver/src
@@ -133,6 +134,14 @@ jobs:
 
       - name: yarn install (if cache miss)
         if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        env:
+          # phantomjs (transitive via highcharts@0.0.11) fails a cold yarn install:
+          # its install.js path.joins process.env.npm_config_tmp (undefined) before
+          # the valid fallback → "Path must be a string", and its default binary CDN
+          # is dead. The webpack build never runs phantomjs; give it a temp dir + a
+          # live mirror so the postinstall succeeds.
+          npm_config_tmp: /tmp
+          PHANTOMJS_CDNURL: https://github.com/Medium/phantomjs/releases/download/v1.9.19
         run: |
           rm -rf /tmp/flsweb-build
           cp -r flsweb /tmp/flsweb-build
@@ -699,9 +708,11 @@ jobs:
         env:
           J0C_HANDSHAKE_OUT: ${{ github.workspace }}/j0c-handshake.json
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/real-idp/mint-handshake.spec.ts
 
       # ========================================================================
@@ -766,7 +777,7 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 25
@@ -775,29 +786,35 @@ jobs:
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
-          # J-5/J-6/J-8: the migrated-data render blocks ride the SAME real export
-          # the J-0c fan-out spec ingests (the T-07-bound reservation rows, the
-          # T-11 planning rows, AND the T-10-bound AccountingRuleFilter rows are
-          # all in the real bundle — the export iterates EntityType.values(), so
-          # ACCOUNTING_RULE_FILTER is included). Flag the real path so each
-          # migrated-data describe runs (each `test.skip`s on !useRealBundle()
-          # when unset, so the per-push synth gate doesn't false-green); the
-          # clean-seed real chains always run. J-8's accounting migrated block
-          # reads the SAME J5_BUNDLE_SOURCE flag (shared useRealBundle() helper).
+          # J-5/J-6/J-8/J-9: the migrated-data render blocks ride the SAME real
+          # export the J-0c fan-out spec ingests (the T-07-bound reservation rows,
+          # the T-11 planning rows, the T-10-bound AccountingRuleFilter rows, AND
+          # the migrated TestClub flights — all in the real bundle, the export
+          # iterates EntityType.values()). Flag the real path so each migrated-data
+          # describe runs (each `test.skip`s on !useRealBundle() when unset, so the
+          # per-push synth gate doesn't false-green); the clean-seed real chains
+          # always run. J-8's accounting + J-9's engine migrated blocks read the
+          # SAME J5_BUNDLE_SOURCE flag (shared useRealBundle() helper). The J-9
+          # engine block runs the harness dry-run over a MIGRATED glider flight +
+          # the migrated `FlightTime: Glider per minute` filter (article 5001) →
+          # asserts the engine emits that line (producer-bound J-8+J-2 → engine).
           J5_BUNDLE_SOURCE: real
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
         run: |
+          # --workers=1: real-idp serial (top-level `workers` no-op per-project).
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
+            --workers=1 \
             e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
             e2e/tests/real-idp/flight-migration-parity.spec.ts \
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
             e2e/tests/real-idp/planning-migration-parity.spec.ts \
-            e2e/tests/real-idp/accounting-rules-parity.spec.ts
+            e2e/tests/real-idp/accounting-rules-parity.spec.ts \
+            e2e/tests/real-idp/delivery-creation-test-parity.spec.ts
 
       # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
       # trace.zip + failure screenshot/video) BEFORE the staging + gallery + guard
