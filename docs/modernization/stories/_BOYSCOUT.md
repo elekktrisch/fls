@@ -647,8 +647,13 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 The fanout's legacy builds are now fixed (cold-cache NuGet solution restore + phantomjs temp-dir/CDN —
 shipped in J-9), so the parity specs run for the first time on an integration branch and expose two
-pre-existing issues. Neither blocks J-9 (migration N/A; engine proven via the real-idp clean-seed run +
-corpus IT). Both ride the next migration-touching journey's gate.
+pre-existing issues. Neither blocked J-9 (migration N/A; engine proven via the real-idp clean-seed run +
+corpus IT).
+
+**⚠ BLOCKS the next MIGRATION journey (J-10 Deliveries).** Per the J-9-retro `do-ship` §4 change, a
+migration journey's `fan-out parity` job is now a HARD merge gate — and it can't go green until the 409
+below is fixed (the shared harness reds every migrated-parity spec). So J-10 MUST fold both riders into
+its task list, not defer them. (`/do-plan`: note this on the J-10 carve.)
 
 - **Migration-bundle-ingest 409 across the shared parity harness.** `ensureSharedMigrationBundle` →
   `ingestBundle` 409s with `DEPLOYMENT_EXISTS` after the first spec ingests — the migration deployment is
