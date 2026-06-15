@@ -670,6 +670,26 @@ val seedAircraftOwnerLink by tasks.registering(JavaExec::class) {
     }
 }
 
+// J-10: DB-fixture seam for the clean-seed half of the real-idp deliveries parity
+// spec. The Delivery write side ships in J-10b (no create REST surface this
+// iteration), so the read screen's clean-seed input — a Delivery + its line items
+// + the frozen recipient under the operating club, linked to a flight the spec
+// created via REST — is materialized directly against the live dev Postgres, as
+// the engine-persist path will write it later. The read endpoint + @TenantId scope
+// + cross-tenant 404 still run fully real off these rows. Connects via DATASOURCE_*.
+val seedDelivery by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Seed a clean-seed Delivery (+items +article) for the e2e deliveries spec."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.migrations.web.DeliverySeeder"
+    // Args supplied by the spec at invocation:
+    //   <operatingClubId> <flightId> <recipientLastName> <batchId>
+    val seederArgs = providers.gradleProperty("seederArgs")
+    if (seederArgs.isPresent) {
+        args = seederArgs.get().split(" ")
+    }
+}
+
 // J-7 T-08: one-shot generator for the FlightReports Excel golden-parity fixture
 // (story S-096). Renders the documented S-093/oracle layout contract
 // (FlightReportGoldenFixture) to a deterministic .xlsx so the committed fixture can
