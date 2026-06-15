@@ -271,6 +271,12 @@ public final class TwoClubFixture {
         // siblings here as they land.
         jdbc.update("DELETE FROM t_inoutbound_point WHERE location_id IN ("
                         + "  SELECT id FROM t_location WHERE club_id IN (" + in + "))", ids);
+        // Deliveries hold a RESTRICT FK to Flight (fk_dlv_flight_id) + RESTRICT to
+        // Article. Delete deliveries up-front so the flight cleanup below isn't
+        // blocked by a prior-run delivery still referencing its flight. t_delivery_item
+        // cascades via its parent FK; the tenant-scoped delivery rows still get a
+        // second (idempotent) catalog delete.
+        jdbc.update("DELETE FROM t_delivery WHERE operating_club_id IN (" + in + ")", ids);
         // Flight rows hold a FK to Aircraft (ON DELETE RESTRICT). Delete flights
         // for ALL clubs up-front so the aircraft cleanup below isn't blocked —
         // including a cross-club flight that references another club's aircraft.

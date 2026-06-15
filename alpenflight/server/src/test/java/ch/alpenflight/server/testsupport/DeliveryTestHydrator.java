@@ -46,6 +46,12 @@ public final class DeliveryTestHydrator {
         return delivery;
     }
 
+    /** Sets the linked {@code flightId} on a transient Delivery and returns it (fluent). */
+    public static Delivery withFlight(Delivery delivery, UUID flightId) {
+        set(delivery, "flightId", flightId);
+        return delivery;
+    }
+
     /**
      * A transient DeliveryItem child. {@code operatingClubId} IS set here (the
      * denormalized child stamp the parent's graph carries — DeliveryCreationTestItem
