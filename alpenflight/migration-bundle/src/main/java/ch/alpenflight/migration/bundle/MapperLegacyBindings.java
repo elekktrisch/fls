@@ -1225,10 +1225,11 @@ public final class MapperLegacyBindings {
                     //
                     // DELIVERY-NUMBER PARSE (V19 reshape): legacy DeliveryNumber is operator-
                     // formatted NVARCHAR; V4 reshapes to INTEGER + a legacy_delivery_number_text
-                    // parity column. TRY_CONVERT(INT, …) (T-SQL native; the PG test container
-                    // gets a CAST-on-all-digits shim in the IT staging table) yields the integer
-                    // into ResolvedDeliveryNumber on parse success (text NULL), or NULL +
-                    // the raw text into ResolvedLegacyDeliveryNumberText on parse failure.
+                    // parity column. The legacy MSSQL compat level predates TRY_CONVERT, so the
+                    // parse is a digit-only guard (NOT LIKE '%[^0-9]%', ≤9 chars to stay in INT
+                    // range) + CAST: the integer into ResolvedDeliveryNumber on parse success
+                    // (text NULL), or NULL + the raw text into ResolvedLegacyDeliveryNumberText
+                    // on parse failure.
                     // NO dedupe on a parse-collision: two distinct texts parsing to the SAME
                     // integer for one club surface as ux_dlv_club_number_partial 23505 at
                     // ingest — silently renumbering would corrupt the Swiss OR Art. 957a
@@ -1262,8 +1263,13 @@ public final class MapperLegacyBindings {
                            d.RecipientZipCode, d.RecipientCity, d.RecipientCountryName,
                            d.RecipientPersonClubMemberNumber,
                            d.DeliveryInformation, d.AdditionalInformation,
-                           TRY_CONVERT(INT, d.DeliveryNumber) AS ResolvedDeliveryNumber,
-                           CASE WHEN TRY_CONVERT(INT, d.DeliveryNumber) IS NULL
+                           CASE WHEN d.DeliveryNumber IS NOT NULL
+                                     AND LEN(d.DeliveryNumber) BETWEEN 1 AND 9
+                                     AND d.DeliveryNumber NOT LIKE '%[^0-9]%'
+                                THEN CAST(d.DeliveryNumber AS INT) END AS ResolvedDeliveryNumber,
+                           CASE WHEN NOT ( d.DeliveryNumber IS NOT NULL
+                                           AND LEN(d.DeliveryNumber) BETWEEN 1 AND 9
+                                           AND d.DeliveryNumber NOT LIKE '%[^0-9]%' )
                                 THEN d.DeliveryNumber END AS ResolvedLegacyDeliveryNumberText,
                            d.DeliveredOn, d.BatchId,
                            d.CreatedOn, d.CreatedByUserId, d.ModifiedOn, d.ModifiedByUserId,
