@@ -1,6 +1,7 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.accounting.domain.AccountingRuleFilter;
+import ch.alpenflight.accounting.domain.Delivery;
 import ch.alpenflight.accounting.domain.DeliveryCreationTest;
 import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
@@ -99,7 +100,13 @@ public final class TenantScopedRowBuilders {
             // DeliveryCreationTestSweepFactory; V43 realigned its tenant FK name).
             // Its DeliveryCreationTestItem child is aggregate-internal WITHOUT
             // @TenantId (FlightCrew pattern) — deliberately NOT a sweep participant.
-            Map.entry(DeliveryCreationTest.class, DeliveryCreationTestSweepFactory::build)
+            Map.entry(DeliveryCreationTest.class, DeliveryCreationTestSweepFactory::build),
+            // J-10 delivery read aggregate. All its FKs (flight_id,
+            // recipient_person_id) are nullable, so only operating_club_id fails
+            // fail-closed under NO_TENANT (see DeliverySweepFactory). Its
+            // DeliveryItem child is aggregate-internal WITHOUT @TenantId
+            // (DeliveryCreationTestItem pattern) — deliberately NOT a sweep participant.
+            Map.entry(Delivery.class, DeliverySweepFactory::build)
     );
 
     private static String uniqueName(String label) {

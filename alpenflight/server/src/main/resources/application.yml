@@ -196,6 +196,45 @@ audit:
           - unitPrice
           - unitTypeCode
           - discountInPercent
+      Delivery:
+        # J-10 / S-078. The invoice draft. The nine frozen recipient_* columns are
+        # member PII (name + address per OR Art. 957a) — carried as the `recipient`
+        # @Embedded VO which is @AuditRedact on the entity field (lands "[redacted]",
+        # the AccountingRuleFilter.filterConfig precedent), so `recipient` is NOT
+        # allow-listed. recipientPersonId is a bare UUID FK (no name, like flightId);
+        # deliveryInformation / additionalInformation are operator free text (no
+        # member data, same as the harness item texts above). Everything else is
+        # structural billing state.
+        allow:
+          - id
+          - operatingClubId
+          - processState
+          - flightId
+          - recipientPersonId
+          - deliveryInformation
+          - additionalInformation
+          - deliveryNumber
+          - batchId
+          - items
+          - deletedOn
+          - deletedByUserId
+      DeliveryItem:
+        # Aggregate-internal invoice line. Article/unit/quantity/price are billing
+        # structure, not member PII; item_text / additional_information are free
+        # text describing the line (no member data) — same decision as the harness
+        # DeliveryCreationTestItem above.
+        allow:
+          - id
+          - operatingClubId
+          - position
+          - articleId
+          - articleNumber
+          - itemText
+          - additionalInformation
+          - quantity
+          - unitPrice
+          - discountInPercent
+          - unitTypeCode
       Club:
         # `name` matches the ClubResponse DTO field; `clubname` matches the
         # Club entity field. Service-layer callers may pass either shape;

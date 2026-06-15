@@ -131,5 +131,19 @@
 # the write/list/detail DTOs collapsed a controller/DTO clone window; no logic
 # change. Lock the gain.
 #
+# Re-measured 2026-06-15 (J-10 T-03, read-only Delivery + DeliveryItem entities +
+# read repo): 5451 (+141). The whole +141 is the mandated mirror-pattern the task
+# pinned ("match J-9/J-8 style exactly; don't invent a parallel convention"):
+# DeliveryItem's @Column field block + class declaration cloning
+# DeliveryCreationTestItem (both map the same V4 _item column family — article_number
+# / item_text / additional_information / quantity / unit_type_code), the
+# DeliveryProcessState sparse-SMALLINT enum + @Converter cloning the FlightAircraftType
+# precedent, JpaDeliveryRepository's tenant-scoped-finder Javadoc + JPQL shape cloning
+# JpaDeliveryCreationTestRepository, and DeliverySweepFactory cloning
+# AccountingRuleFilterSweepFactory. It is per-aggregate boilerplate, not logic
+# duplication: deduping would couple two distinct aggregates' internal children (each
+# aggregate owns its own child entity by design) or lift an enum-converter kernel — the
+# same posture every baselined clone above carries.
+#
 # Single non-comment, non-blank line = the token baseline.
-5310
+5451
