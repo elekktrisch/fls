@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-4</title>
+<title>AlpenFlight proof — J-2</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-4 — proof</h1>
+    <h1>J-2 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span> <span class="summary-counts">0 videos · 4 screenshots</span>
+      <span class="summary-jid">J-2</span> <span class="status success">8 proofs</span> <span class="summary-counts">8 videos · 4 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -142,45 +142,79 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-f8fa5a5223cda1d2b726ea20a5c73fcfd988f596.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-791e02628c4dcd5406af92cbb7c5135d271854ba.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-9a983c1cacc62211b4940b2f9092fd06fa289c9f.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-5e86a12862ed44135aae8ec4127f0a0d58a6db9a.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-f31e983e4bca98e9b18f652ed2b3d28d773799e3.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-0a8a541d546a38a94afb494b799b33b20d7457d6.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-33f005bec44e7f111082273b00c0480938fe3a45.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-dc620972a728b8271b9230373a5f454ae0d58b3c.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
+        </figure>
+        </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
         <div class="shot-pair">
-          <div class="shot-view-label">Account tab</div>
+          <div class="shot-view-label">list</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-account.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-account.png" alt="alpenflight Account tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Account tab (real PILOT pilot1, showcase seed) — self-edit account fields (friendly name, notification email, phone, language) via PATCH /api/v1/me/profile; username + club read-only; no in-app password form (Keycloak owns it)</figcaption>
+            <a href="../screenshots/alpenflight-flights-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the unified /flights logbook — a created glider flight (AEROTOW) + its linked TOW row + a MOTOR row in ONE list (legacy's separate /airmovements screen is not carried forward)</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Personal tab</div>
+          <div class="shot-view-label">form</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-personal.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-personal.png" alt="alpenflight Personal tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Personal tab (real PILOT pilot1) — the caller's contact/address self-edit form (address, zip/city/region, country, phones, emails, birthday) via PATCH /api/v1/me/person; name fields read-only (rename stays admin-only)</figcaption>
+            <a href="../screenshots/alpenflight-flights-wizard-tow.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-wizard-tow.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the 3-step create wizard at the populated TOW step (Launch → Glider → Tow) — the paired glider+tow create UX a single edit-form PNG hides; pair against the legacy two-column glider+tow form</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Pilot tab</div>
+          <div class="shot-view-label">wizard (glider step)</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-pilot.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-pilot.png" alt="alpenflight Pilot tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event</figcaption>
+            <a href="../screenshots/alpenflight-flights-wizard-glider.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-wizard-glider.png" alt="alpenflight wizard (glider step)" loading="lazy"></a>
+            <figcaption>AlpenFlight: the create wizard's GLIDER step, populated — the full glider+tow wizard example (the Tow step follows; see view=form)</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Notifications tab</div>
+          <div class="shot-view-label">motor</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-notifications.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-notifications.png" alt="alpenflight Notifications tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab</figcaption>
+            <a href="../screenshots/alpenflight-motor-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-motor-form.png" alt="alpenflight motor" loading="lazy"></a>
+            <figcaption>AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen</figcaption>
           </figure>
           </div>
         </div>

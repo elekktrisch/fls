@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-4</title>
+<title>AlpenFlight proof — J-6</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-4 — proof</h1>
+    <h1>J-6 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span> <span class="summary-counts">0 videos · 4 screenshots</span>
+      <span class="summary-jid">J-6</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -142,45 +142,61 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-0694dff1bb88375c23a281d15db578688645b558.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-8ce139eef57ae1ccad85db2210f992f81c41c6da.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-de5b6379fadd9ec634c5a32d6608dc7705d91194.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-0f07efc2b99da25579eadf39925abac3cd7df090.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-d5682c70c33241cb416f960a02285c3f4d9a1e41.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-f33bd61e52b21d974495622ac6de3e0bf0cac5ec.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
+        </figure>
+        </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
         <div class="shot-pair">
-          <div class="shot-view-label">Account tab</div>
+          <div class="shot-view-label">list</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-account.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-account.png" alt="alpenflight Account tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Account tab (real PILOT pilot1, showcase seed) — self-edit account fields (friendly name, notification email, phone, language) via PATCH /api/v1/me/profile; username + club read-only; no in-app password form (Keycloak owns it)</figcaption>
+            <a href="../screenshots/alpenflight-planning-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) with the V34 seed days + a created row — the future-days list to eyeball against the legacy planning table</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Personal tab</div>
+          <div class="shot-view-label">form</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-personal.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-personal.png" alt="alpenflight Personal tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Personal tab (real PILOT pilot1) — the caller's contact/address self-edit form (address, zip/city/region, country, phones, emails, birthday) via PATCH /api/v1/me/person; name fields read-only (rename stays admin-only)</figcaption>
+            <a href="../screenshots/alpenflight-planning-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Pilot tab</div>
+          <div class="shot-view-label">setup</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-pilot.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-pilot.png" alt="alpenflight Pilot tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">Notifications tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-notifications.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-notifications.png" alt="alpenflight Notifications tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab</figcaption>
+            <a href="../screenshots/alpenflight-planning-setup-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-setup-form.png" alt="alpenflight setup" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form</figcaption>
           </figure>
           </div>
         </div>

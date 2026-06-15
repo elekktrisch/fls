@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-4</title>
+<title>AlpenFlight proof — J-5</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-4 — proof</h1>
+    <h1>J-5 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span> <span class="summary-counts">0 videos · 4 screenshots</span>
+      <span class="summary-jid">J-5</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -142,45 +142,57 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-7f988a77be256365595ac26848008641544b77a5.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-d44d36d4686ba7dbeeea5f9453cd3970086a084a.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-3a31b67523840bef2bc6146b7ecdadbe678338ce.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-501ddf025ccf1760d7c357cbf209ee421841b3a8.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-391e8216d869c4bb6849f6a58e86fc16463f2c1b.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
+        </figure>
+        </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
         <div class="shot-pair">
-          <div class="shot-view-label">Account tab</div>
+          <div class="shot-view-label">list</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-account.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-account.png" alt="alpenflight Account tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Account tab (real PILOT pilot1, showcase seed) — self-edit account fields (friendly name, notification email, phone, language) via PATCH /api/v1/me/profile; username + club read-only; no in-app password form (Keycloak owns it)</figcaption>
+            <a href="../screenshots/alpenflight-reservations-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservations-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /reservations CALENDAR day view (aircraft×hour grid 08–20) with a created reservation placed as a time-block in its aircraft lane — the calendar-first replacement for the legacy reservation table, decorated client-side from the picker label maps</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Personal tab</div>
+          <div class="shot-view-label">form</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-personal.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-personal.png" alt="alpenflight Personal tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Personal tab (real PILOT pilot1) — the caller's contact/address self-edit form (address, zip/city/region, country, phones, emails, birthday) via PATCH /api/v1/me/person; name fields read-only (rename stays admin-only)</figcaption>
+            <a href="../screenshots/alpenflight-reservation-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
-          <div class="shot-view-label">Pilot tab</div>
+          <div class="shot-view-label">scheduler</div>
           <div class="shot-grid">
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-pilot.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-pilot.png" alt="alpenflight Pilot tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">Notifications tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-notifications.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-notifications.png" alt="alpenflight Notifications tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab</figcaption>
+            <a href="../screenshots/alpenflight-reservation-scheduler.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-scheduler.png" alt="alpenflight scheduler" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /reservations CALENDAR week view (aircraft×day matrix — per-cell count · hours · progress bar), the consolidated replacement for the legacy reservation-scheduler grid (the calendar day view is the old lane×time scheduler; this week view is the distinct second surface)</figcaption>
           </figure>
           </div>
         </div>
