@@ -14,9 +14,8 @@ import { enterViaNav } from '../_helpers/nav';
  * frozen recipient block + flight link), the ABSENCE of any write affordance, and
  * the cross-tenant 404.
  *
- * The screen does not exist yet (built T-03–T-06, thickened to real assertions
- * T-10): the in-app flows are `test.fixme` until the screen lands at T-06, while
- * the `page.route` backend shape is committed now so the contract is pinned.
+ * The list / view / cross-tenant flows run LIVE against the built screen (T-06);
+ * the `[migration/parity]` case stays `test.fixme` for the real-idp spec (T-10).
  *
  * Booted under the `chromium` (mock-auth) project: the principal is a mocked
  * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR (see `app.config.mock.ts`), so the
@@ -25,9 +24,10 @@ import { enterViaNav } from '../_helpers/nav';
  * real-idp, NO DB (the real migrated-parity run is the real-idp spec, T-10).
  *
  * Legacy contract (flsweb/src/masterdata/deliveries/, read at carve):
- *   - List: DeliveriesEditController.js — `/api/v1/deliveries/page/{start}/{size}`,
- *     the club's deliveries (delivery number / recipient / batch / state), default
- *     sort BatchId desc then RecipientName asc, tenant-scoped, click-to-view.
+ *   - List: DeliveriesEditController.js — `POST /api/v1/deliveries/page/{start}/{size}`
+ *     (the canonical AlpenFlight paged-read seam), the club's deliveries (delivery
+ *     number / recipient / batch / state), default sort BatchId desc then
+ *     RecipientName asc, tenant-scoped, click-to-view.
  *   - View: deliveries-edit.html — read-only line items (Position / ArticleNumber /
  *     ItemText / Quantity / UnitType), the frozen RecipientDetails block, and the
  *     FlightInformation link. No book/delete actions render this iteration.
@@ -179,10 +179,11 @@ async function stubReferenceData(page: Page): Promise<void> {
 }
 
 /**
- * In-memory `/api/v1/deliveries` READ backend. GET paged list + GET by id (404
- * when absent — the cross-tenant case). No write verbs: the screen is a viewer
- * this iteration, so a POST/PUT/DELETE here is out of contract and falls through.
- * The list envelope mirrors the keyset-paged read shape (`items` + `totalRows`).
+ * In-memory `/api/v1/deliveries` READ backend. POST paged list (the canonical
+ * AlpenFlight paged-read seam) + GET by id (404 when absent — the cross-tenant
+ * case). No write verbs on a row: the screen is a viewer this iteration, so a
+ * PUT/DELETE here is out of contract and falls through. The list envelope mirrors
+ * the SPA-compat page shape (`items` + `pageStart` + `pageSize` + `totalRows`).
  */
 function setupBackend(items: MockDelivery[]) {
   return async (route: Route) => {
@@ -191,13 +192,18 @@ function setupBackend(items: MockDelivery[]) {
     const method = req.method();
     const path = url.pathname;
     const idMatch = path.match(/^\/api\/v1\/deliveries\/(dlv-[^/]+)$/);
-    const pageMatch = path.match(/^\/api\/v1\/deliveries\/page(?:\/.*)?$/);
+    const pageMatch = path.match(/^\/api\/v1\/deliveries\/page\/(\d+)\/(\d+)$/);
 
-    if (method === 'GET' && pageMatch) {
+    if (method === 'POST' && pageMatch) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ items: items.map(toListRow), totalRows: items.length }),
+        body: JSON.stringify({
+          items: items.map(toListRow),
+          pageStart: Number(pageMatch[1]),
+          pageSize: Number(pageMatch[2]),
+          totalRows: items.length,
+        }),
       });
       return;
     }
@@ -222,10 +228,9 @@ async function bootBackend(page: Page, items: MockDelivery[]): Promise<void> {
 }
 
 // ── nav entry (chrome-reachable contract) ──────────────────────────────────
-test.fixme('deliveries: a nav entry under masterdata reaches /deliveries (ENTER via nav)', async ({
+test('deliveries: a nav entry under masterdata reaches /deliveries (ENTER via nav)', async ({
   page,
 }) => {
-  // The /deliveries masterdata nav entry lands in T-06.
   await bootBackend(page, [{ ...seededDelivery }]);
 
   await page.goto('/clubs?lang=de');
@@ -236,10 +241,9 @@ test.fixme('deliveries: a nav entry under masterdata reaches /deliveries (ENTER 
 });
 
 // ── list ───────────────────────────────────────────────────────────────────
-test.fixme('deliveries: list renders the club’s deliveries (number, recipient, batch, state) tenant-scoped', async ({
+test('deliveries: list renders the club’s deliveries (number, recipient, batch, state) tenant-scoped', async ({
   page,
 }) => {
-  // The list screen lands in T-06.
   await bootBackend(page, [{ ...seededDelivery }]);
 
   await page.goto('/deliveries');
@@ -249,15 +253,15 @@ test.fixme('deliveries: list renders the club’s deliveries (number, recipient,
   await expect(row).toBeVisible();
   await expect(row).toContainText(String(seededDelivery.deliveryNumber));
   await expect(row).toContainText('Pilot Test');
-  await expect(row).toContainText(String(seededDelivery.batchId));
+  // The batch + state badge are sibling cells of the row link.
+  await expect(page.getByTestId('del-table')).toContainText(String(seededDelivery.batchId));
   await expect(page.getByTestId(`del-state-${seededDelivery.id}`)).toBeVisible();
 });
 
 // ── view: read-only line items + frozen recipient + flight link ──────────────
-test.fixme('deliveries: view a delivery → read-only line items, frozen recipient, flight link; NO write actions', async ({
+test('deliveries: view a delivery → read-only line items, frozen recipient, flight link; NO write actions', async ({
   page,
 }) => {
-  // The view screen lands in T-06.
   await bootBackend(page, [{ ...seededDelivery }]);
 
   await page.goto('/deliveries');
@@ -291,11 +295,11 @@ test.fixme('deliveries: view a delivery → read-only line items, frozen recipie
 });
 
 // ── cross-tenant isolation ───────────────────────────────────────────────────
-test.fixme('deliveries: cross-tenant GET of another club’s delivery → 404 (not-found, no detail)', async ({
+test('deliveries: cross-tenant GET of another club’s delivery → 404 (not-found, no detail)', async ({
   page,
 }) => {
-  // The view screen + its not-found state land in T-06; the @TenantId 404 is
-  // proven for real in the real-idp parity spec (T-10).
+  // The @TenantId 404 is proven for real in the real-idp parity spec (T-10); here
+  // the mock backend 404s an id absent from this club's set.
   await bootBackend(page, [{ ...seededDelivery }]);
   const otherClubDeliveryId = 'dlv-019e30c3-2c00-7001-8000-0000000000ff';
 

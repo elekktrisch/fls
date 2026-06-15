@@ -36,6 +36,7 @@ export const MASTERDATA_CLUB_ADMIN_ITEMS: readonly NavItem[] = [
   { path: '/users', label: 'Users', icon: 'shield' },
   { path: '/accountingrules', label: 'Accounting rules', icon: 'file-text' },
   { path: '/deliverycreationtests', label: 'Delivery creation tests', icon: 'file-text' },
+  { path: '/deliveries', label: 'Deliveries', icon: 'file-text' },
 ];
 
 // Sysadmin-only nav. Clubs is a cross-tenant management surface; per the

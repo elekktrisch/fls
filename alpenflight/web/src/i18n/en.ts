@@ -133,6 +133,39 @@ const en: Translations = {
       required: 'Entry required.',
     },
   },
+  deliveries: {
+    title: 'Deliveries',
+    list: {
+      unbooked: 'Draft',
+      columns: {
+        batch: 'Batch',
+      },
+    },
+    state: {
+      prepared: 'Prepared',
+      booked: 'Booked',
+      error: 'Error',
+      cancelled: 'Cancelled',
+    },
+    view: {
+      loading: 'Loading …',
+      notFound: 'This delivery was not found.',
+      items: 'Line items',
+      recipient: 'Recipient',
+      flight: 'Flight',
+      recipientFields: {
+        name: 'Name',
+        firstName: 'First name',
+        lastName: 'Last name',
+        clubMemberNumber: 'Member number',
+        addressLine1: 'Address',
+        addressLine2: 'Address line 2',
+        zipCode: 'Zip code',
+        city: 'City',
+        country: 'Country',
+      },
+    },
+  },
   deliveryCreationTests: {
     title: 'Delivery creation tests',
     new: 'New test',

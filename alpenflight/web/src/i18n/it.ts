@@ -134,6 +134,39 @@ const it: Translations = {
       required: 'Campo obbligatorio.',
     },
   },
+  deliveries: {
+    title: 'Consegne',
+    list: {
+      unbooked: 'Bozza',
+      columns: {
+        batch: 'Lotto',
+      },
+    },
+    state: {
+      prepared: 'Preparata',
+      booked: 'Contabilizzata',
+      error: 'Errore',
+      cancelled: 'Annullata',
+    },
+    view: {
+      loading: 'Caricamento …',
+      notFound: 'Questa consegna non è stata trovata.',
+      items: 'Posizioni',
+      recipient: 'Destinatario',
+      flight: 'Volo',
+      recipientFields: {
+        name: 'Nome',
+        firstName: 'Nome',
+        lastName: 'Cognome',
+        clubMemberNumber: 'Numero socio',
+        addressLine1: 'Indirizzo',
+        addressLine2: 'Indirizzo aggiuntivo',
+        zipCode: 'CAP',
+        city: 'Località',
+        country: 'Paese',
+      },
+    },
+  },
   deliveryCreationTests: {
     title: 'Test di creazione consegna',
     new: 'Nuovo test',
