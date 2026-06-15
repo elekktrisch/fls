@@ -2,7 +2,8 @@
 id: J-10
 title: Deliveries — read-only screen + migration
 epic: E-09
-status: todo
+status: in_progress
+started_at: 2026-06-15
 journey0: false
 carved: true
 depends_on: [J-9]
@@ -83,6 +84,23 @@ the read `DeliveryRepository` (@TenantId, JPA-first per ADR 0027); the delivery 
 tenant 404); the read-only `/deliveries` SPA screen (list + view); the **Delivery + DeliveryItem migration
 binding** (the migrated done-bar); the `ensureSharedMigrationBundle` 409 fix; the article-5001 fix +
 bit-exact migrated assertion; the parity spec.
+
+## Tasks
+
+Per do-ship §2 (one seam each). J-10 LEADS with the read-only `/deliveries` screen + migration; it runs
+**tech-debt-heavy** (operator downsizing → fold `_BOYSCOUT` riders generously). The two blocking riders
+(T-07/T-08) are MANDATORY — the fanout is a HARD gate. Migrated done-bar + fanout proven at the §4 gate.
+
+- [ ] **T-01** — spec stub `e2e/tests/accounting/deliveries.spec.ts` (read-only: list / view / migrated / cross-tenant 404; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only). *(e2e + gallery)*
+- [ ] **T-02** — gate scoping: J-10 `mock_test`/`parity_test` frontmatter so per-push runs only J-10's specs; prior journeys run mock-IdP. *(ci.yml + frontmatter)*
+- [ ] **T-03** — `Delivery` + `DeliveryItem` JPA entities (read-mapped, `@TenantId`; `process_state` enum 10/20/30/99 display-only; frozen recipient VO; the DeliveryItem child + position) + read `DeliveryRepository` (tenant-scoped paged query + find-by-id) + domain/repo tests. *(accounting/domain + infra)*
+- [ ] **T-04** — the delivery READ resource: `DeliveriesService` (paged list + view) + DTOs (`DeliveryOverview` list-row, `DeliveryDetail`) + `DeliveriesController` (GET list/page + GET `/{id}`) + ControllerAuditCoverage + cross-tenant 404 IT. *(accounting/application + web)*
+- [ ] **T-05** — bind the `Delivery` + `DeliveryItem` migration mappers (`MapperLegacyBindings`) + the legacy Delivery/DeliveryItem seed + the **real-producer collision/orphan round-trip IT**: delivery_number parse-collision → 23505 on `ux_dlv_club_number_partial`; `delivery_item.article_id` / `delivery.flight_id` RESTRICT orphan; `recipient_person_id` SET NULL — reds in `check` (minutes), not the ~20-min fanout. *(migration-bundle + IT)*
+- [ ] **T-06** — FE read-only screen: orval regen + `features/accounting/deliveries` route + store + list page (paged/sortable, tenant-scoped) + view page (read-only line items + frozen recipient + flight link) + **nav entry under the Masterdata dropdown (chrome-reachable)**. *(web)*
+- [ ] **T-07** — *(BLOCKING rider, J-9-retro)* fix the migration-bundle-ingest 409: `ensureSharedMigrationBundle` polls the deployment to `COMPLETED` after ingest + treats `409 DEPLOYMENT_EXISTS` as reuse-`existingDeploymentId` (never re-ingest/throw). Unblocks the real-bundle parity for J-0c/J-5/J-6 + J-10. *(e2e real-idp helper)*
+- [ ] **T-08** — *(BLOCKING rider, J-9-retro)* resolve the J-9 migrated done-bar **article-5001** (verify T-07's deployment-timing fix resolves it; else fix the migrated FlightTime-filter availability / the TestClub export inputs) + strengthen the migrated assertion toward bit-exact. *(e2e real-idp spec + maybe TestClub seed)*
+- [ ] **T-09** — *(boyscout fold, ≤70% window)* surface-touching `_BOYSCOUT` riders: the `[DOC-DRIFT]` `FilterConfig.java` stale javadoc; per-touch IT-seeding conversion on the ITs this journey adds; COMMENT-STRIP per-touch on touched files. *(per-touch accounting/migration)*
+- [ ] **T-10** — thicken the spec to full real assertions (migrated deliveries render with the right line items + frozen recipient + state badge; cross-tenant 404) — mock inner-loop + the real-idp parity spec; **drive the real-idp spec green LOCALLY first (LAN PG via env/`.npmrc`, never Docker PG)** per the J-9 retro; point `parity_test` at the real-idp spec. *(spec)*
 
 ## Assumptions made
 
