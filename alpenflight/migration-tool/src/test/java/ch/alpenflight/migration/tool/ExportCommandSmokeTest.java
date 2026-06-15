@@ -43,9 +43,6 @@ class ExportCommandSmokeTest {
         // filter_type_id / accounting_unit_type_id resolve via V4-seeded
         // legacy_int_id reference lookups) bound in J-8 T-10 — proving the
         // already-authored accounting-rule mapper through the real export round-trip.
-        // + ARTICLE + the DELIVERY group (DELIVERY + its aggregate-internal
-        // DELIVERY_ITEM, which resolves article_id via ARTICLE) bound in J-10 —
-        // the read-only deliveries migration.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
@@ -58,8 +55,7 @@ class ExportCommandSmokeTest {
                 EntityType.AIRCRAFT_RESERVATION, EntityType.AIRCRAFT_RESERVATION_TYPE,
                 EntityType.PLANNING_DAY, EntityType.PLANNING_DAY_ASSIGNMENT,
                 EntityType.PLANNING_DAY_ASSIGNMENT_TYPE,
-                EntityType.ACCOUNTING_RULE_FILTER,
-                EntityType.ARTICLE, EntityType.DELIVERY, EntityType.DELIVERY_ITEM);
+                EntityType.ACCOUNTING_RULE_FILTER);
     }
 
     @Test

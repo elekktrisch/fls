@@ -244,12 +244,9 @@ for spec in "${STATIC_SEEDS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 4. Apply the deterministic fixture, then the seeds that reference rows it
-#    creates. "101 Insert Deliveries.sql" links a Delivery to the historical
-#    TestClub flight + articles _test-fixture.sql seeds, so it must run after.
+# 4. Apply the deterministic fixture last.
 # ---------------------------------------------------------------------------
 run_sql_file "$INSERT_DIR/_test-fixture.sql" FLSTest "_test-fixture.sql"
-run_sql_file "$INSERT_DIR/101 Insert Deliveries.sql" FLSTest "101 Insert Deliveries.sql"
 
 # ---------------------------------------------------------------------------
 # 5. Light post-condition check (informational only).
@@ -260,7 +257,6 @@ SELECT 'Clubs',            COUNT(*) FROM Clubs
 UNION ALL SELECT 'ARFs(testclub)', COUNT(*) FROM AccountingRuleFilters WHERE ClubId='0FA7B76F-47BA-4138-8F96-671400FD7C83'
 UNION ALL SELECT 'PersonCategories', COUNT(*) FROM PersonCategories
 UNION ALL SELECT 'HistoricalFlights', COUNT(*) FROM Flights WHERE FlightDate < '2025-12-15'
-UNION ALL SELECT 'Deliveries(testclub)', COUNT(*) FROM Deliveries WHERE ClubId='0FA7B76F-47BA-4138-8F96-671400FD7C83'
 UNION ALL SELECT 'SmtpIsMailpit',  CASE WHEN EXISTS(SELECT 1 FROM SystemData WHERE SmtpServer='localhost' AND SmtpPort=1025) THEN 1 ELSE 0 END;
 " FLSTest
 

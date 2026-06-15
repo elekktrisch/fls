@@ -7,21 +7,22 @@ import { enterViaNav } from '../_helpers/nav';
  *
  * A Delivery is the immutable invoice-draft output of the rules engine: the
  * billing line items + a frozen recipient snapshot for one flight. This iteration
- * is READ-ONLY — the screen renders MIGRATED legacy deliveries tenant-scoped and
- * lets an operator browse them; create / book / delete + the state machine are
- * J-10b. This spec commits the SCREEN SHAPE: the `data-testid` contract, the
- * masterdata-nav entry, the paged+sortable list, the read-only view (line items +
- * frozen recipient block + flight link), the ABSENCE of any write affordance, and
- * the cross-tenant 404.
+ * is READ-ONLY over CLEAN-SEED data — the screen renders the club's deliveries
+ * tenant-scoped and lets an operator browse them; create / book / delete + the
+ * state machine + the legacy migration are J-10b (the migration needs J-11's
+ * ARTICLE migrated first). This spec commits the SCREEN SHAPE: the `data-testid`
+ * contract, the masterdata-nav entry, the paged+sortable list, the read-only view
+ * (line items + frozen recipient block + flight link), the ABSENCE of any write
+ * affordance, and the cross-tenant 404.
  *
- * The list / view / cross-tenant flows run LIVE against the built screen (T-06);
- * the `[migration/parity]` case stays `test.fixme` for the real-idp spec (T-10).
+ * The list / view / cross-tenant flows run LIVE against the built screen; the
+ * clean-seed real chain is the real-idp spec (`deliveries-parity.spec.ts`).
  *
  * Booted under the `chromium` (mock-auth) project: the principal is a mocked
  * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR (see `app.config.mock.ts`), so the
  * masterdata nav renders even though the role gate truly lives on the server. All
  * `/api/v1/*` calls are intercepted via `page.route` — NO live backend, NO
- * real-idp, NO DB (the real migrated-parity run is the real-idp spec, T-10).
+ * real-idp, NO DB (the real clean-seed chain is the real-idp spec).
  *
  * Legacy contract (flsweb/src/masterdata/deliveries/, read at carve):
  *   - List: DeliveriesEditController.js — `POST /api/v1/deliveries/page/{start}/{size}`
@@ -307,18 +308,4 @@ test('deliveries: cross-tenant GET of another club’s delivery → 404 (not-fou
 
   await expect(page.getByTestId('del-not-found')).toBeVisible();
   await expect(page.getByTestId('del-detail')).toHaveCount(0);
-});
-
-// ── migration / parity placeholder ───────────────────────────────────────────
-test.fixme('deliveries: migrated legacy deliveries render under their migrated TestClub tenant (parity)', async ({
-  page,
-}) => {
-  // The migrated done-bar — the Delivery + DeliveryItem mappers bind in T-05 and
-  // the bit-exact migrated assertion is the real-idp parity spec (T-10), which
-  // renders MIGRATED legacy deliveries against the real chain (not this mock).
-  await bootBackend(page, [{ ...seededDelivery }]);
-
-  await page.goto('/deliveries');
-
-  await expect(page.getByTestId('del-table')).toBeVisible();
 });
