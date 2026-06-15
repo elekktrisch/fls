@@ -18,6 +18,7 @@ screen: /deliveries (list + view, READ-ONLY) — replacing legacy masterdata/del
 headless_pulled_in: the Delivery + DeliveryItem migration mappers (the producer SELECT — the read screen's data source); no engine/write path this iteration
 migration: Delivery + DeliveryItem (legacy Delivery/DeliveryItem → V4 t_delivery/t_delivery_item) — binds the authored-but-unbound DeliveryMapper + DeliveryItemMapper. LOAD-BEARING: the migrated done-bar IS the proof.
 parity_test: alpenflight/web/e2e/tests/real-idp/deliveries-parity.spec.ts
+mock_test: alpenflight/web/e2e/tests/accounting/   # per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly
 adr_refs: [0008, 0020, 0022, 0027]
 ---
 
@@ -92,7 +93,7 @@ Per do-ship §2 (one seam each). J-10 LEADS with the read-only `/deliveries` scr
 (T-07/T-08) are MANDATORY — the fanout is a HARD gate. Migrated done-bar + fanout proven at the §4 gate.
 
 - [x] **T-01** — spec stub `e2e/tests/accounting/deliveries.spec.ts` (read-only: list / view / migrated / cross-tenant 404; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only). *(e2e + gallery)*
-- [ ] **T-02** — gate scoping: J-10 `mock_test`/`parity_test` frontmatter so per-push runs only J-10's specs; prior journeys run mock-IdP. *(ci.yml + frontmatter)*
+- [x] **T-02** — gate scoping: J-10 `mock_test`/`parity_test` frontmatter so per-push runs only J-10's specs; prior journeys run mock-IdP. *(ci.yml + frontmatter)*
 - [ ] **T-03** — `Delivery` + `DeliveryItem` JPA entities (read-mapped, `@TenantId`; `process_state` enum 10/20/30/99 display-only; frozen recipient VO; the DeliveryItem child + position) + read `DeliveryRepository` (tenant-scoped paged query + find-by-id) + domain/repo tests. *(accounting/domain + infra)*
 - [ ] **T-04** — the delivery READ resource: `DeliveriesService` (paged list + view) + DTOs (`DeliveryOverview` list-row, `DeliveryDetail`) + `DeliveriesController` (GET list/page + GET `/{id}`) + ControllerAuditCoverage + cross-tenant 404 IT. *(accounting/application + web)*
 - [ ] **T-05** — bind the `Delivery` + `DeliveryItem` migration mappers (`MapperLegacyBindings`) + the legacy Delivery/DeliveryItem seed + the **real-producer collision/orphan round-trip IT**: delivery_number parse-collision → 23505 on `ux_dlv_club_number_partial`; `delivery_item.article_id` / `delivery.flight_id` RESTRICT orphan; `recipient_person_id` SET NULL — reds in `check` (minutes), not the ~20-min fanout. *(migration-bundle + IT)*
