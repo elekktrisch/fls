@@ -52,6 +52,11 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   comment lines, so a bounded focused sweep can take a burndown journey's slot. The do-* skills now
   enforce this going-forward. *(seam: per-touch across `alpenflight/{server,web,migration-bundle,migration-tool}`
   + e2e specs + the workflow YAML)* [[feedback_self_explanatory_no_history_comments]]
+  **Per-touch progress:** the J-10 delivery/accounting/migration surface is stripped (the `accounting/domain`
+  + `accounting/application` + `accounting/web` Delivery files, the Delivery test-support + ITs, the J-10-added
+  `MapperLegacyBindings` / `MapperBindingContractTest` / `MapperLegacyBindingsTest` lines). STILL PENDING (its
+  own burndown slot — too big for a per-touch fold): the pre-existing cross-journey narration carried in
+  `MapperLegacyBindings.java`, `app.routes.ts`, `nav-sections.ts`, and the real-idp `_helpers/fan-out-parity-fixture.ts`.
 - **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
   task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
   (J-7 bloated to 719 lines) + any "Original (for trace)" blocks; that history is in git/commit messages.
@@ -67,7 +72,6 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
 ## Pending (filed by /do-ship 2026-06-13, J-8 gate)
 
 - **[PROOF-HARNESS TRANSIENTS] two non-blocking run-level reds the J-8 gate surfaced (proof infra, not vertical).** (a) The fanout `[deployed-journey]` link-check (`proof-gallery-links.spec.ts:683`) has a **60s Playwright test timeout** that races gh-pages CDN propagation — the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a propagation pre-wait). (b) The full real-idp regression hits the workflow's **15-min step timeout** because the 3 KC-26 specs' retries exhaust the wall (`token-lifecycle` is the last file, so nothing J-8-relevant was truncated). Raise the step timeout OR quarantine the 3 KC-26 specs so their retries stop consuming the budget. Both are harness hardening; neither is a J-8 behavior red. *(seam: proof-gallery-links.spec.ts test timeout + alpenflight-e2e-real-idp.yml step timeout / KC-26 quarantine)* [[false_green_derive_fallback]]
-- **[DOC-DRIFT] `FilterConfig.java:28-31` stale Javadoc.** Says `deliveryLineText`/`recipientName` are "NOT yet emitted by the migration mapper" — a stale T-03 note; T-10 emits them (mapper `:327-328`) and `AccountingRuleFilterMigrationRoundTripIT` proves the round-trip. Harmless but mildly misleading; fix the comment on the next accounting touch. *(seam: accounting/domain/FilterConfig.java javadoc)*
 - **[TEST-ORPHAN] `alpenflight/web/e2e/tests/nav-bar.spec.ts` is uncollected by every Playwright project** (it sits at `tests/nav-bar.spec.ts` while chromium `testMatch` requires a subdirectory `tests/!(real-idp|profile)/**/*.spec.ts`) — pre-existing since S-097, surfaced by T-22a. Its `/clubs`-top-level + responsive + lang-picker assertions stay valid under the masterdata grouping but never run. Move it into a collected subdir (e.g. `tests/nav/`) on the next web touch. *(seam: e2e nav-bar.spec.ts relocation)*
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)

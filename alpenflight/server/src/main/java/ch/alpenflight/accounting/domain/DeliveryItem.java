@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code article_number} + {@code unit_type_code} are frozen snapshots per
  * Swiss OR Art. 957a — never re-resolved from {@code article_id}. Read-only this
- * iteration: column mapping + getters, no write factory (J-10b).
+ * iteration: column mapping + getters, no write factory.
  */
 @Entity
 @Table(name = "t_delivery_item")

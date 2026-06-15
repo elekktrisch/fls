@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * {@code flight.process_state_id} + {@code delivery.is_further_processed} into the
  * one {@code process_state_id}: 10 Prepared, 20 Booked, 30 Error, 99 Cancelled.
  * This read iteration only displays the state; the transition rules
- * ({@code book()} preconditions, 409-on-Booked) are J-10b.
+ * ({@code book()} preconditions, 409-on-Booked) are deferred to the write side.
  */
 public enum DeliveryProcessState {
 

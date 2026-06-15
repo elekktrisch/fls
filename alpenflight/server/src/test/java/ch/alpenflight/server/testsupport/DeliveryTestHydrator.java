@@ -12,9 +12,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Test-only reflective hydrator for the READ-ONLY {@link Delivery} aggregate +
- * its {@link DeliveryItem} children (J-10 maps the V4 columns + getters; the
- * write factory is J-10b). Per ADR 0027 §4 the read iteration adds no production
- * setter/factory just for seeding — tests populate via reflection here. Never
+ * its {@link DeliveryItem} children (the read iteration maps the V4 columns +
+ * getters; the write factory is deferred). Per ADR 0027 §4 the read iteration
+ * adds no production setter/factory just for seeding — tests populate via
+ * reflection here. Never
  * sets {@code operatingClubId}: Hibernate's {@code @TenantId} resolver fills it
  * on INSERT (so a hydrated row saved under the wrong tenant context fails
  * fail-closed, the S-024 contract).

@@ -11,7 +11,7 @@ import java.util.UUID;
 
 /**
  * DB-fixture seeder for the clean-seed half of the real-idp deliveries parity
- * spec. The Delivery write side ships in J-10b — there is no create REST surface
+ * spec. The Delivery write side is deferred — there is no create REST surface
  * this iteration — so the read screen's clean-seed input is materialized directly
  * against the live dev Postgres, exactly as the engine-persist path will write it
  * later. The read endpoint + the {@code @TenantId} scope + the cross-tenant 404
@@ -69,7 +69,7 @@ public final class DeliverySeeder {
         UUID deliveryId = UUID.randomUUID();
         UUID articleId = UUID.randomUUID();
         // The seeded delivery is Prepared (process-state 10) → delivery_number is
-        // null until booked (J-10b), so the list renders the recipient/batch/state
+        // null until booked, so the list renders the recipient/batch/state
         // without a number. The view's load-bearing data is the line items + the
         // frozen recipient + the flight link, all asserted below.
         String articleNumber = "DLV-SEED-" + Long.toString(batchId, 36);

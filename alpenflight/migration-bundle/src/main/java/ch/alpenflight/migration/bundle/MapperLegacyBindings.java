@@ -1320,7 +1320,7 @@ public final class MapperLegacyBindings {
                     //    invoice-integrity break, never silently dropped — Swiss OR Art. 957a).
                     //  * ResolvedUnitPrice — legacy has no price column; V4 unit_price defaults
                     //    0. The read screen is display-only this iteration; emit the 0 default
-                    //    (the write-side back-fill from the article master is J-10b/S-016).
+                    //    (the write-side back-fill from the article master is deferred, S-016).
                     //
                     // Legacy ASP.NET artifacts dropped: OwnerId, OwnershipType, RecordState,
                     // IsDeleted.

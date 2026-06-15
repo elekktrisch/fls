@@ -8,7 +8,7 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
- * DTOs for the read-only Delivery REST surface (J-10) — the invoice-draft viewer.
+ * DTOs for the read-only Delivery REST surface — the invoice-draft viewer.
  * Records (immutable, explicit field set); the controller binds to these, never
  * to the {@link ch.alpenflight.accounting.domain.Delivery} aggregate, so an
  * entity is never leaked through the wire.
@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code operatingClubId} (the {@code @TenantId} discriminator) is absent from
  * every shape — the tenant is structural, resolved from the JWT, never carried on
  * the wire. {@code processStateId} is the V4 sparse code (10/20/30/99), displayed
- * as a badge and never transitioned this iteration (J-10b owns the write side).
+ * as a badge and never transitioned this iteration (the write side is deferred).
  *
  * <p>The flight reference is a bare {@link FlightId} (the SPA decorates date /
  * aircraft / pilot from its picker payloads — the no-cross-module-join convention,

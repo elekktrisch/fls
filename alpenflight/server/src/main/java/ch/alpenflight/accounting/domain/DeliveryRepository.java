@@ -6,13 +6,13 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Domain port for {@link Delivery} READ persistence (J-10 is read-only; the write
- * repo methods land at J-10b). Implemented by
+ * Domain port for {@link Delivery} READ persistence (read-only this iteration; the
+ * write repo methods are deferred). Implemented by
  * {@code ch.alpenflight.accounting.infra.JpaDeliveryRepository}.
  *
  * <p>Delivery is tenant-scoped via Hibernate's {@code @TenantId} discriminator on
  * {@code Delivery.operatingClubId} (ADR 0008). The discriminator rides every read
- * automatically; the service layer (T-04) trusts it and adds only role-within-tenant
+ * automatically; the service layer trusts it and adds only role-within-tenant
  * checks. There is intentionally NO by-id-only finder — every read is tenant-scoped,
  * so a cross-tenant id is invisible and the service surfaces it as 404.
  *

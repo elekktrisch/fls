@@ -4,7 +4,7 @@ import ch.alpenflight.accounting.domain.Delivery;
 
 /**
  * Minimal-object factory for {@link Delivery} consumed by the S-024 leakage
- * sweep (J-10 T-03). The aggregate's FKs ({@code flight_id},
+ * sweep. The aggregate's FKs ({@code flight_id},
  * {@code recipient_person_id}) are all nullable, so no FK parent needs seeding —
  * the ONLY column the {@code @TenantId} resolver fills is {@code operating_club_id},
  * leaving it the single FK left unsatisfiable under the {@code NO_TENANT} sentinel.

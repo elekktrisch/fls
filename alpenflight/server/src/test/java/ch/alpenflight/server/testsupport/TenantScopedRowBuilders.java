@@ -94,18 +94,18 @@ public final class TenantScopedRowBuilders {
             // operating_club_id fails fail-closed under NO_TENANT (see
             // AccountingRuleFilterSweepFactory; V41 realigned its tenant FK name).
             Map.entry(AccountingRuleFilter.class, AccountingRuleFilterSweepFactory::build),
-            // J-9 delivery-creation-test harness aggregate. Its one non-tenant FK
+            // Delivery-creation-test harness aggregate. Its one non-tenant FK
             // (flight_id → t_flight) is seeded under the FK club, so only
             // operating_club_id fails fail-closed under NO_TENANT (see
-            // DeliveryCreationTestSweepFactory; V43 realigned its tenant FK name).
-            // Its DeliveryCreationTestItem child is aggregate-internal WITHOUT
-            // @TenantId (FlightCrew pattern) — deliberately NOT a sweep participant.
+            // DeliveryCreationTestSweepFactory). Its DeliveryCreationTestItem child
+            // is aggregate-internal WITHOUT @TenantId (FlightCrew pattern) —
+            // deliberately NOT a sweep participant.
             Map.entry(DeliveryCreationTest.class, DeliveryCreationTestSweepFactory::build),
-            // J-10 delivery read aggregate. All its FKs (flight_id,
-            // recipient_person_id) are nullable, so only operating_club_id fails
-            // fail-closed under NO_TENANT (see DeliverySweepFactory). Its
-            // DeliveryItem child is aggregate-internal WITHOUT @TenantId
-            // (DeliveryCreationTestItem pattern) — deliberately NOT a sweep participant.
+            // Delivery read aggregate. All its FKs (flight_id, recipient_person_id)
+            // are nullable, so only operating_club_id fails fail-closed under
+            // NO_TENANT (see DeliverySweepFactory). Its DeliveryItem child is
+            // aggregate-internal WITHOUT @TenantId (DeliveryCreationTestItem
+            // pattern) — deliberately NOT a sweep participant.
             Map.entry(Delivery.class, DeliverySweepFactory::build)
     );
 

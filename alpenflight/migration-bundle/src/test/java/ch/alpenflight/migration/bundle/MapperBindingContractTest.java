@@ -98,13 +98,13 @@ class MapperBindingContractTest {
             EntityType.PERSON_CATEGORY,
             EntityType.PERSON_CLUB,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
-            // ACCOUNTING_RULE_FILTER bound by J-8 T-10 (producer SELECT + JSON-blob
-            // target extraction + sort-indicator renumber + referenceLookups);
-            // round-trip + collision proven by AccountingRuleFilterProducerDedupeIT.
-            // ARTICLE + DELIVERY + DELIVERY_ITEM bound by J-10 T-05 (the delivery
-            // line-item article resolve closure: state promotion + delivery-number
-            // parse + (club, number) article resolve + SET-NULL recipient);
-            // collision/orphan proven by DeliveryProducerCollisionOrphanIT.
+            // ACCOUNTING_RULE_FILTER (producer SELECT + JSON-blob target extraction +
+            // sort-indicator renumber + referenceLookups) round-trip + collision
+            // proven by AccountingRuleFilterProducerDedupeIT.
+            // ARTICLE + DELIVERY + DELIVERY_ITEM (the delivery line-item article
+            // resolve closure: state promotion + delivery-number parse + (club,
+            // number) article resolve + SET-NULL recipient) collision/orphan
+            // proven by DeliveryProducerCollisionOrphanIT.
             EntityType.AUDIT_LOG);
 
     /** Legacy column literals every {@code writeNdjson} reads from the cursor. */

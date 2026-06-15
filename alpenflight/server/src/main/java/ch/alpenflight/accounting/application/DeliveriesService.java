@@ -20,12 +20,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Read-only service for the {@link Delivery} aggregate (J-10) — the invoice-draft
+ * Read-only service for the {@link Delivery} aggregate — the invoice-draft
  * viewer. Tenant scoping (ADR 0008) is structural via Hibernate's {@code @TenantId}
  * discriminator on {@code Delivery.operatingClubId}; the role-within-tenant gate
  * lives on the controller as {@code @PreAuthorize}. No write path this iteration
- * (create / book / delete are J-10b), so the service only maps aggregate → DTO and
- * emits no audit event.
+ * (create / book / delete are deferred), so the service only maps aggregate → DTO
+ * and emits no audit event.
  *
  * <p>Cross-tenant 404: {@link #getDetail} loads via
  * {@link DeliveryRepository#findActiveById}, which the {@code @TenantId} filter

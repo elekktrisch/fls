@@ -47,7 +47,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Full-stack HTTP proof of the read-only Delivery surface (J-10 T-04) under a
+ * Full-stack HTTP proof of the read-only Delivery surface under a
  * CLUB_ADMINISTRATOR principal. Seeds two clubs ({@link TwoClubFixture}) + their
  * read-only deliveries (hydrated reflectively, then saved so the {@code @TenantId}
  * resolver stamps the tenant — ADR 0027 §4). Asserts the paged list returns the

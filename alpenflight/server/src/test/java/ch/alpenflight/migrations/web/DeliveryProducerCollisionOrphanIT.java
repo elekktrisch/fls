@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * J-10 T-05 — the Delivery / DeliveryItem consumer-side collision/orphan proof.
+ * The Delivery / DeliveryItem consumer-side collision/orphan proof.
  *
  * <p>The V4 {@code t_delivery} / {@code t_delivery_item} schema carries
  * constraints the legacy MSSQL schema lacks; this IT drives the REAL bound

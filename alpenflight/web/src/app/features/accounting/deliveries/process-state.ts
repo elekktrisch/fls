@@ -1,4 +1,4 @@
-// V4 process-state codes (display-only this iteration; transitions are J-10b).
+// V4 process-state codes (display-only this iteration; transitions are deferred).
 const PREPARED = 10;
 const BOOKED = 20;
 const ERROR = 30;

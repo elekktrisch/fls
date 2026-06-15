@@ -21,14 +21,14 @@ import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Delivery aggregate root — the immutable invoice draft the J-9 rules engine
+ * Delivery aggregate root — the immutable invoice draft the rules engine
  * produces for a flight: the billing line items + the frozen recipient snapshot.
  * Maps the EXISTING V4 table {@code t_delivery} (substrate built ahead in V4).
  *
- * <p><strong>Read-only this iteration (J-10).</strong> The aggregate maps the
- * columns + exposes getters; the write side — {@code create}, {@code book()}
- * with gap-free numbering, delete, the Prepared→Booked state machine — is J-10b.
- * Per ADR 0022 directive 2 this iteration adds no business rules.
+ * <p><strong>Read-only this iteration.</strong> The aggregate maps the columns +
+ * exposes getters; the write side — {@code create}, {@code book()} with gap-free
+ * numbering, delete, the Prepared→Booked state machine — is deferred. Per ADR 0022
+ * directive 2 this iteration adds no business rules.
  *
  * <p>Tenant-scoped via Hibernate's {@code @TenantId} on {@code operatingClubId}
  * (ADR 0008): every read is auto-filtered to the caller's tenant, so a

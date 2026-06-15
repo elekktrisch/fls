@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Read-only REST surface for the {@code Delivery} aggregate (J-10) — the
- * invoice-draft viewer, replacing the legacy {@code masterdata/deliveries/} read
- * path. The write side (create / book / delete + the state machine) is J-10b, so
- * this controller carries GET endpoints only.
+ * Read-only REST surface for the {@code Delivery} aggregate — the invoice-draft
+ * viewer, replacing the legacy {@code masterdata/deliveries/} read path. The write
+ * side (create / book / delete + the state machine) is deferred, so this controller
+ * carries GET endpoints only.
  *
  * <p>Delivery is <strong>tenant-scoped</strong> via Hibernate's {@code @TenantId}
  * discriminator on {@code Delivery.operatingClubId} (ADR 0008). A CLUB_ADMINISTRATOR
