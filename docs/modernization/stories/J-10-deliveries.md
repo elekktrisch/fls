@@ -91,7 +91,7 @@ Per do-ship §2 (one seam each). J-10 LEADS with the read-only `/deliveries` scr
 **tech-debt-heavy** (operator downsizing → fold `_BOYSCOUT` riders generously). The two blocking riders
 (T-07/T-08) are MANDATORY — the fanout is a HARD gate. Migrated done-bar + fanout proven at the §4 gate.
 
-- [ ] **T-01** — spec stub `e2e/tests/accounting/deliveries.spec.ts` (read-only: list / view / migrated / cross-tenant 404; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only). *(e2e + gallery)*
+- [x] **T-01** — spec stub `e2e/tests/accounting/deliveries.spec.ts` (read-only: list / view / migrated / cross-tenant 404; ENTERS via the Masterdata nav dropdown) + scaffold the per-journey gallery page (current-journey-only). *(e2e + gallery)*
 - [ ] **T-02** — gate scoping: J-10 `mock_test`/`parity_test` frontmatter so per-push runs only J-10's specs; prior journeys run mock-IdP. *(ci.yml + frontmatter)*
 - [ ] **T-03** — `Delivery` + `DeliveryItem` JPA entities (read-mapped, `@TenantId`; `process_state` enum 10/20/30/99 display-only; frozen recipient VO; the DeliveryItem child + position) + read `DeliveryRepository` (tenant-scoped paged query + find-by-id) + domain/repo tests. *(accounting/domain + infra)*
 - [ ] **T-04** — the delivery READ resource: `DeliveriesService` (paged list + view) + DTOs (`DeliveryOverview` list-row, `DeliveryDetail`) + `DeliveriesController` (GET list/page + GET `/{id}`) + ControllerAuditCoverage + cross-tenant 404 IT. *(accounting/application + web)*
