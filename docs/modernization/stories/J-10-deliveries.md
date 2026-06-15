@@ -2,8 +2,9 @@
 id: J-10
 title: Deliveries — read-only screen (clean-seed)
 epic: E-09
-status: in_progress
+status: done
 started_at: 2026-06-15
+done_at: 2026-06-15
 journey0: false
 carved: true
 depends_on: [J-9]
@@ -125,3 +126,21 @@ deferred to J-10b (needs J-11 ARTICLE first), so T-14 reverts the migration part
    (S-029/S-080/S-150→follow-up), credit sub-engine (J-9b), and S-087 (wrong domain) stay deferred/re-homed.
    `_ORDER` updated.
 5. Downsized to free boyscout capacity (operator, 2026-06-15) — the journey is intentionally tech-debt-heavy.
+
+## Outcome
+
+Shipped **read-only over clean-seed** (migration deferred to J-10b). Proven green on **`af18e07f`** — the
+clean-seed real-idp proof (`[happy]` nav → list → read-only view; `[edge]` cross-tenant 404, over real
+Keycloak + Spring + Postgres) + the read backend (entity/repo/GET/404 ITs) + 2 gap-hunters `real: true`
+(genuine read chain, structural `@TenantId` tenancy, read-only honored, no stubs). The mock-auth e2e flaked
+once (ECONNREFUSED backend race), re-run green.
+
+**Migration deferred (operator, 2026-06-15):** the Delivery migration needs ARTICLE migrated
+(`DeliveryItem.article_id` NOT NULL RESTRICT), but ARTICLE is J-11's entity — binding it unscoped regressed
+every migration journey's fanout parity. T-14 reverted the T-05/T-11/T-12/T-13 migration parts (the 3
+entities are back in `KNOWN_UNBOUND`); the Delivery migration + the write side ride **J-10b** (after J-11).
+
+**Net cross-journey win shipped with J-10:** the fanout legacy-build fix (J-9) + the **migration-bundle
+409 fix** (T-07) now let the real-bundle parity run end to end. It reveals 3 pre-existing migrated-fidelity
+gaps on merged journeys (J-9 article-5001, J-8 predicate config, J-0c Location) — filed in `_BOYSCOUT`,
+ride the next migration journey (hard-gated). Not J-10 blockers (J-10 is migration-N/A).
