@@ -6,7 +6,7 @@
   "changed_files_count": 0,
   "base_ref": "origin/main",
   "head_sha": "d305032",
-  "elapsed_ms": 688,
+  "elapsed_ms": 1094,
   "summary": {
     "dead_code_issues": 0,
     "dead_code_has_errors": false,
@@ -26,7 +26,7 @@
   "kind": "audit",
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_3f5b860e106acc20"
+      "analysis_run_id": "run_3ff52d08e0a82c34"
     }
   }
 }

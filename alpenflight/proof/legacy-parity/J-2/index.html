@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-15T07:05:44.576Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-16T07:03:33.372Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,35 +144,35 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-69a53c606fac74ba117f8cbde0b0b2ce6467ca91.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-b9b7c0cf32ea17db09c0097a0eb50b23b52792c2.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-86e3730bc717719cd7bd6743c7641243ed745249.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-01db9203e7eb4f3913654be59a056720c25601e0.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-83310066db819461dccf8d34149a17eae28404c3.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-c736f641a139033efc72e732a5eb54acf701f837.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-48480055881fc5f6cb2c52fe95208d141f37f14c.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-80b7d7178e1e134b20a29fbf514c0122a597266c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-938eacc9f6aaefd538bf32cc7f573a2315e6e547.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-d02378c970d2fe1d897ebd288536c8d063857533.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-04fa3437b3a3c8f2ba8087d4b8eab9624965b658.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-f460b2cfdd23e288f1266fabc9794799dcc81edb.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-2040053e219594c78e15d41e770861e0bb9c346c.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-59cc062828b4421c650d59b9b4720968122ab9ff.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d9893cf19dc272303d9d1e05db5bca6fdc6f0c5f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-7643e287cd3debb01a9ec34db0b0a39a0fefbb84.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
