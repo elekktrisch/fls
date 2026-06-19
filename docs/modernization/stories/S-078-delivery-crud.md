@@ -3,6 +3,7 @@ id: S-078
 title: Delivery + DeliveryItem CRUD + Prepared → Booked transitions
 epic: E-09
 status: todo
+rolled_up_into: J-10
 depends_on: [S-014, S-077]
 acceptance:
   - `Delivery` + `DeliveryItem` entities ported, `@TenantId`'d.

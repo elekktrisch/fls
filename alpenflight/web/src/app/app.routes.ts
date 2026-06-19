@@ -132,6 +132,14 @@ export const routes: Routes = [
       ),
   },
   {
+    // `/deliveries` — the read-only invoice-draft viewer (list + view), replacing
+    // legacy masterdata/deliveries/ (read path). The nav entry lives under the
+    // Masterdata group (nav-sections.ts).
+    path: 'deliveries',
+    loadChildren: () =>
+      import('@features/accounting/deliveries/deliveries.routes').then((m) => m.DELIVERIES_ROUTES),
+  },
+  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),

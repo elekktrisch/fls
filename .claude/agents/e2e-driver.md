@@ -21,11 +21,14 @@ invent a parallel convention.
   spec is authored **stub-first**: structure + selectors + flow steps land
   early with thin assertions, so the screen's shape is committed without
   rewriting the spec every time a selector shifts.
-- **Gate (real).** The full chain runs once at the green-PR gate and as a
-  required CI check: spin up legacy FLS → seed it → migrate into AlpenFlight
-  (**Postgres + Keycloak**) → run the spec with **full real assertions** →
-  retain the **video on pass** as a CI artifact. This is the only run that
-  proves verticality.
+- **Gate (real).** The full chain: spin up legacy FLS → seed it → migrate into
+  AlpenFlight (**Postgres + Keycloak**) → run the spec with **full real
+  assertions** → retain the **video on pass**. The only run that proves
+  verticality. **Run it LOCALLY to green BEFORE the CI gate** so never-run-step
+  gaps surface in fast local cycles, not one-CI-cycle-per-gap (J-9: 4 gaps, 6
+  commits). The local stack uses the **LAN Postgres via env / `.npmrc`**
+  ([[feedback_no_local_postgres_for_tests]]) — NEVER local Docker Postgres (it
+  OOMs the VM); CI then confirms.
 
 ## Gate: parity videos, parallel CI, helper tags
 
@@ -38,18 +41,15 @@ invent a parallel convention.
 - **Two parallel jobs.** Own the journey-gate workflow: `alpenflight-proof` (required; legacy→seed→migrate→real,
   uploads the pass video) + `parity-legacy-video` (non-blocking; legacy FLS+`flsweb` on the same fixture). Both
   seed independently from the **deterministic** fixture → run in parallel, no shared state.
-- **A proof the operator can't click isn't done.** Deploy the gallery to the stable bookmark subpath
-  (`destination_dir`, gate on `!cancelled()` so a partial-red still deploys), **auto-post the link as a sticky
-  PR comment** (resolve the PR from `github.ref_name`; fail-soft), then run the **deployed-link-check**
-  (browserless `request` crawl of the LIVE page — every link/asset 200, modelling gh-pages dir→`index.html`;
-  allow CDN-propagation slack so the check doesn't race the push).
-- **ONE page, the CURRENT journey only** ([[feedback_proof_gallery_per_journey_one_bookmark]]). The bookmark
-  renders ONLY the in-flight journey: committed `e2e/legacy-reference/<feature>/` shots (legacy frozen, captured
-  once) paired against fresh AlpenFlight captures + videos + the migration round-trip. **No all-journeys index,
-  no per-merged-journey history pages, no per-push/fanout/legacy-parity sub-paths** — merged journeys' proof
-  lives in their PRs (history is in git). **Verify the DEPLOYED page, never the unit test** (a green generator
-  while the deployed page was wrong recurred ~4× in J-6): after any gallery change, `curl` the bookmark + EVERY
-  asset (200). *(The GALLERY-SIMPLIFY rider collapses the old multi-journey plumbing to this — author to it.)*
+- **A proof the operator can't click isn't done.** Deploy to the stable bookmark subpath (`destination_dir`,
+  gate on `!cancelled()` so a partial-red still deploys), **auto-post the link as a sticky PR comment** (fail-soft),
+  then **deployed-link-check** the LIVE page (browserless crawl — every link/asset 200, gh-pages dir→`index.html`,
+  CDN-propagation slack).
+- **ONE page, the CURRENT journey only** ([[feedback_proof_gallery_per_journey_one_bookmark]]): committed
+  `e2e/legacy-reference/<feature>/` shots (legacy frozen) paired against fresh AlpenFlight captures + videos +
+  the migration round-trip. **No all-journeys index / history pages / per-push-fanout sub-paths** — merged proof
+  lives in PRs. **Verify the DEPLOYED page, never the generator** (wrong-deployed-while-green recurred ~4× in
+  J-6): `curl` the bookmark + EVERY asset (200). *(GALLERY-SIMPLIFY collapses the old plumbing to this.)*
 - **Helper tags.** An e2e case exercising *logic / an error case* (not
   UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
   <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.
@@ -67,9 +67,11 @@ invent a parallel convention.
 - **Migration journeys need a real-export run, not just synth.** Synth bundles use aliased
   columns and never hit the producer SELECT against the real legacy schema — dispatch the
   real-export `fanout` before "done". [[project_synth_bundle_doesnt_validate_producer_select]]
-- **Co-located migration-ingest specs need distinct principals.** Two specs POSTing a bundle
-  in one Playwright invocation must ingest as DIFFERENT migration admins (own Keycloak user +
-  `t_user`) — same principal → `DEPLOYMENT_EXISTS 409`.
+- **Migration-ingest `DEPLOYMENT_EXISTS 409` — one caller, one non-terminal deployment.** Specs with
+  DISTINCT bundles need distinct migration admins (own Keycloak user + `t_user`). A SHARED bundle
+  (`ensureSharedMigrationBundle`, one principal) must poll the deployment to `COMPLETED` after ingest +
+  treat `409 DEPLOYMENT_EXISTS` as reuse-`existingDeploymentId`, never re-ingest/throw — else the 2nd+
+  spec 409s and the migrated read races the async migration (J-9 fanout).
 - **Clean-seed and migrated runs are the same spec at two fidelities**; the gate runs both.
 
 ## How you work

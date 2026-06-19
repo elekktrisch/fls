@@ -135,6 +135,39 @@ const fr: Translations = {
       required: 'Saisie obligatoire.',
     },
   },
+  deliveries: {
+    title: 'Livraisons',
+    list: {
+      unbooked: 'Brouillon',
+      columns: {
+        batch: 'Lot',
+      },
+    },
+    state: {
+      prepared: 'Préparée',
+      booked: 'Comptabilisée',
+      error: 'Erreur',
+      cancelled: 'Annulée',
+    },
+    view: {
+      loading: 'Chargement …',
+      notFound: 'Cette livraison est introuvable.',
+      items: 'Positions',
+      recipient: 'Destinataire',
+      flight: 'Vol',
+      recipientFields: {
+        name: 'Nom',
+        firstName: 'Prénom',
+        lastName: 'Nom de famille',
+        clubMemberNumber: 'Numéro de membre',
+        addressLine1: 'Adresse',
+        addressLine2: 'Complément d’adresse',
+        zipCode: 'NPA',
+        city: 'Localité',
+        country: 'Pays',
+      },
+    },
+  },
   deliveryCreationTests: {
     title: 'Tests de création de livraison',
     new: 'Nouveau test',

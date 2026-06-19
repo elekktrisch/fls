@@ -25,10 +25,10 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code deliveryLineText} + {@code recipientName} are the descriptive text
  * fields that travel with the rule's article/recipient targets (the bare
  * ArticleNumber / member-number strings live in the
- * {@code article_target} / {@code recipient_target} columns). They are NOT yet
- * emitted by the migration mapper — T-09 adds them to {@code buildFilterConfig}
- * so migrated rows round-trip them (until then a migrated row deserialises them
- * as {@code null}, which is the correct "unknown" value).
+ * {@code article_target} / {@code recipient_target} columns). The migration
+ * mapper emits both ({@code AccountingRuleFilterMapper.buildFilterConfig}); a
+ * legacy row that left them blank deserialises them as {@code null}, the
+ * correct "unknown" value.
  *
  * <p>This record validates only its own structural integrity (no null
  * {@link MatchList} pairs); per-{@code filter_type} field requirements are the
@@ -65,7 +65,7 @@ public record FilterConfig(
         MatchList aircraftHomebases,
         MatchList memberStates,
         MatchList personCategories,
-        // descriptive text travelling with the targets (T-09 mapper addition)
+        // descriptive text travelling with the rule's article/recipient targets
         @Nullable String deliveryLineText,
         @Nullable String recipientName) {
 

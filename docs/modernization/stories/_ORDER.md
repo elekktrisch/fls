@@ -31,12 +31,13 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | ✅ **J-8** | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
 | ✅ **J-9** | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
 | J-9b | Flight-time-credit / discount sub-engine | E-09 | J-9 | (split from S-074 at J-9 ship — credit balances + DiscountInPercent + over-credit 2-line split + PersonFlightTimeCreditTransaction side-effects) | N/A (engine) | rules-engine credit path (operator-deferred from J-9, 2026-06-14) |
-| J-10 | Deliveries (invoice drafts) | E-09 | J-9 | S-078, S-080, S-089, S-090, S-150, S-029, S-087 | `Delivery`, `DeliveryItem` | `masterdata/deliveries/` → `/deliveries` |
+| ✅ **J-10** | Deliveries — read-only screen (clean-seed) | E-09 | J-9 | S-078 (read half over clean-seed; migration→J-10b after J-11 ARTICLE; write→J-10b. jobs S-089/090→J-15; Proffix S-029/080/150→follow-up; S-087→reporting) | `Delivery`, `DeliveryItem` (read-only) | `masterdata/deliveries/` → `/deliveries` (read-only) |
+| J-10b | Deliveries — migration + booking + write side | E-09 | J-10, J-11 | S-078 (Delivery/DeliveryItem migration — needs J-11 ARTICLE migrated first, `DeliveryItem.article_id` NOT NULL RESTRICT; + the write half — create/book/delete, gap-free delivery_number counter, Prepared→Booked state machine + 409-terminal, engine→persist) | `Delivery`+`DeliveryItem` migration, `Delivery` (write behavior) | `/deliveries` book/delete actions |
 | J-11 | Articles + Email templates | E-06 | J-0 | S-055, S-158, S-177 (+impl S-054) | `Article`, `EmailTemplate` | `masterdata/articles/`, email-templates |
 | J-12 | Club join / invite flow | E-06 | J-3, J-4 | S-178, S-179, S-180, S-181 | N/A (greenfield) | none (new) → `/join` |
 | J-13 | System data + logs (admin) | E-06 | J-0 | S-056, S-160 | `SystemData` | `system/logs/` → `/system/logs` |
 | J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
-| J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9 | S-081, S-082, S-018, S-083, S-084, S-085, S-038 | N/A | none (admin) → `/system/jobs` |
+| J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |
 | J-16 | Public landing + nav | E-12 | J-0 | S-133 (+impl S-097, S-157) | N/A | `main/` → `/main` |
 | J-17 | Trial-flight registration | E-12 | J-16, J-1 | S-098, S-025 | `Flight` (trial subset) | `tryflight/` → `/trialflight` |
 | J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |

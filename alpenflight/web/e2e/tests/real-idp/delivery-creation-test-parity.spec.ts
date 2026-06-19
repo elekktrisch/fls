@@ -548,6 +548,10 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 // ===========================================================================
 const MIGRATED_FT_ARTICLE = '5001';
 
+// The §5 historical glider flight is DATEADD(MINUTE, 47, start); the migrated
+// FlightTime filter (min=0) bills the whole active duration as whole minutes.
+const MIGRATED_FT_EXPECTED_MINUTES = 47;
+
 test.describe('Delivery creation test harness — migrated inputs drive the engine (real-idp)', () => {
   test.describe.configure({ mode: 'serial', retries: 0 });
 
@@ -620,11 +624,15 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
         article5001Item,
         `the engine, run over a MIGRATED glider flight, must emit the migrated FlightTime filter's ` +
           `article ${MIGRATED_FT_ARTICLE} line (the migrated J-8 filter + J-2 flight drove the engine) — ` +
-          `proving the producer-bound inputs reach the rules engine end to end`,
+          `proving the producer-bound inputs reach the rules engine end to end. A missing 5001 line ` +
+          `after the deployment is COMPLETED (the shared-bundle ingest now polls to terminal before ` +
+          `this read) means the migrated filter did not match the migrated flight, not a read race.`,
       ).toBeTruthy();
-      // min=0 ⇒ the whole flight duration billed as one positive minute quantity.
+      // Bit-exact: the §5 historical glider flight is DATEADD(MINUTE, 47, start)
+      // (legacy _test-fixture.sql) and the FlightTime filter bills at min=0 over the
+      // whole active duration as whole minutes → exactly 47 'Minuten'.
       expect(article5001Item!.unitType).toBe('Minuten');
-      expect(article5001Item!.quantity ?? 0).toBeGreaterThan(0);
+      expect(article5001Item!.quantity).toBe(MIGRATED_FT_EXPECTED_MINUTES);
 
       await page.goto('/deliverycreationtests?lang=en');
       await expect(page.getByTestId('dct-table')).toBeVisible();

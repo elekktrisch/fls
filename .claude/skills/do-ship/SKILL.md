@@ -117,6 +117,11 @@ Push at task boundaries; after the first locally-green backend task, open a **dr
 + AC checklist). Watch CI in background; a red run becomes the next task, not a blocked wait;
 superseding an in-flight per-push run with the next push is fine — don't stall on it.
 
+**On a red run, get the ACTUAL cause first** — the failing JOB's real error (response status, server
+log, the violated constraint) + the local working tree (a fix may already be uncommitted there) —
+BEFORE theorising from the test diff or dispatching a re-diagnosis (J-9: twice anchored wrong off the
+spec diff; the real causes — a 409 constraint, a temp-dir bug — were in the job logs).
+
 **Surface the gallery EARLY** ([[feedback_surface_proof_early_on_repeated_failure]]) — the operator's only
 glanceable window for a wrong screen shape. T-01 scaffolds it; give the link at first captures. On a
 repeatedly-red proof, re-deploy + surface it before retrying — suspect the screen shape, not just the test.
@@ -137,15 +142,25 @@ escalate** (shape wrong → likely `/do-plan` re-carve). Never re-dispatch the s
 
 ### 4 — Proof-chain gate
 
-When every task is ticked, `e2e-driver` runs the gate: the full chain (legacy seed → migrate →
-Keycloak → real Playwright, both fidelities green, video on pass) producing the done-bar
-demonstrability (above) + — for a **migration journey** — a **green real-export `fanout` run** (not
-just synth). CI: `alpenflight-proof` (required, synth) + the `fanout` run.
+**Drive the real-idp spec green LOCALLY first, then gate on CI.** Before §4, `e2e-driver` drives the
+journey's own real-idp spec to green on the LOCAL real-idp stack — never-run-step gaps surface in fast
+local cycles, not one-CI-cycle-per-gap (J-9 T-22: 4 sequential gaps over 6 commits, spec first ran at
+the gate). §4 CI then CONFIRMS; it isn't where you discover gaps.
+
+When every task is ticked + the spec is locally green, `e2e-driver` runs the CI gate: the full chain
+(legacy seed → migrate → Keycloak → real Playwright, both fidelities green, video on pass) + — for a
+**migration journey (any mapper)** — a **`fan-out parity` JOB green on the FINAL sha** (not just synth).
+CI: `alpenflight-proof` (required, synth) + the `fanout` run.
 
 **Verify the gate JOB-level, on the FINAL sha.** A run-level green can be hollow: path-filtered
-`detect changes` skips every job on a workflow/docs-only delta (`required` green over NOTHING, J-7),
-and cancel-on-push can kill the only real run. Confirm the jobs EXECUTED (not skipped) for the sha
-you ship; after any cancel/re-push, dispatch + job-verify a fresh full run. [[false_green_derive_fallback]]
+`detect changes` skips every job on a workflow/docs-only delta (`required` green over NOTHING, J-7);
+cancel-on-push can kill the only real run; and the **fanout silently no-ops on integration branches**
+when its legacy C#/Mono build fails on a cold cache (warm-cache `main` masks it — J-8/J-9 never ran
+their migrated done-bar on-branch, [[project_fanout_legacy_build_cold_nuget]]). Confirm the jobs
+EXECUTED (not skipped, not build-failed) for the sha you ship — **for a migration journey the `fan-out
+parity` job is a HARD merge gate**: dispatch the fanout on the branch + job-verify it green, never
+merge on a skipped/build-failed fanout. After any cancel/re-push, dispatch + job-verify a fresh run.
+[[false_green_derive_fallback]]
 
 **Dev-time proof = THIS journey only; full green only at the gate** ([[feedback_dev_time_test_strategy]]).
 Per push runs only the journey's OWN spec(s) (T-02 set this up); prior journeys run mock-IdP; the full
@@ -155,13 +170,10 @@ a journey can't merge if it broke a prior one — but must stay fast). **Gallery
 case**: capture before deep assertions; gate deploy on `!cancelled()`.
 
 **Gallery model — ONE page, the CURRENT journey only** ([[feedback_proof_gallery_per_journey_one_bookmark]]).
-The stable bookmark renders ONLY the in-flight journey's proof — paired legacy↔AlpenFlight list+form
-screenshots (legacy captured once + committed to `e2e/legacy-reference/<feature>/`) + the pass video +
-the migration round-trip. **No all-journeys index, no per-merged-journey history pages, no
-per-push/fanout/legacy-parity sub-path split** — merged journeys' proof lives in their merged PRs, not
-the live gallery (history is in git). One page, one deploy. **Verify the DEPLOYED artifact, not the
-unit/spec pass** (recurred ~4× in J-6): curl the deployed bookmark + page + every asset (200) before
-claiming it works. *(The GALLERY-SIMPLIFY rider collapses the legacy multi-journey plumbing to this.)*
+The stable bookmark renders ONLY the in-flight journey (paired legacy↔AlpenFlight shots + pass video +
+migration round-trip); no all-journeys index / history pages / sub-path split (merged proof lives in PRs).
+**Verify the DEPLOYED artifact, not the spec pass** (recurred ~4× in J-6): curl the bookmark + every asset
+(200). `e2e-driver` owns the deploy detail; GALLERY-SIMPLIFY collapses the old plumbing to this.
 
 **Mock governance.** Happy + key-error run fully real. Any mocked seam (edge/error only) carries
 an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked seams"** list + **one operator signoff**

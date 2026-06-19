@@ -174,6 +174,24 @@
       ],
       "expected": [],
       "pending": ["legacy:list", "legacy:form", "alpenflight:list", "alpenflight:form"]
+    },
+    "J-10": {
+      "$note": [
+        "T-01 SCAFFOLD — registers the J-10 (read-only /deliveries viewer + Delivery",
+        "migration) paired-shot contract so its per-journey proof page is declared",
+        "from the journey's first task (the operator's glanceable window exists",
+        "early). J-10 replaces the legacy masterdata/deliveries/ READ path, so it",
+        "carries paired legacy<->AlpenFlight shots: `list` (the deliveries table) +",
+        "`view` (the read-only line-items + frozen-recipient + flight-link viewer).",
+        "NONE are captured yet — the screen lands T-03..T-06 + the parity spec",
+        "thickens T-10 — so all four are `pending` (tolerated-absent, surfaced by the",
+        "[shots-present] guard) until T-10 flips them to `expected` once the real-idp",
+        "parity spec + the fanout legacy capture produce them. An empty `expected`",
+        "means the guard reds on NOTHING for J-10 today (scaffold-clean), the J-5",
+        "pending-placeholder pattern."
+      ],
+      "expected": [],
+      "pending": ["legacy:list", "legacy:view", "alpenflight:list", "alpenflight:view"]
     }
   }
 }

@@ -52,6 +52,11 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   comment lines, so a bounded focused sweep can take a burndown journey's slot. The do-* skills now
   enforce this going-forward. *(seam: per-touch across `alpenflight/{server,web,migration-bundle,migration-tool}`
   + e2e specs + the workflow YAML)* [[feedback_self_explanatory_no_history_comments]]
+  **Per-touch progress:** the J-10 delivery/accounting/migration surface is stripped (the `accounting/domain`
+  + `accounting/application` + `accounting/web` Delivery files, the Delivery test-support + ITs, the J-10-added
+  `MapperLegacyBindings` / `MapperBindingContractTest` / `MapperLegacyBindingsTest` lines). STILL PENDING (its
+  own burndown slot — too big for a per-touch fold): the pre-existing cross-journey narration carried in
+  `MapperLegacyBindings.java`, `app.routes.ts`, `nav-sections.ts`, and the real-idp `_helpers/fan-out-parity-fixture.ts`.
 - **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
   task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
   (J-7 bloated to 719 lines) + any "Original (for trace)" blocks; that history is in git/commit messages.
@@ -67,7 +72,6 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
 ## Pending (filed by /do-ship 2026-06-13, J-8 gate)
 
 - **[PROOF-HARNESS TRANSIENTS] two non-blocking run-level reds the J-8 gate surfaced (proof infra, not vertical).** (a) The fanout `[deployed-journey]` link-check (`proof-gallery-links.spec.ts:683`) has a **60s Playwright test timeout** that races gh-pages CDN propagation — the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a propagation pre-wait). (b) The full real-idp regression hits the workflow's **15-min step timeout** because the 3 KC-26 specs' retries exhaust the wall (`token-lifecycle` is the last file, so nothing J-8-relevant was truncated). Raise the step timeout OR quarantine the 3 KC-26 specs so their retries stop consuming the budget. Both are harness hardening; neither is a J-8 behavior red. *(seam: proof-gallery-links.spec.ts test timeout + alpenflight-e2e-real-idp.yml step timeout / KC-26 quarantine)* [[false_green_derive_fallback]]
-- **[DOC-DRIFT] `FilterConfig.java:28-31` stale Javadoc.** Says `deliveryLineText`/`recipientName` are "NOT yet emitted by the migration mapper" — a stale T-03 note; T-10 emits them (mapper `:327-328`) and `AccountingRuleFilterMigrationRoundTripIT` proves the round-trip. Harmless but mildly misleading; fix the comment on the next accounting touch. *(seam: accounting/domain/FilterConfig.java javadoc)*
 - **[TEST-ORPHAN] `alpenflight/web/e2e/tests/nav-bar.spec.ts` is uncollected by every Playwright project** (it sits at `tests/nav-bar.spec.ts` while chromium `testMatch` requires a subdirectory `tests/!(real-idp|profile)/**/*.spec.ts`) — pre-existing since S-097, surfaced by T-22a. Its `/clubs`-top-level + responsive + lang-picker assertions stay valid under the masterdata grouping but never run. Move it into a collected subdir (e.g. `tests/nav/`) on the next web touch. *(seam: e2e nav-bar.spec.ts relocation)*
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
@@ -643,22 +647,29 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   id is minted by the seed and merely passed to the child (no external pin) — is the clean win T-20 executed
   across all 5 Sweep factories. *(seam: `server/src/test`, per-touch)*
 
-## Pending (filed by J-9, 2026-06-14 — fanout parity, surfaced once the legacy builds were fixed)
+## Pending (J-9-filed, UPDATED by J-10 2026-06-15 — the fanout now runs end to end)
 
-The fanout's legacy builds are now fixed (cold-cache NuGet solution restore + phantomjs temp-dir/CDN —
-shipped in J-9), so the parity specs run for the first time on an integration branch and expose two
-pre-existing issues. Neither blocks J-9 (migration N/A; engine proven via the real-idp clean-seed run +
-corpus IT). Both ride the next migration-touching journey's gate.
+J-10 fixed the fanout's legacy builds (J-9) + the 409, so the real-bundle parity specs run end to end for
+the first time — revealing that **the merged migration journeys' migrated done-bars were hollow** (the
+fanout silently skipped on their branches per the J-9-retro finding). On `integration/J-10` the fanout now
+runs 39 passed / 3 failed; the 3 are pre-existing migrated-FIDELITY gaps on already-merged journeys, NOT
+J-10 (J-10's Delivery migration is deferred to J-10b).
 
-- **Migration-bundle-ingest 409 across the shared parity harness.** `ensureSharedMigrationBundle` →
-  `ingestBundle` 409s with `DEPLOYMENT_EXISTS` after the first spec ingests — the migration deployment is
-  async (`non-terminal`), and the harness re-ingests / reads migrated data before it reaches `COMPLETED`.
-  Breaks the real-bundle migrated parity for J-0c/J-5/J-6 (and starves J-9's migrated read). Fix: poll the
-  deployment to `COMPLETED` after ingest, and treat `409 DEPLOYMENT_EXISTS` as "reuse `existingDeploymentId`"
-  rather than throwing. *(seam: `alpenflight/web/e2e/tests/real-idp/_helpers/fan-out-parity-fixture.ts`)*
-- **J-9 migrated done-bar: no article-5001 over migrated data.** The `[migration/parity]` spec finds
-  migrated glider flights but the engine emits no article-5001 line — the migrated "FlightTime: Glider per
-  minute" filter isn't applying. Investigate whether the deployment-timing fix above resolves it, else
-  whether the legacy TestClub export carries a glider flight + an article-5001 FlightTime filter at all.
-  Also strengthen the assertion from `unitType+qty>0` toward bit-exact once it runs. *(seam:
-  `alpenflight/web/e2e/tests/real-idp/delivery-creation-test-parity.spec.ts` migrated block + the TestClub seed)*
+- ~~**Migration-bundle-ingest 409.**~~ **FIXED (J-10 T-07):** `ensureSharedMigrationBundle`/`ingestBundle`
+  poll the deployment to `COMPLETED` + reuse `existingDeploymentId` on a 409 — no ingest-409 cascade.
+
+**⚠ BLOCKS the next MIGRATION journey** (hard fanout gate, J-9 retro). Fold into the next migration journey
+(J-10b / J-11 / J-1 / J-21, whichever ships first):
+- **J-9 article-5001 — the migrated FlightTime filter emits no article-5001 line.** T-07's poll-to-COMPLETED
+  did NOT resolve it (so it's not just deployment timing) — the migrated "FlightTime: Glider per minute"
+  filter genuinely isn't applying over the migrated glider flight. Investigate the migrated filter's
+  predicate/scope vs the migrated flight. T-08 strengthened the assertion to bit-exact (`=== 47`), so it
+  fails loud. *(`delivery-creation-test-parity.spec.ts` migrated block)*
+- **J-8 AccountingRuleFilter migrated predicate config not intact.** `accounting-rules-parity.spec.ts:524`
+  — the migrated filter renders but its `filter_config` predicate doesn't match legacy (an
+  AccountingRuleFilter migration-fidelity gap). *(`accounting-rules-parity.spec.ts` + the filter mapper)*
+- **J-0c Location migrated render.** `fan-out-migration-parity.spec.ts:167` fails — investigate the migrated
+  Location render. *(`fan-out-migration-parity.spec.ts`)*
+
+These confirm the J-9-retro lesson at scale (migrated done-bars never enforced on-branch). Worth a focused
+migration-fidelity pass — surface to the operator at `/do-plan` / the next `/do-retro`.

@@ -7,7 +7,11 @@ import { promisify } from 'node:util';
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
 import { fillKcLogin } from './kc-form';
-import { findUserByUsername, makeMigratedAdminLoginable } from './keycloak-admin';
+import {
+  findUserByUsername,
+  findUsersByUsernameSearch,
+  makeMigratedAdminLoginable,
+} from './keycloak-admin';
 import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
@@ -205,6 +209,31 @@ interface IngestResponse {
   primaryClubId: string;
 }
 
+/** `GET /api/v1/migrations/{uploadId}/status` view (the SPA poll shape). */
+interface MigrationRunStatusView {
+  uploadId: string;
+  state: 'DECRYPTING' | 'PROVISIONING' | 'INGESTING' | 'COMPLETING' | 'COMPLETED' | 'FAILED';
+  deploymentId: string | null;
+  clubIds: string[];
+  errorCode: string | null;
+}
+
+/**
+ * Outcome of an ingest attempt against the shared single-use bundle. `reused`
+ * marks the {@code 409 DEPLOYMENT_EXISTS} path: the principal already owns a
+ * non-terminal Deployment from a PRIOR ingest (a deployment a migration leaves
+ * ACTIVE once it COMPLETED — `findActiveByOwner` matches TRIAL/ACTIVE/PAST_DUE/
+ * CANCELLED), so re-POSTing the same data is a no-op the harness must treat as
+ * "already migrated", not a hard failure. `clubIds` is populated only on a fresh
+ * 200 (the 409 body carries just the existing deployment id); reuse recovers the
+ * migrated clubs by enumerating the provisioned Keycloak admins downstream.
+ */
+interface IngestAttempt {
+  deploymentId: string;
+  clubIds: string[];
+  reused: boolean;
+}
+
 /** `GET /api/v1/locations` list-item projection (the SPA's generated `LocationListItem`). */
 interface LocationListItem {
   id: string;
@@ -315,21 +344,106 @@ async function buildBundleBytes(
   return Buffer.from(b64, 'base64');
 }
 
+/**
+ * POST the bundle through the real migration endpoint. The ingest pipeline is
+ * SYNCHRONOUS — a 200 returns only after the txn commits with the run COMPLETED +
+ * the Deployment ACTIVE — so a fresh 200 needs no poll. But the migration also
+ * leaves that Deployment ACTIVE, and `findActiveByOwner` (the pre-decrypt guard)
+ * matches every non-EXPIRED lifecycle state: a SECOND POST by the same principal
+ * (a re-run against a Postgres that already carries the migrated deployment, the
+ * steady state of local-first iteration on the LAN PG) is refused with
+ * {@code 409 DEPLOYMENT_EXISTS}. That is NOT a failure — the data is already
+ * migrated — so we reuse `existingDeploymentId` from the problem-detail body and
+ * never re-ingest the single-use upload. A real failure (any other 4xx/5xx) still
+ * throws.
+ */
 async function ingestBundle(
   api: APIRequestContext,
   bearer: string,
   uploadId: string,
   bundle: Buffer,
-): Promise<IngestResponse> {
+): Promise<IngestAttempt> {
   const res = await api.post(`/api/v1/migrations/${uploadId}/bundle`, {
     headers: { authorization: bearer, 'content-type': 'application/octet-stream' },
     data: bundle,
   });
-  if (!res.ok()) {
-    throw new Error(`bundle ingest failed (${res.status()}): ${await res.text()}`);
+  if (res.ok()) {
+    const body = (await res.json()) as IngestResponse;
+    // Defensive against any async finalization (Keycloak provision / read-model
+    // rebuild that runs post-commit): block until the run reaches a terminal
+    // COMPLETED before downstream reads. A 200 is already terminal, so this
+    // returns on the first poll — it is the SAFETY for a future async ingest.
+    await pollDeploymentToCompleted(api, bearer, uploadId);
+    return { deploymentId: body.deploymentId, clubIds: body.clubIds, reused: false };
   }
-  return (await res.json()) as IngestResponse;
+
+  const status = res.status();
+  const text = await res.text();
+  if (status === 409) {
+    let problem: { errorCode?: string; existingDeploymentId?: string } = {};
+    try {
+      problem = JSON.parse(text) as typeof problem;
+    } catch {
+      // Non-JSON 409 body — fall through to the generic throw below.
+    }
+    if (problem.errorCode === 'DEPLOYMENT_EXISTS') {
+      const existing = problem.existingDeploymentId ?? '';
+      if (!existing) {
+        throw new Error(
+          `409 DEPLOYMENT_EXISTS carried no existingDeploymentId — cannot reuse the prior ` +
+            `migration (body: ${text})`,
+        );
+      }
+      // The reused deployment is ACTIVE, which a migration reaches only AFTER a
+      // synchronous COMPLETED ingest — so it is already terminal; no poll on our
+      // own uploadId (which never ran a Deployment) is possible or needed.
+      return { deploymentId: existing, clubIds: [], reused: true };
+    }
+  }
+  throw new Error(`bundle ingest failed (${status}): ${text}`);
 }
+
+/**
+ * Poll {@code GET /api/v1/migrations/{uploadId}/status} until the run is terminal,
+ * returning the COMPLETED view. A FAILED terminal throws (a real ingest failure
+ * must surface, never silently pass). Bounded so a stuck async run can't hang the
+ * worker forever; a synchronous 200 ingest is already COMPLETED, so this returns
+ * on the first poll.
+ */
+async function pollDeploymentToCompleted(
+  api: APIRequestContext,
+  bearer: string,
+  uploadId: string,
+): Promise<MigrationRunStatusView> {
+  const deadline = Date.now() + STATUS_POLL_BUDGET_MS;
+  let last: MigrationRunStatusView | undefined;
+  while (Date.now() < deadline) {
+    const res = await api.get(`/api/v1/migrations/${uploadId}/status`, {
+      headers: { authorization: bearer },
+    });
+    if (res.ok()) {
+      last = (await res.json()) as MigrationRunStatusView;
+      if (last.state === 'COMPLETED') {
+        return last;
+      }
+      if (last.state === 'FAILED') {
+        throw new Error(
+          `migration run for upload ${uploadId} reached FAILED (errorCode ${last.errorCode}) — ` +
+            `the ingest did not complete`,
+        );
+      }
+    }
+    await new Promise((r) => setTimeout(r, STATUS_POLL_INTERVAL_MS));
+  }
+  throw new Error(
+    `migration run for upload ${uploadId} did not reach COMPLETED within ` +
+      `${STATUS_POLL_BUDGET_MS}ms (last state ${last?.state ?? 'unknown'})`,
+  );
+}
+
+/** Bound the status poll — the synchronous ingest is COMPLETED on the first read. */
+const STATUS_POLL_BUDGET_MS = 60_000;
+const STATUS_POLL_INTERVAL_MS = 500;
 
 /** Deterministic migrated-admin username (mirrors the server's directory adapter). */
 function migratedAdminUsername(clubId: string): string {
@@ -450,6 +564,44 @@ async function tenantHasLocation(
   return items.some((item) => item.locationName === locationName);
 }
 
+/** The provisioned migrated-admin username namespace (KC `search` infix). */
+const MIGRATED_ADMIN_USERNAME_INFIX = 'migrated-admin+';
+
+/** Parse the provisioned clubId out of a `migrated-admin+<clubId>@…` username. */
+function clubIdFromMigratedUsername(username: string): string | null {
+  const m = /^migrated-admin\+([0-9a-f-]{36})@migrated\.alpenflight\.local$/i.exec(username);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Build a structurally-valid fixture for the 409-reuse path (the bundle was
+ * already migrated by a prior run). Resolves clubA/clubB from two provisioned
+ * Keycloak admins so the `FanOutParityFixture` type is satisfied; the consumers
+ * that hit reuse (`ensureSharedMigrationBundle`) ignore these and resolve their
+ * own tenant by a domain marker. Fails loud if fewer than two migrated admins
+ * exist — that would mean the prior migration never provisioned the clubs, which
+ * the reuse path cannot paper over.
+ */
+async function reusedDeploymentFixture(locationName: string): Promise<FanOutParityFixture> {
+  const candidates = await findUsersByUsernameSearch(MIGRATED_ADMIN_USERNAME_INFIX);
+  const admins = candidates
+    .map((u): MigratedClubAdmin | null => {
+      const clubId = clubIdFromMigratedUsername(u.username);
+      return clubId
+        ? { clubId, username: u.username, password: E2E_CANNED_PASSWORD, kcUserId: u.id }
+        : null;
+    })
+    .filter((a): a is MigratedClubAdmin => a !== null);
+  const [clubA, clubB] = admins;
+  if (!clubA || !clubB) {
+    throw new Error(
+      `409 DEPLOYMENT_EXISTS (bundle already migrated) but only ${admins.length} provisioned ` +
+        `migrated admin(s) exist — the prior migration did not provision the clubs.`,
+    );
+  }
+  return { locationName, clubA, clubB };
+}
+
 export async function seedFanOutParity(
   browser: Browser,
   api: APIRequestContext,
@@ -472,6 +624,22 @@ export async function seedFanOutParity(
 
   const ingest = await ingestBundle(api, bearer, uploadId, bundle);
 
+  // REUSE (409 DEPLOYMENT_EXISTS): the bundle was already migrated by a PRIOR run
+  // whose Deployment is still ACTIVE. The freshly-minted synth `locationName` was
+  // never written (the data wasn't re-ingested), so the Location-ownership loop
+  // below — keyed on that name — cannot resolve clubA/clubB. The consumers that
+  // route through `ensureSharedMigrationBundle` (J-5/J-6/J-8/J-9/J-10) only need
+  // the migration ingested + the admins provisioned; they resolve their own
+  // tenant by enumerating Keycloak admins + a domain-specific marker (the
+  // reservation remark, the migrated flight, etc.), never the fixture's clubA/B.
+  // So a reused bundle returns a structurally-valid fixture WITHOUT re-deriving
+  // the random Location name: the migration is done, the unblock is complete.
+  // The fan-out spec itself ingests fresh in a single invocation (its first
+  // ingest succeeds), so it never depends on this reuse branch.
+  if (ingest.reused) {
+    return reusedDeploymentFixture(locationName);
+  }
+
   // Every migrated club gets a provisioned admin (FULL_PORT CLUB) — but only
   // the clubs that referenced the shared legacy Location (via Clubs.HomebaseId)
   // get a fanned-out `t_location` copy. So we CANNOT pick the 2 fan-out targets
@@ -487,6 +655,7 @@ export async function seedFanOutParity(
   // random-named Location: log in as each migrated admin, query that tenant's
   // own `/api/v1/locations` (the same read API the spec asserts on), and keep
   // the ones whose list contains it. Exactly-2-owning IS the fan-out assertion.
+  //
   if (ingest.clubIds.length < 2) {
     throw new Error(
       `ingest provisioned ${ingest.clubIds.length} club(s) — need ≥2 to host a 2-way fan-out`,

@@ -139,6 +139,39 @@ const de = {
       required: 'Eingabe erforderlich.',
     },
   },
+  deliveries: {
+    title: 'Lieferungen',
+    list: {
+      unbooked: 'Entwurf',
+      columns: {
+        batch: 'Stapel',
+      },
+    },
+    state: {
+      prepared: 'Vorbereitet',
+      booked: 'Verbucht',
+      error: 'Fehler',
+      cancelled: 'Storniert',
+    },
+    view: {
+      loading: 'Wird geladen …',
+      notFound: 'Diese Lieferung wurde nicht gefunden.',
+      items: 'Positionen',
+      recipient: 'Empfänger',
+      flight: 'Flug',
+      recipientFields: {
+        name: 'Name',
+        firstName: 'Vorname',
+        lastName: 'Nachname',
+        clubMemberNumber: 'Mitgliedsnummer',
+        addressLine1: 'Adresse',
+        addressLine2: 'Adresszusatz',
+        zipCode: 'PLZ',
+        city: 'Ort',
+        country: 'Land',
+      },
+    },
+  },
   deliveryCreationTests: {
     title: 'Lieferungserstellungstests',
     new: 'Neuer Test',
