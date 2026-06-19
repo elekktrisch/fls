@@ -625,7 +625,9 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   read-model rows + decorations post-ingest). Next reporting touch: add a small AlpenFlight-side
   `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
   location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
-  *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
+  **J-27 T-04 confirmed (2026-06-19):** the block must be AUTHORED (no `useRealBundle()`-guarded migrated
+  block exists in `flight-reports-parity.spec.ts` to merely list) and may surface its own fidelity red — so
+  it rides a journey that can absorb that, not a wiring one-liner. *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
 
 ## Pending (filed by J-26 T-20, 2026-06-12 — IT-seeding conversion remainder, empirically measured)
 

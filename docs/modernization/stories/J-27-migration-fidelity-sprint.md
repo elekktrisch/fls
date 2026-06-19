@@ -118,8 +118,11 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   the fanned-out Location → club-B slot could be a non-owner). Fix: extracted `partitionLocationOwners`,
   used in BOTH paths. App provisioning + tenant resolution verified symmetric. Clears
   `fan-out-migration-parity.spec.ts:167` (proof = the fanout gate). *(real-idp fan-out fixture)*
-- [ ] **T-04** — FANOUT-SPEC-WIRING rider: wire `reporting-migration-parity` into the fanout real-bundle
-  spec list + fix the stale step name (predates J-5/J-6/J-7). *(alpenflight-proof-fanout.yml parity-spec step)*
+- [x] ~~**T-04** — FANOUT-SPEC-WIRING (wire an existing reporting migrated spec).~~ **Closed — invalid as
+  scoped:** no reporting migrated-data spec exists (`flight-reports-parity.spec.ts` is clean-seed only;
+  no `reporting-migration-parity.spec.ts`). The rider is actually *author new reporting migrated coverage*
+  — new fidelity work that risks its own red, outside J-27's contract (the 3 known reds in the existing
+  7-spec fanout). Re-filed to `_BOYSCOUT.md` (corrected) for a future migration journey; not dropped.
 - [ ] **Gate (§4)** — fanout `Run AlpenFlight parity specs` green on the FINAL sha (ALL 7 specs),
   gap-hunter ×2-3, gallery deployed + verified, PR ready.
 
