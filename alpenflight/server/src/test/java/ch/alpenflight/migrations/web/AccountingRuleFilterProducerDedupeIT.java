@@ -40,7 +40,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * bound producer SELECT ({@link MapperLegacyBindings#selectForProducer}) against
  * a legacy-shaped {@code AccountingRuleFilters} staging table seeded with two
  * collision rows + a NULL-indicator row + a soft-deleted row in one club, and a
- * distinct row in another club, and asserts the renumber + soft-delete-drop.
+ * distinct row + a dirty-target row in another club, and asserts the renumber +
+ * soft-delete-drop + the dirty-target gate.
+ *
+ * <p><strong>Dirty-target gate.</strong> The real legacy
+ * {@code ArticleTarget}/{@code RecipientTarget} {@code nvarchar(max)} columns
+ * hold non-JSON values ({@code ''}, {@code 'null'}, stray text) wherever the C#
+ * layer wrote no target. Bare {@code JSON_VALUE} over those aborts the WHOLE
+ * cursor on MSSQL with error 13609 ("JSON text is not properly formatted") — the
+ * §4 fanout blocker the synth bundle's aliased columns never surface. The
+ * producer SELECT gates each extraction behind a structural JSON-shape check so a
+ * non-object/array value yields a NULL target instead of aborting; the staging
+ * columns here are {@code TEXT} (the real {@code nvarchar(max)}, not jsonb) so the
+ * dirty value can be seeded.
  *
  * <p><strong>Requires PostgreSQL 17 (CI's pinned container + the real legacy
  * MSSQL producer).</strong> The producer SELECT extracts the scalar
@@ -72,6 +84,11 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
     // A live row in clubB also with SortIndicator 5 — a DIFFERENT club, so NOT a
     // collision; must survive untouched (the renumber partitions on ClubId).
     private final UUID otherClubRow = UUID.randomUUID();
+    // A live row in clubB whose ArticleTarget/RecipientTarget are dirty non-JSON
+    // strings (the real legacy '' the C# layer leaves when no target is set).
+    // Bare JSON_VALUE over these aborts the WHOLE cursor on MSSQL (error 13609);
+    // the structural JSON-shape gate must yield NULL targets instead.
+    private final UUID dirtyTargetRow = UUID.randomUUID();
 
     @BeforeEach
     void seedLegacyShapedStagingTable() {
@@ -90,8 +107,10 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
         // A legacy-shaped staging table standing in for the MSSQL
         // AccountingRuleFilters the producer SELECT reads. Unquoted mixed-case
         // identifiers fold to lowercase in Postgres, matching the unquoted names
-        // in the bound SELECT. ArticleTarget/RecipientTarget are the legacy JSON
-        // blobs (jsonb here) the SELECT extracts scalars from via JSON_VALUE.
+        // in the bound SELECT. ArticleTarget/RecipientTarget are TEXT (the real
+        // legacy nvarchar(max)) — NOT jsonb — so a dirty non-JSON value ('',
+        // 'null', stray text) the C# layer left can be seeded, exercising the
+        // structural JSON-shape gate the producer SELECT applies before JSON_VALUE.
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS AccountingRuleFilters (
                     AccountingRuleFilterId UUID PRIMARY KEY,
@@ -104,8 +123,8 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                     SortIndicator          INTEGER,
                     StopRuleEngineWhenRuleApplied BOOLEAN NOT NULL,
                     IsChargedToClubInternal       BOOLEAN NOT NULL,
-                    ArticleTarget          JSONB,
-                    RecipientTarget        JSONB,
+                    ArticleTarget          TEXT,
+                    RecipientTarget        TEXT,
                     IsRuleForGliderFlights BOOLEAN NOT NULL,
                     IsRuleForTowingFlights BOOLEAN NOT NULL,
                     IsRuleForMotorFlights  BOOLEAN NOT NULL,
@@ -152,14 +171,28 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM AccountingRuleFilters");
 
         // clubA: two live rows sharing SortIndicator 5 + a NULL-indicator row.
-        insertRow(dupEarlier, clubA, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0);
-        insertRow(dupLater, clubA, 5, Timestamp.valueOf("2021-06-15 09:30:00"), 0);
-        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), 0);
+        insertRow(dupEarlier, clubA, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+                ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
+        insertRow(dupLater, clubA, 5, Timestamp.valueOf("2021-06-15 09:30:00"), 0,
+                ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
+        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), 0,
+                ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
         // clubA: a soft-deleted row also at indicator 5 — must be dropped.
-        insertRow(softDeletedRow, clubA, 5, Timestamp.valueOf("2018-01-01 00:00:00"), 1);
+        insertRow(softDeletedRow, clubA, 5, Timestamp.valueOf("2018-01-01 00:00:00"), 1,
+                ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
         // clubB: a live row at indicator 5 — a different club, NOT a collision.
-        insertRow(otherClubRow, clubB, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0);
+        insertRow(otherClubRow, clubB, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+                ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
+        // clubB: a live row whose targets are the dirty legacy '' — bare JSON_VALUE
+        // would abort the entire cursor (MSSQL 13609); the gate must NULL them.
+        insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), 0,
+                "", "");
     }
+
+    private static final String ARTICLE_TARGET_JSON =
+            "{\"ArticleNumber\":\"4001\",\"DeliveryLineText\":\"Flight time charge\"}";
+    private static final String RECIPIENT_TARGET_JSON =
+            "{\"PersonClubMemberNumber\":\"1042\",\"RecipientName\":\"Club Treasurer\"}";
 
     @AfterEach
     void dropStagingTable() {
@@ -172,15 +205,16 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
 
         List<Map<String, Object>> rows = jdbc.queryForList(select);
 
-        // The soft-deleted row is dropped; 4 live rows survive (3 in clubA + 1 in clubB).
+        // The soft-deleted row is dropped; 5 live rows survive (3 in clubA + 2 in clubB).
         List<UUID> survivingIds = rows.stream()
                 .map(r -> UUID.fromString(r.get("accountingrulefilterid").toString()))
                 .sorted()
                 .toList();
         assertThat(survivingIds)
                 .as("the soft-deleted row (IsDeleted=1) is dropped — the partial UNIQUE "
-                        + "covers only deleted_on IS NULL; the 4 live rows survive")
-                .containsExactlyInAnyOrder(dupEarlier, dupLater, nullSortRow, otherClubRow)
+                        + "covers only deleted_on IS NULL; the 5 live rows survive")
+                .containsExactlyInAnyOrder(
+                        dupEarlier, dupLater, nullSortRow, otherClubRow, dirtyTargetRow)
                 .doesNotContain(softDeletedRow);
 
         // The 3 live clubA rows each carry a DISTINCT sort_indicator post-renumber —
@@ -210,11 +244,30 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 .as("the earlier-CreatedOn collision row precedes the later one")
                 .isLessThan(indicatorById.get(dupLater));
 
-        // clubB's row is untouched by clubA's renumber (partition on ClubId) — it
-        // gets its own per-club index 1.
-        assertThat(indicatorById.get(otherClubRow))
-                .as("clubB's row is renumbered within its OWN club (partition on ClubId)")
-                .isEqualTo(1);
+        // clubB's rows are untouched by clubA's renumber (partition on ClubId) — they
+        // get their own per-club indices 1..2.
+        assertThat(List.of(indicatorById.get(otherClubRow), indicatorById.get(dirtyTargetRow)))
+                .as("clubB's rows are renumbered within their OWN club (partition on ClubId)")
+                .containsExactlyInAnyOrder(1, 2);
+
+        // The dirty-target row survives with NULL targets — bare JSON_VALUE over its
+        // '' ArticleTarget/RecipientTarget would have aborted the WHOLE cursor
+        // (MSSQL 13609); the structural JSON-shape gate NULLs them instead. This is
+        // the real-legacy dirty value (the 100-Insert N'' rows) the synth bundle's
+        // aliased columns never exercise.
+        Map<String, Object> dirty = rows.stream()
+                .filter(r -> r.get("accountingrulefilterid").toString()
+                        .equals(dirtyTargetRow.toString()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(dirty.get("articletarget"))
+                .as("a non-JSON ArticleTarget extracts to NULL, not an aborted export")
+                .isNull();
+        assertThat(dirty.get("deliverylinetext")).isNull();
+        assertThat(dirty.get("recipienttarget"))
+                .as("a non-JSON RecipientTarget extracts to NULL, not an aborted export")
+                .isNull();
+        assertThat(dirty.get("recipientname")).isNull();
 
         // The JSON-blob target scalars are extracted via JSON_VALUE (PG 17 / MSSQL).
         Map<String, Object> earlier = rows.stream()
@@ -236,7 +289,7 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
     }
 
     private void insertRow(UUID id, UUID club, Integer sortIndicator, Timestamp createdOn,
-            int isDeleted) {
+            int isDeleted, String articleTarget, String recipientTarget) {
         jdbc.update("""
                 INSERT INTO AccountingRuleFilters (
                     AccountingRuleFilterId, ClubId, AccountingRuleFilterTypeId,
@@ -263,7 +316,7 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                     DeletedOn, DeletedByUserId, IsDeleted)
                 VALUES (?, ?, 30, NULL, 'Flight time', NULL, true,
                         ?, false, false,
-                        ?::jsonb, ?::jsonb,
+                        ?, ?,
                         true, false, false,
                         false, false, false,
                         false, false,
@@ -284,8 +337,8 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 """,
                 id, club,
                 sortIndicator,
-                "{\"ArticleNumber\":\"4001\",\"DeliveryLineText\":\"Flight time charge\"}",
-                "{\"PersonClubMemberNumber\":\"1042\",\"RecipientName\":\"Club Treasurer\"}",
+                articleTarget,
+                recipientTarget,
                 createdOn, createdOn,
                 isDeleted == 1 ? Timestamp.valueOf("2022-01-01 00:00:00") : null,
                 isDeleted);

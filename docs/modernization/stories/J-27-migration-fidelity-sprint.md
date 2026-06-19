@@ -97,7 +97,7 @@ row). Each fidelity task ships a real-producer round-trip IT so it reds in `chec
 files. GALLERY-SIMPLIFY + WORKFLOW-SLIM deliberately deferred to J-11 (the next feature
 journey) — J-27 is the pure-debt exception, not a burndown host.
 
-- [ ] **T-01** — AccountingRuleFilter migration fidelity. Producer SELECT `JSON_VALUE(ArticleTarget)`
+- [x] **T-01** — AccountingRuleFilter migration fidelity. Producer SELECT `JSON_VALUE(ArticleTarget)`
   scalar extraction + `buildFilterConfig` `DeliveryLineText` fold, so the migrated `FlightTime: Glider
   per minute` filter carries `articleTarget='5001'` + `filterConfig.deliveryLineText='Glider flight
   minutes'` + derived target `'5001 (Glider flight minutes)'`. Real-producer round-trip IT. Clears
