@@ -132,7 +132,7 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   (the highest-priority matching base-seed filter `HB-3407 Privat` — min=0, stop-rule — derive its exact article
   + qty from the seed), proving the full migrated filter set drives the engine to the legacy-correct result
   (priority + stop-rule). `:524` still proves the 5001 filter MIGRATES. *(delivery-creation-test-parity.spec.ts assertion)*
-- [ ] **T-07** *(gate-revealed — the REAL `:577` blocker; empirical, from run 27850475087 traces)* — the engine
+- [x] **T-07** *(gate-revealed — the REAL `:577` blocker; empirical, from run 27850475087 traces)* — the engine
   returns **HTTP 500 over ALL 4 migrated glider flights** (zero items, so `:638` finds no line). `RecipientStage.java:62`
   throws `Recipient target is null` for the matched recipient filter `f1500004-…001` — its **recipientTarget (Person FK)
   didn't migrate** (legacy C# `DeliveryRecipientRule.Apply` throws identically → legacy-faithful over incompletely-migrated

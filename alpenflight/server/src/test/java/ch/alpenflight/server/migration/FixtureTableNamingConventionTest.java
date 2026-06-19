@@ -74,7 +74,12 @@ class FixtureTableNamingConventionTest {
             // AccountingRuleFilters` (sort-indicator renumber + JSON_VALUE target
             // extraction); AccountingRuleFilterProducerDedupeIT seeds that staging
             // table verbatim. Legacy MSSQL source name, not a new-stack t_ table.
-            "accountingrulefilters");
+            "accountingrulefilters",
+            // The LOCATION / INOUTBOUND_POINT fan-out producer SELECT reads `FROM
+            // Locations` JOIN LocationTypes + the Clubs/Flights fan-out union;
+            // LocationFanOutProducerSelectIT seeds those staging tables verbatim.
+            // Legacy MSSQL source names, not new-stack t_ tables.
+            "locations", "locationtypes", "inoutboundpoints", "clubs", "flights");
 
     /**
      * Narrowed to SQL-context-only patterns: {@code DELETE FROM} /

@@ -172,6 +172,40 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(article5001.get(0).unitType()).isEqualTo(AccountingUnitType.MIN.unitTypeString());
     }
 
+    // Legacy recipient rules route to a club-internal accounting ACCOUNT, not a
+    // member: the real-seed RecipientTarget carries PersonId=null + a synthetic
+    // PersonClubMemberNumber (e.g. "999007") + a RecipientName, and no Person owns
+    // that number. Legacy DeliveryRecipientRule.Apply sets the recipient from the
+    // embedded value object (no Person lookup) and never throws. The migrated
+    // recipient filter must therefore resolve to a self-contained recipient — not
+    // a 500 — so a matched recipient filter whose member number has no Person still
+    // produces a delivery (delivery-creation-test-parity.spec.ts:577 over the real
+    // bundle's account-recipient rule).
+    @Test
+    void recipientFilterWithoutMatchingPerson_resolvesSelfContainedRecipient() {
+        UUID aircraft = seedAircraft(clubA);
+        UUID flightType = seedFlightType(clubA, "Passagier", "PAX");
+        UUID pilot = seedMember(clubA, "Pilot", "Petra", "REC-PILOT");
+
+        UUID flight = seedGliderFlight(clubA, aircraft, flightType,
+                Instant.parse("2026-05-15T08:00:00Z"),
+                Instant.parse("2026-05-15T09:30:00Z"), (short) 1);
+        seedCrew(flight, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        UUID recipientFilterId = TenantTestContext.runAs(clubA, () ->
+                filtersService.create(
+                        recipientRequest("999007", "FGZO Passagierflug Gutschein")).id());
+
+        RuleBasedDeliveryDetails result =
+                TenantTestContext.runAs(clubA, () -> engine.computeForFlight(flight));
+
+        assertThat(result.recipient()).isNotNull();
+        assertThat(result.recipient().personClubMemberNumber()).isEqualTo("999007");
+        assertThat(result.recipient().recipientName()).isEqualTo("FGZO Passagierflug Gutschein");
+        assertThat(result.recipient().personId()).isNull();
+        assertThat(result.getMatchedFilterIds()).contains(recipientFilterId);
+    }
+
     @Test
     void doNotInvoiceFilter_shortCircuitsToEmptyDelivery() {
         UUID aircraft = seedAircraft(clubA);
