@@ -537,18 +537,24 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 
 // ===========================================================================
 // MIGRATED-DATA real chain — the engine done-bar over migrated J-2 flights +
-// J-8 filters (S-107). The fanout's REAL legacy export migrates the TestClub:
-// the §5 historical glider flight (47-min, 1 ldg at LSZK) AND the §4
-// `FlightTime: Glider per minute` AccountingRuleFilter (article 5001, glider-
-// scoped, min=0 ⇒ bills the whole duration). Running the harness dry-run over a
-// migrated flight must drive the migrated filter through the engine → an
-// article-5001 line — proving producer-bound J-8 filters + J-2 flights reach the
-// rules engine end to end, no new mapper. Rides the SAME real bundle the J-0c
-// fan-out spec ingests; runs only when the fanout's real export ran.
+// J-8 filters (S-107). The fanout's REAL legacy export migrates the WHOLE
+// TestClub base seed: the §5 historical glider flight (47-min, 1 ldg at LSZK)
+// AND the full set of FlightTime AccountingRuleFilters. Running the harness
+// dry-run over a migrated flight must drive that migrated filter set through the
+// engine → the legacy-faithful FlightTime line (its highest-priority match) —
+// proving producer-bound J-8 filters + J-2 flights reach the rules engine end to
+// end, no new mapper. Rides the SAME real bundle the J-0c fan-out spec ingests;
+// runs only when the fanout's real export ran.
 // ===========================================================================
-const MIGRATED_FT_ARTICLE = '5001';
+// Over the FULL migrated base seed, the lowest-(sortIndicator,id) active
+// type-30 filter that matches the §5 glider (HB-3407, GliderFlight, flight-type
+// code 63, pilot crew) is base-seed `HB-3407 Privat` (sortIndicator=2, article
+// 1060, min=0). With min=0 it bills the whole active time on the first pass and
+// zeroes the accumulator, so the §4 fixture's 5001 filter (sortIndicator=20)
+// never runs — the legacy-faithful result for this migrated flight is 1060.
+const MIGRATED_FT_ARTICLE = '1060';
 
-// The §5 historical glider flight is DATEADD(MINUTE, 47, start); the migrated
+// The §5 historical glider flight is DATEADD(MINUTE, 47, start); the winning
 // FlightTime filter (min=0) bills the whole active duration as whole minutes.
 const MIGRATED_FT_EXPECTED_MINUTES = 47;
 
@@ -574,7 +580,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     migratedBearer = resolved.bearer;
   });
 
-  test('[migration/parity] a migrated glider flight + the migrated FlightTime filter drive the engine → an article-5001 line', async ({
+  test('[migration/parity] a migrated glider flight + the migrated FlightTime filter set drive the engine → the legacy-faithful FlightTime line', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -585,7 +591,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       // List the migrated TestClub's glider flights. The deterministic §5
       // historical flight (FlightAircraftType GliderFlight) is among them; the
       // engine dry-run over a glider flight must drive the migrated glider-scoped
-      // FlightTime filter (article 5001).
+      // FlightTime filter set to its legacy-faithful winner (article 1060).
       const flightsRes = await ctx.request.get(`${FLIGHTS}?limit=200`, {
         headers: { authorization: migratedBearer },
       });
@@ -600,9 +606,10 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       ).toBeGreaterThan(0);
 
       // Dry-run the engine (GET example, no persist) over each migrated glider
-      // until one drives the migrated FlightTime filter → an article-5001 item.
-      // (The §5 glider, billed at min=0 over its whole duration, must.)
-      let article5001Item: DeliveryItem | undefined;
+      // until one drives the migrated FlightTime filter set → the legacy-faithful
+      // article-1060 item. (The §5 glider, billed at min=0 over its whole
+      // duration by the winning filter, must.)
+      let flightTimeItem: DeliveryItem | undefined;
       for (const flight of gliderFlights) {
         const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
           headers: { authorization: migratedBearer },
@@ -615,24 +622,25 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           (i) => i.articleNumber === MIGRATED_FT_ARTICLE,
         );
         if (item) {
-          article5001Item = item;
+          flightTimeItem = item;
           break;
         }
       }
 
       expect(
-        article5001Item,
-        `the engine, run over a MIGRATED glider flight, must emit the migrated FlightTime filter's ` +
-          `article ${MIGRATED_FT_ARTICLE} line (the migrated J-8 filter + J-2 flight drove the engine) — ` +
-          `proving the producer-bound inputs reach the rules engine end to end. A missing 5001 line ` +
-          `after the deployment is COMPLETED (the shared-bundle ingest now polls to terminal before ` +
-          `this read) means the migrated filter did not match the migrated flight, not a read race.`,
+        flightTimeItem,
+        `the engine, run over a MIGRATED glider flight, must emit the migrated FlightTime filter set's ` +
+          `legacy-faithful article ${MIGRATED_FT_ARTICLE} line (the migrated J-8 filters + J-2 flight drove ` +
+          `the engine, priority honored) — proving the producer-bound inputs reach the rules engine end to ` +
+          `end. A missing ${MIGRATED_FT_ARTICLE} line after the deployment is COMPLETED (the shared-bundle ` +
+          `ingest now polls to terminal before this read) means the migrated filters did not match the ` +
+          `migrated flight, not a read race.`,
       ).toBeTruthy();
       // Bit-exact: the §5 historical glider flight is DATEADD(MINUTE, 47, start)
-      // (legacy _test-fixture.sql) and the FlightTime filter bills at min=0 over the
-      // whole active duration as whole minutes → exactly 47 'Minuten'.
-      expect(article5001Item!.unitType).toBe('Minuten');
-      expect(article5001Item!.quantity).toBe(MIGRATED_FT_EXPECTED_MINUTES);
+      // (legacy _test-fixture.sql) and the winning FlightTime filter bills at min=0
+      // over the whole active duration as whole minutes → exactly 47 'Minuten'.
+      expect(flightTimeItem!.unitType).toBe('Minuten');
+      expect(flightTimeItem!.quantity).toBe(MIGRATED_FT_EXPECTED_MINUTES);
 
       await page.goto('/deliverycreationtests?lang=en');
       await expect(page.getByTestId('dct-table')).toBeVisible();
@@ -646,8 +654,8 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
         journey: 'J-9',
         caption:
           'J-9 · migrated inputs drive the engine · the rules engine, run over a MIGRATED TestClub ' +
-          'glider flight + the migrated J-8 "FlightTime: Glider per minute" filter (article 5001), ' +
-          'produces the expected delivery line — the producer-bound J-8 filters + J-2 flights drive ' +
+          'glider flight + the migrated FlightTime filter set, produces the legacy-faithful delivery ' +
+          'line (the highest-priority matching filter) — the producer-bound J-8 filters + J-2 flights drive ' +
           'the sacred-cow engine end to end over real migrated data (the engine done-bar)',
         acTag: 'happy',
       });
