@@ -6,10 +6,16 @@ description: Drive ONE vertical journey to a green PR. Manager skill — creates
 # do-ship — journey manager
 
 Take one carved journey (`J-NNN`) and drive it to a green PR. You are a
-**manager**: decide the task list, run each task in its own fresh worker context
-(no single conversation accumulates the whole journey), hold only lean summaries.
-When the tasks are done, run the proof-chain gate and open the journey PR. The
-operator merges.
+**manager**: decide the task list, run each task in its own fresh worker context,
+then run the proof-chain gate and open the journey PR. The operator merges.
+
+**Manager context budget — reach §4 review LEAN.** Saturating context before the gate is a
+process failure, not bad luck. Hold ONLY the task checklist + one line per task. The manager
+**never reads token-heavy material into its own context** — legacy source, CI/gate logs,
+gradle/Playwright output, `git diff`, large files. Delegate every such read to a subagent
+(`legacy-oracle`, `e2e-driver`, `gap-hunter`, or a throwaway `Explore`/worker) that returns ONLY
+the distilled conclusion — root cause + `file:line` + the fix-shaped next task, ≤150 words, no
+pastes. About to open a log or a legacy file? Dispatch instead.
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md)
 first — both directives govern. Schema is structural; business rules on aggregates.
@@ -57,9 +63,10 @@ re-create. Flip `status: in_progress` + `started_at`; GitHub issue (`J-NNN: <tit
 ### 2 — Decide the task list (stay lean)
 
 Refresh the graph before recall (`detect_changes`; if drifted, incremental
-`index_repository`). Read the journey spec + its `rolls_up` stories + the legacy
-screen(s) it replaces. For parity-sensitive screens, dispatch `legacy-oracle` ONCE
-(its output is a worker input). Write an ordered `## Tasks` checklist into the
+`index_repository` — don't retain its output). Read ONLY the journey spec + its `rolls_up`
+stories (small docs). **Never read legacy source into the manager** — dispatch `legacy-oracle`
+(parity-sensitive screens) or a throwaway `Explore` for the legacy screen(s); its distilled
+output is the worker input. Write an ordered `## Tasks` checklist into the
 journey file — `T-NN` ids, one-line scope each, dependency order. Default decomposition:
 
 1. **T-01 — spec stub + scaffold the journey proof page.** Author the Playwright spec's
@@ -97,7 +104,8 @@ point) to execute `/do-task` for that task:
 > (`.claude/skills/do-task/SKILL.md`) for task `T-NN` of journey `J-NNN` on
 > branch `integration/J-NNN`. <one-line task scope>. Commit directly to the
 > branch. **Commit + report your SHA and RETURN — do NOT push** (the manager owns the
-> push). Return only: status (done/overflow/escalated/blocked), commit subjects, ACs touched, escalations."
+> push). Return only (≤150 words, `file:line` not pastes — no diffs, no logs, no file dumps):
+> status (done/overflow/escalated/blocked), commit subjects, ACs touched, escalations."
 
 Run tasks **sequentially** (shared branch + working tree — parallel would
 conflict). After each worker returns: if `status: overflow`, go to § 3a; else **`git push`
@@ -114,13 +122,16 @@ Decompose toward SMALLER tasks — a death loses less (operator, J-7 retro).
 
 Push at task boundaries; after the first locally-green backend task, open a **draft PR**
 (`gh pr create --draft --base <integration-line> --head integration/J-NNN`, body `Closes #N`
-+ AC checklist). Watch CI in background; a red run becomes the next task, not a blocked wait;
++ AC checklist). Watch CI in background by **conclusion only** (`gh run view` status — never `--log` into the
+manager); a red run becomes the next task (diagnosis delegated, below), not a blocked wait;
 superseding an in-flight per-push run with the next push is fine — don't stall on it.
 
-**On a red run, get the ACTUAL cause first** — the failing JOB's real error (response status, server
-log, the violated constraint) + the local working tree (a fix may already be uncommitted there) —
-BEFORE theorising from the test diff or dispatching a re-diagnosis (J-9: twice anchored wrong off the
-spec diff; the real causes — a 409 constraint, a temp-dir bug — were in the job logs).
+**On a red run, DELEGATE the diagnosis — never pull run logs into the manager.** Dispatch
+`e2e-driver` (or a throwaway triage worker) to read the failing JOB log + server log + the local
+working tree and return ONLY {failing job, root cause: status / constraint / `file:line`, is a fix
+already uncommitted in the tree?, the fix-shaped next task}. Anchor the next task on that returned
+cause, never on the test diff (J-9: twice anchored wrong off the spec diff; the real causes — a 409
+constraint, a temp-dir bug — were in the job logs, not the diff).
 
 **Surface the gallery EARLY** ([[feedback_surface_proof_early_on_repeated_failure]]) — the operator's only
 glanceable window for a wrong screen shape. T-01 scaffolds it; give the link at first captures. On a

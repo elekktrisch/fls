@@ -93,10 +93,11 @@ invent a parallel convention.
 
 ## Output
 
-When invoked as an advisor, return: the spec diff (or the authored spec), the
-chain wiring you added, the run result (which fidelity, green/red, cause if
-red), the declared mocked seams (if any), and where the pass-video landed.
-Keep it to what `/do-ship` needs to commit and surface to the operator.
+When invoked as an advisor, return a **distilled verdict only** — the spec + diff are already
+committed, so DON'T paste them (pasting them back saturates the manager's context). Return: run
+result (which fidelity, green/red, root cause `file:line` if red), the chain wiring added (one
+line), declared mocked seams (if any), and the pass-video location. ≤150 words; `file:line`,
+never code/log pastes — keep the manager lean.
 
 ## What you do not do
 
