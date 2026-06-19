@@ -102,10 +102,12 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   per minute` filter carries `articleTarget='5001'` + `filterConfig.deliveryLineText='Glider flight
   minutes'` + derived target `'5001 (Glider flight minutes)'`. Real-producer round-trip IT. Clears
   `accounting-rules-parity.spec.ts:524`. *(AccountingRuleFilterMapper + FilterConfig)*
-- [ ] **T-02** *(dep: T-01)* — the migrated FlightTime filter applies over the migrated glider flight →
-  engine emits the article-5001 line (`unitType='Minuten'`, `quantity=47`). Verify it falls out of T-01;
-  fix any residual engine predicate-scope gap (not timing — T-07 poll-to-COMPLETED already excluded a
-  read race). Clears `delivery-creation-test-parity.spec.ts:577`. *(EngineTimeStage / engine orchestrator)*
+- [x] **T-02** *(dep: T-01)* — the migrated FlightTime filter applies over the migrated glider flight →
+  engine emits the article-5001 line (`unitType='Minuten'`, `quantity=47`). T-01 fully clears it: the
+  engine predicate/scope is pure-data and already applies a glider-scoped min=0 FlightTime filter; no
+  engine fix required. Regression IT
+  (`AccountingDeliveryEngineIT.migratedShapedFlightTimeFilter_appliesOverMigratedGliderFlight`) locks the
+  seam in `check`. Clears `delivery-creation-test-parity.spec.ts:577`. *(EngineTimeStage / engine orchestrator)*
 - [ ] **T-03** — Location club-B fan-out render: club-B admin sees its OWN fanned-out copy by name.
   Fix the Location producer SELECT + `ForeignKeyResolver` / `legacy_guid` keying. Real-producer
   round-trip IT. Clears `fan-out-migration-parity.spec.ts:167`. *(Location producer SELECT + ForeignKeyResolver)*
