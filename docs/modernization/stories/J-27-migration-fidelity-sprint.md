@@ -140,6 +140,14 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   the mapper builds articleTarget but not recipientTarget. Fix the mapper to bind recipientTarget (resolve the migrated
   PersonClubMemberNumber → Person). Real-producer IT. THEN re-capture §5's actual delivery line + set `:577`'s assertion
   empirically (T-02c's `1060` was a wrong guess — engine never emits). *(AccountingRuleFilter mapper — recipientTarget Person FK)*
+- [ ] **T-08** *(gate-revealed — flaky `beforeAll`, blocks observing `:577`)* — `resolveMigratedTestClubAdmin`
+  (`reservation-parity-fixture.ts:345`) does a full SPA Keycloak login PER migrated club candidate, serially,
+  with NO cross-describe memo; the fanout migrates ~6 clubs so the cold re-enumeration overruns the 45s hook
+  timeout (`:577` AND `:524` died in `beforeAll` in run 27852129119 — engine never ran). Same instability that
+  flickered runs #1→#2 (load/order-dependent). Memoize the resolved migrated admin at worker scope (like
+  `ensureSharedMigrationBundle`), handling token expiry — resolve ONCE, not per-spec. Don't just raise the
+  timeout (operator's "5-min ceiling, don't buy wall-time"). Unblocks observing §5's real delivery for T-07/`:577`.
+  *(real-idp migrated-admin resolution memo)*
 - [ ] **T-06** *(NOTE: misdiagnosis — link-check is a parity CASCADE, not a CDN timeout; the J-27 gallery row deploys
   PENDING because parity is red. The poll/timeout slack is harmless + stays; the link-check clears when `:577` greens.
   No further T-06 work.)* — fanout gallery link-check: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
