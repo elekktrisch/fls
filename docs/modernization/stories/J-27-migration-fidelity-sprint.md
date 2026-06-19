@@ -108,9 +108,15 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   engine fix required. Regression IT
   (`AccountingDeliveryEngineIT.migratedShapedFlightTimeFilter_appliesOverMigratedGliderFlight`) locks the
   seam in `check`. Clears `delivery-creation-test-parity.spec.ts:577`. *(EngineTimeStage / engine orchestrator)*
-- [ ] **T-03** — Location club-B fan-out render: club-B admin sees its OWN fanned-out copy by name.
-  Fix the Location producer SELECT + `ForeignKeyResolver` / `legacy_guid` keying. Real-producer
-  round-trip IT. Clears `fan-out-migration-parity.spec.ts:167`. *(Location producer SELECT + ForeignKeyResolver)*
+- [x] ~~**T-03** — Location club-B fan-out render via the producer SELECT / ForeignKeyResolver seam.~~
+  **Re-scoped:** the named seam is proven CLEAN — `LocationFanOutProducerSelectIT` (committed, green) shows
+  the producer SELECT fans the shared Location to a distinct per-club row; the real-bundle API reads
+  `owners.length===2`. The IT stays as the now-closed producer-SELECT fan-out coverage guard.
+- [ ] **T-03b** — club-B migrated-admin UI render (the ACTUAL `:167` layer). `:167` (`locationIdByName`,
+  a UI helper) fails for club-B ONLY while the API shows both replicas → the gap is downstream of
+  migration: the club-B migrated-admin login/provision (VERIFY_PROFILE / Keycloak) or the UI read-path
+  tenant context, not the mapper. Diagnose on the local real-idp stack, fix the real layer.
+  Clears `fan-out-migration-parity.spec.ts:167`. *(migrated-admin provision / UI read tenant context)*
 - [ ] **T-04** — FANOUT-SPEC-WIRING rider: wire `reporting-migration-parity` into the fanout real-bundle
   spec list + fix the stale step name (predates J-5/J-6/J-7). *(alpenflight-proof-fanout.yml parity-spec step)*
 - [ ] **Gate (§4)** — fanout `Run AlpenFlight parity specs` green on the FINAL sha (ALL 7 specs),
