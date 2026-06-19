@@ -102,12 +102,19 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   per minute` filter carries `articleTarget='5001'` + `filterConfig.deliveryLineText='Glider flight
   minutes'` + derived target `'5001 (Glider flight minutes)'`. Real-producer round-trip IT. Clears
   `accounting-rules-parity.spec.ts:524`. *(AccountingRuleFilterMapper + FilterConfig)*
-- [x] **T-02** *(dep: T-01)* — the migrated FlightTime filter applies over the migrated glider flight →
-  engine emits the article-5001 line (`unitType='Minuten'`, `quantity=47`). T-01 fully clears it: the
-  engine predicate/scope is pure-data and already applies a glider-scoped min=0 FlightTime filter; no
-  engine fix required. Regression IT
-  (`AccountingDeliveryEngineIT.migratedShapedFlightTimeFilter_appliesOverMigratedGliderFlight`) locks the
-  seam in `check`. Clears `delivery-creation-test-parity.spec.ts:577`. *(EngineTimeStage / engine orchestrator)*
+- [x] ~~**T-02** — premise "T-01 fully clears it, no engine fix" was WRONG at the gate.~~ The regression IT
+  (`AccountingDeliveryEngineIT`) uses a SYNTH-shaped filter + passes, but the gate (`:577`) stays red: the
+  ACTUALLY-migrated FlightTime filter's predicate/scope doesn't match the migrated glider flight (synth-vs-real
+  again). The engine is correct; the migrated filter's SCOPE columns are not. The IT stays as engine coverage.
+- [ ] **T-02b** *(gate-revealed)* — the migrated FlightTime filter's **predicate/scope** must round-trip so it
+  matches the migrated §5 glider flight → engine emits the article-5001 line (`Minuten`/`47`). T-01 fixed the
+  target JSON; this is the SCOPE columns (aircraft-class = glider, min threshold = 0, type 30 ∉ {5,10}) in the
+  producer SELECT/mapper. Diagnose migrated-filter shape vs the legacy fixture; fix the mapper; real-producer
+  IT asserting the predicate columns. Clears `delivery-creation-test-parity.spec.ts:577`. *(AccountingRuleFilter producer SELECT/mapper — scope columns)*
+- [ ] **T-05** *(gate-revealed, J-6 hollow done-bar)* — migrated planning-day notification emits the WRONG
+  template: mailpit got "Flugbetriebstag abgesagt" (cancelled) where only "findet statt" (takes place) is
+  expected (`planning-migration-parity.spec.ts:901`). App-side template selection in `PlanningDayNotificationJob`
+  for the migrated/seeded day's status. *(PlanningDayNotificationJob template-selection branch)*
 - [x] ~~**T-03** — Location club-B fan-out render via the producer SELECT / ForeignKeyResolver seam.~~
   **Re-scoped:** the named seam is proven CLEAN — `LocationFanOutProducerSelectIT` (committed, green) shows
   the producer SELECT fans the shared Location to a distinct per-club row; the real-bundle API reads
@@ -124,7 +131,10 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   — new fidelity work that risks its own red, outside J-27's contract (the 3 known reds in the existing
   7-spec fanout). Re-filed to `_BOYSCOUT.md` (corrected) for a future migration journey; not dropped.
 - [ ] **Gate (§4)** — fanout `Run AlpenFlight parity specs` green on the FINAL sha (ALL 7 specs),
-  gap-hunter ×2-3, gallery deployed + verified, PR ready.
+  gap-hunter ×2-3, gallery deployed + verified, PR ready. Run 27845619061 (sha 7fdebb5c): 39 pass / 4 fail
+  / 1 skip — T-01(:524)+T-03b(:167) GREEN; remaining reds → T-02b, T-05, + 2 secondary `beforeAll` timeouts
+  (`planning :1040`, `reservations :813` — migrated-admin login instability; reassess after T-02b/T-05, harden
+  `resolveMigratedTestClubAdmin` only if they persist standalone).
 
 ## Assumptions made
 
