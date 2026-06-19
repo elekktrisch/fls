@@ -126,8 +126,19 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   accumulator + stops the engine BEFORE the §4 fixture's 5001 filter runs → no 5001 line → `:577` red. The §4/§5
   fixture (added by J-9) assumed an isolation the full-seed migration violates. T-01/T-02b were necessary
   (filter round-trip) but insufficient. **Fix is a proof-design/fixture decision, not a mapper** — and it edits
-  the shared `flsserver/database/FLSTest/3 insert/_test-fixture.sql` (CLAUDE.md flag-first). **Pending operator
-  decision** (re-point §5 to a non-shadowed aircraft / assert the real shadowed line / relax). *(test-fixture isolation)*
+  the shared `flsserver/database/FLSTest/3 insert/_test-fixture.sql` (CLAUDE.md flag-first). **Operator decision
+  (2026-06-19):** a migration test must rely only on legacy seed data + assert what it GENUINELY produces — do
+  NOT re-point/gerrymander the seed. So `:577` asserts the LEGACY-FAITHFUL winning line for the §5 glider flight
+  (the highest-priority matching base-seed filter `HB-3407 Privat` — min=0, stop-rule — derive its exact article
+  + qty from the seed), proving the full migrated filter set drives the engine to the legacy-correct result
+  (priority + stop-rule). `:524` still proves the 5001 filter MIGRATES. *(delivery-creation-test-parity.spec.ts assertion)*
+- [ ] **T-06** — fanout gallery link-check CDN transient: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
+  hits a 60s Playwright test timeout racing gh-pages CDN propagation (independent of the parity red; gallery
+  DEPLOY succeeds). Bump the test timeout above its internal poll budget / add propagation slack (the known
+  [PROOF-HARNESS TRANSIENTS] rider). *(proof-gallery-links.spec.ts timeout)*
+- [ ] **Suite-architecture rider (operator principle, file for /do-retro):** non-migration parity specs should
+  set up their own data; migration specs run FIRST + rely only on legacy seed data. Broader than J-27's `:577`
+  fix — capture as a test-isolation rider, don't restructure the suite here.
 - [x] **T-05** *(gate-revealed, J-6 hollow done-bar)* — root cause is NEITHER mapper-fidelity NOR job-logic:
   it is the clean-seed `[happy/email]` case (`planning-migration-parity.spec.ts:901`), and the
   `PlanningDayNotificationJob` template branch (`Club.shouldSendPlanningDayOk` = `hasReservation ||
