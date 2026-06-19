@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>main</code> &middot; 2026-06-18T06:53:34.821Z
+      assertion it proves. Generated on <code>main</code> &middot; 2026-06-19T07:03:17.925Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -166,27 +166,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7b1532618c1bf5ab334578d9a28f1d0dc3610189.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d405909c30a470f2936856f670d679db08c559f1.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1f837f40ed210a2e978d7c725436e2a3a0671083.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1ec308f1c2c0d8f212c02585fe13dd756f8687c5.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-51963dbcc6a36d95d0cea63ef7642ad624785940.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-bdebde2a481d9fcb13ae271e5e68a485b3593ebe.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-fe8fd8bb6c932c75fbbfa52d97fe2a70f7759353.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-50035cc637d6cc7c6325b4f65a8bb299975656f0.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-458e09dcd6f152ec4c9acb48836be4a0fdd570cc.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-6004ffdd19aee2e184b8942b0022436afa77b139.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7b106acb3c7cae11692f165f6d63cdde6543bea4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-4952af34f0c08c944bbaf358ad512dc66ee96b80.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -221,35 +221,35 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-c6610167440af87f2fab87cf9f878cf518083dcf.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1a955ee948078089f111222a68c816bd8e7082df.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7270d24cd3a48f190c1489ff967eb9b8478b5f9c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a34fbd430aa49b98de9f221ce02fe38ac1ac06b3.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6f9d061d7b190446c5d3e5c8d6f4867b93e54be3.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-436017054ffddd060e8efe3f54a11ad4883c6443.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-67cd2ae7a7fd013d4dade32eb50c2dbc0d6e8be9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1d7361b6de7a9a0b98949177290f9aad8a326aa7.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4e3ad55e95930c94c39a3b7d9050f22b9c116c4e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1f758293ed56bcdcd20051ee4e621a7a2577e43d.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-13b770fb5bea00fddd5ae62e44867c55857bf17f.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-20b3ce695b9b90ef67692dfe14ae88037aad3f93.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4566b4e9c3d8333b9746314e489413f0cf41c716.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-6ca185c4000b26e7b213f2e8e667aff5fa932466.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-b44de90ba20a27bc7c9d64bfef6714a4835f3479.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9daed0d1186388335fd9abd3d573db8f9e266be7.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
@@ -318,23 +318,23 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4c26d5d241b90bd8233da5d127fa2ffd8b780aba.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-7f85bc33896049c2806808cb89f42b9b6dfa6aac.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-fc837861874e2e6a62bb39f466f2c40b40909eac.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-3491fdaaa74322bcd1c3b7dc14a31107e8f5fa16.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0a1197028a7e5c1de772f358db8d7f4ad5309312.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f7fef22a272c861aec63d0cf99293bf191266b13.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-d1d7d59f4af4caab510e3eefcb4e2225a4ddac51.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f4f30c9051df7fc8deb4e27d1a86be0a81e07140.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e0a151b2419de850f501f286e053b9f01aef5f57.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a6f7cf792f5e1ee6926a573fe0d8ad3deb76f304.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         </div>
@@ -374,33 +374,29 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
       </details>
       <details class="journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status success">6 proofs</span><span class="summary-counts">6 videos · 3 screenshots</span></span>
+          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status success">5 proofs</span><span class="summary-counts">5 videos · 3 screenshots</span></span>
           <span class="summary-caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instruc…</span>
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-30b8d9cbf2dabd66e165b39f442dab0b879e3ddd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-eafeb89b32ac31a6662813d3b691383630b2f3c4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-d0f5c5edaa67ad1a055a97a857960ac9a3239066.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-47752ac477dec41cc152487ded310bd60a329edf.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-900fab863b8ba9160d1c7b5facbf5a98833eb7f7.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-962184e3fdb182bfdd4974ef47eba740ac3fc658.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-28f68d7afdc617d7692355ba75e4b989dc152e57.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a166c7bf488b8d9910975855e102b6d3d8031fb9.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ed7a344ab47474515489eff67b0b27e4dc617f6c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-3cb5c277108784e6e687ff26fb381179927df1b7.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-b8164110c6fbbb680f4df0567fdf3f776e9360d5.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
@@ -469,19 +465,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit form (filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections) — the legacy masterdata/accountingRules screens to eyeball against AlpenFlight's /accountingrules list + filter-type-driven edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-268a6410bbc5aed43d88c9afa94a0dcd8fc58fdd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b47789c02b2a88014af060fe5ca4d565adb71822.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, and creates an AccountingRuleFilter through the real backend — it renders in the /accountingrules list with its derived target and reopens with every field intact (core · flags · article-target incl. the filter_config deliveryLineText)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-d6d78e26c25ad4002fb530eed549c987fbbda440.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b4d92f6f366dc317deeed14999c9fc582ddda147.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · selecting an AccountingRuleFilterType drives the conditional sections over the real reference-data catalog (article-target ∉{5,10} · recipient ==10 · aircraft-filter ==30 · no-landing-tax ==20) — the crux of the legacy form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-99a87e57202a471b40882ecdeca1dcc568114ff4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d1b270f8f3932cd8ff5c39ae905abb548b667db6.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a predicate match-list (aircraft immatriculations) round-trips its chips AND its 'use for all except listed' invert orientation through the real filter_config jsonb (load → flip toggle + add chip → save → reopen)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-cbfea6afe1e0e74576ad27796b8655a7c80e1258.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1b64e3f30389962a1a0313f321a85a511cc04ab1.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub article-target rule &quot;FlightTime: Glider per minute&quot;, article 5001), exported + migrated through the live chain, renders in the migrated club’s /accountingrules list with its predicate config intact — the ArticleTarget number + the DeliveryLineText folded into filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)</span></figcaption>
         </figure>
         </div>
@@ -526,11 +522,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e9b4686ebe2b38f19cac3dab6cb74b81d4744bcd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-c4b8a4dfa7a97e044c89238fdd371eb7db9fc778.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a9e82458ca5126e5539edb8ae6cefd54c1483d5c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ad96a6d85c850a5411865885e4f854431d28682d.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
         </figure>
         </div>
