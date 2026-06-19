@@ -198,9 +198,11 @@ into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link + Mocked-sea
 Stop and ask the operator (one precise question) when a worker reports: a parity
 assertion only passes by changing behavior; this journey breaks another's green;
 a `depends_on` artifact is missing despite the dep being done; ported legacy code
-has an apparent bug (never silently fix); an AC is unmeetable; or `gap-hunter`
-flags a blocker needing a contract/ADR/sacred-cow change. Default next:
-`/do-retro` captures the lesson; `/do-plan` re-carves if the shape was wrong.
+has an apparent bug (never silently fix); an AC is unmeetable; a FK-closure forces
+binding ANOTHER journey's migration entity (don't bind it — the carve missed a dep,
+re-scope/defer the migration, J-10 ARTICLE→J-11); or `gap-hunter` flags a blocker
+needing a contract/ADR/sacred-cow change. Default next: `/do-retro` captures the
+lesson; `/do-plan` re-carves if the shape was wrong.
 
 ## Quality bar
 

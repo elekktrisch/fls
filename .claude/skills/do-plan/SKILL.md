@@ -121,6 +121,12 @@ clean-context `/do-task` worker on `integration/J-NNN` (now already created + pu
   test-env-only admin/test affordance → else propose options + escalate.
 - **Migration** is per-journey: name the legacy entity/table the journey
   migrates; greenfield/freemium journeys mark it N/A.
+- **A migration journey owes its FK-dependency entities.** Before setting `depends_on`, check the
+  migrated entity's new-schema FKs: any `NOT NULL`/`RESTRICT` FK to an entity migrated by ANOTHER
+  (later/unbuilt) journey makes THAT journey a `depends_on` — else the binding's FK-target closure forces
+  a worker to bind the other journey's entity unscoped, regressing the whole fanout (J-10: `DeliveryItem.
+  article_id` → ARTICLE, J-11's entity → the Delivery migration had to defer to J-10b after J-11). If the
+  dependency journey isn't built yet, carve the migration half as its own later journey.
 
 ## Journey file — `docs/modernization/stories/J-NNN-<slug>.md`
 
