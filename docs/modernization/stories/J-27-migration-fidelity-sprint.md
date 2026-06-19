@@ -132,7 +132,17 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   (the highest-priority matching base-seed filter `HB-3407 Privat` — min=0, stop-rule — derive its exact article
   + qty from the seed), proving the full migrated filter set drives the engine to the legacy-correct result
   (priority + stop-rule). `:524` still proves the 5001 filter MIGRATES. *(delivery-creation-test-parity.spec.ts assertion)*
-- [ ] **T-06** — fanout gallery link-check CDN transient: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
+- [ ] **T-07** *(gate-revealed — the REAL `:577` blocker; empirical, from run 27850475087 traces)* — the engine
+  returns **HTTP 500 over ALL 4 migrated glider flights** (zero items, so `:638` finds no line). `RecipientStage.java:62`
+  throws `Recipient target is null` for the matched recipient filter `f1500004-…001` — its **recipientTarget (Person FK)
+  didn't migrate** (legacy C# `DeliveryRecipientRule.Apply` throws identically → legacy-faithful over incompletely-migrated
+  data = a real migration gap, not an assertion fix). Likely symmetric to T-01's articleTarget: `buildFilterConfig` /
+  the mapper builds articleTarget but not recipientTarget. Fix the mapper to bind recipientTarget (resolve the migrated
+  PersonClubMemberNumber → Person). Real-producer IT. THEN re-capture §5's actual delivery line + set `:577`'s assertion
+  empirically (T-02c's `1060` was a wrong guess — engine never emits). *(AccountingRuleFilter mapper — recipientTarget Person FK)*
+- [ ] **T-06** *(NOTE: misdiagnosis — link-check is a parity CASCADE, not a CDN timeout; the J-27 gallery row deploys
+  PENDING because parity is red. The poll/timeout slack is harmless + stays; the link-check clears when `:577` greens.
+  No further T-06 work.)* — fanout gallery link-check: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
   hits a 60s Playwright test timeout racing gh-pages CDN propagation (independent of the parity red; gallery
   DEPLOY succeeds). Bump the test timeout above its internal poll budget / add propagation slack (the known
   [PROOF-HARNESS TRANSIENTS] rider). *(proof-gallery-links.spec.ts timeout)*
