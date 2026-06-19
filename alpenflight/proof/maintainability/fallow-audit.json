@@ -1,12 +1,12 @@
 {
   "schema_version": 7,
-  "version": "2.96.0",
+  "version": "2.100.0",
   "command": "audit",
   "verdict": "pass",
   "changed_files_count": 0,
   "base_ref": "origin/main",
-  "head_sha": "d305032",
-  "elapsed_ms": 236,
+  "head_sha": "0adcc95",
+  "elapsed_ms": 525,
   "summary": {
     "dead_code_issues": 0,
     "dead_code_has_errors": false,
@@ -26,7 +26,7 @@
   "kind": "audit",
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_6b6fa00bc5f512c7"
+      "analysis_run_id": "run_369cd71bd61e45f9"
     }
   }
 }
