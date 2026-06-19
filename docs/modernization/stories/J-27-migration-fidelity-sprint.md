@@ -2,7 +2,8 @@
 id: J-27
 title: Migration-fidelity sprint — drive the fanout fully green
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-06-19
 journey0: false
 carved: true
 depends_on: [J-10]
@@ -87,6 +88,31 @@ the 7 migrated-data specs run over the SINGLE real exported bundle. Three are re
 - The J-0c rename/distinct-rows test (`fan-out-migration-parity.spec.ts:197`) stays
   operator-disabled on the load-starved fanout runner; J-27 does NOT re-enable it (a
   fanout-perf/sharding rider owns that). [[feedback_proof_gallery_per_journey_one_bookmark]]
+
+## Tasks
+
+The 3 parity reds are independent fixes except T-02 (downstream of T-01 — same legacy
+row). Each fidelity task ships a real-producer round-trip IT so it reds in `check`
+(minutes), not the ~20-min fanout. Per-touch comment-strip/history→git rides each task's
+files. GALLERY-SIMPLIFY + WORKFLOW-SLIM deliberately deferred to J-11 (the next feature
+journey) — J-27 is the pure-debt exception, not a burndown host.
+
+- [ ] **T-01** — AccountingRuleFilter migration fidelity. Producer SELECT `JSON_VALUE(ArticleTarget)`
+  scalar extraction + `buildFilterConfig` `DeliveryLineText` fold, so the migrated `FlightTime: Glider
+  per minute` filter carries `articleTarget='5001'` + `filterConfig.deliveryLineText='Glider flight
+  minutes'` + derived target `'5001 (Glider flight minutes)'`. Real-producer round-trip IT. Clears
+  `accounting-rules-parity.spec.ts:524`. *(AccountingRuleFilterMapper + FilterConfig)*
+- [ ] **T-02** *(dep: T-01)* — the migrated FlightTime filter applies over the migrated glider flight →
+  engine emits the article-5001 line (`unitType='Minuten'`, `quantity=47`). Verify it falls out of T-01;
+  fix any residual engine predicate-scope gap (not timing — T-07 poll-to-COMPLETED already excluded a
+  read race). Clears `delivery-creation-test-parity.spec.ts:577`. *(EngineTimeStage / engine orchestrator)*
+- [ ] **T-03** — Location club-B fan-out render: club-B admin sees its OWN fanned-out copy by name.
+  Fix the Location producer SELECT + `ForeignKeyResolver` / `legacy_guid` keying. Real-producer
+  round-trip IT. Clears `fan-out-migration-parity.spec.ts:167`. *(Location producer SELECT + ForeignKeyResolver)*
+- [ ] **T-04** — FANOUT-SPEC-WIRING rider: wire `reporting-migration-parity` into the fanout real-bundle
+  spec list + fix the stale step name (predates J-5/J-6/J-7). *(alpenflight-proof-fanout.yml parity-spec step)*
+- [ ] **Gate (§4)** — fanout `Run AlpenFlight parity specs` green on the FINAL sha (ALL 7 specs),
+  gap-hunter ×2-3, gallery deployed + verified, PR ready.
 
 ## Assumptions made
 
