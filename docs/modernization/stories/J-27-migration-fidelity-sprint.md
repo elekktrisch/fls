@@ -112,11 +112,12 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   **Re-scoped:** the named seam is proven CLEAN — `LocationFanOutProducerSelectIT` (committed, green) shows
   the producer SELECT fans the shared Location to a distinct per-club row; the real-bundle API reads
   `owners.length===2`. The IT stays as the now-closed producer-SELECT fan-out coverage guard.
-- [ ] **T-03b** — club-B migrated-admin UI render (the ACTUAL `:167` layer). `:167` (`locationIdByName`,
-  a UI helper) fails for club-B ONLY while the API shows both replicas → the gap is downstream of
-  migration: the club-B migrated-admin login/provision (VERIFY_PROFILE / Keycloak) or the UI read-path
-  tenant context, not the mapper. Diagnose on the local real-idp stack, fix the real layer.
-  Clears `fan-out-migration-parity.spec.ts:167`. *(migrated-admin provision / UI read tenant context)*
+- [x] **T-03b** — club-B `:167` render. Root cause was the fixture, not app code: the J-10 409-reuse
+  path (`fan-out-parity-fixture.ts:585 reusedDeploymentFixture`) picked clubA/clubB in arbitrary KC order
+  with no Location-ownership filter (the fresh-ingest path filtered; on the real 4-club test only 2 own
+  the fanned-out Location → club-B slot could be a non-owner). Fix: extracted `partitionLocationOwners`,
+  used in BOTH paths. App provisioning + tenant resolution verified symmetric. Clears
+  `fan-out-migration-parity.spec.ts:167` (proof = the fanout gate). *(real-idp fan-out fixture)*
 - [ ] **T-04** — FANOUT-SPEC-WIRING rider: wire `reporting-migration-parity` into the fanout real-bundle
   spec list + fix the stale step name (predates J-5/J-6/J-7). *(alpenflight-proof-fanout.yml parity-spec step)*
 - [ ] **Gate (§4)** — fanout `Run AlpenFlight parity specs` green on the FINAL sha (ALL 7 specs),
