@@ -106,11 +106,19 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   (`AccountingDeliveryEngineIT`) uses a SYNTH-shaped filter + passes, but the gate (`:577`) stays red: the
   ACTUALLY-migrated FlightTime filter's predicate/scope doesn't match the migrated glider flight (synth-vs-real
   again). The engine is correct; the migrated filter's SCOPE columns are not. The IT stays as engine coverage.
-- [ ] **T-02b** *(gate-revealed)* — the migrated FlightTime filter's **predicate/scope** must round-trip so it
-  matches the migrated §5 glider flight → engine emits the article-5001 line (`Minuten`/`47`). T-01 fixed the
-  target JSON; this is the SCOPE columns (aircraft-class = glider, min threshold = 0, type 30 ∉ {5,10}) in the
-  producer SELECT/mapper. Diagnose migrated-filter shape vs the legacy fixture; fix the mapper; real-producer
-  IT asserting the predicate columns. Clears `delivery-creation-test-parity.spec.ts:577`. *(AccountingRuleFilter producer SELECT/mapper — scope columns)*
+- [x] **T-02b** *(gate-revealed)* — the migrated FlightTime filter's **predicate/scope** must round-trip so it
+  matches the migrated §5 glider flight → engine emits the article-5001 line (`Minuten`/`47`). Fixed the mapper's
+  bigint→Integer read of the legacy `Min/Max(Flight|Engine)TimeInSecondsMatchingValue` columns (read as `Long`
+  + clamp); `AccountingRuleFilterProducerDedupeIT` extended with a glider-scoped FlightTime row over BIGINT time
+  columns asserting glider scope + min=0 + max-clamp round-trip through the real producer SELECT → mapper (CI PG17;
+  skips on LAN PG15 — JSON_VALUE). *(AccountingRuleFilter producer SELECT/mapper — scope columns)*
+  - **ESCALATION:** the stated suspects are ruled out empirically — in FLSTest the time columns are `int` (DBUpdate
+    v1.9.17 re-ALTERs from v1.9.14's `bigint`), scope flags are identity-projected, type 30 / unit 10 resolve
+    (`AccountingRuleFilterMigrationRoundTripIT`), and `accounting-rules-parity.spec.ts:524` proves the filter migrates
+    with article 5001. The bigint fix is a real latent bug (pgjdbc-fatal; >Int.MAX values) but may NOT flip `:577` in
+    FLSTest. If the CI PG17 run shows the new IT green-without-the-fix, the residual `:577` cause is flight-side (the
+    §5 glider's crew / aircraft-type bit gating `crewMatches`/`flightAircraftTypeMatches`) — a follow-up outside the
+    filter scope.
 - [ ] **T-05** *(gate-revealed, J-6 hollow done-bar)* — migrated planning-day notification emits the WRONG
   template: mailpit got "Flugbetriebstag abgesagt" (cancelled) where only "findet statt" (takes place) is
   expected (`planning-migration-parity.spec.ts:901`). App-side template selection in `PlanningDayNotificationJob`

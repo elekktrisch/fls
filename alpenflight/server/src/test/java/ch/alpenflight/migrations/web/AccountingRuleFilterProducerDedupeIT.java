@@ -5,7 +5,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.MapperLegacyBindings;
+import ch.alpenflight.migration.bundle.accounting.AccountingRuleFilterMapper;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayOutputStream;
+import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +95,13 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
     // Bare JSON_VALUE over these aborts the WHOLE cursor on MSSQL (error 13609);
     // the structural JSON-shape gate must yield NULL targets instead.
     private final UUID dirtyTargetRow = UUID.randomUUID();
+    // A live glider-scoped FlightTime (type 30) row in clubB carrying the legacy
+    // FlightTime predicate the §4 `FlightTime: Glider per minute` fixture defines:
+    // min=0, max=Long.MAX (the legacy "unbounded" sentinel) — both BIGINT, the
+    // real column type. Reading them as Integer aborts the cursor on pgjdbc; the
+    // mapper must read Long + clamp so the predicate round-trips and the engine
+    // matches a glider flight (delivery-creation-test-parity.spec.ts:577).
+    private final UUID gliderFlightTimeRow = UUID.randomUUID();
 
     @BeforeEach
     void seedLegacyShapedStagingTable() {
@@ -135,10 +148,10 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                     ExtendMatchingFlightTypeCodesToGliderAndTowFlight BOOLEAN NOT NULL,
                     IncludeThresholdText   BOOLEAN NOT NULL,
                     ThresholdText          TEXT,
-                    MinFlightTimeInSecondsMatchingValue INTEGER,
-                    MaxFlightTimeInSecondsMatchingValue INTEGER,
-                    MinEngineTimeInSecondsMatchingValue INTEGER,
-                    MaxEngineTimeInSecondsMatchingValue INTEGER,
+                    MinFlightTimeInSecondsMatchingValue BIGINT,
+                    MaxFlightTimeInSecondsMatchingValue BIGINT,
+                    MinEngineTimeInSecondsMatchingValue BIGINT,
+                    MaxEngineTimeInSecondsMatchingValue BIGINT,
                     UseRuleForAllAircraftsExceptListed   BOOLEAN NOT NULL,
                     MatchedAircraftImmatriculations      TEXT,
                     UseRuleForAllStartTypesExceptListed  BOOLEAN NOT NULL,
@@ -187,10 +200,16 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
         // would abort the entire cursor (MSSQL 13609); the gate must NULL them.
         insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), 0,
                 "", "");
+        // clubB: the §4 `FlightTime: Glider per minute` fixture predicate — glider-
+        // scoped, min=0, max=Long.MAX, BIGINT time columns, MIN unit (10).
+        insertGliderFlightTimeRow(gliderFlightTimeRow, clubB, 9,
+                Timestamp.valueOf("2020-03-01 08:00:00"));
     }
 
     private static final String ARTICLE_TARGET_JSON =
             "{\"ArticleNumber\":\"4001\",\"DeliveryLineText\":\"Flight time charge\"}";
+    private static final String GLIDER_ARTICLE_TARGET_JSON =
+            "{\"ArticleNumber\":\"5001\",\"DeliveryLineText\":\"Glider flight minutes\"}";
     private static final String RECIPIENT_TARGET_JSON =
             "{\"PersonClubMemberNumber\":\"1042\",\"RecipientName\":\"Club Treasurer\"}";
 
@@ -205,16 +224,17 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
 
         List<Map<String, Object>> rows = jdbc.queryForList(select);
 
-        // The soft-deleted row is dropped; 5 live rows survive (3 in clubA + 2 in clubB).
+        // The soft-deleted row is dropped; 6 live rows survive (3 in clubA + 3 in clubB).
         List<UUID> survivingIds = rows.stream()
                 .map(r -> UUID.fromString(r.get("accountingrulefilterid").toString()))
                 .sorted()
                 .toList();
         assertThat(survivingIds)
                 .as("the soft-deleted row (IsDeleted=1) is dropped — the partial UNIQUE "
-                        + "covers only deleted_on IS NULL; the 5 live rows survive")
+                        + "covers only deleted_on IS NULL; the 6 live rows survive")
                 .containsExactlyInAnyOrder(
-                        dupEarlier, dupLater, nullSortRow, otherClubRow, dirtyTargetRow)
+                        dupEarlier, dupLater, nullSortRow,
+                        otherClubRow, dirtyTargetRow, gliderFlightTimeRow)
                 .doesNotContain(softDeletedRow);
 
         // The 3 live clubA rows each carry a DISTINCT sort_indicator post-renumber —
@@ -245,10 +265,11 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 .isLessThan(indicatorById.get(dupLater));
 
         // clubB's rows are untouched by clubA's renumber (partition on ClubId) — they
-        // get their own per-club indices 1..2.
-        assertThat(List.of(indicatorById.get(otherClubRow), indicatorById.get(dirtyTargetRow)))
+        // get their own per-club indices 1..3.
+        assertThat(List.of(indicatorById.get(otherClubRow), indicatorById.get(dirtyTargetRow),
+                indicatorById.get(gliderFlightTimeRow)))
                 .as("clubB's rows are renumbered within their OWN club (partition on ClubId)")
-                .containsExactlyInAnyOrder(1, 2);
+                .containsExactlyInAnyOrder(1, 2, 3);
 
         // The dirty-target row survives with NULL targets — bare JSON_VALUE over its
         // '' ArticleTarget/RecipientTarget would have aborted the WHOLE cursor
@@ -286,6 +307,53 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
         assertThat(earlier.get("recipientname"))
                 .as("RecipientTarget.RecipientName extracted to its own column for filter_config")
                 .isEqualTo("Club Treasurer");
+    }
+
+    @Test
+    void migratedGliderFlightTimeFilterPredicateRoundTripsThroughTheProducerSelectAndMapper()
+            throws Exception {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.ACCOUNTING_RULE_FILTER);
+        AccountingRuleFilterMapper mapper = new AccountingRuleFilterMapper();
+        ObjectMapper json = new ObjectMapper();
+
+        JsonNode config = jdbc.query(select, (ResultSet rs) -> {
+            try {
+                while (rs.next()) {
+                    if (!gliderFlightTimeRow.toString()
+                            .equals(rs.getString("AccountingRuleFilterId"))) {
+                        continue;
+                    }
+                    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+                    try (JsonGenerator gen = json.getFactory().createGenerator(sink)) {
+                        mapper.writeNdjson(rs, gen);
+                    }
+                    return json.readTree(sink.toByteArray()).get("filter_config");
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "mapper.writeNdjson over the producer SELECT row failed — the legacy "
+                                + "BIGINT time columns must read as Long, not Integer", e);
+            }
+            return null;
+        });
+
+        assertThat(config)
+                .as("the glider FlightTime row survives the producer SELECT → mapper (the "
+                        + "BIGINT min/max read as Long, not the Integer that 23-aborts the cursor)")
+                .isNotNull();
+        assertThat(config.get("isRuleForGliderFlights").asBoolean())
+                .as("glider scope round-trips so the engine matches a glider flight")
+                .isTrue();
+        assertThat(config.get("isRuleForTowingFlights").asBoolean()).isFalse();
+        assertThat(config.get("isRuleForMotorFlights").asBoolean()).isFalse();
+        assertThat(config.get("minFlightTimeInSecondsMatchingValue").asInt())
+                .as("min=0 round-trips so the engine's min-exclusive window admits the whole "
+                        + "active duration (bills from second 0)")
+                .isZero();
+        assertThat(config.get("maxFlightTimeInSecondsMatchingValue").asInt())
+                .as("the legacy Long.MAX unbounded sentinel clamps to Integer.MAX — still "
+                        + "unbounded for any real flight duration")
+                .isEqualTo(Integer.MAX_VALUE);
     }
 
     private void insertRow(UUID id, UUID club, Integer sortIndicator, Timestamp createdOn,
@@ -342,5 +410,61 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 createdOn, createdOn,
                 isDeleted == 1 ? Timestamp.valueOf("2022-01-01 00:00:00") : null,
                 isDeleted);
+    }
+
+    // The §4 `FlightTime: Glider per minute` predicate, every facet useAllExcept +
+    // empty (matches any glider flight): glider-scoped, min=0, max=Long.MAX (the
+    // legacy unbounded sentinel) — BOTH BIGINT (the real DBUpdate v1.9.14 type),
+    // MIN unit (10), ArticleTarget 5001.
+    private void insertGliderFlightTimeRow(UUID id, UUID club, int sortIndicator,
+            Timestamp createdOn) {
+        jdbc.update("""
+                INSERT INTO AccountingRuleFilters (
+                    AccountingRuleFilterId, ClubId, AccountingRuleFilterTypeId,
+                    AccountingUnitTypeId, RuleFilterName, Description, IsActive,
+                    SortIndicator, StopRuleEngineWhenRuleApplied, IsChargedToClubInternal,
+                    ArticleTarget, RecipientTarget,
+                    IsRuleForGliderFlights, IsRuleForTowingFlights, IsRuleForMotorFlights,
+                    NoLandingTaxForGlider, NoLandingTaxForTowingAircraft, NoLandingTaxForAircraft,
+                    IncludeFlightTypeName, ExtendMatchingFlightTypeCodesToGliderAndTowFlight,
+                    IncludeThresholdText, ThresholdText,
+                    MinFlightTimeInSecondsMatchingValue, MaxFlightTimeInSecondsMatchingValue,
+                    MinEngineTimeInSecondsMatchingValue, MaxEngineTimeInSecondsMatchingValue,
+                    UseRuleForAllAircraftsExceptListed, MatchedAircraftImmatriculations,
+                    UseRuleForAllStartTypesExceptListed, MatchedStartTypes,
+                    UseRuleForAllFlightTypesExceptListed, MatchedFlightTypeCodes,
+                    UseRuleForAllStartLocationsExceptListed, MatchedStartLocations,
+                    UseRuleForAllLdgLocationsExceptListed, MatchedLdgLocations,
+                    UseRuleForAllClubMemberNumbersExceptListed, MatchedClubMemberNumbers,
+                    UseRuleForAllFlightCrewTypesExceptListed, MatchedFlightCrewTypes,
+                    UseRuleForAllAircraftsOnHomebaseExceptListed, MatchedAircraftsHomebase,
+                    UseRuleForAllMemberStatesExceptListed, MatchedMemberStates,
+                    UseRuleForAllPersonCategoriesExceptListed, MatchedPersonCategories,
+                    CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                    DeletedOn, DeletedByUserId, IsDeleted)
+                VALUES (?, ?, 30, 10, 'FlightTime: Glider per minute', NULL, true,
+                        ?, false, false,
+                        ?, NULL,
+                        true, false, false,
+                        false, false, false,
+                        false, false,
+                        false, NULL,
+                        0, 9223372036854775807,
+                        NULL, NULL,
+                        true, '[]',
+                        true, '[]',
+                        true, '[]',
+                        true, '[]',
+                        true, '[]',
+                        true, '[]',
+                        true, '[]',
+                        true, 'null',
+                        true, '[]',
+                        true, '[]',
+                        ?, NULL, ?, NULL,
+                        NULL, NULL, 0)
+                """,
+                id, club, sortIndicator, GLIDER_ARTICLE_TARGET_JSON,
+                createdOn, createdOn);
     }
 }
