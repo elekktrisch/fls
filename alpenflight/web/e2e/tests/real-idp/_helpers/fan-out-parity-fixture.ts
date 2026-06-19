@@ -574,15 +574,68 @@ function clubIdFromMigratedUsername(username: string): string | null {
 }
 
 /**
- * Build a structurally-valid fixture for the 409-reuse path (the bundle was
- * already migrated by a prior run). Resolves clubA/clubB from two provisioned
- * Keycloak admins so the `FanOutParityFixture` type is satisfied; the consumers
- * that hit reuse (`ensureSharedMigrationBundle`) ignore these and resolve their
- * own tenant by a domain marker. Fails loud if fewer than two migrated admins
- * exist — that would mean the prior migration never provisioned the clubs, which
- * the reuse path cannot paper over.
+ * Partition a set of migrated club admins into the ones whose tenant actually
+ * carries the random-named fan-out Location (`owners`) and the rest
+ * (`nonOwners`), judged by the SAME tenant-scoped `GET /api/v1/locations` the
+ * spec asserts on. Each admin is made loginable, logged in to capture its
+ * `@TenantId` Bearer (bounded per club — T-23), and queried. Fault-isolated
+ * per club: an un-loginable / slow club is a non-owner, never a hard throw, so
+ * one bad club can't sink the whole partition. Shared by BOTH the fresh-ingest
+ * path and the 409-reuse path so clubA/clubB are ALWAYS the true Location
+ * owners, never an arbitrary KC-search-order pick (the J-10 reuse-path gap that
+ * red-ed `fan-out-migration-parity.spec.ts:167` — club-B was a non-owner).
  */
-async function reusedDeploymentFixture(locationName: string): Promise<FanOutParityFixture> {
+async function partitionLocationOwners(
+  browser: Browser,
+  api: APIRequestContext,
+  baseURL: string,
+  admins: MigratedClubAdmin[],
+  locationName: string,
+): Promise<{ owners: MigratedClubAdmin[]; nonOwners: MigratedClubAdmin[] }> {
+  const owners: MigratedClubAdmin[] = [];
+  const nonOwners: MigratedClubAdmin[] = [];
+  for (const admin of admins) {
+    try {
+      await makeMigratedAdminLoginable(admin.kcUserId, admin.username, admin.password);
+      const tenantBearer = await tryBearerForMigratedAdmin(browser, baseURL, admin);
+      if (tenantBearer && (await tenantHasLocation(api, tenantBearer, locationName))) {
+        owners.push(admin);
+      } else {
+        nonOwners.push(admin);
+      }
+    } catch (err) {
+      console.warn(
+        `[T-23] club ${admin.clubId} ownership check failed — treating as non-owner ` +
+          `(${(err as Error).message})`,
+      );
+      nonOwners.push(admin);
+    }
+  }
+  return { owners, nonOwners };
+}
+
+/**
+ * Build the fixture for the 409-reuse path (the bundle was already migrated by a
+ * PRIOR ingest whose Deployment is still ACTIVE — the steady state of local-first
+ * iteration on the LAN PG, AND the CI path when the first consumer's `beforeAll`
+ * blows its 45s budget mid-ownership-loop, clearing the memo so the second
+ * consumer re-POSTs and 409s).
+ *
+ * The reuse 409 carries no clubIds, so enumerate the provisioned migrated admins
+ * and partition them by ACTUAL Location ownership — identical to the fresh path
+ * — rather than picking the first two in KC-search order. The earlier pick-first-
+ * two shortcut made `fixture.clubB` whatever KC returned second, which on the real
+ * 4-club FLSTest could be a NON-owner: club-A (an owner) passed at :146 while
+ * club-B (a non-owner) red-ed at :167 with the list visible but its row absent
+ * (J-27 T-03b). `locationName` is the real env name here (real-bundle mode), so
+ * the ownership lookup is valid. Fails loud on <2 owners — never papers a gap.
+ */
+async function reusedDeploymentFixture(
+  browser: Browser,
+  api: APIRequestContext,
+  baseURL: string,
+  locationName: string,
+): Promise<FanOutParityFixture> {
   const candidates = await findUsersByUsernameSearch(MIGRATED_ADMIN_USERNAME_INFIX);
   const admins = candidates
     .map((u): MigratedClubAdmin | null => {
@@ -592,14 +645,31 @@ async function reusedDeploymentFixture(locationName: string): Promise<FanOutPari
         : null;
     })
     .filter((a): a is MigratedClubAdmin => a !== null);
-  const [clubA, clubB] = admins;
-  if (!clubA || !clubB) {
+  if (admins.length < 2) {
     throw new Error(
       `409 DEPLOYMENT_EXISTS (bundle already migrated) but only ${admins.length} provisioned ` +
         `migrated admin(s) exist — the prior migration did not provision the clubs.`,
     );
   }
-  return { locationName, clubA, clubB };
+
+  const { owners, nonOwners } = await partitionLocationOwners(
+    browser,
+    api,
+    baseURL,
+    admins,
+    locationName,
+  );
+  const [clubA, clubB] = owners;
+  if (!clubA || !clubB) {
+    throw new Error(
+      `409 DEPLOYMENT_EXISTS reuse: of the ${admins.length} provisioned migrated club(s), only ` +
+        `${owners.length} carry the fanned-out Location "${locationName}" — expected exactly 2 ` +
+        `owners (each club's distinct copy). A prior migration provisioned the clubs but the ` +
+        `2-way Location fan-out did not survive, or an owner's admin could not authenticate.`,
+    );
+  }
+  const nonOwner = nonOwners[0];
+  return { locationName, clubA, clubB, ...(nonOwner ? { nonOwner } : {}) };
 }
 
 export async function seedFanOutParity(
@@ -624,20 +694,16 @@ export async function seedFanOutParity(
 
   const ingest = await ingestBundle(api, bearer, uploadId, bundle);
 
-  // REUSE (409 DEPLOYMENT_EXISTS): the bundle was already migrated by a PRIOR run
-  // whose Deployment is still ACTIVE. The freshly-minted synth `locationName` was
-  // never written (the data wasn't re-ingested), so the Location-ownership loop
-  // below — keyed on that name — cannot resolve clubA/clubB. The consumers that
-  // route through `ensureSharedMigrationBundle` (J-5/J-6/J-8/J-9/J-10) only need
-  // the migration ingested + the admins provisioned; they resolve their own
-  // tenant by enumerating Keycloak admins + a domain-specific marker (the
-  // reservation remark, the migrated flight, etc.), never the fixture's clubA/B.
-  // So a reused bundle returns a structurally-valid fixture WITHOUT re-deriving
-  // the random Location name: the migration is done, the unblock is complete.
-  // The fan-out spec itself ingests fresh in a single invocation (its first
-  // ingest succeeds), so it never depends on this reuse branch.
+  // REUSE (409 DEPLOYMENT_EXISTS): the bundle was already migrated by a PRIOR
+  // ingest whose Deployment is still ACTIVE. This branch is hit on local re-runs
+  // (LAN PG steady state) AND on CI when the first migrated-data consumer's 45s
+  // `beforeAll` blows mid-ownership-loop and clears the worker memo, so the second
+  // consumer re-POSTs the (committed) bundle and 409s. `locationName` is the real
+  // env name in real-bundle mode, so `reusedDeploymentFixture` resolves clubA/clubB
+  // by the SAME Location-ownership partition the fresh path uses — never the first-
+  // two-in-KC-order pick that red-ed club-B at :167 (J-27 T-03b).
   if (ingest.reused) {
-    return reusedDeploymentFixture(locationName);
+    return reusedDeploymentFixture(browser, api, baseURL, locationName);
   }
 
   // Every migrated club gets a provisioned admin (FULL_PORT CLUB) — but only
@@ -662,30 +728,29 @@ export async function seedFanOutParity(
     );
   }
 
-  const owners: MigratedClubAdmin[] = [];
-  const nonOwners: MigratedClubAdmin[] = [];
+  // Resolve each provisioned admin's KC identity, then partition by Location
+  // ownership through the shared helper (same path the 409-reuse fixture uses, so
+  // both paths pick clubA/clubB by ACTUAL ownership). Resolution is fault-isolated
+  // per club: a clubId with no provisioned admin is skipped, never a hard throw —
+  // under-counting a REAL owner still trips the `expect(owners.length).toBe(2)`.
+  const admins: MigratedClubAdmin[] = [];
   for (const clubId of ingest.clubIds) {
-    // Each per-club step is independently fault-isolated: a single un-loginable
-    // or slow club (e.g. the real FLSTest System club) must not fail or hang the
-    // whole seed. A bounded/failed login → undefined bearer → non-owner; a query
-    // error → non-owner. Under-counting a REAL owner still trips the hard
-    // `expect(owners.length).toBe(2)` below, so this can never false-green.
     try {
-      const admin = await loginableAdmin(clubId);
-      const tenantBearer = await tryBearerForMigratedAdmin(browser, baseURL, admin);
-      if (tenantBearer && (await tenantHasLocation(api, tenantBearer, locationName))) {
-        owners.push(admin);
-      } else {
-        nonOwners.push(admin);
-      }
+      admins.push(await loginableAdmin(clubId));
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn(
-        `[T-23] club ${clubId} ownership check failed — treating as non-owner ` +
-          `(${(err as Error).message})`,
+        `[T-23] club ${clubId} admin resolution failed — skipping ` + `(${(err as Error).message})`,
       );
     }
   }
+
+  const { owners, nonOwners } = await partitionLocationOwners(
+    browser,
+    api,
+    baseURL,
+    admins,
+    locationName,
+  );
 
   expect(
     owners.length,
