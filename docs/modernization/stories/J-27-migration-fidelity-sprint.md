@@ -119,6 +119,15 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
     FLSTest. If the CI PG17 run shows the new IT green-without-the-fix, the residual `:577` cause is flight-side (the
     §5 glider's crew / aircraft-type bit gating `crewMatches`/`flightAircraftTypeMatches`) — a follow-up outside the
     filter scope.
+- [ ] **T-02c** *(gate-revealed — the REAL `:577` cause; flight-side hypothesis REFUTED)* — **base-seed
+  shadowing, not a fidelity bug.** The real bundle migrates the FULL base seed (~85 type-30 filters). The §5
+  historical glider flight flies **HB-3407**; a base-seed filter `HB-3407 Privat` (SortIndicator=2 < the §4
+  fixture's 20; min=0; `StopRuleEngineWhenRuleApplied=1`) matches §5, emits its own line, zeroes the FlightTime
+  accumulator + stops the engine BEFORE the §4 fixture's 5001 filter runs → no 5001 line → `:577` red. The §4/§5
+  fixture (added by J-9) assumed an isolation the full-seed migration violates. T-01/T-02b were necessary
+  (filter round-trip) but insufficient. **Fix is a proof-design/fixture decision, not a mapper** — and it edits
+  the shared `flsserver/database/FLSTest/3 insert/_test-fixture.sql` (CLAUDE.md flag-first). **Pending operator
+  decision** (re-point §5 to a non-shadowed aircraft / assert the real shadowed line / relax). *(test-fixture isolation)*
 - [x] **T-05** *(gate-revealed, J-6 hollow done-bar)* — root cause is NEITHER mapper-fidelity NOR job-logic:
   it is the clean-seed `[happy/email]` case (`planning-migration-parity.spec.ts:901`), and the
   `PlanningDayNotificationJob` template branch (`Club.shouldSendPlanningDayOk` = `hasReservation ||
