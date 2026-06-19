@@ -7,6 +7,9 @@ import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -97,6 +100,22 @@ class PlanningDevSeedIT extends PostgresIntegrationTest {
                 || weekend.path("towingPilotPersonId").isMissingNode()).isTrue();
         assertThat(weekend.path("flightOperatorPersonId").isNull()
                 || weekend.path("flightOperatorPersonId").isMissingNode()).isTrue();
+
+        // The bare weekend day must never land on day+1: the notification job's
+        // imminent (today+1) pass mails the club address a planningday-CANCEL for a
+        // crewless, reservation-less day, which collides with the run-now mailpit
+        // contract on the shared seed-club-1 address (a stray "abgesagt" at
+        // flugbetrieb@seed-club-1.example). On a Friday the naive next-Saturday seed
+        // is tomorrow; V45 pushes it ≥2 days out while keeping it a Saturday.
+        LocalDate weekendDate = LocalDate.parse(weekend.get("planningDate").asText());
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        assertThat(weekendDate.getDayOfWeek())
+                .as("the seeded weekend day is a Saturday (the weekend-flag render path)")
+                .isEqualTo(DayOfWeek.SATURDAY);
+        assertThat(weekendDate)
+                .as("the seeded weekend day is never the notification job's day+1 "
+                        + "(else a stray planningday-cancel hits the shared club address)")
+                .isAfter(today.plusDays(1));
     }
 
     private static JsonNode findById(JsonNode array, String id) {

@@ -119,10 +119,15 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
     FLSTest. If the CI PG17 run shows the new IT green-without-the-fix, the residual `:577` cause is flight-side (the
     §5 glider's crew / aircraft-type bit gating `crewMatches`/`flightAircraftTypeMatches`) — a follow-up outside the
     filter scope.
-- [ ] **T-05** *(gate-revealed, J-6 hollow done-bar)* — migrated planning-day notification emits the WRONG
-  template: mailpit got "Flugbetriebstag abgesagt" (cancelled) where only "findet statt" (takes place) is
-  expected (`planning-migration-parity.spec.ts:901`). App-side template selection in `PlanningDayNotificationJob`
-  for the migrated/seeded day's status. *(PlanningDayNotificationJob template-selection branch)*
+- [x] **T-05** *(gate-revealed, J-6 hollow done-bar)* — root cause is NEITHER mapper-fidelity NOR job-logic:
+  it is the clean-seed `[happy/email]` case (`planning-migration-parity.spec.ts:901`), and the
+  `PlanningDayNotificationJob` template branch (`Club.shouldSendPlanningDayOk` = `hasReservation ||
+  usePlanningDayWithoutReservations`) is a faithful, IT-proven port of legacy `PlanningDayNotificationJob.cs:75-94`.
+  The stray "abgesagt" comes from the V34 bare weekend seed day `…0e02`: 2026-06-19 is a Friday, so its
+  next-Saturday date IS today+1 → the imminent (today+1) pass mails a planningday-CANCEL for it to the shared
+  `flugbetrieb@seed-club-1.example` (`imminentMailCount:2` in the failing trace confirms two day+1 days). Fix:
+  V45 pins `…0e02` to a Saturday ≥2 days out (never day+1). `PlanningDevSeedIT` extended to assert the weekend
+  seed day is a Saturday AND never today+1. *(dev-seed data fidelity — V45 + PlanningDevSeedIT)*
 - [x] ~~**T-03** — Location club-B fan-out render via the producer SELECT / ForeignKeyResolver seam.~~
   **Re-scoped:** the named seam is proven CLEAN — `LocationFanOutProducerSelectIT` (committed, green) shows
   the producer SELECT fans the shared Location to a distinct per-club row; the real-bundle API reads
