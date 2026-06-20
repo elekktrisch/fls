@@ -1,5 +1,0 @@
-{
-  "error": true,
-  "message": "could not determine changed files for base ref 'origin/main'. Verify the ref exists in this git repository",
-  "exit_code": 2
-}
