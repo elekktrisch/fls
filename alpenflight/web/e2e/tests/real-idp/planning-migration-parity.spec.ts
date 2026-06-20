@@ -221,6 +221,10 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   let twoClubs: TwoClubFixture;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
+    // Provisioning two clubs + a pilot through real Keycloak and seeding the
+    // masterdata through the real create APIs exceeds the 45s per-test budget on
+    // a slow CI box.
+    testInfo.setTimeout(180_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
     createdReservationIds.length = 0;
@@ -1028,6 +1032,10 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
   let migratedBearer: string;
 
   test.beforeAll(async ({ browser }, testInfo) => {
+    // Resolving the migrated TestClub admin involves a real Keycloak login +
+    // ownership resolution against the fanout-ingested bundle, which exceeds the
+    // 45s per-test budget on a slow CI box.
+    testInfo.setTimeout(180_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // The fanout ingests the real bundle via fan-out-migration-parity.spec.ts
     // (J-0c) earlier in the same Playwright invocation; resolve the migrated

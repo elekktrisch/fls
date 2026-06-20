@@ -57,15 +57,25 @@ interface MockFlightListItem {
 const AC_GLI = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 
+// The list defaults to today..today (legacy parity), so the fixture is dated
+// today — otherwise the today-default range filters every row out on load.
+const TODAY = (() => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+})();
+
 // Fixed 3-flight fixture — typed as a tuple so the [0]/[1]/[2] accesses below are
 // statically known-present under `noUncheckedIndexedAccess` (no `!` noise).
 const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] = [
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000001',
     flightAircraftType: 'GLIDER',
-    flightDate: '2026-05-21',
-    startDateTime: '2026-05-21T08:42:00Z',
-    ldgDateTime: '2026-05-21T10:14:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T08:42:00Z`,
+    ldgDateTime: `${TODAY}T10:14:00Z`,
     aircraftId: AC_GLI,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -75,9 +85,9 @@ const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] =
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000002',
     flightAircraftType: 'TOW',
-    flightDate: '2026-05-21',
-    startDateTime: '2026-05-21T08:42:00Z',
-    ldgDateTime: '2026-05-21T08:50:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T08:42:00Z`,
+    ldgDateTime: `${TODAY}T08:50:00Z`,
     aircraftId: AC_TOW,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -87,9 +97,9 @@ const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] =
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000003',
     flightAircraftType: 'GLIDER',
-    flightDate: '2026-05-22',
-    startDateTime: '2026-05-22T09:10:00Z',
-    ldgDateTime: '2026-05-22T11:55:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T09:10:00Z`,
+    ldgDateTime: `${TODAY}T11:55:00Z`,
     aircraftId: AC_GLI,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -319,9 +329,9 @@ test.describe('flights list page', () => {
     // The date range filter is a single nz-range-picker (S-062e fixed the
     // zoneless deadlock that had forced the two-single-picker workaround).
     await expect(page.getByTestId('flights-date-range').locator('input').first()).toBeVisible();
-    // No date params on initial load.
-    expect(lastParams.from).toBeUndefined();
-    expect(lastParams.to).toBeUndefined();
+    // Today-default range (legacy parity): initial load sends from=to=today.
+    expect(lastParams.from).toBe(TODAY);
+    expect(lastParams.to).toBe(TODAY);
   });
 
   // AC11 / J-6b T-13 REGRESSION GUARD — the flights date-range picker FILTERS the
@@ -345,9 +355,9 @@ test.describe('flights list page', () => {
 
     await page.goto('/flights');
     await expect(page.getByTestId('flights-summary')).toContainText('3 flights');
-    // Initial load sends NO date params.
-    expect(lastParams.from).toBeUndefined();
-    expect(lastParams.to).toBeUndefined();
+    // Today-default range (legacy parity): initial load sends from=to=today.
+    expect(lastParams.from).toBe(TODAY);
+    expect(lastParams.to).toBe(TODAY);
 
     // Pick a from+to range. ng-zorro renders two calendar panels; the first
     // non-disabled cell click sets the range start, the second sets the end
@@ -401,8 +411,9 @@ test.describe('flights list page', () => {
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
 
-    // 03 — empty state (server returns zero rows). Use a fresh page so the
-    // store re-initialises with the empty backend.
+    // 03 — empty state under the today-default range. The list opens on
+    // today..today (legacy parity), so a zero-row result is a no-MATCH against
+    // the active range, not a genuinely empty logbook — the copy reflects that.
     const emptyPage = await page.context().newPage();
     await stubReferenceData(emptyPage);
     await emptyPage.route('**/api/v1/flights**', async (route) => {
@@ -413,8 +424,48 @@ test.describe('flights list page', () => {
       });
     });
     await emptyPage.goto('/flights');
-    await expect(emptyPage.getByTestId('flights-empty')).toContainText('No flights yet');
+    await expect(emptyPage.getByTestId('flights-empty')).toContainText('No matching flights');
     await emptyPage.screenshot({ path: 'screenshots/flights/03-empty.png', fullPage: true });
     await emptyPage.close();
+  });
+
+  // T-10 — filter-aware empty state. With the today-default range, an empty
+  // list is almost always a no-MATCH (the date filter is narrowing), not a
+  // truly empty logbook. "No flights yet" is reserved for the genuinely
+  // unfiltered show-all case (no date range, no client filters).
+  test('empty under the today-default range shows the no-match copy, not the true-empty copy', async ({
+    page,
+  }) => {
+    await stubReferenceData(page);
+    // Fixture dated a week back: the today..today default filters it out, so the
+    // list loads empty even though the logbook is NOT empty.
+    const backdated = allFlights.map((f) => ({ ...f, flightDate: '2026-01-01' }));
+    const { handler } = setupFlightsBackend(backdated);
+    await page.route('**/api/v1/flights**', handler);
+
+    await page.goto('/flights');
+    const empty = page.getByTestId('flights-empty');
+    await expect(empty).toContainText('No matching flights');
+    await expect(empty).toContainText('date range');
+    await expect(empty).not.toContainText('No flights yet');
+  });
+
+  test('empty with the date range cleared (show-all) shows the true-empty copy', async ({
+    page,
+  }) => {
+    await stubReferenceData(page);
+    // No rows for any range — a genuinely empty logbook once the range is cleared.
+    const { handler } = setupFlightsBackend([]);
+    await page.route('**/api/v1/flights**', handler);
+
+    await page.goto('/flights');
+    // The today-default range is set, so the picker shows ng-zorro's clear icon;
+    // clicking it emits null → store dateFrom/dateTo go null (genuine show-all).
+    const picker = page.getByTestId('flights-date-range');
+    await picker.hover();
+    await picker.locator('.ant-picker-clear').click();
+
+    await expect(page.getByTestId('flights-empty')).toContainText('No flights yet');
+    await expect(page.getByTestId('flights-empty')).not.toContainText('No matching flights');
   });
 });

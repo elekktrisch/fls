@@ -131,7 +131,10 @@ superseding an in-flight per-push run with the next push is fine — don't stall
 working tree and return ONLY {failing job, root cause: status / constraint / `file:line`, is a fix
 already uncommitted in the tree?, the fix-shaped next task}. Anchor the next task on that returned
 cause, never on the test diff (J-9: twice anchored wrong off the spec diff; the real causes — a 409
-constraint, a temp-dir bug — were in the job logs, not the diff).
+constraint, a temp-dir bug — were in the job logs, not the diff). **For a migration-fidelity red, have the
+triage MINE the run's traces/artifacts for the ACTUAL migrated values** (`gh run download`) — never assert an
+ANALYTICAL/derived expected value; those get refuted by the real gate (J-27: shadowing / article-1060 /
+recipient-FK all wrong). Fidelity reds **cluster** — expect a chain (fix → re-mine → next), budget for it.
 
 **Surface the gallery EARLY** ([[feedback_surface_proof_early_on_repeated_failure]]) — the operator's only
 glanceable window for a wrong screen shape. T-01 scaffolds it; give the link at first captures. On a
@@ -200,6 +203,12 @@ notes**; keep the frontmatter, ACs, contracts, parity exclusions, the task check
 Outcome). The journey file is a contract, not a changelog — task history lives in commit messages,
 not the body (J-7 bloated to 719 lines of per-task prose; don't). Flip `status: done` + `done_at`;
 mark `rolls_up` stories `rolled_up_into: J-NNN`.
+**Docs-only head guard** (J-27): this finalization is usually a DOCS-only commit → it becomes the PR head →
+`detect changes` path-skips the required checks → they never report → the ruleset shows BLOCKED (and a "skipped"
+required check is a false-green, never a pass). Keep the merge head proven: **manually `gh workflow run ci.yml
+--ref integration/J-NNN`** on that head (`workflow_dispatch` is fail-safe → runs the heavy lane) so the required
+checks genuinely run+report green on the to-be-merged sha — and re-dispatch the migration fanout there too. Verify
+they EXECUTED (not skipped) before calling the PR mergeable. [[project_false_green_derive_fallback]]
 `gh pr ready`. Give the operator the **proof-gallery link** (in the gallery, not SendUserFile'd
 into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link + Mocked-seams list.
 **Stop — the operator merges** `integration/J-NNN` up the line.

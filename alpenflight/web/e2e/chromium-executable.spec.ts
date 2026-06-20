@@ -44,8 +44,11 @@ describe('resolveChromiumExecutablePath', () => {
 });
 
 describe('chromiumLaunchArgs', () => {
-  it('adds --no-sandbox only when a system executable is resolved', () => {
-    expect(chromiumLaunchArgs('/usr/bin/chromium')).toEqual(['--no-sandbox']);
+  it('adds the system-chromium stability flags only when a system executable is resolved', () => {
+    expect(chromiumLaunchArgs('/usr/bin/chromium')).toEqual([
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+    ]);
   });
 
   it('adds no args when falling back to the bundled browser (CI)', () => {

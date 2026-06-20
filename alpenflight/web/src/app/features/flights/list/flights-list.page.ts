@@ -211,6 +211,35 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
+      <!-- Post-save jump (Option B): a flight just saved on a date outside the
+        today-default range isn't in the current list; offer to widen the range
+        to it rather than silently hiding it (#229). -->
+      @if (store.hasOffRangeSaved(); as _show) {
+        <div
+          class="mb-5 flex items-center justify-between gap-3 border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-slate-800"
+          data-testid="flights-offrange-banner"
+        >
+          <span>Saved flight is on {{ offRangeSavedDate() }}, outside the current range.</span>
+          <div class="flex items-center gap-3">
+            <af-button
+              type="primary"
+              (clicked)="onViewOffRangeSaved()"
+              data-testid="flight-offrange-view"
+            >
+              View it →
+            </af-button>
+            <button
+              type="button"
+              class="text-slate-500 hover:text-slate-900 underline bg-transparent border-0 p-0 cursor-pointer"
+              (click)="store.dismissOffRangeSaved()"
+              data-testid="flight-offrange-dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      }
+
       <div class="mb-5 border border-slate-200 bg-white p-4">
         <!-- Single range picker (S-062e fix). The earlier two-single-picker
           workaround existed only because nz-range-picker deadlocked the main
@@ -285,15 +314,16 @@ function toneDotClass(tone: Tone): string {
           </div>
         } @else if (store.visibleEntities().length === 0) {
           <div class="py-12 text-center text-sm text-slate-500" data-testid="flights-empty">
-            @if (hasActiveFilter()) {
-              <p class="m-0">No flights match the active filters.</p>
+            @if (isFiltered()) {
+              <p class="m-0">No matching flights</p>
+              <p class="m-0 mt-1 text-slate-400">No flights match the selected date range.</p>
               <button
                 type="button"
                 class="mt-2 underline bg-transparent border-0 cursor-pointer text-brand-600 hover:text-brand-700"
                 (click)="onClearFilters()"
                 data-testid="flights-empty-clear-filters"
               >
-                Clear filters
+                Adjust the date range
               </button>
             } @else {
               <p class="m-0">No flights yet.</p>
@@ -503,13 +533,22 @@ export class FlightsListPage {
     const total = this.store.entities().length;
     const visible = this.store.visibleEntities().length;
     if (total === 0) {
-      return 'No flights yet';
+      return this.isFiltered() ? 'No matching flights' : 'No flights yet';
     }
     if (visible === total) {
       return `${total} ${total === 1 ? 'flight' : 'flights'}`;
     }
     return `${visible} of ${total} flights`;
   });
+
+  protected readonly offRangeSavedDate = computed<string>(() => {
+    const saved = this.store.offRangeSaved();
+    return saved ? formatLegacyDate(saved.date) : '';
+  });
+
+  protected onViewOffRangeSaved(): void {
+    this.store.viewOffRangeSaved();
+  }
 
   protected readonly dateRangeValue = computed<DateValue>(() => {
     // Parse the stored ISO date-only strings as LOCAL midnight (not the
@@ -602,8 +641,11 @@ export class FlightsListPage {
   }
 
   protected onClearFilters(): void {
+    // Reset to the today-default baseline (legacy parity), not show-all — the
+    // today range is the resting state, so "Clear filters" returns there.
+    const today = isoDateFromLocal(new Date());
     this.store.clearClientFilter();
-    this.store.setDateRange({ from: null, to: null });
+    this.store.setDateRange({ from: today, to: today });
   }
 
   protected openEdit(flightId: string): void {
@@ -689,13 +731,28 @@ export class FlightsListPage {
   }
 
   protected hasActiveFilter(): boolean {
+    return this.isRangeNarrowed() || this.hasClientFilter();
+  }
+
+  // Empty-state copy: an active date range narrows the result, so an empty list
+  // is a no-MATCH, not an empty logbook. The today-default range counts here
+  // (unlike hasActiveFilter, which gates the Clear-filters affordance on an
+  // OFF-baseline range) — the only true-empty case is a fully cleared range
+  // (dateFrom/dateTo null) with no client filters.
+  protected isFiltered(): boolean {
+    return this.store.dateFrom() !== null || this.store.dateTo() !== null || this.hasClientFilter();
+  }
+
+  private hasClientFilter(): boolean {
     const f = this.store.clientFilter();
-    return (
-      this.store.dateFrom() !== null ||
-      this.store.dateTo() !== null ||
-      f.airStates.length > 0 ||
-      f.processStateIds.length > 0 ||
-      f.aircraftTypes.length > 0
-    );
+    return f.airStates.length > 0 || f.processStateIds.length > 0 || f.aircraftTypes.length > 0;
+  }
+
+  // The today-default range (legacy parity) is the baseline, not a user filter:
+  // only a range the user changed off today counts toward "active filters" (the
+  // Clear-filters affordance + the "no flights MATCH" empty copy).
+  private isRangeNarrowed(): boolean {
+    const today = isoDateFromLocal(new Date());
+    return this.store.dateFrom() !== today || this.store.dateTo() !== today;
   }
 }

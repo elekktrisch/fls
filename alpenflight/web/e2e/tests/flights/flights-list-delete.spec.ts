@@ -176,7 +176,7 @@ test.describe('flights list — delete', () => {
     await expect.poll(() => backend.observed.deletes.length).toBe(1);
     expect(backend.observed.deletes[0]!.id).toBe(FL_DELETABLE.id);
     expect(backend.observed.deletes[0]!.ifMatch).toBe(String(FL_DELETABLE.version));
-    await expect(page.getByTestId('flights-empty')).toContainText('No flights yet');
+    await expect(page.getByTestId('flights-empty')).toContainText('No matching flights');
     await page.screenshot({
       path: 'screenshots/flights/delete-04-after-delete.png',
       fullPage: true,

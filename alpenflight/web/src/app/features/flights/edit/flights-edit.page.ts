@@ -19,8 +19,9 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { map, merge } from 'rxjs';
 
-import { liveFieldErrors } from '@shared/util/form';
+import { liveFieldErrors, revalidateTree } from '@shared/util/form';
 
 import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
@@ -61,7 +62,12 @@ import {
   buildDefaultsForNew,
 } from './flight-form.defaults';
 import { FlightFormCoordinator, type CoordinatorMetadata } from './flight-form.coordinator';
-import { buildFlightForm, type FlightForm, type FlightFormSnapshot } from './flight-form.model';
+import {
+  buildFlightForm,
+  isFlightSaveable,
+  type FlightForm,
+  type FlightFormSnapshot,
+} from './flight-form.model';
 import { FlightPrefsService } from './flight-prefs.service';
 import { START_TYPE_OPTIONS } from './flight-start-types';
 
@@ -117,7 +123,7 @@ interface StepDescriptor {
           <af-button
             type="primary"
             data-testid="flight-submit-header"
-            [disabled]="saving() || formInvalid()"
+            [disabled]="saving() || !canSave()"
             (clicked)="finalSubmit()"
             >Save</af-button
           >
@@ -185,7 +191,7 @@ interface StepDescriptor {
                     data-testid="flight-edit-flightDate"
                   />
                 </af-form-field>
-                <af-form-field label="Start type">
+                <af-form-field label="Start type" [required]="true" [errors]="startTypeErrors()">
                   <af-select
                     formControlName="startTypeId"
                     [options]="startTypeOptions()"
@@ -193,7 +199,11 @@ interface StepDescriptor {
                   />
                 </af-form-field>
                 <ng-container formGroupName="glider">
-                  <af-form-field label="Start location">
+                  <af-form-field
+                    label="Start location"
+                    [required]="true"
+                    [errors]="gliderStartLocationErrors()"
+                  >
                     <af-select
                       formControlName="startLocationId"
                       [options]="locationOptions()"
@@ -217,7 +227,11 @@ interface StepDescriptor {
                     data-testid="flight-edit-glider-aircraft"
                   />
                 </af-form-field>
-                <af-form-field label="Flight type">
+                <af-form-field
+                  label="Flight type"
+                  [required]="true"
+                  [errors]="gliderFlightTypeErrors()"
+                >
                   <af-select
                     formControlName="flightTypeId"
                     [options]="gliderFlightTypeOptions()"
@@ -271,7 +285,7 @@ interface StepDescriptor {
                     />
                   </af-form-field>
                 </div>
-                <af-form-field label="Landings">
+                <af-form-field label="Landings" [required]="true" [errors]="gliderNrOfLdgsErrors()">
                   <af-input
                     type="number"
                     inputmode="numeric"
@@ -338,7 +352,7 @@ interface StepDescriptor {
                   <af-button
                     data-testid="flight-submit-sticky"
                     type="primary"
-                    [disabled]="saving() || formInvalid()"
+                    [disabled]="saving() || !canSave()"
                     (clicked)="finalSubmit()"
                     >Save flight</af-button
                   >
@@ -400,28 +414,48 @@ export class FlightsEditPage {
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
 
-  // J-26 T-13 — Save gating: enabled ONLY when the form is VALID. A REACTIVE
-  // form-status signal (off `statusChanges`, seeded with the live status) drives
-  // it, not the non-reactive `form.invalid` getter — the OnPush + zoneless
-  // template only re-reads a getter on a CD tick, so a getter can lag the
-  // disable binding behind validity (the J-7 T-20 / J-26 T-09 race). `untracked`
-  // seeds the initial value; subsequent statusChanges re-render the button the
-  // instant a required field flips. The status is re-synced after hydrate (see
-  // patch(), which emits a statusChanges so an edit-load's valid form enables
-  // Save even though its patches run emitEvent:false).
-  private readonly formStatus = toSignal(this.form.statusChanges, {
-    initialValue: this.form.status,
+  // Save gating drives off a REACTIVE form signal (not a non-reactive form
+  // getter): under OnPush + zoneless a getter re-reads only on a CD tick, so it
+  // can lag the disable binding behind validity. Both `valueChanges` (a fresh
+  // value object each time, so the signal always notifies) and `statusChanges`
+  // (the post-hydrate `revalidateTree` re-emit) feed it — the status string
+  // alone would dedupe on referential equality and miss a gate field flipping
+  // valid while the overall form stays INVALID (an incomplete flight).
+  private readonly formChange = toSignal(
+    merge(this.form.valueChanges, this.form.statusChanges).pipe(map(() => Symbol())),
+    { initialValue: Symbol() },
+  );
+  // Legacy-client parity: Save is gated ONLY on FlightDate + glider aircraft +
+  // pilot. The remaining minimal-valid fields keep their inline errors (and
+  // mark the flight incomplete via `form.invalid`) but do NOT block Save —
+  // legacy persists an incomplete flight as ProcessState=Invalid.
+  protected readonly canSave = computed(() => {
+    this.formChange();
+    return isFlightSaveable(this.form);
   });
-  protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
 
-  // Inline as-you-type errors (J-6b `liveFieldErrors`, debounced ~200ms) on the
-  // three newly-required fields — flightDate + glider aircraft + glider pilot.
+  // Inline as-you-type errors (`liveFieldErrors`, debounced ~200ms) on the
+  // minimal-valid glider required set (oracle `Flight.ValidateFlight`):
+  // flightDate, startType, glider aircraft / flightType / pilot / start
+  // location / landings. Each re-reads the control's CURRENT errors on the
+  // post-hydrate `revalidateTree` (root status), so a reopened populated flight
+  // shows no stale "Entry required.".
   protected readonly flightDateErrors = liveFieldErrors(this.form.controls.flightDate);
+  protected readonly startTypeErrors = liveFieldErrors(this.form.controls.startTypeId);
   protected readonly gliderAircraftErrors = liveFieldErrors(
     this.form.controls.glider.controls.aircraftId,
   );
+  protected readonly gliderFlightTypeErrors = liveFieldErrors(
+    this.form.controls.glider.controls.flightTypeId,
+  );
   protected readonly gliderPilotErrors = liveFieldErrors(
     this.form.controls.glider.controls.pilotPersonId,
+  );
+  protected readonly gliderStartLocationErrors = liveFieldErrors(
+    this.form.controls.glider.controls.startLocationId,
+  );
+  protected readonly gliderNrOfLdgsErrors = liveFieldErrors(
+    this.form.controls.glider.controls.nrOfLdgs,
   );
 
   private readonly route = inject(ActivatedRoute);
@@ -648,10 +682,11 @@ export class FlightsEditPage {
 
   protected async finalSubmit(): Promise<void> {
     if (this.saving()) return;
-    // Save is disabled while invalid, but Enter-to-submit on the last step
-    // (onEnter) can still reach here — surface the inline errors and bail
-    // rather than throwing in the snapshot mapper (J-26 T-13).
-    if (this.form.invalid) {
+    // Save is disabled until the gate (date + aircraft + pilot) is met, but
+    // Enter-to-submit on the last step (onEnter) can still reach here — surface
+    // the inline errors and bail rather than throwing in the snapshot mapper.
+    // An incomplete-but-gate-met flight still saves (legacy Invalid parity).
+    if (!isFlightSaveable(this.form)) {
       this.form.markAllAsTouched();
       return;
     }
@@ -732,8 +767,7 @@ export class FlightsEditPage {
       return;
     }
     // Cast via `unknown`: the typed `CrewSubForm` control map has no string
-    // index signature, so a direct assertion trips TS2352 under the AOT build
-    // (the looser test tsconfig let it through — boyscout: T-04 leftover).
+    // index signature, so a direct assertion trips TS2352 under the AOT build.
     const glider = this.form.controls.glider.controls as unknown as Record<
       string,
       { setValue: (v: unknown) => void }
@@ -850,10 +884,12 @@ export class FlightsEditPage {
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
     // The patches above run with `emitEvent: false`, so `statusChanges` never
-    // fires — the `formStatus` signal (and thus the Save gate) would stay at its
-    // initial INVALID value even after a valid edit-load hydrates. Recompute +
-    // EMIT once so the gate reflects the hydrated form (preserves pristine).
-    this.form.updateValueAndValidity({ onlySelf: false, emitEvent: true });
+    // fires and the Save gate would keep its initial INVALID status. Re-run
+    // validators bottom-up — which also re-evaluates the glider group's
+    // conditional rule against the hydrated startType (a parent value the group
+    // validator doesn't otherwise re-read) — and emit once on the root so the
+    // gate reflects the hydrated form (preserves pristine).
+    revalidateTree(this.form);
   }
 
   private patchSub(

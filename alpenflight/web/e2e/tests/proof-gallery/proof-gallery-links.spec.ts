@@ -801,7 +801,7 @@ async function assertDeployedJourneyComplete(
 
   let lastErr: string;
   for (;;) {
-    lastErr = await tryAssertJourneyComplete(request, indexUrl, journey);
+    lastErr = await tryAssertJourneyComplete(request, indexUrl, journey, start);
     if (lastErr === '') return;
     if (Date.now() >= deadlineMs) break;
     await new Promise((r) => setTimeout(r, 5_000));
@@ -841,6 +841,7 @@ async function tryAssertJourneyComplete(
   request: APIRequestContext,
   indexUrl: string,
   journey: string,
+  branchPreviewBase: string,
 ): Promise<string> {
   const idxRes = await request.get(indexUrl);
   if (!idxRes.ok()) return `previews index ${indexUrl} → ${idxRes.status()}`;
@@ -864,7 +865,18 @@ async function tryAssertJourneyComplete(
   if (!m) {
     return `journey ${journey} is on the index but its row is PENDING (no live link) — the deployed page is missing/thin`;
   }
-  const pageUrl = new URL(m[1]!, indexUrl).href;
+  // The index links the FANOUT branch-preview page (`<branch>/legacy-parity/<jid>/`,
+  // its source-priority first hit). But the per-context shots a journey declares are
+  // produced + deployed by ONE context only: in `proof` the clean-seed job deploys
+  // the AF proof shots to `<branch>/<jid>/` (its own `destination_dir`), the FANOUT
+  // page never carries them. So the both-sides check must read the CURRENT context's
+  // own deployed page, not the index's fanout-first link — else a `producedBy: proof`
+  // shot reds against a page that structurally cannot hold it.
+  const ctx = process.env['GALLERY_PROOF_CONTEXT'];
+  const pageUrl =
+    ctx === 'proof'
+      ? new URL(`${journey}/`, branchPreviewBase).href
+      : new URL(m[1]!, indexUrl).href;
 
   const pageRes = await request.get(pageUrl);
   if (!pageRes.ok()) return `journey ${journey} page ${pageUrl} → ${pageRes.status()}`;
@@ -907,7 +919,6 @@ async function tryAssertJourneyComplete(
   const contract = loadExpectedShots()[journey];
   if (contract?.expected?.length) {
     const rendered = deployedRenderedShotKeys(pageHtml);
-    const ctx = process.env['GALLERY_PROOF_CONTEXT'];
     const producedBy = contract.producedBy ?? {};
     const enforced = contract.expected.filter((k) => {
       const pc = producedBy[k];

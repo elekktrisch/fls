@@ -141,10 +141,14 @@ export class FlightFormCoordinator {
   // ============================== Rules ===============================
 
   private onStartTypeChange(next: string | null): void {
+    // The glider group's conditional validator (winch operator on a winch
+    // launch) reads the start type off the parent — re-run it so the inline
+    // error + Save gate track the start-type switch (a group validator doesn't
+    // re-run on a parent value change on its own).
+    this.form.controls.glider.updateValueAndValidity();
+
     // Tow sub-form is always built (cheap); the wizard's @if (needsTowplane(…))
-    // template gate controls visibility. Nothing to do here today; the rule
-    // exists so future logic (e.g. resetting tow.flightTypeId default on
-    // first Towing select) has a hook.
+    // template gate controls visibility.
     if (needsTowplane(next)) {
       const tow = this.form.controls.tow;
       const club = this.md.clubDefaults();

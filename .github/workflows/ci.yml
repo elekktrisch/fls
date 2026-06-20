@@ -1080,6 +1080,22 @@ jobs:
               "alpenflight-hardening-duplicate-code.png" \
               "AlpenFlight (hardening, T-05): creating a second flight type with a duplicate FlightCode over the real chain — the real ux_flight_type_club_code constraint / service pre-check returns a 409 that surfaces INLINE on the Code field (previously a raw 500 reproducing the legacy bug, or a mislabel onto the name field)"
           fi
+          # ----- J-2b flights hardening (#229 — AF-only) -----------------------
+          # Hardening sprint: no new screen, no committed legacy /flights ref (the
+          # J-2 legacy shots live in the fanout). The view keys (list, form) match
+          # expected-shots.json J-2b; the AF filenames match the PNGs the real-idp
+          # flight-migration-parity.spec.ts hardening block writes to test-results/
+          # on the state that RENDERS the asserted result (the list with the
+          # off-today affordance + real rows; the form reopened with every
+          # populated required field VALID).
+          if [ "${PROOF_JOURNEY:-}" = "J-2b" ]; then
+            add_af_only "J-2b" "flights" "list" \
+              "alpenflight-flights-hardening-list.png" \
+              "AlpenFlight (#229): the /flights logbook on the today-default range (legacy parity) with real glider rows + the post-save 'View it →' affordance for a flight saved outside the range — off-today flights are surfaced, not silently hidden"
+            add_af_only "J-2b" "flights" "form" \
+              "alpenflight-flights-hardening-form.png" \
+              "AlpenFlight (#229b): a fully-populated saved flight re-opened over the real chain — every populated required field (date · start type · start location) renders VALID, no stale 'Entry required.' (the root fix: the edit form had ZERO client validators; they are now wired + revalidate against the loaded values)"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"

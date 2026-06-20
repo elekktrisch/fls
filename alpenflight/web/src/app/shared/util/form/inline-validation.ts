@@ -7,28 +7,28 @@ import {
   debounceTime,
   distinctUntilChanged,
   map,
+  merge,
   of,
   startWith,
 } from 'rxjs';
 
 /**
- * Shared inline-validation infra (J-6b T-03).
+ * Shared inline-validation infra.
  *
  * Drives per-field error display off `valueChanges` **debounced ~200ms** so a
  * field shows its client-side validation message WHILE the user types and
  * clears it (debounced) once the value becomes valid — replacing the
- * touched-only wiring the edit pages grew (`[errors]="ctl.touched ? ctl.errors
- * : null"` shows nothing until blur/submit; `planning-edit.page.ts` /
- * `reservation-edit.page.ts`).
+ * touched-only `[errors]="ctl.touched ? ctl.errors : null"` wiring that shows
+ * nothing until blur/submit.
  *
  * Two layers, so the time-dependent stream and the pure merge logic unit-test
  * without a `TestBed` (alpenflight/web CLAUDE.md §8):
  *
  *   - {@link mergeFieldErrors} — pure: combine the control's client-side
  *     validator errors with an optional async/server error into ONE
- *     `ValidationErrors` slot. This is the extension point T-06/T-07 plug their
- *     `…/validate` endpoint result into (the async error merges into the same
- *     inline slot the client rules render in).
+ *     `ValidationErrors` slot. The extension point an async `…/validate`
+ *     endpoint result plugs into (the server error merges into the same inline
+ *     slot the client rules render in).
  *   - {@link liveFieldErrors$} — builds the debounced
  *     `Observable<ValidationErrors | null>` from the control. Pure stream wiring
  *     (no signals, no injection context) → deterministically testable with
@@ -49,9 +49,9 @@ export interface LiveErrorsOptions {
   readonly debounceMs?: number;
   /**
    * An optional source of async/server-side errors to merge into the same
-   * inline slot (the T-06/T-07 `…/validate` extension point). When it emits a
-   * non-null `ValidationErrors`, those keys are merged onto the field's
-   * client-side errors. Emit `null` to clear the server error.
+   * inline slot (the `…/validate` extension point). When it emits a non-null
+   * `ValidationErrors`, those keys are merged onto the field's client-side
+   * errors. Emit `null` to clear the server error.
    */
   readonly asyncErrors$?: Observable<ValidationErrors | null>;
 }
@@ -86,6 +86,14 @@ export function mergeFieldErrors(
  * is already invalid (e.g. a freshly opened empty required field that submit
  * touched) renders immediately, and de-dupes identical emissions.
  *
+ * A re-validation that runs the control's validators WITHOUT pushing a value
+ * change — `revalidateTree` after an `emitEvent:false` hydrate patch — fires
+ * the form ROOT's `statusChanges` but never the control's own
+ * `valueChanges`/`statusChanges`. A value-only trigger would then keep the
+ * pre-hydrate snapshot (`{ required }` against a now-populated field). Reading
+ * `control.errors` on the root status change too keeps the inline message
+ * tracking the control's CURRENT errors after such a re-validate.
+ *
  * Pure stream wiring — no signals, no injection context — so it is testable
  * with RxJS `TestScheduler`.
  */
@@ -94,7 +102,7 @@ export function liveFieldErrors$(
   options: LiveErrorsOptions = {},
 ): Observable<ValidationErrors | null> {
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-  const client$ = control.valueChanges.pipe(
+  const client$ = merge(control.valueChanges, control.root.statusChanges).pipe(
     debounceTime(debounceMs),
     startWith(null),
     map(() => control.errors),

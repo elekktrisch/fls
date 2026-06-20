@@ -66,6 +66,26 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
                         EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
     }
 
+    // FLIGHT-FIDELITY: flight-type survives migration. Legacy Flights.FlightTypeId
+    // is a scalar GUID FK; the rewrite keeps it scalar (flight_type_id) and
+    // resolves it through legacy_id_map_FLIGHT_TYPE (FLIGHT_TYPE is a declared FK
+    // target, resolved by the <target>_id convention). A real (non-empty) GUID
+    // must carry verbatim — the empty-guid → null branch is covered separately.
+    @Test
+    void flightTypeIdScalarFkCarriesVerbatim() throws Exception {
+        Map<String, Object> row = rowWithAirState(
+                seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
+        String legacyFlightTypeId = (String) row.get("FlightTypeId");
+        JsonNode emitted = invokeWriteNdjson(row);
+        assertThat(emitted.get(FlightMapper.FLIGHT_TYPE_ID).asText())
+                .as("Flights.FlightTypeId carries verbatim as the scalar flight_type_id "
+                        + "the FLIGHT_TYPE FK resolver maps to the migrated per-club FlightType")
+                .isEqualTo(legacyFlightTypeId);
+        assertThat(mapper.foreignKeys())
+                .as("flight_type_id resolves against legacy_id_map_FLIGHT_TYPE")
+                .contains(EntityType.FLIGHT_TYPE);
+    }
+
     @Test
     void v13TranslationEmitsModifiedOnWhenLegacyStateIsFlightPlanOpen() throws Exception {
         Instant modifiedOn = Instant.parse("2024-06-01T08:30:00Z");

@@ -14,3 +14,4 @@ export {
   mergeFieldErrors,
   type LiveErrorsOptions,
 } from './inline-validation';
+export { revalidateTree } from './revalidate';
