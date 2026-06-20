@@ -25,23 +25,17 @@
  *   2. Each journey links its PER-JOURNEY page (`generate-gallery.mjs` T-13a emits
  *      one at `<gallery-out-root>/J-<n>/index.html`). The index probes, IN PRIORITY
  *      ORDER, the persistent + active on-disk locations of that page:
- *        a. active branch preview  alpenflight/proof-preview/<branch>/J-<n>/   (fresh, ephemeral)
+ *        a. active branch preview  alpenflight/proof-preview/<branch>/legacy-parity/J-<n>/ (fresh, ephemeral)
  *        b. canonical (main)        alpenflight/proof/J-<n>/                    (persistent)
  *        c. fan-out archive         alpenflight/proof/legacy-parity/J-<n>/     (persistent; J-0…J-4 history)
  *      The FIRST that exists wins (branch > canonical > archive). A journey with no
  *      page anywhere renders a PENDING row — never a dead link (AC, mirrors the
  *      gallery's pending rows).
  *
- *   T-17c (operator, 2026-06-07): ONE branch source per journey, no tie-break.
- *   T-17 made the per-push `alpenflight-proof` page COMPLETE on its own — it now
- *   pairs the committed legacy-reference screenshots with the fresh clean-seed
- *   AlpenFlight captures AND carries the AlpenFlight videos, every push, with no
- *   fanout dependency. So the in-flight bookmark points at exactly that page
- *   (`proof-preview/<branch>/J-<n>/`). The T-13b two-branch-source split
- *   (`branch-parity` vs `branch`) + the freshest-mtime tie-break it needed are
- *   GONE: there is nothing to tie-break when one page is already complete. The
- *   legacy-parity fanout page still exists (nightly/heavy migration-chain scope),
- *   but it is no longer a competing index source for the in-flight journey.
+ *   ONE branch source per journey, no tie-break. The in-flight bookmark points at
+ *   the FANOUT branch-preview page at `proof-preview/<branch>/legacy-parity/J-<n>/`
+ *   — the layout the fanout deploys to and the only branch-context deploy that
+ *   rebuilds the previews index.
  *   3. The all-in-one per-proof-type galleries are no longer the things the operator
  *      clicks — they become SOURCES the per-journey pages assemble from. A single
  *      "full archive" link survives in the FOOTER for transition safety, but the
@@ -94,17 +88,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *                            history source).
  * `label` is shown on the live row so the operator knows which deploy they're seeing.
  *
- * T-17c (operator, 2026-06-07): ONE branch source — the per-push `alpenflight-proof`
- * page at `proof-preview/<branch>/J-<n>/`. With T-17 that per-push page is COMPLETE
- * on its own (paired committed-legacy↔fresh-AlpenFlight screenshots + AlpenFlight
- * videos, every push, no fanout dependency), so the in-flight bookmark points at it
- * directly. The earlier `branch-parity` sub-source (`<branch>/legacy-parity/`, the
- * fanout deploy) + the freshest-mtime tie-break it required are GONE — there is
- * nothing to tie-break once a single page is complete. The legacy-parity fanout page
- * still exists for the nightly/heavy migration-chain scope, but it is no longer a
- * competing index source. The sources, FIRST-HIT-WINS in array order:
- *   - `<branch>/J-<n>/`             ← per-push `alpenflight-proof`, fresh+complete,
- *                                      ephemeral (reaped on PR close).
+ * ONE branch source — the FANOUT branch-preview page at
+ * `proof-preview/<branch>/legacy-parity/J-<n>/`. That is the layout the fanout
+ * deploys to (`alpenflight-proof-fanout.yml` → `proof-preview/<ref>/legacy-parity`)
+ * and the only branch-context deploy that rebuilds the previews index, so the
+ * in-flight bookmark points at it. The sources, FIRST-HIT-WINS in array order:
+ *   - `<branch>/legacy-parity/J-<n>/` ← fanout branch preview, fresh, ephemeral
+ *                                      (reaped on PR close).
  *   - canonical  `proof/J-<n>/`     ← persistent main deploy (merged journeys).
  *   - archive    `proof/legacy-parity/J-<n>/` ← persistent fanout archive
  *                                      (J-0…J-4 history; survives PR close).
@@ -114,7 +104,7 @@ export const JOURNEY_PAGE_SOURCES = [
     id: 'branch',
     base: 'alpenflight/proof-preview',
     needsBranch: true,
-    subPath: null,
+    subPath: 'legacy-parity',
     label: 'branch preview',
   },
   { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published' },
@@ -213,10 +203,9 @@ export function resolveRoadmap(orderPath) {
  */
 export function locateJourneyPage(ghPagesRoot, jid, { branch, git = false }) {
   const gitRoot = git ? resolve(ghPagesRoot) : undefined;
-  // FIRST-HIT-WINS in source-priority (array) order: branch (fresh+complete) >
-  // canonical (merged) > archive (history). T-17c removed the freshest-mtime
-  // tie-break — with the per-push page complete on its own there is only one
-  // branch source, so there is nothing to tie-break.
+  // FIRST-HIT-WINS in source-priority (array) order: branch (fanout preview at
+  // <branch>/legacy-parity/) > canonical (merged) > archive (history). One branch
+  // source, no tie-break.
   for (const src of JOURNEY_PAGE_SOURCES) {
     if (src.needsBranch && !branch) continue;
     // On-disk base dir for this source: <base>[/<branch>][/<subPath>].
