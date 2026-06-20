@@ -2,9 +2,8 @@
 id: J-27
 title: Migration-fidelity sprint — drive the fanout fully green
 epic: E-02
-status: done
+status: in_progress
 started_at: 2026-06-19
-done_at: 2026-06-20
 journey0: false
 carved: true
 depends_on: [J-10]
@@ -64,8 +63,16 @@ what it GENUINELY produces — never re-point/gerrymander the seed to force a pa
 - [x] **T-11** — previews-index scanner probed `proof-preview/<branch>/<jid>/` (subPath null) but the fanout deploys under
   `legacy-parity/` → every unmerged journey rendered PENDING. Added `subPath:'legacy-parity'` + a unit spec for the branch-only case.
 - [x] ~~**T-04**~~ closed — no reporting migrated spec exists to wire; re-filed to `_BOYSCOUT.md` (author new coverage, not a one-liner).
-- [x] **Gate** — fanout `Run AlpenFlight parity specs` GREEN on final sha `1ab394b8` (42 pass / 1 skip — the operator-disabled
+- [x] **Gate (fanout)** — fanout `Run AlpenFlight parity specs` GREEN on code sha `1ab394b8` (42 pass / 1 skip — the operator-disabled
   rename test; run 27864311564). gap-hunter ×3: code honest (2 real:true incl. 1 high; the dissent was the pre-existing mock-suite timeout, not J-27).
+- [ ] **T-12** *(operator decision 2026-06-20 — pull WORKFLOW-SLIM sharding into J-27)* — the required `mock-auth e2e`
+  flaky-times-out (164 tests / 4 cores > 5-min cap; pre-existing, not a J-27 regression). It never honestly passed (it
+  flaky-failed on the code sha, then the docs-finalization commit path-skipped it → PR shows mergeable via a FALSE
+  green-via-skip). Fix = SHARD the mock suite into parallel sub-5-min CI jobs: `--shard=i/n` matrix + `reporter: blob` +
+  a `merge-reports` job; move `workers` TOP-LEVEL (per-project `workers:N` is a silent no-op). Preserve the required-check
+  gate name (or flag branch-protection needs updating). Each shard must stay under the 5-min ceiling (don't buy wall-time).
+  Scope = the sharding ONLY; the rest of WORKFLOW-SLIM (composite-action extraction, YAML cut, real-idp shard, KC-26
+  quarantine) stays for J-11. *(ci.yml mock-auth e2e + playwright.config.ts workers)*
 
 ## Outcome
 
