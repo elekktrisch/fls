@@ -17,7 +17,8 @@ acceptance:
 screen: /flights — hardens the existing J-2 screen (no redesign)
 headless_pulled_in: none
 migration: Flight — re-verify migration fidelity (crew + flight-type round-trip) per the FLIGHT-FIDELITY rider; no new mapper
-parity_test: alpenflight/web/e2e/tests/flights/ (J-2 specs + a new-flight create→reopen→validate spec) + alpenflight/web/e2e/tests/real-idp/flight-migration-parity.spec.ts (FLIGHT-FIDELITY)
+parity_test: alpenflight/web/e2e/tests/real-idp/flight-migration-parity.spec.ts (FLIGHT-FIDELITY) + alpenflight/web/e2e/tests/flights/ (J-2 specs + a new-flight create→reopen→validate spec)
+mock_test: alpenflight/web/e2e/tests/flights/   # per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly
 adr_refs: [0024, 0008, 0022]
 ---
 
@@ -78,7 +79,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   - DATE-RANGE DEFAULT (empirical): AlpenFlight currently shows future/off-today flights — `flight.store.ts:97-99`
     is `dateFrom/dateTo: null` and `paramsOf` (`flight.store.ts:129-134`) OMITS `from`/`to` when null, so the
     list `GET /flights` carries NO date filter (show-all). T-03 sets the `today..today` default (legacy parity).
-- [ ] **T-02 — Scope per-push gate to J-2b.** Re-point the per-push heavy (real-idp) lane to J-2b's spec only;
+- [x] **T-02 — Scope per-push gate to J-2b.** Re-point the per-push heavy (real-idp) lane to J-2b's spec only;
   prior journeys run mock-IdP (full real-idp regression → nightly + §4 gate). Standing slot.
 - [ ] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`
   default `dateFrom/dateTo = today`; list range filter reflects it. Post-save: if the saved flight's date is
