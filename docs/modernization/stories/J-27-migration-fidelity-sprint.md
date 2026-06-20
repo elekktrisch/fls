@@ -2,8 +2,9 @@
 id: J-27
 title: Migration-fidelity sprint — drive the fanout fully green
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-06-19
+done_at: 2026-06-20
 journey0: false
 carved: true
 depends_on: [J-10]
