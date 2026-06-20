@@ -148,6 +148,15 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   `ensureSharedMigrationBundle`), handling token expiry — resolve ONCE, not per-spec. Don't just raise the
   timeout (operator's "5-min ceiling, don't buy wall-time"). Unblocks observing §5's real delivery for T-07/`:577`.
   *(real-idp migrated-admin resolution memo)*
+- [ ] **T-09** *(operator decision 2026-06-19 — redesign `:577` to genuine seed)* — the engine still 500s on
+  the §4 fixture's recipient filter `F1500004-…001` `{"RecipientType":"FlightCrew"}`: **legacy-oracle confirmed
+  it has NO legacy basis** (no `RecipientType` enum in legacy; legacy routes pilot-pays via `FlightCostBalanceType`
+  fallback rules, not a recipient blob — `RecipientRulesEngine.cs:37-38`/`FlightCostPaidByPilotRule.cs`). AlpenFlight's
+  throw is legacy-faithful on that malformed blob (T-07 fixed the genuine base-seed account-recipient path, not this
+  synthetic one). **Fix:** (a) remove the malformed §4 recipient fixture from `_test-fixture.sql:310-319` (verify
+  nothing else depends on `F1500004-…001`); (b) the §5 delivery is then driven by GENUINE base-seed filters →
+  capture what it genuinely produces; (c) rewrite `:577` to assert that genuine delivery (operator: rely on legacy
+  seed, assert genuine output). `:524` keeps the §4 5001 filter as a migration round-trip subject. *(test-fixture cleanup + delivery-creation-test-parity.spec.ts)*
 - [ ] **T-06** *(NOTE: misdiagnosis — link-check is a parity CASCADE, not a CDN timeout; the J-27 gallery row deploys
   PENDING because parity is red. The poll/timeout slack is harmless + stays; the link-check clears when `:577` greens.
   No further T-06 work.)* — fanout gallery link-check: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
