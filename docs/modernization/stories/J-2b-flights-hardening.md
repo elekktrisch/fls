@@ -2,7 +2,8 @@
 id: J-2b
 title: Flights hardening — new-flight visibility + edit-form validation + migration fidelity
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-06-20
 journey0: false
 carved: true
 depends_on: [J-2, J-27]
@@ -46,6 +47,44 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
 5. **Migration fidelity (FLIGHT-FIDELITY)** — the migrated glider flights carry their legacy crew +
    flight-type so `delivery-creation-test-parity.spec.ts:577` is green for the RIGHT reason (a base-seed
    Schulung filter doesn't silently fail to match); explain the absent §5 flight + the spurious HB-3407/30.
+
+## Decisions (ship-time)
+
+- **Default flight-list range = `today..today`** (legacy parity — `FlightsController.js:51-54`). The
+  current AlpenFlight default is `null/null` (show-all, `flight.store.ts:97-99`); this journey sets the
+  today-default deliberately so the daily list stays short.
+- **Future/off-today affordance = post-save jump (Option B).** No banner/count (Option A) and no preset
+  chip (Option C). When a saved flight's date ≠ the active range (i.e. ≠ today), the post-save flow
+  surfaces it and offers "View it →" that widens the range to include that date. This defuses #229.
+- **Minimal valid glider field set** (oracle, `Flight.cs:574-584`): Aircraft, Pilot, Start+Ldg time,
+  Start+Ldg location, StartType, FlightType, NrOfLdgs≥1. Server `ValidateFlight` sets `Invalid` but does
+  NOT reject the save — so #229(b) is a FORM-validity display bug, not a persistence bug.
+- **Crew/flight-type shape** (oracle): flight-type = scalar FK on `Flight`; crew = `FlightCrew` junction
+  rows keyed by `FlightCrewType` enum (1=Pilot, 2=CoPilot, 3=Instructor, …).
+
+## Tasks
+
+- [ ] **T-01 — Spec stub + gallery scaffold + red-first repro.** Author the J-2b Playwright spec structure
+  (selectors + flow: create→persists, off-today flight + post-save jump, reopen→valid, as-you-type errors)
+  with thin assertions. Scaffold the per-journey gallery page (current-journey-only model) + link from the
+  index. Red-first reproduce #229(b) reopen-invalid + capture the actual current date-range default behavior.
+- [ ] **T-02 — Scope per-push gate to J-2b.** Re-point the per-push heavy (real-idp) lane to J-2b's spec only;
+  prior journeys run mock-IdP (full real-idp regression → nightly + §4 gate). Standing slot.
+- [ ] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`
+  default `dateFrom/dateTo = today`; list range filter reflects it. Post-save: if the saved flight's date is
+  outside the active range, offer "View it →" widening the range to that date. (AC1 regression guard, AC2.)
+- [ ] **T-04 — Wire flight edit-form client validators (valid-on-load + Save-gating).** `flight-form.model.ts`
+  + coordinator: wire the minimal-valid-glider rule set; validity initializes against loaded values (valid-on-
+  load fix for #229(b)); Save gated on client validity. Reconcile the dead `FlightValidator`/
+  `FlightCompositeValidator` (wire the needed subset or delete the rest). Server `@NotNull`/`@Min`/`@Valid`
+  stays the safety net. (AC3 + AC4 foundation.)
+- [ ] **T-05 — As-you-type inline errors via `liveFieldErrors()`.** Wire the shared J-6b bar
+  (`inline-validation.ts:120`) into the flight edit form's required fields; debounced inline errors. (AC4.)
+- [ ] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
+  rows by type) + flight-type (FK); make `delivery-creation-test-parity.spec.ts:~577` green for the RIGHT
+  reason (no silently-failing Schulung filter); explain/fix the absent §5 flight + spurious HB-3407/30. (AC5.)
+- [ ] **T-07 — Thicken spec + drive real-idp green locally.** Thicken the J-2b spec to full real assertions
+  from the oracle; `e2e-driver` drives the real-idp spec green on the local stack before the §4 CI gate.
 
 ## Notes
 
