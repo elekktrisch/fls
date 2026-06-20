@@ -131,6 +131,11 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   Make the flights-list empty state filter-aware: when a date range / filter is narrowing, show "No matching
   flights" (e.g. "No flights match the selected date range"); keep a true-empty message only when genuinely
   unfiltered. App + i18n keys + update the empty-state assertion in the specs.
+- [x] **T-11 — Deployed-journey guard checks the proof-context's own page.** The clean-seed proof job's
+  deployed-gallery verification followed the previews INDEX link, which (source-priority-first) pointed at the
+  fanout's `legacy-parity/J-2b/` page (0 `producedBy:proof` shots) instead of the clean-seed proof deploy
+  (`<branch>/J-2b/`, the 2 shots). Under `GALLERY_PROOF_CONTEXT=proof`, check the both-sides render against the
+  context's own deploy. VERIFY the operator bookmark itself renders the shots (not just that the guard passes).
 
 ## Notes
 
