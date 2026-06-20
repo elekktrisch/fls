@@ -62,6 +62,16 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   NOT reject the save — so #229(b) is a FORM-validity display bug, not a persistence bug.
 - **Crew/flight-type shape** (oracle): flight-type = scalar FK on `Flight`; crew = `FlightCrew` junction
   rows keyed by `FlightCrewType` enum (1=Pilot, 2=CoPilot, 3=Instructor, …).
+- **Save-gating = legacy parity** (operator pick, supersedes the T-04 full-set gate): Save is gated ONLY on
+  the legacy-client-required set — **FlightDate + glider Aircraft + Pilot**. The rest of the minimal-valid set
+  (start/ldg time, start/ldg location, StartType, FlightType, NrOfLdgs≥1) keep their as-you-type inline errors
+  (T-05) and mark the flight incomplete/Invalid (legacy `ProcessState=Invalid` parity), but do NOT block Save.
+  Rationale: legacy saves incomplete flights as Invalid (airfield hot-path: log on launch, complete after
+  landing); the legacy client gates Save only on Date + Aircraft. T-08 revises T-04 to this.
+- **AC5 / FLIGHT-FIDELITY = resolved** (T-06, no fix needed): the Flight mapper round-trips flight-type
+  (scalar FK) + crew (one `FlightCrew` row/role); `delivery-creation-test-parity` is green for the right
+  reason. The §5-absent flight is a fixture IF-guard data-condition; the HB-3407/30 line was a transient
+  fanout-snapshot misread (not reproducible from the seed). Fast round-trip ITs added in `migration-bundle:check`.
 
 ## Tasks
 
@@ -94,6 +104,10 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
 - [x] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
   rows by type) + flight-type (FK); make `delivery-creation-test-parity.spec.ts:~577` green for the RIGHT
   reason (no silently-failing Schulung filter); explain/fix the absent §5 flight + spurious HB-3407/30. (AC5.)
+- [ ] **T-08 — Save-gating → legacy parity.** Revise T-04: gate Save ONLY on FlightDate + glider Aircraft +
+  Pilot. The remaining minimal-valid fields keep their inline errors (T-05) + mark the flight incomplete/Invalid
+  but do NOT contribute to the Save-disable. New-flight create from the empty template must persist with just
+  Date+Aircraft+Pilot. Don't regress the server safety net. Fix the create-persists + gating specs. (AC1, AC4.)
 - [ ] **T-07 — Thicken spec + drive real-idp green locally.** Thicken the J-2b spec to full real assertions
   from the oracle; `e2e-driver` drives the real-idp spec green on the local stack before the §4 CI gate.
 
