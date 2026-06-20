@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-9 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-9</span> <span class="status success">2 proofs</span> <span class="summary-counts">2 videos · 0 screenshots</span>
+      <span class="summary-jid">J-9</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-27</code> &middot; 2026-06-20T06:18:34.703Z
+      for this journey. Generated on <code>integration/J-27</code> &middot; 2026-06-20T06:50:52.534Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,12 +144,16 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-e1fbf245802f4898316fe4055ad806a34b1c7b78.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-12bea8bddc23f5efe7f0bc2ce4378d72b342c672.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-fed81975f117c7665382ba7e04699a0bf715fb0e.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-5196561e9084004c66c55134b5202fe2ae460b76.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-19a35c66e1601a92b31c540f4c036919b74224a1.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9 · migrated inputs drive the engine · the rules engine, run over the MIGRATED HB-3256 static-seed glider flight + the migrated filter set, produces its genuine delivery (the 5001 FlightTime line + the 6001 LandingTax line) — the producer-bound J-8 filters + J-2 flight drive the sacred-cow engine end to end over real migrated legacy seed (the engine done-bar)</span></figcaption>
         </figure>
         </div>
 
