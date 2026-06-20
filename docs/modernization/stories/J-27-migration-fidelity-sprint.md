@@ -2,9 +2,8 @@
 id: J-27
 title: Migration-fidelity sprint — drive the fanout fully green
 epic: E-02
-status: done
+status: in_progress
 started_at: 2026-06-19
-done_at: 2026-06-20
 journey0: false
 carved: true
 depends_on: [J-10]
@@ -76,6 +75,12 @@ what it GENUINELY produces — never re-point/gerrymander the seed to force a pa
   ADMIN ACTION REQUIRED (operator): the required check name changed `alpenflight mock-auth e2e (Run Playwright)` →
   `alpenflight mock-auth e2e (merge shards)`. Scope = sharding ONLY; rest of WORKFLOW-SLIM stays for J-11.
   *(ci.yml mock-auth e2e + playwright.config.ts workers)*
+- [ ] **T-13** *(operator-flagged — hollow proof video)* — the J-27 gallery video filmed the EMPTY `/deliverycreationtests`
+  stored-runs list: the migrated block proved the delivery via the API then navigated to a screen the migrated club has no
+  rows on. The demonstrable proof (the migration promise made true) was never rendered. Fix: drive the DCT dry-run UI for
+  the migrated HB-3256 flight (`dct-new-button` → `dct-flight-picker` → `dct-create-test-delivery`) so the 5001 + 6001 lines
+  RENDER on screen, and record the video there (mirrors the clean-seed block); `dct-expected-item-*` asserted visible so the
+  video can't be hollow. API assertions kept. *(delivery-creation-test-parity.spec.ts migrated block)*
 
 ## Outcome
 
