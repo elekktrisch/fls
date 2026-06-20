@@ -20,7 +20,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 
-import { liveFieldErrors } from '@shared/util/form';
+import { liveFieldErrors, revalidateTree } from '@shared/util/form';
 
 import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
@@ -400,22 +400,19 @@ export class FlightsEditPage {
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
 
-  // J-26 T-13 — Save gating: enabled ONLY when the form is VALID. A REACTIVE
-  // form-status signal (off `statusChanges`, seeded with the live status) drives
-  // it, not the non-reactive `form.invalid` getter — the OnPush + zoneless
-  // template only re-reads a getter on a CD tick, so a getter can lag the
-  // disable binding behind validity (the J-7 T-20 / J-26 T-09 race). `untracked`
-  // seeds the initial value; subsequent statusChanges re-render the button the
-  // instant a required field flips. The status is re-synced after hydrate (see
-  // patch(), which emits a statusChanges so an edit-load's valid form enables
-  // Save even though its patches run emitEvent:false).
+  // Save gating drives off a REACTIVE form-status signal (off `statusChanges`,
+  // seeded with the live status), not the non-reactive `form.invalid` getter:
+  // under OnPush + zoneless a getter re-reads only on a CD tick, so it can lag
+  // the disable binding behind validity. `patch()` re-emits a statusChanges
+  // after hydrate so an edit-load's valid form enables Save even though its
+  // patches run emitEvent:false.
   private readonly formStatus = toSignal(this.form.statusChanges, {
     initialValue: this.form.status,
   });
   protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
 
-  // Inline as-you-type errors (J-6b `liveFieldErrors`, debounced ~200ms) on the
-  // three newly-required fields — flightDate + glider aircraft + glider pilot.
+  // Inline as-you-type errors (`liveFieldErrors`, debounced ~200ms) on the
+  // required fields — flightDate + glider aircraft + glider pilot.
   protected readonly flightDateErrors = liveFieldErrors(this.form.controls.flightDate);
   protected readonly gliderAircraftErrors = liveFieldErrors(
     this.form.controls.glider.controls.aircraftId,
@@ -650,7 +647,7 @@ export class FlightsEditPage {
     if (this.saving()) return;
     // Save is disabled while invalid, but Enter-to-submit on the last step
     // (onEnter) can still reach here — surface the inline errors and bail
-    // rather than throwing in the snapshot mapper (J-26 T-13).
+    // rather than throwing in the snapshot mapper.
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -732,8 +729,7 @@ export class FlightsEditPage {
       return;
     }
     // Cast via `unknown`: the typed `CrewSubForm` control map has no string
-    // index signature, so a direct assertion trips TS2352 under the AOT build
-    // (the looser test tsconfig let it through — boyscout: T-04 leftover).
+    // index signature, so a direct assertion trips TS2352 under the AOT build.
     const glider = this.form.controls.glider.controls as unknown as Record<
       string,
       { setValue: (v: unknown) => void }
@@ -850,10 +846,12 @@ export class FlightsEditPage {
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
     // The patches above run with `emitEvent: false`, so `statusChanges` never
-    // fires — the `formStatus` signal (and thus the Save gate) would stay at its
-    // initial INVALID value even after a valid edit-load hydrates. Recompute +
-    // EMIT once so the gate reflects the hydrated form (preserves pristine).
-    this.form.updateValueAndValidity({ onlySelf: false, emitEvent: true });
+    // fires and the Save gate would keep its initial INVALID status. Re-run
+    // validators bottom-up — which also re-evaluates the glider group's
+    // conditional rule against the hydrated startType (a parent value the group
+    // validator doesn't otherwise re-read) — and emit once on the root so the
+    // gate reflects the hydrated form (preserves pristine).
+    revalidateTree(this.form);
   }
 
   private patchSub(

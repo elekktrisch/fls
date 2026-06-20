@@ -84,7 +84,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
 - [x] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`
   default `dateFrom/dateTo = today`; list range filter reflects it. Post-save: if the saved flight's date is
   outside the active range, offer "View it →" widening the range to that date. (AC1 regression guard, AC2.)
-- [ ] **T-04 — Wire flight edit-form client validators (valid-on-load + Save-gating).** `flight-form.model.ts`
+- [x] **T-04 — Wire flight edit-form client validators (valid-on-load + Save-gating).** `flight-form.model.ts`
   + coordinator: wire the minimal-valid-glider rule set; validity initializes against loaded values (valid-on-
   load fix for #229(b)); Save gated on client validity. Reconcile the dead `FlightValidator`/
   `FlightCompositeValidator` (wire the needed subset or delete the rest). Server `@NotNull`/`@Min`/`@Valid`

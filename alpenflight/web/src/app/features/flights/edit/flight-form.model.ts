@@ -1,4 +1,13 @@
-import { FormControl, FormGroup, NonNullableFormBuilder, Validators } from '@angular/forms';
+import {
+  type AbstractControl,
+  FormControl,
+  FormGroup,
+  NonNullableFormBuilder,
+  type ValidationErrors,
+  Validators,
+} from '@angular/forms';
+
+import { revalidateTree } from '@shared/util/form/revalidate';
 
 import { FlightCreateRequestFlightAircraftType } from '@api/generated/model';
 import type {
@@ -106,38 +115,77 @@ function buildCrewSubForm(fb: NonNullableFormBuilder): FormGroup<CrewSubForm> {
   });
 }
 
-export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
-  const glider = buildCrewSubForm(fb);
-  // J-26 T-13 — minimum client required validators, matching the legacy
-  // Validate-job's required-field floor (FlightValidator.validateRequiredFields:
-  // flight date / pilot, plus the always-present aircraft). Applied only to the
-  // PRIMARY (glider) crew + the top-level flightDate; the TOW sub-group stays
-  // unvalidated because it is a CONDITIONAL step (rendered only for an aerotow
-  // start type) — a blank tow must never block Save on a non-towing flight.
-  // The remaining FlightValidator rules (start/landing times, locations, start
-  // type, landing count, the start-type arms) are the daily-validation-job's
-  // verdict (S-083, reuses FlightValidator), NOT a create/update gate: legacy
-  // saves an incomplete flight and flags it Invalid nightly. Mirroring that gate
-  // here would 400 every partial save the screen accepts today.
+/**
+ * The required-field floor a glider flight must clear to count as VALID
+ * (oracle: `Flight.ValidateFlight`, `flsserver/.../DbEntities/Flight.cs:574`).
+ * Applied only to the PRIMARY (glider) crew + the top-level flightDate /
+ * startTypeId; the conditional start-type arms (winch operator, tow flight) and
+ * the conditional time fields are handled separately. The TOW sub-group stays
+ * unvalidated — it is a conditional step (aerotow only), so a blank tow must
+ * never block Save on a non-towing flight.
+ *
+ * This is the client-side Save gate, not the legacy nightly verdict: server
+ * `@NotNull`/`@Min`/`@Valid` stays the safety net, and the daily-validation job
+ * still flags an incomplete flight Invalid.
+ */
+function applyGliderRequiredValidators(glider: GliderFlightForm): void {
   glider.controls.aircraftId.addValidators(Validators.required);
   glider.controls.pilotPersonId.addValidators(Validators.required);
-  // addValidators registers the rule but does NOT re-run validation — the
-  // control keeps its stale VALID status until updateValueAndValidity recomputes
-  // it. Without this the form opens VALID (the gate would never trip).
-  glider.controls.aircraftId.updateValueAndValidity({ emitEvent: false });
-  glider.controls.pilotPersonId.updateValueAndValidity({ emitEvent: false });
-  return fb.group<FlightFormShape>({
+  glider.controls.flightTypeId.addValidators(Validators.required);
+  glider.controls.startLocationId.addValidators(Validators.required);
+  glider.controls.ldgLocationId.addValidators(Validators.required);
+  glider.controls.nrOfLdgs.addValidators([Validators.required, Validators.min(1)]);
+  glider.addValidators(gliderConditionalValidator);
+}
+
+/**
+ * Cross-field rules the glider sub-group can't express per-control:
+ *  - Start/landing time are required UNLESS the matching "no time information"
+ *    flag is set (oracle `StartDateTime.HasValue == false &&
+ *    NoStartTimeInformation == false`).
+ *  - A winch launch additionally requires a winch operator (oracle
+ *    `AircraftStartType.WinchLaunch` arm). The start type lives on the PARENT
+ *    form, read at run time so the rule re-evaluates whenever the start type or
+ *    the operator changes (and on hydrate revalidate).
+ *
+ * Keyed errors surface on the group so each step can render them per field.
+ */
+function gliderConditionalValidator(group: AbstractControl): ValidationErrors | null {
+  const g = group as GliderFlightForm;
+  const errors: ValidationErrors = {};
+  if (!g.controls.startTime.value && !g.controls.noStartTimeInformation.value) {
+    errors['startTimeRequired'] = true;
+  }
+  if (!g.controls.ldgTime.value && !g.controls.noLdgTimeInformation.value) {
+    errors['ldgTimeRequired'] = true;
+  }
+  const startTypeId = g.parent?.get('startTypeId')?.value as string | null | undefined;
+  if (isWinchLaunch(startTypeId) && !g.controls.winchOperatorPersonId.value) {
+    errors['winchOperatorRequired'] = true;
+  }
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
+export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
+  const glider = buildCrewSubForm(fb);
+  applyGliderRequiredValidators(glider);
+  const form = fb.group<FlightFormShape>({
     flightId: fb.control<string | null>(null),
     flightDate: fb.control<string | null>(null, Validators.required),
-    startTypeId: fb.control<string | null>(null),
+    startTypeId: fb.control<string | null>(null, Validators.required),
     canUpdateRecord: fb.control<boolean>(true),
     canDeleteRecord: fb.control<boolean>(true),
     glider,
     tow: buildCrewSubForm(fb),
   });
+  // Validators added after construction don't re-run on their own — recompute
+  // once so the form opens INVALID against its empty values (else the gate never
+  // trips).
+  revalidateTree(form);
+  return form;
 }
 
-import { isAerotow } from './flight-start-types';
+import { isAerotow, isWinchLaunch } from './flight-start-types';
 
 /**
  * The legacy `StartType.Towing` semantics. Today: matched against the

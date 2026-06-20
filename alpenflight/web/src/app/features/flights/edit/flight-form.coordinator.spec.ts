@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { FlightFormCoordinator, type CoordinatorMetadata } from './flight-form.coordinator';
 import { buildFlightForm, type FlightForm } from './flight-form.model';
+import { START_TYPE } from './flight-start-types';
 
 interface MetadataStub {
   aircraft: Record<string, { nrOfSeats: number; hasEngine: boolean }>;
@@ -249,6 +250,20 @@ describe('FlightFormCoordinator', () => {
     it('applies the same rule to tow.ldgTime → tow.nrOfLdgs', () => {
       form.controls.tow.controls.ldgTime.setValue('11:30');
       expect(form.controls.tow.controls.nrOfLdgs.value).toBe(1);
+    });
+  });
+
+  describe('winch-operator conditional re-validates on start-type change', () => {
+    it('flips the glider winchOperatorRequired gate when the start type becomes winch launch', () => {
+      form.controls.startTypeId.setValue(START_TYPE.WINCH_LAUNCH);
+      expect(form.controls.glider.hasError('winchOperatorRequired')).toBe(true);
+
+      form.controls.glider.controls.winchOperatorPersonId.setValue('pn-winch');
+      expect(form.controls.glider.hasError('winchOperatorRequired')).toBe(false);
+
+      form.controls.startTypeId.setValue(START_TYPE.SELF_START);
+      form.controls.glider.controls.winchOperatorPersonId.setValue(null);
+      expect(form.controls.glider.hasError('winchOperatorRequired')).toBe(false);
     });
   });
 

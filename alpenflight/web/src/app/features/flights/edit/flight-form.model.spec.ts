@@ -7,6 +7,8 @@ import type {
   FlightTemplateResponse,
 } from '@api/generated/model';
 
+import { revalidateTree } from '@shared/util/form/revalidate';
+
 import {
   FLIGHT_CREW_TYPE_CO_PILOT,
   FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
@@ -74,28 +76,175 @@ describe('flight-form.model', () => {
       expect(form.controls.glider.controls.pilotPersonId.hasError('required')).toBe(true);
     });
 
-    it('becomes VALID only once all three required fields are present', () => {
+    it('stays INVALID while date / aircraft / pilot are still missing', () => {
       const form = buildFlightForm(fb);
       form.controls.flightDate.setValue('2026-07-01');
       expect(form.invalid).toBe(true); // aircraft + pilot still empty
       form.controls.glider.controls.aircraftId.setValue('ac-1');
       expect(form.invalid).toBe(true); // pilot still empty
       form.controls.glider.controls.pilotPersonId.setValue('pe-1');
+      expect(form.invalid).toBe(true); // rest of the minimal-valid set still empty
+    });
+  });
+
+  describe('buildFlightForm — minimal-valid glider field set', () => {
+    function fillMinimalValid(form: ReturnType<typeof buildFlightForm>): void {
+      form.controls.flightDate.setValue('2026-07-01');
+      form.controls.startTypeId.setValue(START_TYPE.SELF_START);
+      const g = form.controls.glider.controls;
+      g.aircraftId.setValue('ac-1');
+      g.pilotPersonId.setValue('pe-1');
+      g.flightTypeId.setValue('ft-1');
+      g.startLocationId.setValue('loc-start');
+      g.ldgLocationId.setValue('loc-ldg');
+      g.startTime.setValue('10:00');
+      g.ldgTime.setValue('11:30');
+      g.nrOfLdgs.setValue(1);
+    }
+
+    it('stays INVALID until the full minimal-valid glider set is present', () => {
+      const form = buildFlightForm(fb);
+      fillMinimalValid(form);
       expect(form.valid).toBe(true);
     });
 
-    it('does NOT require the conditional TOW sub-group — a blank tow never blocks Save', () => {
+    it('gates on flight type, start/landing location, start type and landing count', () => {
       const form = buildFlightForm(fb);
-      form.controls.flightDate.setValue('2026-07-01');
-      form.controls.glider.controls.aircraftId.setValue('ac-1');
-      form.controls.glider.controls.pilotPersonId.setValue('pe-1');
-      // Tow aircraft + tow pilot are still null …
-      expect(form.controls.tow.controls.aircraftId.value).toBeNull();
-      expect(form.controls.tow.controls.pilotPersonId.value).toBeNull();
-      // … yet the form is valid: the tow step is conditional (aerotow only).
+      fillMinimalValid(form);
+      const g = form.controls.glider.controls;
+
+      g.flightTypeId.setValue(null);
+      expect(form.invalid).toBe(true);
+      g.flightTypeId.setValue('ft-1');
+
+      g.startLocationId.setValue(null);
+      expect(form.invalid).toBe(true);
+      g.startLocationId.setValue('loc-start');
+
+      g.ldgLocationId.setValue(null);
+      expect(form.invalid).toBe(true);
+      g.ldgLocationId.setValue('loc-ldg');
+
+      form.controls.startTypeId.setValue(null);
+      expect(form.invalid).toBe(true);
+      form.controls.startTypeId.setValue(START_TYPE.SELF_START);
+
+      g.nrOfLdgs.setValue(0);
+      expect(form.invalid).toBe(true);
+      g.nrOfLdgs.setValue(1);
+
       expect(form.valid).toBe(true);
-      expect(form.controls.tow.controls.aircraftId.hasError('required')).toBe(false);
-      expect(form.controls.tow.controls.pilotPersonId.hasError('required')).toBe(false);
+    });
+
+    it('requires a start time unless noStartTimeInformation is set', () => {
+      const form = buildFlightForm(fb);
+      fillMinimalValid(form);
+      const g = form.controls.glider.controls;
+
+      g.startTime.setValue(null);
+      expect(form.invalid).toBe(true);
+
+      g.noStartTimeInformation.setValue(true);
+      g.startTime.updateValueAndValidity();
+      g.noStartTimeInformation.updateValueAndValidity();
+      form.controls.glider.updateValueAndValidity();
+      expect(form.valid).toBe(true);
+    });
+
+    it('requires a landing time unless noLdgTimeInformation is set', () => {
+      const form = buildFlightForm(fb);
+      fillMinimalValid(form);
+      const g = form.controls.glider.controls;
+
+      g.ldgTime.setValue(null);
+      expect(form.invalid).toBe(true);
+
+      g.noLdgTimeInformation.setValue(true);
+      g.ldgTime.updateValueAndValidity();
+      g.noLdgTimeInformation.updateValueAndValidity();
+      form.controls.glider.updateValueAndValidity();
+      expect(form.valid).toBe(true);
+    });
+
+    it('requires a winch operator on a winch launch, not on other start types', () => {
+      const form = buildFlightForm(fb);
+      fillMinimalValid(form);
+      // fillMinimalValid uses a non-winch start type → no winch-operator gate.
+      expect(form.valid).toBe(true);
+
+      form.controls.startTypeId.setValue(START_TYPE.WINCH_LAUNCH);
+      form.controls.glider.updateValueAndValidity();
+      expect(form.controls.glider.hasError('winchOperatorRequired')).toBe(true);
+      expect(form.invalid).toBe(true);
+
+      form.controls.glider.controls.winchOperatorPersonId.setValue('pe-winch');
+      expect(form.controls.glider.hasError('winchOperatorRequired')).toBe(false);
+      expect(form.valid).toBe(true);
+    });
+
+    it('does NOT require the conditional TOW sub-group for the extended set', () => {
+      const form = buildFlightForm(fb);
+      fillMinimalValid(form);
+      expect(form.controls.tow.controls.flightTypeId.hasError('required')).toBe(false);
+      expect(form.controls.tow.controls.startLocationId.hasError('required')).toBe(false);
+      expect(form.valid).toBe(true);
+    });
+
+    it('reopens a fully-populated saved flight VALID after hydrate revalidate (#229b)', () => {
+      const form = buildFlightForm(fb);
+      const snap = flightDetailToFormSnapshot(
+        gliderDetail({
+          aircraftId: 'ac-1',
+          flightTypeId: 'ft-1',
+          startTypeId: START_TYPE.SELF_START,
+          startLocationId: 'loc-start',
+          ldgLocationId: 'loc-ldg',
+          startDateTime: '2026-05-25T10:00:00Z',
+          ldgDateTime: '2026-05-25T11:30:00Z',
+          nrOfLdgs: 1,
+          crew: [{ personId: 'pe-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT }],
+        }),
+        undefined,
+      );
+      form.patchValue(
+        {
+          flightDate: snap.flightDate,
+          startTypeId: snap.startTypeId,
+        },
+        { emitEvent: false },
+      );
+      form.controls.glider.patchValue(snap.glider, { emitEvent: false });
+
+      revalidateTree(form);
+      expect(form.controls.glider.controls.aircraftId.hasError('required')).toBe(false);
+      expect(form.controls.glider.controls.pilotPersonId.hasError('required')).toBe(false);
+      expect(form.controls.glider.controls.flightTypeId.hasError('required')).toBe(false);
+      expect(form.valid).toBe(true);
+    });
+
+    it('reopens an INCOMPLETE saved flight INVALID (Save stays gated)', () => {
+      const form = buildFlightForm(fb);
+      const incomplete = gliderDetail({
+        aircraftId: 'ac-1',
+        flightTypeId: 'ft-1',
+        startTypeId: START_TYPE.SELF_START,
+        startLocationId: 'loc-start',
+        startDateTime: '2026-05-25T10:00:00Z',
+        ldgDateTime: '2026-05-25T11:30:00Z',
+        nrOfLdgs: 1,
+        crew: [{ personId: 'pe-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT }],
+      });
+      delete (incomplete as { ldgLocationId?: string }).ldgLocationId; // missing landing location
+      const snap = flightDetailToFormSnapshot(incomplete, undefined);
+      form.patchValue(
+        { flightDate: snap.flightDate, startTypeId: snap.startTypeId },
+        { emitEvent: false },
+      );
+      form.controls.glider.patchValue(snap.glider, { emitEvent: false });
+
+      revalidateTree(form);
+      expect(form.controls.glider.controls.ldgLocationId.hasError('required')).toBe(true);
+      expect(form.invalid).toBe(true);
     });
   });
 

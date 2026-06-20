@@ -32,3 +32,7 @@ export const START_TYPE_OPTIONS: readonly StartTypeOption[] = [
 export function isAerotow(startTypeId: string | null | undefined): boolean {
   return startTypeId === START_TYPE.AEROTOW;
 }
+
+export function isWinchLaunch(startTypeId: string | null | undefined): boolean {
+  return startTypeId === START_TYPE.WINCH_LAUNCH;
+}
