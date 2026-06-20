@@ -19,6 +19,7 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { map, merge } from 'rxjs';
 
 import { liveFieldErrors, revalidateTree } from '@shared/util/form';
 
@@ -61,7 +62,12 @@ import {
   buildDefaultsForNew,
 } from './flight-form.defaults';
 import { FlightFormCoordinator, type CoordinatorMetadata } from './flight-form.coordinator';
-import { buildFlightForm, type FlightForm, type FlightFormSnapshot } from './flight-form.model';
+import {
+  buildFlightForm,
+  isFlightSaveable,
+  type FlightForm,
+  type FlightFormSnapshot,
+} from './flight-form.model';
 import { FlightPrefsService } from './flight-prefs.service';
 import { START_TYPE_OPTIONS } from './flight-start-types';
 
@@ -117,7 +123,7 @@ interface StepDescriptor {
           <af-button
             type="primary"
             data-testid="flight-submit-header"
-            [disabled]="saving() || formInvalid()"
+            [disabled]="saving() || !canSave()"
             (clicked)="finalSubmit()"
             >Save</af-button
           >
@@ -346,7 +352,7 @@ interface StepDescriptor {
                   <af-button
                     data-testid="flight-submit-sticky"
                     type="primary"
-                    [disabled]="saving() || formInvalid()"
+                    [disabled]="saving() || !canSave()"
                     (clicked)="finalSubmit()"
                     >Save flight</af-button
                   >
@@ -408,16 +414,25 @@ export class FlightsEditPage {
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
 
-  // Save gating drives off a REACTIVE form-status signal (off `statusChanges`,
-  // seeded with the live status), not the non-reactive `form.invalid` getter:
-  // under OnPush + zoneless a getter re-reads only on a CD tick, so it can lag
-  // the disable binding behind validity. `patch()` re-emits a statusChanges
-  // after hydrate so an edit-load's valid form enables Save even though its
-  // patches run emitEvent:false.
-  private readonly formStatus = toSignal(this.form.statusChanges, {
-    initialValue: this.form.status,
+  // Save gating drives off a REACTIVE form signal (not a non-reactive form
+  // getter): under OnPush + zoneless a getter re-reads only on a CD tick, so it
+  // can lag the disable binding behind validity. Both `valueChanges` (a fresh
+  // value object each time, so the signal always notifies) and `statusChanges`
+  // (the post-hydrate `revalidateTree` re-emit) feed it — the status string
+  // alone would dedupe on referential equality and miss a gate field flipping
+  // valid while the overall form stays INVALID (an incomplete flight).
+  private readonly formChange = toSignal(
+    merge(this.form.valueChanges, this.form.statusChanges).pipe(map(() => Symbol())),
+    { initialValue: Symbol() },
+  );
+  // Legacy-client parity: Save is gated ONLY on FlightDate + glider aircraft +
+  // pilot. The remaining minimal-valid fields keep their inline errors (and
+  // mark the flight incomplete via `form.invalid`) but do NOT block Save —
+  // legacy persists an incomplete flight as ProcessState=Invalid.
+  protected readonly canSave = computed(() => {
+    this.formChange();
+    return isFlightSaveable(this.form);
   });
-  protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
 
   // Inline as-you-type errors (`liveFieldErrors`, debounced ~200ms) on the
   // minimal-valid glider required set (oracle `Flight.ValidateFlight`):
@@ -667,10 +682,11 @@ export class FlightsEditPage {
 
   protected async finalSubmit(): Promise<void> {
     if (this.saving()) return;
-    // Save is disabled while invalid, but Enter-to-submit on the last step
-    // (onEnter) can still reach here — surface the inline errors and bail
-    // rather than throwing in the snapshot mapper.
-    if (this.form.invalid) {
+    // Save is disabled until the gate (date + aircraft + pilot) is met, but
+    // Enter-to-submit on the last step (onEnter) can still reach here — surface
+    // the inline errors and bail rather than throwing in the snapshot mapper.
+    // An incomplete-but-gate-met flight still saves (legacy Invalid parity).
+    if (!isFlightSaveable(this.form)) {
       this.form.markAllAsTouched();
       return;
     }

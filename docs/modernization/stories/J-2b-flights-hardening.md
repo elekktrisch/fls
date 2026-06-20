@@ -104,7 +104,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
 - [x] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
   rows by type) + flight-type (FK); make `delivery-creation-test-parity.spec.ts:~577` green for the RIGHT
   reason (no silently-failing Schulung filter); explain/fix the absent §5 flight + spurious HB-3407/30. (AC5.)
-- [ ] **T-08 — Save-gating → legacy parity.** Revise T-04: gate Save ONLY on FlightDate + glider Aircraft +
+- [x] **T-08 — Save-gating → legacy parity.** Revise T-04: gate Save ONLY on FlightDate + glider Aircraft +
   Pilot. The remaining minimal-valid fields keep their inline errors (T-05) + mark the flight incomplete/Invalid
   but do NOT contribute to the Save-disable. New-flight create from the empty template must persist with just
   Date+Aircraft+Pilot. Don't regress the server safety net. Fix the create-persists + gating specs. (AC1, AC4.)

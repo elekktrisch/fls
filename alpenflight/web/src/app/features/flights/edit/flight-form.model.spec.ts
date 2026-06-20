@@ -20,6 +20,7 @@ import {
 import {
   buildFlightForm,
   flightDetailToFormSnapshot,
+  isFlightSaveable,
   needsTowplane,
   snapshotToCreateRequests,
   snapshotToUpdateRequest,
@@ -245,6 +246,56 @@ describe('flight-form.model', () => {
       revalidateTree(form);
       expect(form.controls.glider.controls.ldgLocationId.hasError('required')).toBe(true);
       expect(form.invalid).toBe(true);
+    });
+  });
+
+  describe('isFlightSaveable — Save gate (legacy-client parity)', () => {
+    function setGate(
+      form: ReturnType<typeof buildFlightForm>,
+      date: string | null,
+      aircraft: string | null,
+      pilot: string | null,
+    ): void {
+      form.controls.flightDate.setValue(date);
+      form.controls.glider.controls.aircraftId.setValue(aircraft);
+      form.controls.glider.controls.pilotPersonId.setValue(pilot);
+    }
+
+    it('enables Save once date + glider aircraft + pilot are present (rest of the set still empty)', () => {
+      const form = buildFlightForm(fb);
+      setGate(form, '2026-07-01', 'ac-1', 'pe-1');
+      // start/ldg time, locations, flight type, landings all still empty → the
+      // full form is invalid, yet Save is enabled (incomplete flight, saved Invalid).
+      expect(form.invalid).toBe(true);
+      expect(isFlightSaveable(form)).toBe(true);
+    });
+
+    it('keeps Save enabled for an incomplete flight that meets only the gate', () => {
+      const form = buildFlightForm(fb);
+      setGate(form, '2026-07-01', 'ac-1', 'pe-1');
+      form.controls.glider.controls.flightTypeId.setValue('ft-1');
+      form.controls.glider.controls.startLocationId.setValue('loc-start');
+      // landing location / times / landings still missing — incomplete but saveable.
+      expect(form.invalid).toBe(true);
+      expect(isFlightSaveable(form)).toBe(true);
+    });
+
+    it('blocks Save when the flight date is missing', () => {
+      const form = buildFlightForm(fb);
+      setGate(form, null, 'ac-1', 'pe-1');
+      expect(isFlightSaveable(form)).toBe(false);
+    });
+
+    it('blocks Save when the glider aircraft is missing', () => {
+      const form = buildFlightForm(fb);
+      setGate(form, '2026-07-01', null, 'pe-1');
+      expect(isFlightSaveable(form)).toBe(false);
+    });
+
+    it('blocks Save when the pilot is missing', () => {
+      const form = buildFlightForm(fb);
+      setGate(form, '2026-07-01', 'ac-1', null);
+      expect(isFlightSaveable(form)).toBe(false);
     });
   });
 

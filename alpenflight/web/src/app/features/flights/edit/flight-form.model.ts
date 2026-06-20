@@ -166,6 +166,20 @@ function gliderConditionalValidator(group: AbstractControl): ValidationErrors | 
   return Object.keys(errors).length > 0 ? errors : null;
 }
 
+/**
+ * The Save gate — legacy-client parity (`FlightsController.js`): a flight may be
+ * saved with just FlightDate + glider Aircraft + Pilot. The remaining
+ * minimal-valid fields keep their per-control validators (so the inline
+ * as-you-type errors still render and `form.valid` reflects the full
+ * legacy-`Invalid` floor), but they do NOT block Save — legacy persists an
+ * incomplete flight as `ProcessState=Invalid` (log on launch, complete after
+ * landing). Server `@NotNull`/`@Min`/`@Valid` stays the safety net.
+ */
+export function isFlightSaveable(form: FlightForm): boolean {
+  const g = form.controls.glider.controls;
+  return form.controls.flightDate.valid && g.aircraftId.valid && g.pilotPersonId.valid;
+}
+
 export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
   const glider = buildCrewSubForm(fb);
   applyGliderRequiredValidators(glider);
