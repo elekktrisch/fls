@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.99.0",
-  "elapsed_ms": 611,
+  "version": "2.100.0",
+  "elapsed_ms": 682,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -1853,6 +1853,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/deliveries/view/deliveries-view.page.ts",
+      "name": "<template>",
+      "line": 43,
+      "col": 0,
+      "cyclomatic": 7,
+      "cognitive": 10,
+      "line_count": 70,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/edit/flights-edit.page.ts",
       "name": "finalSubmit",
       "line": 649,
@@ -2813,6 +2843,66 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/deliveries/process-state.ts",
+      "name": "processStateKey",
+      "line": 8,
+      "col": 7,
+      "cyclomatic": 5,
+      "cognitive": 1,
+      "line_count": 13,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `processStateKey` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/process-state.ts",
+      "name": "processStateClass",
+      "line": 23,
+      "col": 7,
+      "cyclomatic": 5,
+      "cognitive": 1,
+      "line_count": 13,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `processStateClass` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "toneClasses",
       "line": 134,
@@ -3084,19 +3174,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 219,
-    "functions_analyzed": 1799,
-    "functions_above_threshold": 96,
+    "files_analyzed": 224,
+    "functions_analyzed": 1837,
+    "functions_above_threshold": 99,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 170,
+    "files_scored": 175,
     "average_maintainability": 92.1,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 24,
-    "severity_high_count": 28,
-    "severity_moderate_count": 44
+    "severity_high_count": 29,
+    "severity_moderate_count": 46
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
@@ -3104,7 +3194,7 @@
     "avg_cyclomatic": 2.0,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 3.7,
+    "duplication_pct": 3.6,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
     "maintainability_avg": 92.1,
@@ -3114,31 +3204,31 @@
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 219,
-      "total_exports": 489,
+      "total_files": 224,
+      "total_exports": 495,
       "dead_files": 0,
       "dead_exports": 0,
-      "duplicated_lines": 1123,
-      "total_lines": 31623,
-      "files_scored": 170,
+      "duplicated_lines": 1129,
+      "total_lines": 32180,
+      "files_scored": 175,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 87.3,
-      "medium_risk": 6.6,
+      "low_risk": 87.4,
+      "medium_risk": 6.4,
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 36.1,
+    "functions_over_60_loc_per_k": 35.9,
     "unit_interfacing_profile": {
       "low_risk": 97.3,
-      "medium_risk": 2.4,
+      "medium_risk": 2.3,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
-    "coupling_high_pct": 1.8,
-    "total_loc": 31623
+    "coupling_high_pct": 1.7,
+    "total_loc": 32180
   },
   "health_score": {
     "formula_version": 2,
@@ -3636,6 +3726,20 @@
       "crap_above_threshold": 1
     },
     {
+      "path": "src/app/features/accounting/deliveries/view/deliveries-view.page.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.13,
+      "maintainability_index": 89.7,
+      "total_cyclomatic": 19,
+      "total_cognitive": 13,
+      "function_count": 9,
+      "lines": 151,
+      "crap_max": 56.0,
+      "crap_above_threshold": 1
+    },
+    {
       "path": "src/app/features/start/start-clubadmin.page.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -3786,6 +3890,20 @@
       "total_cognitive": 11,
       "function_count": 9,
       "lines": 162,
+      "crap_max": 30.0,
+      "crap_above_threshold": 2
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/process-state.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.28,
+      "maintainability_index": 94.0,
+      "total_cyclomatic": 10,
+      "total_cognitive": 2,
+      "function_count": 2,
+      "lines": 36,
       "crap_max": 30.0,
       "crap_above_threshold": 2
     },
@@ -4182,6 +4300,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/accounting/deliveries/deliveries.store.ts",
+      "fan_in": 2,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 92.4,
+      "total_cyclomatic": 18,
+      "total_cognitive": 2,
+      "function_count": 16,
+      "lines": 112,
+      "crap_max": 12.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/persons/member-states.store.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -4296,14 +4428,14 @@
     {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 22,
+      "fan_out": 23,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.34,
-      "maintainability_index": 77.3,
-      "total_cyclomatic": 48,
+      "maintainability_index": 77.1,
+      "total_cyclomatic": 50,
       "total_cognitive": 0,
-      "function_count": 48,
-      "lines": 141,
+      "function_count": 50,
+      "lines": 149,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4459,6 +4591,20 @@
       "function_count": 2,
       "lines": 72,
       "crap_max": 7.2,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/list/deliveries-list.page.ts",
+      "fan_in": 1,
+      "fan_out": 6,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.06,
+      "maintainability_index": 90.4,
+      "total_cyclomatic": 6,
+      "total_cognitive": 1,
+      "function_count": 5,
+      "lines": 98,
+      "crap_max": 6.0,
       "crap_above_threshold": 0
     },
     {
@@ -4737,7 +4883,7 @@
       "total_cyclomatic": 6,
       "total_cognitive": 4,
       "function_count": 2,
-      "lines": 90,
+      "lines": 91,
       "crap_max": 4.1,
       "crap_above_threshold": 0
     },
@@ -5065,7 +5211,7 @@
     },
     {
       "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 12,
+      "fan_in": 13,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.09,
@@ -5187,6 +5333,20 @@
       "function_count": 1,
       "lines": 40,
       "crap_max": 2.9,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/deliveries.routes.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.21,
+      "maintainability_index": 92.1,
+      "total_cyclomatic": 4,
+      "total_cognitive": 0,
+      "function_count": 4,
+      "lines": 19,
+      "crap_max": 2.0,
       "crap_above_threshold": 0
     },
     {
@@ -5513,7 +5673,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 61,
+      "fan_in": 62,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -5879,6 +6039,12 @@
       "line_count": 71
     },
     {
+      "path": "src/app/features/accounting/deliveries/view/deliveries-view.page.ts",
+      "name": "<template>",
+      "line": 43,
+      "line_count": 70
+    },
+    {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "constructor",
       "line": 437,
@@ -6230,6 +6396,33 @@
     "fan_out_p95": 12.0,
     "fan_out_p90": 10
   },
+  "framework_health": {
+    "detected_frameworks": [
+      "angular"
+    ],
+    "detectors": [
+      {
+        "id": "unrendered-component",
+        "framework": "angular",
+        "status": "active"
+      },
+      {
+        "id": "unused-component-input",
+        "framework": "angular",
+        "status": "active"
+      },
+      {
+        "id": "unused-component-output",
+        "framework": "angular",
+        "status": "active"
+      },
+      {
+        "id": "unprovided-inject",
+        "framework": "angular",
+        "status": "active"
+      }
+    ]
+  },
   "next_steps": [
     {
       "id": "complexity-breakdown",
@@ -6244,7 +6437,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_42ff9a7c2ec6c6ee"
+      "analysis_run_id": "run_ec6d773bf52f9210"
     }
   }
 }
