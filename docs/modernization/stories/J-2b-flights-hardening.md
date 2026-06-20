@@ -108,8 +108,17 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   Pilot. The remaining minimal-valid fields keep their inline errors (T-05) + mark the flight incomplete/Invalid
   but do NOT contribute to the Save-disable. New-flight create from the empty template must persist with just
   Date+Aircraft+Pilot. Don't regress the server safety net. Fix the create-persists + gating specs. (AC1, AC4.)
-- [ ] **T-07 — Thicken spec + drive real-idp green locally.** Thicken the J-2b spec to full real assertions
+- [x] **T-07 — Thicken spec + drive real-idp green locally.** Thicken the J-2b spec to full real assertions
   from the oracle; `e2e-driver` drives the real-idp spec green on the local stack before the §4 CI gate.
+  - The four hardening flows (create-persists #229 · off-today post-save jump · valid-on-load · as-you-type
+    gating) land as a REAL-chain describe block in `tests/real-idp/flight-migration-parity.spec.ts` (the
+    per-push lane's `parity_test:` spec — no frontmatter change; FLIGHT-FIDELITY stays in the lane). The mock
+    `06-flights-hardening.spec.ts` keeps the fast inner-loop copy. Local real-idp clean-seed: 5/5 green.
+    Gallery: `alpenflight:list`/`alpenflight:form` PNGs captured on the state that RENDERS the asserted result
+    (form shot AFTER the valid-on-load assertions, never the transient stale-error load state) → flipped
+    PENDING→EXPECTED (producedBy: proof). The migrated round-trip (FLIGHT-FIDELITY done-bar) hits a shared-LAN-PG
+    `ux_aircraft_immatriculation` collision locally (synth bundle hardcodes HB-3000 — pre-existing isolation
+    debt, green on CI's fresh PG).
 
 ## Notes
 

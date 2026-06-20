@@ -5,6 +5,7 @@ import {
   expect,
   type Browser,
   type BrowserContext,
+  type Locator,
   type Page,
   type TestInfo,
 } from '@playwright/test';
@@ -352,6 +353,128 @@ function detailToUpdateRequest(d: FlightDetail, comment: string): FlightUpdateRe
   req.noStartTimeInformation = d.noStartTimeInformation;
   req.noLdgTimeInformation = d.noLdgTimeInformation;
   return req;
+}
+
+/**
+ * The inline as-you-type error region (`af-field-errors` alert) under a field,
+ * scoped to the wrapping `af-form-field` so a sibling field's error never leaks
+ * into the assertion.
+ */
+function fieldErrors(page: Page, testId: string): Locator {
+  return page.locator('af-form-field', { has: page.getByTestId(testId) }).getByRole('alert');
+}
+
+/**
+ * The header Save control's native `<button>` — `af-button` renders the
+ * disableable element inside its host, so `toBeDisabled`/`toBeEnabled` must
+ * target the inner button, not the custom-element host.
+ */
+function saveButton(page: Page): Locator {
+  return page.getByTestId('flight-submit-header').locator('button');
+}
+
+/**
+ * Drive the 3-step wizard to create a GLIDER flight with the LEGACY-MINIMAL save
+ * set only — flightDate (defaulted by the new-template) + glider aircraft +
+ * pilot. No start type, no times, no flight type, no landings. The #229
+ * regression guard: legacy persists an incomplete flight as Invalid, so this
+ * must save (Save gated only on date+aircraft+pilot). `flightDate` optionally
+ * overridden to drive the off-today post-save jump. Returns the created flight
+ * id (parsed off the 201 `Location` header — NOT the POST body, which the
+ * on-success navigation to /flights evicts).
+ */
+async function createMinimalGliderFlight(
+  page: Page,
+  md: FlightMasterdata,
+  flightDateOverride?: string,
+): Promise<string> {
+  await page.goto('/flights/new');
+  await expect(page.getByTestId('flight-form')).toBeVisible();
+  await expect(page.getByTestId('flight-step-launch')).toBeVisible();
+
+  if (flightDateOverride) {
+    await page.getByTestId('flight-edit-flightDate').locator('input').fill(flightDateOverride);
+  }
+
+  await page.getByTestId('flight-step-next').click();
+  await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId);
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+
+  // Legacy parity: with only date+aircraft+pilot the flight is incomplete (the
+  // other minimal-valid fields show inline errors) but Save STAYS enabled.
+  await expect(saveButton(page)).toBeEnabled();
+
+  const created = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      new URL(r.url()).pathname === '/api/v1/flights' &&
+      r.status() >= 200 &&
+      r.status() < 300,
+    { timeout: 5_000 },
+  );
+  await page.getByTestId('flight-submit-header').click();
+  const createdResp = await created;
+  return flightIdFromLocation(createdResp.headers()['location']);
+}
+
+/** WINCH_LAUNCH start type (V2) — a GLIDER launch that introduces NO tow step. */
+const WINCH_START_TYPE_ID = '019e2e15-2c00-7fa0-8000-000000000fa0';
+
+/**
+ * Drive the 2-step wizard (no tow — winch launch) to create a FULLY-populated
+ * GLIDER flight: every minimal-valid field set (date · start type · start
+ * location · aircraft · flight type · pilot · start/ldg time · landings). Used by
+ * the valid-on-load + as-you-type cases, which need a flight whose reopened
+ * required controls are ALL populated. Lighter + more robust than the AEROTOW
+ * paired-create (no tow flight, no tow step). The location / aircraft / pilot
+ * selects pass a `search` term so the option renders even on a virtualised list.
+ * Returns the created flight id (off the 201 Location header).
+ */
+async function createFullyPopulatedGliderFlight(page: Page, md: FlightMasterdata): Promise<string> {
+  await page.goto('/flights/new');
+  await expect(page.getByTestId('flight-form')).toBeVisible();
+  await expect(page.getByTestId('flight-step-launch')).toBeVisible();
+
+  await selectAfOption(page, 'flight-edit-startType', WINCH_START_TYPE_ID);
+  await selectAfOption(page, 'flight-edit-startLocation', md.locationId, 'J2 Airfield');
+
+  await page.getByTestId('flight-step-next').click();
+  await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId, md.gliderImmat);
+  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId, 'J2 Local');
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId, 'Pilot');
+  await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('09:00');
+  await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
+  await page.getByTestId('flight-edit-glider-nrOfLdgs').locator('input').fill('1');
+
+  // A winch launch never tows: the tow step must NOT render.
+  await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
+
+  const created = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      new URL(r.url()).pathname === '/api/v1/flights' &&
+      r.status() >= 200 &&
+      r.status() < 300,
+    { timeout: 5_000 },
+  );
+  await page.getByTestId('flight-submit-header').click();
+  const createdResp = await created;
+  return flightIdFromLocation(createdResp.headers()['location']);
+}
+
+/** Today's ISO date (local), matching the store's `today..today` list default. */
+function isoToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** ISO date `days` ahead of today (local) — the off-today / future-flight date. */
+function isoDaysAhead(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ===========================================================================
@@ -953,6 +1076,262 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
           'J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; ' +
           'Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven ' +
           'at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.',
+        acTag: 'key-error',
+      });
+    }
+  });
+});
+
+// ===========================================================================
+// J-2b HARDENING real chain — #229 create-persists + edit-form validation.
+// ===========================================================================
+// The journey's PRIMARY behaviour (the #229 fix + the wired flight edit-form
+// validators) proven on the FULL real chain (real Keycloak + real Spring backend
+// + real Postgres), NOT mock-only. Clean-seed: a club admin logs in, seeds the
+// masterdata through the real create APIs, then drives the four hardening flows
+// live. The migrated-data half is already proven by the FLIGHT-FIDELITY block
+// above (the migrated glider carries its crew + tow link).
+test.describe('Flight hardening — create-persists + edit validation (real-idp)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let fixture: TwoClubFixture;
+  let baseURL: string;
+  let masterdata: FlightMasterdata;
+
+  test.beforeAll(async ({ browser, request }, testInfo) => {
+    // Provisions two clubs (two real KC logins) + seeds the masterdata through
+    // the real create APIs — more than the 45s per-test budget allows on a slow
+    // box, so give the setup its own headroom.
+    testInfo.setTimeout(180_000);
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    // Disjoint admin-username tag ('fhd') so this fixture's club admins never
+    // collide with the other clean-seed flight specs in one `playwright test`
+    // invocation (ux_user_username_lower_alive).
+    fixture = await provisionTwoClubs(browser, baseURL, 'fhd');
+    const ctx = await browser.newContext({ baseURL });
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+      const bearer = await bearerFromFlightsList(page);
+      masterdata = await seedFlightMasterdata(request, bearer);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test.afterAll(async () => {
+    await fixture?.dispose();
+  });
+
+  test('[happy] a new flight saved with only date + aircraft + pilot PERSISTS (#229 regression)', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+
+      // Create with the legacy-minimal set only (date defaulted + aircraft +
+      // pilot — no times / flight type / landings). It must save (legacy persists
+      // an incomplete flight as Invalid) — the #229 amendment: the form never
+      // BLOCKED the save; the bug was the invalid-on-load display, fixed below.
+      const createdId = await createMinimalGliderFlight(page, masterdata);
+      expect(createdId).toMatch(/^fl-[0-9a-f-]{36}$/);
+      await expect(page).toHaveURL(/\/flights$/);
+
+      // PERSISTENCE — re-GET the created flight off the real backend (the id came
+      // from the 201 Location header; the POST body was evicted on navigation).
+      const bearer = await bearerFromFlightsList(page);
+      const detail = await ctx.request.get(`/api/v1/flights/${createdId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(detail.status(), 'the minimally-created flight persisted + is readable').toBe(200);
+      const body = (await detail.json()) as { aircraftId: string; flightAircraftType: string };
+      expect(body.aircraftId, 'the persisted flight carries the selected glider').toBe(
+        masterdata.gliderAircraftId,
+      );
+      expect(body.flightAircraftType).toBe('GLIDER');
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2b',
+        caption:
+          'J-2b · #229 · a new flight saved with only date + glider aircraft + pilot persists to the ' +
+          'real backend (legacy parity: an incomplete flight saves as Invalid — Save was never blocked; ' +
+          'the bug was the invalid-on-load display, fixed below)',
+        acTag: 'happy',
+      });
+    }
+  });
+
+  test('[edge] an off-today saved flight is surfaced by the post-save "View it →" jump (Option B)', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+
+      // The list defaults to today..today (legacy parity). A flight dated a week
+      // ahead is NOT in that default range, so the post-save flow surfaces the
+      // "View it →" affordance that widens the range to reveal it (#229(a)).
+      const future = isoDaysAhead(7);
+      const futureId = await createMinimalGliderFlight(page, masterdata, future);
+      expect(futureId).toMatch(/^fl-[0-9a-f-]{36}$/);
+      await expect(page).toHaveURL(/\/flights$/);
+
+      // The off-range banner + the "View it →" jump render (the saved flight is
+      // outside the today-default range).
+      await expect(page.getByTestId('flights-offrange-banner')).toBeVisible();
+      const view = page.getByTestId('flight-offrange-view');
+      await expect(view).toBeVisible();
+
+      // GALLERY (list) — captured BEFORE the deep row assertion so a later red
+      // still lands the shot. The list ALREADY shows real rows (today's seed +
+      // the off-range banner) — not an empty screen. Distinct filename from the
+      // clean-seed CRUD list PNG (the same file runs both describes per-push, and
+      // the gallery `add_af_only` `find ... head -1` would otherwise stage the
+      // wrong one).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-flights-hardening-list.png`,
+        fullPage: true,
+      });
+
+      // Click "View it →" → the range widens to the future date and the row loads.
+      await view.click();
+      await expect(
+        page.getByTestId(`flights-row-${futureId}`),
+        'the post-save jump widens the range so the off-today flight appears',
+      ).toBeVisible();
+      await expect(page.getByTestId('flights-offrange-banner')).toHaveCount(0);
+
+      expect(
+        existsSync(`${testInfo.outputDir}/alpenflight-flights-hardening-list.png`),
+        'expected the J-2b AlpenFlight list shot in the output dir — the gallery list pairing needs it',
+      ).toBeTruthy();
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2b',
+        caption:
+          'J-2b · off-today visibility · the /flights list defaults to today..today (legacy parity); a ' +
+          'flight saved a week ahead is surfaced by the post-save "View it →" jump that widens the range ' +
+          'to reveal it — it is not silently hidden (#229(a), Option B)',
+        acTag: 'edge',
+      });
+    }
+  });
+
+  test('[key-error] reopening a fully-populated saved flight shows every required field VALID', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+
+      // Build a FULLY-populated glider flight (every minimal-valid field set:
+      // date, start type, location, aircraft, flight type, pilot, times,
+      // landings) so the reopen has populated controls to validate against.
+      const fullId = await createFullyPopulatedGliderFlight(page, masterdata);
+      expect(fullId).toMatch(/^fl-[0-9a-f-]{36}$/);
+
+      // Reopen the saved flight. #229(b): the edit form had ZERO client validators,
+      // so populated required fields rendered as INVALID on load. The validators +
+      // the post-hydrate revalidate are now wired, so every populated field must
+      // render VALID (no stale "Entry required.").
+      await page.goto(`/flights/${fullId}/edit`);
+      await expect(page.getByTestId('flight-form')).toBeVisible();
+      await expect(saveButton(page)).toBeEnabled();
+
+      // Launch step: the populated required fields carry NO stale inline error.
+      await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
+      await expect(fieldErrors(page, 'flight-edit-startType')).toHaveCount(0);
+      await expect(fieldErrors(page, 'flight-edit-startLocation')).toHaveCount(0);
+
+      // GALLERY (form) — captured AFTER the launch-step no-error assertions so the
+      // shot RENDERS the asserted result (every populated required field VALID, no
+      // "Entry required."), NOT the transient pre-revalidate stale-error state the
+      // post-hydrate revalidate clears (#229(b) is exactly that stale render — a
+      // shot taken on load would prove the BUG, not the fix). Distinct filename
+      // from the clean-seed CRUD form PNG (the same file runs both describes).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-flights-hardening-form.png`,
+        fullPage: true,
+      });
+
+      // Glider step: aircraft + flightType + pilot + landings populated → no
+      // residual "Entry required." inline error.
+      await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+      await expect(fieldErrors(page, 'flight-edit-glider-aircraft')).toHaveCount(0);
+      await expect(fieldErrors(page, 'flight-edit-glider-flightType')).toHaveCount(0);
+      await expect(fieldErrors(page, 'flight-edit-glider-pilot')).toHaveCount(0);
+      await expect(fieldErrors(page, 'flight-edit-glider-nrOfLdgs')).toHaveCount(0);
+
+      expect(
+        existsSync(`${testInfo.outputDir}/alpenflight-flights-hardening-form.png`),
+        'expected the J-2b AlpenFlight form shot in the output dir — the gallery form pairing needs it',
+      ).toBeTruthy();
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2b',
+        caption:
+          'J-2b · valid-on-load · reopening a fully-populated saved flight renders every populated ' +
+          'required field VALID — no stale "Entry required." (the #229(b) root fix: the edit form had ' +
+          'ZERO client validators; they are now wired + revalidate against the loaded values)',
+        acTag: 'key-error',
+      });
+    }
+  });
+
+  test('[key-error] as-you-type: clearing a GATE field gates Save; clearing a non-gate field does NOT', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+
+      const fullId = await createFullyPopulatedGliderFlight(page, masterdata);
+      await page.goto(`/flights/${fullId}/edit`);
+      await expect(page.getByTestId('flight-form')).toBeVisible();
+      await expect(saveButton(page)).toBeEnabled();
+
+      // GATE field (flightDate): clearing it surfaces the inline error AND gates
+      // Save (legacy-client-required: date + aircraft + pilot).
+      const flightDate = page.getByTestId('flight-edit-flightDate').locator('input');
+      await flightDate.fill('');
+      await expect(fieldErrors(page, 'flight-edit-flightDate')).toBeVisible();
+      await expect(saveButton(page)).toBeDisabled();
+
+      // Restore it → the inline error clears (debounced) + Save re-enables.
+      await flightDate.fill(isoToday());
+      await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
+      await expect(saveButton(page)).toBeEnabled();
+
+      // NON-GATE required field (landings): clearing it surfaces the inline error
+      // but Save STAYS enabled — legacy persists the incomplete flight as Invalid;
+      // only date + aircraft + pilot gate Save (legacy-client parity).
+      await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+      await page.getByTestId('flight-edit-glider-nrOfLdgs').locator('input').fill('');
+      await expect(fieldErrors(page, 'flight-edit-glider-nrOfLdgs')).toBeVisible();
+      await expect(
+        saveButton(page),
+        'clearing a NON-gate required field shows an inline error but does NOT block Save (legacy ' +
+          'incomplete-save parity)',
+      ).toBeEnabled();
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2b',
+        caption:
+          'J-2b · as-you-type gating · clearing a GATE field (date/aircraft/pilot) shows an inline error ' +
+          'AND disables Save; clearing a NON-gate required field (landings) shows the inline error but ' +
+          'leaves Save ENABLED — legacy incomplete-save parity (the rest of the minimal-valid set marks ' +
+          'the flight Invalid but never blocks Save)',
         acTag: 'key-error',
       });
     }

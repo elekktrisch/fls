@@ -21,13 +21,11 @@ function saveButton(page: Page): Locator {
 }
 
 /**
- * J-2b flights-hardening spec STRUCTURE (#229 + edit-form validation).
+ * Flights-hardening inner-loop spec (#229 + edit-form validation), mock-auth.
  *
- * Thin assertions that commit the screen shape + selectors for the four
- * hardening flows; the deep oracle-backed assertions land with the fixes
- * (T-03..T-05) and the spec-thicken (T-07). Cases not-yet-buildable today
- * (the off-today post-save "View it" jump, Option B) are `test.fixme` stubs
- * carrying the intended selectors so the fix has a red target.
+ * The fast feedback half of the four hardening flows (create-persists, off-today
+ * post-save jump, valid-on-load, as-you-type gating). The full real-chain proof
+ * lives in `tests/real-idp/flight-migration-parity.spec.ts` (the per-push lane).
  *
  * Mock-auth chromium project: principal is a mocked SYSTEM_ADMINISTRATOR, all
  * `/api/v1/*` calls intercepted via `page.route` (no live backend).
@@ -232,6 +230,11 @@ test.describe('J-2b flights hardening', () => {
     await page.goto('/flights');
     await expect(page.getByTestId('flights-table')).toBeVisible();
     await expect(page.getByTestId('flights-date-range')).toBeVisible();
+
+    // The today-default range (legacy parity) omits the next-week flight: the
+    // initial GET carries from=to=today, so the off-today row is NOT listed (it
+    // is hidden by the default range — discoverable via the filter, not lost).
+    await expect(page.getByTestId(`flights-row-${FLIGHT_ID}`)).toHaveCount(0);
   });
 
   test('[key-error] reopen a saved flight — populated required fields render VALID (no Entry-required)', async ({

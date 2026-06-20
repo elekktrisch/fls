@@ -36,19 +36,26 @@
     },
     "J-2b": {
       "$note": [
-        "Hardening sprint (no new screen, hardens the J-2 /flights screen). The",
-        "proof is AlpenFlight-only edit-form behaviour (valid-on-load + as-you-type",
-        "errors + off-today post-save jump): the `form` view is the edit form after",
-        "a reopen with every populated required field VALID; `list` is the flight",
-        "logbook with the today-default range + the off-today affordance. NONE are",
-        "captured yet — the fixes land T-03..T-05 + the spec thickens T-07 — so all",
-        "are `pending` (tolerated-absent, surfaced by the [shots-present] guard)",
-        "until T-07 flips them to `expected` once the real-idp spec produces them.",
-        "An empty `expected` means the guard reds on NOTHING for J-2b today",
-        "(scaffold-clean), the J-9/J-10 pending-placeholder pattern."
+        "Hardening sprint (no new screen, hardens the J-2 /flights screen, no",
+        "committed legacy /flights ref). The proof is AlpenFlight-only edit-form",
+        "behaviour: the `form` view is the edit form AFTER a reopen with every",
+        "populated required field rendering VALID (no stale 'Entry required.' — the",
+        "#229(b) fix); `list` is the flight logbook on the today-default range with",
+        "the off-today 'View it →' affordance + real rows. T-07 thickened the J-2b",
+        "behaviour into the real-idp flight-migration-parity.spec.ts hardening block",
+        "(it writes both PNGs to test-results/ on the state that RENDERS the asserted",
+        "result), so these flip PENDING -> EXPECTED with producedBy: proof — the J-26",
+        "read-side pattern: the spec that writes them runs in the PER-PUSH proof job",
+        "(ci.yml alpenflight-proof, is_baseline=false), NOT the fanout. So they are",
+        "EXPECTED (enforced) only in the `proof` context; in the `fanout` context",
+        "they are produced-elsewhere -> tolerated-absent (no false red)."
       ],
-      "expected": [],
-      "pending": ["alpenflight:list", "alpenflight:form"]
+      "expected": ["alpenflight:list", "alpenflight:form"],
+      "producedBy": {
+        "alpenflight:list": "proof",
+        "alpenflight:form": "proof"
+      },
+      "pending": []
     },
     "J-5": {
       "expected": [

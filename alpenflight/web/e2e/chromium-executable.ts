@@ -46,11 +46,15 @@ export function resolveChromiumExecutablePath(
 
 /**
  * Launch args for the resolved browser. The system chromium under the LXC/musl
- * box needs `--no-sandbox` (no user-namespace sandbox available); Playwright's
- * bundled browser on CI's glibc runners does NOT, so we only add the flag when
- * we are actually pointing at a resolved (system) executable — keeping CI's
- * sandbox posture unchanged.
+ * box needs `--no-sandbox` (no user-namespace sandbox available); it also runs
+ * alongside the backend JVM + the dev ng-serve on a RAM-constrained box, where
+ * the default /dev/shm-backed renderer allocation makes the page tab crash under
+ * memory pressure (`page.goto: Page crashed`) — `--disable-dev-shm-usage` routes
+ * that allocation to /tmp instead, which the local real-idp run needs to stay up
+ * through a heavy SPA boot. Playwright's bundled browser on CI's glibc runners
+ * (no resolved executable) gets neither flag — CI's sandbox + memory posture is
+ * unchanged.
  */
 export function chromiumLaunchArgs(executablePath: string | undefined): string[] {
-  return executablePath ? ['--no-sandbox'] : [];
+  return executablePath ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 }
