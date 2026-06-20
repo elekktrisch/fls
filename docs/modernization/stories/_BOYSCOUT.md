@@ -53,12 +53,16 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   trap as the removed per-project `maxFailures`) — the mock suite ran 2 workers and timed out at the 5-min
   cap since J-26. Stopgap PR #222 forces `--workers=4` on the chromium CLI invocation (keeps the ceiling).
   **VERIFIED 2026-06-14: parallelism ALONE is insufficient** — a dispatch with `--workers=4` ran 4 workers
-  but STILL timed out at 5 min (157 tests on a 4-core runner). So WORKFLOW-SLIM must **SHARD the mock suite
+  but STILL timed out at 5 min (157 tests on a 4-core runner). ~~So WORKFLOW-SLIM must **SHARD the mock suite
   into parallel sub-5-min CI jobs** (a `--shard=i/n` matrix + `reporter: blob` + a `merge-reports` deploy job
-  — each shard keeps the 5-min ceiling) AND **HELPER-PRUNE** the redundant specs; moving `workers` top-level
-  (+ `--workers=1` for real-idp, whose per-project `workers:1` is the same no-op) is necessary but not
-  sufficient. The 12-min control run proved the suite is green-but-slow (157 passed), so this is purely a
-  throughput problem. The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
+  — each shard keeps the 5-min ceiling)~~ **SHARDING SHIPPED J-27 T-12** (operator pulled it forward 2026-06-20):
+  `ci.yml` `alpenflight-mock-e2e` is a `--shard=i/4` matrix (`reporter: blob`, `--workers=4`) + an authoritative
+  `alpenflight-mock-e2e-merge` job (`merge-reports` + all-shards-ran guard) that `required` now needs; `workers`
+  was already top-level (J-9 #222), real-idp invocations all carry `--workers=1`. **One-time branch-protection
+  rename needed:** required check `alpenflight mock-auth e2e (Run Playwright)` → `alpenflight mock-auth e2e (merge
+  shards)`. STILL PENDING for J-11: composite-action extraction, the YAML cut, the real-idp shard, the KC-26
+  quarantine, AND **HELPER-PRUNE** the redundant specs. The 12-min control run proved the suite is green-but-slow
+  (157 passed). The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
   *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + `alpenflight-e2e.yml` + `playwright.config.ts` workers + new composites)*
 - **[COMMENT-STRIP] Self-explanatory code, why-only comments.** Remove all what/narration/history/
   task-attribution comments (`T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"/non-load-bearing

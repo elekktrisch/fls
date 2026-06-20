@@ -65,14 +65,16 @@ what it GENUINELY produces — never re-point/gerrymander the seed to force a pa
 - [x] ~~**T-04**~~ closed — no reporting migrated spec exists to wire; re-filed to `_BOYSCOUT.md` (author new coverage, not a one-liner).
 - [x] **Gate (fanout)** — fanout `Run AlpenFlight parity specs` GREEN on code sha `1ab394b8` (42 pass / 1 skip — the operator-disabled
   rename test; run 27864311564). gap-hunter ×3: code honest (2 real:true incl. 1 high; the dissent was the pre-existing mock-suite timeout, not J-27).
-- [ ] **T-12** *(operator decision 2026-06-20 — pull WORKFLOW-SLIM sharding into J-27)* — the required `mock-auth e2e`
-  flaky-times-out (164 tests / 4 cores > 5-min cap; pre-existing, not a J-27 regression). It never honestly passed (it
-  flaky-failed on the code sha, then the docs-finalization commit path-skipped it → PR shows mergeable via a FALSE
-  green-via-skip). Fix = SHARD the mock suite into parallel sub-5-min CI jobs: `--shard=i/n` matrix + `reporter: blob` +
-  a `merge-reports` job; move `workers` TOP-LEVEL (per-project `workers:N` is a silent no-op). Preserve the required-check
-  gate name (or flag branch-protection needs updating). Each shard must stay under the 5-min ceiling (don't buy wall-time).
-  Scope = the sharding ONLY; the rest of WORKFLOW-SLIM (composite-action extraction, YAML cut, real-idp shard, KC-26
-  quarantine) stays for J-11. *(ci.yml mock-auth e2e + playwright.config.ts workers)*
+- [x] **T-12** *(operator decision 2026-06-20 — pull WORKFLOW-SLIM sharding into J-27)* — the required `mock-auth e2e`
+  flaky-timed-out (164 tests / 4 cores > 5-min cap). SHARDED `alpenflight-mock-e2e` into a `--shard=i/4` matrix
+  (`reporter: blob`, `--workers=4`) + a new authoritative `alpenflight-mock-e2e-merge` job that downloads the shard
+  blobs, `merge-reports`-stitches them, guards "all shards ran" (so a crashed shard can't false-green), and is what
+  `required` now `needs`. `workers` was ALREADY top-level (J-9 stopgap #222); confirmed real-idp invocations all pass
+  `--workers=1`. n=4 chosen (~41 tests/shard, locally ~2 min on 2 workers → comfortable <5 min headroom on a 4-vCPU
+  4-worker runner). Verified locally: shard 3/4 + 4/4 green (39+41), blobs merge to one report exit-0. BRANCH-PROTECTION
+  ADMIN ACTION REQUIRED (operator): the required check name changed `alpenflight mock-auth e2e (Run Playwright)` →
+  `alpenflight mock-auth e2e (merge shards)`. Scope = sharding ONLY; rest of WORKFLOW-SLIM stays for J-11.
+  *(ci.yml mock-auth e2e + playwright.config.ts workers)*
 
 ## Outcome
 
@@ -88,9 +90,10 @@ fidelity gate is now reliable for every future migration journey (J-11/J-10b/J-1
   filter (1059, min=0, lower sort) does NOT shadow the 5001 line; that's only true if the migrated HB-3256 flight's
   crew/flight-type did NOT round-trip. Verify the flight's crew + flight-type migration to confirm `:577` is green for the
   right reason (not a flight-fidelity miss baked in).
-- **Required `ci` mock-auth e2e (→ WORKFLOW-SLIM/J-11):** flaky 5-min timeout on the 164-test mock suite (not a J-27
-  regression — pre-existing throughput; the deferred WORKFLOW-SLIM sharding fixes it).
-- **[FANOUT-SPEC-WIRING] / [GALLERY-SIMPLIFY] / [WORKFLOW-SLIM]** ride J-11 (a feature host); J-27 was the pure-debt exception.
+- **Required `ci` mock-auth e2e:** FIXED in T-12 — sharded 4× + a merge-reports gate (the WORKFLOW-SLIM sharding,
+  pulled into J-27 by operator decision 2026-06-20). Needs a one-time branch-protection required-check rename (see T-12).
+- **[FANOUT-SPEC-WIRING] / [GALLERY-SIMPLIFY] / rest of [WORKFLOW-SLIM]** (composite-action extraction, YAML cut,
+  real-idp shard, KC-26 quarantine) ride J-11 (a feature host); J-27 was the pure-debt exception.
 
 ## Assumptions made
 
