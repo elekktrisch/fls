@@ -148,7 +148,7 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   `ensureSharedMigrationBundle`), handling token expiry — resolve ONCE, not per-spec. Don't just raise the
   timeout (operator's "5-min ceiling, don't buy wall-time"). Unblocks observing §5's real delivery for T-07/`:577`.
   *(real-idp migrated-admin resolution memo)*
-- [ ] **T-09** *(operator decision 2026-06-19 — redesign `:577` to genuine seed)* — the engine still 500s on
+- [x] **T-09** *(operator decision 2026-06-19 — redesign `:577` to genuine seed)* — the engine still 500s on
   the §4 fixture's recipient filter `F1500004-…001` `{"RecipientType":"FlightCrew"}`: **legacy-oracle confirmed
   it has NO legacy basis** (no `RecipientType` enum in legacy; legacy routes pilot-pays via `FlightCostBalanceType`
   fallback rules, not a recipient blob — `RecipientRulesEngine.cs:37-38`/`FlightCostPaidByPilotRule.cs`). AlpenFlight's
@@ -157,6 +157,16 @@ journey) — J-27 is the pure-debt exception, not a burndown host.
   nothing else depends on `F1500004-…001`); (b) the §5 delivery is then driven by GENUINE base-seed filters →
   capture what it genuinely produces; (c) rewrite `:577` to assert that genuine delivery (operator: rely on legacy
   seed, assert genuine output). `:524` keeps the §4 5001 filter as a migration round-trip subject. *(test-fixture cleanup + delivery-creation-test-parity.spec.ts)*
+  - **DONE (9f022de5 + 10c65cd6):** removing the malformed recipient fixture cleared the 500 — the engine produces
+    real deliveries AND the §4 5001 filter was NEVER shadowed (the 500 suppressed all items; the earlier "shadowing"
+    analysis was a red herring). `:577` now asserts a GENUINE static-seed glider delivery (HB-3256: `5001` "HB-3256
+    Glider flight minutes" qty 22 Minuten + `6001` "Landegebuehr LSZK" qty 2 Landung), identified by itemText —
+    proving the migrated FlightTime(5001, T-01 deliveryLineText) + LandingTax(6001) filters drive the engine over
+    genuine migrated seed.
+  - **FILED (non-blocking → _BOYSCOUT/retro):** the hand-crafted §5 glider (HB-3407/47min) is ABSENT from the
+    migrated TestClub glider flights (static-seed HB-3256/22 + HB-3407/212 are present); an unexplained HB-3407/30
+    also appears. `:577` was redesigned off §5 onto genuine static-seed, so non-blocking — investigate whether §5 is
+    dead fixture weight or a flight-migration-fidelity gap (J-2).
 - [ ] **T-06** *(NOTE: misdiagnosis — link-check is a parity CASCADE, not a CDN timeout; the J-27 gallery row deploys
   PENDING because parity is red. The poll/timeout slack is harmless + stays; the link-check clears when `:577` greens.
   No further T-06 work.)* — fanout gallery link-check: `proof-gallery-links.spec.ts:716` `walkDeployedWithRetry`
