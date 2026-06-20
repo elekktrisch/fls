@@ -47,6 +47,12 @@ exists to prevent.
   (nav item / link, placed per legacy), or whose proof spec enters via
   `page.goto` instead of through the nav, is a hollow vertical — users can't
   reach what the gate "proved" (J-7 /flightreports miss).
+- **Hollow proof artifact (blocker).** The spec asserts the result via API/headless but
+  the captured proof VIDEO/screenshot renders something else — an empty list, a "No data"
+  state, a trailing-`goto` screen unrelated to the assertion. A green spec ≠ a meaningful
+  proof: the artifact must SHOW what the spec proves. Confirm the capture sits on a state
+  where the asserted result is asserted VISIBLE (J-27: the migrated-delivery video filmed
+  an empty stored-runs list while the delivery was only checked over the API).
 
 ## How you work
 

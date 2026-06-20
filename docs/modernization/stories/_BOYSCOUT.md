@@ -12,6 +12,16 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-retro J-27 window, 2026-06-20)
+
+- **[#229 — New flight form broken] (P0, flight hot path → next journey touching /flights).** New-flight save
+  doesn't round-trip: after filling required fields + Save, re-opening the flight does NOT restore the entered
+  data and the form shows required fields invalid (expected: saved, data restored on edit, fields valid). Repro +
+  expected in issue **#229** (operator-filed). Seam: `flights/edit` create+reload path + the form's valid-state /
+  value-restore on load. **P0** — `/flights` is the airfield hot path. Operator-flagged at the J-27 retro; ride the
+  next journey touching `/flights` — if the next carve doesn't touch it, `/do-plan` should pull a flights touch
+  forward (this is the core daily screen). Confirm whether it's a regression of the J-2/J-6b/J-26 form-validation work.
+
 ## Pending (filed by /do-ship J-27 gate, 2026-06-20)
 
 - **[FLIGHT-FIDELITY — verify §5 / HB-3256 flight migration] (→ J-2 / next flight-migration touch).** J-27's fanout

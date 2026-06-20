@@ -36,6 +36,10 @@ invent a parallel convention.
   legacy↔AlpenFlight **list+form screenshots** (sidecar declares `side`×`view`). Capture each shot BEFORE its
   deep assertions (a partial red still produces it) and the list/form **populated** (≥1 real row + the
   load-bearing data — an empty "No Data" shot proves nothing; J-6: the form shot must show the inline list).
+  **Capture on the state that RENDERS the asserted result** — if the spec proves a result via API/headless,
+  drive the UI to render it before recording; a trailing `goto` to a different/empty screen is a hollow proof
+  (J-27: a migrated delivery checked over the API but filmed on the empty stored-runs list). Assert the result
+  VISIBLE, then capture.
   Legacy is captured ONCE → committed (see "ONE source" below); greenfield → AlpenFlight-only. Expand legacy
   accordions before shooting; anchor on a unique element.
 - **Two parallel jobs.** Own the journey-gate workflow: `alpenflight-proof` (required; legacy→seed→migrate→real,
@@ -90,6 +94,10 @@ invent a parallel convention.
   only; over ~5 min, surface sharding / snapshot-reuse rather than silently re-running.
 - When red, diagnose to a file:line cause — fix the spec if it's wrong, or report the app-side
   gap precisely; never paper over a real gap by loosening an assertion.
+- **Mine the run's traces/artifacts for the ACTUAL values before proposing a fix** — `gh run download`
+  the failed run, read the captured responses/output. Don't ANALYTICALLY derive an expected migrated
+  value: such guesses get refuted by the real gate (J-27: filter-shadowing / article-1060 / recipient-is-a-
+  Person-FK were all wrong; the trace dump was truth). For migration fidelity, fix + re-mine — reds cluster.
 
 ## Output
 

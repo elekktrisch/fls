@@ -87,7 +87,7 @@ present) — the lessons are then reconstruction-only.
 1. **Tune the suite itself.** Edit `do-plan` / `do-ship` / `do-task` / `do-retro`
    SKILL.md and the four agents (`legacy-oracle`, `slice-carver`, `gap-hunter`,
    `e2e-driver`) where a recurring friction shows the instructions were wrong or
-   thin. Keep skill files ≤ 200 lines, agents ≤ 100. Smallest edit that removes
+   thin. Keep skill files ≤ 300 lines, agents ≤ 150. Smallest edit that removes
    the friction.
 2. **Propose ADR amendments.** When a journey revealed an architecture decision
    was wrong/incomplete, draft the amendment to `docs/modernization/adrs/` for
@@ -160,7 +160,7 @@ that rides the next journey via `/do-ship`. Don't delete on day one.
 - ADR amendments are proposed, never auto-applied.
 - Backlog changes are filed as journeys, not implemented here.
 - Memory edits follow the convention; redundant memories are merged, not piled.
-- Skill ≤ 200 lines, agent ≤ 100 lines after edits.
+- Skill ≤ 300 lines, agent ≤ 150 lines after edits.
 
 ## When done
 
