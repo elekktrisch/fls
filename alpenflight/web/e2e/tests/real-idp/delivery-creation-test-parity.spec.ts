@@ -612,6 +612,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       // UUID. Other migrated gliders (the two HB-3407 flights) carry a different
       // FlightTime itemText + quantity, so this never false-matches them.
       let hb3256Items: DeliveryItem[] | undefined;
+      let hb3256FlightId: string | undefined;
       for (const flight of gliderFlights) {
         const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
           headers: { authorization: migratedBearer },
@@ -628,6 +629,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           )
         ) {
           hb3256Items = items;
+          hb3256FlightId = flight.id;
           break;
         }
       }
@@ -661,8 +663,29 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       expect(ltLine!.quantity).toBe(MIGRATED_LT_EXPECTED_QTY);
       expect(ltLine!.unitType).toBe(MIGRATED_LT_UNIT);
 
+      // RENDER the migrated delivery on screen (the gallery video proof): drive
+      // the harness dry-run UI over the migrated HB-3256 flight, mirroring the
+      // clean-seed block. The picker is sourced from the SAME @TenantId flights
+      // read the loop paged, so the migrated flight is selectable; "Create test
+      // delivery" dry-runs the migrated filter set through the engine and renders
+      // its genuine FlightTime + LandingTax lines — what the video must film,
+      // not the empty stored-runs list (the migrated TestClub has none).
       await page.goto('/deliverycreationtests?lang=en');
-      await expect(page.getByTestId('dct-table')).toBeVisible();
+      await page.getByTestId('dct-new-button').locator('button').click();
+      await expect(page).toHaveURL('/deliverycreationtests/new');
+      await page
+        .getByTestId('dct-name')
+        .locator('input')
+        .fill('Migrated HB-3256 — flight time + landing tax');
+      await page.getByTestId('dct-flight-picker').selectOption(hb3256FlightId!);
+
+      await page.getByTestId('dct-create-test-delivery').locator('button').click();
+      await expect(page.getByTestId('dct-expected-item-0')).toBeVisible();
+      await expect(page.getByTestId('dct-expected-item-1')).toBeVisible();
+      const dryRunText = await page.getByTestId('dct-expected-section').innerText();
+      expect(dryRunText).toContain(MIGRATED_FT_ITEM_TEXT);
+      expect(dryRunText).toContain(MIGRATED_LT_ARTICLE);
+
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-dct-migrated-inputs.png`,
         fullPage: true,
