@@ -411,8 +411,9 @@ test.describe('flights list page', () => {
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
 
-    // 03 — empty state (server returns zero rows). Use a fresh page so the
-    // store re-initialises with the empty backend.
+    // 03 — empty state under the today-default range. The list opens on
+    // today..today (legacy parity), so a zero-row result is a no-MATCH against
+    // the active range, not a genuinely empty logbook — the copy reflects that.
     const emptyPage = await page.context().newPage();
     await stubReferenceData(emptyPage);
     await emptyPage.route('**/api/v1/flights**', async (route) => {
@@ -423,8 +424,48 @@ test.describe('flights list page', () => {
       });
     });
     await emptyPage.goto('/flights');
-    await expect(emptyPage.getByTestId('flights-empty')).toContainText('No flights yet');
+    await expect(emptyPage.getByTestId('flights-empty')).toContainText('No matching flights');
     await emptyPage.screenshot({ path: 'screenshots/flights/03-empty.png', fullPage: true });
     await emptyPage.close();
+  });
+
+  // T-10 — filter-aware empty state. With the today-default range, an empty
+  // list is almost always a no-MATCH (the date filter is narrowing), not a
+  // truly empty logbook. "No flights yet" is reserved for the genuinely
+  // unfiltered show-all case (no date range, no client filters).
+  test('empty under the today-default range shows the no-match copy, not the true-empty copy', async ({
+    page,
+  }) => {
+    await stubReferenceData(page);
+    // Fixture dated a week back: the today..today default filters it out, so the
+    // list loads empty even though the logbook is NOT empty.
+    const backdated = allFlights.map((f) => ({ ...f, flightDate: '2026-01-01' }));
+    const { handler } = setupFlightsBackend(backdated);
+    await page.route('**/api/v1/flights**', handler);
+
+    await page.goto('/flights');
+    const empty = page.getByTestId('flights-empty');
+    await expect(empty).toContainText('No matching flights');
+    await expect(empty).toContainText('date range');
+    await expect(empty).not.toContainText('No flights yet');
+  });
+
+  test('empty with the date range cleared (show-all) shows the true-empty copy', async ({
+    page,
+  }) => {
+    await stubReferenceData(page);
+    // No rows for any range — a genuinely empty logbook once the range is cleared.
+    const { handler } = setupFlightsBackend([]);
+    await page.route('**/api/v1/flights**', handler);
+
+    await page.goto('/flights');
+    // The today-default range is set, so the picker shows ng-zorro's clear icon;
+    // clicking it emits null → store dateFrom/dateTo go null (genuine show-all).
+    const picker = page.getByTestId('flights-date-range');
+    await picker.hover();
+    await picker.locator('.ant-picker-clear').click();
+
+    await expect(page.getByTestId('flights-empty')).toContainText('No flights yet');
+    await expect(page.getByTestId('flights-empty')).not.toContainText('No matching flights');
   });
 });

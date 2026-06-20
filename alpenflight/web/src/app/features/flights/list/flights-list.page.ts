@@ -314,15 +314,16 @@ function toneDotClass(tone: Tone): string {
           </div>
         } @else if (store.visibleEntities().length === 0) {
           <div class="py-12 text-center text-sm text-slate-500" data-testid="flights-empty">
-            @if (hasActiveFilter()) {
-              <p class="m-0">No flights match the active filters.</p>
+            @if (isFiltered()) {
+              <p class="m-0">No matching flights</p>
+              <p class="m-0 mt-1 text-slate-400">No flights match the selected date range.</p>
               <button
                 type="button"
                 class="mt-2 underline bg-transparent border-0 cursor-pointer text-brand-600 hover:text-brand-700"
                 (click)="onClearFilters()"
                 data-testid="flights-empty-clear-filters"
               >
-                Clear filters
+                Adjust the date range
               </button>
             } @else {
               <p class="m-0">No flights yet.</p>
@@ -532,7 +533,7 @@ export class FlightsListPage {
     const total = this.store.entities().length;
     const visible = this.store.visibleEntities().length;
     if (total === 0) {
-      return 'No flights yet';
+      return this.isFiltered() ? 'No matching flights' : 'No flights yet';
     }
     if (visible === total) {
       return `${total} ${total === 1 ? 'flight' : 'flights'}`;
@@ -730,13 +731,21 @@ export class FlightsListPage {
   }
 
   protected hasActiveFilter(): boolean {
+    return this.isRangeNarrowed() || this.hasClientFilter();
+  }
+
+  // Empty-state copy: an active date range narrows the result, so an empty list
+  // is a no-MATCH, not an empty logbook. The today-default range counts here
+  // (unlike hasActiveFilter, which gates the Clear-filters affordance on an
+  // OFF-baseline range) — the only true-empty case is a fully cleared range
+  // (dateFrom/dateTo null) with no client filters.
+  protected isFiltered(): boolean {
+    return this.store.dateFrom() !== null || this.store.dateTo() !== null || this.hasClientFilter();
+  }
+
+  private hasClientFilter(): boolean {
     const f = this.store.clientFilter();
-    return (
-      this.isRangeNarrowed() ||
-      f.airStates.length > 0 ||
-      f.processStateIds.length > 0 ||
-      f.aircraftTypes.length > 0
-    );
+    return f.airStates.length > 0 || f.processStateIds.length > 0 || f.aircraftTypes.length > 0;
   }
 
   // The today-default range (legacy parity) is the baseline, not a user filter:

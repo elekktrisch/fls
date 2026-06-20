@@ -126,6 +126,11 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   (`flight-migration-parity.spec.ts:956`, the ~1066 DeliveryBooked row, + a cross-spec audit). Widen the date
   range before asserting (use the date-range affordance), matching the intended legacy-parity behavior — fix
   TESTS, not the app. (3) Re-check `planning-migration-parity.spec.ts:~1030` beforeAll timeout after (1)/(2).
+- [x] **T-10 — Filter-aware empty state** (operator request). With the `today..today` default the list is
+  usually empty because of the active date filter, not because no flights exist — so "No flights yet" misleads.
+  Make the flights-list empty state filter-aware: when a date range / filter is narrowing, show "No matching
+  flights" (e.g. "No flights match the selected date range"); keep a true-empty message only when genuinely
+  unfiltered. App + i18n keys + update the empty-state assertion in the specs.
 
 ## Notes
 
