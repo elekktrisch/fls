@@ -64,10 +64,20 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
 
 ## Tasks
 
-- [ ] **T-01 — Spec stub + gallery scaffold + red-first repro.** Author the J-2b Playwright spec structure
+- [x] **T-01 — Spec stub + gallery scaffold + red-first repro.** Author the J-2b Playwright spec structure
   (selectors + flow: create→persists, off-today flight + post-save jump, reopen→valid, as-you-type errors)
   with thin assertions. Scaffold the per-journey gallery page (current-journey-only model) + link from the
   index. Red-first reproduce #229(b) reopen-invalid + capture the actual current date-range default behavior.
+  - RED-FIRST (empirical, mock-auth chromium): **#229(b) IS reproduced.** Reopening a FULLY-populated glider
+    flight renders stale "Entry required." inline errors against populated required controls (1 on the launch
+    step, 2 on the glider step — flightDate/aircraft/pilot) even though Save is ENABLED (`formInvalid()`
+    computes VALID overall). Root: `liveFieldErrors()` (`inline-validation.ts:120`) snapshots `control.errors`
+    untracked at construction — BEFORE `flights-edit.page.ts:856` re-emits post-hydrate — and the `patch()`
+    hydration runs `emitEvent:false`, so the per-field error signal keeps its pre-hydrate `{required}` value.
+    T-04/T-05 fix.
+  - DATE-RANGE DEFAULT (empirical): AlpenFlight currently shows future/off-today flights — `flight.store.ts:97-99`
+    is `dateFrom/dateTo: null` and `paramsOf` (`flight.store.ts:129-134`) OMITS `from`/`to` when null, so the
+    list `GET /flights` carries NO date filter (show-all). T-03 sets the `today..today` default (legacy parity).
 - [ ] **T-02 — Scope per-push gate to J-2b.** Re-point the per-push heavy (real-idp) lane to J-2b's spec only;
   prior journeys run mock-IdP (full real-idp regression → nightly + §4 gate). Standing slot.
 - [ ] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`

@@ -34,6 +34,22 @@
       ],
       "pending": []
     },
+    "J-2b": {
+      "$note": [
+        "Hardening sprint (no new screen, hardens the J-2 /flights screen). The",
+        "proof is AlpenFlight-only edit-form behaviour (valid-on-load + as-you-type",
+        "errors + off-today post-save jump): the `form` view is the edit form after",
+        "a reopen with every populated required field VALID; `list` is the flight",
+        "logbook with the today-default range + the off-today affordance. NONE are",
+        "captured yet — the fixes land T-03..T-05 + the spec thickens T-07 — so all",
+        "are `pending` (tolerated-absent, surfaced by the [shots-present] guard)",
+        "until T-07 flips them to `expected` once the real-idp spec produces them.",
+        "An empty `expected` means the guard reds on NOTHING for J-2b today",
+        "(scaffold-clean), the J-9/J-10 pending-placeholder pattern."
+      ],
+      "expected": [],
+      "pending": ["alpenflight:list", "alpenflight:form"]
+    },
     "J-5": {
       "expected": [
         "legacy:list",
