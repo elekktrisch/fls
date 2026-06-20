@@ -12,6 +12,21 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-ship J-27 gate, 2026-06-20)
+
+- **[FLIGHT-FIDELITY — verify §5 / HB-3256 flight migration] (→ J-2 / next flight-migration touch).** J-27's fanout
+  revealed the hand-crafted §5 glider flight (HB-3407/47min, `_test-fixture.sql`) is ABSENT from the migrated TestClub
+  glider flights; static-seed HB-3256/22 + HB-3407/212 are present, and an unexplained HB-3407/30 appears. `:577` was
+  redesigned off §5 onto the genuine static-seed HB-3256 flight, so non-blocking — BUT `delivery-creation-test-parity.spec.ts:577`'s
+  green ASSUMES the base-seed `HB-3256 Schulung` filter (article 1059, min=0, lower sort_indicator) does NOT shadow the
+  5001 line, which is only true if the migrated HB-3256 flight's crew/flight-type did NOT round-trip. Verify the migrated
+  flight's crew + flight-type fidelity to confirm `:577` is green for the right reason (not a flight-migration miss baked
+  into the assertion), and explain the missing §5 / spurious HB-3407/30. *(seam: Flight migration crew/flight-type round-trip + `6 Insert Test Flights.sql` vs migrated TestClub flights)*
+- **[SUITE-ISOLATION — operator principle 2026-06-19].** Non-migration parity specs should set up their own data;
+  migration specs run FIRST and rely ONLY on legacy seed data (assert what it genuinely produces, never gerrymander
+  the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
+  `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
+
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 
 These four are the ≤70% burndown spike (`/do-plan` marker). Each rides a journey LEADING with a real
