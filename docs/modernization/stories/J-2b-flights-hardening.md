@@ -119,7 +119,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
     PENDING→EXPECTED (producedBy: proof). The migrated round-trip (FLIGHT-FIDELITY done-bar) hits a shared-LAN-PG
     `ux_aircraft_immatriculation` collision locally (synth bundle hardcodes HB-3000 — pre-existing isolation
     debt, green on CI's fresh PG).
-- [ ] **T-09 — Gate-red fixes from the today-default + a beforeAll timeout.** (1) Add `setTimeout(180_000)` to
+- [x] **T-09 — Gate-red fixes from the today-default + a beforeAll timeout.** (1) Add `setTimeout(180_000)` to
   the FIRST migrated-block `beforeAll` (`flight-migration-parity.spec.ts:927`) — T-07's bump hit the wrong hook
   (1105); audit all migrated-block beforeAll hooks for the same gap. (2) The `today..today` default now hides
   historical/migrated flights, so any spec that `goto('/flights')` + asserts a migrated row sees an empty list

@@ -477,6 +477,51 @@ function isoDaysAhead(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Widen the /flights list date range through the real date-range affordance (the
+ * `nz-range-picker`) so a MIGRATED/historical flight dated outside the today..today
+ * default (legacy parity, `flight.store.ts`) is loaded into the list. Mirrors the
+ * post-save "View it →" jump's purpose — the UI widens the range rather than the
+ * test reaching past it. Pages the picker's left panel back two months, then clicks
+ * the earliest + latest in-view day cells to commit a multi-month window covering
+ * any recent migrated date (within ~30 days; the FlightParityBundleSeeder dates the
+ * migrated rows at today-5/today-10). Cell clicks are the reliable commit path under
+ * zoneless ng-zorro (a typed-Enter range never emits the ngModelChange — the
+ * round-trip range proven in flights-list.spec.ts). Waits on the resulting refetch
+ * so the row assertion runs against the widened list (no fixed timeout).
+ */
+async function widenFlightListRangeToRecent(page: Page): Promise<void> {
+  const refetch = page.waitForResponse(
+    (r) => {
+      const u = new URL(r.url());
+      return (
+        r.request().method() === 'GET' &&
+        u.pathname === '/api/v1/flights' &&
+        u.searchParams.get('from') !== null &&
+        u.searchParams.get('to') !== null &&
+        u.searchParams.get('from') !== u.searchParams.get('to') &&
+        r.status() === 200
+      );
+    },
+    { timeout: 20_000 },
+  );
+  const overlay = page.locator('.cdk-overlay-container .ant-picker-panel-container');
+  const inputs = page.getByTestId('flights-date-range').locator('input');
+  const leftPanel = overlay.locator('.ant-picker-panel').first();
+
+  await inputs.first().click();
+  await expect(overlay).toBeVisible();
+  await leftPanel.locator('.ant-picker-header-super-prev-btn').click();
+
+  const cells = overlay.locator(
+    '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
+  );
+  const count = await cells.count();
+  await cells.first().click();
+  await cells.nth(count - 1).click();
+  await refetch;
+}
+
 // ===========================================================================
 // CLEAN-SEED real chain — glider+tow+motor CRUD + tenant 404 + time-gate + 412.
 // ===========================================================================
@@ -493,6 +538,9 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   let flightId: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
+    // Two real KC club logins + seeding the masterdata through the real create
+    // APIs exceeds the 45s per-test budget on a slow CI box.
+    testInfo.setTimeout(180_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // Spec-scoped admin usernames ('flt') so this fixture's club admins are
     // disjoint from the J-0 ('loc') / J-1 ('acft') specs when several run in one
@@ -925,6 +973,9 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
   let baseURL: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
+    // Live migration ingest + Keycloak provision exceeds the 45s per-test budget
+    // on a slow CI box.
+    testInfo.setTimeout(180_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // Seeds through the REAL migration endpoint — ingest + Keycloak provision
     // both run live. The retry index mints a FRESH handshake/uploadId (synth) so
@@ -941,6 +992,14 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
       await loginAsMigratedAdmin(page, fixture.owner);
       await page.goto('/flights');
       await expect(page.getByTestId('flights-table')).toBeVisible();
+
+      // The list defaults to today..today (legacy parity, `flight.store.ts`); the
+      // migrated legacy flight is dated in the recent past (FlightParityBundleSeeder
+      // dates it today-5), so it is NOT in the default range. Widen the range through
+      // the real date-range affordance (the same way the off-today post-save jump
+      // does) before asserting the row — the flight is hidden by the default range,
+      // not lost.
+      await widenFlightListRangeToRecent(page);
 
       // The migrated glider flight renders under the migrated immatriculation
       // (HB-3000), resolved off the migrated aircraft. Identify the row by its
@@ -1062,9 +1121,15 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
       expect(del.status()).toBeLessThan(500);
 
       // The SPA mirrors the gate: the DeliveryBooked row offers NO delete action
-      // (the disabled affordance shows instead).
+      // (the disabled affordance shows instead). The migrated DeliveryBooked flight
+      // is dated in the recent past (today-10), so the today..today list default
+      // (legacy parity) hides it — widen the range through the real date-range
+      // affordance before the kebab interaction (the direct-API checks above used a
+      // no-param GET, which the backend leaves unfiltered; only the UI list applies
+      // the default range).
       await page.goto('/flights');
       await expect(page.getByTestId('flights-table')).toBeVisible();
+      await widenFlightListRangeToRecent(page);
       await page.getByTestId(`flights-kebab-${bookedId}`).click();
       await expect(page.getByTestId(`flights-delete-disabled-${bookedId}`)).toBeVisible();
       await expect(page.getByTestId(`flights-delete-${bookedId}`)).toHaveCount(0);
