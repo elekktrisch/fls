@@ -2,8 +2,9 @@
 id: J-27
 title: Migration-fidelity sprint — drive the fanout fully green
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-06-19
+done_at: 2026-06-20
 journey0: false
 carved: true
 depends_on: [J-10]
@@ -81,6 +82,10 @@ what it GENUINELY produces — never re-point/gerrymander the seed to force a pa
   the migrated HB-3256 flight (`dct-new-button` → `dct-flight-picker` → `dct-create-test-delivery`) so the 5001 + 6001 lines
   RENDER on screen, and record the video there (mirrors the clean-seed block); `dct-expected-item-*` asserted visible so the
   video can't be hollow. API assertions kept. *(delivery-creation-test-parity.spec.ts migrated block)*
+  - **DONE (9549eff7):** fanout GREEN on `6775b253` re-capturing the video; the J-27 gallery video now films the
+    rendered dry-run delivery (5001 + 6001 lines), gated by `dct-expected-item-*` visible asserts. Verified structurally
+    (asserts gate the capture, gate green) + the deployed video is real content; pixel-frame extraction not possible on
+    this box (no ffmpeg) — glanceable in the gallery.
 
 ## Outcome
 
