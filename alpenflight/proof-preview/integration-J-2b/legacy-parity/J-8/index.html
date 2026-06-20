@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-2b</code> &middot; 2026-06-20T18:28:07.221Z
+      for this journey. Generated on <code>integration/J-2b</code> &middot; 2026-06-20T19:59:58.148Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -148,19 +148,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit form (filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections) — the legacy masterdata/accountingRules screens to eyeball against AlpenFlight's /accountingrules list + filter-type-driven edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-26fe23856c345e441d61a975f112a6ef00e8ba35.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-3081571eba099968cd5083f2c10eabb58499c8f2.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, and creates an AccountingRuleFilter through the real backend — it renders in the /accountingrules list with its derived target and reopens with every field intact (core · flags · article-target incl. the filter_config deliveryLineText)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-7e0808e0398216e267d42b24ccbc4267c995c696.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-afb7acbf965e2df8aaabf6284d89c3a0d152d65c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · selecting an AccountingRuleFilterType drives the conditional sections over the real reference-data catalog (article-target ∉{5,10} · recipient ==10 · aircraft-filter ==30 · no-landing-tax ==20) — the crux of the legacy form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ff9014e860a8d06b03fb90e1209d0859b28baffa.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-e87d8627c3d93409f76782d4fe831d1af1cb1975.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a predicate match-list (aircraft immatriculations) round-trips its chips AND its 'use for all except listed' invert orientation through the real filter_config jsonb (load → flip toggle + add chip → save → reopen)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-5cb0d3963020e12e88934599711b61cb4ee64f53.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-1ef5b6ee0ba81b06fc2226f22ce63e36125d789d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub article-target rule &quot;FlightTime: Glider per minute&quot;, article 5001), exported + migrated through the live chain, renders in the migrated club’s /accountingrules list with its predicate config intact — the ArticleTarget number + the DeliveryLineText folded into filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)</span></figcaption>
         </figure>
         </div>
