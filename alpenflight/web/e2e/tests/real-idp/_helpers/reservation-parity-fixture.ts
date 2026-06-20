@@ -330,19 +330,102 @@ function clubIdFromUsername(username: string): string | null {
 }
 
 /**
+ * Worker-scoped memo of resolved migrated admins, keyed by the ownership remark
+ * that identifies the tenant (J-27 T-08).
+ *
+ * The cold resolution (`enumerateMigratedTestClubAdmin`) does a full SPA Keycloak
+ * login per migrated club candidate, serially, to find the tenant that carries a
+ * given fixture row — ~6 OIDC logins against the real fanout. Four migrated-data
+ * specs (`reservations`, `accounting-rules`, `delivery-creation-test`, `planning`)
+ * all need the SAME migrated TestClub admin (the one carrying
+ * `MIGRATED_RESERVATION_REMARK`), so re-enumerating per spec's `beforeAll` blew the
+ * 45s hook budget. real-idp is `workers:1`, so module state is shared across all
+ * specs in the run: memoize the resolution in this worker-scoped map and every
+ * later spec awaits the cached result — ONE enumeration per distinct ownership
+ * key. Keyed (not a single singleton) so a future spec resolving a DIFFERENT
+ * migrated admin by another remark gets its own enumeration, never collapsing two
+ * distinct admins onto one. Mirrors `ensureSharedMigrationBundle`'s singleton.
+ */
+const resolvedAdminMemo = new Map<string, Promise<ResolvedMigratedAdmin>>();
+
+/**
+ * Decode a `Bearer <jwt>`'s `exp` (seconds since epoch) into a ms deadline, or
+ * `0` when it can't be parsed — treating an unparseable token as already expired
+ * so the memo re-logs rather than handing back a token of unknown validity.
+ */
+function bearerExpiresAtMs(bearer: string): number {
+  const jwt = bearer.replace(/^Bearer\s+/i, '');
+  const payload = jwt.split('.')[1];
+  if (!payload) return 0;
+  try {
+    const json = Buffer.from(payload, 'base64url').toString('utf8');
+    const exp = (JSON.parse(json) as { exp?: number }).exp;
+    return typeof exp === 'number' ? exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Re-login skew: refresh a cached bearer this long before its real expiry. */
+const BEARER_REFRESH_SKEW_MS = 30_000;
+
+/**
  * Resolve the migration-provisioned, loginable admin of the club the migrated
  * legacy reservation reconciled onto — discovered by OWNERSHIP, not by a
  * hardcoded UUID (J-5 T-27; the migrated CLUB gets a fresh provisioned UUID, so
- * the legacy `0fa7b76f-…` admin never exists). Enumerate every provisioned
- * `migrated-admin+<clubId>@…`, make each loginable, capture its tenant Bearer,
- * page its reservations, and return the one whose tenant carries the unique
- * fixture remark (`MIGRATED_RESERVATION_REMARK`). Fails loud if none does — that
- * is a migration round-trip regression, never a silently-skipped assertion.
+ * the legacy `0fa7b76f-…` admin never exists). Memoized at worker scope so the
+ * cold per-club-login enumeration runs ONCE per distinct ownership key, not per
+ * consuming spec's `beforeAll` (J-27 T-08). The cached bearer is refreshed
+ * (re-login, NO re-enumeration) when it nears expiry, so a long serial run never
+ * hands back a dead token.
  *
  * The fanout's J-0c fan-out spec ingests the SAME real bundle earlier in this
  * Playwright invocation, so the admins already exist by the time this runs.
  */
 export async function resolveMigratedTestClubAdmin(
+  browser: Browser,
+  baseURL: string,
+): Promise<ResolvedMigratedAdmin> {
+  // Keyed by the ownership remark — the criterion that distinguishes WHICH
+  // migrated tenant this is. All four current consumers want the reservation
+  // owner, so they share one slot; a future caller keyed on a different remark
+  // resolves independently.
+  const key = MIGRATED_RESERVATION_REMARK;
+  const cached = resolvedAdminMemo.get(key);
+  if (cached) {
+    const resolved = await cached;
+    if (bearerExpiresAtMs(resolved.bearer) - BEARER_REFRESH_SKEW_MS > Date.now()) {
+      return resolved;
+    }
+    // The token aged out across the serial run — re-login the SAME (already
+    // known) admin for a fresh tenant Bearer; no club re-enumeration.
+    const bearer = await captureMigratedTestClubBearer(browser, baseURL, resolved.admin);
+    const refreshed: ResolvedMigratedAdmin = { admin: resolved.admin, bearer };
+    resolvedAdminMemo.set(key, Promise.resolve(refreshed));
+    return refreshed;
+  }
+
+  const pending = enumerateMigratedTestClubAdmin(browser, baseURL);
+  resolvedAdminMemo.set(key, pending);
+  try {
+    return await pending;
+  } catch (err) {
+    // Clear on failure so a later spec re-attempts rather than re-throwing a
+    // stale rejected promise.
+    resolvedAdminMemo.delete(key);
+    throw err;
+  }
+}
+
+/**
+ * Cold resolution: enumerate every provisioned `migrated-admin+<clubId>@…`, make
+ * each loginable, capture its tenant Bearer, page its reservations, and return
+ * the one whose tenant carries the unique fixture remark
+ * (`MIGRATED_RESERVATION_REMARK`). Fails loud if none does — that is a migration
+ * round-trip regression, never a silently-skipped assertion. Called once per
+ * worker per ownership key via `resolveMigratedTestClubAdmin`'s memo.
+ */
+async function enumerateMigratedTestClubAdmin(
   browser: Browser,
   baseURL: string,
 ): Promise<ResolvedMigratedAdmin> {

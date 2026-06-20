@@ -27,8 +27,10 @@ import org.springframework.stereotype.Component;
  * filter it resolves: {@code filterTypeId} UUID → legacy int (the bucket);
  * {@code accountingUnitTypeId} UUID → {@link AccountingUnitType} (line-emitting
  * buckets); {@code articleTarget} → article number; type-10 {@code recipientTarget}
- * member-number → a {@link Recipient} VO (the recipient stage sets it; null
- * reproduces the legacy null-RecipientTarget throw).
+ * member-number + {@code recipientName} → a self-contained {@link Recipient} VO
+ * (enriched from a matching migrated Person when one exists), reproducing the
+ * legacy {@code RecipientDetails} value object; null only when nothing identifies
+ * the recipient (the legacy null-RecipientTarget throw).
  *
  * <p>Returns both bucketed views the orchestrator needs: the IgnoreFlight(5) +
  * Recipient(10) buckets (run in the short-circuit, before any line stage) and the
@@ -102,7 +104,10 @@ class RuleFilterLoader {
             return RuleFilterInput.of(id, null, filter.getFilterConfig());
         }
         if (legacyType == TYPE_RECIPIENT) {
-            return RuleFilterInput.of(id, resolveRecipient(filter.getRecipientTarget()), filter.getFilterConfig());
+            return RuleFilterInput.of(id,
+                    resolveRecipient(filter.getRecipientTarget(),
+                            filter.getFilterConfig().recipientName()),
+                    filter.getFilterConfig());
         }
         return new RuleFilterInput(
                 id,
@@ -112,21 +117,33 @@ class RuleFilterLoader {
                 filter.getFilterConfig());
     }
 
-    // Resolve a type-10 filter's recipient_target member-number to a Recipient VO
-    // via the tenant-scoped person list (carries id + name + member-number). null
-    // when the filter has no target OR no member matches — the recipient stage
-    // then throws on a matched-but-null target (legacy ArgumentException).
-    private @Nullable Recipient resolveRecipient(@Nullable String memberNumber) {
-        if (memberNumber == null || memberNumber.isBlank()) {
+    // The legacy RecipientTarget is a self-contained RecipientDetails value object
+    // (DeliveryRecipientRule.cs:16-23 sets PersonId + RecipientName +
+    // PersonClubMemberNumber straight from the blob, no Person lookup, throwing
+    // only when the WHOLE blob is null). Real recipient rules route to a
+    // club-internal accounting ACCOUNT — PersonId=null + a synthetic member number
+    // (e.g. "999007") no Person owns — so a Person-FK lookup cannot resolve them.
+    // Mirror legacy: when a migrated Person matches the member number, enrich the
+    // recipient with its identity; otherwise fall back to the embedded value
+    // object (member number + recipient name). Return null only when nothing
+    // identifies the recipient, reproducing the legacy null-target throw.
+    private @Nullable Recipient resolveRecipient(@Nullable String memberNumber,
+                                                 @Nullable String recipientName) {
+        String number = memberNumber == null || memberNumber.isBlank() ? null : memberNumber;
+        boolean hasName = recipientName != null && !recipientName.isBlank();
+        if (number == null && !hasName) {
             return null;
         }
-        for (PersonRepository.ListRow row : persons.findActiveListRowsInCurrentTenant()) {
-            if (memberNumber.equals(row.memberNumber())) {
-                String name = (row.firstname() + " " + row.lastname()).strip();
-                return new Recipient(row.id(), row.memberNumber(), name, row.firstname(), row.lastname());
+        if (number != null) {
+            for (PersonRepository.ListRow row : persons.findActiveListRowsInCurrentTenant()) {
+                if (number.equals(row.memberNumber())) {
+                    String name = (row.firstname() + " " + row.lastname()).strip();
+                    return new Recipient(
+                            row.id(), row.memberNumber(), name, row.firstname(), row.lastname());
+                }
             }
         }
-        return null;
+        return new Recipient(null, number, recipientName, null, null);
     }
 
     private @Nullable AccountingUnitType resolveUnit(@Nullable UUID unitTypeId,

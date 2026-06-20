@@ -309,13 +309,17 @@ public final class AccountingRuleFilterMapper implements Mapper {
 
         putOptionalString(config, "thresholdText", source.getString("ThresholdText"));
         putOptionalInt(config, "minFlightTimeInSecondsMatchingValue",
-                source.getObject("MinFlightTimeInSecondsMatchingValue", Integer.class));
+                clampToIntRange(source.getObject(
+                        "MinFlightTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "maxFlightTimeInSecondsMatchingValue",
-                source.getObject("MaxFlightTimeInSecondsMatchingValue", Integer.class));
+                clampToIntRange(source.getObject(
+                        "MaxFlightTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "minEngineTimeInSecondsMatchingValue",
-                source.getObject("MinEngineTimeInSecondsMatchingValue", Integer.class));
+                clampToIntRange(source.getObject(
+                        "MinEngineTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "maxEngineTimeInSecondsMatchingValue",
-                source.getObject("MaxEngineTimeInSecondsMatchingValue", Integer.class));
+                clampToIntRange(source.getObject(
+                        "MaxEngineTimeInSecondsMatchingValue", Long.class)));
 
         // The descriptive text fields that travel with the article/recipient
         // targets (T-03 added them to FilterConfig; T-10 emits them). The
@@ -408,6 +412,28 @@ public final class AccountingRuleFilterMapper implements Mapper {
         } else {
             target.put(fieldName, value.intValue());
         }
+    }
+
+    /**
+     * The legacy {@code Min/MaxFlightTimeInSecondsMatchingValue} +
+     * {@code Min/MaxEngineTimeInSecondsMatchingValue} columns are
+     * {@code bigint NULL} (DBUpdate v1.9.14) — read as {@link Long}, not
+     * {@link Integer}: {@code ResultSet.getObject(col, Integer.class)} throws on
+     * a {@code bigint} column (pgjdbc {@code conversion … from int8 not
+     * supported}; the producer SELECT runs on PG 17 / MSSQL). The "unbounded
+     * max" sentinel the legacy alter writes is {@code Long.MAX_VALUE
+     * (9223372036854775807)}, far beyond the engine's {@code int}-typed
+     * {@code FilterConfig} window; clamp to the {@code int} range so the value
+     * deserialises (the clamped {@code Integer.MAX_VALUE} is still unbounded for
+     * any real flight duration, preserving the {@code Between max-inclusive}
+     * semantics).
+     */
+    private static @Nullable Integer clampToIntRange(@Nullable Long value) {
+        if (value == null) {
+            return null;
+        }
+        long clamped = Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, value));
+        return (int) clamped;
     }
 
     /**

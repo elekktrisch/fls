@@ -89,6 +89,13 @@ const MAINT_FILES = ['fallow-audit.json', 'fallow-health.json', 'pmd-main.xml', 
 // in lock-step with generate-gallery.mjs's DEFAULT_SITE_BASE.
 const SITE_BASE = '/fls/';
 
+// gh-pages CDN propagation can lag a freshly-pushed deploy by more than a minute,
+// so the deployed walks poll this long before failing on a 404. The deployed
+// tests' per-test timeout must sit ABOVE this so Playwright never kills the
+// retry loop mid-budget (the [PROOF-HARNESS TRANSIENTS] race).
+const DEPLOYED_POLL_BUDGET_MS = 120_000;
+const DEPLOYED_TEST_TIMEOUT_MS = DEPLOYED_POLL_BUDGET_MS + 30_000;
+
 // The branch the test generates BOTH layouts for. Sanitized the same way the
 // fanout's "Compute fan-out branch-preview destination" step sanitizes the ref
 // (`[^A-Za-z0-9._-]` → `-`), so the preview path mirrors the live deploy.
@@ -662,6 +669,7 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
   const DEPLOYED = process.env['GALLERY_DEPLOYED_URL'];
   test('[deployed] live gh-pages gallery links return 200', async ({ request }) => {
     test.skip(!DEPLOYED, 'set GALLERY_DEPLOYED_URL to check the live gh-pages gallery');
+    test.setTimeout(DEPLOYED_TEST_TIMEOUT_MS);
     await walkDeployedWithRetry(request, DEPLOYED!);
   });
 
@@ -687,13 +695,14 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
       !DEPLOYED || !DEPLOYED_JOURNEY,
       'set GALLERY_DEPLOYED_URL + GALLERY_DEPLOYED_JOURNEY to assert the journey’s live page',
     );
+    test.setTimeout(DEPLOYED_TEST_TIMEOUT_MS);
     await assertDeployedJourneyComplete(request, DEPLOYED!, DEPLOYED_JOURNEY!);
   });
 });
 
 /**
- * Walk the live deployed gallery; gh-pages can take a few seconds to serve a
- * just-pushed file, so retry the whole walk for up to ~60s before failing.
+ * Walk the live deployed gallery; gh-pages CDN can lag a just-pushed file, so
+ * retry the whole walk for the propagation budget before failing.
  *
  * `baseUrl` = the deployed branch-preview root the fanout computes
  * (`…/proof-preview/<sanitized-branch>/`). The fanout deploys the gallery one
@@ -703,7 +712,7 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
  * operator's bookmark) so the deployed walk asserts the cross-section link too.
  */
 async function walkDeployedWithRetry(request: APIRequestContext, baseUrl: string): Promise<void> {
-  const deadlineMs = Date.now() + 60_000;
+  const deadlineMs = Date.now() + DEPLOYED_POLL_BUDGET_MS;
   const start = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const origin = new URL(start).origin;
   const seeds = [
@@ -773,8 +782,8 @@ function rel(root: string, abs: string): string {
  * page declares ≥1 asset with EVERY declared asset (video + paired screenshot)
  * resolving HTTP 200. This is the catch the generator unit test can't make: the
  * deploy-path / probe-path can drift independently, so a green generator can ship
- * a `pending` bookmark or a thin page (the failure that recurred ~4×). Polls ~60s
- * for gh-pages to serve the freshly-pushed files.
+ * a `pending` bookmark or a thin page (the failure that recurred ~4×). Polls the
+ * propagation budget for gh-pages to serve the freshly-pushed files.
  *
  * `baseUrl` = the deployed branch-preview PARENT (`…/proof-preview/<branch>/`),
  * same as the `[deployed]` walk consumes; the persistent previews index lives at
@@ -788,7 +797,7 @@ async function assertDeployedJourneyComplete(
   const start = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const origin = new URL(start).origin;
   const indexUrl = new URL(`${SITE_BASE}alpenflight/previews/index.html`, origin).href;
-  const deadlineMs = Date.now() + 60_000;
+  const deadlineMs = Date.now() + DEPLOYED_POLL_BUDGET_MS;
 
   let lastErr: string;
   for (;;) {

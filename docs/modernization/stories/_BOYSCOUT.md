@@ -12,6 +12,21 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-ship J-27 gate, 2026-06-20)
+
+- **[FLIGHT-FIDELITY — verify §5 / HB-3256 flight migration] (→ J-2 / next flight-migration touch).** J-27's fanout
+  revealed the hand-crafted §5 glider flight (HB-3407/47min, `_test-fixture.sql`) is ABSENT from the migrated TestClub
+  glider flights; static-seed HB-3256/22 + HB-3407/212 are present, and an unexplained HB-3407/30 appears. `:577` was
+  redesigned off §5 onto the genuine static-seed HB-3256 flight, so non-blocking — BUT `delivery-creation-test-parity.spec.ts:577`'s
+  green ASSUMES the base-seed `HB-3256 Schulung` filter (article 1059, min=0, lower sort_indicator) does NOT shadow the
+  5001 line, which is only true if the migrated HB-3256 flight's crew/flight-type did NOT round-trip. Verify the migrated
+  flight's crew + flight-type fidelity to confirm `:577` is green for the right reason (not a flight-migration miss baked
+  into the assertion), and explain the missing §5 / spurious HB-3407/30. *(seam: Flight migration crew/flight-type round-trip + `6 Insert Test Flights.sql` vs migrated TestClub flights)*
+- **[SUITE-ISOLATION — operator principle 2026-06-19].** Non-migration parity specs should set up their own data;
+  migration specs run FIRST and rely ONLY on legacy seed data (assert what it genuinely produces, never gerrymander
+  the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
+  `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
+
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 
 These four are the ≤70% burndown spike (`/do-plan` marker). Each rides a journey LEADING with a real
@@ -38,12 +53,16 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   trap as the removed per-project `maxFailures`) — the mock suite ran 2 workers and timed out at the 5-min
   cap since J-26. Stopgap PR #222 forces `--workers=4` on the chromium CLI invocation (keeps the ceiling).
   **VERIFIED 2026-06-14: parallelism ALONE is insufficient** — a dispatch with `--workers=4` ran 4 workers
-  but STILL timed out at 5 min (157 tests on a 4-core runner). So WORKFLOW-SLIM must **SHARD the mock suite
+  but STILL timed out at 5 min (157 tests on a 4-core runner). ~~So WORKFLOW-SLIM must **SHARD the mock suite
   into parallel sub-5-min CI jobs** (a `--shard=i/n` matrix + `reporter: blob` + a `merge-reports` deploy job
-  — each shard keeps the 5-min ceiling) AND **HELPER-PRUNE** the redundant specs; moving `workers` top-level
-  (+ `--workers=1` for real-idp, whose per-project `workers:1` is the same no-op) is necessary but not
-  sufficient. The 12-min control run proved the suite is green-but-slow (157 passed), so this is purely a
-  throughput problem. The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
+  — each shard keeps the 5-min ceiling)~~ **SHARDING SHIPPED J-27 T-12** (operator pulled it forward 2026-06-20):
+  `ci.yml` `alpenflight-mock-e2e` is a `--shard=i/4` matrix (`reporter: blob`, `--workers=4`) + an authoritative
+  `alpenflight-mock-e2e-merge` job (`merge-reports` + all-shards-ran guard) that `required` now needs; `workers`
+  was already top-level (J-9 #222), real-idp invocations all carry `--workers=1`. **One-time branch-protection
+  rename needed:** required check `alpenflight mock-auth e2e (Run Playwright)` → `alpenflight mock-auth e2e (merge
+  shards)`. STILL PENDING for J-11: composite-action extraction, the YAML cut, the real-idp shard, the KC-26
+  quarantine, AND **HELPER-PRUNE** the redundant specs. The 12-min control run proved the suite is green-but-slow
+  (157 passed). The operator's bar: **5 min is the ceiling — shard/prune/parallelize, never buy wall time.**
   *(seam: `ci.yml` 2472L + `alpenflight-proof-fanout.yml` 1586L + `alpenflight-e2e-real-idp.yml` + `alpenflight-e2e.yml` + `playwright.config.ts` workers + new composites)*
 - **[COMMENT-STRIP] Self-explanatory code, why-only comments.** Remove all what/narration/history/
   task-attribution comments (`T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"/non-load-bearing
@@ -625,7 +644,9 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   read-model rows + decorations post-ingest). Next reporting touch: add a small AlpenFlight-side
   `reporting-migration-parity` assertion (open /flightreports as the migrated club, summary+rows non-empty,
   location names render) to the fanout spec list. Also fix the step's stale name (it predates J-5/J-6 too).
-  *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
+  **J-27 T-04 confirmed (2026-06-19):** the block must be AUTHORED (no `useRealBundle()`-guarded migrated
+  block exists in `flight-reports-parity.spec.ts` to merely list) and may surface its own fidelity red — so
+  it rides a journey that can absorb that, not a wiring one-liner. *(seam: alpenflight-proof-fanout.yml parity-spec step + e2e/tests/real-idp)*
 
 ## Pending (filed by J-26 T-20, 2026-06-12 — IT-seeding conversion remainder, empirically measured)
 

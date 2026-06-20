@@ -1069,10 +1069,21 @@ public final class MapperLegacyBindings {
                     // RecipientDetails {PersonClubMemberNumber, RecipientName, …} —
                     // AccountingRuleFilterMappingExtensions.cs:75/256/347/359). The new
                     // article_target / recipient_target are VARCHAR(50) scalars, so the
-                    // producer extracts the bare scalar via T-SQL JSON_VALUE aliased to
-                    // the name the mapper reads; the descriptive DeliveryLineText /
+                    // producer extracts the bare scalar via JSON_VALUE aliased to the
+                    // name the mapper reads; the descriptive DeliveryLineText /
                     // RecipientName ride filter_config (read by buildFilterConfig).
                     // Dumping the whole blob into VARCHAR(50) would overflow.
+                    //
+                    // Real legacy ArticleTarget / RecipientTarget hold dirty
+                    // non-JSON values ('', 'null', stray text) where the C# layer
+                    // wrote no target. Bare JSON_VALUE over those aborts the WHOLE
+                    // cursor on MSSQL with error 13609 ("JSON text is not properly
+                    // formatted") — it has no NULL ON ERROR clause and throws in lax
+                    // mode. The LEFT(LTRIM(col),1) IN ('{','[') structural gate yields
+                    // NULL for any value that is not a JSON object/array (matching the
+                    // C# `if (entity.ArticleTarget != null)`-then-deserialise guard)
+                    // and is portable: PostgreSQL evaluates the guarded JSON_VALUE only
+                    // in the taken branch, so an un-parseable value never reaches it.
                     //
                     // The Matched* columns are JSON arrays (the mapper parses them as
                     // such) and are projected verbatim — the mapper's
@@ -1103,9 +1114,6 @@ public final class MapperLegacyBindings {
                     // soft-deleted row with a renumbered live index would be wrong, so we
                     // filter them out entirely, consistent with the partial-index
                     // semantics). Locked by AccountingRuleFilterProducerDedupeIT.
-                    // ROW_NUMBER() OVER + JSON_VALUE are T-SQL native (the live legacy
-                    // MSSQL dialect) and evaluate identically on the Postgres test
-                    // container.
                     PortPolicy.FULL_PORT,
                     """
                     SELECT AccountingRuleFilterId, ClubId,
@@ -1117,11 +1125,18 @@ public final class MapperLegacyBindings {
                                         SortIndicator, CreatedOn, AccountingRuleFilterId
                            ) AS SortIndicator,
                            StopRuleEngineWhenRuleApplied, IsChargedToClubInternal,
-                           JSON_VALUE(ArticleTarget, '$.ArticleNumber') AS ArticleTarget,
-                           JSON_VALUE(ArticleTarget, '$.DeliveryLineText') AS DeliveryLineText,
-                           JSON_VALUE(RecipientTarget, '$.PersonClubMemberNumber')
+                           CASE WHEN LEFT(LTRIM(ArticleTarget), 1) IN ('{', '[')
+                                THEN JSON_VALUE(ArticleTarget, '$.ArticleNumber') END
+                               AS ArticleTarget,
+                           CASE WHEN LEFT(LTRIM(ArticleTarget), 1) IN ('{', '[')
+                                THEN JSON_VALUE(ArticleTarget, '$.DeliveryLineText') END
+                               AS DeliveryLineText,
+                           CASE WHEN LEFT(LTRIM(RecipientTarget), 1) IN ('{', '[')
+                                THEN JSON_VALUE(RecipientTarget, '$.PersonClubMemberNumber') END
                                AS RecipientTarget,
-                           JSON_VALUE(RecipientTarget, '$.RecipientName') AS RecipientName,
+                           CASE WHEN LEFT(LTRIM(RecipientTarget), 1) IN ('{', '[')
+                                THEN JSON_VALUE(RecipientTarget, '$.RecipientName') END
+                               AS RecipientName,
                            IsRuleForGliderFlights, IsRuleForTowingFlights,
                            IsRuleForMotorFlights,
                            NoLandingTaxForGlider, NoLandingTaxForTowingAircraft,

@@ -139,6 +139,73 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(result.isDoNotInvoiceFlight()).isFalse();
     }
 
+    // The migrated `FlightTime: Glider per minute` filter (article 5001, glider-
+    // scoped, min=0) applies over a migrated 47-minute glider flight → exactly one
+    // article-5001 line at qty 47 'Minuten'. Reproduces the §5 historical glider
+    // (DATEADD(MINUTE, 47, start)) + §4 filter the real-bundle fanout migrates; the
+    // engine predicate/scope is pure-data, so this locks the seam in check minutes
+    // instead of the ~20-min fanout (delivery-creation-test-parity.spec.ts:577).
+    @Test
+    void migratedShapedFlightTimeFilter_appliesOverMigratedGliderFlight() {
+        UUID aircraft = seedAircraft(clubA);
+        UUID flightType = seedFlightType(clubA, "Segelflug", "SF");
+        UUID pilot = seedMember(clubA, "Pilot", "Petra", "REC-5001");
+
+        UUID flight = seedGliderFlight(clubA, aircraft, flightType,
+                Instant.parse("2026-05-15T08:00:00Z"),
+                Instant.parse("2026-05-15T08:47:00Z"), (short) 1);
+        seedCrew(flight, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        TenantTestContext.runAs(clubA, () ->
+                filtersService.create(lineRequest(FILTER_TYPE_FLIGHT_TIME, LEGACY_FLIGHT_TIME,
+                        UNIT_MINUTES, "FlightTime: Glider per minute", "5001",
+                        "Glider flight minutes")).id());
+
+        RuleBasedDeliveryDetails result =
+                TenantTestContext.runAs(clubA, () -> engine.computeForFlight(flight));
+
+        List<DeliveryItemDetails> article5001 = result.deliveryItems().stream()
+                .filter(item -> "5001".equals(item.articleNumber()))
+                .toList();
+        assertThat(article5001).hasSize(1);
+        assertThat(article5001.get(0).quantity()).isEqualByComparingTo(BigDecimal.valueOf(47));
+        assertThat(article5001.get(0).unitType()).isEqualTo(AccountingUnitType.MIN.unitTypeString());
+    }
+
+    // Legacy recipient rules route to a club-internal accounting ACCOUNT, not a
+    // member: the real-seed RecipientTarget carries PersonId=null + a synthetic
+    // PersonClubMemberNumber (e.g. "999007") + a RecipientName, and no Person owns
+    // that number. Legacy DeliveryRecipientRule.Apply sets the recipient from the
+    // embedded value object (no Person lookup) and never throws. The migrated
+    // recipient filter must therefore resolve to a self-contained recipient — not
+    // a 500 — so a matched recipient filter whose member number has no Person still
+    // produces a delivery (delivery-creation-test-parity.spec.ts:577 over the real
+    // bundle's account-recipient rule).
+    @Test
+    void recipientFilterWithoutMatchingPerson_resolvesSelfContainedRecipient() {
+        UUID aircraft = seedAircraft(clubA);
+        UUID flightType = seedFlightType(clubA, "Passagier", "PAX");
+        UUID pilot = seedMember(clubA, "Pilot", "Petra", "REC-PILOT");
+
+        UUID flight = seedGliderFlight(clubA, aircraft, flightType,
+                Instant.parse("2026-05-15T08:00:00Z"),
+                Instant.parse("2026-05-15T09:30:00Z"), (short) 1);
+        seedCrew(flight, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
+
+        UUID recipientFilterId = TenantTestContext.runAs(clubA, () ->
+                filtersService.create(
+                        recipientRequest("999007", "FGZO Passagierflug Gutschein")).id());
+
+        RuleBasedDeliveryDetails result =
+                TenantTestContext.runAs(clubA, () -> engine.computeForFlight(flight));
+
+        assertThat(result.recipient()).isNotNull();
+        assertThat(result.recipient().personClubMemberNumber()).isEqualTo("999007");
+        assertThat(result.recipient().recipientName()).isEqualTo("FGZO Passagierflug Gutschein");
+        assertThat(result.recipient().personId()).isNull();
+        assertThat(result.getMatchedFilterIds()).contains(recipientFilterId);
+    }
+
     @Test
     void doNotInvoiceFilter_shortCircuitsToEmptyDelivery() {
         UUID aircraft = seedAircraft(clubA);

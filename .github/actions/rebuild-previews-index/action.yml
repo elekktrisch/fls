@@ -5,8 +5,9 @@ description: >-
   ONLY that one file. The index is now a persistent JOURNEY directory: it lists
   every roadmap journey J-0…J-N (in _ORDER.md order) and links each one's
   per-journey page, probing — in priority order — the active branch preview
-  (alpenflight/proof-preview/<branch>/J-<n>/, ephemeral), the canonical main
-  deploy (alpenflight/proof/J-<n>/), and the fan-out archive
+  (alpenflight/proof-preview/<branch>/legacy-parity/J-<n>/, the fanout deploy
+  layout, ephemeral), the canonical main deploy (alpenflight/proof/J-<n>/), and
+  the fan-out archive
   (alpenflight/proof/legacy-parity/J-<n>/). The latter two SURVIVE PR close (the
   reaper only rm's proof-preview/<branch>/), so the index shows J-0…J-N even after
   every PR merges. Pending journeys render a no-link "pending" row. Because the
@@ -24,11 +25,12 @@ inputs:
   branch:
     description: >-
       Optional active branch ref to surface its freshly-built per-journey preview
-      pages (alpenflight/proof-preview/<sanitized>/J-<n>/). Defaults to the
-      sanitized github.head_ref (PR) / github.ref_name (push). Sanitized with the
-      SAME rule as ci.yml's preview subpath so the branch-preview source matches.
+      pages (alpenflight/proof-preview/<sanitized>/legacy-parity/J-<n>/, the fanout
+      deploy layout). Defaults to the sanitized github.head_ref (PR) /
+      github.ref_name (push). Sanitized with the SAME rule as ci.yml's preview
+      subpath so the branch-preview source matches.
     required: false
-    default: ''
+    default: ""
 
 runs:
   using: composite
@@ -68,7 +70,8 @@ runs:
         fi
 
         # Sanitized active branch (SAME rule as ci.yml's preview subpath) so the
-        # branch-preview source (proof-preview/<sanitized>/J-<n>/) matches. The
+        # branch-preview source (proof-preview/<sanitized>/legacy-parity/J-<n>/)
+        # matches. The
         # head_ref is set on PRs; ref_name on push. Empty branch simply skips the
         # branch-preview source (canonical + archive still drive the listing).
         RAW_BRANCH="${BRANCH_INPUT:-${HEAD_REF:-$REF_NAME}}"

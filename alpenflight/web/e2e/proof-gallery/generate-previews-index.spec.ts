@@ -17,12 +17,10 @@ import { describe, expect, it } from 'vitest';
  *   - the all-in-one per-proof-type galleries are no longer the primary destinations
  *     (the per-journey pages are); a single full-archive link remains in the footer.
  *
- * T-17c (operator, 2026-06-07): ONE branch source per journey, no freshest-wins
- * tie-break. T-17 made the per-push `alpenflight-proof` page complete on its own
- * (paired committed-legacy↔fresh-AlpenFlight screenshots + AlpenFlight videos), so
- * the in-flight bookmark links THAT page (`proof-preview/<branch>/J-<n>/`). The
- * T-13b two-branch-source split + the rank tie-break are removed; the
- * legacy-parity fanout dir is no longer an index source for the in-flight journey.
+ * ONE branch source per journey, no freshest-wins tie-break. The in-flight
+ * bookmark links the FANOUT branch-preview page at
+ * `proof-preview/<branch>/legacy-parity/J-<n>/` — the deploy layout the fanout
+ * writes and the only branch-context deploy that rebuilds the previews index.
  *
  * Pure JS tooling: no DB, no browser. Loads the ESM generator via dynamic import().
  */
@@ -162,53 +160,43 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     const { root, orderPath } = makeRoot();
     const branch = 'integration-J-5';
     // J-5 page exists in BOTH the fresh branch preview and canonical → branch wins.
-    // T-17c — the in-flight bookmark points at the per-push `alpenflight-proof`
-    // page at `proof-preview/<branch>/J-<n>/` (parent level), which is now COMPLETE
-    // on its own (paired committed-legacy↔fresh-AF screenshots + AF videos). The
-    // earlier `<branch>/legacy-parity/` sub-source was removed.
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-5');
+    // The branch-preview source is the FANOUT deploy at
+    // `proof-preview/<branch>/legacy-parity/J-<n>/` (the only branch-context deploy
+    // that rebuilds the previews index); canonical is `proof/J-<n>/`.
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-5');
     writeJourneyPage(root, 'alpenflight/proof', 'J-5');
 
     const j5 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-5')!;
     expect(j5.found).toBe(true);
     expect(j5.source).toBe('branch');
-    expect(j5.href).toBe(`../proof-preview/${branch}/J-5/`);
+    expect(j5.href).toBe(`../proof-preview/${branch}/legacy-parity/J-5/`);
   });
 
-  it('links the per-push branch page — the single complete in-flight source (T-17c)', async () => {
-    // T-17c (operator, 2026-06-07): with T-17 the per-push `alpenflight-proof`
-    // (clean-seed real-idp) page at `proof-preview/<branch>/J-<n>/` is COMPLETE on
-    // its own — it pairs the committed legacy-reference screenshots with the fresh
-    // AlpenFlight captures AND carries the AlpenFlight videos, on EVERY push, with
-    // no fanout dependency. So it is THE branch source: one source per journey, no
-    // tie-break, no competing `legacy-parity` sub-source.
-    const { scanJourneys } = await loadGenerator();
+  it('resolves an UNMERGED branch-only journey (fanout deploy, absent from canonical) to a LIVE link', async () => {
+    // The latent bug J-27 hit: an in-flight journey's page is deployed ONLY at the
+    // fanout layout `proof-preview/<branch>/legacy-parity/J-<n>/` and is NOT yet on
+    // canonical (`proof/J-<n>/`). The scanner must probe the `legacy-parity/` level
+    // the fanout deploys to, else the row renders PENDING and the deployed-journey
+    // guard reds. Assert the journey resolves to a LIVE `<a class="journey-link">`
+    // row pointing at the fanout page.
+    const { generatePreviewsIndex, scanJourneys } = await loadGenerator();
     const { root, orderPath } = makeRoot();
     const branch = 'integration-J-6';
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-6'); // per-push complete page
+    // Branch-only: page exists under the fanout legacy-parity subpath, nowhere else.
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-6');
 
     const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
     expect(j6.found).toBe(true);
     expect(j6.source).toBe('branch');
-    expect(j6.href).toBe(`../proof-preview/${branch}/J-6/`);
-  });
+    expect(j6.href).toBe(`../proof-preview/${branch}/legacy-parity/J-6/`);
 
-  it('does NOT treat the legacy-parity fanout dir as a branch index source (T-17c — band-aid removed)', async () => {
-    // T-17c: the band-aid that probed `<branch>/legacy-parity/` as a competing
-    // branch source (with a freshest-mtime tie-break) is GONE. The fanout still
-    // deploys its page to `proof-preview/<branch>/legacy-parity/J-<n>/` for the
-    // nightly/heavy scope, but the index does NOT source the in-flight bookmark
-    // from there — only from the complete per-push page at `<branch>/J-<n>/`. If
-    // ONLY the legacy-parity dir exists (no per-push page yet, no canonical/archive),
-    // the journey is pending — never linked to the fanout-only subdir.
-    const { scanJourneys } = await loadGenerator();
-    const { root, orderPath } = makeRoot();
-    const branch = 'integration-J-6';
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-6');
-
-    const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
-    expect(j6.found).toBe(false);
-    expect(j6.href).toBeUndefined();
+    // The rendered HTML carries a LIVE anchor for J-6 (not a pending <span>) — the
+    // exact shape proof-gallery-links.spec.ts's deployed-journey guard requires.
+    const { html } = generatePreviewsIndex({ ghPagesRoot: root, branch, orderPath });
+    const liveRe = new RegExp(
+      `<a\\b[^>]*class="journey-link"[^>]*\\bhref="\\.\\.\\/proof-preview\\/${branch}\\/legacy-parity\\/J-6\\/"[^>]*>\\s*<strong>J-6<\\/strong>`,
+    );
+    expect(liveRe.test(html)).toBe(true);
   });
 
   it('keeps a single full-archive link in the footer (per-proof-type galleries are no longer primary)', async () => {

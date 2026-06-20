@@ -2312,18 +2312,34 @@ jobs:
   # underivable filter → `mock_is_full=true` + empty filter → the WHOLE chromium
   # project runs (the pre-T-02b baseline), never a no-spec run.
   # ---------------------------------------------------------------------------
+  # SHARDING (J-27 T-12). `workers` is a Playwright TOP-LEVEL option (the
+  # per-project `workers:N` was a silent no-op), so a single job ran the whole
+  # ~164-test suite on one runner and flaky-timed-out at the 5-min step cap even
+  # with all 4 workers busy. The suite is green-but-slow (a 12-min serial control
+  # run passed), so the fix is THROUGHPUT: split into a `--shard=i/4` matrix —
+  # four runners, each running ~41 tests across the top-level 4 workers in well
+  # under 5 min (a locally-measured single shard ran ~2 min on just 2 workers).
+  # Each shard emits `reporter: blob`; the `alpenflight-mock-e2e-merge` job below
+  # merges them and is the AUTHORITATIVE pass/fail (it is what `required` needs,
+  # and the name branch protection must require — the per-shard jobs are NOT the
+  # gate). The journey-scoped `mock_filter` (J-6 T-02b) passes through to every
+  # shard unchanged: Playwright shards whatever the filter selects.
   alpenflight-mock-e2e:
-    name: alpenflight mock-auth e2e (Run Playwright)
+    name: alpenflight mock-auth e2e shard ${{ matrix.shard }}/4
     needs: changes
     if: >-
       github.event_name != 'push'
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
-    # Suite + ng-serve boot fit in <5 min when green; 8 min absorbs a cold
-    # pnpm/playwright cache. `maxFailures: 3` in the Playwright config bails the
-    # run itself; this is the backstop when the runner stalls.
-    timeout-minutes: 8
+    # A single shard (~41 tests / 4 workers) finishes in ~2-3 min; 6 min absorbs
+    # a cold pnpm/playwright cache + ng-serve boot. The 5-min step cap on the run
+    # below is the ceiling that keeps the gate fast.
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -2370,36 +2386,140 @@ jobs:
             pnpm exec playwright install --with-deps chromium
           fi
 
-      # Step-level cap. Per-test timeout is 30s; maxFailures is 3; retries are 0
-      # in CI (flake-mask off). A test failure fails the job (no
-      # continue-on-error), which fails `required` — that is the whole point of
-      # the fold.
-      #
-      # J-6 T-02b — pass the journey-under-work's mock filter (a `tests/<feature>/`
-      # dir or a single spec) as the Playwright positional arg so ONLY this
-      # journey's mock specs run per-push. An EMPTY filter (fail-safe /
-      # mock_is_full=true) means no positional arg → the WHOLE chromium project
-      # runs (the pre-T-02b baseline). The chromium project's testMatch /
-      # testIgnore still apply ON TOP of the filter.
-      - name: Run Playwright
+      # `--reporter=blob` overrides the config's html/json reporters for the
+      # shard: each writes `blob-report/report-*.zip` for the merge job to stitch.
+      # `--workers=4` is belt-and-suspenders over the top-level config so the
+      # shard fans out to the runner's 4 vCPUs regardless of config drift (same
+      # posture as alpenflight-e2e.yml).
+      - name: Run Playwright (shard ${{ matrix.shard }}/4)
         working-directory: alpenflight/web
         timeout-minutes: 5
         env:
           MOCK_FILTER: ${{ needs.changes.outputs.mock_filter }}
           MOCK_IS_FULL: ${{ needs.changes.outputs.mock_is_full }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           if [ "${MOCK_IS_FULL}" = 'true' ] || [ -z "${MOCK_FILTER:-}" ]; then
-            echo "running FULL chromium mock suite (fail-safe / no journey scope)"
-            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+            echo "running FULL chromium mock suite, shard ${SHARD}/4 (fail-safe / no journey scope)"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
+              --shard="${SHARD}/4" --workers=4 --reporter=blob
           else
-            echo "running journey-scoped mock specs: ${MOCK_FILTER}"
-            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium "${MOCK_FILTER}"
+            echo "running journey-scoped mock specs, shard ${SHARD}/4: ${MOCK_FILTER}"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium \
+              --shard="${SHARD}/4" --workers=4 --reporter=blob "${MOCK_FILTER}"
           fi
 
-      # Surface the report as a workflow artifact on red so the failure is
-      # diagnosable without the gh-pages publish (which stays in alpenflight-e2e.yml).
-      - name: Upload Playwright report
+      # Blob + screenshots as SEPARATE artifacts (merge job merge-multiples each
+      # pattern into its own flat dir). `if: always()` so a red shard still
+      # uploads → the merge reflects the failure rather than ENOENT-ing.
+      - name: Upload shard blob report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-blob-${{ matrix.shard }}
+          path: alpenflight/web/blob-report
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload shard screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-screenshots-${{ matrix.shard }}
+          path: alpenflight/web/screenshots
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # alpenflight-mock-e2e-merge — the AUTHORITATIVE mock-suite pass/fail (J-27
+  # T-12). `needs:` all four shards, downloads their blobs, and `merge-reports`
+  # exits non-zero if ANY shard had a failure — so this single job is the gate
+  # the `required` aggregator needs and the name branch protection must require
+  # (replacing the old single-job `alpenflight mock-auth e2e (Run Playwright)`).
+  # It runs even when a shard failed (`needs.result` is checked, not `success()`)
+  # so a partial-red still merges into a diagnosable report. On a docs-only push
+  # the shards skip → this is skipped → the aggregator's skipped-to-success path
+  # keeps the gate green.
+  # ---------------------------------------------------------------------------
+  alpenflight-mock-e2e-merge:
+    name: alpenflight mock-auth e2e (merge shards)
+    needs: [changes, alpenflight-mock-e2e]
+    if: >-
+      always()
+      && github.event_name != 'push'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Guard: a shard that CRASHED (infra, not a failed test) may upload no blob,
+      # and merge-reports over the remaining blobs would silently go green minus
+      # that shard's tests. Fail the gate if any shard job didn't succeed, so a
+      # dropped shard can't false-green the suite.
+      - name: Assert all shards ran
+        env:
+          SHARDS_RESULT: ${{ needs.alpenflight-mock-e2e.result }}
+        run: |
+          set -euo pipefail
+          if [ "${SHARDS_RESULT}" != 'success' ]; then
+            echo "shard matrix result is '${SHARDS_RESULT}' (not success) — a shard failed or crashed"
+            exit 1
+          fi
+
+      # `merge-multiple: true` flattens every shard's blob into one dir, which is
+      # what `merge-reports` reads from (it scans the dir's TOP LEVEL for
+      # report-*.zip, not nested subdirs — verified locally). Screenshots come
+      # down separately so the merged-report artifact carries them for diagnosis.
+      - name: Download shard blobs
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/all-blob-reports
+          pattern: alpenflight-mock-e2e-blob-*
+          merge-multiple: true
+
+      - name: Download shard screenshots
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/screenshots
+          pattern: alpenflight-mock-e2e-screenshots-*
+          merge-multiple: true
+
+      # The merge exit code IS the gate: non-zero if any shard had a failed test.
+      - name: Merge shard reports
+        working-directory: alpenflight/web
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
+
+      # Surface the merged report + the shards' diagnostic screenshots so a red is
+      # debuggable from one artifact (preserves what the old single job uploaded).
+      - name: Upload merged report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -2442,7 +2562,7 @@ jobs:
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e]
+    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -2459,7 +2579,7 @@ jobs:
           R_AUTH: ${{ needs.next-auth-realm-shape.result }}
           R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
-          R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e.result }}
+          R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e-merge.result }}
         run: |
           fail=0
           for pair in \
@@ -2469,7 +2589,7 @@ jobs:
               "alpenflight-auth-realm-shape:$R_AUTH" \
               "alpenflight-proof:$R_PROOF" \
               "alpenflight-profile-proof:$R_PROFILE_PROOF" \
-              "alpenflight-mock-e2e:$R_MOCK_E2E" ; do
+              "alpenflight-mock-e2e-merge:$R_MOCK_E2E" ; do
             name="${pair%%:*}"
             result="${pair##*:}"
             case "$result" in

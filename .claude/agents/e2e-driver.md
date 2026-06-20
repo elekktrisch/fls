@@ -64,14 +64,17 @@ invent a parallel convention.
 - **Journey-0 built the thinnest whole chain** (done). Each later journey extends it:
   add the entity's legacy seed ([happy] + [key-error] data) + the per-entity mapper, then
   the real-stack spec. Reuse the J-0 Keycloak users; extend the realm seed only on identity.
-- **Migration journeys need a real-export run, not just synth.** Synth bundles use aliased
-  columns and never hit the producer SELECT against the real legacy schema — dispatch the
-  real-export `fanout` before "done". [[project_synth_bundle_doesnt_validate_producer_select]]
-- **Migration-ingest `DEPLOYMENT_EXISTS 409` — one caller, one non-terminal deployment.** Specs with
-  DISTINCT bundles need distinct migration admins (own Keycloak user + `t_user`). A SHARED bundle
-  (`ensureSharedMigrationBundle`, one principal) must poll the deployment to `COMPLETED` after ingest +
-  treat `409 DEPLOYMENT_EXISTS` as reuse-`existingDeploymentId`, never re-ingest/throw — else the 2nd+
-  spec 409s and the migrated read races the async migration (J-9 fanout).
+- **Migration journeys: WIRE the parity spec into the fanout + run it EARLY.** Synth bundles alias
+  columns and never hit the producer SELECT vs the real legacy schema — dispatch the real-export
+  `fanout` once the mapper binding + legacy seed land (mid-journey, NOT first at the §4 gate), so the
+  gate-only gaps (producer-SELECT T-SQL vs real MSSQL compat, missing seed, FK scope) surface one at a
+  time, not as a 5-iteration final scramble (J-10). And ADD the new spec to the fanout's hand-maintained
+  real-bundle spec list (`alpenflight-proof-fanout.yml`) — authoring it isn't enough; an un-listed spec's
+  `test.skip(!useRealBundle())` block runs the real bundle NOWHERE (J-10 T-12). [[project_synth_bundle_doesnt_validate_producer_select]]
+- **Migration-ingest `DEPLOYMENT_EXISTS 409`.** DISTINCT-bundle specs need distinct migration admins
+  (own KC user + `t_user`); a SHARED bundle (`ensureSharedMigrationBundle`) must poll the deployment to
+  `COMPLETED` + treat `409 DEPLOYMENT_EXISTS` as reuse-`existingDeploymentId` (never re-ingest/throw),
+  else the 2nd+ spec 409s and the migrated read races the async migration (J-9).
 - **Clean-seed and migrated runs are the same spec at two fidelities**; the gate runs both.
 
 ## How you work
@@ -90,10 +93,11 @@ invent a parallel convention.
 
 ## Output
 
-When invoked as an advisor, return: the spec diff (or the authored spec), the
-chain wiring you added, the run result (which fidelity, green/red, cause if
-red), the declared mocked seams (if any), and where the pass-video landed.
-Keep it to what `/do-ship` needs to commit and surface to the operator.
+When invoked as an advisor, return a **distilled verdict only** — the spec + diff are already
+committed, so DON'T paste them (pasting them back saturates the manager's context). Return: run
+result (which fidelity, green/red, root cause `file:line` if red), the chain wiring added (one
+line), declared mocked seams (if any), and the pass-video location. ≤150 words; `file:line`,
+never code/log pastes — keep the manager lean.
 
 ## What you do not do
 

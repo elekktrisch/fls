@@ -276,54 +276,14 @@ VALUES
         DATEADD(MINUTE, 4, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0)
 
 -- ---------------------------------------------------------------------------
--- 4. AccountingRuleFilters for the test club. Covers Recipient(10),
---    FlightTime(30), and LandingTax(60) -- three of the rule-type values
---    documented in FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs.
+-- 4. AccountingRuleFilters for the test club. Covers FlightTime(30) and
+--    LandingTax(60) -- rule-type values documented in
+--    FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs.
 -- ---------------------------------------------------------------------------
 PRINT 'Fixture: AccountingRuleFilters (testclub)'
 DELETE FROM AccountingRuleFilters WHERE ClubId = @testClubId AND AccountingRuleFilterId IN (
-    'F1500004-0000-0000-0000-000000000001',
     'F1500004-0000-0000-0000-000000000002',
     'F1500004-0000-0000-0000-000000000003'
-)
-
--- 4a. Recipient rule (type 10) -- routes invoices to the flight's pilot.
-INSERT INTO AccountingRuleFilters (
-    AccountingRuleFilterId, ClubId, AccountingRuleFilterTypeId,
-    RuleFilterName, Description, IsActive, SortIndicator,
-    ArticleTarget, RecipientTarget,
-    IsRuleForGliderFlights, IsRuleForTowingFlights, IsRuleForMotorFlights,
-    UseRuleForAllAircraftsExceptListed, MatchedAircraftImmatriculations,
-    UseRuleForAllFlightTypesExceptListed, MatchedFlightTypeCodes,
-    ExtendMatchingFlightTypeCodesToGliderAndTowFlight,
-    UseRuleForAllStartLocationsExceptListed, MatchedStartLocations,
-    UseRuleForAllLdgLocationsExceptListed,   MatchedLdgLocations,
-    UseRuleForAllClubMemberNumbersExceptListed, MatchedClubMemberNumbers,
-    UseRuleForAllFlightCrewTypesExceptListed,   MatchedFlightCrewTypes,
-    UseRuleForAllStartTypesExceptListed,        MatchedStartTypes,
-    UseRuleForAllAircraftsOnHomebaseExceptListed,
-    UseRuleForAllMemberStatesExceptListed,
-    UseRuleForAllPersonCategoriesExceptListed,
-    StopRuleEngineWhenRuleApplied,
-    CreatedOn, CreatedByUserId, RecordState,
-    OwnerId, OwnershipType, IsDeleted
-) VALUES (
-    'F1500004-0000-0000-0000-000000000001', @testClubId, 10,
-    'Recipient: Flight Pilot', 'Routes invoice to the pilot of the flight (test fixture)', 1, 10,
-    NULL, N'{"RecipientType":"FlightCrew","MatchedFlightCrewTypes":[1]}',
-    1, 1, 1,
-    1, N'[]',
-    1, N'[]',
-    0,
-    1, N'[]',
-    1, N'[]',
-    1, N'[]',
-    1, N'[]',
-    1, N'[]',
-    1, 1, 1,
-    0,
-    DATEADD(MINUTE, 4, @anchor), @insertUserId, @recordState,
-    @testClubId, @ownershipClub, 0
 )
 
 -- 4b. FlightTime rule (type 30) -- chunked per-minute billing for gliders.
@@ -425,7 +385,6 @@ UPDATE AccountingRuleFilters SET
     NoLandingTaxForTowingAircraft = COALESCE(NoLandingTaxForTowingAircraft, 0),
     NoLandingTaxForAircraft       = COALESCE(NoLandingTaxForAircraft,       0)
 WHERE AccountingRuleFilterId IN (
-    'F1500004-0000-0000-0000-000000000001',
     'F1500004-0000-0000-0000-000000000002',
     'F1500004-0000-0000-0000-000000000003'
 )
