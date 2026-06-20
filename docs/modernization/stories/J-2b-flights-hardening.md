@@ -91,7 +91,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   stays the safety net. (AC3 + AC4 foundation.)
 - [x] **T-05 — As-you-type inline errors via `liveFieldErrors()`.** Wire the shared J-6b bar
   (`inline-validation.ts:120`) into the flight edit form's required fields; debounced inline errors. (AC4.)
-- [ ] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
+- [x] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
   rows by type) + flight-type (FK); make `delivery-creation-test-parity.spec.ts:~577` green for the RIGHT
   reason (no silently-failing Schulung filter); explain/fix the absent §5 flight + spurious HB-3407/30. (AC5.)
 - [ ] **T-07 — Thicken spec + drive real-idp green locally.** Thicken the J-2b spec to full real assertions
