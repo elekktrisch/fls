@@ -89,7 +89,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
   load fix for #229(b)); Save gated on client validity. Reconcile the dead `FlightValidator`/
   `FlightCompositeValidator` (wire the needed subset or delete the rest). Server `@NotNull`/`@Min`/`@Valid`
   stays the safety net. (AC3 + AC4 foundation.)
-- [ ] **T-05 — As-you-type inline errors via `liveFieldErrors()`.** Wire the shared J-6b bar
+- [x] **T-05 — As-you-type inline errors via `liveFieldErrors()`.** Wire the shared J-6b bar
   (`inline-validation.ts:120`) into the flight edit form's required fields; debounced inline errors. (AC4.)
 - [ ] **T-06 — Migration fidelity (FLIGHT-FIDELITY).** Verify the Flight mapper round-trips crew (FlightCrew
   rows by type) + flight-type (FK); make `delivery-creation-test-parity.spec.ts:~577` green for the RIGHT

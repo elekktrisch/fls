@@ -1,6 +1,24 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 import { selectAfOption } from '../_helpers/af-select';
+
+/**
+ * The inline as-you-type error region (`af-field-errors` alert) under a field,
+ * scoped to the wrapping `af-form-field` so a sibling field's error never leaks
+ * into the assertion.
+ */
+function fieldErrors(page: Page, testId: string): Locator {
+  return page.locator('af-form-field', { has: page.getByTestId(testId) }).getByRole('alert');
+}
+
+/**
+ * The header Save control's native `<button>` — `af-button` renders the
+ * disableable element inside its host, so `toBeDisabled`/`toBeEnabled` must
+ * target the inner button, not the custom-element host.
+ */
+function saveButton(page: Page): Locator {
+  return page.getByTestId('flight-submit-header').locator('button');
+}
 
 /**
  * J-2b flights-hardening spec STRUCTURE (#229 + edit-form validation).
@@ -19,7 +37,7 @@ const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
 const LOC_HOME = 'loc-019e30c3-2c00-7001-8000-000000000001';
 const FT_GLIDER = 'ft-019e30c3-2c00-7001-8000-000000000001';
-const ST_SELF = 'st-self';
+const ST_SELF = '019e2e15-2c00-7fa2-8000-000000000fa2';
 const FLIGHT_ID = 'fl-019e30c3-2c00-7001-8000-000000000001';
 const PILOT_CREW_TYPE = '019e2e15-2c00-76b0-8000-0000000036b0';
 
@@ -99,8 +117,8 @@ function fullyPopulatedDetail(flightDate: string): Record<string, unknown> {
     startLocationId: LOC_HOME,
     ldgLocationId: LOC_HOME,
     flightTypeId: FT_GLIDER,
-    startTime: '10:00',
-    ldgTime: '11:30',
+    startDateTime: `${flightDate}T10:00:00Z`,
+    ldgDateTime: `${flightDate}T11:30:00Z`,
     nrOfLdgs: 1,
     isSoloFlight: false,
     noStartTimeInformation: false,
@@ -236,19 +254,26 @@ test.describe('J-2b flights hardening', () => {
 
     await page.goto(`/flights/${FLIGHT_ID}/edit`);
     await expect(page.getByTestId('flight-form')).toBeVisible();
-    await expect(page.getByTestId('flight-submit-header')).toBeEnabled();
+    await expect(saveButton(page)).toBeEnabled();
+
+    // Launch step: the populated required fields (flightDate, startType, start
+    // location) carry NO stale inline error after the post-hydrate revalidate.
+    await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
+    await expect(fieldErrors(page, 'flight-edit-startType')).toHaveCount(0);
+    await expect(fieldErrors(page, 'flight-edit-startLocation')).toHaveCount(0);
+
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
 
-    // T-04 thickens to zero inline alerts on a fully-populated reopen (#229(b)).
-    // Today the launch + glider steps render stale "Entry required." against
-    // populated controls (liveFieldErrors snapshots the pre-hydrate errors), so
-    // this stays thin until the fix lands.
-    await expect(page.getByTestId('flight-edit-glider-pilot')).toBeVisible();
-    await expect(page.getByTestId('flight-edit-glider-aircraft')).toBeVisible();
+    // Glider step: aircraft + flightType + pilot + landings all populated → no
+    // residual "Entry required." inline error.
+    await expect(fieldErrors(page, 'flight-edit-glider-aircraft')).toHaveCount(0);
+    await expect(fieldErrors(page, 'flight-edit-glider-flightType')).toHaveCount(0);
+    await expect(fieldErrors(page, 'flight-edit-glider-pilot')).toHaveCount(0);
+    await expect(fieldErrors(page, 'flight-edit-glider-nrOfLdgs')).toHaveCount(0);
   });
 
-  test('[key-error] as-you-type inline error gates Save when a required field is cleared', async ({
+  test('[key-error] as-you-type inline error appears when a required field is cleared, then gates Save', async ({
     page,
   }) => {
     await stubMasterdata(page);
@@ -268,10 +293,20 @@ test.describe('J-2b flights hardening', () => {
 
     await page.goto(`/flights/${FLIGHT_ID}/edit`);
     await expect(page.getByTestId('flight-form')).toBeVisible();
-    await page.getByTestId('flight-step-next').click();
-    await expect(page.getByTestId('flight-step-glider')).toBeVisible();
-    await expect(page.getByTestId('flight-edit-glider-startTime')).toBeVisible();
-    await expect(page.getByTestId('flight-edit-glider-ldgTime')).toBeVisible();
+    await expect(saveButton(page)).toBeEnabled();
+
+    // Clear flightDate WITHOUT blurring — the inline "Entry required." surfaces
+    // after the ~200ms debounce and Save is gated on the now-invalid form.
+    const flightDate = page.getByTestId('flight-edit-flightDate').locator('input');
+    await flightDate.fill('');
+    await expect(fieldErrors(page, 'flight-edit-flightDate')).toBeVisible();
+    await expect(saveButton(page)).toBeDisabled();
+
+    // Re-entering a valid value clears the inline message (debounced) and
+    // re-enables Save.
+    await flightDate.fill(TODAY);
+    await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
+    await expect(saveButton(page)).toBeEnabled();
   });
 
   test('[edge] off-today saved flight surfaces a "View it →" post-save jump that widens the range (Option B)', async ({

@@ -185,7 +185,7 @@ interface StepDescriptor {
                     data-testid="flight-edit-flightDate"
                   />
                 </af-form-field>
-                <af-form-field label="Start type">
+                <af-form-field label="Start type" [required]="true" [errors]="startTypeErrors()">
                   <af-select
                     formControlName="startTypeId"
                     [options]="startTypeOptions()"
@@ -193,7 +193,11 @@ interface StepDescriptor {
                   />
                 </af-form-field>
                 <ng-container formGroupName="glider">
-                  <af-form-field label="Start location">
+                  <af-form-field
+                    label="Start location"
+                    [required]="true"
+                    [errors]="gliderStartLocationErrors()"
+                  >
                     <af-select
                       formControlName="startLocationId"
                       [options]="locationOptions()"
@@ -217,7 +221,11 @@ interface StepDescriptor {
                     data-testid="flight-edit-glider-aircraft"
                   />
                 </af-form-field>
-                <af-form-field label="Flight type">
+                <af-form-field
+                  label="Flight type"
+                  [required]="true"
+                  [errors]="gliderFlightTypeErrors()"
+                >
                   <af-select
                     formControlName="flightTypeId"
                     [options]="gliderFlightTypeOptions()"
@@ -271,7 +279,7 @@ interface StepDescriptor {
                     />
                   </af-form-field>
                 </div>
-                <af-form-field label="Landings">
+                <af-form-field label="Landings" [required]="true" [errors]="gliderNrOfLdgsErrors()">
                   <af-input
                     type="number"
                     inputmode="numeric"
@@ -412,13 +420,27 @@ export class FlightsEditPage {
   protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
 
   // Inline as-you-type errors (`liveFieldErrors`, debounced ~200ms) on the
-  // required fields — flightDate + glider aircraft + glider pilot.
+  // minimal-valid glider required set (oracle `Flight.ValidateFlight`):
+  // flightDate, startType, glider aircraft / flightType / pilot / start
+  // location / landings. Each re-reads the control's CURRENT errors on the
+  // post-hydrate `revalidateTree` (root status), so a reopened populated flight
+  // shows no stale "Entry required.".
   protected readonly flightDateErrors = liveFieldErrors(this.form.controls.flightDate);
+  protected readonly startTypeErrors = liveFieldErrors(this.form.controls.startTypeId);
   protected readonly gliderAircraftErrors = liveFieldErrors(
     this.form.controls.glider.controls.aircraftId,
   );
+  protected readonly gliderFlightTypeErrors = liveFieldErrors(
+    this.form.controls.glider.controls.flightTypeId,
+  );
   protected readonly gliderPilotErrors = liveFieldErrors(
     this.form.controls.glider.controls.pilotPersonId,
+  );
+  protected readonly gliderStartLocationErrors = liveFieldErrors(
+    this.form.controls.glider.controls.startLocationId,
+  );
+  protected readonly gliderNrOfLdgsErrors = liveFieldErrors(
+    this.form.controls.glider.controls.nrOfLdgs,
   );
 
   private readonly route = inject(ActivatedRoute);

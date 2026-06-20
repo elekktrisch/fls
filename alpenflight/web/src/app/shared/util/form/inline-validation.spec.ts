@@ -1,9 +1,10 @@
-import { FormControl, Validators } from '@angular/forms';
+import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { Subject } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { liveFieldErrors$, mergeFieldErrors } from './inline-validation';
+import { revalidateTree } from './revalidate';
 
 describe('mergeFieldErrors', () => {
   it('returns null when there are no client or async errors', () => {
@@ -99,6 +100,31 @@ describe('liveFieldErrors$', () => {
           b: { overlap: true },
         },
       );
+    });
+  });
+
+  it('re-reads errors after a post-hydrate revalidate that fires only the root status', () => {
+    // Reopen-shows-invalid guard: a required control is built empty (errors
+    // `{ required }`), the live-errors stream starts with that, then an
+    // `emitEvent:false` hydrate patch + `revalidateTree` recompute validators —
+    // firing the ROOT's status but neither the control's `valueChanges` nor its
+    // own `statusChanges`. A value-only trigger would keep the stale
+    // `{ required }`; tracking the root status clears it (debounced).
+    scheduler.run(({ expectObservable, cold }) => {
+      const control = new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.required],
+      });
+      const group = new FormGroup({ field: control });
+      cold('--a|').subscribe(() => {
+        control.patchValue('populated', { emitEvent: false });
+        revalidateTree(group);
+      });
+
+      expectObservable(liveFieldErrors$(control, { debounceMs: 200 })).toBe('a 201ms b', {
+        a: { required: true },
+        b: null,
+      });
     });
   });
 });
