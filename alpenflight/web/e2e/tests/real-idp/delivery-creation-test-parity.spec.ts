@@ -670,12 +670,13 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-9',
+        journey: 'J-27',
         caption:
-          'J-9 · migrated inputs drive the engine · the rules engine, run over the MIGRATED HB-3256 ' +
-          'static-seed glider flight + the migrated filter set, produces its genuine delivery (the 5001 ' +
-          'FlightTime line + the 6001 LandingTax line) — the producer-bound J-8 filters + J-2 flight drive ' +
-          'the sacred-cow engine end to end over real migrated legacy seed (the engine done-bar)',
+          'J-27 · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed ' +
+          'glider flight + the migrated filter set, produces its genuine delivery (the 5001 FlightTime ' +
+          'line, 22 Minuten + the 6001 LandingTax line, 2 Landung) — the producer-bound filters + flight ' +
+          'drive the sacred-cow engine end to end over real migrated legacy seed, the migration promise ' +
+          'made true: a migrated club sees its own real legacy data, correctly',
         acTag: 'happy',
       });
     }
