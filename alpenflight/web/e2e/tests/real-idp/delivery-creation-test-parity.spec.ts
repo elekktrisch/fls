@@ -614,10 +614,21 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
         const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
           headers: { authorization: migratedBearer },
         });
-        if (exampleRes.status() !== 200) {
+        const example =
+          exampleRes.status() === 200
+            ? ((await exampleRes.json()) as { delivery?: { items?: DeliveryItem[] } })
+            : undefined;
+        console.log(
+          '[J27-§5-DUMP]',
+          JSON.stringify({
+            flightId: flight.id,
+            status: exampleRes.status(),
+            items: example?.delivery?.items,
+          }),
+        );
+        if (!example) {
           continue;
         }
-        const example = (await exampleRes.json()) as { delivery?: { items?: DeliveryItem[] } };
         const item = (example.delivery?.items ?? []).find(
           (i) => i.articleNumber === MIGRATED_FT_ARTICLE,
         );
