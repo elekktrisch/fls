@@ -25,6 +25,8 @@ import type {
   ListParams,
 } from '@api/generated/model';
 
+import { isoDateFromLocal } from '@shared/util/date';
+
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 import { buildConflict, type FlightConflict } from './edit/conflict-resolver';
 import {
@@ -82,6 +84,16 @@ interface FlightDetailSlice {
   reloadConflict: boolean;
 }
 
+/**
+ * A flight saved (created or edited) on a date outside the active list range.
+ * Drives the post-save "View it →" jump (legacy hides off-today flights behind
+ * the today-default range; this surfaces the just-saved one).
+ */
+export interface OffRangeSavedFlight {
+  readonly id: string;
+  readonly date: string;
+}
+
 interface FlightListSlice {
   dateFrom: string | null;
   dateTo: string | null;
@@ -90,28 +102,35 @@ interface FlightListSlice {
   isLoading: boolean;
   loadError: string | null;
   lastRefreshedAt: number | null;
+  offRangeSaved: OffRangeSavedFlight | null;
 }
 
 type FlightExtraState = FlightListSlice & FlightDetailSlice;
 
-const initial: FlightExtraState = {
-  dateFrom: null,
-  dateTo: null,
-  clientFilter: EMPTY_FILTER,
-  nextCursor: null,
-  isLoading: false,
-  loadError: null,
-  lastRefreshedAt: null,
-  current: null,
-  currentTow: null,
-  currentVersion: null,
-  currentTowVersion: null,
-  detailLoading: false,
-  detailError: null,
-  saveError: null,
-  saveConflict: null,
-  reloadConflict: false,
-};
+function initialState(): FlightExtraState {
+  // Legacy parity: the daily list opens on today only (FlightsController.js
+  // seeds the FlightDate filter From/To to `moment().format("YYYY-MM-DD")`).
+  const today = isoDateFromLocal(new Date());
+  return {
+    dateFrom: today,
+    dateTo: today,
+    clientFilter: EMPTY_FILTER,
+    nextCursor: null,
+    isLoading: false,
+    loadError: null,
+    lastRefreshedAt: null,
+    offRangeSaved: null,
+    current: null,
+    currentTow: null,
+    currentVersion: null,
+    currentTowVersion: null,
+    detailLoading: false,
+    detailError: null,
+    saveError: null,
+    saveConflict: null,
+    reloadConflict: false,
+  };
+}
 
 function matchesClientFilter(row: FlightListItem, f: FlightClientFilter): boolean {
   if (f.airStates.length > 0 && !f.airStates.includes(row.airState)) {
@@ -141,23 +160,27 @@ export interface UpdatePairVersions {
 export const FlightStore = signalStore(
   { providedIn: 'root' },
   withEntities<FlightRow>(),
-  withState<FlightExtraState>(initial),
-  withComputed(({ entities, clientFilter, loadError, saveConflict, reloadConflict }) => ({
-    isEmpty: computed(() => entities().length === 0),
-    visibleEntities: computed(() => {
-      const f = clientFilter();
-      const rows = entities();
-      if (f.airStates.length + f.processStateIds.length + f.aircraftTypes.length === 0) {
-        return rows;
-      }
-      return rows.filter((r) => matchesClientFilter(r, f));
+  withState<FlightExtraState>(initialState()),
+  withComputed(
+    ({ entities, clientFilter, loadError, saveConflict, reloadConflict, offRangeSaved }) => ({
+      isEmpty: computed(() => entities().length === 0),
+      visibleEntities: computed(() => {
+        const f = clientFilter();
+        const rows = entities();
+        if (f.airStates.length + f.processStateIds.length + f.aircraftTypes.length === 0) {
+          return rows;
+        }
+        return rows.filter((r) => matchesClientFilter(r, f));
+      }),
+      hasError: computed(() => loadError() !== null),
+      // 412: a resolved data conflict drives the inline diff dialog.
+      hasSaveConflict: computed(() => saveConflict() !== null),
+      // 409: a policy/state conflict drives the non-blocking reload toast.
+      hasReloadConflict: computed(() => reloadConflict()),
+      // A just-saved flight dated outside the active range → the "View it →" jump.
+      hasOffRangeSaved: computed(() => offRangeSaved() !== null),
     }),
-    hasError: computed(() => loadError() !== null),
-    // 412: a resolved data conflict drives the inline diff dialog.
-    hasSaveConflict: computed(() => saveConflict() !== null),
-    // 409: a policy/state conflict drives the non-blocking reload toast.
-    hasReloadConflict: computed(() => reloadConflict()),
-  })),
+  ),
   withMethods((store, flightsApi = inject(FlightsService), bus = inject(MUTATION_BUS)) => {
     const loadPage = rxMethod<void>(
       pipe(
@@ -179,6 +202,25 @@ export const FlightStore = signalStore(
       ),
     );
 
+    function isWithinActiveRange(date: string): boolean {
+      const from = store.dateFrom();
+      const to = store.dateTo();
+      return (!from || from <= date) && (!to || to >= date);
+    }
+
+    /**
+     * Record a just-saved flight whose date falls outside the active list range
+     * so the post-save flow can offer the "View it →" jump. In-range saves are
+     * already visible, so they clear any stale flag instead.
+     */
+    function flagOffRangeSave(id: string | undefined, date: string | null): void {
+      if (id && date && !isWithinActiveRange(date)) {
+        patchState(store, { offRangeSaved: { id, date } });
+      } else {
+        patchState(store, { offRangeSaved: null });
+      }
+    }
+
     function clearDetail(): void {
       patchState(store, {
         current: null,
@@ -189,6 +231,7 @@ export const FlightStore = signalStore(
         saveError: null,
         saveConflict: null,
         reloadConflict: false,
+        offRangeSaved: null,
       });
     }
 
@@ -246,6 +289,10 @@ export const FlightStore = signalStore(
       patchState(store, { saveError: null, saveConflict: null, reloadConflict: false });
       const requests = snapshotToCreateRequests(snapshot);
       const glider = await firstValueFrom(flightsApi.create(requests.glider));
+      // Read the id from the create response held in-store (the SPA nav on save
+      // success evicts the POST body before a component could re-read it); the
+      // date comes from the submitted snapshot, never a re-GET.
+      flagOffRangeSave(glider.id, snapshot.flightDate);
       if (!requests.tow) {
         bus.next({ kind: 'flight.created', flightId: glider.id });
         loadPage();
@@ -304,6 +351,7 @@ export const FlightStore = signalStore(
           bus.next({ kind: 'flight.updated', flightId: currentTow.id });
         }
         bus.next({ kind: 'flight.updated', flightId });
+        flagOffRangeSave(flightId, snapshot.flightDate);
         loadPage();
       } catch (e) {
         const err = e as HttpErrorResponse;
@@ -375,6 +423,24 @@ export const FlightStore = signalStore(
       setDateRange(range: FlightDateRange): void {
         patchState(store, { dateFrom: range.from, dateTo: range.to });
         loadPage();
+      },
+      /**
+       * Post-save jump (Option B): widen the active range to the off-range
+       * saved flight's date so the just-saved row loads into view, then clear
+       * the affordance.
+       */
+      viewOffRangeSaved(): void {
+        const saved = store.offRangeSaved();
+        if (!saved) return;
+        patchState(store, {
+          dateFrom: saved.date,
+          dateTo: saved.date,
+          offRangeSaved: null,
+        });
+        loadPage();
+      },
+      dismissOffRangeSaved(): void {
+        patchState(store, { offRangeSaved: null });
       },
       setClientFilter(filter: Partial<FlightClientFilter>): void {
         const current = store.clientFilter();

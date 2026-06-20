@@ -274,7 +274,7 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flight-edit-glider-ldgTime')).toBeVisible();
   });
 
-  test.fixme('[edge] off-today saved flight surfaces a "View it →" post-save jump that widens the range (Option B)', async ({
+  test('[edge] off-today saved flight surfaces a "View it →" post-save jump that widens the range (Option B)', async ({
     page,
   }) => {
     await stubMasterdata(page);
@@ -288,15 +288,43 @@ test.describe('J-2b flights hardening', () => {
     await page.route('**/api/v1/flights/last-context**', (route) =>
       route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
     );
-    await page.route('**/api/v1/flights', (route: Route) =>
-      route.request().method() === 'POST'
-        ? route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ id: 'fl-new', version: 1, flightDate: NEXT_WEEK }),
-          })
-        : route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[]}' }),
-    );
+    const newRow = {
+      id: 'fl-new',
+      flightAircraftType: 'GLIDER',
+      flightDate: NEXT_WEEK,
+      startDateTime: `${NEXT_WEEK}T08:00:00Z`,
+      ldgDateTime: `${NEXT_WEEK}T09:00:00Z`,
+      aircraftId: AC_GLIDER,
+      processStateId: 'ps-1',
+      processState: 'VALID',
+      airState: 'LANDED',
+      version: 1,
+    };
+    await page.route('**/api/v1/flights**', (route: Route) => {
+      const req = route.request();
+      const url = new URL(req.url());
+      // The broad glob also catches the sub-path routes registered above
+      // (new-template / last-context); defer those to their own handlers.
+      if (url.pathname !== '/api/v1/flights') {
+        return route.fallback();
+      }
+      if (req.method() === 'POST') {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'fl-new', version: 1, flightDate: NEXT_WEEK }),
+        });
+      }
+      // GET list: the today-default range omits the off-today row; the
+      // "View it →" jump widens to NEXT_WEEK and the row appears.
+      const from = url.searchParams.get('from');
+      const inRange = from === NEXT_WEEK;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: inRange ? [newRow] : [] }),
+      });
+    });
 
     await page.goto('/flights/new');
     await expect(page.getByTestId('flight-form')).toBeVisible();

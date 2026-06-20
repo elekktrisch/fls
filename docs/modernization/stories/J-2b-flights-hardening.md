@@ -81,7 +81,7 @@ visibility against legacy, and verifies the migrated-flight fidelity J-27 flagge
     list `GET /flights` carries NO date filter (show-all). T-03 sets the `today..today` default (legacy parity).
 - [x] **T-02 — Scope per-push gate to J-2b.** Re-point the per-push heavy (real-idp) lane to J-2b's spec only;
   prior journeys run mock-IdP (full real-idp regression → nightly + §4 gate). Standing slot.
-- [ ] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`
+- [x] **T-03 — Flight-list default range `today..today` + Option B post-save jump.** `flight.store.ts`
   default `dateFrom/dateTo = today`; list range filter reflects it. Post-save: if the saved flight's date is
   outside the active range, offer "View it →" widening the range to that date. (AC1 regression guard, AC2.)
 - [ ] **T-04 — Wire flight edit-form client validators (valid-on-load + Save-gating).** `flight-form.model.ts`

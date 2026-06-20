@@ -57,15 +57,25 @@ interface MockFlightListItem {
 const AC_GLI = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 
+// The list defaults to today..today (legacy parity), so the fixture is dated
+// today — otherwise the today-default range filters every row out on load.
+const TODAY = (() => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+})();
+
 // Fixed 3-flight fixture — typed as a tuple so the [0]/[1]/[2] accesses below are
 // statically known-present under `noUncheckedIndexedAccess` (no `!` noise).
 const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] = [
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000001',
     flightAircraftType: 'GLIDER',
-    flightDate: '2026-05-21',
-    startDateTime: '2026-05-21T08:42:00Z',
-    ldgDateTime: '2026-05-21T10:14:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T08:42:00Z`,
+    ldgDateTime: `${TODAY}T10:14:00Z`,
     aircraftId: AC_GLI,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -75,9 +85,9 @@ const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] =
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000002',
     flightAircraftType: 'TOW',
-    flightDate: '2026-05-21',
-    startDateTime: '2026-05-21T08:42:00Z',
-    ldgDateTime: '2026-05-21T08:50:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T08:42:00Z`,
+    ldgDateTime: `${TODAY}T08:50:00Z`,
     aircraftId: AC_TOW,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -87,9 +97,9 @@ const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] =
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000003',
     flightAircraftType: 'GLIDER',
-    flightDate: '2026-05-22',
-    startDateTime: '2026-05-22T09:10:00Z',
-    ldgDateTime: '2026-05-22T11:55:00Z',
+    flightDate: TODAY,
+    startDateTime: `${TODAY}T09:10:00Z`,
+    ldgDateTime: `${TODAY}T11:55:00Z`,
     aircraftId: AC_GLI,
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
@@ -319,9 +329,9 @@ test.describe('flights list page', () => {
     // The date range filter is a single nz-range-picker (S-062e fixed the
     // zoneless deadlock that had forced the two-single-picker workaround).
     await expect(page.getByTestId('flights-date-range').locator('input').first()).toBeVisible();
-    // No date params on initial load.
-    expect(lastParams.from).toBeUndefined();
-    expect(lastParams.to).toBeUndefined();
+    // Today-default range (legacy parity): initial load sends from=to=today.
+    expect(lastParams.from).toBe(TODAY);
+    expect(lastParams.to).toBe(TODAY);
   });
 
   // AC11 / J-6b T-13 REGRESSION GUARD — the flights date-range picker FILTERS the
@@ -345,9 +355,9 @@ test.describe('flights list page', () => {
 
     await page.goto('/flights');
     await expect(page.getByTestId('flights-summary')).toContainText('3 flights');
-    // Initial load sends NO date params.
-    expect(lastParams.from).toBeUndefined();
-    expect(lastParams.to).toBeUndefined();
+    // Today-default range (legacy parity): initial load sends from=to=today.
+    expect(lastParams.from).toBe(TODAY);
+    expect(lastParams.to).toBe(TODAY);
 
     // Pick a from+to range. ng-zorro renders two calendar panels; the first
     // non-disabled cell click sets the range start, the second sets the end

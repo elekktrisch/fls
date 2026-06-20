@@ -18,6 +18,8 @@ import {
   FlightListItemProcessState,
 } from '@api/generated/model';
 
+import { isoDateFromLocal } from '@shared/util/date';
+
 import type { FlightFormSnapshot } from './edit/flight-form.model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
@@ -53,10 +55,11 @@ interface ApiStubs {
   list: (params?: ListParams) => Observable<FlightListResponse>;
   update: (id: string) => Observable<FlightDetail>;
   get: (id: string) => Observable<FlightDetail>;
+  create: (body: unknown) => Observable<FlightDetail>;
 }
 
 function flightsServiceStub(stubs: Partial<ApiStubs> = {}): FlightsService {
-  const api: Pick<FlightsService, 'list' | 'update' | 'get'> = {
+  const api: Pick<FlightsService, 'list' | 'update' | 'get' | 'create'> = {
     list: ((params?: ListParams, options?: unknown) => {
       void options;
       return (stubs.list ?? (() => of<FlightListResponse>({ items: [] })))(params);
@@ -69,6 +72,10 @@ function flightsServiceStub(stubs: Partial<ApiStubs> = {}): FlightsService {
       (stubs.get ?? (() => throwError(() => new Error('get not stubbed'))))(
         id,
       )) as unknown as FlightsService['get'],
+    create: ((body: unknown) =>
+      (stubs.create ?? (() => throwError(() => new Error('create not stubbed'))))(
+        body,
+      )) as unknown as FlightsService['create'],
   };
   return api as unknown as FlightsService;
 }
@@ -152,6 +159,11 @@ function editSnapshot(): FlightFormSnapshot {
   };
 }
 
+function createSnapshot(flightDate: string): FlightFormSnapshot {
+  const base = editSnapshot();
+  return { ...base, flightId: null, flightDate, startTypeId: null };
+}
+
 function configure(api: FlightsService): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
   TestBed.configureTestingModule({
@@ -184,6 +196,82 @@ describe('FlightStore', () => {
 
     expect(store.loadError()).not.toBeNull();
     expect(store.isLoading()).toBe(false);
+  });
+
+  it('defaults the list range to today..today (legacy parity)', () => {
+    let lastParams: ListParams | undefined;
+    configure(
+      flightsServiceStub({
+        list: (params) => {
+          lastParams = params;
+          return of({ items: [] });
+        },
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+    const today = isoDateFromLocal(new Date());
+
+    expect(store.dateFrom()).toBe(today);
+    expect(store.dateTo()).toBe(today);
+    expect(lastParams).toEqual({ from: today, to: today, limit: 50 });
+  });
+
+  it('surfaces an off-range post-save jump when a created flight is dated outside the active range', async () => {
+    const today = isoDateFromLocal(new Date());
+    const nextWeek = isoDateFromLocal(new Date(Date.now() + 7 * 86_400_000));
+    configure(
+      flightsServiceStub({
+        list: () => of({ items: [] }),
+        create: () => of({ ...SERVER_DETAIL, id: 'fl-new', version: 1 }),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+
+    await store.savePair(createSnapshot(nextWeek));
+
+    expect(store.hasOffRangeSaved()).toBe(true);
+    expect(store.offRangeSaved()).toEqual({ id: 'fl-new', date: nextWeek });
+    // The active range stays today-only until the user takes the action.
+    expect(store.dateFrom()).toBe(today);
+  });
+
+  it('does not surface the jump when a created flight falls within the active range', async () => {
+    const today = isoDateFromLocal(new Date());
+    configure(
+      flightsServiceStub({
+        list: () => of({ items: [] }),
+        create: () => of({ ...SERVER_DETAIL, id: 'fl-new', version: 1 }),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+
+    await store.savePair(createSnapshot(today));
+
+    expect(store.hasOffRangeSaved()).toBe(false);
+    expect(store.offRangeSaved()).toBeNull();
+  });
+
+  it('viewOffRangeSaved widens the range to include the saved date and clears the jump', async () => {
+    const nextWeek = isoDateFromLocal(new Date(Date.now() + 7 * 86_400_000));
+    let lastParams: ListParams | undefined;
+    configure(
+      flightsServiceStub({
+        list: (params) => {
+          lastParams = params;
+          return of({ items: [] });
+        },
+        create: () => of({ ...SERVER_DETAIL, id: 'fl-new', version: 1 }),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+    await store.savePair(createSnapshot(nextWeek));
+    expect(store.hasOffRangeSaved()).toBe(true);
+
+    store.viewOffRangeSaved();
+
+    expect(lastParams).toEqual({ from: nextWeek, to: nextWeek, limit: 50 });
+    expect(store.dateTo()).toBe(nextWeek);
+    expect(store.hasOffRangeSaved()).toBe(false);
   });
 
   it('setDateRange forwards from/to to the server and resets entities', () => {

@@ -211,6 +211,35 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
+      <!-- Post-save jump (Option B): a flight just saved on a date outside the
+        today-default range isn't in the current list; offer to widen the range
+        to it rather than silently hiding it (#229). -->
+      @if (store.hasOffRangeSaved(); as _show) {
+        <div
+          class="mb-5 flex items-center justify-between gap-3 border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-slate-800"
+          data-testid="flights-offrange-banner"
+        >
+          <span>Saved flight is on {{ offRangeSavedDate() }}, outside the current range.</span>
+          <div class="flex items-center gap-3">
+            <af-button
+              type="primary"
+              (clicked)="onViewOffRangeSaved()"
+              data-testid="flight-offrange-view"
+            >
+              View it →
+            </af-button>
+            <button
+              type="button"
+              class="text-slate-500 hover:text-slate-900 underline bg-transparent border-0 p-0 cursor-pointer"
+              (click)="store.dismissOffRangeSaved()"
+              data-testid="flight-offrange-dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      }
+
       <div class="mb-5 border border-slate-200 bg-white p-4">
         <!-- Single range picker (S-062e fix). The earlier two-single-picker
           workaround existed only because nz-range-picker deadlocked the main
@@ -511,6 +540,15 @@ export class FlightsListPage {
     return `${visible} of ${total} flights`;
   });
 
+  protected readonly offRangeSavedDate = computed<string>(() => {
+    const saved = this.store.offRangeSaved();
+    return saved ? formatLegacyDate(saved.date) : '';
+  });
+
+  protected onViewOffRangeSaved(): void {
+    this.store.viewOffRangeSaved();
+  }
+
   protected readonly dateRangeValue = computed<DateValue>(() => {
     // Parse the stored ISO date-only strings as LOCAL midnight (not the
     // `new Date('YYYY-MM-DD')` UTC-midnight default, which renders a day early
@@ -602,8 +640,11 @@ export class FlightsListPage {
   }
 
   protected onClearFilters(): void {
+    // Reset to the today-default baseline (legacy parity), not show-all — the
+    // today range is the resting state, so "Clear filters" returns there.
+    const today = isoDateFromLocal(new Date());
     this.store.clearClientFilter();
-    this.store.setDateRange({ from: null, to: null });
+    this.store.setDateRange({ from: today, to: today });
   }
 
   protected openEdit(flightId: string): void {
@@ -691,11 +732,18 @@ export class FlightsListPage {
   protected hasActiveFilter(): boolean {
     const f = this.store.clientFilter();
     return (
-      this.store.dateFrom() !== null ||
-      this.store.dateTo() !== null ||
+      this.isRangeNarrowed() ||
       f.airStates.length > 0 ||
       f.processStateIds.length > 0 ||
       f.aircraftTypes.length > 0
     );
+  }
+
+  // The today-default range (legacy parity) is the baseline, not a user filter:
+  // only a range the user changed off today counts toward "active filters" (the
+  // Clear-filters affordance + the "no flights MATCH" empty copy).
+  private isRangeNarrowed(): boolean {
+    const today = isoDateFromLocal(new Date());
+    return this.store.dateFrom() !== today || this.store.dateTo() !== today;
   }
 }
