@@ -546,10 +546,11 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 // end, no new mapper. Rides the SAME real bundle the J-0c fan-out spec ingests;
 // runs only when the fanout's real export ran.
 // ===========================================================================
-// HB-3256 is the unique-immatriculation static-seed glider (`6 Insert Test
+// HB-3256 is the unique-immatriculation static legacy-seed glider (`6 Insert Test
 // Flights.sql:138`, FlightAircraftType glider, LdgDateTime=DATEADD(n,22,start)).
-// Its genuine migrated delivery (fanout 27862239577) is a 5001 FlightTime line
-// (T-01's deliveryLineText) + a 6001 LandingTax line — assert that exact pair.
+// Driven over the REAL migrated bundle, the migrated FlightTime (5001, with T-01's
+// deliveryLineText) + LandingTax (6001) filters produce its genuine delivery — assert
+// that exact pair (the migration promise: a migrated club bills its own data correctly).
 const MIGRATED_FT_ARTICLE = '5001';
 const MIGRATED_FT_ITEM_TEXT = 'HB-3256 Glider flight minutes';
 const MIGRATED_FT_EXPECTED_QTY = 22;
