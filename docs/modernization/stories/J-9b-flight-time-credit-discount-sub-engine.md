@@ -117,7 +117,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 
 ## Tasks
 
-- [ ] **T-01** — Spec stub: extend `delivery-creation-test-parity.spec.ts` with the credit-case structure +
+- [x] **T-01** — Spec stub: extend `delivery-creation-test-parity.spec.ts` with the credit-case structure +
   selectors (thin asserts) + scaffold the J-9b per-journey proof-gallery page; red-first repro of credit application.
 - [ ] **T-02** — Scope the per-push heavy lane to J-9b's spec only (prior journeys → mock-IdP; full real-idp
   regression → nightly + the §4 gate).
