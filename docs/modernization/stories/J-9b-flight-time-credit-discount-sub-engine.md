@@ -134,7 +134,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   line, in-memory decrement; domain unit tests.
 - [x] **T-05** — Wire the credit read into the dry-run path (`DeliveryCreationTestsService`/`exampleDelivery`):
   read-only load, NO transaction write, idempotent (re-run yields identical output + no mutation).
-- [ ] **T-06** — Migration mapper (`PersonFlightTimeCreditMapper`: producer SELECT + V3 insert) + remove both
+- [x] **T-06** — Migration mapper (`PersonFlightTimeCreditMapper`: producer SELECT + V3 insert) + remove both
   tables from `UnmappedTables` + the real-producer collision/orphan round-trip IT (exactly-one-`IsCurrent` dedupe;
   `PersonId` resolve; nullable `BalancedDeliveryId`).
 - [ ] **T-07** — Thicken the spec to full real assertions (clean-seed corpus: full-cover, over-credit split,

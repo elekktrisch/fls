@@ -6,6 +6,8 @@ import ch.alpenflight.migration.bundle.accounting.AircraftReservationTypeMapper;
 import ch.alpenflight.migration.bundle.accounting.ArticleMapper;
 import ch.alpenflight.migration.bundle.accounting.DeliveryItemMapper;
 import ch.alpenflight.migration.bundle.accounting.DeliveryMapper;
+import ch.alpenflight.migration.bundle.accounting.PersonFlightTimeCreditMapper;
+import ch.alpenflight.migration.bundle.accounting.PersonFlightTimeCreditTransactionMapper;
 import ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentMapper;
 import ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentTypeMapper;
 import ch.alpenflight.migration.bundle.accounting.PlanningDayMapper;
@@ -73,6 +75,8 @@ public final class KnownMappers {
             new FlightCrewMapper(),
             new DeliveryMapper(),
             new DeliveryItemMapper(),
+            new PersonFlightTimeCreditMapper(),
+            new PersonFlightTimeCreditTransactionMapper(),
             new AuditLogMapper());
 
     private KnownMappers() { }

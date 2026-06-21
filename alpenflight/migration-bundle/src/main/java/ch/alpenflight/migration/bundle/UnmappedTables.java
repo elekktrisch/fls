@@ -22,12 +22,6 @@ public final class UnmappedTables {
             Map.entry("LanguageTranslations",
                     "Legacy i18n bundle is replaced by frontend-side i18next per ADR 0004; "
                             + "no destination table."),
-            Map.entry("PersonFlightTimeCredits",
-                    "Legacy per-person flight-time credit cache; recomputed from t_flight "
-                            + "+ t_flight_crew per ADR 0022 directive 2; no destination table."),
-            Map.entry("PersonFlightTimeCreditTransactions",
-                    "Audit of recomputed credit deltas; redundant once "
-                            + "PersonFlightTimeCredits is recomputed on demand."),
             Map.entry("Settings",
                     "Legacy per-club settings are replaced by typed config on Club aggregate "
                             + "per ADR 0018; no destination table."),

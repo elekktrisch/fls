@@ -1184,6 +1184,129 @@ public final class MapperLegacyBindings {
                             ?, ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.PERSON_FLIGHT_TIME_CREDIT, new Binding(
+                    // Cross-tenant pre-paid credit aggregate root
+                    // (PersonFlightTimeCreditMapper): legacy
+                    // PersonFlightTimeCredits.PersonFlightTimeCreditId →
+                    // t_person_flight_time_credit.id. NO ClubId column — a credit is
+                    // per-person and PersonId rides TENANT_BYPASS to cross-tenant
+                    // Person (the FlightCrew idiom). NOT fan-out — one legacy row →
+                    // one row, legacy_guid → id. MatchedAircraftImmatriculations is a
+                    // denormalized CSV substring-matched downstream (no FK rewrite).
+                    // Legacy ASP.NET artifacts (OwnerId/OwnershipType/RecordState/
+                    // IsDeleted) are NOT projected.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT PersonFlightTimeCreditId, PersonId,
+                           NoFlightTimeLimit, ValidUntil,
+                           UseRuleForAllAircraftsExceptListed,
+                           MatchedAircraftImmatriculations, DiscountInPercent,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM PersonFlightTimeCredits
+                    """,
+                    "t_person_flight_time_credit",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 13 params match
+                    // PersonFlightTimeCreditMapper.columns() order.
+                    """
+                    INSERT INTO t_person_flight_time_credit (
+                      id, person_id,
+                      no_flight_time_limit, valid_until,
+                      use_rule_for_all_aircrafts_except_listed,
+                      matched_aircraft_immatriculations, discount_in_percent,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?,
+                            ?, ?,
+                            ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION, new Binding(
+                    // Aggregate-internal current-balance row under the credit
+                    // (PersonFlightTimeCreditTransactionMapper): legacy
+                    // PersonFlightTimeCreditTransactions.PersonFlightTimeCreditTransactionId
+                    // → t_person_flight_time_credit_transaction.id; credit_id →
+                    // PERSON_FLIGHT_TIME_CREDIT (intra-aggregate id-map). NOT fan-out
+                    // — legacy_guid → id.
+                    //
+                    // CURRENT-BALANCE-ONLY + ISCURRENT DEDUPE-KEEP-FIRST: the engine
+                    // reads only the single IsCurrent balance, and V46's partial
+                    // UNIQUE (credit_id) WHERE is_current forbids two current rows per
+                    // credit. Real legacy data can carry 0 or ≥2 IsCurrent rows per
+                    // credit (no such legacy constraint), so the 2nd would 23505 at
+                    // ingest (the §4 fanout blocker). The producer keeps ONLY IsCurrent
+                    // rows (WHERE IsCurrent = 1) and dedupe-keep-firsts per credit via
+                    // ROW_NUMBER() OVER (PARTITION BY PersonFlightTimeCreditId ORDER BY
+                    // BalanceDateTime DESC, PersonFlightTimeCreditTransactionId) — the
+                    // most-recent current snapshot survives, deterministic tiebreak on
+                    // the GUID. ROW_NUMBER() OVER is dialect-portable (live MSSQL T-SQL
+                    // and the Postgres test container agree). Locked by
+                    // PersonFlightTimeCreditProducerDedupeIT.
+                    //
+                    // ORPHAN-NULL BalancedDeliveryId: the nullable FK → Delivery is
+                    // nulled when its target is not migrated (Delivery migration
+                    // deferred to J-10b — no Delivery is in the migrated set today). A
+                    // LEFT JOIN Deliveries projects ResolvedBalancedDeliveryId only when
+                    // the linked Delivery row exists; absent → NULL, so the row carries
+                    // no orphan FK that fk_pftc_transaction_balanced_delivery_id would
+                    // reject. (When J-10b migrates Deliveries the JOIN resolves them for
+                    // free.) The engine needs only the current balance, not the
+                    // historical delivery link.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT tx.PersonFlightTimeCreditTransactionId,
+                           tx.PersonFlightTimeCreditId,
+                           d.DeliveryId AS ResolvedBalancedDeliveryId,
+                           tx.BalanceDateTime, tx.NoFlightTimeLimit,
+                           tx.CurrentFlightTimeBalanceInSeconds,
+                           tx.FlightTimeBalanceInSeconds,
+                           tx.OldFlightTimeBalanceInSeconds, tx.IsCurrent,
+                           tx.CreatedOn, tx.CreatedByUserId,
+                           tx.ModifiedOn, tx.ModifiedByUserId,
+                           tx.DeletedOn, tx.DeletedByUserId
+                    FROM (
+                        SELECT PersonFlightTimeCreditTransactionId,
+                               PersonFlightTimeCreditId, BalancedDeliveryId,
+                               BalanceDateTime, NoFlightTimeLimit,
+                               CurrentFlightTimeBalanceInSeconds,
+                               FlightTimeBalanceInSeconds,
+                               OldFlightTimeBalanceInSeconds, IsCurrent,
+                               CreatedOn, CreatedByUserId,
+                               ModifiedOn, ModifiedByUserId,
+                               DeletedOn, DeletedByUserId,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY PersonFlightTimeCreditId
+                                   ORDER BY BalanceDateTime DESC,
+                                            PersonFlightTimeCreditTransactionId
+                               ) AS current_rn
+                        FROM PersonFlightTimeCreditTransactions
+                        WHERE IsCurrent = 1
+                    ) tx
+                    LEFT JOIN Deliveries d ON d.DeliveryId = tx.BalancedDeliveryId
+                    WHERE tx.current_rn = 1
+                    """,
+                    "t_person_flight_time_credit_transaction",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 15 params match
+                    // PersonFlightTimeCreditTransactionMapper.columns() order.
+                    """
+                    INSERT INTO t_person_flight_time_credit_transaction (
+                      id, credit_id, balanced_delivery_id,
+                      balance_date_time, no_flight_time_limit,
+                      current_flight_time_balance_in_seconds,
+                      flight_time_balance_in_seconds,
+                      old_flight_time_balance_in_seconds, is_current,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?,
+                            ?,
+                            ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

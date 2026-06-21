@@ -10,8 +10,6 @@ class UnmappedTablesTest {
     /** Legacy table names exactly as the FLSTest schema-dump spells them. */
     private static final List<String> AC_NAMED_LEGACY_TABLES = List.of(
             "LanguageTranslations",
-            "PersonFlightTimeCredits",
-            "PersonFlightTimeCreditTransactions",
             "Settings",
             "SystemData",
             "SystemLogs",

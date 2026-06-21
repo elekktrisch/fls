@@ -55,7 +55,9 @@ class ExportCommandSmokeTest {
                 EntityType.AIRCRAFT_RESERVATION, EntityType.AIRCRAFT_RESERVATION_TYPE,
                 EntityType.PLANNING_DAY, EntityType.PLANNING_DAY_ASSIGNMENT,
                 EntityType.PLANNING_DAY_ASSIGNMENT_TYPE,
-                EntityType.ACCOUNTING_RULE_FILTER);
+                EntityType.ACCOUNTING_RULE_FILTER,
+                EntityType.PERSON_FLIGHT_TIME_CREDIT,
+                EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION);
     }
 
     @Test
