@@ -131,11 +131,91 @@ async function installBootstrapReferenceStubs(page: Page): Promise<void> {
   }
 }
 
+/**
+ * One default fulfillment for a per-screen resource the mock-auth session pulls
+ * lazily after bootstrap (a list/picker/dashboard a screen loads on nav, or an
+ * inline `validate` / `page` POST a form fires). With no backend each unstubbed
+ * call falls through Vite's proxy to ECONNREFUSED → 500 and the guard trips, so
+ * the same base-layer pattern as the bootstrap catalogs applies here: a minimal
+ * SHAPE-CORRECT empty/valid body satisfies the generated client's type so the
+ * stub never introduces a NEW console error, and a spec that needs real data
+ * layers its own route on top and wins.
+ *
+ * The body shape mirrors the orval-generated response type the screen consumes:
+ * list endpoints → `[]`; envelope endpoints (`FlightListResponse`,
+ * `AircraftReservationPage`) → an empty-items object; object endpoints
+ * (`/me/*`) → `{}` (all fields optional); `validate` POSTs → `{ valid: true }`
+ * (`PlanningDayValidationResult` / `ReservationValidationResult`). The two
+ * resources designed to 404 when the caller has no row (`flights/last-context`,
+ * which the flight store silently falls back from, and `migrations/handshake/
+ * current`) return a body the store tolerates without erroring.
+ */
+interface ResourceStub {
+  readonly url: string | RegExp;
+  readonly status: number;
+  readonly body: string;
+}
+
+const PER_SCREEN_RESOURCE_STUBS: readonly ResourceStub[] = [
+  { url: '**/api/v1/me/system-dashboard', status: 200, body: '{}' },
+  { url: '**/api/v1/me/person/licences', status: 200, body: '{}' },
+  { url: '**/api/v1/me/person', status: 200, body: '{}' },
+  { url: '**/api/v1/me/club-membership/notification-prefs', status: 200, body: '{}' },
+  { url: '**/api/v1/persons', status: 200, body: '[]' },
+  { url: '**/api/v1/club/member-states', status: 200, body: '[]' },
+  { url: '**/api/v1/locations', status: 200, body: '[]' },
+  { url: '**/api/v1/flight-types', status: 200, body: '[]' },
+  { url: '**/api/v1/flights/new-template**', status: 200, body: newTemplateBody() },
+  { url: /\/api\/v1\/flights(\?|$)/, status: 200, body: '{"items":[]}' },
+  { url: /\/api\/v1\/flights\/last-context(\?|$)/, status: 404, body: '{}' },
+  {
+    url: /\/api\/v1\/flights\/(?!new-template|last-context)[^/?]+(\?|$)/,
+    status: 404,
+    body: '{}',
+  },
+  { url: '**/api/v1/planning-days/overview/future', status: 200, body: '[]' },
+  { url: '**/api/v1/planning-days/validate', status: 200, body: '{"valid":true}' },
+  { url: '**/api/v1/aircraft-reservations/validate', status: 200, body: '{"valid":true}' },
+  {
+    url: /\/api\/v1\/aircraft-reservations\/page\/\d+\/\d+/,
+    status: 200,
+    body: '{"items":[],"pageStart":0,"pageSize":50,"totalRows":0}',
+  },
+  { url: '**/api/v1/aircraft/picker', status: 200, body: '[]' },
+  { url: '**/api/v1/aircraft-reservation-types', status: 200, body: '[]' },
+  { url: '**/api/v1/migrations/handshake/current', status: 200, body: '{}' },
+];
+
+/**
+ * `FlightTemplateResponse` carries required fields the flight-edit form binds
+ * to, so an empty `{}` would surface an `undefined.flightAircraftType` read.
+ * The minimal valid template seeds those required keys with empty/false
+ * defaults — an unpopulated but well-typed new-flight surface.
+ */
+function newTemplateBody(): string {
+  return JSON.stringify({
+    flightAircraftType: 'GLIDER',
+    isSoloFlight: false,
+    noStartTimeInformation: false,
+    noLdgTimeInformation: false,
+    crew: [],
+  });
+}
+
+async function installPerScreenResourceStubs(page: Page): Promise<void> {
+  for (const stub of PER_SCREEN_RESOURCE_STUBS) {
+    await page.route(stub.url, (route) =>
+      route.fulfill({ status: stub.status, contentType: 'application/json', body: stub.body }),
+    );
+  }
+}
+
 export const test = base.extend<{ consoleGuard: void }>({
   consoleGuard: [
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
       await installBootstrapReferenceStubs(page);
+      await installPerScreenResourceStubs(page);
       await use();
 
       const g = guardFor(testInfo);

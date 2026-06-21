@@ -134,7 +134,7 @@ error-free, clean styling — proven by screenshots of each state.
   location-types, countries, club-states, …) installed before first nav by every mock-auth spec — cleanest
   robust approach without masking genuine errors. Fold the 3 deliberate cross-tenant-404 opt-outs
   (`allowConsoleErrors(testInfo, /\b404\b/)`: accounting-rules:688, deliveries:300, delivery-creation-test:471).
-- [ ] **T-11** — Stub the residual per-screen secondary resolvers still 500ing after T-10 (persons,
+- [x] **T-11** — Stub the residual per-screen secondary resolvers still 500ing after T-10 (persons,
   club/member-states, flight-types, flight-crew-types, accounting-rule-filter-types, aircraft-reservation-types,
   locations, aircraft/picker) — re-mine the post-T-10 gate run for the actual residual set; iterate to green.
 
