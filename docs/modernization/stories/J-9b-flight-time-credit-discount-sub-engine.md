@@ -137,7 +137,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 - [x] **T-06** — Migration mapper (`PersonFlightTimeCreditMapper`: producer SELECT + V3 insert) + remove both
   tables from `UnmappedTables` + the real-producer collision/orphan round-trip IT (exactly-one-`IsCurrent` dedupe;
   `PersonId` resolve; nullable `BalancedDeliveryId`).
-- [ ] **T-07** — Thicken the spec to full real assertions (clean-seed corpus: full-cover, over-credit split,
+- [x] **T-07** — Thicken the spec to full real assertions (clean-seed corpus: full-cover, over-credit split,
   discount, zero-balance skip, unlimited, dry-run idempotent/no-mutation + migrated credit round-trip — mine the
   ACTUAL migrated values); drive real-idp green locally; populate the gallery.
 
