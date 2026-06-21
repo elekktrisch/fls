@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../_helpers/console-guard';
 
 import { mintRealHandshakeToFile } from './_helpers/fan-out-parity-fixture';
 

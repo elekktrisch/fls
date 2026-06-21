@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * Article CRUD shape. Greenfield spec (no legacy oracle — the legacy
@@ -252,7 +253,9 @@ test('articles: editing the seeded row updates the list (UI round-trip)', async 
   await expect(page.locator('#ArticleName')).toHaveValue('Glider hour (renamed)');
 });
 
-test('articles: 409 on duplicate articleNumber surfaces inline', async ({ page }) => {
+test('articles: 409 on duplicate articleNumber surfaces inline', async ({ page }, testInfo) => {
+  // The duplicate-articleNumber POST is deliberately rejected; the browser logs the 409.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const items: MockArticleDetail[] = [{ ...gliderHourSeed }];
   await stubReferenceData(page);
   await page.route('**/api/v1/articles**', setupArticlesBackend(items));

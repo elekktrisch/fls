@@ -121,7 +121,7 @@ error-free, clean styling — proven by screenshots of each state.
   branch probe also check `proof-preview/<branch>/<jid>/` (mirror `proof-gallery-links.spec.ts:875-879`'s
   `GALLERY_PROOF_CONTEXT==='proof'` branch). Targeted probe fix only — the full GALLERY-SIMPLIFY collapse stays
   its own burndown rider.
-- [ ] **T-09** — Suite-wide console-guard rollout (operator chose: roll out now): flip the ~43 specs still
+- [x] **T-09** — Suite-wide console-guard rollout (operator chose: roll out now): flip the ~43 specs still
   importing raw `@playwright/test` to the shared `test` (one-line import swap each, auto fixture), and declare
   `allowConsoleErrors(…)` in the ~17 specs that `route.fulfill` an error status (+ optimistic-concurrency /
   409 / 412 paths). Then drive the §4 full-regression gate so the latent app console errors surface and get

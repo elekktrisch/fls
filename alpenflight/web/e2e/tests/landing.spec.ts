@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/console-guard';
 
 // `?lang=` query param pins the cold-start locale so tests don't depend on
 // the test browser's Accept-Language (Chromium defaults to en-US, which

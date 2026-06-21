@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
@@ -469,7 +470,9 @@ test('delivery-creation-test: run a test whose engine output differs → Failure
 // ── cross-tenant isolation ───────────────────────────────────────────────────
 test('delivery-creation-test: cross-tenant GET of another club’s test → 404 (not-found, no edit form)', async ({
   page,
-}) => {
+}, testInfo) => {
+  // The cross-tenant detail GET is deliberately 404ed; the browser logs it.
+  allowConsoleErrors(testInfo, /\b404\b/);
   // The new stack scopes by @TenantId, so another club's id is never in this
   // club's list → GET by that id → 404 → the edit page surfaces not-found.
   await bootBackend(page, [{ ...seededTest }]);

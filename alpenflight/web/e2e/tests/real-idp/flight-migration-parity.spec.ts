@@ -1,14 +1,13 @@
 import { existsSync } from 'node:fs';
 
 import {
-  test,
-  expect,
   type Browser,
   type BrowserContext,
   type Locator,
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import type { FlightDetail, FlightUpdateRequest } from '../../../src/app/api/generated/model';
 
@@ -71,7 +70,10 @@ async function newRecordedContext(
   baseURL: string,
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
-  return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  // Guard every page this context opens, not just the fixture-injected one.
+  context.on('page', (p) => watchConsoleErrors(p, testInfo));
+  return context;
 }
 
 /**

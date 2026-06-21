@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -301,7 +302,9 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     });
   });
 
-  test('tow-POST failure triggers compensating DELETE on glider', async ({ page }) => {
+  test('tow-POST failure triggers compensating DELETE on glider', async ({ page }, testInfo) => {
+    // The tow POST is forced to fail so the compensating DELETE runs; the browser logs it.
+    allowConsoleErrors(testInfo, /\b400\b/);
     await stubMasterdata(page);
     const backend = setupBackend({ failTowPost: true });
     await page.route('**/api/v1/flights**', backend.handler);

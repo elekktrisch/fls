@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Planning-day LIST page — J-6 T-07 inner-loop spec.

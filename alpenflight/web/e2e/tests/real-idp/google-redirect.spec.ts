@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../_helpers/console-guard';
 
 /**
  * S-174 — Google IdP click-redirect smoke. Unconditional (no env-gate)

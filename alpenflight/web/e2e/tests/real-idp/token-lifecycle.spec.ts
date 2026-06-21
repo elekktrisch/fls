@@ -1,4 +1,5 @@
-import { test, expect, type Page, type Request } from '@playwright/test';
+import { type Page, type Request } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import {
   SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS,
@@ -138,7 +139,8 @@ test.describe('token-lifecycle — non-mutating', () => {
 
   test('multi-tab logout — tab A logout invalidates tab B on next navigation', async ({
     context,
-  }) => {
+  }, testInfo) => {
+    context.on('page', (p) => watchConsoleErrors(p, testInfo));
     // Same Playwright BrowserContext means shared *live* localStorage —
     // that's where the OIDC client persists tokens (the
     // `AbstractSecurityStorage` → `DefaultLocalStorageService` binding in

@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * FlightType CRUD shape. Greenfield spec (no legacy oracle — the legacy
@@ -250,7 +251,9 @@ test('flight-types: editing the seeded row updates the list (UI round-trip)', as
   await expect(page.locator('#FlightTypeName')).toHaveValue('Schulflug-renamed');
 });
 
-test('flight-types: 409 on duplicate name surfaces inline', async ({ page }) => {
+test('flight-types: 409 on duplicate name surfaces inline', async ({ page }, testInfo) => {
+  // The duplicate-name POST is deliberately rejected; the browser logs the 409.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const items: MockFlightTypeDetail[] = [{ ...schulflugSeed }];
   await stubReferenceData(page);
   await page.route('**/api/v1/flight-types**', setupFlightTypesBackend(items));

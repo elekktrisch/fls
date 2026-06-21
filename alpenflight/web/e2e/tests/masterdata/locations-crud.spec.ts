@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * Locations CRUD shape. Parity port of legacy
@@ -276,7 +277,9 @@ test('locations: creating a new location appears in the list', async ({ page }) 
   await expect(page.locator('a').filter({ hasText: 'Saanen' })).toBeVisible();
 });
 
-test('locations: 409 on duplicate ICAO surfaces inline', async ({ page }) => {
+test('locations: 409 on duplicate ICAO surfaces inline', async ({ page }, testInfo) => {
+  // The duplicate-ICAO POST is deliberately rejected; the browser logs the 409.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
   await stubReferenceData(page);
   await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
@@ -383,7 +386,9 @@ test('locations: soft-delete removes the row from the rendered list', async ({ p
 
 test('locations: cross-tenant GET-by-id 404s — foreign-club row is absent and not-found surfaces', async ({
   page,
-}) => {
+}, testInfo) => {
+  // The cross-tenant GET-by-id is deliberately 404ed; the browser logs it.
+  allowConsoleErrors(testInfo, /\b404\b/);
   // Tenant-isolation contract at mocked fidelity. The backend (@TenantId
   // auto-filter) never returns another club's Location: it is absent from
   // OUR list, and a direct GET by its id 404s. Here the mock backend only

@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -396,7 +397,7 @@ test.describe('flights list page', () => {
     });
   });
 
-  test('visual snapshots — populated, filtered, empty', async ({ page }) => {
+  test('visual snapshots — populated, filtered, empty', async ({ page }, testInfo) => {
     await stubReferenceData(page);
     const { handler: flightsHandler } = setupFlightsBackend(allFlights);
     await page.route('**/api/v1/flights**', flightsHandler);
@@ -415,6 +416,7 @@ test.describe('flights list page', () => {
     // today..today (legacy parity), so a zero-row result is a no-MATCH against
     // the active range, not a genuinely empty logbook — the copy reflects that.
     const emptyPage = await page.context().newPage();
+    watchConsoleErrors(emptyPage, testInfo);
     await stubReferenceData(emptyPage);
     await emptyPage.route('**/api/v1/flights**', async (route) => {
       await route.fulfill({

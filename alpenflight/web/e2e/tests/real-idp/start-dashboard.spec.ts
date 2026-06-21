@@ -1,12 +1,11 @@
 import {
-  test,
-  expect,
   type APIRequestContext,
   type Browser,
   type BrowserContext,
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { fillKcLogin } from './_helpers/kc-form';
 
@@ -102,9 +101,11 @@ const CLUB1_MOTOR_IMMAT = 'HB-MOT1';
 async function loginAsRole(
   browser: Browser,
   baseURL: string,
+  testInfo: TestInfo,
   principal: SeededPrincipal,
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL });
+  context.on('page', (p) => watchConsoleErrors(p, testInfo));
   const page = await context.newPage();
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
@@ -218,7 +219,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsRole(browser, baseURL!, PILOT);
+    const { context, page } = await loginAsRole(browser, baseURL!, testInfo, PILOT);
     try {
       await expect(page.getByTestId('start-variant-pilot')).toBeVisible();
       await expect(page.getByTestId('start-greeting')).toBeVisible();
@@ -277,7 +278,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsRole(browser, baseURL!, CLUB_ADMIN);
+    const { context, page } = await loginAsRole(browser, baseURL!, testInfo, CLUB_ADMIN);
     try {
       await expect(page.getByTestId('start-variant-clubadmin')).toBeVisible();
 
@@ -307,7 +308,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsRole(browser, baseURL!, SYSADMIN);
+    const { context, page } = await loginAsRole(browser, baseURL!, testInfo, SYSADMIN);
     try {
       await expect(page.getByTestId('start-variant-sysadmin')).toBeVisible();
 
@@ -349,8 +350,8 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
   test('today-flights tile updates live (3 → 4) on flight.created without a reload', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsRole(browser, baseURL!, CLUB_ADMIN);
+  }, testInfo) => {
+    const { context, page } = await loginAsRole(browser, baseURL!, testInfo, CLUB_ADMIN);
     try {
       // Open the dashboard — the club-dashboard store opens the SSE stream and
       // the tile shows the showcase club-1 count (3).

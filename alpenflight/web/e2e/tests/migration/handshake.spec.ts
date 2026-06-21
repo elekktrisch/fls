@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * S-140 — /migrate/start happy path. Mock-auth bootstrap; the SPA mocks

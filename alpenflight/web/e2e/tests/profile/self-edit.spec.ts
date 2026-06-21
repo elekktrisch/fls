@@ -1,12 +1,11 @@
 import {
-  test,
-  expect,
   type APIRequestContext,
   type Browser,
   type BrowserContext,
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { fillKcLogin } from '../real-idp/_helpers/kc-form';
 
@@ -106,6 +105,7 @@ const LANGUAGE_ID_EN = '019e2e15-2c00-77d3-8000-0000000007d3';
 async function loginAsPilot(
   browser: Browser,
   baseURL: string,
+  testInfo: TestInfo,
   principal: SeededPrincipal,
   contextLocale?: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
@@ -116,6 +116,7 @@ async function loginAsPilot(
   const context = await browser.newContext(
     contextLocale ? { baseURL, locale: contextLocale } : { baseURL },
   );
+  context.on('page', (p) => watchConsoleErrors(p, testInfo));
   const page = await context.newPage();
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
@@ -185,7 +186,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await expect(page.getByTestId('profile-page')).toBeVisible();
@@ -201,8 +202,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('the nav avatar dropdown routes to /profile and Sign out ends the session', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       // Avatar/initials trigger → dropdown → "Profile" routerLink.
       await page.getByTestId('af-nav-user').click();
@@ -231,11 +232,11 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('Account tab edits friendlyName/notificationEmail/phone/language → persists on reload; identity read-only; locale flips', async ({
     browser,
     baseURL,
-  }) => {
+  }, testInfo) => {
     // Boot the context at a NON-`en` navigator locale (`de-CH` → resolves to
     // `de`) so the SPA genuinely cold-starts in German — the de→en flip is then
     // actually observable, not trivially-green off Chromium's `en-US` default.
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT, 'de-CH');
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT, 'de-CH');
     try {
       await page.goto('/profile');
       await openTab(page, 'account');
@@ -312,8 +313,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('Personal tab edits an address/contact field → persists on reload; name fields read-only', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'personal');
@@ -352,8 +353,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('Pilot tab edits a medical expiry → persists on reload AND a club-admin reads the PersonLicences audit row (before/after diff)', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'pilot');
@@ -396,7 +397,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     // (@PreAuthorize CLUB_ADMINISTRATOR/SYSTEM_ADMINISTRATOR — AuditAdminController).
     // pilot1's audit row lives under tenant club-1, so club-1's CLUB_ADMINISTRATOR
     // (clubadmin1) reads it — the genuine HTTP admin path, no DB peek, no seam.
-    const admin = await loginAsPilot(browser, baseURL!, CLUB_ADMIN);
+    const admin = await loginAsPilot(browser, baseURL!, testInfo, CLUB_ADMIN);
     try {
       const bearer = await captureBearer(admin.page);
       const auditRow = await readLatestPersonLicencesAudit(admin.context.request, bearer);
@@ -417,8 +418,11 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   });
 
   // ── AC5 — Notifications round-trip ───────────────────────────────────────────
-  test('Notifications tab toggles a pref → persists on reload', async ({ browser, baseURL }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+  test('Notifications tab toggles a pref → persists on reload', async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'notifications');
@@ -458,8 +462,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('a no-Person principal sees the banner + disabled forms on Personal/Pilot/Notifications; Account still edits + saves', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT_EMPTY);
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT_EMPTY);
     try {
       await page.goto('/profile');
       await expect(page.getByTestId('profile-page')).toBeVisible();
@@ -503,8 +507,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
   test('every profile mutation hits an id-less /api/v1/me/* endpoint (no :id, caller-scoped from the JWT)', async ({
     browser,
     baseURL,
-  }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
     try {
       // Record every PATCH the profile screen fires across all four tabs; assert
       // each targets `/api/v1/me/...` with NO id segment — the endpoint resolves

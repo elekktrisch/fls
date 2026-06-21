@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -609,7 +610,9 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
   // ── AC[key-error]: a duplicate (date, location) is rejected 409 inline ───────
   test('duplicate: a second day with the same (date, location) is rejected 409 inline', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The duplicate-day POST is deliberately rejected; the browser logs it.
+    allowConsoleErrors(testInfo, /\b409\b/);
     await wirePlanning(page, [{ ...seedDay }]);
 
     await gotoDe(page, '/planning/new/edit');

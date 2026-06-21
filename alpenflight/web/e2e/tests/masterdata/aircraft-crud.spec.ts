@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * Aircraft CRUD shape. Parity port of legacy
@@ -545,7 +546,9 @@ test('aircraft: creating a new aircraft appears in the list', async ({ page }) =
   ).toBeVisible();
 });
 
-test('aircraft: 409 on duplicate immatriculation surfaces inline', async ({ page }) => {
+test('aircraft: 409 on duplicate immatriculation surfaces inline', async ({ page }, testInfo) => {
+  // The duplicate-immatriculation POST is deliberately rejected; the browser logs the 409.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const aircraft: MockAircraftDetail[] = [{ ...gliderSeed }];
   await stubReferenceData(page);
   await page.route('**/api/v1/aircraft**', setupAircraftBackend(aircraft));

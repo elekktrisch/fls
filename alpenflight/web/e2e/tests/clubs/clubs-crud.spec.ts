@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * Clubs CRUD shape. Mocks the backend via `page.route` so the spec runs
@@ -246,7 +247,9 @@ test('clubs: country picker is populated and a non-default country persists', as
   expect(created?.countryId).toBe(DE_COUNTRY_ID);
 });
 
-test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }) => {
+test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }, testInfo) => {
+  // The duplicate-slug POST is deliberately rejected; the browser logs the 409.
+  allowConsoleErrors(testInfo, /\b409\b/);
   // Race-condition shape: the client-side `slugAvailable` validator only
   // catches slugs already in the loaded entity map; the authoritative
   // duplicate guard is the server 409 (e.g. another tab created the same
