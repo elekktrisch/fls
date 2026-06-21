@@ -1,0 +1,95 @@
+---
+id: J-2c
+title: Flights list date-range filter — default visibility + working controls + styling
+epic: E-07
+status: todo
+journey0: false
+carved: true
+depends_on: [J-2b]
+rolls_up: []
+acceptance:
+  - "[happy] On initial /flights load the date-range filter INPUTS display today..today (the store's legacy-parity default surfaces in the visible control), captured as an initial-state proof screenshot."
+  - "[happy] Editing the range by MOUSE (open the picker, pick from + to) updates the filter and refetches the list — with ZERO uncaught browser-console errors; proof screenshot of the active control."
+  - "[happy] Entering dates by KEYBOARD (type into the from/to fields) updates the filter and refetches the list — with ZERO uncaught browser-console errors; proof screenshot of the active control."
+  - "[key-error] No uncaught console error is emitted during any date-control interaction — the spec subscribes to page 'console'/'pageerror' and fails on the first error."
+  - "[edge] The from-field renders a single clean underline on focus/edit — no duplicate/stray underline."
+screen: /flights — hardens the J-2/J-2b date-range filter (no redesign)
+headless_pulled_in: none
+migration: N/A — UI fix (no entity, no mapper, no fanout gate)
+parity_test: alpenflight/web/e2e/tests/flights/flights-list.spec.ts (mock inner-loop) + a real-idp proof capture of the 3 states (initial / mouse-edit / keyboard-entry) for the gallery
+adr_refs: [0024, 0022]
+---
+
+## Context
+
+J-2b adopted the legacy `today..today` default range (`flight.store.ts:113-116`) and the list correctly
+**fetches** today's flights — but the date-range filter **control itself is broken**: (1) the visible
+from/to inputs do NOT display the today default on load, (2) interacting with the control throws a burst of
+browser-console errors and "doesn't work at all", and (3) the from-field shows a duplicate/stray underline
+when edited. The daily list is the hot path; an unusable, visibly-wrong filter is a P1 regression. This
+journey makes the filter **work and look right** — default visible, mouse + keyboard editing functional and
+error-free, clean styling — proven by screenshots of each state.
+
+## Spec must assert
+
+1. **Default visible** — load `/flights`; the date-range inputs render **today** in both from and to (not an
+   empty placeholder). The store default already filters the list to today; the visible control must agree.
+   Capture the initial-state screenshot for the gallery.
+2. **Mouse editing works** — open the picker, select a from + a to date; the list refetches for the new range;
+   **no uncaught console error** fires. Capture the active-control screenshot.
+3. **Keyboard entry works** — type dates into the from/to fields; the list refetches; **no uncaught console
+   error** fires. Capture the active-control screenshot.
+4. **Zero console errors** — the spec attaches a `page.on('console', …)`/`page.on('pageerror', …)` guard for
+   the whole filter-interaction flow and fails on the first `error` (this is the functional proof that the
+   controls actually work, not just that the screenshot looks plausible).
+5. **Clean underline** — on focus/edit the from-field shows a single underline (the duplicate stroke is gone).
+
+## Notes
+
+- **No design reference** for this filter: `docs/modernization/design-reference/AlpenFlight.html` +
+  `screens-logbook.jsx` document the flights/logbook screen but **not** a date-range filter (the three-column
+  Date-range / Air-state / Aircraft-type filter row is a pragmatic addition). So the fix matches the existing
+  `af-*` control conventions + clean focus styling, not a pixel oracle. Flag if a reference is added later.
+- **Root-cause seams (from the codebase map — non-binding, one seam each):**
+  - The **`af-date-picker` organism** (`alpenflight/web/src/app/shared/ui/organisms/af-date-picker/af-date-picker.component.ts`)
+    — it dual-registers `value = model<DateValue>(null)` AND `ControlValueAccessor`; the flights filter binds via
+    `[value]="dateRangeValue()"` + `(valueChange)` (`flights-list.page.ts:250-258,553-563`), a path that may
+    bypass `writeValue()` so the today default never reaches the picker and interaction misbehaves. The binding
+    contract (signal `[value]` vs CVA) is the prime suspect for both the empty-on-load AND the broken-controls
+    symptoms — fix it once on the organism (narrow blast radius: used only by the flights filter + the dev
+    primitives demo, no other production screen).
+  - The **initial-value conversion** `localDateFromIso()` (`shared/util/.../format-date.ts:53-59`) → the
+    `dateRangeValue` computed collapses to `null` if either bound is null/malformed (timezone edge) — verify it
+    yields today on mount.
+  - The **focus underline** — `styles.css:156-168` puts a single border on `.ant-picker`; the extra stroke is
+    likely a focus `::after`/dual-field separator or an `af-form-field` wrapper border stacking on ng-zorro's.
+    Inspect live (DevTools) to confirm a true double-stroke vs the range separator before "fixing".
+  - **Console-error reproduction is live-only** — the static map could not pin the throw; `/do-ship` drives the
+    real deployed control (e2e-driver) and reads the actual console errors, then anchors the fix on them (do NOT
+    guess the throw from the component source).
+- **Existing tests / selectors:** `alpenflight/web/e2e/tests/flights/flights-list.spec.ts` already exercises the
+  picker→store→server round-trip (AC11/T-13 regression, `getByTestId('flights-date-range')` +
+  `.locator('input')`, overlay via `.cdk-overlay-container .ant-picker-panel-container`). Extend it; add the
+  per-state proof captures. The range picker exposes two `<input>`s inside one `.ant-picker` (no per-field
+  testid) — the from/to are `.locator('input').first()/.nth(1)`.
+- **Riders to fold (touch this surface):**
+  - **[AEROTOW-SELECT-FLAKE]** — give the clean-seed AEROTOW `flight-edit-startLocation` select a deterministic
+    search term (it flakes under RAM pressure); this is a flights/e2e touch (`_BOYSCOUT.md`).
+  - **a11y/console cleanup on the same row:** `af-form-field for="FlightDateRange"` has no matching control id;
+    `af-select inputId="…"` (`flights-list.page.ts:262`) is passed but `af-select` defines no `inputId` input
+    (silently dropped). Tidy the label/id wiring while in this file.
+  - Per-touch **COMMENT-STRIP / HISTORY→GIT** + the J-2c gallery slice.
+- **Gate shape:** migration N/A ⇒ **no fanout gate**; the done bar is clean-seed real-idp green + the 3 gallery
+  proof screenshots (initial / mouse / keyboard) + zero-console-errors. The fast mock lane (`flights-list.spec.ts`)
+  is the inner loop.
+
+## Assumptions made
+
+1. **J-2c, not a reopened J-2b** — J-2b is merged (PR #230); this is fresh operator-observed breakage on the same
+   screen, so it carves as a sibling hardening journey rather than reopening the closed one.
+2. **No migration / no new screen** — the `today..today` default already landed in J-2b; J-2c only repairs the
+   filter control's binding, interaction, and styling. If the fix turns out to need a store/API change (e.g. the
+   default isn't actually reaching the control because of a store bug, not a binding bug), that stays in this
+   journey as another task — not a new story.
+3. **Proof in the real-idp lane** so the captures land in the gallery; functionally a mock-IdP run would suffice
+   (no auth-role or migration surface), but the gallery convention uses the real-idp proof-video/​screenshot path.
