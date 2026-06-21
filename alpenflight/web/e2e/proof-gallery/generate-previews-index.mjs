@@ -88,13 +88,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *                            history source).
  * `label` is shown on the live row so the operator knows which deploy they're seeing.
  *
- * ONE branch source — the FANOUT branch-preview page at
- * `proof-preview/<branch>/legacy-parity/J-<n>/`. That is the layout the fanout
- * deploys to (`alpenflight-proof-fanout.yml` → `proof-preview/<ref>/legacy-parity`)
- * and the only branch-context deploy that rebuilds the previews index, so the
- * in-flight bookmark points at it. The sources, FIRST-HIT-WINS in array order:
- *   - `<branch>/legacy-parity/J-<n>/` ← fanout branch preview, fresh, ephemeral
- *                                      (reaped on PR close).
+ * The branch source carries TWO deploy layouts because the two branch-context
+ * deploys that rebuild this index write to different subpaths:
+ *   - the FANOUT (`alpenflight-proof-fanout.yml`) deploys to
+ *     `proof-preview/<branch>/legacy-parity/J-<n>/` — the richer both-sides page;
+ *   - the per-push `proof` context deploys to `proof-preview/<branch>/J-<n>/`
+ *     (no `legacy-parity/` level).
+ * So the branch source probes both `subPaths`, in order — fanout first (richer),
+ * bare proof-context second — and takes the first that exists. This makes the
+ * probe context-agnostic: it finds whichever branch deploy ran without the
+ * generator needing to know the proof context. The sources, FIRST-HIT-WINS in
+ * array order:
+ *   - branch     `<branch>/[legacy-parity/]J-<n>/` ← fanout or proof-context
+ *                                      preview, fresh, ephemeral (reaped on close).
  *   - canonical  `proof/J-<n>/`     ← persistent main deploy (merged journeys).
  *   - archive    `proof/legacy-parity/J-<n>/` ← persistent fanout archive
  *                                      (J-0…J-4 history; survives PR close).
@@ -104,7 +110,7 @@ export const JOURNEY_PAGE_SOURCES = [
     id: 'branch',
     base: 'alpenflight/proof-preview',
     needsBranch: true,
-    subPath: 'legacy-parity',
+    subPaths: ['legacy-parity', ''],
     label: 'branch preview',
   },
   { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published' },
@@ -208,28 +214,33 @@ export function locateJourneyPage(ghPagesRoot, jid, { branch, git = false }) {
   // source, no tie-break.
   for (const src of JOURNEY_PAGE_SOURCES) {
     if (src.needsBranch && !branch) continue;
-    // On-disk base dir for this source: <base>[/<branch>][/<subPath>].
-    let baseDir = resolve(ghPagesRoot, src.base);
-    if (src.needsBranch) baseDir = join(baseDir, branch);
-    if (src.subPath) baseDir = join(baseDir, src.subPath);
-    const pageFile = join(baseDir, jid, 'index.html');
-    if (!existsSync(pageFile)) continue;
-    const updated = lastUpdated(pageFile, { git, gitRoot });
-    // Href is relative to alpenflight/previews/index.html. The page lives at
-    // <base>[/<branch>][/<subPath>]/<jid>/index.html → from previews/, that's
-    // ../<base-without-leading-alpenflight>/[<branch>/][<subPath>/]<jid>/.
-    const relParts = [src.base.replace(/^alpenflight\//, '')];
-    if (src.needsBranch) relParts.push(branch);
-    if (src.subPath) relParts.push(src.subPath);
-    relParts.push(jid);
-    const rel = `${relParts.join('/')}/`;
-    return {
-      found: true,
-      href: `../${rel}`,
-      source: src.id,
-      label: src.label,
-      updated,
-    };
+    // A source may probe several deploy-layout subpaths, in priority order; the
+    // first that exists wins. Sources with no subpath probe a single bare level.
+    const subPaths = src.subPaths ?? [''];
+    for (const subPath of subPaths) {
+      // On-disk base dir for this candidate: <base>[/<branch>][/<subPath>].
+      let baseDir = resolve(ghPagesRoot, src.base);
+      if (src.needsBranch) baseDir = join(baseDir, branch);
+      if (subPath) baseDir = join(baseDir, subPath);
+      const pageFile = join(baseDir, jid, 'index.html');
+      if (!existsSync(pageFile)) continue;
+      const updated = lastUpdated(pageFile, { git, gitRoot });
+      // Href is relative to alpenflight/previews/index.html. The page lives at
+      // <base>[/<branch>][/<subPath>]/<jid>/index.html → from previews/, that's
+      // ../<base-without-leading-alpenflight>/[<branch>/][<subPath>/]<jid>/.
+      const relParts = [src.base.replace(/^alpenflight\//, '')];
+      if (src.needsBranch) relParts.push(branch);
+      if (subPath) relParts.push(subPath);
+      relParts.push(jid);
+      const rel = `${relParts.join('/')}/`;
+      return {
+        found: true,
+        href: `../${rel}`,
+        source: src.id,
+        label: src.label,
+        updated,
+      };
+    }
   }
   return { found: false };
 }

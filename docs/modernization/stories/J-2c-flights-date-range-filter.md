@@ -115,7 +115,7 @@ error-free, clean styling — proven by screenshots of each state.
   - Infra: `e2e/tests/_helpers/console-guard.ts` exports the shared `test` (auto fixture asserting the
     per-test error bag is empty in teardown) + `watchConsoleErrors(page, testInfo)` for spec-owned context
     pages + `allowConsoleErrors(testInfo, …)` opt-out. J-2c spec adopts it.
-- [ ] **T-08** — Gate-red fix (gallery plumbing, not journey behavior): the deployed-journey guard reds because
+- [x] **T-08** — Gate-red fix (gallery plumbing, not journey behavior): the deployed-journey guard reds because
   `generate-previews-index.mjs` `branch` source probes `proof-preview/<branch>/legacy-parity/<jid>/` (a subpath
   that exists only in the fanout context, not `proof`), so J-2c's index row stays PENDING. Make the proof-context
   branch probe also check `proof-preview/<branch>/<jid>/` (mirror `proof-gallery-links.spec.ts:875-879`'s
