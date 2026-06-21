@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -148,7 +149,7 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         return;
       }
       if (url.pathname.startsWith('/api/v1/flights/last-context')) {
-        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
         return;
       }
       // Paired-create POSTs.
@@ -301,7 +302,9 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     });
   });
 
-  test('tow-POST failure triggers compensating DELETE on glider', async ({ page }) => {
+  test('tow-POST failure triggers compensating DELETE on glider', async ({ page }, testInfo) => {
+    // The tow POST is forced to fail so the compensating DELETE runs; the browser logs it.
+    allowConsoleErrors(testInfo, /\b400\b/);
     await stubMasterdata(page);
     const backend = setupBackend({ failTowPost: true });
     await page.route('**/api/v1/flights**', backend.handler);

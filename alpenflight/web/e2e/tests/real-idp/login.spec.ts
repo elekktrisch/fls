@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from '../_helpers/console-guard';
 
 import { assertLocalhostIssuer, _testing as kcAdmin } from './_helpers/keycloak-admin';
 import { KC_ERROR_SELECTOR, fillKcLogin } from './_helpers/kc-form';

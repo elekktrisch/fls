@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * S-134 self-service signup. The e2e harness here is mock-auth: the SPA boots

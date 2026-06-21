@@ -1,4 +1,5 @@
-import { expect, test, type Route } from '@playwright/test';
+import { type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * S-168 Users admin spec. Mock-backend (page.route) — live-Keycloak SPA
@@ -456,7 +457,9 @@ test('users: deactivate removes the row', async ({ page }) => {
   await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toHaveCount(0);
 });
 
-test('users: self-deactivate refused inline (409)', async ({ page }) => {
+test('users: self-deactivate refused inline (409)', async ({ page }, testInfo) => {
+  // The self-deactivate PUT is deliberately rejected; the browser logs it.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);
   await page.route('**/api/v1/users**', setupUsersBackend(users));
@@ -473,7 +476,9 @@ test('users: self-deactivate refused inline (409)', async ({ page }) => {
   await expect(page).toHaveURL(`/users/${SELF_USER_ID}/edit`);
 });
 
-test('users: invite refuses on duplicate username (409)', async ({ page }) => {
+test('users: invite refuses on duplicate username (409)', async ({ page }, testInfo) => {
+  // The duplicate-username invite is deliberately rejected; the browser logs it.
+  allowConsoleErrors(testInfo, /\b409\b/);
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);
   await page.route('**/api/v1/users**', setupUsersBackend(users));

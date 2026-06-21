@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * J-24 gate spec — the journey's green bar.

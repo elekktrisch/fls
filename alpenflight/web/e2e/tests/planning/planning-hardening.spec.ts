@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Planning-day READ-ONLY / EDIT-MODE + reservation cancel-return nav — J-6b

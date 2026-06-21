@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
@@ -684,7 +685,11 @@ test('accounting-rules: required fields (filter type, name) block Save with inli
 });
 
 // ── cross-tenant isolation ───────────────────────────────────────────────────
-test('accounting-rules: cross-tenant GET of another club’s filter → 404', async ({ page }) => {
+test('accounting-rules: cross-tenant GET of another club’s filter → 404', async ({
+  page,
+}, testInfo) => {
+  // The cross-tenant detail GET is deliberately 404ed; the browser logs it.
+  allowConsoleErrors(testInfo, /\b404\b/);
   // The legacy stack leaks cross-tenant Update/Delete (a BUG); the new stack
   // scopes by @TenantId, so another club's id is never in this club's list →
   // GET by that id → 404 → the edit page surfaces a not-found, not the row.

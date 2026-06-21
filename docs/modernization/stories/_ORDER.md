@@ -21,7 +21,8 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | ✅ **J-0c** | **Fan-out migration parity proof (UI + video)** | E-02 | **J-0b** | S-028 (Location-scope slice), CLUB-pgcopy fix | full chain for **Location only**: legacy `flsweb` create→export→migrate+Keycloak→AlpenFlight per-club video | `Location` (real legacy→AlpenFlight) |
 | J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
 | ✅ **J-2** | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064 (+reuses impl S-062a/b/c, S-063, S-067) | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
-| 🔨 **J-2b** | **Flights hardening — new-flight visibility + edit-form validation + migration fidelity** (operator P0 #229; hardening sprint, no new screen) | E-07 | J-2, J-27 | — (#229 + FLIGHT-FIDELITY rider) | `Flight` re-verify (crew + flight-type) | hardens `/flights` (no redesign) |
+| ✅ **J-2b** | **Flights hardening — new-flight visibility + edit-form validation + migration fidelity** (operator P0 #229; hardening sprint, no new screen) | E-07 | J-2, J-27 | — (#229 + FLIGHT-FIDELITY rider) | `Flight` re-verify (crew + flight-type) | hardens `/flights` (no redesign) |
+| 🔨 **J-2c** | **Flights date-range filter — default visibility + working controls + styling** (operator-observed P1; `af-date-picker` binding/interaction/underline fix, no new screen) | E-07 | J-2b | — (operator bug report) | N/A (UI fix) | hardens `/flights` filter (no redesign) |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
 | J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
 | J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |

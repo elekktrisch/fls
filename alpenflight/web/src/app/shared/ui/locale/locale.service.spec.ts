@@ -1,17 +1,19 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { de, fr } from 'date-fns/locale';
 import { NzI18nService, de_DE, fr_FR } from 'ng-zorro-antd/i18n';
 
 import { LocaleService, type AppLocale } from './locale.service';
 import { TRANSLATION_ADAPTER } from './translation-adapter';
 
 describe('LocaleService', () => {
-  const nzI18n = { setLocale: vi.fn() };
+  const nzI18n = { setLocale: vi.fn(), setDateLocale: vi.fn() };
   const setActiveLang = vi.fn<(locale: AppLocale) => void>();
   const adapter = { setActiveLang };
 
   beforeEach(() => {
     nzI18n.setLocale.mockReset();
+    nzI18n.setDateLocale.mockReset();
     setActiveLang.mockReset();
     TestBed.configureTestingModule({
       providers: [
@@ -36,6 +38,16 @@ describe('LocaleService', () => {
     expect(setActiveLang).toHaveBeenCalledWith('de');
     expect(document.documentElement.lang).toBe('de');
     expect(svc.current()).toBe('de');
+  });
+
+  // The date-fns locale tracks the UI locale so the date pickers can parse
+  // manually-typed dates (the DatePipe adapter can only format).
+  it('set() also points the ng-zorro date-fns locale at the active locale', () => {
+    const svc = TestBed.inject(LocaleService);
+    svc.set('de');
+    expect(nzI18n.setDateLocale).toHaveBeenCalledWith(de);
+    svc.set('fr');
+    expect(nzI18n.setDateLocale).toHaveBeenCalledWith(fr);
   });
 
   it("set('fr') swaps to fr_FR", () => {

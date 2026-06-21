@@ -29,13 +29,25 @@ genuinely new vertical feature scope.
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
+## Pending (filed by /do-ship J-2c gate, 2026-06-21)
+
+- **[CONSOLE-GUARD-FLAKE] the suite-wide no-console-errors guard intermittently catches a transient
+  `ECONNREFUSED`→500 race** in mock-auth specs whose `/api/v1/*` call fires before its `page.route` stub is
+  installed (or after teardown). Seen on `accounting/delivery-creation-test.spec.ts:432` (`/api/v1/accounting-rule-filters`)
+  — non-deterministic (same code green on the prior sha; the same ECONNREFUSED bursts landed outside the guard
+  window). Harden stub-install/backend-readiness gating before the spec's first `/api/v1` hit on the next
+  accounting/e2e touch. *(seam: console-guard fixture stub-install timing + the accounting specs' route setup)*
+
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 
-- **[AEROTOW-SELECT-FLAKE] clean-seed AEROTOW start-location select lacks a search term.** In
-  `flight-migration-parity.spec.ts` the clean-seed AEROTOW flow selects `flight-edit-startLocation` without a
-  search term (unlike `createFullyPopulatedGliderFlight`), so the option render intermittently flakes under RAM
-  pressure. Latent (passed on CI; fails on the overloaded dev box). Give it a deterministic search term on the
-  next flights/e2e touch. *(seam: flight-migration-parity.spec.ts AEROTOW helper)*
+- **[FRAME-ANCESTORS-HEADER] `frame-ancestors` removed from the `index.html` meta CSP** (browser-ignored when
+  delivered via `<meta>` — emits a console error every page load, caught by J-2c's §4 zero-console-error guard).
+  Real clickjacking protection (`frame-ancestors` / `X-Frame-Options`) must be a **response header** at the
+  S-041 reverse proxy / static host, not a meta tag. *(seam: S-041 production CSP response header)*
+- ✅ **[AEROTOW-SELECT-FLAKE] — SHIPPED in J-2c (T-05).** The clean-seed AEROTOW flow (and the sibling motor
+  flow) in `flight-migration-parity.spec.ts` now pass the `'J2 Airfield'` search term to the
+  `flight-edit-startLocation` select (mirroring `createFullyPopulatedGliderFlight`), so the virtualised option
+  renders deterministically instead of flaking under RAM pressure.
 
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 

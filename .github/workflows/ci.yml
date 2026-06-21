@@ -1096,6 +1096,23 @@ jobs:
               "alpenflight-flights-hardening-form.png" \
               "AlpenFlight (#229b): a fully-populated saved flight re-opened over the real chain — every populated required field (date · start type · start location) renders VALID, no stale 'Entry required.' (the root fix: the edit form had ZERO client validators; they are now wired + revalidate against the loaded values)"
           fi
+          # ----- J-2c flights date-range filter hardening (AF-only) ------------
+          # Hardening sprint: no new screen, no legacy peer. The view keys
+          # (date-initial, date-mouse, date-keyboard) match expected-shots.json
+          # J-2c; the AF filenames match the PNGs the real-idp
+          # flights-date-filter-parity.spec.ts writes to test-results/ at each of
+          # the three control states under the zero-console-error guard.
+          if [ "${PROOF_JOURNEY:-}" = "J-2c" ]; then
+            add_af_only "J-2c" "flights" "date-initial" \
+              "alpenflight-flights-date-initial.png" \
+              "AlpenFlight: on initial /flights load the date-range filter inputs render today..today — the store's legacy-parity default surfaces in the visible control (it used to load blank), with zero uncaught browser-console errors"
+            add_af_only "J-2c" "flights" "date-mouse" \
+              "alpenflight-flights-date-mouse.png" \
+              "AlpenFlight: opening the date-range picker and selecting a from + to date refetches the list for the new range and the inputs reflect it — with zero uncaught browser-console errors (the control used to throw a burst on interaction)"
+            add_af_only "J-2c" "flights" "date-keyboard" \
+              "alpenflight-flights-date-keyboard.png" \
+              "AlpenFlight: typing a from + to date (dd.MM.yyyy) into the date-range fields commits on Enter, refetches the list for the typed range and sticks in the inputs — with zero uncaught browser-console errors (a typed date used to silently revert)"
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"

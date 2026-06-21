@@ -1,14 +1,13 @@
 import { existsSync } from 'node:fs';
 
 import {
-  test,
-  expect,
   type Browser,
   type BrowserContext,
   type Locator,
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import type { FlightDetail, FlightUpdateRequest } from '../../../src/app/api/generated/model';
 
@@ -71,7 +70,10 @@ async function newRecordedContext(
   baseURL: string,
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
-  return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  // Guard every page this context opens, not just the fixture-injected one.
+  context.on('page', (p) => watchConsoleErrors(p, testInfo));
+  return context;
 }
 
 /**
@@ -138,7 +140,7 @@ async function createGliderFlightAerotow(
   // branch is taken (the T-01 stub took whatever the new-template defaulted to;
   // the oracle requires the AEROTOW branch be exercised deterministically).
   await selectAfOption(page, 'flight-edit-startType', AEROTOW_START_TYPE_ID);
-  await selectAfOption(page, 'flight-edit-startLocation', md.locationId);
+  await selectAfOption(page, 'flight-edit-startLocation', md.locationId, 'J2 Airfield');
 
   // Step 1 (Glider): aircraft / flight type / pilot / comment.
   await page.getByTestId('flight-step-next').click();
@@ -242,7 +244,7 @@ async function createMotorFlight(
 
   // Step 0 (Launch): start location only — leave the start type at the
   // non-aerotow default so no tow step is ever introduced.
-  await selectAfOption(page, 'flight-edit-startLocation', md.locationId);
+  await selectAfOption(page, 'flight-edit-startLocation', md.locationId, 'J2 Airfield');
 
   // Step 1 (primary aircraft): pick the MOTOR aircraft. Selecting a motor
   // aircraft is what stamps the flight MOTOR (and keeps it tow-less) — no

@@ -199,6 +199,45 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     expect(liveRe.test(html)).toBe(true);
   });
 
+  it('resolves a PROOF-context branch journey (deployed at <branch>/<jid>/, no legacy-parity) to a LIVE link', async () => {
+    // The per-push `proof` context deploys the per-journey page to
+    // `proof-preview/<branch>/<jid>/` — WITHOUT the `legacy-parity/` level the
+    // fanout uses. The branch source must probe that bare layout too, else the row
+    // renders PENDING and the deployed-journey guard reds on a journey whose only
+    // deploy is the proof context.
+    const { generatePreviewsIndex, scanJourneys } = await loadGenerator();
+    const { root, orderPath } = makeRoot();
+    const branch = 'integration-J-2c';
+    // Proof-context only: page exists directly under <branch>/, no legacy-parity.
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-2');
+
+    const j2 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-2')!;
+    expect(j2.found).toBe(true);
+    expect(j2.source).toBe('branch');
+    expect(j2.href).toBe(`../proof-preview/${branch}/J-2/`);
+
+    const { html } = generatePreviewsIndex({ ghPagesRoot: root, branch, orderPath });
+    const liveRe = new RegExp(
+      `<a\\b[^>]*class="journey-link"[^>]*\\bhref="\\.\\.\\/proof-preview\\/${branch}\\/J-2\\/"[^>]*>\\s*<strong>J-2<\\/strong>`,
+    );
+    expect(liveRe.test(html)).toBe(true);
+  });
+
+  it('prefers the fanout legacy-parity branch page over the bare proof-context page when both exist', async () => {
+    // Both branch layouts can coexist on gh-pages (a journey that ran both the
+    // fanout and the proof context). The fanout legacy-parity page is the richer
+    // both-sides page, so it stays the first-hit branch candidate.
+    const { scanJourneys } = await loadGenerator();
+    const { root, orderPath } = makeRoot();
+    const branch = 'integration-J-2c';
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-2');
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-2');
+
+    const j2 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-2')!;
+    expect(j2.source).toBe('branch');
+    expect(j2.href).toBe(`../proof-preview/${branch}/legacy-parity/J-2/`);
+  });
+
   it('keeps a single full-archive link in the footer (per-proof-type galleries are no longer primary)', async () => {
     const { generatePreviewsIndex } = await loadGenerator();
     const { root, orderPath } = makeRoot();

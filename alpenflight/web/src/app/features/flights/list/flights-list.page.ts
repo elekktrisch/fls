@@ -250,6 +250,7 @@ function toneDotClass(tone: Tone): string {
           <af-form-field label="Date range" for="FlightDateRange">
             <af-date-picker
               mode="range"
+              inputId="FlightDateRange"
               [rangePlaceholders]="['From', 'To']"
               [value]="dateRangeValue()"
               (valueChange)="onDateRangeChange($event)"

@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -739,7 +740,9 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   // ── AC[key-error]: conflict→409 + edit-in-place does NOT self-conflict ───
   test('conflict: an overlapping create is rejected 409 inline; editing the existing block does NOT self-conflict', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The overlapping-reservation POST is deliberately rejected; the browser logs it.
+    allowConsoleErrors(testInfo, /\b409\b/);
     await wireReservations(page, [{ ...seedReservation }]);
 
     // Try to book the SAME aircraft 10:30–10:45 — overlaps the 10:00–11:00 seed.
@@ -790,7 +793,9 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   // ── AC[key-error]: timed end ≤ start → 422 inline ────────────────────────
   test('duration: a timed reservation with end ≤ start is rejected 422 inline', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The end-before-start POST is deliberately rejected; the browser logs it.
+    allowConsoleErrors(testInfo, /\b422\b/);
     await wireReservations(page, []);
 
     await gotoDe(page, '/reservations/new');
@@ -822,7 +827,9 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   // then re-renders the calendar to confirm the block is gone and the slot frees.
   test('delete: deleting a reservation frees the slot so a new overlapping create then succeeds', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The pre-flight overlapping-reservation POST is deliberately rejected 409.
+    allowConsoleErrors(testInfo, /\b409\b/);
     await wireReservations(page, [{ ...seedReservation }]);
 
     // Pre-flight: a 10:30–10:45 create overlaps the seed → 409 (proves the slot

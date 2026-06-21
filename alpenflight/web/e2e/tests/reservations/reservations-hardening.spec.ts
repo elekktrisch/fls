@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Reservations calendar HARDENING + nav routing — J-6b INNER-LOOP spec (T-17,

@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Home dashboard (`/start`) — S-165 MVP. Mock-auth bootstraps a synthetic

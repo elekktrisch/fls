@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
@@ -298,9 +299,10 @@ test('deliveries: view a delivery → read-only line items, frozen recipient, fl
 // ── cross-tenant isolation ───────────────────────────────────────────────────
 test('deliveries: cross-tenant GET of another club’s delivery → 404 (not-found, no detail)', async ({
   page,
-}) => {
+}, testInfo) => {
   // The @TenantId 404 is proven for real in the real-idp parity spec (T-10); here
   // the mock backend 404s an id absent from this club's set.
+  allowConsoleErrors(testInfo, /\b404\b/);
   await bootBackend(page, [{ ...seededDelivery }]);
   const otherClubDeliveryId = 'dlv-019e30c3-2c00-7001-8000-0000000000ff';
 

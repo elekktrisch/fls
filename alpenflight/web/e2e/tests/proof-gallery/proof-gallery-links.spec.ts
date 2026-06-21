@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { type APIRequestContext } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * J-5 T-31/T-33 — gallery LINK-INTEGRITY check (operator ask 2026-06-06).

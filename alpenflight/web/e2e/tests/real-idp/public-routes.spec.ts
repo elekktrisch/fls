@@ -1,4 +1,5 @@
-import { test, expect, type Request } from '@playwright/test';
+import { type Request } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 /**
  * Public routes stay public against the live IdP.
@@ -34,8 +35,11 @@ const PUBLIC_ROUTES = [
 
 test.describe('public routes stay public — real-idp', () => {
   for (const path of PUBLIC_ROUTES) {
-    test(`${path} renders without KC redirect or /api/v1/* calls`, async ({ context }) => {
+    test(`${path} renders without KC redirect or /api/v1/* calls`, async ({
+      context,
+    }, testInfo) => {
       const page = await context.newPage();
+      watchConsoleErrors(page, testInfo);
       const apiCalls: string[] = [];
       page.on('request', (req: Request) => {
         const u = new URL(req.url());

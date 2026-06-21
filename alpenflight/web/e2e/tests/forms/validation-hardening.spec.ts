@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
+import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 import { enterViaNav } from '../_helpers/nav';
@@ -297,7 +298,9 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
 test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
   test('[edge] flight edit: Save gated on the client required validators (flightDate/aircraft/pilot)', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The last-context GET legitimately 404s when no prior flight exists; the browser logs it.
+    allowConsoleErrors(testInfo, /\b404\b/);
     // T-13: the flight form grew `Validators.required` on flightDate +
     // glider.aircraftId + glider.pilotPersonId, and the header/sticky Save
     // bind `[disabled]="saving() || formInvalid()"`. The new-template here is

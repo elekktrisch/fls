@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Spec #05 (ported parity): drive the flight-edit wizard on an existing

@@ -1,4 +1,5 @@
-import { test, expect, type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
+import { type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 import {
@@ -101,7 +102,10 @@ async function newRecordedContext(
   baseURL: string,
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
-  return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+  // Guard every page this context opens, not just the fixture-injected one.
+  context.on('page', (p) => watchConsoleErrors(p, testInfo));
+  return context;
 }
 
 /** All 9 boolean flags present (FAIL_ON_NULL_FOR_PRIMITIVES) + a fixture marker. */

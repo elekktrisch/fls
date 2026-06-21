@@ -5,6 +5,7 @@ import {
   forwardRef,
   inject,
   input,
+  linkedSignal,
   model,
 } from '@angular/core';
 import { FormsModule, NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
@@ -53,6 +54,7 @@ export const DEFAULT_DATE_FORMAT = 'dd.MM.yyyy';
     @if (mode() === 'range') {
       <nz-range-picker
         class="w-full"
+        [nzId]="inputId() || null"
         [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
@@ -64,6 +66,7 @@ export const DEFAULT_DATE_FORMAT = 'dd.MM.yyyy';
     } @else {
       <nz-date-picker
         class="w-full"
+        [nzId]="inputId() || null"
         [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
@@ -79,6 +82,12 @@ export class AfDatePickerComponent implements ControlValueAccessor {
   readonly #density = inject(DensityService);
 
   readonly mode = input<'single' | 'range'>('single');
+  /**
+   * Stamped onto the inner ng-zorro control (`nzId`) so a sibling
+   * `<label for="X">` targets the actual focusable element, matching the
+   * `af-input` convention.
+   */
+  readonly inputId = input<string>('');
   // Display format (date-fns tokens, → ng-zorro `[nzFormat]`). Defaults to the
   // project-wide DD.MM.YYYY so every consumer renders dates the same without
   // per-call config; overridable for the rare consumer that needs another shape.
@@ -98,16 +107,24 @@ export class AfDatePickerComponent implements ControlValueAccessor {
     return v instanceof Date ? v : null;
   });
 
-  // Reference-stable array projection for nz-range-picker's [ngModel]. Under
-  // zoneless Angular a fresh-array-each-pass input made the picker re-normalise
-  // and re-schedule CD forever, freezing the main thread (S-062e). `rangeArray`
-  // returns the SAME array across passes whenever the epochs are unchanged, so
-  // the picker input identity is stable and the loop can never form. The
-  // `computed` memoises within a pass; the `prev` carry memoises across them.
-  #prevRange: readonly Date[] = [];
-  protected readonly rangeValue = computed<readonly Date[]>(() => {
-    this.#prevRange = rangeArray(this.value(), this.#prevRange);
-    return this.#prevRange;
+  // The nz-range-picker's own working model. A `linkedSignal` (not a `computed`)
+  // so `onRangeChange` can write the picker's just-emitted value back into it;
+  // a `computed` re-projecting the external `value()` every CD pass overwrote a
+  // half-typed field with the stale store value mid-keyboard-entry, which reset
+  // the typed range and left the controls unusable. The source resyncs the
+  // picker whenever `value()` changes externally (e.g. the store's clear-filters
+  // reset to today).
+  //
+  // Reference stability is preserved (S-062e): under zoneless Angular a
+  // fresh-array-each-pass input made the picker re-normalise and re-schedule CD
+  // forever, freezing the main thread. `rangeArray` returns the SAME array
+  // whenever the epochs are unchanged; `equal` by identity stops a same-epoch
+  // recompute from notifying, so the picker's input is stable and the busy-loop
+  // can never form.
+  protected readonly rangeValue = linkedSignal<DateValue, readonly Date[]>({
+    source: () => this.value(),
+    computation: (value, prev) => rangeArray(value, prev?.value ?? []),
+    equal: (a, b) => a === b,
   });
 
   private onChange: (value: DateValue) => void = () => undefined;
@@ -133,6 +150,11 @@ export class AfDatePickerComponent implements ControlValueAccessor {
   }
   protected onRangeChange(next: readonly (Date | null)[]): void {
     const tuple = toRangeValue(next);
+    // Keep the picker's working model in lockstep with what it just emitted so a
+    // subsequent CD pass re-reads this value (not the stale external one) and the
+    // half-typed field survives. Reference-stabilised against the prior array to
+    // preserve the S-062e deadlock guard.
+    this.rangeValue.set(rangeArray(tuple, this.rangeValue()));
     this.value.set(tuple);
     this.onChange(tuple);
     this.onTouched();

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../_helpers/console-guard';
 
 /**
  * S-062e — `<af-date-picker mode="range">` zoneless smoke.

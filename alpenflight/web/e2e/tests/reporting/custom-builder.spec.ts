@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { type Page, type Route } from '@playwright/test';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * J-7 — Custom report builder MOCK inner-loop spec (`page.route`-stubbed).
