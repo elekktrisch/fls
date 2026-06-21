@@ -1,5 +1,7 @@
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
+import { enterViaNav } from '../../_helpers/nav';
+
 import { ensureSharedMigrationBundle } from './fan-out-parity-fixture';
 import { fillKcLogin } from './kc-form';
 import { findUsersByUsernameSearch, makeMigratedAdminLoginable } from './keycloak-admin';
@@ -537,7 +539,14 @@ export async function captureMigratedTestClubBearer(
       return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
     });
     await loginAsMigratedTestClubAdmin(page, admin);
-    await page.goto('/reservations');
+    // Reach /reservations via WARM in-app nav (land on the app shell, then a
+    // router click), NOT a cold page.goto onto the data route: a full document
+    // load there can land mid OIDC reboot/renew and ERR_ABORTED, stalling the
+    // bearer capture this fixture's beforeAll callers depend on
+    // ([[project_real_idp_goto_reboot_renew_stall]]). The read the nav click
+    // triggers is what the interceptor stamps with the Bearer.
+    await page.goto('/start?lang=en');
+    await enterViaNav(page, '/reservations');
     const req = await bearerPromise;
     return req.headers()['authorization']!;
   } finally {

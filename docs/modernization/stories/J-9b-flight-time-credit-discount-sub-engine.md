@@ -140,6 +140,10 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 - [x] **T-07** — Thicken the spec to full real assertions (clean-seed corpus: full-cover, over-credit split,
   discount, zero-balance skip, unlimited, dry-run idempotent/no-mutation + migrated credit round-trip — mine the
   ACTUAL migrated values); drive real-idp green locally; populate the gallery.
+- [x] **T-08** — §4-gate-red fixes: allow-list the credit/transaction/delivery legacy-source staging names in
+  `FixtureTableNamingConventionTest` (build green); type the seed DTO's `personId` as `PersonId` so the `pn-`
+  wire form deserializes (clean-seed POST 400 → green); switch the migrated bearer-capture to warm in-app nav
+  (no cold `goto`) to clear the real-idp reboot/renew `ERR_ABORTED` fanout stall.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27

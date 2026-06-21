@@ -3,6 +3,7 @@ package ch.alpenflight.accounting.web;
 import ch.alpenflight.accounting.application.PersonFlightTimeCreditSeedService;
 import ch.alpenflight.accounting.application.PersonFlightTimeCreditSeedService.CreditView;
 import ch.alpenflight.accounting.application.PersonFlightTimeCreditSeedService.GrantCommand;
+import ch.alpenflight.platform.id.PersonId;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
@@ -49,7 +50,7 @@ class InternalPersonFlightTimeCreditSeedController {
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     ResponseEntity<CreditView> grant(@RequestBody GrantRequest req) {
         CreditView created = service.grant(new GrantCommand(
-                req.personId(),
+                req.personId().value(),
                 Boolean.TRUE.equals(req.noFlightTimeLimit()),
                 Boolean.TRUE.equals(req.useRuleForAllAircraftsExceptListed()),
                 req.matchedAircraftImmatriculations(),
@@ -76,7 +77,7 @@ class InternalPersonFlightTimeCreditSeedController {
     }
 
     record GrantRequest(
-            @NotNull UUID personId,
+            @NotNull PersonId personId,
             @Nullable Boolean noFlightTimeLimit,
             @Nullable Boolean useRuleForAllAircraftsExceptListed,
             @Nullable String matchedAircraftImmatriculations,
