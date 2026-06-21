@@ -86,7 +86,7 @@ error-free, clean styling — proven by screenshots of each state.
 
 ## Tasks
 
-- [ ] **T-01** — Spec stub + gallery scaffold: author the J-2c real-idp proof spec driving the 3 states
+- [x] **T-01** — Spec stub + gallery scaffold: author the J-2c real-idp proof spec driving the 3 states
   (initial today-default visible, mouse-edit, keyboard-entry) with a `console`/`pageerror` zero-error guard
   (thin asserts, **red-first** — reproduces the live bug); scaffold the J-2c per-journey gallery page
   (`expected-shots.json` entry + captures tagged `journey:'J-2c'`).

@@ -57,6 +57,28 @@
       },
       "pending": []
     },
+    "J-2c": {
+      "$note": [
+        "Hardening sprint (no new screen, no legacy peer: the shots are",
+        "AlpenFlight-only hardening evidence for the /flights date-range filter",
+        "control). The three views are the real-idp flights-date-filter-parity.spec.ts",
+        "states — `date-initial` (the today..today default rendered in the inputs on",
+        "load), `date-mouse` (the picker open mid mouse-edit), `date-keyboard` (the",
+        "fields mid keyboard-entry) — each written to testInfo.outputDir under the",
+        "zero-console-error guard that functionally proves the control works.",
+        "",
+        "T-01 SCAFFOLD authors the red-first spec; the captures are not produced",
+        "green yet, so all three are `pending` (tolerated-absent, surfaced by the",
+        "[shots-present] guard) until T-05 thickens the spec + drives it green and",
+        "flips them to `expected` with producedBy: proof — the J-2b/J-26 read-side",
+        "pattern: the real-idp spec that writes them runs in the PER-PUSH proof job",
+        "(ci.yml alpenflight-proof, is_baseline=false), NOT the fanout. An empty",
+        "`expected` means the guard reds on NOTHING for J-2c today (scaffold-clean),",
+        "the J-9/J-10 pending-placeholder pattern."
+      ],
+      "expected": [],
+      "pending": ["alpenflight:date-initial", "alpenflight:date-mouse", "alpenflight:date-keyboard"]
+    },
     "J-5": {
       "expected": [
         "legacy:list",
