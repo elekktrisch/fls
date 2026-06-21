@@ -31,6 +31,10 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 
+- **[FRAME-ANCESTORS-HEADER] `frame-ancestors` removed from the `index.html` meta CSP** (browser-ignored when
+  delivered via `<meta>` — emits a console error every page load, caught by J-2c's §4 zero-console-error guard).
+  Real clickjacking protection (`frame-ancestors` / `X-Frame-Options`) must be a **response header** at the
+  S-041 reverse proxy / static host, not a meta tag. *(seam: S-041 production CSP response header)*
 - ✅ **[AEROTOW-SELECT-FLAKE] — SHIPPED in J-2c (T-05).** The clean-seed AEROTOW flow (and the sibling motor
   flow) in `flight-migration-parity.spec.ts` now pass the `'J2 Airfield'` search term to the
   `flight-edit-startLocation` select (mirroring `createFullyPopulatedGliderFlight`), so the virtualised option

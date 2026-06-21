@@ -102,6 +102,11 @@ error-free, clean styling — proven by screenshots of each state.
 - [x] **T-05** — Thicken the spec to full assertions; drive the real-idp proof spec green LOCALLY; populate the
   gallery (initial / mouse / keyboard shots + pass video). Fold the **[AEROTOW-SELECT-FLAKE]** rider — give the
   clean-seed AEROTOW `flight-edit-startLocation` select a deterministic search term (flights/e2e touch).
+- [x] **T-06** — Gate-red fix (the operator's console-error symptom, surfaced by the §4 guard): remove the
+  meta-incompatible `frame-ancestors 'none'` from the `<meta http-equiv="Content-Security-Policy">` at
+  `alpenflight/web/src/index.html:24` (browsers reject it in `<meta>` → console.error on every load); scan the
+  same CSP for any other header-only directive that would also throw; the real frame-protection (response
+  header) stays S-041's job — leave a boyscout rider so the intent isn't lost.
 
 ## Assumptions made
 
