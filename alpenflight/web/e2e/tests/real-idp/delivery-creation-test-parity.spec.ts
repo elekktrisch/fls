@@ -872,6 +872,11 @@ async function seedCreditScenario(
     .split('/')
     .pop()!;
 
+  // Pin this filter to THIS case's flight by exact-immat include-list
+  // (AccountingRuleMatcher.aircraftMatches is case-insensitive EQUALITY): the
+  // cases share one serial session over distinct fresh-immat glider flights, so
+  // an immat-unscoped glider filter from a PRIOR case would also match this
+  // flight and emit the credited line under the prior case's article.
   await createFilter(api, bearer, createdFilters, {
     filterTypeId: FILTER_TYPE_FLIGHT_TIME,
     filterTypeLegacyId: LEGACY_FLIGHT_TIME,
@@ -880,7 +885,10 @@ async function seedCreditScenario(
     active: true,
     articleNumber: ftArticle,
     deliveryLineText: 'Flugzeit (Guthaben)',
-    filterConfig: filterConfig({ isRuleForGliderFlights: true }),
+    filterConfig: filterConfig({
+      isRuleForGliderFlights: true,
+      aircraftImmatriculations: { useAllExcept: false, matched: [md.gliderImmat] },
+    }),
   });
 
   // valid_until is far-future so the engine's ValidUntil >= flight-start filter

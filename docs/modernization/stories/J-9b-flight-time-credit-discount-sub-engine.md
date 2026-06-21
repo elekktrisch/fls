@@ -159,6 +159,12 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   the DTO field is a prefixed `FlightCostBalanceTypeId` (`fcb-`) — Jackson rejected it, the body 400'd, and all five
   credit cases died before any dry-run. Prefix the cost-balance literal; audit every typed-ID the spec POSTs/PUTs so
   no sibling prefix bug burns another ~20-min real-idp cycle.
+- [x] **T-12** — §4-gate suite-isolation red: each credit case seeded an immat-UNSCOPED glider FlightTime filter, so a
+  prior case's still-active filter ALSO matched the current glider flight and emitted the credited line under the prior
+  case's article — `flightTimeLines(items, scenario.ftArticle)` read 0 for the over-credit split (the engine split was
+  correct: 30 min @25% + 60 min @0%). Pin each case's FlightTime filter to its own flight by an exact-immat include-list
+  (`aircraftImmatriculations {useAllExcept:false, matched:[md.gliderImmat]}`) so it matches ONLY its own fresh-immat
+  flight — deterministic across the shared serial session, no app change (engine correct). Split assertions stay strong.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
