@@ -132,7 +132,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 - [x] **T-04** — Credit branch in the engine (`FlightTimeStage`): activation (substring match, reproduce +
   null-guard), balance source, over-credit 2-line split, `DiscountInPercent` passthrough, fully-covered single
   line, in-memory decrement; domain unit tests.
-- [ ] **T-05** — Wire the credit read into the dry-run path (`DeliveryCreationTestsService`/`exampleDelivery`):
+- [x] **T-05** — Wire the credit read into the dry-run path (`DeliveryCreationTestsService`/`exampleDelivery`):
   read-only load, NO transaction write, idempotent (re-run yields identical output + no mutation).
 - [ ] **T-06** — Migration mapper (`PersonFlightTimeCreditMapper`: producer SELECT + V3 insert) + remove both
   tables from `UnmappedTables` + the real-producer collision/orphan round-trip IT (exactly-one-`IsCurrent` dedupe;
