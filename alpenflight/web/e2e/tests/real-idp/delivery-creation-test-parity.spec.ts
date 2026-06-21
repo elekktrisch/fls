@@ -783,7 +783,7 @@ const FLIGHT_BILLABLE_MINUTES = 90;
 // PILOT_PAYS_ALL (legacy cost-balance int 1) makes the RecipientStage fallback
 // resolve the PIC as the billed recipient, so the credit branch loads the pilot's
 // PersonFlightTimeCredit; without it the recipient is unresolved and no credit applies.
-const COST_BALANCE_PILOT_PAYS_ALL = '019e2e15-2c00-7268-8000-000000004268';
+const COST_BALANCE_PILOT_PAYS_ALL = 'fcb-019e2e15-2c00-7268-8000-000000004268';
 
 interface DctExample {
   delivery: { items?: DeliveryItem[] };

@@ -155,6 +155,10 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   glider pilot — a partial prepaid balance matched to the flight's immat (`PILOT_PAYS_ALL` makes the PIC the billed
   recipient); the migrated block asserts the credit splits the FlightTime tier (discounted credited line + full-price
   remainder) over genuine migrated seed.
+- [x] **T-11** — §4-gate red: the credit-scenario flight-create sent `flightCostBalanceTypeId` as a BARE UUID, but
+  the DTO field is a prefixed `FlightCostBalanceTypeId` (`fcb-`) — Jackson rejected it, the body 400'd, and all five
+  credit cases died before any dry-run. Prefix the cost-balance literal; audit every typed-ID the spec POSTs/PUTs so
+  no sibling prefix bug burns another ~20-min real-idp cycle.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
