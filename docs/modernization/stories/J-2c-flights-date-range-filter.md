@@ -127,7 +127,7 @@ error-free, clean styling — proven by screenshots of each state.
   409 / 412 paths). Then drive the §4 full-regression gate so the latent app console errors surface and get
   FIXED (unregistered `af-icon` names, uncaught HTTP errors) — not allowlisted away. Latent-error fixes that
   cluster become T-10+.
-- [ ] **T-10** — Full-suite gate-red fix (mined from run 27907112486): the mock-auth suite runs with **no
+- [x] **T-10** — Full-suite gate-red fix (mined from run 27907112486): the mock-auth suite runs with **no
   backend**, so unmocked `/api/v1` reference GETs fall through Vite's proxy → 500 → the new guard trips (≈750
   hits across ~all specs — NOT app bugs, a mock-coverage gap). Complete the shared mock reference-data coverage
   for the session-bootstrap forkJoin catalogs (counter-unit-types, aircraft-types, aircraft-states,

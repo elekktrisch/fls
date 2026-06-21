@@ -97,10 +97,45 @@ function isAllowed(message: string, allowed: readonly (string | RegExp)[]): bool
   return allowed.some((p) => (typeof p === 'string' ? message.includes(p) : p.test(message)));
 }
 
+/**
+ * The reference catalogs the authenticated session-bootstrap forkJoin
+ * (`ReferenceDataStore.loadAll`, fanned out from `SessionStore.bootstrapPrefetch`)
+ * pulls in parallel on every cold load. The mock-auth project runs with NO
+ * backend, so each unstubbed GET falls through Vite's proxy to ECONNREFUSED →
+ * 500 and the no-console-errors guard trips. Empty arrays satisfy the
+ * `catchError`-per-stream contract — the store simply renders no rows.
+ */
+const BOOTSTRAP_REFERENCE_PATHS: readonly string[] = [
+  '**/api/v1/countries**',
+  '**/api/v1/club-states**',
+  '**/api/v1/location-types**',
+  '**/api/v1/aircraft-types**',
+  '**/api/v1/aircraft-states**',
+  '**/api/v1/counter-unit-types**',
+];
+
+/**
+ * Register empty-array fulfillments for the bootstrap catalogs as the BASE
+ * layer, before the test body runs its own `page.route` calls. Playwright tries
+ * the most-recently-registered matching handler first, so a spec that needs
+ * POPULATED reference data layers its own route on top and wins; a spec that
+ * only needs the session to boot without 500s relies on these. Scoped to the
+ * known catalog paths — NOT a blanket 200 — so a genuinely-broken request still
+ * surfaces.
+ */
+async function installBootstrapReferenceStubs(page: Page): Promise<void> {
+  for (const path of BOOTSTRAP_REFERENCE_PATHS) {
+    await page.route(path, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+    );
+  }
+}
+
 export const test = base.extend<{ consoleGuard: void }>({
   consoleGuard: [
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
+      await installBootstrapReferenceStubs(page);
       await use();
 
       const g = guardFor(testInfo);
