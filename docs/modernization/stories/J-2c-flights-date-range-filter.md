@@ -96,7 +96,7 @@ error-free, clean styling — proven by screenshots of each state.
   honor `ControlValueAccessor`/`model()` so the `today..today` default surfaces in the inputs AND mouse +
   keyboard editing work with ZERO console errors. **Reproduce the live errors first** (run T-01's spec / the
   dev server) and anchor the fix on the actual console output — do NOT guess from the component source.
-- [ ] **T-04** — Styling + a11y tidy on the same row: remove the duplicate from-field underline on focus/edit
+- [x] **T-04** — Styling + a11y tidy on the same row: remove the duplicate from-field underline on focus/edit
   (clean single stroke); fix `af-form-field for="FlightDateRange"` (no matching control id) + drop the
   silently-ignored `af-select inputId=` (`flights-list.page.ts:262`).
 - [ ] **T-05** — Thicken the spec to full assertions; drive the real-idp proof spec green LOCALLY; populate the

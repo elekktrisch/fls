@@ -54,6 +54,7 @@ export const DEFAULT_DATE_FORMAT = 'dd.MM.yyyy';
     @if (mode() === 'range') {
       <nz-range-picker
         class="w-full"
+        [nzId]="inputId() || null"
         [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
@@ -65,6 +66,7 @@ export const DEFAULT_DATE_FORMAT = 'dd.MM.yyyy';
     } @else {
       <nz-date-picker
         class="w-full"
+        [nzId]="inputId() || null"
         [nzFormat]="format()"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
@@ -80,6 +82,12 @@ export class AfDatePickerComponent implements ControlValueAccessor {
   readonly #density = inject(DensityService);
 
   readonly mode = input<'single' | 'range'>('single');
+  /**
+   * Stamped onto the inner ng-zorro control (`nzId`) so a sibling
+   * `<label for="X">` targets the actual focusable element, matching the
+   * `af-input` convention.
+   */
+  readonly inputId = input<string>('');
   // Display format (date-fns tokens, → ng-zorro `[nzFormat]`). Defaults to the
   // project-wide DD.MM.YYYY so every consumer renders dates the same without
   // per-call config; overridable for the rare consumer that needs another shape.

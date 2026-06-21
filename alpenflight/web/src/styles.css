@@ -163,6 +163,12 @@ body[data-density='comfortable'] .ant-picker.ant-picker-focused {
   border-color: var(--color-brand-500) !important;
   box-shadow: none !important;
 }
+/* Range picker draws an animated 2px active-bar under the focused sub-field
+   that stacks on the box's single brand border, reading as a doubled
+   underline. Suppress it so focus shows one clean stroke. */
+.af-date-picker-host .ant-picker-active-bar {
+  display: none !important;
+}
 body[data-density='comfortable'] .ant-picker .ant-picker-input > input {
   font-size: 1rem !important;
 }

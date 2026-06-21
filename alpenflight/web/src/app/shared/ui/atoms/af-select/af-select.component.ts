@@ -35,6 +35,7 @@ export interface AfSelectOption<T> {
   template: `
     <nz-select
       class="w-full focus:border-brand-500 focus:outline-hidden"
+      [nzId]="inputId() || null"
       [nzSize]="nzSize()"
       [nzPlaceHolder]="placeholder()"
       [nzShowSearch]="showSearch()"
@@ -67,6 +68,13 @@ export class AfSelectComponent<T> implements ControlValueAccessor {
   readonly #density = inject(DensityService);
 
   readonly options = input.required<readonly AfSelectOption<T>[]>();
+
+  /**
+   * Stamped onto the inner ng-zorro control (`nzId`) so a sibling
+   * `<label for="X">` targets the actual focusable element, matching the
+   * `af-input` convention.
+   */
+  readonly inputId = input<string>('');
   readonly placeholder = input<string>('');
   readonly showSearch = input<boolean>(true);
   readonly allowClear = input<boolean>(false);
