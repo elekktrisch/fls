@@ -67,17 +67,23 @@
         "fields mid keyboard-entry) — each written to testInfo.outputDir under the",
         "zero-console-error guard that functionally proves the control works.",
         "",
-        "T-01 SCAFFOLD authors the red-first spec; the captures are not produced",
-        "green yet, so all three are `pending` (tolerated-absent, surfaced by the",
-        "[shots-present] guard) until T-05 thickens the spec + drives it green and",
-        "flips them to `expected` with producedBy: proof — the J-2b/J-26 read-side",
-        "pattern: the real-idp spec that writes them runs in the PER-PUSH proof job",
-        "(ci.yml alpenflight-proof, is_baseline=false), NOT the fanout. An empty",
-        "`expected` means the guard reds on NOTHING for J-2c today (scaffold-clean),",
-        "the J-9/J-10 pending-placeholder pattern."
+        "These are EXPECTED with producedBy: proof — the J-2b/J-26 read-side pattern:",
+        "the real-idp spec that writes them runs in the PER-PUSH proof job (ci.yml",
+        "alpenflight-proof, is_baseline=false), NOT the fanout. So they are enforced",
+        "in the `proof` context; in the `fanout` context they are produced-elsewhere",
+        "-> tolerated-absent (no false red)."
       ],
-      "expected": [],
-      "pending": ["alpenflight:date-initial", "alpenflight:date-mouse", "alpenflight:date-keyboard"]
+      "expected": [
+        "alpenflight:date-initial",
+        "alpenflight:date-mouse",
+        "alpenflight:date-keyboard"
+      ],
+      "producedBy": {
+        "alpenflight:date-initial": "proof",
+        "alpenflight:date-mouse": "proof",
+        "alpenflight:date-keyboard": "proof"
+      },
+      "pending": []
     },
     "J-5": {
       "expected": [

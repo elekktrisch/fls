@@ -99,7 +99,7 @@ error-free, clean styling — proven by screenshots of each state.
 - [x] **T-04** — Styling + a11y tidy on the same row: remove the duplicate from-field underline on focus/edit
   (clean single stroke); fix `af-form-field for="FlightDateRange"` (no matching control id) + drop the
   silently-ignored `af-select inputId=` (`flights-list.page.ts:262`).
-- [ ] **T-05** — Thicken the spec to full assertions; drive the real-idp proof spec green LOCALLY; populate the
+- [x] **T-05** — Thicken the spec to full assertions; drive the real-idp proof spec green LOCALLY; populate the
   gallery (initial / mouse / keyboard shots + pass video). Fold the **[AEROTOW-SELECT-FLAKE]** rider — give the
   clean-seed AEROTOW `flight-edit-startLocation` select a deterministic search term (flights/e2e touch).
 

@@ -8,6 +8,8 @@ import {
   type TestInfo,
 } from '@playwright/test';
 
+import { formatDdMmYyyy, isoDateFromLocal } from '../../../src/app/shared/util/date/format-date';
+
 import {
   loginAsClubAdmin,
   provisionTwoClubs,
@@ -17,21 +19,20 @@ import { proofVideo } from './_helpers/proof-video';
 
 /**
  * The /flights date-range filter hardening proof (live Keycloak + real Spring
- * backend + real Postgres). The store already defaults the list to today..today
- * (legacy parity, `flight.store.ts`) and the list correctly FETCHES today, but
- * the visible date-range CONTROL is broken: the inputs don't render the today
- * default on load, interacting throws a burst of browser-console errors, and the
- * from-field shows a stray underline. This spec drives the three control states
- * (initial today-default · mouse edit · keyboard entry) under a zero-console-
- * error guard — the functional proof the controls work, not just that the
- * screenshot looks plausible. It does NOT seed flights: the filter renders and
- * misbehaves independently of whether the list has rows, so an empty clean-seed
- * logbook is enough to exercise (and prove) the control.
+ * backend + real Postgres). The store defaults the list to today..today (legacy
+ * parity, `flight.store.ts`) and the list correctly FETCHES today; this spec
+ * proves the visible date-range CONTROL agrees, across three states under a
+ * zero-console-error guard — the functional proof the control works, not just
+ * that the screenshot looks plausible:
+ *   - initial: both inputs render today..today on load (not an empty placeholder);
+ *   - mouse: opening the picker and selecting a from + to date refetches the list
+ *     for the new (multi-day) range and the inputs reflect it;
+ *   - keyboard: typed dd.MM.yyyy dates COMMIT on Enter, refetch the list for the
+ *     typed range, and stick in the inputs.
  *
- * Red-first by design: with the binding bug live, the today-default never
- * reaches the inputs (initial state fails) and the interaction errors trip the
- * console guard (mouse + keyboard fail). T-03/T-04 fix the binding + styling;
- * T-05 thickens these asserts and populates the gallery.
+ * It does NOT seed flights: the filter renders and misbehaves independently of
+ * whether the list has rows, so an empty clean-seed logbook exercises (and
+ * proves) the control.
  */
 
 /** The /flights range picker renders two inputs inside one .ant-picker. */
@@ -44,16 +45,21 @@ function pickerOverlay(page: Page) {
   return page.locator('.cdk-overlay-container .ant-picker-panel-container');
 }
 
-/** Today's date in the picker's display format (DEFAULT_DATE_FORMAT, dd.MM.yyyy). */
-function todayDisplay(): string {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+/**
+ * A date rendered in the picker's display format — the SAME `formatDdMmYyyy`
+ * (`dd.MM.yyyy`) the app uses for `DEFAULT_DATE_FORMAT`, so the expected value is
+ * the production renderer's output, not a parallel hand-rolled string the test
+ * could drift from.
+ */
+function display(d: Date): string {
+  return formatDdMmYyyy(d);
 }
 
-/** Today's ISO date (local) — the store's today..today list-default bound. */
-function isoToday(): string {
+/** `n` days after today (local calendar). */
+function daysFromToday(n: number): Date {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  d.setDate(d.getDate() + n);
+  return d;
 }
 
 /**
@@ -152,10 +158,9 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
 
       // The store filters the list to today..today (legacy parity); the visible
       // control must AGREE — both inputs render today, not an empty placeholder.
-      // Live bug: the [value]-signal binding bypasses writeValue() so the default
-      // never reaches the inputs and they load blank (this assert is red today).
-      await expect(inputs.first()).toHaveValue(todayDisplay());
-      await expect(inputs.nth(1)).toHaveValue(todayDisplay());
+      const today = display(new Date());
+      await expect(inputs.first()).toHaveValue(today);
+      await expect(inputs.nth(1)).toHaveValue(today);
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-flights-date-initial.png`,
@@ -208,11 +213,18 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
         fullPage: true,
       });
 
-      // The picked range reaches the store→server wiring (a from != to refetch).
-      await refetch;
+      // The picked range reaches the store→server wiring with a multi-day window
+      // (from != to) AND the inputs now render that picked range, not the
+      // today..today default — the rendered control actually changed.
+      const response = await refetch;
+      const params = new URL(response.url()).searchParams;
+      expect(params.get('from')).not.toBe(params.get('to'));
+      const today = display(new Date());
+      const renderedFrom = await rangeInputs(page).first().inputValue();
+      const renderedTo = await rangeInputs(page).nth(1).inputValue();
+      expect(`${renderedFrom}..${renderedTo}`).not.toBe(`${today}..${today}`);
 
-      // No uncaught browser error fired across the whole mouse interaction — the
-      // live bug throws a burst here, so this assert is red today.
+      // No uncaught browser error fired across the whole mouse interaction.
       expect(errors, `uncaught browser errors on mouse edit:\n${errors.join('\n')}`).toEqual([]);
     } finally {
       await ctx.close();
@@ -239,16 +251,14 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
       // Type a from + to date into the two fields (display format dd.MM.yyyy),
-      // committing each with Enter. Keyboard entry is the second control path the
-      // operator reported broken; the from/to are the picker's two inputs.
+      // committing each with Enter — the path that must commit a typed date rather
+      // than silently revert it. The from/to are the picker's two inputs.
       const refetch = rangeRefetch(page);
       const inputs = rangeInputs(page);
-      const from = todayDisplay();
-      const to = (() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 7);
-        return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-      })();
+      const fromDate = daysFromToday(0);
+      const toDate = daysFromToday(7);
+      const from = display(fromDate);
+      const to = display(toDate);
 
       await inputs.first().click();
       await inputs.first().fill(from);
@@ -261,17 +271,23 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
         fullPage: true,
       });
 
-      // The typed range reaches the store→server wiring (a from != to refetch).
-      await refetch;
+      // The typed range reaches the store→server wiring (a from != to refetch),
+      // and the server saw the ISO bounds of the dates we typed — proof the typed
+      // values committed all the way through, not just that *some* refetch fired.
+      const response = await refetch;
+      const params = new URL(response.url()).searchParams;
+      expect(params.get('from')).toBe(isoDateFromLocal(fromDate));
+      expect(params.get('to')).toBe(isoDateFromLocal(toDate));
 
-      // No uncaught browser error fired across the whole keyboard interaction —
-      // the live bug throws here too, so this assert is red today.
+      // The committed dd.MM.yyyy values stick in the inputs — a typed date no
+      // longer reverts after Enter.
+      await expect(inputs.first()).toHaveValue(from);
+      await expect(inputs.nth(1)).toHaveValue(to);
+
+      // No uncaught browser error fired across the whole keyboard interaction.
       expect(errors, `uncaught browser errors on keyboard entry:\n${errors.join('\n')}`).toEqual(
         [],
       );
-
-      // The store default bound today; the typed `from` keeps it (parity anchor).
-      expect(from).toBe(`${isoToday().split('-').reverse().join('.')}`);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

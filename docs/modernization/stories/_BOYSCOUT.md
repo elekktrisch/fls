@@ -31,11 +31,10 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 
-- **[AEROTOW-SELECT-FLAKE] clean-seed AEROTOW start-location select lacks a search term.** In
-  `flight-migration-parity.spec.ts` the clean-seed AEROTOW flow selects `flight-edit-startLocation` without a
-  search term (unlike `createFullyPopulatedGliderFlight`), so the option render intermittently flakes under RAM
-  pressure. Latent (passed on CI; fails on the overloaded dev box). Give it a deterministic search term on the
-  next flights/e2e touch. *(seam: flight-migration-parity.spec.ts AEROTOW helper)*
+- ✅ **[AEROTOW-SELECT-FLAKE] — SHIPPED in J-2c (T-05).** The clean-seed AEROTOW flow (and the sibling motor
+  flow) in `flight-migration-parity.spec.ts` now pass the `'J2 Airfield'` search term to the
+  `flight-edit-startLocation` select (mirroring `createFullyPopulatedGliderFlight`), so the virtualised option
+  renders deterministically instead of flaking under RAM pressure.
 
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 
