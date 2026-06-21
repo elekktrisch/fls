@@ -119,7 +119,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 
 - [x] **T-01** — Spec stub: extend `delivery-creation-test-parity.spec.ts` with the credit-case structure +
   selectors (thin asserts) + scaffold the J-9b per-journey proof-gallery page; red-first repro of credit application.
-- [ ] **T-02** — Scope the per-push heavy lane to J-9b's spec only (prior journeys → mock-IdP; full real-idp
+- [x] **T-02** — Scope the per-push heavy lane to J-9b's spec only (prior journeys → mock-IdP; full real-idp
   regression → nightly + the §4 gate).
 - [ ] **T-03** — `PersonFlightTimeCredit`(+current-balance) aggregate: new JPA entity + V3 schema (partial UNIQUE
   `(credit_id) WHERE is_current`) + repo (current-balance `IsCurrent` read; tenancy indirect via Person→PersonClubs).
