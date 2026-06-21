@@ -591,7 +591,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     // The migrated CLUB gets a fresh provisioned UUID, so resolve the loginable
     // admin by OWNERSHIP (the J-5/J-8 migrated-read pattern) — it owns the same
     // migrated TestClub the static-seed glider flights + filters reconciled onto.
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });
@@ -1214,7 +1214,7 @@ test.describe('Delivery creation test harness — migrated credit drives the eng
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });

@@ -1036,15 +1036,12 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
   let migratedBearer: string;
 
   test.beforeAll(async ({ browser }, testInfo) => {
-    // Resolving the migrated TestClub admin involves a real Keycloak login +
-    // ownership resolution against the fanout-ingested bundle, which exceeds the
-    // 45s per-test budget on a slow CI box.
-    testInfo.setTimeout(180_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // The fanout ingests the real bundle via fan-out-migration-parity.spec.ts
     // (J-0c) earlier in the same Playwright invocation; resolve the migrated
-    // TestClub admin by OWNERSHIP (the J-5 migrated-read pattern).
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    // TestClub admin by OWNERSHIP (the J-5 migrated-read pattern). The resolver
+    // widens the hook budget for the cold ingest+enumeration path.
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });

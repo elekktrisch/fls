@@ -802,7 +802,7 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
     // whose tenant actually carries the unique fixture reservation — not by the
     // legacy UUID (J-5 T-27). Returns the loginable admin + its captured
     // tenant-scoped Bearer in one pass.
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });

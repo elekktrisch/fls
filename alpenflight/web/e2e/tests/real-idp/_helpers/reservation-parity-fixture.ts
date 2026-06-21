@@ -1,4 +1,10 @@
-import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
+import {
+  type APIRequestContext,
+  type Browser,
+  type Page,
+  type TestInfo,
+  expect,
+} from '@playwright/test';
 
 import { enterViaNav } from '../../_helpers/nav';
 
@@ -372,6 +378,19 @@ function bearerExpiresAtMs(bearer: string): number {
 const BEARER_REFRESH_SKEW_MS = 30_000;
 
 /**
+ * Hook budget for the cold resolution. The first consumer to reach the resolver
+ * pays the shared-bundle ingest + Keycloak provision + per-club ownership
+ * enumeration (several real SPA logins), which legitimately exceeds the 45s
+ * per-test default on a slow CI box. Extending the budget HERE — not in each
+ * consumer `beforeAll` — makes it impossible for a new migrated spec to forget
+ * it and re-introduce the 45s cascade: a blown hook abandons the in-flight memo,
+ * the next cold re-entry re-POSTs the single-use bundle → 409 reuse →
+ * re-enumeration → blows the hook again → loop. A warm memo hit costs
+ * milliseconds, so the wide budget is harmless for later callers.
+ */
+const COLD_RESOLUTION_HOOK_BUDGET_MS = 180_000;
+
+/**
  * Resolve the migration-provisioned, loginable admin of the club the migrated
  * legacy reservation reconciled onto — discovered by OWNERSHIP, not by a
  * hardcoded UUID (J-5 T-27; the migrated CLUB gets a fresh provisioned UUID, so
@@ -381,13 +400,19 @@ const BEARER_REFRESH_SKEW_MS = 30_000;
  * (re-login, NO re-enumeration) when it nears expiry, so a long serial run never
  * hands back a dead token.
  *
- * The fanout's J-0c fan-out spec ingests the SAME real bundle earlier in this
+ * Pass the caller's `testInfo` so the resolver widens the hook budget for the
+ * cold path centrally — the structural guard against the per-consumer
+ * "forgot setTimeout" gap that lets the default 45s abort the cold ingest.
+ *
+ * The fanout's fan-out spec ingests the SAME real bundle earlier in this
  * Playwright invocation, so the admins already exist by the time this runs.
  */
 export async function resolveMigratedTestClubAdmin(
   browser: Browser,
   baseURL: string,
+  testInfo?: TestInfo,
 ): Promise<ResolvedMigratedAdmin> {
+  testInfo?.setTimeout(COLD_RESOLUTION_HOOK_BUDGET_MS);
   // Keyed by the ownership remark — the criterion that distinguishes WHICH
   // migrated tenant this is. All four current consumers want the reservation
   // owner, so they share one slot; a future caller keyed on a different remark

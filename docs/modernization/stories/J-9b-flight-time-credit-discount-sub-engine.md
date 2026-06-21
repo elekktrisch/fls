@@ -165,6 +165,15 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   correct: 30 min @25% + 60 min @0%). Pin each case's FlightTime filter to its own flight by an exact-immat include-list
   (`aircraftImmatriculations {useAllExcept:false, matched:[md.gliderImmat]}`) so it matches ONLY its own fresh-immat
   flight — deterministic across the shared serial session, no app change (engine correct). Split assertions stay strong.
+- [x] **T-13** — §4-gate-red migrated-block `beforeAll` 45s timeout (the credit assertion never reached): the migrated
+  TestClub-admin resolver's COLD path (shared single-use-bundle ingest + Keycloak provision + per-club ownership
+  enumeration) legitimately exceeds the 45s per-test budget, but the accounting + both delivery migrated `beforeAll`s
+  lacked the `setTimeout` widening that `flightMigration`/`planning` had — so they aborted at 45s, abandoned the
+  in-flight shared memo, and each cold re-entry re-POSTed the single-use bundle → `409 DEPLOYMENT_EXISTS` reuse →
+  4-club re-enumeration → re-blew the hook (loop; collateral `t_user` re-provision unique-violation). Widen the hook
+  budget INSIDE `resolveMigratedTestClubAdmin` (`testInfo` param) so no consumer can forget it (structural guard), and
+  tighten the deployment status-poll budget under the hook so a non-terminal deployment fails fast instead of spinning
+  the memo-clear cascade. HARNESS-only: the credit mapper / seed / split assertions are untouched.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
