@@ -2,7 +2,8 @@
 id: J-2c
 title: Flights list date-range filter — default visibility + working controls + styling
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-06-21
 journey0: false
 carved: true
 depends_on: [J-2b]
@@ -82,6 +83,25 @@ error-free, clean styling — proven by screenshots of each state.
 - **Gate shape:** migration N/A ⇒ **no fanout gate**; the done bar is clean-seed real-idp green + the 3 gallery
   proof screenshots (initial / mouse / keyboard) + zero-console-errors. The fast mock lane (`flights-list.spec.ts`)
   is the inner loop.
+
+## Tasks
+
+- [ ] **T-01** — Spec stub + gallery scaffold: author the J-2c real-idp proof spec driving the 3 states
+  (initial today-default visible, mouse-edit, keyboard-entry) with a `console`/`pageerror` zero-error guard
+  (thin asserts, **red-first** — reproduces the live bug); scaffold the J-2c per-journey gallery page
+  (`expected-shots.json` entry + captures tagged `journey:'J-2c'`).
+- [ ] **T-02** — Scope the per-push heavy lane to J-2c's real-idp proof spec (point the frontmatter
+  `parity_test` selection at it; prior journeys → mock-IdP; full regression → nightly + the §4 gate).
+- [ ] **T-03** — Fix the `af-date-picker` binding (the core): make the `[value]`-signal + `(valueChange)` path
+  honor `ControlValueAccessor`/`model()` so the `today..today` default surfaces in the inputs AND mouse +
+  keyboard editing work with ZERO console errors. **Reproduce the live errors first** (run T-01's spec / the
+  dev server) and anchor the fix on the actual console output — do NOT guess from the component source.
+- [ ] **T-04** — Styling + a11y tidy on the same row: remove the duplicate from-field underline on focus/edit
+  (clean single stroke); fix `af-form-field for="FlightDateRange"` (no matching control id) + drop the
+  silently-ignored `af-select inputId=` (`flights-list.page.ts:262`).
+- [ ] **T-05** — Thicken the spec to full assertions; drive the real-idp proof spec green LOCALLY; populate the
+  gallery (initial / mouse / keyboard shots + pass video). Fold the **[AEROTOW-SELECT-FLAKE]** rider — give the
+  clean-seed AEROTOW `flight-edit-startLocation` select a deterministic search term (flights/e2e touch).
 
 ## Assumptions made
 
