@@ -1,13 +1,6 @@
-import {
-  test,
-  expect,
-  type Browser,
-  type BrowserContext,
-  type ConsoleMessage,
-  type Page,
-  type TestInfo,
-} from '@playwright/test';
+import { type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 
+import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 import { formatDdMmYyyy, isoDateFromLocal } from '../../../src/app/shared/util/date/format-date';
 
 import {
@@ -77,27 +70,6 @@ async function newRecordedContext(
 }
 
 /**
- * The functional proof the controls work: subscribe to the page's `console`
- * (level 'error') + `pageerror` streams and collect every uncaught browser
- * error across the filter-interaction flow. The test asserts the collection is
- * empty at the end — the broken control emits a burst of errors on interaction,
- * so this is the assertion that goes RED while the bug is live and GREEN once
- * the binding is fixed. Returns the live array (read it after the interaction).
- */
-function captureConsoleErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() === 'error') {
-      errors.push(`console.error: ${msg.text()}`);
-    }
-  });
-  page.on('pageerror', (err: Error) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  return errors;
-}
-
-/**
  * A /flights list refetch for a range OTHER than today..today — the signal that
  * an edit reached the store→server wiring. Matches a GET /api/v1/flights with
  * from != to (a multi-day window), so the today-default initial fetch never
@@ -147,7 +119,11 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    const errors = captureConsoleErrors(page);
+    // The shared guard's auto fixture only watches the injected `page`; this
+    // spec drives its OWN context page, so opt it into the same per-test
+    // collector — the teardown then fails the test on any uncaught browser
+    // error (the functional proof the control works, RED while the bug is live).
+    watchConsoleErrors(page, testInfo);
     try {
       await loginAsClubAdmin(page, fixture.clubA);
 
@@ -166,9 +142,6 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
         path: `${testInfo.outputDir}/alpenflight-flights-date-initial.png`,
         fullPage: true,
       });
-
-      // No uncaught browser error fired while loading + reading the control.
-      expect(errors, `uncaught browser errors on initial load:\n${errors.join('\n')}`).toEqual([]);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -187,7 +160,7 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    const errors = captureConsoleErrors(page);
+    watchConsoleErrors(page, testInfo);
     try {
       await loginAsClubAdmin(page, fixture.clubA);
       await page.goto('/flights');
@@ -223,9 +196,6 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       const renderedFrom = await rangeInputs(page).first().inputValue();
       const renderedTo = await rangeInputs(page).nth(1).inputValue();
       expect(`${renderedFrom}..${renderedTo}`).not.toBe(`${today}..${today}`);
-
-      // No uncaught browser error fired across the whole mouse interaction.
-      expect(errors, `uncaught browser errors on mouse edit:\n${errors.join('\n')}`).toEqual([]);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -244,7 +214,7 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    const errors = captureConsoleErrors(page);
+    watchConsoleErrors(page, testInfo);
     try {
       await loginAsClubAdmin(page, fixture.clubA);
       await page.goto('/flights');
@@ -283,11 +253,6 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       // longer reverts after Enter.
       await expect(inputs.first()).toHaveValue(from);
       await expect(inputs.nth(1)).toHaveValue(to);
-
-      // No uncaught browser error fired across the whole keyboard interaction.
-      expect(errors, `uncaught browser errors on keyboard entry:\n${errors.join('\n')}`).toEqual(
-        [],
-      );
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

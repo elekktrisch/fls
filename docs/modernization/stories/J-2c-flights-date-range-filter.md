@@ -107,6 +107,19 @@ error-free, clean styling — proven by screenshots of each state.
   `alpenflight/web/src/index.html:24` (browsers reject it in `<meta>` → console.error on every load); scan the
   same CSP for any other header-only directive that would also throw; the real frame-protection (response
   header) stays S-041's job — leave a boyscout rider so the intent isn't lost.
+- [x] **T-07** — Shared suite-wide `afterEach` no-console-errors guard (operator request): a reusable Playwright
+  fixture that collects `console`(error)+`pageerror` per test and asserts none in teardown, applied GLOBALLY
+  (all e2e projects) with a curated benign allowlist + a per-test opt-out for deliberate-error cases (403/412/404
+  paths). Adopt it in the J-2c spec (replace the inline guard, no duplication). Genuine app console errors it
+  surfaces at the full-regression gate are FIXED, not allowlisted away.
+  - Infra: `e2e/tests/_helpers/console-guard.ts` exports the shared `test` (auto fixture asserting the
+    per-test error bag is empty in teardown) + `watchConsoleErrors(page, testInfo)` for spec-owned context
+    pages + `allowConsoleErrors(testInfo, …)` opt-out. J-2c spec adopts it.
+  - **Follow-up (exceeds this task's ≤8-file cap):** flip the 43 specs still importing raw `@playwright/test`
+    to the shared `test`, and declare `allowConsoleErrors(…)` in the ~17 specs that `route.fulfill` an error
+    status (+ the optimistic-concurrency / 409 / 412 paths). The auto fixture means each flip is a one-line
+    import swap; the deliberate-error specs additionally need their opt-out. Drive at the §4 full-regression
+    gate so latent app console errors surface there and get FIXED (not allowlisted).
 
 ## Assumptions made
 
