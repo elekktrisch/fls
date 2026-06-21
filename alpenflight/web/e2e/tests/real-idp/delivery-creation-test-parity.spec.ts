@@ -554,9 +554,19 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 // Driven over the REAL migrated bundle, the migrated FlightTime (5001, with T-01's
 // deliveryLineText) + LandingTax (6001) filters produce its genuine delivery — assert
 // that exact pair (the migration promise: a migrated club bills its own data correctly).
+//
+// The fixture grants the HB-3256 pilot a migrated PersonFlightTimeCredit — a
+// 600-second (10-minute) prepaid balance at a 25% discount, matched to 'HB-3256'.
+// Under the 22-minute flight that provokes the engine's over-credit split: the
+// 5001 FlightTime line becomes a credited 10-minute line (carrying the discount)
+// + a full-price 12-minute remainder, proving a real prepaid balance survives
+// cutover and the engine applies it over migrated seed.
 const MIGRATED_FT_ARTICLE = '5001';
 const MIGRATED_FT_ITEM_TEXT = 'HB-3256 Glider flight minutes';
-const MIGRATED_FT_EXPECTED_QTY = 22;
+const MIGRATED_FT_TOTAL_QTY = 22;
+const MIGRATED_FT_CREDITED_QTY = 10;
+const MIGRATED_FT_REMAINDER_QTY = MIGRATED_FT_TOTAL_QTY - MIGRATED_FT_CREDITED_QTY;
+const MIGRATED_FT_DISCOUNT_PERCENT = 25;
 const MIGRATED_FT_UNIT = 'Minuten';
 
 const MIGRATED_LT_ARTICLE = '6001';
@@ -586,7 +596,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     migratedBearer = resolved.bearer;
   });
 
-  test('[migration/parity] the migrated HB-3256 glider flight + the migrated filter set drive the engine → its genuine FlightTime + LandingTax delivery', async ({
+  test('[migration/parity] the migrated HB-3256 glider flight + filter set + prepaid credit drive the engine → a credit-split FlightTime + LandingTax delivery', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -647,14 +657,41 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           `migrated filters did not match the migrated flight, not a read race.`,
       ).toBeTruthy();
 
-      // The genuine migrated delivery: the 5001 FlightTime line (HB-3256 glider is
-      // DATEADD(n,22,start) ⇒ 22 'Minuten') + the 6001 LandingTax line (1 ldg at
-      // LSZK ⇒ 2 'Landung'). Both filters drive the engine over genuine seed.
-      const ftLine = hb3256Items!.find(
+      // The genuine migrated delivery: the 5001 FlightTime tier (HB-3256 glider is
+      // DATEADD(n,22,start) ⇒ 22 'Minuten') split by the migrated prepaid credit +
+      // the 6001 LandingTax line (1 ldg at LSZK ⇒ 2 'Landung'). Both filters and the
+      // migrated credit drive the engine over genuine seed.
+      //
+      // The migrated PersonFlightTimeCredit (10-minute balance, 25% discount, matched
+      // to 'HB-3256') covers only part of the 22-minute flight, so the engine splits
+      // the FlightTime tier into a credited line (the covered minutes, carrying the
+      // discount) + a full-price remainder. Emission order: credited first.
+      const ftLines = hb3256Items!.filter(
         (i) => i.articleNumber === MIGRATED_FT_ARTICLE && i.itemText === MIGRATED_FT_ITEM_TEXT,
       );
-      expect(ftLine!.quantity).toBe(MIGRATED_FT_EXPECTED_QTY);
-      expect(ftLine!.unitType).toBe(MIGRATED_FT_UNIT);
+      expect(
+        ftLines.length,
+        `the migrated HB-3256 credit (10-min balance under the 22-min flight) must split the ` +
+          `5001 FlightTime tier into a credited line + a remainder — proving the migrated prepaid ` +
+          `balance survived cutover and the engine applied it. One line means the credit did not ` +
+          `migrate (0 PersonFlightTimeCredit rows in the export) or did not match the recipient.`,
+      ).toBe(2);
+
+      const creditedLine = ftLines[0]!;
+      const remainderLine = ftLines[1]!;
+      expect(creditedLine.quantity, 'the credited line bills the migrated balance minutes').toBe(
+        MIGRATED_FT_CREDITED_QTY,
+      );
+      expect(
+        creditedLine.discountInPercent,
+        'the credited line carries the migrated credit DiscountInPercent (the discount survived cutover)',
+      ).toBe(MIGRATED_FT_DISCOUNT_PERCENT);
+      expect(remainderLine.quantity, 'the remainder line bills the over-credit minutes').toBe(
+        MIGRATED_FT_REMAINDER_QTY,
+      );
+      expect(remainderLine.discountInPercent, 'the over-credit remainder is full price').toBe(0);
+      expect(creditedLine.unitType).toBe(MIGRATED_FT_UNIT);
+      expect(creditedLine.quantity! + remainderLine.quantity!).toBe(MIGRATED_FT_TOTAL_QTY);
 
       const ltLine = hb3256Items!.find(
         (i) => i.articleNumber === MIGRATED_LT_ARTICLE && i.itemText === MIGRATED_LT_ITEM_TEXT,
@@ -680,7 +717,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       await page
         .getByTestId('dct-name')
         .locator('input')
-        .fill('Migrated HB-3256 — flight time + landing tax');
+        .fill('Migrated HB-3256 — credited flight time + landing tax');
       await page.getByTestId('dct-flight-picker').selectOption(hb3256FlightId!);
 
       await page.getByTestId('dct-create-test-delivery').locator('button').click();
@@ -697,13 +734,14 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-27',
+        journey: 'J-9b',
         caption:
-          'J-27 · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed ' +
-          'glider flight + the migrated filter set, produces its genuine delivery (the 5001 FlightTime ' +
-          'line, 22 Minuten + the 6001 LandingTax line, 2 Landung) — the producer-bound filters + flight ' +
-          'drive the sacred-cow engine end to end over real migrated legacy seed, the migration promise ' +
-          'made true: a migrated club sees its own real legacy data, correctly',
+          'J-9b · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed ' +
+          'glider flight + the migrated filter set + a MIGRATED prepaid PersonFlightTimeCredit, produces ' +
+          'its genuine delivery — the 5001 FlightTime tier split by the migrated credit into a credited ' +
+          '10-min line (25% discount) + a 12-min full-price remainder, plus the 6001 LandingTax line ' +
+          '(2 Landung). A real prepaid balance survived cutover and the engine applied it over real ' +
+          'migrated legacy seed: a migrated club bills its own data, credits and all, correctly',
         acTag: 'happy',
       });
     }

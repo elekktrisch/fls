@@ -149,6 +149,12 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   `PILOT_PAYS_ALL` on the seed flight so the PIC is the billed recipient + the credit applies; strengthen
   `AccountingDeliveryEngineCreditIT` to pin the recipient→credit linkage (a no-cost-balance flight emits an
   uncredited line) so the gap can't regress silently.
+- [x] **T-10** — Genuine-seed credit so the migrated-fidelity AC is non-vacuous: the fanout's real export carried
+  ZERO `PersonFlightTimeCredit` rows, so the migrated credit block read `undefined`. Add ONE representative credit
+  (+ its `IsCurrent` transaction) to the alpenflight-side fixture (`_test-fixture.sql`) for the migrated HB-3256
+  glider pilot — a partial prepaid balance matched to the flight's immat (`PILOT_PAYS_ALL` makes the PIC the billed
+  recipient); the migrated block asserts the credit splits the FlightTime tier (discounted credited line + full-price
+  remainder) over genuine migrated seed.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
