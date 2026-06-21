@@ -29,6 +29,15 @@ genuinely new vertical feature scope.
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
+## Pending (filed by /do-ship J-2c gate, 2026-06-21)
+
+- **[CONSOLE-GUARD-FLAKE] the suite-wide no-console-errors guard intermittently catches a transient
+  `ECONNREFUSED`→500 race** in mock-auth specs whose `/api/v1/*` call fires before its `page.route` stub is
+  installed (or after teardown). Seen on `accounting/delivery-creation-test.spec.ts:432` (`/api/v1/accounting-rule-filters`)
+  — non-deterministic (same code green on the prior sha; the same ECONNREFUSED bursts landed outside the guard
+  window). Harden stub-install/backend-readiness gating before the spec's first `/api/v1` hit on the next
+  accounting/e2e touch. *(seam: console-guard fixture stub-install timing + the accounting specs' route setup)*
+
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 
 - **[FRAME-ANCESTORS-HEADER] `frame-ancestors` removed from the `index.html` meta CSP** (browser-ignored when
