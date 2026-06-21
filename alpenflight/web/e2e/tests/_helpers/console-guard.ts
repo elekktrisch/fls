@@ -145,10 +145,12 @@ async function installBootstrapReferenceStubs(page: Page): Promise<void> {
  * list endpoints → `[]`; envelope endpoints (`FlightListResponse`,
  * `AircraftReservationPage`) → an empty-items object; object endpoints
  * (`/me/*`) → `{}` (all fields optional); `validate` POSTs → `{ valid: true }`
- * (`PlanningDayValidationResult` / `ReservationValidationResult`). The two
- * resources designed to 404 when the caller has no row (`flights/last-context`,
- * which the flight store silently falls back from, and `migrations/handshake/
- * current`) return a body the store tolerates without erroring.
+ * (`PlanningDayValidationResult` / `ReservationValidationResult`). The
+ * no-row resources (`flights/last-context` + the kebab detail prefetch, from
+ * which the flight store silently falls back, and `migrations/handshake/
+ * current`) return 200 with a store-tolerated body rather than 404 — a stubbed
+ * 404 still makes the browser emit a `Failed to load resource …404`
+ * `console.error` that trips the guard.
  */
 interface ResourceStub {
   readonly url: string | RegExp;
@@ -167,11 +169,16 @@ const PER_SCREEN_RESOURCE_STUBS: readonly ResourceStub[] = [
   { url: '**/api/v1/flight-types', status: 200, body: '[]' },
   { url: '**/api/v1/flights/new-template**', status: 200, body: newTemplateBody() },
   { url: /\/api\/v1\/flights(\?|$)/, status: 200, body: '{"items":[]}' },
-  { url: /\/api\/v1\/flights\/last-context(\?|$)/, status: 404, body: '{}' },
+  // `last-context` + the kebab detail prefetch return 200/`null` (not 404) for
+  // the no-row case: a 404 makes the browser emit `console.error: Failed to load
+  // resource …404` which trips the guard, while the flight store's
+  // null-tolerant fallback (`applyLastContextThenPrefs`) resolves 200/`null` to
+  // the same no-row path with no console error.
+  { url: /\/api\/v1\/flights\/last-context(\?|$)/, status: 200, body: 'null' },
   {
     url: /\/api\/v1\/flights\/(?!new-template|last-context)[^/?]+(\?|$)/,
-    status: 404,
-    body: '{}',
+    status: 200,
+    body: 'null',
   },
   { url: '**/api/v1/planning-days/overview/future', status: 200, body: '[]' },
   { url: '**/api/v1/planning-days/validate', status: 200, body: '{"valid":true}' },

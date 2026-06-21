@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, test } from '../_helpers/console-guard';
+import { allowConsoleErrors, expect, test } from '../_helpers/console-guard';
 
 /**
  * S-140 — /migrate/start happy path. Mock-auth bootstrap; the SPA mocks
@@ -166,7 +166,11 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     }
   });
 
-  test('mount on a fresh visit with no in-flight row falls through to POST', async ({ page }) => {
+  test('mount on a fresh visit with no in-flight row falls through to POST', async ({
+    page,
+  }, testInfo) => {
+    // The no-in-flight-row GET is deliberately 404 to prove POST fall-through.
+    allowConsoleErrors(testInfo, /404/);
     let currentCalls = 0;
     let postCalls = 0;
     await page.unroute('**/api/v1/migrations/handshake/current');

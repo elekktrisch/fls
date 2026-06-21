@@ -137,6 +137,9 @@ error-free, clean styling — proven by screenshots of each state.
 - [x] **T-11** — Stub the residual per-screen secondary resolvers still 500ing after T-10 (persons,
   club/member-states, flight-types, flight-crew-types, accounting-rule-filter-types, aircraft-reservation-types,
   locations, aircraft/picker) — re-mine the post-T-10 gate run for the actual residual set; iterate to green.
+- [x] **T-12** — Final console-guard residual fix: `last-context` + kebab `flights/{id}` per-screen stubs
+  → 200/`null` (404 still emits a browser `console.error`); deliberate-error opt-outs on the handshake-404
+  fall-through case + the reservations-409 delete-frees-slot case.
 
 ## Assumptions made
 

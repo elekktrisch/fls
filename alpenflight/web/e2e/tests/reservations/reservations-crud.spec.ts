@@ -827,7 +827,9 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   // then re-renders the calendar to confirm the block is gone and the slot frees.
   test('delete: deleting a reservation frees the slot so a new overlapping create then succeeds', async ({
     page,
-  }) => {
+  }, testInfo) => {
+    // The pre-flight overlapping-reservation POST is deliberately rejected 409.
+    allowConsoleErrors(testInfo, /\b409\b/);
     await wireReservations(page, [{ ...seedReservation }]);
 
     // Pre-flight: a 10:30–10:45 create overlaps the seed → 409 (proves the slot
