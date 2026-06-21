@@ -115,11 +115,18 @@ error-free, clean styling — proven by screenshots of each state.
   - Infra: `e2e/tests/_helpers/console-guard.ts` exports the shared `test` (auto fixture asserting the
     per-test error bag is empty in teardown) + `watchConsoleErrors(page, testInfo)` for spec-owned context
     pages + `allowConsoleErrors(testInfo, …)` opt-out. J-2c spec adopts it.
-  - **Follow-up (exceeds this task's ≤8-file cap):** flip the 43 specs still importing raw `@playwright/test`
-    to the shared `test`, and declare `allowConsoleErrors(…)` in the ~17 specs that `route.fulfill` an error
-    status (+ the optimistic-concurrency / 409 / 412 paths). The auto fixture means each flip is a one-line
-    import swap; the deliberate-error specs additionally need their opt-out. Drive at the §4 full-regression
-    gate so latent app console errors surface there and get FIXED (not allowlisted).
+- [ ] **T-08** — Gate-red fix (gallery plumbing, not journey behavior): the deployed-journey guard reds because
+  `generate-previews-index.mjs` `branch` source probes `proof-preview/<branch>/legacy-parity/<jid>/` (a subpath
+  that exists only in the fanout context, not `proof`), so J-2c's index row stays PENDING. Make the proof-context
+  branch probe also check `proof-preview/<branch>/<jid>/` (mirror `proof-gallery-links.spec.ts:875-879`'s
+  `GALLERY_PROOF_CONTEXT==='proof'` branch). Targeted probe fix only — the full GALLERY-SIMPLIFY collapse stays
+  its own burndown rider.
+- [ ] **T-09** — Suite-wide console-guard rollout (operator chose: roll out now): flip the ~43 specs still
+  importing raw `@playwright/test` to the shared `test` (one-line import swap each, auto fixture), and declare
+  `allowConsoleErrors(…)` in the ~17 specs that `route.fulfill` an error status (+ optimistic-concurrency /
+  409 / 412 paths). Then drive the §4 full-regression gate so the latent app console errors surface and get
+  FIXED (unregistered `af-icon` names, uncaught HTTP errors) — not allowlisted away. Latent-error fixes that
+  cluster become T-10+.
 
 ## Assumptions made
 
