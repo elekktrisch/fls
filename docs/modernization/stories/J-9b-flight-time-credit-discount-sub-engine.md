@@ -123,7 +123,7 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   regression → nightly + the §4 gate).
 - [x] **T-03** — `PersonFlightTimeCredit`(+current-balance) aggregate: new JPA entity + V3 schema (partial UNIQUE
   `(credit_id) WHERE is_current`) + repo (current-balance `IsCurrent` read; tenancy indirect via Person→PersonClubs).
-- [ ] **T-04** — Credit branch in the engine (`FlightTimeStage`): activation (substring match, reproduce +
+- [x] **T-04** — Credit branch in the engine (`FlightTimeStage`): activation (substring match, reproduce +
   null-guard), balance source, over-credit 2-line split, `DiscountInPercent` passthrough, fully-covered single
   line, in-memory decrement; domain unit tests.
 - [ ] **T-05** — Wire the credit read into the dry-run path (`DeliveryCreationTestsService`/`exampleDelivery`):
