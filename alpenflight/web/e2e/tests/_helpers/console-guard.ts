@@ -217,12 +217,23 @@ async function installPerScreenResourceStubs(page: Page): Promise<void> {
   }
 }
 
+/**
+ * The reference-data stubs answer for the absent backend, so they belong ONLY
+ * to the no-backend mock-auth project (`chromium`). A real-idp spec drives the
+ * live `/api/v1/*` backend; installing the stubs there would intercept its real
+ * calls and let a leg pass on a fulfilled stub instead of the real response. The
+ * console-error WATCH stays universal — it is the guard every project runs.
+ */
+const MOCK_AUTH_PROJECT = 'chromium';
+
 export const test = base.extend<{ consoleGuard: void }>({
   consoleGuard: [
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
-      await installBootstrapReferenceStubs(page);
-      await installPerScreenResourceStubs(page);
+      if (testInfo.project.name === MOCK_AUTH_PROJECT) {
+        await installBootstrapReferenceStubs(page);
+        await installPerScreenResourceStubs(page);
+      }
       await use();
 
       const g = guardFor(testInfo);

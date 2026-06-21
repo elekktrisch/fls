@@ -143,6 +143,9 @@ error-free, clean styling — proven by screenshots of each state.
 - [x] **T-13** — Flip the spec-local `last-context` stubs from 404 → 200/`null` in the flights
   create/wizard specs (04-create, 04c-paired-create, 06-hardening ×2) so they mirror the base layer and
   stop tripping the console guard.
+- [x] **T-14** — Scope the mock reference-data stubs to the mock-auth project (`chromium`) only — keep the
+  console-error watch universal; fixes real-idp coverage masking (the stubs were intercepting real-idp
+  specs' live `/api/v1/*` calls).
 
 ## Assumptions made
 
