@@ -162,7 +162,7 @@ test.describe('J-2b flights hardening', () => {
       }),
     );
     await page.route('**/api/v1/flights/last-context**', (route) =>
-      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+      route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }),
     );
     await page.route('**/api/v1/flights', (route: Route) => {
       const req = route.request();
@@ -325,7 +325,7 @@ test.describe('J-2b flights hardening', () => {
       }),
     );
     await page.route('**/api/v1/flights/last-context**', (route) =>
-      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+      route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }),
     );
     const newRow = {
       id: 'fl-new',

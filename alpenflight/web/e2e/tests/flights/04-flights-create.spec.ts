@@ -126,7 +126,7 @@ async function stubFlightEndpoints(page: Page, onCreate: (body: unknown) => void
     }),
   );
   await page.route('**/api/v1/flights/last-context**', (route) =>
-    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+    route.fulfill({ status: 200, contentType: 'application/json', body: 'null' }),
   );
   await page.route('**/api/v1/flights', (route: Route) => {
     const req = route.request();

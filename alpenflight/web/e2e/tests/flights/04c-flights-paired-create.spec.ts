@@ -149,7 +149,7 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         return;
       }
       if (url.pathname.startsWith('/api/v1/flights/last-context')) {
-        await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
         return;
       }
       // Paired-create POSTs.

@@ -140,6 +140,9 @@ error-free, clean styling — proven by screenshots of each state.
 - [x] **T-12** — Final console-guard residual fix: `last-context` + kebab `flights/{id}` per-screen stubs
   → 200/`null` (404 still emits a browser `console.error`); deliberate-error opt-outs on the handshake-404
   fall-through case + the reservations-409 delete-frees-slot case.
+- [x] **T-13** — Flip the spec-local `last-context` stubs from 404 → 200/`null` in the flights
+  create/wizard specs (04-create, 04c-paired-create, 06-hardening ×2) so they mirror the base layer and
+  stop tripping the console guard.
 
 ## Assumptions made
 
