@@ -14,7 +14,8 @@ import {
   provideAuth,
   withAppInitializerAuthCheck,
 } from 'angular-auth-oidc-client';
-import { de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
+import { de } from 'date-fns/locale';
+import { NZ_DATE_LOCALE, de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { Subject } from 'rxjs';
 
 import { routes } from './app.routes';
@@ -31,6 +32,11 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([authInterceptor()])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
+    // Activates ng-zorro's date-fns adapter so the date pickers can deserialise
+    // manual keyboard input in the custom dd.MM.yyyy format (the default
+    // DatePipe adapter only formats, never parses). LocaleService re-points it
+    // per active locale.
+    { provide: NZ_DATE_LOCALE, useValue: de },
     provideAlpenflightI18n(),
     provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),

@@ -92,7 +92,7 @@ error-free, clean styling — proven by screenshots of each state.
   (`expected-shots.json` entry + captures tagged `journey:'J-2c'`).
 - [x] **T-02** — Scope the per-push heavy lane to J-2c's real-idp proof spec (point the frontmatter
   `parity_test` selection at it; prior journeys → mock-IdP; full regression → nightly + the §4 gate).
-- [ ] **T-03** — Fix the `af-date-picker` binding (the core): make the `[value]`-signal + `(valueChange)` path
+- [x] **T-03** — Fix the `af-date-picker` binding (the core): make the `[value]`-signal + `(valueChange)` path
   honor `ControlValueAccessor`/`model()` so the `today..today` default surfaces in the inputs AND mouse +
   keyboard editing work with ZERO console errors. **Reproduce the live errors first** (run T-01's spec / the
   dev server) and anchor the fix on the actual console output — do NOT guess from the component source.

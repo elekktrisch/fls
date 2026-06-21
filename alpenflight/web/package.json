@@ -60,6 +60,7 @@
     "@ngrx/operators": "^21.1.0",
     "@ngrx/signals": "^21.1.0",
     "angular-auth-oidc-client": "^21.0.2",
+    "date-fns": "^2.30.0",
     "ng-zorro-antd": "^21.2.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

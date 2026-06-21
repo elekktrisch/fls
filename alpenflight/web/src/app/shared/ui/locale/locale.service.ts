@@ -1,4 +1,6 @@
 import { Injectable, Signal, inject, signal } from '@angular/core';
+import { type Locale } from 'date-fns';
+import { de, enUS, fr, it } from 'date-fns/locale';
 import {
   NzI18nService,
   de_DE,
@@ -19,6 +21,17 @@ const NZ_LOCALES: Record<AppLocale, NzI18nInterface> = {
   fr: fr_FR,
   it: it_IT,
   en: en_US,
+};
+
+// ng-zorro parses manual keyboard input through its date-fns adapter only when a
+// `NZ_DATE_LOCALE` is in play; the date locale must track the UI locale so a
+// typed `dd.MM.yyyy` deserialises (the DatePipe adapter formats but cannot parse
+// a custom format, so typed dates never commit). See af-date-picker.
+const NZ_DATE_LOCALES: Record<AppLocale, Locale> = {
+  de,
+  fr,
+  it,
+  en: enUS,
 };
 
 /**
@@ -42,6 +55,7 @@ export class LocaleService {
       throw new Error(`LocaleService: unsupported locale "${locale}"`);
     }
     this.#nzI18n.setLocale(NZ_LOCALES[locale]);
+    this.#nzI18n.setDateLocale(NZ_DATE_LOCALES[locale]);
     this.#translation.setActiveLang(locale);
     if (typeof document !== 'undefined') {
       document.documentElement.lang = locale;
