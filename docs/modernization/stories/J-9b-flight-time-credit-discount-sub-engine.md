@@ -114,6 +114,12 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
 - **Dry-run mutates NOTHING** — the `/deliverycreationtests` path loads credits read-only and writes no
   transaction; only a real persisted run inserts the transaction + flips `IsCurrent` (out of J-9b scope — J-9b
   proves the dry-run engine output + the no-mutation invariant).
+- **No cross-line balance carryover** (legacy trace, T-04 — `AircraftFlightTimeRule.cs:61,73-83` +
+  `DeliveryService.cs:201-214`): the `IsCurrent` balance is read fresh per delivery and NEVER mutated during the
+  line loop — each emitted line sees the full original balance; the decrement is only the delta recorded on the
+  new persisted transaction (real-run only). So the over-credit split is provoked WITHIN a single flight-time
+  line (`L > C`), not via two tiers sharing one credit. T-07 asserts single-line splits; e2e-driver confirms
+  against migrated values.
 
 ## Tasks
 
