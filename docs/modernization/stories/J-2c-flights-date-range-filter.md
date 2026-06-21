@@ -17,7 +17,7 @@ acceptance:
 screen: /flights — hardens the J-2/J-2b date-range filter (no redesign)
 headless_pulled_in: none
 migration: N/A — UI fix (no entity, no mapper, no fanout gate)
-parity_test: alpenflight/web/e2e/tests/flights/flights-list.spec.ts (mock inner-loop) + a real-idp proof capture of the 3 states (initial / mouse-edit / keyboard-entry) for the gallery
+parity_test: alpenflight/web/e2e/tests/real-idp/flights-date-filter-parity.spec.ts (real-idp proof capture of the 3 states — initial / mouse-edit / keyboard-entry — for the gallery; alpenflight/web/e2e/tests/flights/flights-list.spec.ts is the mock inner-loop)
 adr_refs: [0024, 0022]
 ---
 
@@ -90,7 +90,7 @@ error-free, clean styling — proven by screenshots of each state.
   (initial today-default visible, mouse-edit, keyboard-entry) with a `console`/`pageerror` zero-error guard
   (thin asserts, **red-first** — reproduces the live bug); scaffold the J-2c per-journey gallery page
   (`expected-shots.json` entry + captures tagged `journey:'J-2c'`).
-- [ ] **T-02** — Scope the per-push heavy lane to J-2c's real-idp proof spec (point the frontmatter
+- [x] **T-02** — Scope the per-push heavy lane to J-2c's real-idp proof spec (point the frontmatter
   `parity_test` selection at it; prior journeys → mock-IdP; full regression → nightly + the §4 gate).
 - [ ] **T-03** — Fix the `af-date-picker` binding (the core): make the `[value]`-signal + `(valueChange)` path
   honor `ControlValueAccessor`/`model()` so the `today..today` default surfaces in the inputs AND mouse +
