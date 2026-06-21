@@ -742,6 +742,10 @@ const CREDIT_SEED = '/api/v1/internal/person-flight-time-credits';
 const CREDIT_DISCOUNT_PERCENT = 25;
 /** The seeded glider flight runs 08:00→09:30 = 90 min, billed whole (min=0 filter). */
 const FLIGHT_BILLABLE_MINUTES = 90;
+// PILOT_PAYS_ALL (legacy cost-balance int 1) makes the RecipientStage fallback
+// resolve the PIC as the billed recipient, so the credit branch loads the pilot's
+// PersonFlightTimeCredit; without it the recipient is unresolved and no credit applies.
+const COST_BALANCE_PILOT_PAYS_ALL = '019e2e15-2c00-7268-8000-000000004268';
 
 interface DctExample {
   delivery: { items?: DeliveryItem[] };
@@ -782,8 +786,9 @@ async function dryRun(
  * Seed (as seed-club-1) a glider flight + a min=0 FlightTime line filter whose
  * article the credit cases assert on, plus a `PersonFlightTimeCredit` granting the
  * pilot a balance + discount, matched to the flight's immatriculation (substring
- * match, non-inversion branch). The pilot is the billed recipient (RecipientStage
- * falls back to the PIC), so its credit is the one the engine applies.
+ * match, non-inversion branch). The flight's PILOT_PAYS_ALL cost-balance makes the
+ * RecipientStage fallback resolve the PIC as the billed recipient, so its credit is
+ * the one the engine loads + applies.
  */
 async function seedCreditScenario(
   api: APIRequestContext,
@@ -812,6 +817,7 @@ async function seedCreditScenario(
       startLocationId: md.locationId,
       ldgLocationId: md.locationId,
       flightTypeId: md.gliderFlightTypeId,
+      flightCostBalanceTypeId: COST_BALANCE_PILOT_PAYS_ALL,
       nrOfLdgs: 1,
       nrOfLdgsOnStartLocation: 1,
       noStartTimeInformation: false,

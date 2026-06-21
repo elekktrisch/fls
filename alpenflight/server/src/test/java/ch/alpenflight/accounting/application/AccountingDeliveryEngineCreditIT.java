@@ -35,6 +35,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,7 +84,7 @@ class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
 
     @Test
     void fullyCoveredFlight_emitsOneDiscountedFlightTimeLine() {
-        Scenario s = seedCoveredFlight("HB-CREDIT", 5_400L);
+        Scenario s = seedCoveredFlight("HB-CREDIT", 5_400L, COST_BALANCE_PILOT_PAYS_ALL);
 
         RuleBasedDeliveryDetails result =
                 TenantTestContext.runAs(clubA, () -> engine.computeForFlight(s.flightId()));
@@ -95,9 +96,31 @@ class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
                 .isEqualTo(DISCOUNT_PERCENT);
     }
 
+    // The credit applies to the BILLED recipient; the recipient must first be
+    // resolved (a recipient filter, or the PILOT_PAYS_ALL / NO_INSTRUCTOR_FEE
+    // cost-balance fallback to the PIC). A flight with no cost-balance type leaves
+    // the recipient unresolved, so creditsForBilledPerson loads nothing and the
+    // line is billed uncredited even though a matching credit exists — the gap the
+    // e2e seed hit. Pins the recipient->credit linkage so it can't regress silently.
+    @Test
+    void noBilledRecipient_emitsUncreditedLine() {
+        Scenario s = seedCoveredFlight("HB-NOREC", 5_400L, null);
+
+        RuleBasedDeliveryDetails result =
+                TenantTestContext.runAs(clubA, () -> engine.computeForFlight(s.flightId()));
+
+        DeliveryItemDetails ft = onlyFlightTimeLine(result);
+        assertThat(result.recipient())
+                .as("no cost-balance fallback resolved a billed recipient")
+                .isNull();
+        assertThat(ft.discountInPercent())
+                .as("an unresolved recipient loads no credit, so the line is uncredited")
+                .isZero();
+    }
+
     @Test
     void dryRunIsIdempotentAndWritesNoTransaction() {
-        Scenario s = seedCoveredFlight("HB-NOWRITE", 5_400L);
+        Scenario s = seedCoveredFlight("HB-NOWRITE", 5_400L, COST_BALANCE_PILOT_PAYS_ALL);
         long before = transactionCount(s.creditId());
 
         RuleBasedDeliveryDetails first =
@@ -130,14 +153,16 @@ class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
         return count == null ? 0 : count;
     }
 
-    private Scenario seedCoveredFlight(String immatriculation, long balanceSeconds) {
+    private Scenario seedCoveredFlight(String immatriculation, long balanceSeconds,
+                                      @Nullable UUID costBalanceType) {
         UUID aircraft = seedAircraft(clubA, immatriculation);
         UUID flightType = seedFlightType(clubA, "Schulung", "SCH");
         UUID pilot = seedMember(clubA, "Pilot", "Petra", "REC-CRED");
 
         UUID flight = seedGliderFlight(clubA, aircraft, flightType,
                 Instant.parse("2026-05-15T08:00:00Z"),
-                Instant.parse("2026-05-15T09:30:00Z"));
+                Instant.parse("2026-05-15T09:30:00Z"),
+                costBalanceType);
         seedCrew(flight, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         UUID creditId = seedCredit(pilot, immatriculation, balanceSeconds);
@@ -209,13 +234,13 @@ class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
     }
 
     private UUID seedGliderFlight(UUID clubId, UUID aircraftId, UUID flightTypeId,
-                                  Instant start, Instant ldg) {
+                                  Instant start, Instant ldg, @Nullable UUID costBalanceType) {
         FlightOperationalData ops = new FlightOperationalData(
                 start.atZone(java.time.ZoneOffset.UTC).toLocalDate(), start, ldg, null, null,
                 null, null, null, null, null, null,
                 flightTypeId, null, (short) 1, (short) 0,
                 false, false, null, null, null, null, null,
-                COST_BALANCE_PILOT_PAYS_ALL, null, null, false);
+                costBalanceType, null, null, false);
         return TenantTestContext.runAs(clubId, () ->
                 flights.save(Flight.createGlider(aircraftId, FlightProcessState.VALID.id(), ops)).getId());
     }

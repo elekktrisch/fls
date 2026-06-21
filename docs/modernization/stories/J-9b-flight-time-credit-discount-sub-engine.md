@@ -144,6 +144,11 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   `FixtureTableNamingConventionTest` (build green); type the seed DTO's `personId` as `PersonId` so the `pn-`
   wire form deserializes (clean-seed POST 400 → green); switch the migrated bearer-capture to warm in-app nav
   (no cold `goto`) to clear the real-idp reboot/renew `ERR_ABORTED` fanout stall.
+- [x] **T-09** — Credit-uncredited §4-gate red: the credit-scenario flight set no cost-balance type, so the
+  RecipientStage fallback left the billed recipient unresolved and the engine loaded NO credit (discount 0). Set
+  `PILOT_PAYS_ALL` on the seed flight so the PIC is the billed recipient + the credit applies; strengthen
+  `AccountingDeliveryEngineCreditIT` to pin the recipient→credit linkage (a no-cost-balance flight emits an
+  uncredited line) so the gap can't regress silently.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
