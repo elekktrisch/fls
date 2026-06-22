@@ -29,6 +29,15 @@ genuinely new vertical feature scope.
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
+## Pending (filed by /do-ship J-9b gate, 2026-06-22)
+
+- **[CREDIT-MIN-TIER] the over-credit split is unproven for a credit tier with `min≠0`.** `FlightTimeStage`
+  compares `lineFlightTimeInSec` (full active) for the split decision while the credited/remainder quantities use
+  `lineSeconds` (active − min); they diverge only when a credit applies to a FlightTime tier with a non-zero
+  `min`, which no spec exercises (all credit cases use `min=0`). Documented as legacy parity; add a credited
+  `min≠0`-tier case on the next deliverycreationtests/engine touch to lock the behavior. *(seam: `FlightTimeStage`
+  credit branch + a delivery-creation-test credit case)*
+
 ## Pending (filed by /do-ship J-2c gate, 2026-06-21)
 
 - **[CONSOLE-GUARD-FLAKE] the suite-wide no-console-errors guard intermittently catches a transient
