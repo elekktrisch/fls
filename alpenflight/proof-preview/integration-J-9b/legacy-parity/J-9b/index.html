@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-9b — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-9b</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-9b</span> <span class="status success">4 proofs</span> <span class="summary-counts">4 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-9b</code> &middot; 2026-06-22T00:55:12.880Z
+      for this journey. Generated on <code>integration/J-9b</code> &middot; 2026-06-22T01:54:17.586Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -142,7 +142,25 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-3eebacd4c9b65961de8aae7964d55a0d729c47ed.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9b · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed glider flight + the migrated filter set + a MIGRATED prepaid PersonFlightTimeCredit, produces its genuine delivery — the 5001 FlightTime tier split by the migrated credit into a credited 10-min line (25% discount) + a 12-min full-price remainder, plus the 6001 LandingTax line (2 Landung). A real prepaid balance survived cutover and the engine applied it over real migrated legacy seed: a migrated club bills its own data, credits and all, correctly</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-4acbf6cc3c4cb0b250d24d9782599857b3d97811.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · a club admin dry-runs a glider flight whose immatriculation matches a pilot’s pre-paid PersonFlightTimeCredit — the engine applies the balance and emits ONE FlightTime line carrying the credit’s DiscountInPercent (fully covered), the credit sub-engine proven through the existing /deliverycreationtests dry-run harness</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-9b2c20cc96d4585c220549c983c9cafdb0118b33.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · the pilot’s pre-paid balance covers only PART of the flight, so the engine splits the FlightTime line in two — a credited line (the covered minutes, carrying the DiscountInPercent) + a billed-remainder line (the over-credit minutes, full price), same article and item text, rendered through the dry-run harness</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-f568d979d44a2d59ebca860bf38268b3aa684478.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-9b · migration-fidelity · the rules engine, run over a MIGRATED flight whose pilot holds a REAL migrated PersonFlightTimeCredit, produces a credited FlightTime line carrying the migrated DiscountInPercent — the credit (its IsCurrent balance) carried by the migration mapper reaches the sacred-cow engine end to end over real migrated legacy seed</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
