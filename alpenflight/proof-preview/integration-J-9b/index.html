@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>232/merge</code> &middot; 2026-06-22T01:40:17.502Z
+      assertion it proves. Generated on <code>232/merge</code> &middot; 2026-06-22T02:13:12.766Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -292,11 +292,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e6d85593944d3aa38c5ededb79843be310b46a21.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-45ad6a29665f52dfd9964604f940f9d0d8d15d68.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-c593e557eb490aa9f288f110d42be9189028eab9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-20f84cba4e6d8739bfef285b2600bf61f0e057da.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
         </figure>
         </div>
@@ -309,11 +309,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-831739c893bd300c64b638ad304354294e6057b4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-e2e26efc97af4dee6923f864a9407a51f57b5ae5.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · a club admin dry-runs a glider flight whose immatriculation matches a pilot’s pre-paid PersonFlightTimeCredit — the engine applies the balance and emits ONE FlightTime line carrying the credit’s DiscountInPercent (fully covered), the credit sub-engine proven through the existing /deliverycreationtests dry-run harness</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-8de667cfae9e31d77ca9ca4756771ed4f4270ee9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-649301708cb5745193a6674be363e01f53e6609a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · the pilot’s pre-paid balance covers only PART of the flight, so the engine splits the FlightTime line in two — a credited line (the covered minutes, carrying the DiscountInPercent) + a billed-remainder line (the over-credit minutes, full price), same article and item text, rendered through the dry-run harness</span></figcaption>
         </figure>
         </div>
