@@ -119,10 +119,6 @@ public final class FlightTimeStage {
         int active = accumulator.getActiveFlightTimeInSeconds();
         long min = filter.filterConfig().minFlightTimeSeconds();
 
-        // Legacy reads the full active time for the credit comparison BEFORE the
-        // min subtraction (lineFlightTimeInSec), but bills only this tier's slice
-        // (lineQuantity = active - min). They differ only for a min != 0 tier.
-        int lineFlightTimeInSec = active;
         int lineSeconds;
         if (min == 0) {
             lineSeconds = active;
@@ -148,8 +144,12 @@ public final class FlightTimeStage {
 
         if (credit == null) {
             emit(accumulator, articleNumber, itemText, lineSeconds, 0, unit, false);
-        } else if (lineFlightTimeInSec > credit.balanceSeconds()) {
-            long creditedSeconds = credit.balanceSeconds();
+        } else if (lineSeconds > credit.balanceSeconds()) {
+            // Split the BILLED slice (lineSeconds = active - min), not the full
+            // active: diverges from the legacy over-credit on min != 0 tiers,
+            // which compares/credits the full active and can emit a credited line
+            // exceeding the slice plus a negative remainder (ADR 0026).
+            long creditedSeconds = Math.min(credit.balanceSeconds(), lineSeconds);
             long remainderSeconds = lineSeconds - creditedSeconds;
             emit(accumulator, articleNumber, itemText, creditedSeconds, credit.discountInPercent(), unit, false);
             emit(accumulator, articleNumber, itemText, remainderSeconds, 0, unit, false);

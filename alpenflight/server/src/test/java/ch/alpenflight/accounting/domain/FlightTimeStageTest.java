@@ -157,6 +157,39 @@ class FlightTimeStageTest {
         }
     }
 
+    // A min!=0 tier (legacy art.1067/1069 "HB-KCB Schulung ab 11.min", min=600s)
+    // splits the credit decision on the BILLED slice (active-min), not the full
+    // active — diverges from the legacy over-credit on min!=0 tiers (ADR 0026).
+    // active=900, min=600 -> lineSeconds=300:
+    //  - balance=200 (< lineSeconds): genuine over-credit -> credited 200@discount
+    //    + remainder 100@0.
+    //  - balance=400 (between lineSeconds and active): one 300@discount line, NO
+    //    remainder, NO negative quantity — the case that red-proves the old bug.
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(value = {
+            "minTierGenuineOverCredit, 200, 200, 25, 100, 0",
+            "minTierBoundaryNoSplit,   400, 300, 25,   0, 0",
+    })
+    void minTierSplitsOnBilledSliceNotFullActive(
+            String name,
+            long balance, int firstQty, int firstDiscount, int remainderQty, int remainderDiscount) {
+        var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
+
+        STAGE.run(acc, glider(), 900, List.of(tier("FT", 600, null, AccountingUnitType.SEC)),
+                List.of(credit(false, IMMAT, firstDiscount, false, balance)));
+
+        var items = acc.deliveryItems();
+        assertThat(items.getFirst().quantity()).isEqualByComparingTo(BigDecimal.valueOf(firstQty));
+        assertThat(items.getFirst().discountInPercent()).isEqualTo(firstDiscount);
+        if (remainderQty > 0) {
+            assertThat(items).hasSize(2);
+            assertThat(items.get(1).quantity()).isEqualByComparingTo(BigDecimal.valueOf(remainderQty));
+            assertThat(items.get(1).discountInPercent()).isEqualTo(remainderDiscount);
+        } else {
+            assertThat(items).hasSize(1);
+        }
+    }
+
     // Activation is legacy String.Contains (substring on the raw CSV) under the
     // UseRuleForAllAircraftsExceptListed inversion flag — both directions; a null
     // list under the non-inversion branch is the NPE-guarded skip (not a match).
