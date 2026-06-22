@@ -232,16 +232,17 @@ async function installPerScreenResourceStubs(page: Page): Promise<void> {
  * source, so a real backend 500 (which the guard must still catch) is impossible
  * to confuse with a missing-stub artifact — there is no backend here, every
  * `/api/v1/*` is mocked, and the floor returns a benign success, never a 500.
- * A GET gets a shape-permissive empty body (`{}` parses as an empty object and
- * coerces to an empty list under the generated client's optional-field types);
- * a write gets `204` no-content. Real-idp specs hit the live backend untouched —
- * this is gated to the mock-auth project exactly like the other stubs.
+ * A GET gets an empty array — the dominant list shape, so it satisfies a
+ * `.map`/iteration consumer, while an object-typed consumer reads `undefined`
+ * for a field rather than throwing (a bare `{}` throws on `.map`); a write gets
+ * `204` no-content. Real-idp specs hit the live backend untouched — this is
+ * gated to the mock-auth project exactly like the other stubs.
  */
 async function installApiFloor(page: Page): Promise<void> {
   await page.route('**/api/v1/**', (route) => {
     const method = route.request().method();
     if (method === 'GET') {
-      route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
       return;
     }
     route.fulfill({ status: 204, body: '' });
