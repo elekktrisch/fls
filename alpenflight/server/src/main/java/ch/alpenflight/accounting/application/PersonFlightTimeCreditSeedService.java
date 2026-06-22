@@ -63,6 +63,7 @@ public class PersonFlightTimeCreditSeedService {
         return view;
     }
 
+    @Transactional(readOnly = true)
     public Optional<CreditView> find(UUID id) {
         return credits.findById(id).map(CreditView::of);
     }

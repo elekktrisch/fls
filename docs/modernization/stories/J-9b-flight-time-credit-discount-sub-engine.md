@@ -172,6 +172,10 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   migrated HB-3256 dry-run emitted one uncredited FlightTime line (discount 0), not the 2-line over-credit split. Bind
   `PERSON_CLUB` (surrogate-id mint; `person_id` TENANT_BYPASS, `club_id` per-club; `member_state_id` orphan-nulled since
   MEMBER_STATE is unmigrated, dropping it from the mapper's resolved FKs) so the membership exports and the pivot resolves.
+- [x] **T-15** — Clean-seed dry-run-idempotent re-read 500: the seed-controller GET re-read of a granted credit threw
+  `LazyInitializationException` (`PersonFlightTimeCredit.transactions` lazy, no open session) because the read service
+  method ran outside a transaction, so `currentFlightTimeBalanceInSeconds` came back `undefined`. Make the read
+  transactional so the current-balance projection initialises in-session; a service IT reproduces the no-session re-read.
 - [x] **T-13** — §4-gate-red migrated-block `beforeAll` 45s timeout (the credit assertion never reached): the migrated
   TestClub-admin resolver's COLD path (shared single-use-bundle ingest + Keycloak provision + per-club ownership
   enumeration) legitimately exceeds the 45s per-test budget, but the accounting + both delivery migrated `beforeAll`s
