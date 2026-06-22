@@ -7,7 +7,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
-import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import type { FlightDetail, FlightUpdateRequest } from '../../../src/app/api/generated/model';
 
@@ -147,7 +147,10 @@ async function createGliderFlightAerotow(
   await expect(page.getByTestId('flight-step-glider')).toBeVisible();
   await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId);
   await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId);
-  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+  // Search by the seeded pilot's label fragment so the virtualised person picker
+  // renders the target option deterministically (a bare open flakes under RAM
+  // pressure when the option falls outside the rendered scroll viewport).
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId, 'Pilot');
   await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('09:00');
   await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
   await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
@@ -166,7 +169,7 @@ async function createGliderFlightAerotow(
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-tow')).toBeVisible();
   await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId);
-  await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId);
+  await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId, 'TowPilot');
 
   // J-2 T-43 — the gallery's PRIMARY paired-create parity shot: the glider+tow
   // wizard AT THE TOW STEP, populated (tow aircraft + tow pilot selected). This
@@ -855,6 +858,11 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubA);
+
+      // The stale PUT below DELIBERATELY 412s, so the browser logs a
+      // `Failed to load resource …412` console.error — declared here so only
+      // that code is excluded; any other browser error still fails the test.
+      allowConsoleErrors(testInfo, /\b412\b/);
 
       // Net-new affordance (NOT legacy parity — legacy Flight is last-write-wins,
       // oracle #25). Open the edit form, then race a SECOND writer (a direct PUT

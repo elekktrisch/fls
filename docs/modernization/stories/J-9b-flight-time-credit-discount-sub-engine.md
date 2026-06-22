@@ -185,6 +185,11 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   budget INSIDE `resolveMigratedTestClubAdmin` (`testInfo` param) so no consumer can forget it (structural guard), and
   tighten the deployment status-poll budget under the hook so a non-terminal deployment fails fast instead of spinning
   the memo-clear cascade. HARNESS-only: the credit mapper / seed / split assertions are untouched.
+- [x] **T-17** — Inherited-suite-guard flake fixes in `flight-migration-parity.spec.ts`: declare the 412
+  optimistic-concurrency test's deliberate `console.error` via `allowConsoleErrors(testInfo, /\b412\b/)` (the
+  suite-wide console guard otherwise fails it on the intended `…412` resource-load error); give the AEROTOW
+  create's two person-picker selects a deterministic search term so the virtualised `pn-` options render
+  reliably under RAM pressure (mirror `createFullyPopulatedGliderFlight`). Spec-only; no app change.
 - [x] **T-16** — Clear the two defects the PERSON_CLUB bind introduced. (1) `:server:test` arch-guard red:
   `FixtureTableNamingConventionTest` flags the new IT case's bare `PersonClub` staging table — allow-list `personclub`
   alongside the other legacy-source producer-SELECT staging names. (2) Fanout export abort (exit 6): `writeIdentityPgcopy`
