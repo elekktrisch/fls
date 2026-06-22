@@ -118,17 +118,20 @@ public enum EntityType {
 
     /**
      * Whether this entity emits its own {@code legacy_id_map/<E>.pgcopy} identity
-     * map. An aggregate-internal LEAF child with no own {@code legacy_guid}
-     * (composite-PK history reshaped to a surrogate {@code id} minted at INSERT)
-     * is referenced by NOBODY — it resolves its parent FK ({@code aircraft_id}) but
-     * carries no identity of its own — so the producer must NOT build an identity
-     * pgcopy for it ({@code writeIdentityPgcopy} would fail on the absent
-     * {@code legacy_guid}). {@code AIRCRAFT_AIRCRAFT_STATE} is the first such leaf;
-     * {@code AIRCRAFT_OPERATING_COUNTER} keeps its {@code legacy_guid} so it DOES
-     * emit one. Everything else with an identity emits its map.
+     * map. A LEAF whose legacy composite PK is reshaped to a surrogate {@code id}
+     * minted at INSERT carries no own {@code legacy_guid} and is referenced by
+     * NOBODY by its new id — it resolves its parent / scope FKs but nothing FKs
+     * back to it — so the producer must NOT build an identity pgcopy for it
+     * ({@code writeIdentityPgcopy} would fail on the absent {@code legacy_guid}).
+     * {@code AIRCRAFT_AIRCRAFT_STATE} (aggregate-internal child) and
+     * {@code PERSON_CLUB} (per-club membership junction: the credit-load pivot
+     * JOINs through {@code PersonClubs.club_id} but references Person, never the
+     * membership's surrogate id) are both such leaves. {@code AIRCRAFT_OPERATING_COUNTER}
+     * keeps its {@code legacy_guid} so it DOES emit one. Everything else with an
+     * identity emits its map.
      */
     public boolean emitsIdentityMap() {
-        return this != AIRCRAFT_AIRCRAFT_STATE;
+        return this != AIRCRAFT_AIRCRAFT_STATE && this != PERSON_CLUB;
     }
 
     public String temporaryTableSuffix() {

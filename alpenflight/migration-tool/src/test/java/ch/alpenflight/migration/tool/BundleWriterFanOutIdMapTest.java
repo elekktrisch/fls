@@ -76,6 +76,32 @@ class BundleWriterFanOutIdMapTest {
     }
 
     @Test
+    void personClubBundleAssemblesWithoutAnIdentityMap() throws Exception {
+        // PERSON_CLUB's legacy composite PK (PersonId, ClubId) reshapes to a
+        // surrogate id minted at INSERT, so its producer SELECT projects no
+        // legacy_guid and nothing FKs to the membership by its new id. The
+        // assembly must therefore NOT attempt writeIdentityPgcopy for it —
+        // doing so fails closed with "no legacy_guid; cannot build id map".
+        Path ndjson = workDir.resolve("person_club.ndjson");
+        Files.writeString(ndjson,
+                "{\"person_id\":\"" + UUID.randomUUID()
+                        + "\",\"club_id\":\"" + UUID.randomUUID() + "\"}\n",
+                StandardCharsets.UTF_8);
+
+        BundleWriter writer = new BundleWriter(null, workDir, false);
+        Path bundle = workDir.resolve("bundle.tar.gz");
+
+        writer.assembleTarGz(
+                "{}".getBytes(StandardCharsets.UTF_8),
+                List.of(new EntityStreamResult(EntityType.PERSON_CLUB, ndjson, 1, "sha")),
+                bundle);
+
+        assertThat(Files.size(bundle))
+                .as("the bundle assembles even though PERSON_CLUB emits no id-map")
+                .isPositive();
+    }
+
+    @Test
     void describeNamesTheClassAndCauseChainEvenWhenMessageIsNull() {
         // J-0c T-12: COUNTRY failed live with "Failed streaming entity COUNTRY:
         // null" — getMessage() was null (NPE-shaped). describe() must surface

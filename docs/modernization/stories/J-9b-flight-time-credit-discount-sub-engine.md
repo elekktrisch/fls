@@ -181,6 +181,13 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   budget INSIDE `resolveMigratedTestClubAdmin` (`testInfo` param) so no consumer can forget it (structural guard), and
   tighten the deployment status-poll budget under the hook so a non-terminal deployment fails fast instead of spinning
   the memo-clear cascade. HARNESS-only: the credit mapper / seed / split assertions are untouched.
+- [x] **T-16** — Clear the two defects the PERSON_CLUB bind introduced. (1) `:server:test` arch-guard red:
+  `FixtureTableNamingConventionTest` flags the new IT case's bare `PersonClub` staging table — allow-list `personclub`
+  alongside the other legacy-source producer-SELECT staging names. (2) Fanout export abort (exit 6): `writeIdentityPgcopy`
+  demands a `legacy_guid` per entity, but PersonClub's composite PK projects none. PersonClub is a leaf membership
+  junction — nothing FKs to its surrogate id (the credit-load pivot JOINs `PersonClubs.club_id`, references Person) — so
+  exempt it from the identity-map requirement via `EntityType.emitsIdentityMap()` (the established carve-out, also used by
+  `AIRCRAFT_AIRCRAFT_STATE`), no derived guid needed.
 
 **Riders watched at the gate (fold only if still red on the FINAL-sha fanout):** the J-9-filed **article-5001**
 migrated-FlightTime gap lives in THIS spec's migrated block — keep it green as the credit cases extend it; J-27
