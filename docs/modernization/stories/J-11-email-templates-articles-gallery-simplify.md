@@ -2,7 +2,8 @@
 id: J-11
 title: Email templates + Articles masterdata (+ gallery simplification)
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-06-22
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -105,3 +106,47 @@ Grounded in legacy `TemplateService.cs:105-130` (union read) + `:242` (clone-on-
 - **Articles verify** — confirm the deployed `/articles` screen + fanout-prove `ArticleMapper` (1 task).
 - **GALLERY-SIMPLIFY** — its own cluster (generator rewrite / deletes / CI+fanout deploy rewire), sized per
   the gate.
+
+## Oracle decisions (do-ship, from the legacy-oracle 2026-06-22)
+
+EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-251` clone-on-customize/upsert,
+`:151-166` send-time override-then-default, `:271-288` reset=hard-delete override), `EmailTemplate.cs` entity,
+`EmailTemplatesController.cs` (`:15` read=ClubAdmin|SystemAdmin, `:75` create=SystemAdmin-only). AlpenFlight is
+**greenfield** — these are the resolver/CRUD semantics to mirror, not a parity test.
+
+- **AlpenFlight DB holds ONLY club overrides** (`club_id NOT NULL`); system defaults are the S-082 Thymeleaf
+  FILES. So the union read is **files ∪ db-override-rows**, not a nullable-club table — cleaner `@TenantId` (no
+  null-tenant rows), and `UNIQUE(club_id, template_key, language_locale)` is clean. (Supersedes the carve's
+  "nullable club_id" note — only needed if system rows lived in the DB; they don't.)
+- **Override row stores** the customizable fields: `template_key` (the transactional-email selector — e.g.
+  `lostpassword`/`planningday-ok`), `language_locale`, `subject`, `body` (Thymeleaf source — greenfield, NOT the
+  legacy Velocity), optionally from/replyTo. Identity = `(club_id, template_key, language_locale)`.
+- **Clone-on-customize** = upsert the override row (insert if none, update-in-place if one exists); never mutates
+  a file default. **Reset** = delete the override row → resolver falls back to the file. **Authz**: write =
+  `CLUB_ADMINISTRATOR` (own club only), non-admin = 403.
+- **Three legacy quirks built greenfield-correct (NOT reproduced, NOT escalations):** (1) legacy drops `clubId`
+  on 3 senders (flightreport/licenceexpiressoon/aircraftstatisticreport) so their overrides never apply — the
+  AlpenFlight resolver applies overrides uniformly by `(tenant, key, locale)`; those senders aren't built here.
+  (2) legacy dedups case-sensitively in the list but `ToUpper` at send — AlpenFlight canonicalizes the key
+  case-insensitively everywhere. (3) legacy has no uniqueness invariant — AlpenFlight adds the UNIQUE above
+  (no migration dup risk: EmailTemplate migration is N/A).
+- **EmailTemplate migration = N/A (confirmed).** All legacy seed rows are `ClubId=NULL, IsSystemTemplate=1`
+  (pure system defaults → AlpenFlight Thymeleaf files). No club-override rows in the seed/fanout export → no
+  mapper. **Article is the journey's only mapper** → the `fan-out parity` job remains a HARD gate (Article).
+
+## Tasks
+
+- [ ] **T-01** — Real-idp `email-templates.spec.ts` stub (structure + selectors + thin happy-path flow) + scaffold the J-11 proof-gallery page + link from the persistent index.
+- [ ] **T-02** — Scope the per-push gate to J-11 (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP.
+- [ ] **T-03** — EmailTemplate aggregate + Flyway `t_email_template` (club_id NOT-NULL `@TenantId`, `UNIQUE(club_id,template_key,language_locale)`, structural invariants only; domain customize-upsert + reset methods per ADR 0022 §2).
+- [ ] **T-04** — EmailTemplate REST `/api/v1/email-templates/**` + application service: union read (files ∪ overrides), clone-on-customize upsert, reset-delete, `CLUB_ADMINISTRATOR` write / 403 non-admin, audit.
+- [ ] **T-05** — Thymeleaf DB-override-then-file-fallback resolver chain (custom `ITemplateResolver` keyed `(tenant,key,locale)` ahead of the file resolver; consumes S-082).
+- [ ] **T-06** — EmailTemplate SPA store + API client (list/get/save/reset over `/api/v1/email-templates`).
+- [ ] **T-07** — EmailTemplate SPA screen: route + list/edit component + template-source editor + reset-to-default; nav entry + role visibility (chrome-reachable); per-touch COMMENT-STRIP of `nav-sections.ts`/`app.routes.ts`.
+- [ ] **T-08** — Article migration: bind/verify `ArticleMapper` scoped by legacy `ClubId` tenant + a real-producer collision/orphan round-trip IT (reds in `check`); per-touch COMMENT-STRIP of `MapperLegacyBindings.java`. (The J-10b `DeliveryItem.article_id` RESTRICT done-bar.)
+- [ ] **T-09** — GALLERY-SIMPLIFY (a): rewrite `generate-gallery.mjs` to ONE current-journey-only page; delete `generate-previews-index.mjs` + `proof-gallery-links.spec.ts` (replace w/ the one-page deployed-link-check) + `expected-shots.json`.
+- [ ] **T-10** — GALLERY-SIMPLIFY (b): collapse the gallery deploy/staging/sub-path steps across `ci.yml` + `alpenflight-proof-fanout.yml` to one deploy + one deployed-link-check (CDN slack).
+- [ ] **T-11** — WORKFLOW-SLIM (partial): quarantine the 3 KC-26 specs + shard the §4 cross-journey real-idp regression (keep coverage, beat the step timeout). Composite-action YAML cut deferred (note for next).
+- [ ] **T-12** — INTERNAL-AFFORDANCE-ARCHGUARD: ArchUnit guard asserting every `/api/v1/internal/` controller carries `@Profile`(non-prod) + `@Hidden` (ADR 0029).
+- [ ] **T-13** — HELPER-PRUNE + HELPER-PRUNE-CREDIT: re-confirm the backend twins green, then delete the 5 redundant `@helper` e2e cases (3 in `validation-hardening.spec.ts`, 2 in `delivery-creation-test-parity.spec.ts`).
+- [ ] **T-14** — Thicken `email-templates.spec.ts` to full real assertions (union read / clone-on-customize / override-at-send / reset) + add the Articles screen verify (CRUD + soft-delete + includeInactive over the deployed `/articles`).
