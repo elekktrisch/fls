@@ -43,10 +43,15 @@ class ExportCommandSmokeTest {
         // filter_type_id / accounting_unit_type_id resolve via V4-seeded
         // legacy_int_id reference lookups) bound in J-8 T-10 — proving the
         // already-authored accounting-rule mapper through the real export round-trip.
+        // + PERSON_CLUB (per-club membership) wired so the indirect-tenancy pivot a
+        // PersonFlightTimeCredit load JOINs through (Person -> PersonClubs.club_id)
+        // resolves over migrated data — without it the membership never exports and a
+        // migrated credit never reaches the engine.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
                 EntityType.CLUB, EntityType.PERSON, EntityType.USER,
+                EntityType.PERSON_CLUB,
                 EntityType.LOCATION, EntityType.INOUTBOUND_POINT,
                 EntityType.AIRCRAFT, EntityType.AIRCRAFT_AIRCRAFT_STATE,
                 EntityType.AIRCRAFT_OPERATING_COUNTER,

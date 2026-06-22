@@ -91,7 +91,10 @@ public final class PersonClubMapper implements Mapper {
 
     @Override
     public List<EntityType> foreignKeys() {
-        return List.of(EntityType.PERSON, EntityType.CLUB, EntityType.MEMBER_STATE);
+        // member_state_id is orphan-nulled producer-side (MEMBER_STATE is not in the
+        // migrated set), so it is NOT a resolved FK — mirrors the credit
+        // transaction's nulled balanced_delivery_id, which likewise omits Delivery.
+        return List.of(EntityType.PERSON, EntityType.CLUB);
     }
 
     @Override

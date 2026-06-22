@@ -96,7 +96,6 @@ class MapperBindingContractTest {
             // --- bound by their own future journeys (not J-6) ---
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,
-            EntityType.PERSON_CLUB,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
             EntityType.ARTICLE,
             // ACCOUNTING_RULE_FILTER bound by J-8 T-10 (producer SELECT + JSON-blob

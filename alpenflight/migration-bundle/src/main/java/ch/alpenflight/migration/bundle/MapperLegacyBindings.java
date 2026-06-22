@@ -1307,6 +1307,59 @@ public final class MapperLegacyBindings {
                             ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.PERSON_CLUB, new Binding(
+                    // Per-club Person membership (PersonClubMapper): legacy
+                    // composite PK (PersonId, ClubId) → surrogate t_person_club.id
+                    // minted at INSERT (no legacy_guid wire column → the ingest
+                    // mints UUID v7). NOT fan-out — each membership is one club's row,
+                    // tenant-scoped on its own ClubId. person_id rides TENANT_BYPASS to
+                    // cross-tenant Person (the FlightCrew idiom); club_id resolves to the
+                    // provisioned club. Without this binding the membership never exports,
+                    // so the indirect-tenancy pivot a credit's load JOINs through
+                    // (Person→PersonClubs.club_id = currentTenant) finds no row and a
+                    // migrated PersonFlightTimeCredit never reaches the engine.
+                    //
+                    // ORPHAN-NULL MemberStateId: member_state_id → MemberState is nulled
+                    // because MEMBER_STATE is not in the migrated set; t_person_club's FK
+                    // is ON DELETE SET NULL and the column is nullable, so a verbatim
+                    // legacy GUID would 23503 fk_person_club_member_state_id at ingest. The
+                    // credit-load pivot needs membership presence, not the member-state
+                    // reference. (When MEMBER_STATE migrates the projection resolves it.)
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT PersonId, ClubId, MemberNumber,
+                           NULL AS MemberStateId,
+                           IsMotorPilot, IsTowPilot, IsGliderInstructor, IsGliderPilot,
+                           IsGliderTrainee, IsPassenger, IsWinchOperator, IsMotorInstructor,
+                           ReceiveFlightReports, ReceiveAircraftReservationNotifications,
+                           ReceivePlanningDayRoleReminder, IsActive,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM PersonClub
+                    """,
+                    "t_person_club",
+                    // Surrogate id minted by the ingest (mintsSurrogateId — no legacy_guid
+                    // column). The 22 ? params follow PersonClubMapper.columns() order,
+                    // starting at person_id (position 1); id is appended by the ingestor.
+                    """
+                    INSERT INTO t_person_club (
+                      id,
+                      person_id, club_id, member_number, member_state_id,
+                      is_motor_pilot, is_tow_pilot, is_glider_instructor, is_glider_pilot,
+                      is_glider_trainee, is_passenger, is_winch_operator, is_motor_instructor,
+                      receive_flight_reports, receive_aircraft_reservation_notifications,
+                      receive_planning_day_role_reminder, is_active,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (gen_random_uuid(),
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

@@ -205,6 +205,81 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
                 .isEqualTo(personId.toString());
     }
 
+    @Test
+    void personClubProducerSelectCarriesPersonClubAndNullsMemberState() {
+        // The credit-load pivot JOINs Person -> PersonClubs.club_id = currentTenant, so
+        // a migrated credit reaches the engine ONLY if its owning Person's membership
+        // also migrates. PERSON_CLUB had a mapper but no producer binding, so it never
+        // exported and the pivot found nothing over migrated data. This runs the bound
+        // PERSON_CLUB producer SELECT against the legacy-shaped table and asserts the
+        // membership carries person_id + club_id (its tenant anchor) and nulls
+        // member_state_id (MEMBER_STATE unmigrated — else it 23503s at ingest).
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS PersonClub (
+                    PersonId                                UUID NOT NULL,
+                    ClubId                                  UUID NOT NULL,
+                    MemberNumber                            TEXT,
+                    MemberStateId                           UUID,
+                    IsMotorPilot                            BOOLEAN NOT NULL,
+                    IsTowPilot                              BOOLEAN NOT NULL,
+                    IsGliderInstructor                      BOOLEAN NOT NULL,
+                    IsGliderPilot                           BOOLEAN NOT NULL,
+                    IsGliderTrainee                         BOOLEAN NOT NULL,
+                    IsPassenger                             BOOLEAN NOT NULL,
+                    IsWinchOperator                         BOOLEAN NOT NULL,
+                    IsMotorInstructor                       BOOLEAN NOT NULL,
+                    ReceiveFlightReports                    BOOLEAN NOT NULL,
+                    ReceiveAircraftReservationNotifications BOOLEAN NOT NULL,
+                    ReceivePlanningDayRoleReminder          BOOLEAN NOT NULL,
+                    IsActive                                BOOLEAN NOT NULL,
+                    CreatedOn                               TIMESTAMP NOT NULL,
+                    CreatedByUserId                         UUID,
+                    ModifiedOn                              TIMESTAMP,
+                    ModifiedByUserId                        UUID,
+                    DeletedOn                               TIMESTAMP,
+                    DeletedByUserId                         UUID,
+                    PRIMARY KEY (PersonId, ClubId)
+                )
+                """);
+        UUID clubId = UUID.randomUUID();
+        try {
+            jdbc.update("""
+                    INSERT INTO PersonClub
+                        (PersonId, ClubId, MemberNumber, MemberStateId,
+                         IsMotorPilot, IsTowPilot, IsGliderInstructor, IsGliderPilot,
+                         IsGliderTrainee, IsPassenger, IsWinchOperator, IsMotorInstructor,
+                         ReceiveFlightReports, ReceiveAircraftReservationNotifications,
+                         ReceivePlanningDayRoleReminder, IsActive,
+                         CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                         DeletedOn, DeletedByUserId)
+                    VALUES (?, ?, '205207', ?,
+                            FALSE, FALSE, FALSE, TRUE,
+                            TRUE, FALSE, FALSE, FALSE,
+                            TRUE, TRUE, TRUE, TRUE,
+                            ?, NULL, NULL, NULL, NULL, NULL)
+                    """,
+                    personId, clubId, UUID.randomUUID(),
+                    Timestamp.valueOf("2024-01-01 00:00:00"));
+
+            String select = MapperLegacyBindings.selectForProducer(EntityType.PERSON_CLUB);
+            Map<String, Object> row = jdbc.queryForList(select).stream()
+                    .filter(r -> r.get("personid").toString().equals(personId.toString()))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(row.get("clubid").toString())
+                    .as("the membership carries its club_id — the indirect-tenancy anchor the "
+                            + "credit-load pivot scopes on")
+                    .isEqualTo(clubId.toString());
+            assertThat(row.get("memberstateid"))
+                    .as("member_state_id is nulled producer-side (MEMBER_STATE unmigrated) — "
+                            + "else fk_person_club_member_state_id 23503s at ingest")
+                    .isNull();
+        } finally {
+            jdbc.execute("DROP TABLE IF EXISTS PersonClub");
+        }
+    }
+
     private void insertCredit(UUID id) {
         jdbc.update("""
                 INSERT INTO PersonFlightTimeCredits

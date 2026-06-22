@@ -54,9 +54,11 @@ class PersonClubMapperTest extends AbstractMapperContractTest<PersonClubMapper> 
     }
 
     @Test
-    void declaresPersonClubMemberStateAsStructuralForeignKeys() {
+    void declaresOnlyResolvedForeignKeys() {
         assertThat(mapper.foreignKeys())
-                .containsExactly(EntityType.PERSON, EntityType.CLUB, EntityType.MEMBER_STATE);
+                .as("member_state_id is orphan-nulled producer-side (MEMBER_STATE unmigrated), "
+                        + "so MEMBER_STATE is not a resolved FK")
+                .containsExactly(EntityType.PERSON, EntityType.CLUB);
     }
 
     @Test

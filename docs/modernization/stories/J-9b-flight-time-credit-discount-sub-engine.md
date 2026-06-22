@@ -165,6 +165,13 @@ dry-run, AsNoTracking). Exact line-by-line stays for the ship-time `legacy-oracl
   correct: 30 min @25% + 60 min @0%). Pin each case's FlightTime filter to its own flight by an exact-immat include-list
   (`aircraftImmatriculations {useAllExcept:false, matched:[md.gliderImmat]}`) so it matches ONLY its own fresh-immat
   flight — deterministic across the shared serial session, no app change (engine correct). Split assertions stay strong.
+- [x] **T-14** — Migrated credit never applied at the engine: the legacy export carried the credit + its IsCurrent
+  transaction, but NOT `PersonClub` — `PersonClubMapper` had no `MapperLegacyBindings` producer SELECT, so the export's
+  `KnownMappers ∩ bindings` set excluded it and no `t_person_club` row migrated. The credit-load pivot
+  (`findActiveForPersonInCurrentTenant` JOINs `Person → PersonClubs.club_id = currentTenant`) found no membership, so the
+  migrated HB-3256 dry-run emitted one uncredited FlightTime line (discount 0), not the 2-line over-credit split. Bind
+  `PERSON_CLUB` (surrogate-id mint; `person_id` TENANT_BYPASS, `club_id` per-club; `member_state_id` orphan-nulled since
+  MEMBER_STATE is unmigrated, dropping it from the mapper's resolved FKs) so the membership exports and the pivot resolves.
 - [x] **T-13** — §4-gate-red migrated-block `beforeAll` 45s timeout (the credit assertion never reached): the migrated
   TestClub-admin resolver's COLD path (shared single-use-bundle ingest + Keycloak provision + per-club ownership
   enumeration) legitimately exceeds the 45s per-test budget, but the accounting + both delivery migrated `beforeAll`s
