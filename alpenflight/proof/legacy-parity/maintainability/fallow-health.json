@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.101.0",
-  "elapsed_ms": 684,
+  "elapsed_ms": 644,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -155,7 +155,7 @@
       "col": 0,
       "cyclomatic": 25,
       "cognitive": 23,
-      "line_count": 345,
+      "line_count": 346,
       "param_count": 0,
       "exceeded": "both",
       "severity": "moderate",
@@ -695,7 +695,7 @@
       "col": 0,
       "cyclomatic": 16,
       "cognitive": 22,
-      "line_count": 326,
+      "line_count": 327,
       "param_count": 0,
       "exceeded": "cognitive_crap",
       "severity": "critical",
@@ -2005,7 +2005,7 @@
     {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "confirmDelete",
-      "line": 706,
+      "line": 707,
       "col": 31,
       "cyclomatic": 7,
       "cognitive": 8,
@@ -2965,7 +2965,7 @@
     {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "summary",
-      "line": 532,
+      "line": 533,
       "col": 40,
       "cyclomatic": 5,
       "cognitive": 6,
@@ -2995,7 +2995,7 @@
     {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "deletePromptMessage",
-      "line": 659,
+      "line": 660,
       "col": 67,
       "cyclomatic": 5,
       "cognitive": 4,
@@ -3175,7 +3175,7 @@
   ],
   "summary": {
     "files_analyzed": 225,
-    "functions_analyzed": 1855,
+    "functions_analyzed": 1857,
     "functions_above_threshold": 99,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
@@ -3209,17 +3209,17 @@
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 32451,
+      "total_lines": 32514,
       "files_scored": 176,
       "total_deps": 0
     },
     "unit_size_profile": {
       "low_risk": 87.4,
-      "medium_risk": 6.5,
+      "medium_risk": 6.4,
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 35.6,
+    "functions_over_60_loc_per_k": 35.5,
     "unit_interfacing_profile": {
       "low_risk": 97.4,
       "medium_risk": 2.3,
@@ -3228,7 +3228,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.7,
-    "total_loc": 32451
+    "total_loc": 32514
   },
   "health_score": {
     "formula_version": 2,
@@ -3301,7 +3301,7 @@
       "total_cyclomatic": 127,
       "total_cognitive": 71,
       "function_count": 43,
-      "lines": 759,
+      "lines": 760,
       "crap_max": 272.0,
       "crap_above_threshold": 9
     },
@@ -4295,7 +4295,7 @@
       "total_cyclomatic": 7,
       "total_cognitive": 4,
       "function_count": 4,
-      "lines": 134,
+      "lines": 140,
       "crap_max": 12.0,
       "crap_above_threshold": 0
     },
@@ -4454,6 +4454,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/shared/ui/organisms/af-date-picker/af-date-picker.component.ts",
+      "fan_in": 2,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 91.4,
+      "total_cyclomatic": 23,
+      "total_cognitive": 8,
+      "function_count": 15,
+      "lines": 163,
+      "crap_max": 7.5,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/flights/edit/flight-prefs.service.ts",
       "fan_in": 3,
       "fan_out": 1,
@@ -4510,6 +4524,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/shared/ui/atoms/af-select/af-select.component.ts",
+      "fan_in": 1,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 93.0,
+      "total_cyclomatic": 17,
+      "total_cognitive": 6,
+      "function_count": 11,
+      "lines": 119,
+      "crap_max": 7.5,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/profile/notifications.store.ts",
       "fan_in": 3,
       "fan_out": 1,
@@ -4539,7 +4567,7 @@
     },
     {
       "path": "src/app/shared/util/date/format-date.ts",
-      "fan_in": 2,
+      "fan_in": 3,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.27,
@@ -4776,20 +4804,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/shared/ui/atoms/af-select/af-select.component.ts",
-      "fan_in": 1,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.14,
-      "maintainability_index": 93.0,
-      "total_cyclomatic": 16,
-      "total_cognitive": 5,
-      "function_count": 11,
-      "lines": 111,
-      "crap_max": 4.9,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/shared/ui/density/density.service.ts",
       "fan_in": 3,
       "fan_out": 1,
@@ -4836,12 +4850,12 @@
       "fan_in": 4,
       "fan_out": 1,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.06,
-      "maintainability_index": 95.4,
+      "complexity_density": 0.05,
+      "maintainability_index": 95.7,
       "total_cyclomatic": 3,
       "total_cognitive": 2,
       "function_count": 1,
-      "lines": 52,
+      "lines": 66,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -5168,20 +5182,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/app.config.ts",
-      "fan_in": 1,
-      "fan_out": 7,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.02,
-      "maintainability_index": 91.1,
-      "total_cyclomatic": 1,
-      "total_cognitive": 0,
-      "function_count": 1,
-      "lines": 66,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/core/i18n/transloco-loader.ts",
       "fan_in": 2,
       "fan_out": 5,
@@ -5192,20 +5192,6 @@
       "total_cognitive": 1,
       "function_count": 1,
       "lines": 28,
-      "crap_max": 2.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/shared/ui/organisms/af-date-picker/af-date-picker.component.ts",
-      "fan_in": 2,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.12,
-      "maintainability_index": 92.0,
-      "total_cyclomatic": 17,
-      "total_cognitive": 5,
-      "function_count": 13,
-      "lines": 141,
       "crap_max": 2.9,
       "crap_above_threshold": 0
     },
@@ -5347,6 +5333,20 @@
       "function_count": 1,
       "lines": 40,
       "crap_max": 2.9,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/app.config.ts",
+      "fan_in": 1,
+      "fan_out": 7,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.01,
+      "maintainability_index": 91.4,
+      "total_cyclomatic": 1,
+      "total_cognitive": 0,
+      "function_count": 1,
+      "lines": 72,
+      "crap_max": 2.0,
       "crap_above_threshold": 0
     },
     {
@@ -5732,7 +5732,7 @@
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "<template>",
       "line": 177,
-      "line_count": 326
+      "line_count": 327
     },
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -6451,7 +6451,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_d1e5f0239577f243"
+      "analysis_run_id": "run_c79db158b242a198"
     }
   }
 }
