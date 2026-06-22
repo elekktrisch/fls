@@ -18,12 +18,13 @@ it delivers no AlpenFlight functionality; if a debt item is too big for one jour
 split it across the next 2-3 journeys' budgets. A standalone journey is *only* genuinely new
 vertical AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
 
-> **⏳ Debt-burndown window (set by /do-retro 2026-06-14 — TEMPORARY).** The next ~2-3 journeys
-> run inverted: **≥30% feature / ≤70% tech-debt**, to clear the spike this retro filed (gallery
-> rewrite, workflow slim, comment strip, history→git). Each still LEADS with a real feature +
-> green-Playwright path (the modernization never fully stalls). **Revert to ≤40% once the
-> GALLERY-SIMPLIFY + WORKFLOW-SLIM + COMMENT-STRIP riders clear** (`_BOYSCOUT.md`); when carving a
-> journey after they're gone, drop back to 60/40 and delete this marker.
+> **⏳ Debt-burndown window (updated /do-retro 2026-06-22 — FINAL LAP).** The original window
+> (2026-06-14) overran its ~2-3 journeys without clearing its named riders — the journeys since were
+> feature/bug-led (J-2b/J-2c/J-9b), so the inverted budget was never actually spent. Operator decision
+> (2026-06-22): **the NEXT journey runs inverted (≥30% feature / ≤70% tech-debt), aimed squarely at clearing
+> GALLERY-SIMPLIFY** (the operator's bookmark pain) — it still LEADS with a real feature + green-Playwright
+> path. **After that one journey, revert to 60/40 and DELETE this marker;** WORKFLOW-SLIM + COMMENT-STRIP then
+> ride feature journeys' ≤40% debt slots as normal (split across journeys if too big). (`_BOYSCOUT.md` details.)
 
 **Budget for the unforeseen.** The gate always surfaces real work the carve can't see (hidden bugs, infra
 surprises, parity gaps). Carve with explicit slack: a journey's task count growing from gate-revealed work is
@@ -127,6 +128,11 @@ clean-context `/do-task` worker on `integration/J-NNN` (now already created + pu
   a worker to bind the other journey's entity unscoped, regressing the whole fanout (J-10: `DeliveryItem.
   article_id` → ARTICLE, J-11's entity → the Delivery migration had to defer to J-10b after J-11). If the
   dependency journey isn't built yet, carve the migration half as its own later journey.
+  **Indirect tenancy counts as a dependency too** (J-9b): an entity carrying no `club_id` whose tenant-scoping
+  read *pivots through* another entity (`PersonFlightTimeCredit` scoped via `Person→PersonClub`) owes that
+  pivot entity's migration as a `depends_on` — even with no direct NOT-NULL FK column — else the migrated rows
+  are invisible to every `@TenantId`-filtered query. Check the repo's tenant-scoping query, not just the FK
+  columns. (J-9b found PERSON_CLUB had never been migrated — a latent J-4 gap — only at the gate.)
 
 ## Journey file — `docs/modernization/stories/J-NNN-<slug>.md`
 

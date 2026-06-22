@@ -12,6 +12,22 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-retro J-9b window, 2026-06-22)
+
+- **[INTERNAL-AFFORDANCE-ARCHGUARD] ArchUnit guard for `/api/v1/internal/` controllers.** ADR 0029
+  sanctions dev/test-only affordances in `src/main` behind `@Profile`(non-prod) + `@Hidden` +
+  `/internal/` + a role gate. Make the four annotations mechanically enforced: an ArchUnit test
+  asserting every controller mapped under `/api/v1/internal/` carries `@Profile` (naming only
+  non-production profiles) + `@Hidden`, so a future affordance can't silently ship reachable in
+  production. Covers `InternalProvisioningController` + `InternalPersonFlightTimeCreditSeedController`.
+  Rides the next server-touch journey. *(seam: a new ArchUnit guard in the arch-test suite)*
+- **[HELPER-PRUNE-CREDIT] Drop 2 `@helper` credit-edge e2e cases.** `real-idp/delivery-creation-test-parity.spec.ts`
+  carries 2 `@helper`-tagged logic-edge cases over the credit engine: `covered-by: FlightTimeStageTest`
+  (`:1109`) and `covered-by: AccountingDeliveryEngineCreditIT` (`:1155`) — both backend tests verified
+  present + green in the J-9b `check` gate. Delete those 2 e2e cases (keep the full-cover + split happy
+  paths that prove the wiring); the domain/IT twins own the logic far cheaper. `/do-ship` re-confirms each
+  backend test green before deleting. *(seam: delivery-creation-test-parity.spec.ts @helper cases)*
+
 ## Pending (filed by /do-retro J-27 window, 2026-06-20)
 
 - ✅ **[#229 — New flight form broken] — SHIPPED in J-2b.** Not a save bug: today-default list visibility +
