@@ -139,7 +139,7 @@ EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-
 
 - [x] **T-01** — Real-idp `email-templates.spec.ts` stub (structure + selectors + thin happy-path flow) + scaffold the J-11 proof-gallery page + link from the persistent index.
 - [x] **T-02** — Scope the per-push gate to J-11 (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP.
-- [ ] **T-03** — EmailTemplate aggregate + Flyway `t_email_template` (club_id NOT-NULL `@TenantId`, `UNIQUE(club_id,template_key,language_locale)`, structural invariants only; domain customize-upsert + reset methods per ADR 0022 §2).
+- [x] **T-03** — EmailTemplate aggregate + Flyway `t_email_template` (club_id NOT-NULL `@TenantId`, `UNIQUE(club_id,template_key,language_locale)`, structural invariants only; domain customize-upsert + reset methods per ADR 0022 §2).
 - [ ] **T-04** — EmailTemplate REST `/api/v1/email-templates/**` + application service: union read (files ∪ overrides), clone-on-customize upsert, reset-delete, `CLUB_ADMINISTRATOR` write / 403 non-admin, audit.
 - [ ] **T-05** — Thymeleaf DB-override-then-file-fallback resolver chain (custom `ITemplateResolver` keyed `(tenant,key,locale)` ahead of the file resolver; consumes S-082).
 - [ ] **T-06** — EmailTemplate SPA store + API client (list/get/save/reset over `/api/v1/email-templates`).
