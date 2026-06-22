@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-9b</code> &middot; 2026-06-22T18:52:22.936Z
+      for this journey. Generated on <code>integration/J-9b</code> &middot; 2026-06-22T19:23:27.596Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,27 +144,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-fdbb501acb9fecf27cb4b3389c38cd1e66c6726f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-5305bfbd763d27cfdd7048067641208297034e33.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ee5818b0cbd4166f0757bee49c11a591f3a949ef.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-243151be7a8f07c2bea7fc5af379648e5088ba06.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-2f59a60c90c67df7ca5c52231cc1956fdebad5df.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-1d1344f9dfbe5c27d45e83ec43e2915d675df825.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1596b4e8c7cdbb50842a08f0171ff9cfd6cd46bd.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-651935be00c8e8e690a8e1aa5545ae26860c57f9.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-dd419ed4c7b28253e1a3d8a21f7a4c4016d303f7.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-26a45763192d9ca1abd7d37aa334d36100c2b227.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-5e245a26e5bd4dc8f07fe5507642fd4b35c328ba.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-f295c30a20893719e4d5626d58e219de9150c625.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
         </figure>
         </div>
