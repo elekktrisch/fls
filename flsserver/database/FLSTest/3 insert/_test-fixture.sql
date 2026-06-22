@@ -671,5 +671,80 @@ BEGIN
     )
 END
 
+-- ---------------------------------------------------------------------------
+-- 11. A pre-paid PersonFlightTimeCredit on the HB-3256 static-seed glider
+--     flight's pilot. The credit branch of the rules engine only fires when a
+--     flight resolves a billed recipient whose immatriculation matches a
+--     credit; the HB-3256 glider (`6 Insert Test Flights.sql`, the
+--     unique-immatriculation glider) carries no cost-balance type, so set
+--     PILOT_PAYS_ALL (1) to make its PIC the recipient, then grant that PIC a
+--     partial balance matched to 'HB-3256'. A 600-second (10-minute) balance
+--     under the 22-minute flight provokes the over-credit split — a credited
+--     line at the discount + a full-price remainder — over genuine migrated
+--     seed, so the migration carries a real prepaid balance across cutover.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: PersonFlightTimeCredit (HB-3256 glider pilot)'
+
+DECLARE @hb3256FlightId  uniqueidentifier
+DECLARE @hb3256PilotId   uniqueidentifier
+
+SELECT TOP 1 @hb3256FlightId = f.FlightId
+  FROM Flights f
+  INNER JOIN Aircrafts a ON a.AircraftId = f.AircraftId
+ WHERE a.Immatriculation = 'HB-3256'
+   AND f.FlightAircraftType = 1   -- GliderFlight
+   AND f.OwnerId = @testClubId
+
+IF @hb3256FlightId IS NOT NULL
+BEGIN
+    SELECT TOP 1 @hb3256PilotId = fc.PersonId
+      FROM FlightCrew fc
+     WHERE fc.FlightId = @hb3256FlightId
+       AND fc.FlightCrewType = 1   -- Pilot
+
+    -- PILOT_PAYS_ALL so the recipient stage resolves the PIC as the billed
+    -- recipient and the engine loads that pilot's credit.
+    UPDATE Flights SET FlightCostBalanceType = 1 WHERE FlightId = @hb3256FlightId
+END
+
+IF @hb3256PilotId IS NOT NULL
+BEGIN
+    DECLARE @creditId      uniqueidentifier = 'F1500011-0000-0000-0000-000000000001'
+    DECLARE @creditTxnId   uniqueidentifier = 'F1500011-0000-0000-0000-000000000002'
+
+    DELETE FROM PersonFlightTimeCreditTransactions WHERE PersonFlightTimeCreditId = @creditId
+    DELETE FROM PersonFlightTimeCredits            WHERE PersonFlightTimeCreditId = @creditId
+
+    INSERT INTO PersonFlightTimeCredits (
+        PersonFlightTimeCreditId, NoFlightTimeLimit, ValidUntil, PersonId,
+        UseRuleForAllAircraftsExceptListed, MatchedAircraftImmatriculations,
+        DiscountInPercent,
+        CreatedOn, CreatedByUserId,
+        RecordState, OwnerId, OwnershipType, IsDeleted
+    ) VALUES (
+        @creditId, 0, '2099-12-31T00:00:00', @hb3256PilotId,
+        0, N'HB-3256',
+        25,
+        DATEADD(MINUTE, 10, @anchor), @insertUserId,
+        @recordState, @testClubId, @ownershipClub, 0
+    )
+
+    INSERT INTO PersonFlightTimeCreditTransactions (
+        PersonFlightTimeCreditTransactionId, BalanceDateTime, NoFlightTimeLimit,
+        CurrentFlightTimeBalanceInSeconds, FlightTimeBalanceInSeconds,
+        OldFlightTimeBalanceInSeconds, IsCurrent,
+        PersonFlightTimeCreditId, BalancedDeliveryId,
+        CreatedOn, CreatedByUserId,
+        RecordState, OwnerId, OwnershipType, IsDeleted
+    ) VALUES (
+        @creditTxnId, DATEADD(MINUTE, 10, @anchor), 0,
+        600, 600,
+        NULL, 1,
+        @creditId, NULL,
+        DATEADD(MINUTE, 10, @anchor), @insertUserId,
+        @recordState, @testClubId, @ownershipClub, 0
+    )
+END
+
 PRINT '=== DETERMINISTIC TEST FIXTURE: complete ==='
 GO

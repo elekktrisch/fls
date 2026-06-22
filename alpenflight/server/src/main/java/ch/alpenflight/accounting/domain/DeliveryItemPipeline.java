@@ -63,8 +63,25 @@ public final class DeliveryItemPipeline {
                     int flightDurationZeroBasedSeconds,
                     int engineRunningTimeSeconds,
                     @Nullable TowInput tow) {
+        run(accumulator, flight, filters, flightDurationZeroBasedSeconds,
+                engineRunningTimeSeconds, tow, List.of());
+    }
+
+    /**
+     * The credit-aware variant: {@code credits} are the billed person's prepaid
+     * {@link PersonFlightTimeCredit}s, threaded into the FlightTime stage's credit
+     * branch (and reused across the tow recursion). An empty list is the pure
+     * decrement path.
+     */
+    public void run(RuleBasedDeliveryDetails accumulator,
+                    MatchableFlight flight,
+                    RuleFilters filters,
+                    int flightDurationZeroBasedSeconds,
+                    int engineRunningTimeSeconds,
+                    @Nullable TowInput tow,
+                    List<PersonFlightTimeCredit> credits) {
         noLandingTax.run(accumulator, flight, filters.noLandingTax());
-        flightTime.run(accumulator, flight, flightDurationZeroBasedSeconds, filters.flightTime());
+        flightTime.run(accumulator, flight, flightDurationZeroBasedSeconds, filters.flightTime(), credits);
         engineTime.run(accumulator, flight, engineRunningTimeSeconds, filters.engineTime());
         instructorFee.run(accumulator, flight, filters.instructorFee());
 
@@ -74,8 +91,12 @@ public final class DeliveryItemPipeline {
         // instructor line and its remaining lines. The legacy comment names this
         // exact placement ("before other rules were applied, because of order of
         // delivery lines"); it is the non-derivable ordering quirk this class owns.
+        //
+        // The credits follow the billed person across the tow flight too: legacy
+        // builds the tow recursion with the SAME credit list (the credit is read
+        // once for the delivery, not re-resolved per flight).
         if (tow != null) {
-            run(accumulator, tow.flight(), filters, tow.flightSeconds(), tow.engineSeconds(), null);
+            run(accumulator, tow.flight(), filters, tow.flightSeconds(), tow.engineSeconds(), null, credits);
         }
 
         additionalFuelFee.run(accumulator, flight, filters.additionalFuelFee());

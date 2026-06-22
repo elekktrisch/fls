@@ -1,0 +1,134 @@
+package ch.alpenflight.migration.bundle.accounting;
+
+import ch.alpenflight.migration.bundle.Coercions;
+import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.ParityIgnore;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Aggregate-internal current-balance row under {@link PersonFlightTimeCreditMapper}:
+ * legacy {@code PersonFlightTimeCreditTransactions.PersonFlightTimeCreditTransactionId}
+ * → {@code t_person_flight_time_credit_transaction.id}. The engine reads only the
+ * single {@code IsCurrent} balance, so the producer SELECT keeps just the
+ * {@code IsCurrent} row per credit and dedupe-keep-firsts it so the V46 partial
+ * UNIQUE {@code (credit_id) WHERE is_current} never 23505s at ingest.
+ *
+ * <p>{@code credit_id} resolves intra-aggregate through the migrated credit's
+ * id-map. {@code balanced_delivery_id} → Delivery is nulled producer-side when
+ * the linked Delivery is not in the migrated set (Delivery migration deferred to
+ * J-10b) — the producer projects {@code ResolvedBalancedDeliveryId}, NULL for an
+ * unmigrated target, so the row carries no orphan FK.
+ *
+ * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId}, {@code OwnershipType},
+ * {@code RecordState}, {@code IsDeleted}.
+ */
+public final class PersonFlightTimeCreditTransactionMapper implements Mapper {
+
+    static final String LEGACY_GUID = "legacy_guid";
+    static final String CREDIT_ID = "credit_id";
+    static final String BALANCED_DELIVERY_ID = "balanced_delivery_id";
+    static final String BALANCE_DATE_TIME = "balance_date_time";
+    static final String NO_FLIGHT_TIME_LIMIT = "no_flight_time_limit";
+    static final String CURRENT_FLIGHT_TIME_BALANCE_IN_SECONDS =
+            "current_flight_time_balance_in_seconds";
+    static final String FLIGHT_TIME_BALANCE_IN_SECONDS = "flight_time_balance_in_seconds";
+    static final String OLD_FLIGHT_TIME_BALANCE_IN_SECONDS =
+            "old_flight_time_balance_in_seconds";
+    static final String IS_CURRENT = "is_current";
+
+    @ParityIgnore
+    static final String CREATED_ON = "created_on";
+    static final String CREATED_BY_USER_ID = "created_by_user_id";
+    @ParityIgnore
+    static final String MODIFIED_ON = "modified_on";
+    static final String MODIFIED_BY_USER_ID = "modified_by_user_id";
+    static final String DELETED_ON = "deleted_on";
+    static final String DELETED_BY_USER_ID = "deleted_by_user_id";
+
+    private static final String[] COLUMNS = {
+            LEGACY_GUID, CREDIT_ID, BALANCED_DELIVERY_ID,
+            BALANCE_DATE_TIME, NO_FLIGHT_TIME_LIMIT,
+            CURRENT_FLIGHT_TIME_BALANCE_IN_SECONDS, FLIGHT_TIME_BALANCE_IN_SECONDS,
+            OLD_FLIGHT_TIME_BALANCE_IN_SECONDS, IS_CURRENT,
+            CREATED_ON, CREATED_BY_USER_ID,
+            MODIFIED_ON, MODIFIED_BY_USER_ID,
+            DELETED_ON, DELETED_BY_USER_ID
+    };
+
+    @Override
+    public EntityType entityType() {
+        return EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION;
+    }
+
+    @Override
+    public String[] columns() {
+        return COLUMNS.clone();
+    }
+
+    @Override
+    public List<EntityType> foreignKeys() {
+        return List.of(EntityType.PERSON_FLIGHT_TIME_CREDIT);
+    }
+
+    @Override
+    public void writeNdjson(ResultSet source, JsonGenerator target)
+            throws SQLException, IOException {
+        target.writeStartObject();
+        target.writeStringField(LEGACY_GUID,
+                source.getString("PersonFlightTimeCreditTransactionId"));
+        target.writeStringField(CREDIT_ID, source.getString("PersonFlightTimeCreditId"));
+        Coercions.writeOptionalString(target, BALANCED_DELIVERY_ID,
+                source.getString("ResolvedBalancedDeliveryId"));
+        Coercions.writeRequiredTimestamp(target, BALANCE_DATE_TIME,
+                source.getTimestamp("BalanceDateTime"));
+        target.writeBooleanField(NO_FLIGHT_TIME_LIMIT, source.getBoolean("NoFlightTimeLimit"));
+        Coercions.writeOptionalLong(target, CURRENT_FLIGHT_TIME_BALANCE_IN_SECONDS,
+                source.getObject("CurrentFlightTimeBalanceInSeconds", Long.class));
+        target.writeNumberField(FLIGHT_TIME_BALANCE_IN_SECONDS,
+                source.getLong("FlightTimeBalanceInSeconds"));
+        Coercions.writeOptionalLong(target, OLD_FLIGHT_TIME_BALANCE_IN_SECONDS,
+                source.getObject("OldFlightTimeBalanceInSeconds", Long.class));
+        target.writeBooleanField(IS_CURRENT, source.getBoolean("IsCurrent"));
+        Coercions.writeRequiredTimestamp(target, CREATED_ON, source.getTimestamp("CreatedOn"));
+        target.writeStringField(CREATED_BY_USER_ID, source.getString("CreatedByUserId"));
+        Coercions.writeRequiredTimestampCoalescing(
+                target, MODIFIED_ON, source.getTimestamp("ModifiedOn"),
+                source.getTimestamp("CreatedOn"));
+        Coercions.writeOptionalString(target, MODIFIED_BY_USER_ID,
+                source.getString("ModifiedByUserId"));
+        Coercions.writeOptionalTimestamp(target, DELETED_ON, source.getTimestamp("DeletedOn"));
+        Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
+                source.getString("DeletedByUserId"));
+        target.writeEndObject();
+    }
+
+    @Override
+    public void readEntity(JsonNode source, PreparedStatement target) throws SQLException {
+        int position = 1;
+        target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
+        target.setObject(position++, UUID.fromString(source.get(CREDIT_ID).asText()));
+        target.setObject(position++, Coercions.readUuidOrNull(source, BALANCED_DELIVERY_ID));
+        target.setTimestamp(position++, Coercions.readTimestampOrNull(source, BALANCE_DATE_TIME));
+        target.setBoolean(position++, source.get(NO_FLIGHT_TIME_LIMIT).asBoolean());
+        target.setObject(position++,
+                Coercions.readLongOrNull(source, CURRENT_FLIGHT_TIME_BALANCE_IN_SECONDS));
+        target.setLong(position++, source.get(FLIGHT_TIME_BALANCE_IN_SECONDS).longValue());
+        target.setObject(position++,
+                Coercions.readLongOrNull(source, OLD_FLIGHT_TIME_BALANCE_IN_SECONDS));
+        target.setBoolean(position++, source.get(IS_CURRENT).asBoolean());
+        target.setTimestamp(position++, Coercions.readTimestampOrNull(source, CREATED_ON));
+        target.setObject(position++, Coercions.readUuidOrNull(source, CREATED_BY_USER_ID));
+        target.setTimestamp(position++, Coercions.readTimestampOrNull(source, MODIFIED_ON));
+        target.setObject(position++, Coercions.readUuidOrNull(source, MODIFIED_BY_USER_ID));
+        target.setTimestamp(position++, Coercions.readTimestampOrNull(source, DELETED_ON));
+        target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
+    }
+}

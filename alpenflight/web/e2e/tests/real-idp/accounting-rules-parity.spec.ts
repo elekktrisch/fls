@@ -520,7 +520,7 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
     // CLUB gets a FRESH provisioned UUID, so a hardcoded legacy UUID can never
     // find the admin). The legacy AccountingRuleFilters seed targets the SAME
     // legacy TestClub the migrated reservation does, so this admin owns both.
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });

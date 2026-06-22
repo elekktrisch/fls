@@ -24,6 +24,7 @@ class ManifestTenantBypassAllowListTest {
                 EntityType.AIRCRAFT_RESERVATION,
                 EntityType.PLANNING_DAY_ASSIGNMENT,
                 EntityType.DELIVERY,
+                EntityType.PERSON_FLIGHT_TIME_CREDIT,
                 EntityType.AUDIT_LOG);
     }
 }

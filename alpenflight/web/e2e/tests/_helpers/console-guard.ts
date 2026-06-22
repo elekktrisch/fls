@@ -218,6 +218,38 @@ async function installPerScreenResourceStubs(page: Page): Promise<void> {
 }
 
 /**
+ * A `/api/v1/**` floor so NO mock-auth `/api/v1/*` request can reach Vite's
+ * proxy → ECONNREFUSED → the `console.error` that trips the guard. The leak is a
+ * timing race: a spec stubs the endpoints it asserts on, but a sibling/late XHR
+ * (a picker resolving a link, a debounced refresh, a teardown-window request)
+ * for an endpoint no specific stub covers fires before its route exists or after
+ * the page settles, falls through, and 500s. Registered FIRST in the chromium
+ * stub path so it is the LOWEST-priority handler — Playwright tries the
+ * most-recently-registered match first, so every bootstrap / per-screen / spec
+ * stub layered on top wins; the floor only answers the genuinely-unstubbed call.
+ *
+ * This is PREVENTION, not masking: it closes the proxy fall-through at the
+ * source, so a real backend 500 (which the guard must still catch) is impossible
+ * to confuse with a missing-stub artifact — there is no backend here, every
+ * `/api/v1/*` is mocked, and the floor returns a benign success, never a 500.
+ * A GET gets an empty array — the dominant list shape, so it satisfies a
+ * `.map`/iteration consumer, while an object-typed consumer reads `undefined`
+ * for a field rather than throwing (a bare `{}` throws on `.map`); a write gets
+ * `204` no-content. Real-idp specs hit the live backend untouched — this is
+ * gated to the mock-auth project exactly like the other stubs.
+ */
+async function installApiFloor(page: Page): Promise<void> {
+  await page.route('**/api/v1/**', (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+    route.fulfill({ status: 204, body: '' });
+  });
+}
+
+/**
  * The reference-data stubs answer for the absent backend, so they belong ONLY
  * to the no-backend mock-auth project (`chromium`). A real-idp spec drives the
  * live `/api/v1/*` backend; installing the stubs there would intercept its real
@@ -231,6 +263,8 @@ export const test = base.extend<{ consoleGuard: void }>({
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
       if (testInfo.project.name === MOCK_AUTH_PROJECT) {
+        // FIRST so it is the lowest-priority handler — see installApiFloor.
+        await installApiFloor(page);
         await installBootstrapReferenceStubs(page);
         await installPerScreenResourceStubs(page);
       }

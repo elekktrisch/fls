@@ -78,6 +78,11 @@ public final class RuleBasedDeliveryDetails {
         return positioned;
     }
 
+    /** Whether an emitted line already carries {@code articleNumber}. */
+    public boolean hasItemForArticle(String articleNumber) {
+        return deliveryItems.stream().anyMatch(item -> item.articleNumber().equals(articleNumber));
+    }
+
     public void markFilterMatched(UUID filterId) {
         matchedFilterIds.add(filterId);
     }

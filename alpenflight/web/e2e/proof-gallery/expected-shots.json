@@ -85,6 +85,20 @@
       },
       "pending": []
     },
+    "J-9b": {
+      "$note": [
+        "Flight-time-credit sub-engine — no new screen (reuses J-9's",
+        "/deliverycreationtests dry-run + diff harness), no committed legacy ref.",
+        "The proof is the real-idp pass-VIDEO of the credit cases (the credited",
+        "FlightTime line + the over-credit split rendered through the dry-run",
+        "harness), not paired legacy<->AlpenFlight screenshots — so no `expected`",
+        "shots are enforced; the per-journey page accumulates the proofVideo",
+        "captures tagged journey:'J-9b'. T-07 may add an AlpenFlight-only dry-run",
+        "screenshot here once the engine credit branch lands."
+      ],
+      "expected": [],
+      "pending": []
+    },
     "J-5": {
       "expected": [
         "legacy:list",

@@ -441,8 +441,15 @@ async function pollDeploymentToCompleted(
   );
 }
 
-/** Bound the status poll — the synchronous ingest is COMPLETED on the first read. */
-const STATUS_POLL_BUDGET_MS = 60_000;
+/**
+ * Bound the status poll — the synchronous ingest is COMPLETED on the FIRST read,
+ * so this budget only matters for a future async ingest. Sized well under the
+ * resolver's widened hook budget so a deployment that stalls non-terminal (e.g.
+ * a server-side provision that left the run mid-flight) fails FAST and precisely
+ * — never spinning long enough to blow the hook, throw, clear the shared-bundle
+ * memo, and trigger a re-POST → 409 reuse → re-enumeration cascade.
+ */
+const STATUS_POLL_BUDGET_MS = 30_000;
 const STATUS_POLL_INTERVAL_MS = 500;
 
 /** Deterministic migrated-admin username (mirrors the server's directory adapter). */
@@ -530,7 +537,6 @@ async function tryBearerForMigratedAdmin(
     // A bounded login that never left /realms/ (VERIFY_PROFILE / cold ng-serve /
     // a genuinely broken admin) lands here. Log + treat as non-owner; do NOT
     // abort the seed.
-    // eslint-disable-next-line no-console
     console.warn(
       `[T-23] club ${admin.clubId} admin did not reach the authed root within ` +
         `${PER_CLUB_LOGIN_BUDGET_MS}ms — treating as non-owner (${(err as Error).message})`,

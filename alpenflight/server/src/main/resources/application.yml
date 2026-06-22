@@ -122,6 +122,11 @@ audit:
       # PII through a second entity. Same default-deny decision.
       - FlightReportRow
       - FlightReportCrewEntry
+      # J-9b — a member's prepaid flight-time credit + its balance snapshots are
+      # per-person financial data (balance, discount, immat-list); default-deny
+      # the whole aggregate like Person until a reviewed allow-list lands.
+      - PersonFlightTimeCredit
+      - PersonFlightTimeCreditTransaction
     entities:
       # Names below are the entity field names (what reflection sees), NOT
       # the JSON-serialized property names — the redactor walks @Entity

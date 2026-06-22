@@ -92,6 +92,7 @@ interface DeliveryItem {
   itemText?: string;
   quantity?: number;
   unitType?: string;
+  discountInPercent?: number;
 }
 
 interface MigratedFlightItem {
@@ -553,9 +554,19 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 // Driven over the REAL migrated bundle, the migrated FlightTime (5001, with T-01's
 // deliveryLineText) + LandingTax (6001) filters produce its genuine delivery — assert
 // that exact pair (the migration promise: a migrated club bills its own data correctly).
+//
+// The fixture grants the HB-3256 pilot a migrated PersonFlightTimeCredit — a
+// 600-second (10-minute) prepaid balance at a 25% discount, matched to 'HB-3256'.
+// Under the 22-minute flight that provokes the engine's over-credit split: the
+// 5001 FlightTime line becomes a credited 10-minute line (carrying the discount)
+// + a full-price 12-minute remainder, proving a real prepaid balance survives
+// cutover and the engine applies it over migrated seed.
 const MIGRATED_FT_ARTICLE = '5001';
 const MIGRATED_FT_ITEM_TEXT = 'HB-3256 Glider flight minutes';
-const MIGRATED_FT_EXPECTED_QTY = 22;
+const MIGRATED_FT_TOTAL_QTY = 22;
+const MIGRATED_FT_CREDITED_QTY = 10;
+const MIGRATED_FT_REMAINDER_QTY = MIGRATED_FT_TOTAL_QTY - MIGRATED_FT_CREDITED_QTY;
+const MIGRATED_FT_DISCOUNT_PERCENT = 25;
 const MIGRATED_FT_UNIT = 'Minuten';
 
 const MIGRATED_LT_ARTICLE = '6001';
@@ -580,12 +591,12 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     // The migrated CLUB gets a fresh provisioned UUID, so resolve the loginable
     // admin by OWNERSHIP (the J-5/J-8 migrated-read pattern) — it owns the same
     // migrated TestClub the static-seed glider flights + filters reconciled onto.
-    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
   });
 
-  test('[migration/parity] the migrated HB-3256 glider flight + the migrated filter set drive the engine → its genuine FlightTime + LandingTax delivery', async ({
+  test('[migration/parity] the migrated HB-3256 glider flight + filter set + prepaid credit drive the engine → a credit-split FlightTime + LandingTax delivery', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -646,14 +657,41 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           `migrated filters did not match the migrated flight, not a read race.`,
       ).toBeTruthy();
 
-      // The genuine migrated delivery: the 5001 FlightTime line (HB-3256 glider is
-      // DATEADD(n,22,start) ⇒ 22 'Minuten') + the 6001 LandingTax line (1 ldg at
-      // LSZK ⇒ 2 'Landung'). Both filters drive the engine over genuine seed.
-      const ftLine = hb3256Items!.find(
+      // The genuine migrated delivery: the 5001 FlightTime tier (HB-3256 glider is
+      // DATEADD(n,22,start) ⇒ 22 'Minuten') split by the migrated prepaid credit +
+      // the 6001 LandingTax line (1 ldg at LSZK ⇒ 2 'Landung'). Both filters and the
+      // migrated credit drive the engine over genuine seed.
+      //
+      // The migrated PersonFlightTimeCredit (10-minute balance, 25% discount, matched
+      // to 'HB-3256') covers only part of the 22-minute flight, so the engine splits
+      // the FlightTime tier into a credited line (the covered minutes, carrying the
+      // discount) + a full-price remainder. Emission order: credited first.
+      const ftLines = hb3256Items!.filter(
         (i) => i.articleNumber === MIGRATED_FT_ARTICLE && i.itemText === MIGRATED_FT_ITEM_TEXT,
       );
-      expect(ftLine!.quantity).toBe(MIGRATED_FT_EXPECTED_QTY);
-      expect(ftLine!.unitType).toBe(MIGRATED_FT_UNIT);
+      expect(
+        ftLines.length,
+        `the migrated HB-3256 credit (10-min balance under the 22-min flight) must split the ` +
+          `5001 FlightTime tier into a credited line + a remainder — proving the migrated prepaid ` +
+          `balance survived cutover and the engine applied it. One line means the credit did not ` +
+          `migrate (0 PersonFlightTimeCredit rows in the export) or did not match the recipient.`,
+      ).toBe(2);
+
+      const creditedLine = ftLines[0]!;
+      const remainderLine = ftLines[1]!;
+      expect(creditedLine.quantity, 'the credited line bills the migrated balance minutes').toBe(
+        MIGRATED_FT_CREDITED_QTY,
+      );
+      expect(
+        creditedLine.discountInPercent,
+        'the credited line carries the migrated credit DiscountInPercent (the discount survived cutover)',
+      ).toBe(MIGRATED_FT_DISCOUNT_PERCENT);
+      expect(remainderLine.quantity, 'the remainder line bills the over-credit minutes').toBe(
+        MIGRATED_FT_REMAINDER_QTY,
+      );
+      expect(remainderLine.discountInPercent, 'the over-credit remainder is full price').toBe(0);
+      expect(creditedLine.unitType).toBe(MIGRATED_FT_UNIT);
+      expect(creditedLine.quantity! + remainderLine.quantity!).toBe(MIGRATED_FT_TOTAL_QTY);
 
       const ltLine = hb3256Items!.find(
         (i) => i.articleNumber === MIGRATED_LT_ARTICLE && i.itemText === MIGRATED_LT_ITEM_TEXT,
@@ -679,7 +717,7 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       await page
         .getByTestId('dct-name')
         .locator('input')
-        .fill('Migrated HB-3256 — flight time + landing tax');
+        .fill('Migrated HB-3256 — credited flight time + landing tax');
       await page.getByTestId('dct-flight-picker').selectOption(hb3256FlightId!);
 
       await page.getByTestId('dct-create-test-delivery').locator('button').click();
@@ -696,13 +734,575 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-27',
+        journey: 'J-9b',
         caption:
-          'J-27 · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed ' +
-          'glider flight + the migrated filter set, produces its genuine delivery (the 5001 FlightTime ' +
-          'line, 22 Minuten + the 6001 LandingTax line, 2 Landung) — the producer-bound filters + flight ' +
-          'drive the sacred-cow engine end to end over real migrated legacy seed, the migration promise ' +
-          'made true: a migrated club sees its own real legacy data, correctly',
+          'J-9b · migration-fidelity · the rules engine, run over the MIGRATED HB-3256 static-seed ' +
+          'glider flight + the migrated filter set + a MIGRATED prepaid PersonFlightTimeCredit, produces ' +
+          'its genuine delivery — the 5001 FlightTime tier split by the migrated credit into a credited ' +
+          '10-min line (25% discount) + a 12-min full-price remainder, plus the 6001 LandingTax line ' +
+          '(2 Landung). A real prepaid balance survived cutover and the engine applied it over real ' +
+          'migrated legacy seed: a migrated club bills its own data, credits and all, correctly',
+        acTag: 'happy',
+      });
+    }
+  });
+});
+
+// ===========================================================================
+// FLIGHT-TIME-CREDIT sub-engine — the credit branch of the rules engine, proven
+// through the SAME `/deliverycreationtests` dry-run + diff harness (no new
+// screen). A pilot holds a pre-paid `PersonFlightTimeCredit` balance + a
+// `DiscountInPercent`; when a flight's immatriculation matches the credit, the
+// engine applies the balance to the FlightTime line — a single discounted line
+// when the balance fully covers the flight, or a credited line + a billed
+// remainder when it covers only part (the over-credit 2-line split). The dry-run
+// loads credits read-only (AsNoTracking parity) and writes no transaction, so a
+// re-run is idempotent and the balance never mutates.
+//
+// Activation: the flight immat SUBSTRING-matches the stored
+// `MatchedAircraftImmatriculations` CSV (reproduce legacy `.Contains`, a parity
+// exclusion — not corrected to exact-element), under the
+// `UseRuleForAllAircraftsExceptListed` inversion flag. Current balance = the
+// single `IsCurrent` transaction; `NoFlightTimeLimit` ⇒ unlimited credit.
+// ===========================================================================
+
+// The credit-seed affordance — a `dev`/`test`-profile-only, OpenAPI-hidden
+// internal endpoint under `/api/v1/internal/` (the InternalProvisioningController
+// convention), the ONLY write path for `PersonFlightTimeCredit` in the clean-seed
+// run: there is no production credit-CRUD screen, and a static SQL seed cannot
+// reference the per-run pilot person + the freshly-minted flight immatriculation
+// `seedFlightMasterdata` creates (retry-isolation mints both fresh). The handle
+// grants one credit (its single IsCurrent transaction) to a person, matched to an
+// immat substring, and is deletable for retry-isolation. Reads back via
+// `GET .../{id}` so the idempotent case can re-read the balance.
+const CREDIT_SEED = '/api/v1/internal/person-flight-time-credits';
+
+const CREDIT_DISCOUNT_PERCENT = 25;
+/** The seeded glider flight runs 08:00→09:30 = 90 min, billed whole (min=0 filter). */
+const FLIGHT_BILLABLE_MINUTES = 90;
+// PILOT_PAYS_ALL (legacy cost-balance int 1) makes the RecipientStage fallback
+// resolve the PIC as the billed recipient, so the credit branch loads the pilot's
+// PersonFlightTimeCredit; without it the recipient is unresolved and no credit applies.
+const COST_BALANCE_PILOT_PAYS_ALL = 'fcb-019e2e15-2c00-7268-8000-000000004268';
+
+interface DctExample {
+  delivery: { items?: DeliveryItem[] };
+  matchedFilterIds: string[];
+}
+
+interface SeededCredit {
+  id: string;
+  currentFlightTimeBalanceInSeconds: number | null;
+}
+
+/** Every FlightTime line on `article`, in emission order (the split yields two). */
+function flightTimeLines(items: DeliveryItem[] | undefined, article: string): DeliveryItem[] {
+  return (items ?? []).filter((i) => i.articleNumber === article);
+}
+
+/** The single FlightTime line on `article` (asserts exactly one exists). */
+function flightTimeLine(
+  items: DeliveryItem[] | undefined,
+  article: string,
+): DeliveryItem | undefined {
+  const lines = flightTimeLines(items, article);
+  return lines.length === 1 ? lines[0] : undefined;
+}
+
+/** Dry-run the engine over a flight (no persist) and return the would-be delivery. */
+async function dryRun(
+  api: APIRequestContext,
+  bearer: string,
+  flightId: string,
+): Promise<DctExample> {
+  return (await api
+    .get(`${DCT}/example/${flightId}`, { headers: { authorization: bearer } })
+    .then((r) => r.json())) as DctExample;
+}
+
+/**
+ * Seed (as seed-club-1) a glider flight + a min=0 FlightTime line filter whose
+ * article the credit cases assert on, plus a `PersonFlightTimeCredit` granting the
+ * pilot a balance + discount, matched to the flight's immatriculation (substring
+ * match, non-inversion branch). The flight's PILOT_PAYS_ALL cost-balance makes the
+ * RecipientStage fallback resolve the PIC as the billed recipient, so its credit is
+ * the one the engine loads + applies.
+ */
+async function seedCreditScenario(
+  api: APIRequestContext,
+  bearer: string,
+  createdFilters: string[],
+  createdCredits: string[],
+  opts: { balanceInSeconds: number; noFlightTimeLimit: boolean },
+): Promise<{
+  flightId: string;
+  immat: string;
+  pilotPersonId: string;
+  ftArticle: string;
+  creditId: string;
+}> {
+  const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
+  const ftArticle = `CREDIT-FT-${Date.now().toString(36)}`;
+
+  const flightRes = await api.post(FLIGHTS, {
+    headers: { authorization: bearer, 'content-type': 'application/json' },
+    data: {
+      flightAircraftType: 'GLIDER',
+      aircraftId: md.gliderAircraftId,
+      flightDate: '2026-05-15',
+      startDateTime: '2026-05-15T08:00:00Z',
+      ldgDateTime: '2026-05-15T09:30:00Z',
+      startLocationId: md.locationId,
+      ldgLocationId: md.locationId,
+      flightTypeId: md.gliderFlightTypeId,
+      flightCostBalanceTypeId: COST_BALANCE_PILOT_PAYS_ALL,
+      nrOfLdgs: 1,
+      nrOfLdgsOnStartLocation: 1,
+      noStartTimeInformation: false,
+      noLdgTimeInformation: false,
+      isSoloFlight: false,
+      crew: [{ personId: md.pilotPersonId, flightCrewTypeId: CREW_TYPE_PILOT }],
+    },
+  });
+  expect(
+    flightRes.status(),
+    `flight create must 201 — got ${flightRes.status()}: ${await flightRes.text()}`,
+  ).toBe(201);
+  const flightId = new URL(flightRes.headers()['location']!, 'http://localhost').pathname
+    .split('/')
+    .pop()!;
+
+  // Pin this filter to THIS case's flight by exact-immat include-list
+  // (AccountingRuleMatcher.aircraftMatches is case-insensitive EQUALITY): the
+  // cases share one serial session over distinct fresh-immat glider flights, so
+  // an immat-unscoped glider filter from a PRIOR case would also match this
+  // flight and emit the credited line under the prior case's article.
+  await createFilter(api, bearer, createdFilters, {
+    filterTypeId: FILTER_TYPE_FLIGHT_TIME,
+    filterTypeLegacyId: LEGACY_FLIGHT_TIME,
+    accountingUnitTypeId: UNIT_MINUTES,
+    ruleFilterName: `J-9b FlightTime ${Date.now().toString(36)}`,
+    active: true,
+    articleNumber: ftArticle,
+    deliveryLineText: 'Flugzeit (Guthaben)',
+    filterConfig: filterConfig({
+      isRuleForGliderFlights: true,
+      aircraftImmatriculations: { useAllExcept: false, matched: [md.gliderImmat] },
+    }),
+  });
+
+  // valid_until is far-future so the engine's ValidUntil >= flight-start filter
+  // (2026-05-15) always retains it; the credit is matched to THIS flight's immat.
+  const creditRes = await api.post(CREDIT_SEED, {
+    headers: { authorization: bearer, 'content-type': 'application/json' },
+    data: {
+      personId: md.pilotPersonId,
+      noFlightTimeLimit: opts.noFlightTimeLimit,
+      useRuleForAllAircraftsExceptListed: false,
+      matchedAircraftImmatriculations: md.gliderImmat,
+      discountInPercent: CREDIT_DISCOUNT_PERCENT,
+      validUntil: '2099-12-31T00:00:00Z',
+      currentFlightTimeBalanceInSeconds: opts.balanceInSeconds,
+    },
+  });
+  expect(
+    creditRes.status(),
+    `credit seed must 201 (the dev/test-profile internal seed affordance must exist) — ` +
+      `got ${creditRes.status()}: ${await creditRes.text()}`,
+  ).toBe(201);
+  const creditId = new URL(creditRes.headers()['location']!, 'http://localhost').pathname
+    .split('/')
+    .pop()!;
+  createdCredits.push(creditId);
+
+  return { flightId, immat: md.gliderImmat, pilotPersonId: md.pilotPersonId, ftArticle, creditId };
+}
+
+test.describe('Delivery creation test harness — flight-time-credit sub-engine (real-idp)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let baseURL: string;
+  let adminBearer: string;
+  const createdFilters: string[] = [];
+  const createdCredits: string[] = [];
+  const createdHarnesses: string[] = [];
+  let cleanupCtx: BrowserContext;
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    createdFilters.length = 0;
+    createdCredits.length = 0;
+    createdHarnesses.length = 0;
+    adminBearer = await captureReservationAdminBearer(browser, baseURL);
+    cleanupCtx = await browser.newContext({ baseURL });
+  });
+
+  test.afterEach(async () => {
+    for (const id of createdHarnesses) {
+      await cleanupCtx.request
+        .delete(`${DCT}/${id}`, { headers: { authorization: adminBearer } })
+        .catch((err) => console.warn(`[J-9b] harness cleanup ${id}: ${(err as Error).message}`));
+    }
+    createdHarnesses.length = 0;
+  });
+
+  test.afterAll(async () => {
+    for (const id of createdCredits) {
+      await cleanupCtx.request
+        .delete(`${CREDIT_SEED}/${id}`, {
+          headers: { authorization: adminBearer },
+        })
+        .catch((err) => console.warn(`[J-9b] credit cleanup ${id}: ${(err as Error).message}`));
+    }
+    for (const id of createdFilters) {
+      await cleanupCtx.request
+        .delete(`${FILTERS}/${id}`, { headers: { authorization: adminBearer } })
+        .catch((err) => console.warn(`[J-9b] filter cleanup ${id}: ${(err as Error).message}`));
+    }
+    await cleanupCtx?.close();
+  });
+
+  // Fully-covered: the balance exceeds the 90-min flight, so the whole line is
+  // credited (single discounted line). Drives the harness UI for the gallery video
+  // and RENDERS the credited line on screen before the deep assert, mirroring the
+  // J-9 clean-seed [happy] block.
+  test('[happy] a flight covered by a matching credit dry-runs to ONE discounted FlightTime line', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsReservationAdmin(page);
+
+      const scenario = await seedCreditScenario(
+        ctx.request,
+        adminBearer,
+        createdFilters,
+        createdCredits,
+        { balanceInSeconds: FLIGHT_BILLABLE_MINUTES * 60 * 4, noFlightTimeLimit: false },
+      );
+
+      await page.goto('/deliverycreationtests?lang=en');
+      await page.getByTestId('dct-new-button').locator('button').click();
+      await expect(page).toHaveURL('/deliverycreationtests/new');
+      await page.getByTestId('dct-name').locator('input').fill('Glider — fully-covered by credit');
+      await page.getByTestId('dct-flight-picker').selectOption(scenario.flightId);
+      await page.getByTestId('dct-create-test-delivery').locator('button').click();
+      await expect(page.getByTestId('dct-expected-item-0')).toBeVisible();
+      const dryRunText = await page.getByTestId('dct-expected-section').innerText();
+      expect(dryRunText).toContain(scenario.ftArticle);
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-dct-credit-full-cover.png`,
+        fullPage: true,
+      });
+
+      const example = await dryRun(ctx.request, adminBearer, scenario.flightId);
+      const ftLine = flightTimeLine(example.delivery.items, scenario.ftArticle);
+      expect(
+        ftLine,
+        'a fully-covered credit emits exactly ONE FlightTime line (no split)',
+      ).toBeTruthy();
+      expect(ftLine!.quantity, 'the whole 90-min flight is billed on the single line').toBe(
+        FLIGHT_BILLABLE_MINUTES,
+      );
+      expect(
+        ftLine!.discountInPercent,
+        'the fully-covered credited line carries the credit DiscountInPercent',
+      ).toBe(CREDIT_DISCOUNT_PERCENT);
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-9b',
+        caption:
+          'J-9b · flight-time-credit · a club admin dry-runs a glider flight whose immatriculation ' +
+          'matches a pilot’s pre-paid PersonFlightTimeCredit — the engine applies the balance and ' +
+          'emits ONE FlightTime line carrying the credit’s DiscountInPercent (fully covered), the ' +
+          'credit sub-engine proven through the existing /deliverycreationtests dry-run harness',
+        acTag: 'happy',
+      });
+    }
+  });
+
+  // Over-credit 2-line split: the balance covers only PART of the billable time →
+  // a credited line (qty = credited seconds, discount = the credit's percent) + a
+  // billed-remainder line (qty = over-credit seconds, discount = 0), same article
+  // + itemText. Provoked WITHIN one FlightTime line (L > C): there is no cross-line
+  // carryover — the IsCurrent balance is read fresh per delivery and never mutated
+  // in the line loop, so a split needs a single line whose duration exceeds the
+  // balance.
+  test('[happy] over-credit splits into a credited line + a billed-remainder line', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsReservationAdmin(page);
+
+      // 30-min balance under a 90-min flight ⇒ credited 30 min + remainder 60 min.
+      const creditedMinutes = 30;
+      const remainderMinutes = FLIGHT_BILLABLE_MINUTES - creditedMinutes;
+      const scenario = await seedCreditScenario(
+        ctx.request,
+        adminBearer,
+        createdFilters,
+        createdCredits,
+        { balanceInSeconds: creditedMinutes * 60, noFlightTimeLimit: false },
+      );
+
+      await page.goto('/deliverycreationtests?lang=en');
+      await page.getByTestId('dct-new-button').locator('button').click();
+      await expect(page).toHaveURL('/deliverycreationtests/new');
+      await page.getByTestId('dct-name').locator('input').fill('Glider — over-credit split');
+      await page.getByTestId('dct-flight-picker').selectOption(scenario.flightId);
+      await page.getByTestId('dct-create-test-delivery').locator('button').click();
+      // The split renders TWO same-article lines, so item-1 is present.
+      await expect(page.getByTestId('dct-expected-item-1')).toBeVisible();
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-dct-credit-over-credit-split.png`,
+        fullPage: true,
+      });
+
+      const example = await dryRun(ctx.request, adminBearer, scenario.flightId);
+      const lines = flightTimeLines(example.delivery.items, scenario.ftArticle);
+      expect(lines.length, 'over-credit emits TWO FlightTime lines (credited + remainder)').toBe(2);
+
+      // Emission order (FlightTimeStage): the credited line first, then the
+      // remainder. Same article + itemText; only qty + discount differ.
+      const creditedLine = lines[0]!;
+      const remainderLine = lines[1]!;
+      expect(creditedLine.quantity, 'the credited line bills the covered minutes').toBe(
+        creditedMinutes,
+      );
+      expect(
+        creditedLine.discountInPercent,
+        'the credited line carries the credit DiscountInPercent',
+      ).toBe(CREDIT_DISCOUNT_PERCENT);
+      expect(remainderLine.quantity, 'the remainder line bills the over-credit minutes').toBe(
+        remainderMinutes,
+      );
+      expect(remainderLine.discountInPercent, 'the over-credit remainder is full price').toBe(0);
+      expect(
+        remainderLine.itemText,
+        'the split lines share the same article + itemText (one tier, two lines)',
+      ).toBe(creditedLine.itemText);
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-9b',
+        caption:
+          'J-9b · flight-time-credit · the pilot’s pre-paid balance covers only PART of the flight, ' +
+          'so the engine splits the FlightTime line in two — a credited line (the covered minutes, ' +
+          'carrying the DiscountInPercent) + a billed-remainder line (the over-credit minutes, full ' +
+          'price), same article and item text, rendered through the dry-run harness',
+        acTag: 'happy',
+      });
+    }
+  });
+
+  // Zero-balance skip vs unlimited (no UI render needed — covered by the rendered
+  // full-cover + split cases above; @helper logic edges over the engine):
+  //   NoFlightTimeLimit=false && balance=0 → the credit branch is SKIPPED (pure
+  //   decrement, discount 0); NoFlightTimeLimit=true → unlimited, the whole line
+  //   credited regardless of balance.
+  // @helper covered-by: FlightTimeStageTest
+  test('[edge] zero-balance skips the credit; unlimited credits the whole line', async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext({ baseURL });
+    try {
+      const zeroBalance = await seedCreditScenario(
+        ctx.request,
+        adminBearer,
+        createdFilters,
+        createdCredits,
+        { balanceInSeconds: 0, noFlightTimeLimit: false },
+      );
+      const zeroExample = await dryRun(ctx.request, adminBearer, zeroBalance.flightId);
+      const zeroLine = flightTimeLine(zeroExample.delivery.items, zeroBalance.ftArticle);
+      expect(zeroLine, 'a zero-balance credit leaves a single pure-decrement line').toBeTruthy();
+      expect(zeroLine!.quantity).toBe(FLIGHT_BILLABLE_MINUTES);
+      expect(
+        zeroLine!.discountInPercent,
+        'zero-balance + NoFlightTimeLimit=false skips the credit branch (no discount)',
+      ).toBe(0);
+
+      const unlimited = await seedCreditScenario(
+        ctx.request,
+        adminBearer,
+        createdFilters,
+        createdCredits,
+        { balanceInSeconds: 0, noFlightTimeLimit: true },
+      );
+      const unlimitedExample = await dryRun(ctx.request, adminBearer, unlimited.flightId);
+      const unlimitedLine = flightTimeLine(unlimitedExample.delivery.items, unlimited.ftArticle);
+      expect(unlimitedLine, 'an unlimited credit emits a single whole-line credited').toBeTruthy();
+      expect(unlimitedLine!.quantity).toBe(FLIGHT_BILLABLE_MINUTES);
+      expect(
+        unlimitedLine!.discountInPercent,
+        'NoFlightTimeLimit=true credits the whole line regardless of the zero balance',
+      ).toBe(CREDIT_DISCOUNT_PERCENT);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  // Dry-run mutates nothing (AsNoTracking parity): "Create test delivery" twice
+  // yields identical output, and the credit's IsCurrent balance is unchanged — only
+  // a real persisted run would write a PersonFlightTimeCreditTransaction + flip
+  // IsCurrent (out of J-9b scope).
+  // @helper covered-by: AccountingDeliveryEngineCreditIT
+  test('[happy] dry-run is idempotent and writes no transaction (no balance mutation)', async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext({ baseURL });
+    try {
+      const seededBalance = 30 * 60;
+      const scenario = await seedCreditScenario(
+        ctx.request,
+        adminBearer,
+        createdFilters,
+        createdCredits,
+        { balanceInSeconds: seededBalance, noFlightTimeLimit: false },
+      );
+
+      const first = await dryRun(ctx.request, adminBearer, scenario.flightId);
+      const second = await dryRun(ctx.request, adminBearer, scenario.flightId);
+      expect(
+        flightTimeLines(second.delivery.items, scenario.ftArticle),
+        'a second dry-run yields identical FlightTime lines',
+      ).toEqual(flightTimeLines(first.delivery.items, scenario.ftArticle));
+
+      // The balance never decremented across the two dry-runs (no transaction
+      // written) — the seeded IsCurrent balance is still its original value.
+      const credit = (await ctx.request
+        .get(`${CREDIT_SEED}/${scenario.creditId}`, { headers: { authorization: adminBearer } })
+        .then((r) => r.json())) as SeededCredit;
+      expect(
+        credit.currentFlightTimeBalanceInSeconds,
+        'the dry-run persists no transaction and never mutates the IsCurrent balance',
+      ).toBe(seededBalance);
+    } finally {
+      await ctx.close();
+    }
+  });
+});
+
+// ===========================================================================
+// MIGRATED-DATA credit chain — the migration done-bar: a REAL migrated
+// PersonFlightTimeCredit (its IsCurrent balance, carried by the migration mapper)
+// applied over a migrated flight whose immat matches the credit's CSV, driving
+// the engine to a credited FlightTime line. Runs only when the fanout's real
+// legacy export ran (the synth bundle carries no credit rows). The exact migrated
+// values (immat, balance, discount, the credited flight) are not knowable ahead
+// of the real export, so the block asserts STRUCTURALLY: some migrated flight,
+// dry-run through the engine, emits a FlightTime line carrying a non-zero migrated
+// discount (the credit applied). The real export's values surface at the gate.
+// ===========================================================================
+test.describe('Delivery creation test harness — migrated credit drives the engine (real-idp)', () => {
+  test.describe.configure({ mode: 'serial', retries: 0 });
+
+  test.skip(
+    !useRealBundle(),
+    'the migrated-credit engine run requires the real legacy export (J5_BUNDLE_SOURCE=real, fanout only)',
+  );
+
+  let baseURL: string;
+  let migratedAdmin: MigratedClubAdmin;
+  let migratedBearer: string;
+
+  test.beforeAll(async ({ browser }, testInfo) => {
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
+    migratedAdmin = resolved.admin;
+    migratedBearer = resolved.bearer;
+  });
+
+  test('[migration/parity] a migrated credit applies over a migrated flight → a credited FlightTime line', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsMigratedTestClubAdmin(page, migratedAdmin);
+
+      const flightsRes = await ctx.request.get(`${FLIGHTS}?limit=200`, {
+        headers: { authorization: migratedBearer },
+      });
+      expect(flightsRes.status(), 'the migrated TestClub lists its migrated flights').toBe(200);
+      const flightItems =
+        ((await flightsRes.json()) as { items?: MigratedFlightItem[] }).items ?? [];
+      expect(flightItems.length, 'the migrated TestClub carries migrated flights').toBeGreaterThan(
+        0,
+      );
+
+      // Dry-run each migrated flight; the credited one carries a FlightTime line
+      // with a non-zero discount (the migrated credit applied). Pin it by that
+      // discount, not a hardcoded immat/flight id — the gate mines the exact
+      // migrated values; structurally, the migration promise is "a migrated credit
+      // is applied", which a discounted line proves.
+      let creditedItems: DeliveryItem[] | undefined;
+      let creditedFlightId: string | undefined;
+      for (const flight of flightItems) {
+        const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
+          headers: { authorization: migratedBearer },
+        });
+        if (exampleRes.status() !== 200) {
+          continue;
+        }
+        const items =
+          ((await exampleRes.json()) as { delivery?: { items?: DeliveryItem[] } }).delivery
+            ?.items ?? [];
+        if (items.some((i) => (i.discountInPercent ?? 0) > 0)) {
+          creditedItems = items;
+          creditedFlightId = flight.id;
+          break;
+        }
+      }
+
+      expect(
+        creditedItems,
+        'the engine, run over a MIGRATED flight whose pilot holds a migrated ' +
+          'PersonFlightTimeCredit, must emit a FlightTime line carrying the migrated DiscountInPercent ' +
+          '— proving the migrated credit (its IsCurrent balance) reaches the rules engine end to ' +
+          'end over genuine legacy seed. A missing discounted line after the deployment is COMPLETED ' +
+          'means the migrated credit did not apply, not a read race.',
+      ).toBeTruthy();
+
+      const creditedLine = creditedItems!.find((i) => (i.discountInPercent ?? 0) > 0)!;
+      expect(creditedLine.discountInPercent).toBeGreaterThan(0);
+      expect(
+        creditedLine.quantity,
+        'the credited line bills a positive flight-time quantity',
+      ).toBeGreaterThan(0);
+
+      // RENDER the credited migrated delivery on screen (the gallery video proof):
+      // drive the harness dry-run UI over the credited migrated flight.
+      await page.goto('/deliverycreationtests?lang=en');
+      await page.getByTestId('dct-new-button').locator('button').click();
+      await expect(page).toHaveURL('/deliverycreationtests/new');
+      await page
+        .getByTestId('dct-name')
+        .locator('input')
+        .fill('Migrated credit — discounted flight time');
+      await page.getByTestId('dct-flight-picker').selectOption(creditedFlightId!);
+      await page.getByTestId('dct-create-test-delivery').locator('button').click();
+      await expect(page.getByTestId('dct-expected-item-0')).toBeVisible();
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-dct-migrated-credit.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-9b',
+        caption:
+          'J-9b · migration-fidelity · the rules engine, run over a MIGRATED flight whose pilot holds ' +
+          'a REAL migrated PersonFlightTimeCredit, produces a credited FlightTime line carrying the ' +
+          'migrated DiscountInPercent — the credit (its IsCurrent balance) carried by the migration ' +
+          'mapper reaches the sacred-cow engine end to end over real migrated legacy seed',
         acTag: 'happy',
       });
     }

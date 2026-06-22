@@ -6,13 +6,18 @@ import ch.alpenflight.accounting.domain.DeliveryItemPipeline;
 import ch.alpenflight.accounting.domain.DeliveryItemPipeline.TowInput;
 import ch.alpenflight.accounting.domain.IgnoreFlightStage;
 import ch.alpenflight.accounting.domain.MatchableFlight;
+import ch.alpenflight.accounting.domain.PersonFlightTimeCredit;
+import ch.alpenflight.accounting.domain.PersonFlightTimeCreditRepository;
 import ch.alpenflight.accounting.domain.RecipientStage;
 import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails;
+import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails.Recipient;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -34,9 +39,14 @@ import org.springframework.transaction.annotation.Transactional;
  * (+OnStartLocation) → VsfFee (+OnStartLocation)). After IgnoreFlight, a
  * do-not-invoice match returns the empty accumulator (zero items).
  *
- * <p>Credits are absent (operator decision): the pure decrement path only — no
- * {@code PersonFlightTimeCredit} load / balance / split / transaction writes.
- * The DeliveryDetails stage (legacy {@code DeliveryDetailsRulesEngine} — the
+ * <p>The billed person's {@code PersonFlightTimeCredit}s are loaded read-only and
+ * threaded into the FlightTime stage's credit branch (discount + over-credit
+ * split). This is the no-persist dry-run contract ({@code DeliveryService.cs:405-408}
+ * AsNoTracking): the balance is read but never mutated and no transaction is
+ * written — only a real persisted run records the new transaction + flips
+ * {@code IsCurrent} (out of this seam's scope).
+ *
+ * <p>The DeliveryDetails stage (legacy {@code DeliveryDetailsRulesEngine} — the
  * {@code deliveryInformation} / {@code additionalInformation} texts) is NOT run
  * here; it depends on crew display names + the recipient's
  * {@code isChargedToClubInternal} that the current MatchableFlight / RecipientStage
@@ -50,6 +60,7 @@ public class AccountingDeliveryEngine {
     private final MatchableFlightResolver flightResolver;
     private final RuleFilterLoader filterLoader;
     private final ClubTenantIdentifierResolver tenantResolver;
+    private final PersonFlightTimeCreditRepository credits;
 
     private final IgnoreFlightStage ignoreFlight;
     private final RecipientStage recipient;
@@ -58,11 +69,13 @@ public class AccountingDeliveryEngine {
     public AccountingDeliveryEngine(FlightRepository flights,
                                     MatchableFlightResolver flightResolver,
                                     RuleFilterLoader filterLoader,
-                                    ClubTenantIdentifierResolver tenantResolver) {
+                                    ClubTenantIdentifierResolver tenantResolver,
+                                    PersonFlightTimeCreditRepository credits) {
         this.flights = flights;
         this.flightResolver = flightResolver;
         this.filterLoader = filterLoader;
         this.tenantResolver = tenantResolver;
+        this.credits = credits;
         AccountingRuleMatcher matcher = new AccountingRuleMatcher();
         this.ignoreFlight = new IgnoreFlightStage(matcher);
         this.recipient = new RecipientStage(matcher);
@@ -97,9 +110,26 @@ public class AccountingDeliveryEngine {
                 filters.lineFilters(),
                 flightResolver.flightDurationZeroBasedSeconds(flight),
                 flightResolver.engineRunningTimeSeconds(flight),
-                resolveTow(flight));
+                resolveTow(flight),
+                creditsForBilledPerson(accumulator.recipient(), flight.getStartDateTime()));
 
         return accumulator;
+    }
+
+    // The credit branch applies the BILLED person's prepaid credits, so the billed
+    // person is the recipient the RecipientStage just resolved; a recipient with no
+    // backing person (an account-recipient filter) carries no credits. Legacy loads
+    // its dry-run credits read-only (AsNoTracking, DeliveryService.cs:405-408) and
+    // filters to ValidUntil >= flight start; the load mutates nothing.
+    private List<PersonFlightTimeCredit> creditsForBilledPerson(@Nullable Recipient billed,
+                                                                @Nullable Instant flightStart) {
+        if (billed == null || billed.personId() == null) {
+            return List.of();
+        }
+        Instant validityFloor = flightStart == null ? Instant.EPOCH : flightStart;
+        return credits.findActiveForPersonInCurrentTenant(billed.personId()).stream()
+                .filter(credit -> !credit.getValidUntil().isBefore(validityFloor))
+                .toList();
     }
 
     // The tow flight rolls its own resolved MatchableFlight + seed durations into

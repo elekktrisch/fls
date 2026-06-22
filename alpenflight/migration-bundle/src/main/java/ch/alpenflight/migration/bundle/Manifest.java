@@ -62,6 +62,9 @@ public record Manifest(
      *       {@code PlanningDayAssignment.assigned_person_id} cross to
      *       Person; {@code Delivery.recipient_person_id} rides cross-tenant
      *       SET-NULL (Swiss OR Art. 957a frozen-snapshot ride-through);
+     *       {@code PersonFlightTimeCredit.person_id} crosses to Person (the
+     *       credit is per-person, visible to every club the Person belongs to,
+     *       no own club_id);
      *       {@code AuditLog.actor_user_id} rides cross-tenant to historical
      *       User rows (orphan-synthesized when no User in the bundle).</li>
      * </ul>
@@ -81,6 +84,7 @@ public record Manifest(
             EntityType.AIRCRAFT_RESERVATION,
             EntityType.PLANNING_DAY_ASSIGNMENT,
             EntityType.DELIVERY,
+            EntityType.PERSON_FLIGHT_TIME_CREDIT,
             EntityType.AUDIT_LOG);
 
     /** The canonical cross-tenant allow-list; see {@link #TENANT_BYPASS_ALLOW_LIST}. */

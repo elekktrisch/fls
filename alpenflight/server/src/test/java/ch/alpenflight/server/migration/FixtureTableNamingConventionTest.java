@@ -79,7 +79,18 @@ class FixtureTableNamingConventionTest {
             // Locations` JOIN LocationTypes + the Clubs/Flights fan-out union;
             // LocationFanOutProducerSelectIT seeds those staging tables verbatim.
             // Legacy MSSQL source names, not new-stack t_ tables.
-            "locations", "locationtypes", "inoutboundpoints", "clubs", "flights");
+            "locations", "locationtypes", "inoutboundpoints", "clubs", "flights",
+            // The PERSON_FLIGHT_TIME_CREDIT(_TRANSACTION) producer SELECTs read
+            // `FROM PersonFlightTimeCredits` / `FROM PersonFlightTimeCreditTransactions`
+            // (the IsCurrent dedupe) `LEFT JOIN Deliveries` (orphan-FK null-out);
+            // PersonFlightTimeCreditProducerDedupeIT seeds those staging tables
+            // verbatim. Legacy MSSQL source names, not new-stack t_ tables.
+            "personflighttimecredits", "personflighttimecredittransactions", "deliveries",
+            // The PERSON_CLUB producer SELECT reads `FROM PersonClub` (composite-PK
+            // membership, MemberStateId orphan-nulled); the same IT's PersonClub
+            // dedupe case seeds that staging table verbatim. Legacy MSSQL source
+            // name, not a new-stack t_ table.
+            "personclub");
 
     /**
      * Narrowed to SQL-context-only patterns: {@code DELETE FROM} /

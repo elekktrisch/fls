@@ -29,14 +29,24 @@ genuinely new vertical feature scope.
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
+## Pending (filed by /do-ship J-9b gate, 2026-06-22)
+
+- ✅ **[CREDIT-MIN-TIER] — SHIPPED in J-9b (T-19, pre-merge).** Not merely untested — the legacy-faithful
+  split (full-active decision vs billed-slice quantity) was a reachable over-credit defect (negative remainder
+  line on `min > 0` tiers, e.g. the 600s-`min` "Schulung ab 11.min" filters). Operator chose fix-over-parity:
+  `FlightTimeStage` now clamps the split decision + credited quantity to the billed slice `lineSeconds`
+  (`creditedSeconds = min(balance, lineSeconds)`, remainder ≥ 0). Recorded as ADR 0026 D-3; a `min≠0` domain
+  regression case (incl. the boundary that red-proved the bug) locks it.
+
 ## Pending (filed by /do-ship J-2c gate, 2026-06-21)
 
-- **[CONSOLE-GUARD-FLAKE] the suite-wide no-console-errors guard intermittently catches a transient
-  `ECONNREFUSED`→500 race** in mock-auth specs whose `/api/v1/*` call fires before its `page.route` stub is
-  installed (or after teardown). Seen on `accounting/delivery-creation-test.spec.ts:432` (`/api/v1/accounting-rule-filters`)
-  — non-deterministic (same code green on the prior sha; the same ECONNREFUSED bursts landed outside the guard
-  window). Harden stub-install/backend-readiness gating before the spec's first `/api/v1` hit on the next
-  accounting/e2e touch. *(seam: console-guard fixture stub-install timing + the accounting specs' route setup)*
+- ✅ **[CONSOLE-GUARD-FLAKE] — SHIPPED in J-9b (T-21).** Pulled forward when it became gate-blocking (flaked three
+  times across mock-e2e shards on the J-9b gate, following `accounting/delivery-creation-test.spec.ts:432`'s
+  unstubbed `/api/v1/accounting-rule-filters` fetch). Fixed structurally, not masked: an `installApiFloor`
+  catch-all `**/api/v1/**` registered FIRST (lowest-priority via Playwright's front-to-back ordering) in the
+  chromium-only stub path returns a benign response (GET→`{}`, write→204) for any genuinely-unstubbed call, so it
+  can never fall through to the vite proxy (`ECONNREFUSED`); specific stubs still win, real backend 500s stay
+  catchable (`BENIGN_PATTERNS` untouched), real-idp specs unaffected.
 
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 
