@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>integration/J-9b</code> &middot; 2026-06-21T23:54:34.881Z
+      assertion it proves. Generated on <code>integration/J-9b</code> &middot; 2026-06-22T00:55:12.878Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -152,135 +152,33 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the ra…</span>
+          <span class="summary-head"><span class="summary-jid">J-0c</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-bf499381e30cac55bd2c08e8af629739066fd637.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0d0f4f04c2dec3963e77becd69d6d59a90d24940.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-16646416a2975a075cd8af7dbdcf3d25adf1cd15.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">6 proofs</span><span class="summary-counts">6 videos · 2 screenshots</span></span>
-          <span class="summary-caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that…</span>
+          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-10cb5f4f83a142cdb6e581e0302b26387cddf6a1.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9c52b6f037e81910b23a2b4203ba370f3f1e98d9.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6ac1e00f7e6852a81f3362279cf6363dd6699206.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-8b75c242b19d020748428f2ed2656106fe594ffc.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-513ca66afc2b7a6e49b16fbd7a2cad31cea113a1.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ead099c7dd1cd9831ab0adb000eac6001fcfdb53.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
-        </figure>
-        </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-2</span> <span class="status success">2 proofs</span><span class="summary-counts">2 videos · 1 screenshot</span></span>
-          <span class="summary-caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, rend…</span>
+          <span class="summary-head"><span class="summary-jid">J-2</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3df99e029ea8c81c776e51ac88cb53091191f3c4.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-32c2b11aa846e291e9f1e609c8c2c8ba74dd46ac.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
-        </figure>
-        </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">wizard (glider step)</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-flights-wizard-glider.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-wizard-glider.png" alt="alpenflight wizard (glider step)" loading="lazy"></a>
-            <figcaption>AlpenFlight: the create wizard's GLIDER step, populated — the full glider+tow wizard example (the Tow step follows; see view=form)</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-2b</span> <span class="status success">4 proofs</span><span class="summary-counts">4 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-2b · #229 · a new flight saved with only date + glider aircraft + pilot persists to the real backend (legac…</span>
+          <span class="summary-head"><span class="summary-jid">J-2b</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-00201b56a6d90c3dccf8af7393feb2cbb452bb96.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2b · #229 · a new flight saved with only date + glider aircraft + pilot persists to the real backend (legacy parity: an incomplete flight saves as Invalid — Save was never blocked; the bug was the invalid-on-load display, fixed below)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7b7059c90a2c5679e8fa6059739238448a4b3d0d.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-2b · off-today visibility · the /flights list defaults to today..today (legacy parity); a flight saved a week ahead is surfaced by the post-save &quot;View it →&quot; jump that widens the range to reveal it — it is not silently hidden (#229(a), Option B)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e9c3b72dc7fbc19a6de7c20d2bd613223901af6f.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2b · valid-on-load · reopening a fully-populated saved flight renders every populated required field VALID — no stale &quot;Entry required.&quot; (the #229(b) root fix: the edit form had ZERO client validators; they are now wired + revalidate against the loaded values)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-cd64539c3d889992fbb26bee2c81257d5aca5adf.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2b · as-you-type gating · clearing a GATE field (date/aircraft/pilot) shows an inline error AND disables Save; clearing a NON-gate required field (landings) shows the inline error but leaves Save ENABLED — legacy incomplete-save parity (the rest of the minimal-valid set marks the flight Invalid but never blocks Save)</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -345,87 +243,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
         </div>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-5</span> <span class="status success">1 proof</span><span class="summary-counts">1 video · 0 screenshots</span></span>
-          <span class="summary-caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, …</span>
+          <span class="summary-head"><span class="summary-jid">J-5</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-614e125937f3b525febbd6326588f67b15f7b6e2.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status success">7 proofs</span><span class="summary-counts">7 videos · 3 screenshots</span></span>
-          <span class="summary-caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instruc…</span>
+          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1f5be6213ab1bd1fd72b3cfed1333426221a92be.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-110a4148c0890979f3da98790ff17287b52c62c4.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9d8a649a80c1c3fb70081184688dbecf5a46561e.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3e994fefc07938843a85388cc4b54c91a8511f9a.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-73264ccdff0ce477d231219537c1633f0fb7e468.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6200c7147a2398e2caa77fe37229c3837f11d727.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-65d0cd0d5a51cb9a8576641b336fcb54562f046f.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · migrated planning day · a real legacy planning day (remark &quot;Test3&quot;, with crew assignments + a fan-out-resolved own-club location), exported + migrated through the live chain, renders on the migrated TestClub’s /planning list — identity-matched to legacy and pointing at its OWN club’s Location replica (full legacy→export→migrate→Keycloak→UI chain)</span></figcaption>
-        </figure>
-        </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-planning-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-planning-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) with the V34 seed days + a created row — the future-days list to eyeball against the legacy planning table</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-planning-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-planning-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">setup</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-planning-setup-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-planning-setup-form.png" alt="alpenflight setup" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -448,31 +278,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-8</span> <span class="status success">5 proofs</span><span class="summary-counts">5 videos · 4 screenshots</span></span>
+          <span class="summary-head"><span class="summary-jid">J-8</span> <span class="status success">1 proof</span><span class="summary-counts">1 video · 2 screenshots</span></span>
           <span class="summary-caption">Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit …</span>
         </summary>
         <div class="proofs">
         <figure class="proof legacy-proof">
           <video controls preload="metadata" src="videos/legacy-accounting-parity-J8.webm"></video>
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) + one rule's edit form (filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections) — the legacy masterdata/accountingRules screens to eyeball against AlpenFlight's /accountingrules list + filter-type-driven edit form</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-796fac26e4ce7ff154d764caef01a32acff477eb.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, and creates an AccountingRuleFilter through the real backend — it renders in the /accountingrules list with its derived target and reopens with every field intact (core · flags · article-target incl. the filter_config deliveryLineText)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3d5aa90a752dbe9f2acf7b5a96ed0d0ffcafcf5e.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · selecting an AccountingRuleFilterType drives the conditional sections over the real reference-data catalog (article-target ∉{5,10} · recipient ==10 · aircraft-filter ==30 · no-landing-tax ==20) — the crux of the legacy form</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ad333e8549f56208fa25546442059664df9ab0ba.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-8 · accounting rule filters · a predicate match-list (aircraft immatriculations) round-trips its chips AND its 'use for all except listed' invert orientation through the real filter_config jsonb (load → flip toggle + add chip → save → reopen)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-680b900e0dfe009b81a0ee6337de6023c730beda.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub article-target rule &quot;FlightTime: Glider per minute&quot;, article 5001), exported + migrated through the live chain, renders in the migrated club’s /accountingrules list with its predicate config intact — the ArticleTarget number + the DeliveryLineText folded into filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
@@ -485,11 +299,6 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <a href="screenshots/legacy-accountingrules-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-accountingrules-list.png" alt="legacy list" loading="lazy"></a>
             <figcaption>Legacy flsweb: the AccountingRuleFilter list (Active · Name · Description · Target · Type) — the legacy rule-filter ng-table, paired before/after against AlpenFlight's /accountingrules list</figcaption>
           </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-accountingrules-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-accountingrules-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /accountingrules list — a created article-target rule renders with its server-derived target column (articleNumber + deliveryLineText), the rule-filter table to eyeball against the legacy ng-table</figcaption>
-          </figure>
           </div>
         </div>
         <div class="shot-pair">
@@ -500,48 +309,23 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <a href="screenshots/legacy-accountingrules-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-accountingrules-form.png" alt="legacy form" loading="lazy"></a>
             <figcaption>Legacy flsweb: one rule's edit form — the filter-type selectize driving the conditional article-target / aircraft-filter / recipient sections — paired against AlpenFlight's filter-type-driven rule-filter edit form</figcaption>
           </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-accountingrules-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-accountingrules-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the rule-filter edit form, fully populated with the article-target conditional section open (core text · the boolean flags · article number + delivery-line text) — the filter-type-driven field set to eyeball side-by-side against the legacy edit form</figcaption>
-          </figure>
           </div>
         </div>
         </div>
       </details>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-9</span> <span class="status success">2 proofs</span><span class="summary-counts">2 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors…</span>
+          <span class="summary-head"><span class="summary-jid">J-9</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a543c7a0998b793971e8f31703d5c82f555597f2.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-9 · delivery creation test · a club admin logs in via real Keycloak, ENTERS via the masterdata nav, authors a harness over a seeded glider flight + two J-8 rule filters — &quot;Create test delivery&quot; DRY-RUNS the rules engine (no persist) and fills the expected DeliveryItem set, Save persists it, &quot;Run test&quot; re-runs the engine → SUCCESS, and a matched AccountingRuleFilter link opens the J-8 rule editor (the sacred-cow engine proven end to end over the real stack)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3ff29a36ed414b4492eed05b84a123bb6b8a1d28.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-9 · delivery creation test · the operator changes a rule (the LandingTax filter article) so the engine output diverges from the harness’s stored expectation — &quot;Run test&quot; returns FAILURE and the cell-level diff surfaces the differing DeliveryItem (the daily rule-tuning tool, all over the real engine + real diff)</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey" open>
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-9b</span> <span class="status success">2 proofs</span><span class="summary-counts">2 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-9b · flight-time-credit · a club admin dry-runs a glider flight whose immatriculation matches a pilot’s pre…</span>
+          <span class="summary-head"><span class="summary-jid">J-9b</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5fd08a671148ddfc94a382f511e932a1784f4aac.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · a club admin dry-runs a glider flight whose immatriculation matches a pilot’s pre-paid PersonFlightTimeCredit — the engine applies the balance and emits ONE FlightTime line carrying the credit’s DiscountInPercent (fully covered), the credit sub-engine proven through the existing /deliverycreationtests dry-run harness</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-efa4f3b508f60a720522bc73f8c463ffe368e356.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-9b · flight-time-credit · the pilot’s pre-paid balance covers only PART of the flight, so the engine splits the FlightTime line in two — a credited line (the covered minutes, carrying the DiscountInPercent) + a billed-remainder line (the over-credit minutes, full price), same article and item text, rendered through the dry-run harness</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
