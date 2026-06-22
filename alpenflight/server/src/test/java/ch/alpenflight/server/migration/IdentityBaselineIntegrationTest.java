@@ -482,7 +482,7 @@ class IdentityBaselineIntegrationTest {
     }
 
     @Test
-    void email_template_nullable_club_id_for_defaults() throws Exception {
+    void email_template_not_null_club_id_overrides_only() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT is_nullable FROM information_schema.columns "
@@ -490,8 +490,9 @@ class IdentityBaselineIntegrationTest {
                                 + "AND column_name='club_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1))
-                    .as("email_template.club_id IS NULL means a SYSTEM_GLOBAL default")
-                    .isEqualTo("YES");
+                    .as("email_template holds ONLY per-club overrides; system defaults are "
+                            + "S-082 Thymeleaf files, never rows, so club_id is NOT NULL")
+                    .isEqualTo("NO");
         }
     }
 

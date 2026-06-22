@@ -7,6 +7,7 @@ import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
+import ch.alpenflight.emailtemplates.domain.EmailTemplate;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightReportRow;
 import ch.alpenflight.flighttypes.domain.FlightType;
@@ -106,7 +107,11 @@ public final class TenantScopedRowBuilders {
             // NO_TENANT (see DeliverySweepFactory). Its DeliveryItem child is
             // aggregate-internal WITHOUT @TenantId (DeliveryCreationTestItem
             // pattern) — deliberately NOT a sweep participant.
-            Map.entry(Delivery.class, DeliverySweepFactory::build)
+            Map.entry(Delivery.class, DeliverySweepFactory::build),
+            // Per-club email-template override. club_id is its only FK and the
+            // @TenantId discriminator, so it fails fail-closed under NO_TENANT
+            // with no reference data to seed (see EmailTemplateSweepFactory).
+            Map.entry(EmailTemplate.class, EmailTemplateSweepFactory::build)
     );
 
     private static String uniqueName(String label) {

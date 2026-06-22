@@ -12,9 +12,11 @@
  * V47. {@code template_key} + {@code language_locale} are canonicalized
  * lower-case on the aggregate so the override resolves case-insensitively.
  *
- * <p>Layered per ADR 0023; T-03 ships only {@code domain} (aggregate +
- * repository port). The {@code application} / {@code web} / {@code infra}
- * REST + resolver slices land in J-11 T-04/T-05.
+ * <p>Layered per ADR 0023 into {@code domain} (aggregate + repository port),
+ * {@code application} (the union-read service + DTOs + the file-default
+ * catalogue + mapper), {@code web} (REST controller + exception handler), and
+ * {@code infra} (the Spring Data JPA adapter). The send-time resolver that
+ * prefers the DB override over the file default is a separate slice.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.emailtemplates;
