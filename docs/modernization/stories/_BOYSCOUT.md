@@ -40,12 +40,13 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship J-2c gate, 2026-06-21)
 
-- **[CONSOLE-GUARD-FLAKE] the suite-wide no-console-errors guard intermittently catches a transient
-  `ECONNREFUSED`→500 race** in mock-auth specs whose `/api/v1/*` call fires before its `page.route` stub is
-  installed (or after teardown). Seen on `accounting/delivery-creation-test.spec.ts:432` (`/api/v1/accounting-rule-filters`)
-  — non-deterministic (same code green on the prior sha; the same ECONNREFUSED bursts landed outside the guard
-  window). Harden stub-install/backend-readiness gating before the spec's first `/api/v1` hit on the next
-  accounting/e2e touch. *(seam: console-guard fixture stub-install timing + the accounting specs' route setup)*
+- ✅ **[CONSOLE-GUARD-FLAKE] — SHIPPED in J-9b (T-21).** Pulled forward when it became gate-blocking (flaked three
+  times across mock-e2e shards on the J-9b gate, following `accounting/delivery-creation-test.spec.ts:432`'s
+  unstubbed `/api/v1/accounting-rule-filters` fetch). Fixed structurally, not masked: an `installApiFloor`
+  catch-all `**/api/v1/**` registered FIRST (lowest-priority via Playwright's front-to-back ordering) in the
+  chromium-only stub path returns a benign response (GET→`{}`, write→204) for any genuinely-unstubbed call, so it
+  can never fall through to the vite proxy (`ECONNREFUSED`); specific stubs still win, real backend 500s stay
+  catchable (`BENIGN_PATTERNS` untouched), real-idp specs unaffected.
 
 ## Pending (filed by /do-ship J-2b gate, 2026-06-20)
 

@@ -96,6 +96,7 @@ Grounded in `AircraftFlightTimeRule.cs:49-214` (credit branch) + `DeliveryServic
 - [x] T-18 — Deterministic search terms on every virtualised aircraft/flight-type/pilot picker in the flight-parity spec (kills the RAM-pressure option-render flake).
 - [x] T-19 — Correct the over-credit split on non-zero-`min` tiers (clamp to billed slice); ADR 0026 D-3; domain regression case.
 - [x] T-20 — ADR 0029: sanction the `@Profile({dev,test}) @Hidden /internal/` test/seed affordance pattern; cite it from both internal controllers.
+- [x] T-21 — Close [CONSOLE-GUARD-FLAKE] structurally: a lowest-priority `**/api/v1/**` mock-auth floor route so an unstubbed call can't fall through to the vite proxy (`ECONNREFUSED`); specific stubs still win, real 500s stay catchable.
 
 ## Outcome
 
@@ -113,7 +114,10 @@ non-zero-`min` FlightTime tiers the engine had faithfully carried from legacy (f
 billed-slice quantity → over-credit + negative remainder line) — clamped to the billed slice, recorded as
 ADR 0026 D-3 with a domain regression case. T-20 closed the missing-ADR the seed affordance surfaced: ADR 0029
 sanctions the `@Profile({dev,test}) @Hidden /internal/` test-affordance pattern (covering the pre-existing
-`InternalProvisioningController` too).
+`InternalProvisioningController` too). T-21 closed the gate-blocking `[CONSOLE-GUARD-FLAKE]` (it had flaked three
+times across mock-e2e shards, following the accounting spec): a lowest-priority `**/api/v1/**` floor route in the
+chromium-only stub path stops an unstubbed call falling through to the vite proxy (`ECONNREFUSED`) without masking
+real 500s.
 
 ## Assumptions made
 
