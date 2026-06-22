@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.101.0",
-  "elapsed_ms": 451,
+  "elapsed_ms": 413,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -6451,7 +6451,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_03f233bffa470cb1"
+      "analysis_run_id": "run_7ba7a0d4bca9e410"
     }
   }
 }
