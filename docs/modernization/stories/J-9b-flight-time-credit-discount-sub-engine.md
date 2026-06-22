@@ -89,6 +89,7 @@ Grounded in `AircraftFlightTimeRule.cs:49-214` (credit branch) + `DeliveryServic
 - [x] T-15 — `@Transactional(readOnly)` on the credit read so the idempotent re-read doesn't lazy-init 500.
 - [x] T-16 — Clear the PERSON_CLUB bind's two defects: arch-guard allow-list + id-map carve-out (composite PK, no guid).
 - [x] T-17 — Inherited-console-guard hygiene: 412 opt-out + deterministic AEROTOW person-picker search terms.
+- [x] T-18 — Deterministic search terms on every virtualised aircraft/flight-type/pilot picker in the flight-parity spec (kills the RAM-pressure option-render flake).
 
 ## Outcome
 

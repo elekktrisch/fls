@@ -145,11 +145,12 @@ async function createGliderFlightAerotow(
   // Step 1 (Glider): aircraft / flight type / pilot / comment.
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-glider')).toBeVisible();
-  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId);
-  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId);
-  // Search by the seeded pilot's label fragment so the virtualised person picker
-  // renders the target option deterministically (a bare open flakes under RAM
-  // pressure when the option falls outside the rendered scroll viewport).
+  // Search every virtualised masterdata picker by its option's label fragment
+  // (aircraft → immatriculation, flight type / pilot → seeded name) so the target
+  // option renders deterministically — a bare open flakes under RAM pressure when
+  // the option falls outside the rendered scroll viewport.
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId, md.gliderImmat);
+  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId, 'J2 Local');
   await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId, 'Pilot');
   await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('09:00');
   await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
@@ -168,7 +169,7 @@ async function createGliderFlightAerotow(
   // Step 2 (Tow): AEROTOW → the Tow step renders; pick the tow aircraft + pilot.
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-tow')).toBeVisible();
-  await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId);
+  await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId, md.towImmat);
   await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId, 'TowPilot');
 
   // J-2 T-43 — the gallery's PRIMARY paired-create parity shot: the glider+tow
@@ -254,9 +255,13 @@ async function createMotorFlight(
   // separate route / variant.
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-glider')).toBeVisible();
-  await selectAfOption(page, 'flight-edit-glider-aircraft', md.motorAircraftId);
-  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId);
-  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+  // Search every virtualised masterdata picker by its option's label fragment
+  // (motor aircraft → immatriculation, flight type / pilot → seeded name) so the
+  // target option renders deterministically — a bare open flakes under RAM
+  // pressure when the option falls outside the rendered scroll viewport.
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.motorAircraftId, md.motorImmat);
+  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId, 'J2 Local');
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId, 'Pilot');
   await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('11:00');
   await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('12:00');
   await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
@@ -403,8 +408,11 @@ async function createMinimalGliderFlight(
 
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-glider')).toBeVisible();
-  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId);
-  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+  // Search the virtualised aircraft / pilot pickers by their option label fragment
+  // (immatriculation / seeded name) so the target renders deterministically — a
+  // bare open flakes under RAM pressure when the option falls outside the viewport.
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId, md.gliderImmat);
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId, 'Pilot');
 
   // Legacy parity: with only date+aircraft+pilot the flight is incomplete (the
   // other minimal-valid fields show inline errors) but Save STAYS enabled.
