@@ -31,12 +31,12 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship J-9b gate, 2026-06-22)
 
-- **[CREDIT-MIN-TIER] the over-credit split is unproven for a credit tier with `min≠0`.** `FlightTimeStage`
-  compares `lineFlightTimeInSec` (full active) for the split decision while the credited/remainder quantities use
-  `lineSeconds` (active − min); they diverge only when a credit applies to a FlightTime tier with a non-zero
-  `min`, which no spec exercises (all credit cases use `min=0`). Documented as legacy parity; add a credited
-  `min≠0`-tier case on the next deliverycreationtests/engine touch to lock the behavior. *(seam: `FlightTimeStage`
-  credit branch + a delivery-creation-test credit case)*
+- ✅ **[CREDIT-MIN-TIER] — SHIPPED in J-9b (T-19, pre-merge).** Not merely untested — the legacy-faithful
+  split (full-active decision vs billed-slice quantity) was a reachable over-credit defect (negative remainder
+  line on `min > 0` tiers, e.g. the 600s-`min` "Schulung ab 11.min" filters). Operator chose fix-over-parity:
+  `FlightTimeStage` now clamps the split decision + credited quantity to the billed slice `lineSeconds`
+  (`creditedSeconds = min(balance, lineSeconds)`, remainder ≥ 0). Recorded as ADR 0026 D-3; a `min≠0` domain
+  regression case (incl. the boundary that red-proved the bug) locks it.
 
 ## Pending (filed by /do-ship J-2c gate, 2026-06-21)
 

@@ -33,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
  * e2e backend boots {@code dev}); {@code @Hidden} keeps it out of the OpenAPI
  * snapshot; the {@code /internal/} prefix lets a future gateway deny it wholesale.
  * CLUB_ADMINISTRATOR-gated; the audited mutation lives in the application service.
+ * The dev/test-only affordance pattern is sanctioned by ADR 0029.
  */
 @RestController
 @RequestMapping(path = "/api/v1/internal/person-flight-time-credits")

@@ -77,6 +77,26 @@ ride-through is dropped.** (J-7 read-model conversion, ADR 0027 / PR #217)
   carries the location id — a register-listed projection-time lookup (the
   `persons-cross-tenant-membership-check` shape) is the prepared remedy.
 
+**D-3 — FlightTime credit over-credit on non-zero-`min` tiers is clamped to the billed
+slice.** (J-9b)
+- **Legacy:** the over-credit split compares the `PersonFlightTimeCredit` balance against
+  the FULL active flight-time (before the tier `min` subtraction), `lineFlightTimeInSec`
+  (`flsserver/.../AircraftFlightTimeRule.cs:36,145`), but bills `active − min`
+  (`:45`) and sets the credited line to the full balance (`:148,158`). On a non-zero-`min`
+  tier (e.g. the 600s-`min` "Schulung ab 11.min" filters, `AccountingRuleFilterFactory.cs:796,866`),
+  when the balance falls between `(active − min)` and `active` the rule credits MORE than
+  the billed slice and emits a NEGATIVE remainder line. The combination is reachable —
+  credits match by immatriculation + `PersonId` only, tier-agnostic (`DeliveryService.cs:307-312`).
+- **AlpenFlight:** the split decision AND the credited quantity use the billed slice
+  `lineSeconds` (= `active − min`): the split fires only when `lineSeconds > balance`;
+  `creditedSeconds = min(balance, lineSeconds)`; `remainder = lineSeconds − creditedSeconds`
+  (≥ 0). Owned by `accounting.domain.FlightTimeStage`. `min = 0` tiers are unaffected
+  (`lineSeconds == active`), so the clean-seed + migrated proof corpus is behaviour-identical.
+- **Why:** over-crediting a member and emitting a negative invoice line is a money defect,
+  not a modelling choice — the billed slice is the only quantity that can legitimately be
+  credited. Dry-run only: the legacy balance decrement (by full active) is not modeled in
+  J-9b, so no decrement-side divergence exists yet.
+
 ## Consequences
 
 - **Positive:** a parity reviewer / `legacy-oracle` has one greppable place to confirm a

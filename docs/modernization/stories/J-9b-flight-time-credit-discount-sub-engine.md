@@ -19,7 +19,7 @@ screen: /deliverycreationtests (reuses J-9's dry-run + diff harness; adds credit
 headless_pulled_in: the rules-engine credit branch (PersonFlightTimeCredit application + DiscountInPercent + over-credit 2-line split) — homed by J-9's deliveryCreationTests harness
 migration: PersonFlightTimeCredit + the IsCurrent PersonFlightTimeCreditTransaction (current balance) + PERSON_CLUB (the indirect-tenancy pivot, a J-4-gap dependency) — new mappers; FK PersonId→Person (J-4), nullable BalancedDeliveryId→Delivery (null when unmigrated)
 parity_test: alpenflight/web/e2e/tests/real-idp/delivery-creation-test-parity.spec.ts (credit cases + migrated block)
-adr_refs: [0005, 0008, 0022, 0027]
+adr_refs: [0005, 0008, 0022, 0026, 0027, 0029]
 ---
 
 ## Context
@@ -61,6 +61,10 @@ Grounded in `AircraftFlightTimeRule.cs:49-214` (credit branch) + `DeliveryServic
 - **No cross-line balance carryover** (legacy trace) — the `IsCurrent` balance is read fresh per delivery, never
   mutated during the line loop; the over-credit split is provoked within a single flight-time line (`L > C`).
 - **Dry-run mutates NOTHING** — out of J-9b scope is the real-run persist (transaction insert + `IsCurrent` flip).
+- **Over-credit on non-zero-`min` tiers is CORRECTED, not reproduced** (operator 2026-06-22, ADR 0026 D-3).
+  Legacy compares the balance against full active time but bills `active − min`, over-crediting + emitting a
+  negative remainder line on `min > 0` tiers; AlpenFlight clamps the split decision + credited quantity to the
+  billed slice `lineSeconds`. `min = 0` (the whole proof corpus) is behaviour-identical.
 
 ## Parity exclusions
 
@@ -90,6 +94,8 @@ Grounded in `AircraftFlightTimeRule.cs:49-214` (credit branch) + `DeliveryServic
 - [x] T-16 — Clear the PERSON_CLUB bind's two defects: arch-guard allow-list + id-map carve-out (composite PK, no guid).
 - [x] T-17 — Inherited-console-guard hygiene: 412 opt-out + deterministic AEROTOW person-picker search terms.
 - [x] T-18 — Deterministic search terms on every virtualised aircraft/flight-type/pilot picker in the flight-parity spec (kills the RAM-pressure option-render flake).
+- [x] T-19 — Correct the over-credit split on non-zero-`min` tiers (clamp to billed slice); ADR 0026 D-3; domain regression case.
+- [x] T-20 — ADR 0029: sanction the `@Profile({dev,test}) @Hidden /internal/` test/seed affordance pattern; cite it from both internal controllers.
 
 ## Outcome
 
@@ -101,6 +107,13 @@ video). The engine is correct Java domain logic (ADR 0022 §2); V3 schema is str
 gate-revealed work was the migration FK-closure: the credit's indirect tenancy surfaced that **PERSON_CLUB was
 never migrated** (a J-4 gap) — bound here. Two `gap-hunter`s independently confirmed the green is genuinely
 vertical (real round-trip, no tenancy leak, test-only seed affordance, narrow opt-outs).
+
+Pre-merge hardening (operator review 2026-06-22): T-19 corrected a reachable over-credit defect on
+non-zero-`min` FlightTime tiers the engine had faithfully carried from legacy (full-active split decision vs
+billed-slice quantity → over-credit + negative remainder line) — clamped to the billed slice, recorded as
+ADR 0026 D-3 with a domain regression case. T-20 closed the missing-ADR the seed affordance surfaced: ADR 0029
+sanctions the `@Profile({dev,test}) @Hidden /internal/` test-affordance pattern (covering the pre-existing
+`InternalProvisioningController` too).
 
 ## Assumptions made
 

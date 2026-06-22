@@ -31,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  * provision under any synthesised principal. In production the ingest
  * pipeline derives the owner from the JWT principal it has already
  * authorized against the migration upload.
+ *
+ * <p>The dev/test-only affordance pattern is sanctioned by ADR 0029.
  */
 @RestController
 @RequestMapping("/api/v1/internal/migrations")
