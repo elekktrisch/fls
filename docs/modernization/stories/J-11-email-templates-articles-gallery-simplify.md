@@ -19,6 +19,7 @@ screen: /email-templates (new) + /articles (verify the shipped S-054 screen); pl
 headless_pulled_in: Thymeleaf DB-override-then-file-fallback resolver chain (consumes S-082) — homed by the /email-templates screen
 migration: Article (fanout-prove the existing S-054 ArticleMapper — the J-10b ARTICLE-FK done-bar); EmailTemplate N/A unless the legacy seed carries club-override rows (verify at ship)
 parity_test: alpenflight/web/e2e/tests/real-idp/email-templates.spec.ts (new; greenfield UI — no legacy pairing) + the Article fanout-parity block
+mock_test: e2e/tests/masterdata/(email-templates)   # per-push mock-e2e runs ONLY this journey's own spec; the regex stem fail-safes to the full suite until the screen's spec lands, then auto-scopes — prior journeys' masterdata mock specs (articles/aircraft/flight-types/locations) stay excluded
 adr_refs: [0005, 0008, 0013, 0022, 0027]
 ---
 
@@ -137,7 +138,7 @@ EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-
 ## Tasks
 
 - [x] **T-01** — Real-idp `email-templates.spec.ts` stub (structure + selectors + thin happy-path flow) + scaffold the J-11 proof-gallery page + link from the persistent index.
-- [ ] **T-02** — Scope the per-push gate to J-11 (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP.
+- [x] **T-02** — Scope the per-push gate to J-11 (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP.
 - [ ] **T-03** — EmailTemplate aggregate + Flyway `t_email_template` (club_id NOT-NULL `@TenantId`, `UNIQUE(club_id,template_key,language_locale)`, structural invariants only; domain customize-upsert + reset methods per ADR 0022 §2).
 - [ ] **T-04** — EmailTemplate REST `/api/v1/email-templates/**` + application service: union read (files ∪ overrides), clone-on-customize upsert, reset-delete, `CLUB_ADMINISTRATOR` write / 403 non-admin, audit.
 - [ ] **T-05** — Thymeleaf DB-override-then-file-fallback resolver chain (custom `ITemplateResolver` keyed `(tenant,key,locale)` ahead of the file resolver; consumes S-082).
