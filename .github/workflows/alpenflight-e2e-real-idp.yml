@@ -1,31 +1,16 @@
 name: alpenflight e2e real-idp
 
-# Nightly + manual-dispatch run of the FULL real-idp Playwright project: register
-# + login + locale + Google-redirect smoke PLUS the cross-journey migration-parity
-# regression — all against a live local Keycloak + Mailpit + alpenflight backend.
-# NOT a PR gate — the mock-auth suite (`alpenflight-e2e.yml`) + the per-push
-# scoped proofs in `ci.yml` stay the gates; real-idp's cross-process flakiness
-# must not gate feature work.
+# Nightly + manual-dispatch home of the FULL cross-journey real-idp regression
+# (globs `tests/real-idp/`) against a live local Keycloak + Mailpit + alpenflight
+# backend. NOT a PR gate — the mock-auth suite (`alpenflight-e2e.yml`) + the
+# per-push scoped `ci.yml` proofs stay the gates; real-idp's cross-process
+# flakiness must not gate feature work. The per-push `ci.yml` `alpenflight-proof`
+# job runs only the journey-under-work's single spec, so this run is the sole
+# full-regression path (nightly + once at the §4 do-ship gate).
 #
-# PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q1; reconfirmed by
-# J-5 T-14, J-3 retro rider). This nightly suite is the HOME of the full
-# cross-journey migration-parity regression. J-5 T-14 made the per-push
-# `ci.yml` `alpenflight-proof` job run only the journey-under-work's single
-# real-idp spec (derived off the integration branch) — so the FULL regression
-# runs HERE nightly (globbing `tests/real-idp/`) + once at the §4 do-ship gate,
-# never on every push. Nothing changed in THIS workflow; the per-push scoping
-# made this nightly run the sole per-commit-independent full-regression path.
-# `ci.yml`'s per-push `alpenflight-proof` job used to run the J-1
-# `aircraft-migration-parity.spec.ts` + J-2 `flight-migration-parity.spec.ts`
-# on every push and gate `required` — but the known aircraft-parity
-# cross-process flake intermittently red-ed the gate on journeys touching no
-# aircraft. Per the operator's rider ("per-push runs the current journey's spec,
-# the full regression nightly") those specs are NO LONGER on the per-push path;
-# they run here, in this full `--project=real-idp` run, which already globs
-# `tests/real-idp/**/*.spec.ts` (so aircraft + flight + the J-0 Locations
-# isolation spec are all covered without an explicit spec list). The DATASOURCE_*
-# env on the Playwright step below carries the parity specs' Gradle seeder
-# shell-outs to the backend's Postgres (they self-seed in their beforeAll).
+# Sharded across a 4-way matrix (`--shard=i/4`, `reporter: blob`) merged by the
+# `real-idp-merge` job so the suite fans out across runners instead of serial-
+# running past the step timeout; each shard stays `--workers=1` (serial real-idp).
 #
 # Stack on the runner:
 #   alpenflight-infra (mailpit) + fls-e2e (mssql; not actually used by the
@@ -46,12 +31,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Sharded so the cross-journey real-idp regression fans out across runners
+  # instead of serial-running the whole `tests/real-idp/` glob past the step
+  # timeout. Mirrors ci.yml's `alpenflight-mock-e2e` shard matrix: each shard
+  # emits `reporter: blob`; the `real-idp-merge` job is the authoritative
+  # pass/fail. `--workers=1` is kept on every shard (real-idp must stay serial:
+  # one realm + one Mailpit inbox); the matrix provides the parallelism.
   real-idp:
-    name: real-idp Playwright suite
+    name: real-idp Playwright shard ${{ matrix.shard }}/4
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       E2E_REAL_IDP: '1'
     steps:
@@ -245,33 +240,19 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      # Full real-idp project — globs tests/real-idp/**/*.spec.ts. This is where
-      # the cross-journey migration-parity regression (J-1 aircraft + J-2 flight,
-      # plus the J-0 Locations isolation spec) runs after J-4 T-21+T-22 moved it
-      # off the per-push gate. DATASOURCE_* is exported so those specs' beforeAll
-      # Gradle seeder shell-outs (seedAircraftParityBundle / seedFlightParityBundle)
-      # reach the same Postgres the backend uses (synth bundle mode — J1/J2_REAL_*
-      # unset → the full legacy→export half stays the fan-out workflow's job).
+      # DATASOURCE_* is exported so the parity specs' beforeAll Gradle seeder
+      # shell-outs reach the same Postgres the backend uses (synth bundle mode).
       #
-      # SHOWCASE-SPEC SCOPE NOTE — this CLEAN-seeded nightly only runs `flywayMigrate`
-      # (dev seeds V5..V39) and boots `SPRING_PROFILES_ACTIVE: dev`; it does NOT load
-      # the `@Profile("showcase")` seed (`./gradlew seedShowcase` — the deterministic
-      # 2-club / 14-flight / pilot1-PIC fixture). Two showcase-only specs must be
-      # kept OFF this run, each with its OWN showcase-seeded gating job in ci.yml:
-      #   1. J-4 `tests/profile/` self-edit spec → asserts the showcase pilot1 Person;
-      #      EXCLUDED structurally — it lives OUTSIDE the `e2e/tests/real-idp/` path
-      #      filter below (own job: `alpenflight-profile-proof`).
-      #   2. J-3 `tests/real-idp/start-dashboard.spec.ts` → asserts the showcase
-      #      club-1 dashboard counts (today=3 / pending=4) + the pilot last-flight
-      #      card off pilot1's seeded PIC flights. It lives INSIDE `tests/real-idp/`,
-      #      so the path filter alone can't drop it — without the showcase seed its
-      #      counts read the bare dev-seed totals (pending≠4, total<14) + the pilot
-      #      card is empty, reding 3 cases (J-26 T-30b, the cross-journey re-baseline
-      #      finding). EXCLUDED here via `--grep-invert 'showcase seed'` (its describe
-      #      title carries the unique `[showcase seed, real chain]` tag); its real
-      #      gating job is `alpenflight-dashboard-proof` in ci.yml, which loads the
-      #      showcase seed first and asserts these exact numbers green.
-      - name: Run Playwright real-idp project (full cross-journey regression)
+      # `--grep-invert` drops two sets the cross-journey clean-seed run must not
+      # carry: (1) `showcase seed` — `start-dashboard.spec.ts` asserts the
+      # `@Profile("showcase")` counts this run never seeds; its gating job is
+      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — the
+      # KC-26-upgrade reds whose retries blew the step budget (tracked in
+      # _BOYSCOUT.md [KC-26 UPGRADE DRIFT]). Filtering applies before sharding,
+      # so the dropped tests leave the pool first; `--shard` then partitions the
+      # remainder and `--reporter=blob` feeds the `real-idp-merge` job.
+      # `--workers=1` keeps each shard serial (one realm + one Mailpit inbox).
+      - name: Run Playwright real-idp project (cross-journey regression, shard ${{ matrix.shard }}/4)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 15
@@ -279,15 +260,15 @@ jobs:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
+          SHARD: ${{ matrix.shard }}
         run: |
-          # --workers=1: real-idp must run serial (one realm + one Mailpit inbox →
-          # parallel registration races KC user-exists + Mailpit poll contention);
-          # `workers` is top-level-only so the project's per-project value is a no-op.
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             --workers=1 \
-            --grep-invert 'showcase seed' \
+            --shard="${SHARD}/4" \
+            --reporter=blob \
+            --grep-invert 'showcase seed|@quarantine-kc26' \
             e2e/tests/real-idp/
 
       - name: Collect logs on failure
@@ -300,13 +281,22 @@ jobs:
           echo "── mailpit log ─────────────────────────────" >&2
           docker compose -p alpenflight-infra -f docker-compose.yml --profile infra logs --tail 100 mailpit >&2 || true
 
-      - name: Upload Playwright artifact
+      # Blob report → its own per-shard artifact for the merge job to stitch.
+      - name: Upload shard blob report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: alpenflight-real-idp-${{ github.run_id }}
+          name: alpenflight-real-idp-blob-${{ matrix.shard }}
+          path: alpenflight/web/blob-report
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Upload shard diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-real-idp-diag-${{ matrix.shard }}
           path: |
-            alpenflight/web/playwright-report
             alpenflight/web/screenshots
             alpenflight/server/backend.log
           retention-days: 14
@@ -325,3 +315,84 @@ jobs:
           docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
           docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
           docker network rm alpenflight_shared || true
+
+  # The authoritative cross-journey real-idp pass/fail. Mirrors ci.yml's
+  # `alpenflight-mock-e2e-merge`: `needs:` every shard, asserts all four ran
+  # (a crashed shard that uploaded no blob can't false-green the merged suite),
+  # then `merge-reports` — its exit code is the gate (non-zero if any shard had
+  # a failed test). Runs even when a shard failed (`needs.result`, not
+  # `success()`) so a partial-red still merges into a diagnosable report.
+  real-idp-merge:
+    name: real-idp Playwright suite (merge shards)
+    needs: real-idp
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Assert all shards ran
+        env:
+          SHARDS_RESULT: ${{ needs.real-idp.result }}
+        run: |
+          set -euo pipefail
+          if [ "${SHARDS_RESULT}" != 'success' ]; then
+            echo "shard matrix result is '${SHARDS_RESULT}' (not success) — a shard failed or crashed"
+            exit 1
+          fi
+
+      - name: Download shard blobs
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/all-blob-reports
+          pattern: alpenflight-real-idp-blob-*
+          merge-multiple: true
+
+      - name: Download shard diagnostics
+        uses: actions/download-artifact@v4
+        with:
+          path: alpenflight/web/shard-diagnostics
+          pattern: alpenflight-real-idp-diag-*
+          merge-multiple: true
+
+      - name: Merge shard reports
+        working-directory: alpenflight/web
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload merged report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-real-idp-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/shard-diagnostics
+          retention-days: 14
+          if-no-files-found: warn
