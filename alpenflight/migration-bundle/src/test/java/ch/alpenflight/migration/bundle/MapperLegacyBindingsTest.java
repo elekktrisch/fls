@@ -981,8 +981,8 @@ class MapperLegacyBindingsTest {
     @Test
     void articleIsRegisteredTenantScopedFullPort() {
         assertThat(MapperLegacyBindings.isRegistered(EntityType.ARTICLE))
-                .as("ARTICLE must be bound (J-11 T-08) so the article register exports — "
-                        + "the J-10b DeliveryItem.article_id RESTRICT done-bar")
+                .as("ARTICLE must be bound so the article register exports — "
+                        + "the DeliveryItem.article_id RESTRICT FK target")
                 .isTrue();
         assertThat(MapperLegacyBindings.portPolicy(EntityType.ARTICLE))
                 .as("Article is FULL_PORT, tenant-scoped via operating_club_id (V3)")

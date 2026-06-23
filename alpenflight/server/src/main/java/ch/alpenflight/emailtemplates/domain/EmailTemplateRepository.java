@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * Domain port for {@link EmailTemplate} persistence. Implemented by the
- * email-templates {@code infra} Spring Data JPA adapter (J-11 T-04).
+ * email-templates {@code infra} Spring Data JPA adapter.
  *
  * <p>EmailTemplate is tenant-scoped via Hibernate's {@code @TenantId}
  * discriminator on {@code EmailTemplate.clubId}. The discriminator rides on

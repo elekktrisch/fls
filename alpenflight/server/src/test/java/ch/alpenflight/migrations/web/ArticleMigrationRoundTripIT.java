@@ -40,12 +40,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * J-11 T-08 — the Article migrate round-trip proof (the J-10b
- * {@code DeliveryItem.article_id} RESTRICT done-bar). The {@code ArticleMapper} +
- * {@code t_article} schema shipped at the V3 baseline but had NO
+ * The Article migrate round-trip proof (the {@code DeliveryItem.article_id}
+ * RESTRICT FK target). The {@code ArticleMapper} + {@code t_article} schema
+ * shipped at the V3 baseline but had NO
  * {@link ch.alpenflight.migration.bundle.MapperLegacyBindings} producer entry, so
  * the producer SELECT + real round-trip had never run
- * ({@code verify_infra_is_run_not_just_authored}). T-08 wires the binding; this IT
+ * ({@code verify_infra_is_run_not_just_authored}). The binding is now wired; this IT
  * proves it end-to-end against the REAL server ingest pipeline so the
  * {@link ch.alpenflight.migrations.application.ForeignKeyResolver} runs live.
  *
