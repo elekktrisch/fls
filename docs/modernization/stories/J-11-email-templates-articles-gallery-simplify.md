@@ -2,8 +2,9 @@
 id: J-11
 title: Email templates + Articles masterdata (+ gallery simplification)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-22
+done_at: 2026-06-23
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -76,37 +77,12 @@ Grounded in legacy `TemplateService.cs:105-130` (union read) + `:242` (clone-on-
   every token-heavy read (legacy, gate logs, the gallery YAML, diffs) to sub-agents; that lean+delegate
   discipline is what makes both halves fit one journey.
 
-## Notes — riders to fold (per /do-ship §2)
+## Riders cleared (debt-burndown final lap)
 
-- **GALLERY-SIMPLIFY** (the dominant ≤70% debt slot, operator-targeted — the bookmark pain). Collapse the
-  proof gallery to ONE stable-bookmark page rendering only the in-flight journey; delete the all-journeys
-  index (`generate-previews-index.mjs`), the per-merged-journey history pages, the per-push/fanout/
-  legacy-parity sub-path split, the per-journey staging blocks + multi-context `producedBy` logic; keep one
-  deploy + the deployed-link-check (CDN slack). Verify the DEPLOYED bookmark, not the unit test. SUPERSEDES
-  every prior gallery rider. *(seam: `generate-gallery.mjs` + delete `generate-previews-index.mjs` +
-  `proof-gallery-links.spec.ts` + `expected-shots.json` + the gallery deploy/staging steps across `ci.yml`
-  + `alpenflight-proof-fanout.yml`)* — **after this journey, revert do-plan to 60/40 + delete the marker.**
-- **INTERNAL-AFFORDANCE-ARCHGUARD** (server-touch — J-11 adds the EmailTemplate server): the ArchUnit guard
-  asserting every `/api/v1/internal/` controller carries `@Profile`(non-prod) + `@Hidden` (ADR 0029).
-- **COMMENT-STRIP** (per-touch on the new EmailTemplate server/web/e2e files + the gallery files J-11 edits).
-- **WORKFLOW-SLIM** (partial overlap): GALLERY-SIMPLIFY removes the gallery staging blocks; the remaining
-  composite-action extraction + real-idp shard + KC-26 quarantine are large — fold what fits the budget,
-  defer the rest.
-- **HELPER-PRUNE-CREDIT** (only if J-11 touches the accounting e2e specs): delete the 2 `@helper`
-  credit-edge cases in `delivery-creation-test-parity.spec.ts` (covered-by FlightTimeStageTest +
-  AccountingDeliveryEngineCreditIT).
-
-## Notes — likely seams (non-binding, for /do-ship)
-
-- **EmailTemplate aggregate + schema** — one aggregate (`EmailTemplate` + nullable-club tenancy, system
-  default vs override) + Flyway `t_email_template`.
-- **EmailTemplate REST + service** — `/api/v1/email-templates/**` (CLUB_ADMINISTRATOR write, system+club
-  union read, clone-on-customize) + audit.
-- **Thymeleaf resolver chain** — DB-override-then-file-fallback (consumes S-082).
-- **EmailTemplate SPA screen** — store + list/edit route/component + template-source editor + reset-to-default.
-- **Articles verify** — confirm the deployed `/articles` screen + fanout-prove `ArticleMapper` (1 task).
-- **GALLERY-SIMPLIFY** — its own cluster (generator rewrite / deletes / CI+fanout deploy rewire), sized per
-  the gate.
+GALLERY-SIMPLIFY (dominant), INTERNAL-AFFORDANCE-ARCHGUARD, WORKFLOW-SLIM (KC-26 quarantine + real-idp shard;
+composite-action YAML cut deferred), COMMENT-STRIP (per-touch), HELPER-PRUNE + HELPER-PRUNE-CREDIT — all shipped
+(see the task checklist + `_BOYSCOUT.md`). **After J-11, do-plan reverts to 60/40 and the burndown marker is
+deleted.**
 
 ## Oracle decisions (do-ship, from the legacy-oracle 2026-06-22)
 
@@ -155,3 +131,19 @@ EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-
 - [x] **T-16** — Articles includeInactive (gate-revealed, AC#4): spec-mismodel, not a backend bug — the shipped S-054 backend already surfaces `isActive=false` via `includeInactive=true` and (by design + legacy parity) keeps soft-deleted rows terminally hidden; the T-14 spec drove delete-then-includeInactive (which can never resurface + leaves the inactive badge unrendered). Re-modelled `email-templates.spec.ts` to deactivate-then-includeInactive; added the tenant-scoped includeInactive IT.
 - [x] **T-17** — GALLERY-SIMPLIFY fanout gap (gate-revealed): drop the fanout's stale `legacy-parity` sub-path deploy + its `[deployed-journey]` link-check (`alpenflight-proof-fanout.yml`) — superseded by the one-page model; J-11 has no legacy pairing so it's a thin page that reds the fanout.
 - [x] **T-18** — Fanout J-11 bookmark gap (gate-revealed): the fanout runs no J-11 spec so it deploys a thin page that clobbers the bookmark → `[deployed-journey]` reds. Add `email-templates.spec.ts` to the fanout real-idp spec list so the fanout proves the screen over MIGRATED data + produces the J-11 video (non-thin bookmark). Strengthens the done-bar (clean-seed + migrated real chain).
+
+## Outcome
+
+Shipped greenfield **EmailTemplate** (aggregate + `t_email_template` + REST union read / clone-on-customize /
+reset + a Thymeleaf DB-override-then-file resolver + the `/email-templates` SPA screen, CLUB_ADMINISTRATOR-gated),
+**verified** the shipped Articles screen end to end, **bound + fanout-proved** `ArticleMapper` (the FK-resolver
+`operating_club_id`→CLUB fix, anti-23503/23505), and cleared **GALLERY-SIMPLIFY** + the burndown riders.
+
+Done bar (genuine, JOB-level on the merge head): clean-seed real chain green (forced heavy lane — the docs/
+workflow-only head guard, do-ship §5), migrated real chain green (`fan-out parity`, no cold-NuGet no-op),
+one-page bookmark non-thin (4 real pass videos). The verify-AC drove two real corrections at the gate: the
+Articles includeInactive **spec** was re-modeled to the real deactivate-then-includeInactive semantics (the
+S-054 backend was correct — soft-delete is terminal by design + legacy parity), and the gallery/fanout plumbing
+was finished to the one-page model (gap-hunter caught a stale `proof-gallery.spec.ts`; the fanout was wired to
+produce the J-11 video). **Mocked seams: none in the happy/key-error real path** — the real-idp spec runs fully
+real; the mock-auth screen e2e + the store vitest are declared `@mocked` inner-loop aids only.
