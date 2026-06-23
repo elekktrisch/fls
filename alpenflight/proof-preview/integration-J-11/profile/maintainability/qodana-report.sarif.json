@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "QDJVMC",
+          "fullName": "Qodana Community for JVM",
+          "rules": [{ "id": "unused", "shortDescription": { "text": "Unused declaration" } }]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "unused",
+          "level": "warning",
+          "baselineState": "unchanged",
+          "message": { "text": "Method 'findActiveByCode' is never used" }
+        },
+        {
+          "ruleId": "unused",
+          "level": "warning",
+          "baselineState": "unchanged",
+          "message": { "text": "Parameter 'clubId' is never used" }
+        },
+        {
+          "ruleId": "unused",
+          "level": "warning",
+          "baselineState": "new",
+          "message": { "text": "Field 'legacyNote' is never used" }
+        }
+      ]
+    }
+  ]
+}
