@@ -99,7 +99,7 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
 
 ## Tasks
 
-- [ ] **T-01** — Real-idp `join-request.spec.ts` stub (structure + selectors + thin signup→/join→submit→pending flow) + scaffold the J-12a one-page proof gallery + link from the persistent index.
+- [x] **T-01** — Real-idp `join-request.spec.ts` stub (structure + selectors + thin signup→/join→submit→pending flow) + scaffold the J-12a one-page proof gallery + link from the persistent index.
 - [ ] **T-02** — Scope the per-push gate to J-12a (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP (full regression → nightly + the §4 gate).
 - [ ] **T-03** — `Club.joinCode`: Flyway (`t_club.join_code TEXT NOT NULL` + `UNIQUE ux_club_join_code` global) + `Club.rotateJoinCode(Clock)` domain method + `POST /api/v1/clubs/{id}/join-code/rotate` (CLUB_ADMINISTRATOR) + admin-only `ClubResponse.joinCode` (null to pilots) + `club.join_code_rotated` audit (no code in payload).
 - [ ] **T-04** — `JoinRequest` aggregate + state machine (pending→approved/denied/withdrawn ON the aggregate, ADR 0022 §2) + Flyway `t_join_request` (+ partial UNIQUE `ux_join_request_alive` on `(keycloak_sub, club_id) WHERE status='pending'`) + repository.
