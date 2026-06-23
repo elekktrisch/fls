@@ -39,8 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <p>Approve / deny are the CLUB_ADMINISTRATOR cross-system decision endpoints
- * (T-06); the rate-limit/cooldown 429 (T-07) and emails / SSE (T-08) are NOT in
- * this resource yet.
+ * (T-06). Submit is abuse-guarded (T-07): the brute-force rate limit + the 24h
+ * deny cooldown surface as 429 + {@code Retry-After}. Emails / SSE (T-08) are not
+ * in this resource yet.
  */
 @RestController
 @Tag(name = "join-requests", description = "Pilot self-serve club-join requests.")
@@ -59,6 +60,8 @@ class JoinRequestController {
     @ApiResponse(responseCode = "404", description = "No active club resolves to that code.")
     @ApiResponse(responseCode = "409", description = "Caller already belongs to a club, "
             + "or already has an open request for this club.")
+    @ApiResponse(responseCode = "429", description = "Rate limit (5 submit attempts / 15 min "
+            + "per principal) or 24h deny cooldown — carries a Retry-After header.")
     @PostMapping(path = "/api/v1/join-requests",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)

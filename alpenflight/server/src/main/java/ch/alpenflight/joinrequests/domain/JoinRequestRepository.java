@@ -1,5 +1,6 @@
 package ch.alpenflight.joinrequests.domain;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +38,15 @@ public interface JoinRequestRepository {
      * discriminator; no explicit {@code club_id} predicate is needed.
      */
     List<JoinRequest> findPendingForCurrentTenant();
+
+    /**
+     * The {@code decided_on} of the most-recent DENIED request for this
+     * {@code (sub, club)} pair, or empty if the pair was never denied — the
+     * derived 24h deny-cooldown source (T-07). Keyed on the club, not the join
+     * code, so the cooldown survives a code rotation. Tenant-scoped: the caller
+     * runs it under the resolved club's context (the pilot has no tenant yet).
+     */
+    Optional<Instant> findLatestDeniedDecidedOn(UUID keycloakSub, UUID clubId);
 
     /** Persist (insert or update). Returns the managed entity. */
     JoinRequest save(JoinRequest request);

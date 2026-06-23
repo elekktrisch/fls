@@ -2340,6 +2340,16 @@
                 }
               }
             }
+          },
+          "429" : {
+            "description" : "Rate limit (5 submit attempts / 15 min per principal) or 24h deny cooldown — carries a Retry-After header.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
           }
         }
       }

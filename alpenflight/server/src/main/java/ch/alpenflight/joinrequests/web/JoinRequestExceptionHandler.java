@@ -5,10 +5,12 @@ import ch.alpenflight.joinrequests.application.CrossTenantPersonLinkException;
 import ch.alpenflight.joinrequests.application.JoinRequestNotFoundException;
 import ch.alpenflight.joinrequests.application.MissingPrincipalIdentityException;
 import ch.alpenflight.joinrequests.application.NotJoinRequestOwnerException;
+import ch.alpenflight.joinrequests.application.SubmitThrottledException;
 import ch.alpenflight.joinrequests.application.UnknownJoinCodeException;
 import ch.alpenflight.joinrequests.domain.IllegalJoinRequestStateException;
 import ch.alpenflight.users.application.ForbiddenRoleGrantException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -64,6 +66,17 @@ class JoinRequestExceptionHandler {
     @ExceptionHandler(MissingPrincipalIdentityException.class)
     ResponseEntity<Void> handleMissingIdentity(MissingPrincipalIdentityException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+    }
+
+    /**
+     * Submit hit the brute-force rate limit or the 24h deny cooldown (T-07) —
+     * 429 with a {@code Retry-After} the pilot SPA renders as a countdown.
+     */
+    @ExceptionHandler(SubmitThrottledException.class)
+    ResponseEntity<Void> handleThrottled(SubmitThrottledException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.retryAfterSeconds()))
+                .build();
     }
 
     @ExceptionHandler(UnsupportedJoinRequestStatusFilterException.class)

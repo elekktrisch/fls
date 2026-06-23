@@ -39,33 +39,41 @@ public class JoinRequestsService {
     private final JoinRequestTxWriter writer;
     private final ClubRepository clubs;
     private final UserRepository users;
+    private final JoinRequestSubmitGuard submitGuard;
 
     public JoinRequestsService(JoinRequestRepository requests,
                                JoinRequestTenantLookup tenantLookup,
                                JoinRequestTxWriter writer,
                                ClubRepository clubs,
-                               UserRepository users) {
+                               UserRepository users,
+                               JoinRequestSubmitGuard submitGuard) {
         this.requests = requests;
         this.tenantLookup = tenantLookup;
         this.writer = writer;
         this.clubs = clubs;
         this.users = users;
+        this.submitGuard = submitGuard;
     }
 
     /**
      * Files a pending request for the authenticated pilot against the club the
      * join code resolves to.
      *
+     * @throws SubmitThrottledException 429 — rate limit or deny cooldown breached
      * @throws UnknownJoinCodeException 404 — no active club for the code
      * @throws AlreadyClubMemberException 409 — caller already has a {@code t_user}
      */
     public JoinRequestResponse submit(Jwt jwt, String joinCode, @Nullable String note) {
         UUID sub = subjectOf(jwt);
+        // Brute-force window first: every attempt counts, even an unknown-code
+        // probe, so the rate limit must record before the code resolves.
+        submitGuard.recordAndCheckRateLimit(sub);
         if (users.findAnyByKeycloakSub(sub).isPresent()) {
             throw new AlreadyClubMemberException();
         }
         UUID clubId = clubs.findActiveIdByJoinCode(joinCode.strip())
                 .orElseThrow(UnknownJoinCodeException::new);
+        submitGuard.checkDenyCooldown(sub, clubId);
         String email = emailOf(jwt);
         String friendlyName = friendlyNameOf(jwt);
         // The tenant carrier must span the whole transaction (open → flush →

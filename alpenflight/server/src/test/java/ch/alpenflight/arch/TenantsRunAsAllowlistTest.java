@@ -79,7 +79,13 @@ class TenantsRunAsAllowlistTest {
             // tenant-scoped JPA work under runAs(thatClub). Withdraw re-gates on
             // keycloak_sub == jwt.sub after the load, so the scope only ever
             // admits the caller's own row.
-            "ch.alpenflight.joinrequests.application.JoinRequestsService"
+            "ch.alpenflight.joinrequests.application.JoinRequestsService",
+            // Submit abuse guard (S-178, T-07): the 24h deny cooldown derives
+            // from the most-recent DENIED row for (sub, club), which is
+            // @TenantId-scoped. The guard reads it under the already-resolved
+            // club's scope — the same club the submit path resolved from the
+            // join code — never widening beyond that single tenant.
+            "ch.alpenflight.joinrequests.application.JoinRequestSubmitGuard"
     );
 
     @ArchTest
