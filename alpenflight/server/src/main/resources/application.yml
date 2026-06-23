@@ -684,6 +684,21 @@ audit:
           - clubCount
           - errorCode
           - phase
+      JoinRequest:
+        # S-178 — pilot self-serve join request. email + friendlyName carry the
+        # signed-up pilot's identity, and note + decisionReason are free text the
+        # pilot/admin types (FADP-sensitive); all four are @AuditRedact on the
+        # entity field, so they land "[redacted]" and are deliberately NOT allow-
+        # listed. Everything else is structural: bare ids, the FSM status, and the
+        # decision timestamps/actor — safe to log verbatim.
+        allow:
+          - id
+          - keycloakSub
+          - clubId
+          - status
+          - createdOn
+          - decidedOn
+          - decidedByUserId
 
 # S-140 — Tink master keyset for migration-upload private-key wrapping.
 # Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64

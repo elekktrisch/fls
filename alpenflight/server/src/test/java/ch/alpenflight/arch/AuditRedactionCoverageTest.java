@@ -52,6 +52,7 @@ class AuditRedactionCoverageTest {
             "ch.alpenflight.deployments.domain",
             "ch.alpenflight.flights.domain",
             "ch.alpenflight.flighttypes.domain",
+            "ch.alpenflight.joinrequests.domain",
             "ch.alpenflight.locations.domain",
             "ch.alpenflight.migrations.domain",
             "ch.alpenflight.persons.domain"
