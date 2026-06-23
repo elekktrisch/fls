@@ -97,7 +97,9 @@ class MapperBindingContractTest {
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
-            EntityType.ARTICLE,
+            // ARTICLE bound by J-11 T-08 (operating_club_id CLUB-FK resolution +
+            // FROM Articles producer SELECT); round-trip + tenant isolation proven
+            // by ArticleMigrationRoundTripIT — the J-10b DeliveryItem RESTRICT done-bar.
             // ACCOUNTING_RULE_FILTER bound by J-8 T-10 (producer SELECT + JSON-blob
             // target extraction + sort-indicator renumber + referenceLookups);
             // round-trip + collision proven by AccountingRuleFilterProducerDedupeIT.

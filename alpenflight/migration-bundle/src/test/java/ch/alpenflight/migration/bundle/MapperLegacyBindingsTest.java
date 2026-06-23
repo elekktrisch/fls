@@ -972,6 +972,52 @@ class MapperLegacyBindingsTest {
                 .contains("RequiredNrOfPlanningDayAssignments AS RequiredNrOfAssignments");
     }
 
+    private static final List<String> ARTICLE_LEGACY_COLUMNS = List.of(
+            "ArticleId", "ClubId", "ArticleNumber", "ArticleName",
+            "ArticleInfo", "Description", "IsActive",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void articleIsRegisteredTenantScopedFullPort() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.ARTICLE))
+                .as("ARTICLE must be bound (J-11 T-08) so the article register exports — "
+                        + "the J-10b DeliveryItem.article_id RESTRICT done-bar")
+                .isTrue();
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.ARTICLE))
+                .as("Article is FULL_PORT, tenant-scoped via operating_club_id (V3)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void articleSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.ARTICLE);
+        for (String legacyColumn : ARTICLE_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("ArticleMapper.writeNdjson reads %s — the bound SELECT must "
+                            + "project it (else: silent NULL / export abort)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy Articles table")
+                .contains("Articles");
+    }
+
+    @Test
+    void articleResolvesItsClubFkThroughOperatingClubIdNotTheConvention() {
+        // operating_club_id is off-convention for the CLUB target (the resolver's
+        // default derives club_id). Without the foreignKeyColumns() override the
+        // legacy ClubId GUID reaches the INSERT verbatim → fk_article_operating_club_id
+        // 23503 for every article at the §4 fanout.
+        Mapper article = KnownMappers.all().stream()
+                .filter(m -> m.entityType() == EntityType.ARTICLE)
+                .findFirst()
+                .orElseThrow();
+        assertThat(article.foreignKeyColumns())
+                .as("ArticleMapper must rewrite the CLUB FK on operating_club_id")
+                .containsExactly(new ForeignKeyColumn("operating_club_id", EntityType.CLUB));
+    }
+
     @Test
     void everyBoundMappersForeignKeyTargetsAreAlsoBound() {
         for (Mapper mapper : KnownMappers.all()) {
