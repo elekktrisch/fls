@@ -36,6 +36,13 @@ public interface ClubRepository {
     boolean existsBySlugExcluding(String slug, UUID excludeId);
 
     /**
+     * True iff any club — active or soft-deleted — already carries this join
+     * code. The {@code ux_club_join_code} index is global and unfiltered, so
+     * the rotation collision-check must span every row, not just active ones.
+     */
+    boolean existsByJoinCode(String joinCode);
+
+    /**
      * Returns the ids of every Club under {@code deploymentId}, ordered by
      * id (deterministic for partial-failure resumption per the Performance
      * plan). Drives {@code DeploymentContext.forEachClub}; the per-Club

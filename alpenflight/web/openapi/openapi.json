@@ -2701,6 +2701,45 @@
         }
       }
     },
+    "/api/v1/clubs/{clubId}/join-code/rotate" : {
+      "post" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Rotate the club's join code to a fresh value.",
+        "operationId" : "rotateJoinCode",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Rotated; body carries the new code.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinCodeResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active club with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinCodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/articles" : {
       "get" : {
         "tags" : [ "Articles" ],
@@ -4324,7 +4363,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -6050,6 +6089,10 @@
             "format" : "uuid",
             "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
             "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "joinCode" : {
+            "type" : "string",
+            "description" : "Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise."
           }
         },
         "required" : [ "clubStateId", "countryId" ]
@@ -7773,6 +7816,15 @@
           }
         },
         "required" : [ "clubKey", "clubStateId", "countryId", "name", "slug" ]
+      },
+      "JoinCodeResponse" : {
+        "type" : "object",
+        "description" : "The newly rotated club join code.",
+        "properties" : {
+          "joinCode" : {
+            "type" : "string"
+          }
+        }
       },
       "ArticleCreateRequest" : {
         "type" : "object",
@@ -9756,7 +9808,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
           },
           "targetEntityType" : {
             "type" : "string"

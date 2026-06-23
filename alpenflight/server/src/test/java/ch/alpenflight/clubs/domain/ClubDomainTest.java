@@ -3,6 +3,8 @@ package ch.alpenflight.clubs.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -83,6 +85,42 @@ class ClubDomainTest {
         assertThat(club.planningDayMailsAsOkWhenNoReservation()).isTrue();
         assertThat(club.shouldSendPlanningDayOk(false)).isTrue();
         assertThat(club.shouldSendPlanningDayOk(true)).isTrue();
+    }
+
+    @Test
+    void rotateJoinCode_sets_a_fresh_code_from_the_alphabet() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        JoinCodeGenerator generator = () -> "ABCD2345";
+
+        String code = club.rotateJoinCode(generator, candidate -> true);
+
+        assertThat(code).isEqualTo("ABCD2345");
+        assertThat(club.getJoinCode()).isEqualTo("ABCD2345");
+        assertThat(code).hasSize(JoinCodeGenerator.LENGTH)
+                .matches("[" + JoinCodeGenerator.ALPHABET + "]+");
+    }
+
+    @Test
+    void rotateJoinCode_redraws_until_a_globally_unique_code_is_found() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        // First two candidates collide with existing clubs; the third is free.
+        Deque<String> candidates = new ArrayDeque<>(java.util.List.of("TAKEN111", "TAKEN222", "FREE3456"));
+        JoinCodeGenerator generator = candidates::pop;
+
+        String code = club.rotateJoinCode(generator, candidate -> candidate.startsWith("FREE"));
+
+        assertThat(code).isEqualTo("FREE3456");
+        assertThat(club.getJoinCode()).isEqualTo("FREE3456");
+    }
+
+    @Test
+    void rotateJoinCode_gives_up_when_every_candidate_collides() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        JoinCodeGenerator generator = () -> "ALWAYSXX";
+
+        assertThatThrownBy(() -> club.rotateJoinCode(generator, candidate -> false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Could not mint a unique");
     }
 
     @Test

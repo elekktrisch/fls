@@ -6,11 +6,13 @@ import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.JoinCodeResponse;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubKeyAlreadyExistsException;
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
+import ch.alpenflight.clubs.domain.JoinCodeGenerator;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
 import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.platform.id.ClubId;
@@ -64,17 +66,20 @@ public class ClubsService {
     private final ClubStateRepository clubStates;
     private final Clock clock;
     private final AuditTrail auditTrail;
+    private final JoinCodeGenerator joinCodes;
 
     public ClubsService(ClubRepository clubs,
                         CountryRepository countries,
                         ClubStateRepository clubStates,
                         Clock clock,
-                        AuditTrail auditTrail) {
+                        AuditTrail auditTrail,
+                        JoinCodeGenerator joinCodes) {
         this.clubs = clubs;
         this.countries = countries;
         this.clubStates = clubStates;
         this.clock = clock;
         this.auditTrail = auditTrail;
+        this.joinCodes = joinCodes;
     }
 
     @Transactional(readOnly = true)
@@ -107,10 +112,28 @@ public class ClubsService {
     }
 
     @Transactional(readOnly = true)
-    public ClubResponse getClub(ClubId id) {
-        return clubs.findActiveById(id.value())
-                .map(ClubMapper::toResponse)
+    public ClubResponse getClub(ClubId id, boolean includeJoinCode) {
+        Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
+        return includeJoinCode ? ClubMapper.toAdminResponse(club) : ClubMapper.toResponse(club);
+    }
+
+    /**
+     * Rotates the club's join code to a fresh, globally-unique value and
+     * returns it. The new code is admin-only output; the audit event carries
+     * neither the old nor the new code (S-177 — codes are quasi-secrets).
+     */
+    public JoinCodeResponse rotateJoinCode(ClubId id) {
+        Club club = clubs.findActiveById(id.value())
+                .orElseThrow(() -> new ClubNotFoundException(id));
+        String newCode = club.rotateJoinCode(joinCodes, candidate -> !clubs.existsByJoinCode(candidate));
+        clubs.save(club);
+        // Neither snapshot carries the code — codes are quasi-secrets, so an
+        // admin reading the audit log must not recover a club's current code.
+        // Actor + clubId are stamped on the row by the audit infra regardless.
+        auditTrail.record(AuditAction.CLUB_JOIN_CODE_ROTATED,
+                new AuditedTarget(AUDIT_ENTITY_TYPE, id.value(), null, null));
+        return new JoinCodeResponse(newCode);
     }
 
     public ClubResponse createClub(ClubCreateRequest req) {
