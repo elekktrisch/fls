@@ -809,7 +809,8 @@ jobs:
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
             e2e/tests/real-idp/planning-migration-parity.spec.ts \
             e2e/tests/real-idp/accounting-rules-parity.spec.ts \
-            e2e/tests/real-idp/delivery-creation-test-parity.spec.ts
+            e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
+            e2e/tests/real-idp/email-templates.spec.ts
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +
       # screenshot/video) BEFORE the staging + gallery + link-check steps run: the
