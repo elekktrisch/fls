@@ -219,7 +219,7 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
     await twoClubs?.dispose();
   });
 
-  test('[happy] a club admin creates, edits, soft-deletes an article; includeInactive surfaces the inactive row', async ({
+  test('[happy] a club admin creates, edits, deactivates an article; includeInactive surfaces the inactive row', async ({
     browser,
   }, testInfo) => {
     const articleNumber = uniqueArticleNumber('E2E');
@@ -258,13 +258,18 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
       await expect(page).toHaveURL(ARTICLES_PATH);
       await expect(page.getByTestId(`articles-row-${articleId}`)).toContainText(renamed);
 
-      // Soft-delete — the row drops out of the default (active-only) list.
-      page.once('dialog', (d) => d.accept());
-      await page.getByTestId(`articles-kebab-${articleId}`).click();
-      await page.getByTestId(`articles-delete-${articleId}`).click();
+      // Deactivate — isActive=false drops the row out of the default
+      // (active-only) list. Soft-delete is a separate, terminal operation:
+      // a deleted row never resurfaces, so includeInactive (which surfaces
+      // isActive=false rows) is driven by deactivate, not delete.
+      await page.getByTestId(`articles-row-${articleId}`).click();
+      await expect(page).toHaveURL(`${ARTICLES_PATH}/${articleId}/edit`);
+      await page.getByTestId('articles-flag-active').uncheck();
+      await page.getByTestId('articles-save-button').locator('button').click();
+      await expect(page).toHaveURL(ARTICLES_PATH);
       await expect(page.getByTestId(`articles-row-${articleId}`)).toHaveCount(0);
 
-      // includeInactive — the soft-deleted row re-surfaces, tagged inactive.
+      // includeInactive — the deactivated row re-surfaces, tagged inactive.
       await page.getByTestId('articles-include-inactive').check();
       await expect(page.getByTestId(`articles-row-${articleId}`)).toBeVisible();
       await expect(page.getByTestId(`articles-badge-inactive-${articleId}`)).toBeVisible();
@@ -273,7 +278,7 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
       await proofVideo(page, testInfo, {
         journey: 'J-11',
         caption:
-          'J-11 · articles · a club admin creates, edits, soft-deletes an article and surfaces it via includeInactive',
+          'J-11 · articles · a club admin creates, edits, deactivates an article and surfaces it via includeInactive',
         acTag: 'happy',
       });
     }

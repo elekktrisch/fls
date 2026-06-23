@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.articles.application.ArticleDtos.ArticleCreateRequest;
 import ch.alpenflight.articles.application.ArticleDtos.ArticleDetail;
+import ch.alpenflight.articles.application.ArticleDtos.ArticleUpdateRequest;
 import ch.alpenflight.articles.application.ArticlesService;
 import ch.alpenflight.articles.domain.ArticleNotFoundException;
 import ch.alpenflight.clubs.domain.ClubRepository;
@@ -86,6 +87,28 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void includeInactive_surfaces_deactivated_row_only_within_its_tenant() {
+        AtomicReference<ArticleDetail> aRowRef = new AtomicReference<>();
+        TenantTestContext.runAs(clubA, () -> {
+            ArticleDetail row = articles.registerArticle(payload(uniqueNumber()));
+            articles.updateArticle(row.id(), deactivate(row.articleNumber()));
+            aRowRef.set(row);
+
+            assertThat(articles.listArticles(false))
+                    .extracting(li -> li.id().toString())
+                    .doesNotContain(row.id().toString());
+            assertThat(articles.listArticles(true))
+                    .extracting(li -> li.id().toString())
+                    .contains(row.id().toString());
+        });
+
+        TenantTestContext.runAs(clubB, () ->
+                assertThat(articles.listArticles(true))
+                        .extracting(li -> li.id().toString())
+                        .doesNotContain(aRowRef.get().id().toString()));
+    }
+
+    @Test
     void same_number_under_two_clubs_does_not_collide() {
         String shared = uniqueNumber();
         TenantTestContext.runAs(clubA, () -> articles.registerArticle(payload(shared)));
@@ -114,6 +137,10 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     private static ArticleCreateRequest payload(String number) {
         return new ArticleCreateRequest(number, "Glider hour", null, null, true);
+    }
+
+    private static ArticleUpdateRequest deactivate(String number) {
+        return new ArticleUpdateRequest(number, "Glider hour", null, null, false);
     }
 
     private static String uniqueNumber() {
