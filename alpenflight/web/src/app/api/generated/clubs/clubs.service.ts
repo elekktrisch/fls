@@ -28,7 +28,8 @@ import {
 import type {
   ClubCreateRequest,
   ClubResponse,
-  ClubUpdateRequest
+  ClubUpdateRequest,
+  JoinCodeResponse
 } from '../model';
 
 
@@ -249,6 +250,42 @@ export class ClubsService {
     return this.http.post<TData>(
       `/api/v1/clubs`,
       clubCreateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Rotate the club's join code to a fresh value.
+ */
+ rotateJoinCode<TData = JoinCodeResponse>(clubId: string, options?: HttpClientBodyOptions): Observable<TData>;
+ rotateJoinCode<TData = JoinCodeResponse>(clubId: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ rotateJoinCode<TData = JoinCodeResponse>(clubId: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  rotateJoinCode<TData = JoinCodeResponse>(
+    clubId: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/clubs/${clubId}/join-code/rotate`,
+      undefined,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/clubs/${clubId}/join-code/rotate`,
+      undefined,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/clubs/${clubId}/join-code/rotate`,
+      undefined,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

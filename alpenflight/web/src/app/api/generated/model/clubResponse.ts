@@ -20,4 +20,6 @@ export type ClubResponse = {
   countryId: string;
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   clubStateId: string;
+  /** Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise. */
+  joinCode?: string;
 };
