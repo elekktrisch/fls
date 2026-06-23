@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.102.0",
-  "elapsed_ms": 422,
+  "elapsed_ms": 390,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -1883,6 +1883,36 @@
       ]
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<template>",
+      "line": 38,
+      "col": 0,
+      "cyclomatic": 7,
+      "cognitive": 13,
+      "line_count": 74,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/edit/flights-edit.page.ts",
       "name": "finalSubmit",
       "line": 683,
@@ -2633,6 +2663,36 @@
       ]
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<anonymous>",
+      "line": 163,
+      "col": 18,
+      "cyclomatic": 5,
+      "cognitive": 1,
+      "line_count": 22,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<anonymous>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/users/edit/users-edit.page.ts",
       "name": "<arrow>",
       "line": 433,
@@ -3204,19 +3264,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 233,
-    "functions_analyzed": 1942,
-    "functions_above_threshold": 100,
+    "files_analyzed": 235,
+    "functions_analyzed": 1963,
+    "functions_above_threshold": 102,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 184,
-    "average_maintainability": 92.1,
+    "files_scored": 186,
+    "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 24,
-    "severity_high_count": 29,
-    "severity_moderate_count": 47
+    "severity_high_count": 30,
+    "severity_moderate_count": 48
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
@@ -3227,29 +3287,29 @@
     "duplication_pct": 3.5,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.1,
+    "maintainability_avg": 92.0,
     "maintainability_low_pct": 0.0,
     "unused_dep_count": 0,
     "unused_deps_per_k_files": 0.0,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 233,
-      "total_exports": 519,
+      "total_files": 235,
+      "total_exports": 525,
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 33541,
-      "files_scored": 184,
+      "total_lines": 33858,
+      "files_scored": 186,
       "total_deps": 0
     },
     "unit_size_profile": {
       "low_risk": 87.5,
-      "medium_risk": 6.3,
+      "medium_risk": 6.4,
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 35.5,
+    "functions_over_60_loc_per_k": 35.7,
     "unit_interfacing_profile": {
       "low_risk": 97.5,
       "medium_risk": 2.2,
@@ -3258,7 +3318,7 @@
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.6,
-    "total_loc": 33541
+    "total_loc": 33858
   },
   "health_score": {
     "formula_version": 2,
@@ -3726,6 +3786,20 @@
       "lines": 266,
       "crap_max": 56.3,
       "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "fan_in": 1,
+      "fan_out": 6,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.22,
+      "maintainability_index": 85.6,
+      "total_cyclomatic": 40,
+      "total_cognitive": 21,
+      "function_count": 15,
+      "lines": 186,
+      "crap_max": 56.0,
+      "crap_above_threshold": 2
     },
     {
       "path": "src/app/shared/ui/organisms/af-autocomplete/af-autocomplete.component.ts",
@@ -4457,7 +4531,7 @@
     },
     {
       "path": "src/app/features/join/join.store.ts",
-      "fan_in": 5,
+      "fan_in": 6,
       "fan_out": 1,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.21,
@@ -4876,6 +4950,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/core/session/tenant-required.guard.ts",
+      "fan_in": 15,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 91.4,
+      "total_cyclomatic": 9,
+      "total_cognitive": 4,
+      "function_count": 4,
+      "lines": 63,
+      "crap_max": 4.9,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/core/i18n/lang-providers.ts",
       "fan_in": 1,
       "fan_out": 4,
@@ -4886,6 +4974,20 @@
       "total_cognitive": 2,
       "function_count": 2,
       "lines": 57,
+      "crap_max": 4.9,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/core/session/session.guard.ts",
+      "fan_in": 9,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.12,
+      "maintainability_index": 92.0,
+      "total_cyclomatic": 14,
+      "total_cognitive": 8,
+      "function_count": 7,
+      "lines": 114,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -5026,6 +5128,20 @@
       "total_cognitive": 4,
       "function_count": 2,
       "lines": 92,
+      "crap_max": 4.1,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/join/join-pending.logic.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 95.9,
+      "total_cyclomatic": 7,
+      "total_cognitive": 3,
+      "function_count": 2,
+      "lines": 46,
       "crap_max": 4.1,
       "crap_above_threshold": 0
     },
@@ -5212,20 +5328,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/core/session/session.guard.ts",
-      "fan_in": 10,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.13,
-      "maintainability_index": 91.7,
-      "total_cyclomatic": 13,
-      "total_cognitive": 7,
-      "function_count": 7,
-      "lines": 102,
-      "crap_max": 3.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/start/start-variant.ts",
       "fan_in": 2,
       "fan_out": 1,
@@ -5310,6 +5412,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.routes.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.12,
+      "maintainability_index": 91.1,
+      "total_cyclomatic": 4,
+      "total_cognitive": 0,
+      "function_count": 4,
+      "lines": 34,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/core/i18n/transloco-loader.ts",
       "fan_in": 2,
       "fan_out": 5,
@@ -5334,20 +5450,6 @@
       "total_cognitive": 1,
       "function_count": 4,
       "lines": 70,
-      "crap_max": 2.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 14,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 93.8,
-      "total_cyclomatic": 3,
-      "total_cognitive": 1,
-      "function_count": 2,
-      "lines": 34,
       "crap_max": 2.9,
       "crap_above_threshold": 0
     },
@@ -5520,20 +5622,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/join/join.routes.ts",
-      "fan_in": 1,
-      "fan_out": 3,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.08,
-      "maintainability_index": 93.3,
-      "total_cyclomatic": 2,
-      "total_cognitive": 0,
-      "function_count": 2,
-      "lines": 24,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/migrate-handshake/migrate-handshake.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
@@ -5548,21 +5636,21 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/start/start.routes.ts",
+      "path": "src/app/features/profile/profile.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 94.4,
+      "complexity_density": 0.08,
+      "maintainability_index": 94.5,
       "total_cyclomatic": 2,
       "total_cognitive": 0,
       "function_count": 2,
-      "lines": 22,
+      "lines": 24,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/profile/profile.routes.ts",
+      "path": "src/app/features/start/start.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
@@ -6189,6 +6277,12 @@
       "line_count": 74
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<template>",
+      "line": 38,
+      "line_count": 74
+    },
+    {
       "path": "src/app/features/join/join.page.ts",
       "name": "<template>",
       "line": 40,
@@ -6611,7 +6705,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_0befc8b1a6ae4015"
+      "analysis_run_id": "run_401a7a9b25ebb660"
     }
   }
 }
