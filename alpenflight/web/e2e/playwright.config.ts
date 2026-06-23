@@ -18,7 +18,7 @@ const CHROMIUM_LAUNCH_OPTIONS = {
 };
 
 // Dev-server(s) to boot before the run. `GALLERY_LINKS_ONLY=1` skips the dev
-// server entirely — the T-31 `proof-gallery-links` project is browserless +
+// server entirely — the `proof-gallery-links` project is browserless +
 // serverless, so the DoD check runs in any task context without paying the
 // ~20-30s `ng serve` boot. Resolved to `undefined` in that mode and spread
 // conditionally onto the config below — under `exactOptionalPropertyTypes`
@@ -133,12 +133,12 @@ export default defineConfig({
       // real PILOT principal, so it belongs to the `real-idp` project below.
       // `tests/profile/` would otherwise match `!(real-idp)` and try to run on
       // the mock-auth SPA (no KC form → the landing-sign-in click hangs).
-      // The proof-gallery-links spec (T-31) is BROWSERLESS (fs + request only,
-      // runs under musl's no-chrome sandbox) and owns the `proof-gallery-links`
-      // project below — exclude it here so it never launches a browser context
-      // or pulls in the webServer on the mock-auth gate.
+      // The deployed-link-check spec is BROWSERLESS (fs + request only, runs under
+      // musl's no-chrome sandbox) and owns the `proof-gallery-links` project below
+      // — exclude it here so it never launches a browser or pulls in the webServer
+      // on the mock-auth gate.
       testMatch: ['tests/!(real-idp|profile)/**/*.spec.ts'],
-      testIgnore: ['**/proof-gallery/proof-gallery-links.spec.ts'],
+      testIgnore: ['**/proof-gallery/gallery-deployed-link-check.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: MOCK_BASE_URL,
@@ -229,16 +229,16 @@ export default defineConfig({
     },
 
     // ── proof-gallery-links ───────────────────────────────────────────────
-    // T-31 — the autonomous "are ALL gallery links live?" DoD check. BROWSERLESS
-    // by design: the spec uses only node `fs` + the `request` (APIRequestContext)
-    // fixture, NEVER `page` / a browser context — so it runs under this sandbox's
-    // musl chrome block (and in CI) without launching chromium. No `devices`
-    // (no browser), no `baseURL`, no `dependencies`. To run WITHOUT booting the
-    // mock-auth dev server, set `GALLERY_LINKS_ONLY=1` (skips the webServer below)
+    // The autonomous "is the DEPLOYED gallery bookmark + every asset live?" DoD
+    // check. BROWSERLESS by design: request-only, never `page` / a browser context,
+    // so it runs under this sandbox's musl chrome block (and in CI) without chromium.
+    // Run without the mock-auth dev server via GALLERY_LINKS_ONLY=1 (skips the
+    // webServer below):
     //   GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links
+    // The spec sets its own per-test timeout (CDN-propagation poll budget).
     {
       name: 'proof-gallery-links',
-      testMatch: ['tests/proof-gallery/proof-gallery-links.spec.ts'],
+      testMatch: ['tests/proof-gallery/gallery-deployed-link-check.spec.ts'],
       retries: 0,
       timeout: 60_000,
       expect: { timeout: 10_000 },
