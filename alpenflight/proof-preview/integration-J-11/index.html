@@ -88,17 +88,35 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-11 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-11</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-11</span> <span class="status success">4 proofs</span> <span class="summary-counts">4 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>integration/J-11</code> &middot; 2026-06-23T02:40:11.129Z
+      merged journeys' proof lives in their PRs. Generated on <code>integration/J-11</code> &middot; 2026-06-23T03:12:34.687Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f089b0241a5fa5665b45a98ca5b61bb04e405bf2.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-11 · email templates · a club admin sees the file-default templates, each marked as a default</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-03bc10fa0d9f064cfa8f3014acfc528db17221a3.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-11 · email templates · customizing in club A clones a per-club override; another club still sees the file default</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d0a35904e275910a273312ff0e78ef1ca4a4b1f5.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-11 · email templates · reset-to-default removes the override and the file default re-surfaces</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f8bcdafdcd2deb2263c8538284a1f57f41e68b57.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-11 · articles · a club admin creates, edits, deactivates an article and surfaces it via includeInactive</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
