@@ -282,6 +282,14 @@ const de = {
     errors: {
       rateLimited: 'Zu viele Versuche. Erneut möglich in {{seconds}} s.',
     },
+    pending: {
+      headline: 'Anfrage gesendet',
+      tagline: 'Deine Beitrittsanfrage wartet auf die Bestätigung der Vereinsverwaltung.',
+      submittedOn: 'Gesendet am {{date}}',
+      withdraw: 'Anfrage zurückziehen',
+      deniedHeadline: 'Anfrage abgelehnt',
+      tryDifferent: 'Anderen Code versuchen',
+    },
   },
   landing: {
     actions: {

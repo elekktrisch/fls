@@ -13,6 +13,9 @@ import type { JoinRequestResponseStatus } from './joinRequestResponseStatus';
 export type JoinRequestResponse = {
   id?: string;
   clubId?: string;
+  clubName?: string;
+  city?: string;
+  logoUrl?: string;
   status?: JoinRequestResponseStatus;
   note?: string;
   decisionReason?: string;

@@ -277,6 +277,14 @@ const fr: Translations = {
     errors: {
       rateLimited: 'Trop de tentatives. Réessayez dans {{seconds}} s.',
     },
+    pending: {
+      headline: 'Demande envoyée',
+      tagline: "Votre demande d'adhésion attend la confirmation de l'administration du club.",
+      submittedOn: 'Envoyée le {{date}}',
+      withdraw: 'Retirer la demande',
+      deniedHeadline: 'Demande refusée',
+      tryDifferent: 'Essayer un autre code',
+    },
   },
   landing: {
     actions: {

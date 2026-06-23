@@ -7,7 +7,7 @@ import {
   type UrlTree,
 } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { type Observable, filter, map, take } from 'rxjs';
+import { type Observable, filter, isObservable, map, of, switchMap, take } from 'rxjs';
 
 import { rememberPostLoginRedirect } from '../auth/post-login-redirect';
 import { SessionStore } from './session.store';
@@ -89,13 +89,25 @@ export const authGuard: CanActivateFn = (route, state) => resolveAuth(route, sta
  * before the extra check sees a populated SessionStore. When auth resolves
  * to anything other than `true` (redirect/cancel), that result passes
  * through untouched — so the ADR 0007 hard-401 path is preserved verbatim.
+ *
+ * The extra check itself may resolve asynchronously (e.g. a tenant-less
+ * onboarding probe that GETs the live join request): an `Observable` it
+ * returns is flattened so the guard yields a single boolean/UrlTree.
  */
 export function composeAfterAuth(
   authResult: boolean | Observable<boolean>,
-  extraCheck: () => boolean | UrlTree,
+  extraCheck: () => boolean | UrlTree | Observable<boolean | UrlTree>,
 ): boolean | UrlTree | Observable<boolean | UrlTree> {
   if (typeof authResult === 'boolean') {
     return authResult ? extraCheck() : authResult;
   }
-  return authResult.pipe(map((authed) => (authed ? extraCheck() : authed)));
+  return authResult.pipe(
+    switchMap((authed) => {
+      if (!authed) {
+        return of(authed);
+      }
+      const checked = extraCheck();
+      return isObservable(checked) ? checked : of(checked);
+    }),
+  );
 }

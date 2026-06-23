@@ -275,6 +275,14 @@ const en: Translations = {
     errors: {
       rateLimited: 'Too many attempts. Try again in {{seconds}} s.',
     },
+    pending: {
+      headline: 'Request sent',
+      tagline: "Your join request is waiting for the club administration's confirmation.",
+      submittedOn: 'Sent on {{date}}',
+      withdraw: 'Withdraw this request',
+      deniedHeadline: 'Request declined',
+      tryDifferent: 'Try a different code',
+    },
   },
   landing: {
     actions: {
