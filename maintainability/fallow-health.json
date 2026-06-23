@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.101.0",
-  "elapsed_ms": 443,
+  "version": "2.102.0",
+  "elapsed_ms": 422,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -3204,13 +3204,13 @@
     }
   ],
   "summary": {
-    "files_analyzed": 229,
-    "functions_analyzed": 1900,
+    "files_analyzed": 233,
+    "functions_analyzed": 1942,
     "functions_above_threshold": 100,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 180,
+    "files_scored": 184,
     "average_maintainability": 92.1,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
@@ -3224,7 +3224,7 @@
     "avg_cyclomatic": 2.0,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 3.6,
+    "duplication_pct": 3.5,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
     "maintainability_avg": 92.1,
@@ -3234,13 +3234,13 @@
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 229,
-      "total_exports": 505,
+      "total_files": 233,
+      "total_exports": 519,
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 32993,
-      "files_scored": 180,
+      "total_lines": 33541,
+      "files_scored": 184,
       "total_deps": 0
     },
     "unit_size_profile": {
@@ -3249,20 +3249,20 @@
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 35.8,
+    "functions_over_60_loc_per_k": 35.5,
     "unit_interfacing_profile": {
-      "low_risk": 97.4,
-      "medium_risk": 2.3,
+      "low_risk": 97.5,
+      "medium_risk": 2.2,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
-    "coupling_high_pct": 1.7,
-    "total_loc": 32993
+    "coupling_high_pct": 1.6,
+    "total_loc": 33541
   },
   "health_score": {
     "formula_version": 2,
-    "score": 89.1,
+    "score": 89.2,
     "grade": "A",
     "penalties": {
       "dead_files": 0.0,
@@ -3274,7 +3274,7 @@
       "unused_deps": 0.0,
       "circular_deps": 0.0,
       "unit_size": 10.0,
-      "coupling": 0.9,
+      "coupling": 0.8,
       "duplication": 0.0
     }
   },
@@ -4022,6 +4022,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.page.ts",
+      "fan_in": 1,
+      "fan_out": 6,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 88.0,
+      "total_cyclomatic": 29,
+      "total_cognitive": 12,
+      "function_count": 15,
+      "lines": 208,
+      "crap_max": 20.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/accounting/delivery-creation-tests/list/delivery-creation-tests-list.page.ts",
       "fan_in": 1,
       "fan_out": 7,
@@ -4442,6 +4456,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.store.ts",
+      "fan_in": 5,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.21,
+      "maintainability_index": 90.9,
+      "total_cyclomatic": 33,
+      "total_cognitive": 11,
+      "function_count": 19,
+      "lines": 155,
+      "crap_max": 10.4,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/util/form/inline-validation.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4500,14 +4528,14 @@
     {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 24,
+      "fan_out": 25,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.33,
-      "maintainability_index": 77.2,
-      "total_cyclomatic": 52,
+      "complexity_density": 0.34,
+      "maintainability_index": 76.8,
+      "total_cyclomatic": 54,
       "total_cognitive": 0,
-      "function_count": 52,
-      "lines": 156,
+      "function_count": 54,
+      "lines": 160,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4974,6 +5002,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join-page.logic.ts",
+      "fan_in": 2,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.09,
+      "maintainability_index": 94.5,
+      "total_cyclomatic": 9,
+      "total_cognitive": 8,
+      "function_count": 4,
+      "lines": 99,
+      "crap_max": 4.1,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/nav-sections.ts",
       "fan_in": 2,
       "fan_out": 1,
@@ -5171,7 +5213,7 @@
     },
     {
       "path": "src/app/core/session/session.guard.ts",
-      "fan_in": 9,
+      "fan_in": 10,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.13,
@@ -5222,6 +5264,20 @@
       "total_cognitive": 3,
       "function_count": 3,
       "lines": 26,
+      "crap_max": 3.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/signup/signup-intent.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 96.9,
+      "total_cyclomatic": 5,
+      "total_cognitive": 2,
+      "function_count": 2,
+      "lines": 34,
       "crap_max": 3.0,
       "crap_above_threshold": 0
     },
@@ -5464,6 +5520,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.routes.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.08,
+      "maintainability_index": 93.3,
+      "total_cyclomatic": 2,
+      "total_cognitive": 0,
+      "function_count": 2,
+      "lines": 24,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/migrate-handshake/migrate-handshake.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
@@ -5656,20 +5726,6 @@
       "total_cognitive": 2,
       "function_count": 2,
       "lines": 26,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/signup/signup-intent.ts",
-      "fan_in": 2,
-      "fan_out": 0,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 98.3,
-      "total_cyclomatic": 3,
-      "total_cognitive": 1,
-      "function_count": 2,
-      "lines": 32,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -6133,6 +6189,12 @@
       "line_count": 74
     },
     {
+      "path": "src/app/features/join/join.page.ts",
+      "name": "<template>",
+      "line": 40,
+      "line_count": 73
+    },
+    {
       "path": "src/app/features/profile/profile-shell.page.ts",
       "name": "<template>",
       "line": 39,
@@ -6549,7 +6611,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_a6564b60bdbc9471"
+      "analysis_run_id": "run_0befc8b1a6ae4015"
     }
   }
 }
