@@ -43,6 +43,14 @@ public interface ClubRepository {
     boolean existsByJoinCode(String joinCode);
 
     /**
+     * The id of the active club this join code resolves to, or empty for an
+     * unknown / soft-deleted club. The pilot-submit lookup (S-178): a pilot
+     * with no tenant types a code, this resolves it to the target tenant. A
+     * soft-deleted club is intentionally excluded — its code admits no one.
+     */
+    Optional<UUID> findActiveIdByJoinCode(String joinCode);
+
+    /**
      * Returns the ids of every Club under {@code deploymentId}, ordered by
      * id (deterministic for partial-failure resumption per the Performance
      * plan). Drives {@code DeploymentContext.forEachClub}; the per-Club

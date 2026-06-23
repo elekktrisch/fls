@@ -70,7 +70,16 @@ class TenantsRunAsAllowlistTest {
             // repository.save-bypass seams (migration ingest, dev-seed startup,
             // showcase). Never on the request path — invoked by the ingest
             // transaction, a dev/showcase-profile runner, or ops tooling.
-            "ch.alpenflight.flights.application.FlightReportRebuildService"
+            "ch.alpenflight.flights.application.FlightReportRebuildService",
+            // Pilot self-serve join (S-178): a tenant-less pilot (no clubId
+            // claim, no t_user) submits / withdraws / me-reads their OWN join
+            // request, which is @TenantId-scoped. The service resolves the club
+            // FIRST — from the join code (submit) or the pilot's own request
+            // (withdraw / me, via JoinRequestTenantLookup) — then runs the
+            // tenant-scoped JPA work under runAs(thatClub). Withdraw re-gates on
+            // keycloak_sub == jwt.sub after the load, so the scope only ever
+            // admits the caller's own row.
+            "ch.alpenflight.joinrequests.application.JoinRequestsService"
     );
 
     @ArchTest

@@ -55,6 +55,10 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     boolean existsByJoinCode(String joinCode);
 
     @Override
+    @Query("select c.id from Club c where c.joinCode = :joinCode and c.deletedOn is null")
+    Optional<UUID> findActiveIdByJoinCode(String joinCode);
+
+    @Override
     @Query("select c.id from Club c where c.deploymentId = :deploymentId "
             + "and c.deletedOn is null order by c.id")
     List<UUID> findIdsByDeploymentId(UUID deploymentId);

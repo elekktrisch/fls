@@ -183,6 +183,40 @@ carries an expiry + removal plan.
   fallback was evaluated and rejected in the J-26 T-17 decision above — only the
   Hibernate-feature path retires this entry now.)
 
+### `join-request-pre-tenant-club-lookup` — `Resolve a tenant-less pilot's join-request club_id`
+
+- **Caller:** `src/main/java/ch/alpenflight/joinrequests/infra/JdbcJoinRequestTenantLookup.java`
+- **Tenant-scoped tables touched:** t_join_request
+- **Justification:** a pilot files a join request BEFORE belonging to any club —
+  the JWT carries no `clubId` claim and there is no `t_user` row, so the tenant
+  resolver yields `NO_TENANT`. `JoinRequest` is `@TenantId`-scoped on `club_id`,
+  so a JPA finder under `NO_TENANT` filters the pilot's OWN request to zero rows
+  (verified empirically: `findLatestBySub` returns empty under the unscoped
+  context). The pilot's me-read (`GET /api/v1/me/join-request`) and withdraw
+  (`POST /{id}/withdraw`) must therefore LEARN the request's tenant before any
+  tenant-scoped JPA access is possible — the same structurally-pre-tenant seam as
+  `UserPrincipalLookup`, but `t_join_request` (unlike `t_user`) is `@TenantId`-
+  scoped, so the resolution query is on the register. The lookup returns only the
+  `club_id`; the service then loads + mutates the aggregate through ordinary JPA
+  inside `Tenants.runAs(clubId, …)`, so the discriminator engages for all real
+  work.
+- **Tenancy gate:** both SELECTs are keyed on caller-bound parameters — the JWT
+  subject (me-read, `keycloak_sub = ?::uuid`) or the path-variable request id
+  (withdraw, `id = ?::uuid`), never string interpolation. The me-read resolves
+  only requests the caller's own sub filed; the withdraw resolution is re-gated
+  by a `keycloak_sub == jwt.sub` ownership check in the service AFTER the
+  aggregate loads under `Tenants.runAs` (403 otherwise). The lookup returns a
+  `club_id` used solely to set the effective tenant for the subsequent
+  tenant-scoped JPA load — it widens no read surface.
+- **Reviewer:** auto-registered with J-12a T-05; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-06-23.
+- **Expires:** 2027-06-23
+- **Remove when:** Hibernate exposes a first-class "unscoped read" API that the
+  pre-tenant resolution can use through JPA, OR the pilot's JWT carries the
+  resolved `club_id` from the moment a request is filed (a claim the IdP would
+  have to mint pre-membership — not on today's roadmap).
+
 ## Re-affirm log
 
 - **J-26 T-17 (2026-06-12) — full re-affirm pass.** Every entry above was
