@@ -19,7 +19,8 @@ acceptance:
 screen: /join (+ /join/pending) — new route, no legacy screen
 headless_pulled_in: "JoinRequest backend (aggregate + state machine + submit/withdraw/me/list/approve/deny endpoints + 4 email templates + SSE join-request.status-changed + auto-Person fallback) → homed by the /join screen; Club.joinCode field + rotateJoinCode + POST /clubs/{id}/join-code/rotate + a minimal admin rotate affordance → homed here so the pilot/e2e has a real code"
 migration: "N/A — greenfield. No legacy join mechanism exists (legacy registration is admin-push only). J-12a only WRITES new rows (JoinRequest, t_user, Person+PersonClub) into already-existing schema."
-parity_test: alpenflight/web/e2e/tests/real-idp/join-request.spec.ts (new; greenfield — no legacy pairing)
+parity_test: alpenflight/web/e2e/tests/real-idp/join-request.spec.ts   # per-push real-idp proof runs ONLY this spec (ci.yml proof_spec derive); a still-fixme stub fail-safes to the J-0 baseline, then auto-scopes once it carries an active test — prior journeys' real-idp specs stay nightly + the §4 gate
+mock_test:                                                              # real-idp-only journey, owns no mock-auth screen (chromium project excludes tests/real-idp/) — no per-push mock filter to scope
 adr_refs: [0008, 0022, 0027]
 ---
 
@@ -100,7 +101,7 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
 ## Tasks
 
 - [x] **T-01** — Real-idp `join-request.spec.ts` stub (structure + selectors + thin signup→/join→submit→pending flow) + scaffold the J-12a one-page proof gallery + link from the persistent index.
-- [ ] **T-02** — Scope the per-push gate to J-12a (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP (full regression → nightly + the §4 gate).
+- [x] **T-02** — Scope the per-push gate to J-12a (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP (full regression → nightly + the §4 gate).
 - [ ] **T-03** — `Club.joinCode`: Flyway (`t_club.join_code TEXT NOT NULL` + `UNIQUE ux_club_join_code` global) + `Club.rotateJoinCode(Clock)` domain method + `POST /api/v1/clubs/{id}/join-code/rotate` (CLUB_ADMINISTRATOR) + admin-only `ClubResponse.joinCode` (null to pilots) + `club.join_code_rotated` audit (no code in payload).
 - [ ] **T-04** — `JoinRequest` aggregate + state machine (pending→approved/denied/withdrawn ON the aggregate, ADR 0022 §2) + Flyway `t_join_request` (+ partial UNIQUE `ux_join_request_alive` on `(keycloak_sub, club_id) WHERE status='pending'`) + repository.
 - [ ] **T-05** — JoinRequest submit/read REST: `POST /api/v1/join-requests` (joinCode+note → 201; 404 unknown code; 409 already-member; one-open-per-pair) + `POST /{id}/withdraw` + `GET /api/v1/me/join-request` (204 none) + `GET /api/v1/join-requests?status=pending` (CLUB_ADMINISTRATOR, tenant-scoped). Audit note SHA-256 redaction (S-027).
