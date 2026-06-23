@@ -113,6 +113,13 @@ export const routes: Routes = [
     loadChildren: () => import('@features/articles/articles.routes').then((m) => m.ARTICLES_ROUTES),
   },
   {
+    path: 'email-templates',
+    loadChildren: () =>
+      import('@features/email-templates/email-templates.routes').then(
+        (m) => m.EMAIL_TEMPLATES_ROUTES,
+      ),
+  },
+  {
     // `/accountingrules` — the AccountingRuleFilter config screen (J-8),
     // replacing legacy masterdata/accountingRules/. CLUB_ADMINISTRATOR-gated on
     // the server (all CRUD endpoints); the nav entry lives under
