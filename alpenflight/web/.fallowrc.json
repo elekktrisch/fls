@@ -6,7 +6,6 @@
     "dist/**",
     "coverage/**"
   ],
-  "entry": ["e2e/proof-gallery/generate-previews-index.mjs"],
   "ignoreDependencies": ["@angular/animations"],
   "ignoreUnresolvedImports": ["orval"],
   "health": {

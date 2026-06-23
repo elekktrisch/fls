@@ -24,7 +24,7 @@ import org.thymeleaf.context.Context;
 public class TemplatedMailService {
 
     /** Thymeleaf template-name prefix; resolves under {@code templates/}. */
-    private static final String EMAIL_TEMPLATE_PREFIX = "email/";
+    public static final String EMAIL_TEMPLATE_PREFIX = "email/";
 
     private final ITemplateEngine templateEngine;
     private final MailSender mailSender;

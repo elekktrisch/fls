@@ -33,6 +33,7 @@ const MASTERDATA_PATHS: ReadonlySet<string> = new Set([
   '/accountingrules',
   '/deliverycreationtests',
   '/deliveries',
+  '/email-templates',
 ]);
 
 /** `true` when `path` lives under the Masterdata group (i.e. needs a parent open). */

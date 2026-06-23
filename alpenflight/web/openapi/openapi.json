@@ -29,6 +29,9 @@
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
   }, {
+    "name" : "EmailTemplates",
+    "description" : "Per-club overrides of transactional-email defaults."
+  }, {
     "name" : "flights",
     "description" : "Flight CRUD"
   }, {
@@ -888,6 +891,88 @@
           },
           "404" : {
             "description" : "No active FlightType with that id."
+          }
+        }
+      }
+    },
+    "/api/v1/email-templates/{templateKey}/{languageLocale}" : {
+      "put" : {
+        "tags" : [ "EmailTemplates" ],
+        "summary" : "Customize a template: upsert the caller's override for the key+locale.",
+        "operationId" : "customize",
+        "parameters" : [ {
+          "name" : "templateKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "languageLocale",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EmailTemplateSaveRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Override inserted or updated in place.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EmailTemplateListItem"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EmailTemplateListItem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "EmailTemplates" ],
+        "summary" : "Reset to default: delete the caller's override so the file default re-surfaces.",
+        "operationId" : "reset",
+        "parameters" : [ {
+          "name" : "templateKey",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "languageLocale",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Override deleted."
+          },
+          "404" : {
+            "description" : "No own-club override for that key+locale."
           }
         }
       }
@@ -3846,6 +3931,28 @@
         }
       }
     },
+    "/api/v1/email-templates" : {
+      "get" : {
+        "tags" : [ "EmailTemplates" ],
+        "summary" : "List file defaults UNIONed with the caller's own-club overrides (override wins).",
+        "operationId" : "listTemplates",
+        "responses" : {
+          "200" : {
+            "description" : "Array of union list items, each tagged FILE_DEFAULT or CLUB_OVERRIDE.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/EmailTemplateListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deliverycreationtests/example/{flightId}" : {
       "get" : {
         "tags" : [ "DeliveryCreationTests" ],
@@ -5604,6 +5711,45 @@
           }
         },
         "required" : [ "flightTypeName", "id", "isCheckFlight", "isCouponNumberRequired", "isFlightCostBalanceSelectable", "isForAircraftReservationType", "isForGliderFlights", "isForMotorFlights", "isForTowFlights", "isInstructorRequired", "isObserverPilotOrInstructorRequired", "isPassengerFlight", "isSoloFlight" ]
+      },
+      "EmailTemplateSaveRequest" : {
+        "type" : "object",
+        "description" : "Customization payload: upserts the caller's override for the path key+locale.",
+        "properties" : {
+          "subject" : {
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
+          },
+          "body" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "body", "subject" ]
+      },
+      "EmailTemplateListItem" : {
+        "type" : "object",
+        "description" : "One entry of the union read: a file default or the club override that wins over it.",
+        "properties" : {
+          "templateKey" : {
+            "type" : "string"
+          },
+          "languageLocale" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string",
+            "enum" : [ "FILE_DEFAULT", "CLUB_OVERRIDE" ]
+          },
+          "subject" : {
+            "type" : "string"
+          },
+          "body" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "body", "languageLocale", "source", "templateKey" ]
       },
       "DeliveryCreationTestWriteRequest" : {
         "type" : "object",

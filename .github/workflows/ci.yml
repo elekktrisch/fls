@@ -838,22 +838,12 @@ jobs:
             --workers=1 \
             "$SPEC"
 
-      # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
-      # trace.zip + the failure screenshot/video) BEFORE any later step mutates
-      # `test-results/`. The shots-present guard step below re-invokes Playwright
-      # (`--project=proof-gallery-links`), and Playwright CLEANS its output dir at
-      # the start of a run, deleting THIS spec's per-test artifacts — so by the
-      # time the always()-uploaded proof artifact runs (further down) the DOM
-      # snapshot + trace are already gone (only `proof-manifest.json` survives,
-      # which the gallery generator also reads). That left J-7 T-19's
-      # tenant-isolation + reservation reds undiagnosable from the run, forcing
-      # source+log+architecture reasoning. This step is gated on `failure()` so it
-      # only fires on a red run, and placed RIGHT AFTER the proof spec (before the
-      # maintainability / screenshot-staging / gallery / guard steps) so the
-      # artifacts are captured intact. Playwright writes per-test dirs to
-      # `alpenflight/web/test-results/<test>/` (NOT under `e2e/` — config has no
-      # `outputDir`, but the reporter pins the manifest there and the per-test
-      # output co-locates; verified empirically).
+      # Upload the per-test failure artifacts (error-context.md + trace.zip +
+      # screenshot/video) BEFORE any later step mutates `test-results/`: the
+      # deployed-bookmark link-check re-invokes Playwright (`proof-gallery-links`),
+      # which CLEANS its output dir at run start and would delete THIS spec's
+      # artifacts. Gated on `failure()` and placed right after the proof spec so
+      # the trace is captured intact.
       - name: Upload Playwright test-results on failure (pre-gallery)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -1018,20 +1008,12 @@ jobs:
             # for it here — the page must never advertise a shot the run can't
             # produce (would render a lone legacy figure / a dead pairing slot).
           fi
-          # ----- J-7 flight reports (picker/result/custom — view keys match the
-          # legacy-reference dir + the fanout) -------------------------------
-          # Read-side reporting journey: the three views the per-journey page
-          # pairs are picker / result / custom (matching
-          # e2e/legacy-reference/reporting/PENDING.md + expected-shots.json J-7).
-          # The legacy `reporting/{picker,result,custom}.png` refs are DEFERRED
-          # (legacy stack unrunnable on the Alpine/musl box → captured at the
-          # fanout, PENDING.md) so add_pair degrades to the AF side; and the AF
-          # parity PNGs are written once T-15 thickens flight-reports-parity.spec.ts
-          # (today the real-idp spec emits only proofVideos). Until both land, this
-          # block stages whatever exists; the `[shots-present]` guard below treats
-          # all six J-7 views as `pending` (tolerated) per the contract, so nothing
-          # reds prematurely — T-15 flips the AF three to `expected`. The DECLARATION
-          # exists NOW so a future missing-shot reds instead of silently passing.
+          # ----- J-7 flight reports (picker/result/custom) ------------------
+          # The legacy `reporting/{picker,result,custom}.png` refs are captured at
+          # the fanout (the legacy stack is unrunnable on the Alpine/musl box), so
+          # add_pair degrades to the AF side here; the AF parity PNGs land once
+          # flight-reports-parity.spec.ts is thickened. The block stages whatever
+          # exists — a side absent from $SHOT is simply not rendered.
           if [ "${PROOF_JOURNEY:-}" = "J-7" ]; then
             add_pair "J-7" "reporting" "picker" "picker.png" "alpenflight-flightreports-picker.png" \
               "Legacy flsweb: the /flightreports picker - the person + location canned-report tile grid" \
@@ -1123,47 +1105,31 @@ jobs:
             echo "No per-push parity pairs staged for ${PROOF_JOURNEY:-?} — gallery renders videos only."
           fi
 
-      # J-24 — build + link-check the proof gallery from the run's manifest +
-      # videos (test-results/). `always()` so it runs even when the spec is red;
-      # on red there are no proof videos so it emits only pending rows. The
+      # Build the proof gallery — ONE stable-bookmark index.html for the
+      # journey-under-work only. `always()` so it runs even when the spec is red
+      # (on red there is no proof video → a pending placeholder page). The
       # generator exits non-zero on a missing caption / missing .webm (AC5
-      # link-check) — that MUST fail the job, so no `|| true` swallow here.
+      # link-check), which MUST fail the job — no `|| true` swallow.
       - name: Build + link-check proof gallery
         id: gallery
         if: always()
         working-directory: alpenflight/web
         env:
-          # T-14 — the journey-under-work id (derived in the `changes` job's
-          # `proof_spec` step off the integration branch). Passed EXPLICITLY so
-          # the per-journey Maintainability panel renders THIS journey's FE
-          # fallow-audit DELTA (not just the repo snapshot): on a PR push
-          # GITHUB_REF_NAME is the merge ref (`<pr>/merge`), so the generator's
-          # branch-name fallback can't derive the journey — the panel would
-          # degrade to "snapshot only". Empty on a non-integration branch (the
-          # changes job emits the J-0 baseline journey then) — harmless, that
-          # page has no audit delta to show anyway.
+          # The journey-under-work id (derived in the `changes` job off the
+          # integration branch). A BASELINE run (the journey's own real-idp spec
+          # not yet thickened) ran the J-0 Locations spec, so it carries no
+          # journey-under-work page — drop the flag then so the page renders the
+          # baseline captions instead of an empty journey page.
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
-          # J-26 T-32 — a BASELINE run (the journey's own real-idp spec is not
-          # yet thickened → `proof_is_baseline=true`, the J-0 Locations spec
-          # actually ran) must produce a BASELINE-shaped gallery: drop
-          # --journey-under-work so the deployed preview carries the J-0 page +
-          # its 3 captions (the `Live link-check … (200 + captions)` step below,
-          # gated on is_baseline==true, greps for exactly those). Passing
-          # --journey-under-work here built the EMPTY journey page instead, so
-          # the J-0 captions were absent → that step red. When the real spec
-          # lands (is_baseline flips false), JUW returns and the J-26 page +
-          # its Maintainability delta render again.
           PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
         run: |
           JUW_ARG=""
           if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
           fi
-          # T-17b — per-push parity screenshots: feed the staged screenshots.json
-          # dir (committed-legacy + fresh-AF, paired by view) so the generator
-          # renders the legacy↔AlpenFlight `shot-pair`/`shot-grid` block on the
-          # per-journey page — same rendering the fanout page uses, but sourced
-          # per-push with no fanout dependency. Absent dir/sidecar = no-op.
+          # Per-push parity screenshots: feed the staged screenshots.json dir
+          # (committed-legacy + fresh-AF, paired by view) so the generator renders
+          # the paired legacy↔AlpenFlight block. Absent dir/sidecar = no-op.
           SHOT="${{ github.workspace }}/perpush-screenshots"
           SHOT_ARG=""
           if [ -f "$SHOT/screenshots.json" ]; then
@@ -1172,57 +1138,19 @@ jobs:
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md \
             $JUW_ARG \
             $SHOT_ARG
 
-      # J-7 T-12 — SHOTS-PRESENT pre-deploy guard (operator grill, J-5/J-6 retro).
-      # add_shot/add_pair silently DROP a missing PNG, so a partial-red capture
-      # could ship a THIN per-journey page while the generator stays green. This
-      # browserless guard reads the committed expected-shots.json + the staged
-      # screenshots.json and FAILS if any `expected` <side>:<view> for the
-      # journey-under-work is absent (a `pending`/deferred shot is tolerated +
-      # surfaced). Runs BEFORE the deploy so a thin page never publishes. Gated on
-      # a derivable journey-under-work + the gallery having built; `always()` so a
-      # partial-red proof run is still guarded (the gate signal is `steps.pw`).
-      # A journey with no expected-shots entry skips cleanly inside the spec.
-      - name: Shots-present guard (journey-under-work, pre-deploy)
-        if: ${{ always() && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_journey != '' }}
-        working-directory: alpenflight/web
-        env:
-          GALLERY_EXPECT_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
-          GALLERY_SHOTS_DIR: ${{ github.workspace }}/perpush-screenshots
-          GALLERY_LINKS_ONLY: '1'
-          # J-7 T-16 — this is the PER-PUSH proof context: it produces the
-          # journey's AF parity shots (the real-idp/proof specs run here). The
-          # guard enforces only the shots `producedBy: proof` (+ untagged shots)
-          # so a read-side journey's proof-only AF shots are required HERE — where
-          # they are actually produced — not in the fanout (which never runs them).
-          GALLERY_PROOF_CONTEXT: proof
-        run: |
-          pnpm exec playwright test \
-            --config=e2e/playwright.config.ts \
-            --project=proof-gallery-links \
-            --grep '\[shots-present\]'
-
-      # J-25 — compute the per-PR preview destination + clickable URL.
-      # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
-      # `integration/J-26`): replace `/` and any non-[A-Za-z0-9._-] char with
-      # `-` (so `integration/J-26` → `integration-J-26`). Emit the gh-pages
-      # subdir + the full GitHub Pages URL as step outputs for the preview
-      # deploy + the sticky comment / step-summary to consume. The repo is
-      # elekktrisch/fls → project Pages base is https://elekktrisch.github.io/fls/
-      # (matches J-24's published /alpenflight/proof/ base).
+      # Compute the per-PR preview destination + clickable bookmark URL. PR-only.
+      # Sanitize github.head_ref to a single path segment. Keep the sed
+      # byte-identical to proof-preview-reap.yml so the reaper removes the same
+      # subdir on PR close.
       - name: Compute proof-preview destination
         id: preview
         if: ${{ github.event_name == 'pull_request' }}
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
-          # SANITIZE RULE — keep in sync with .github/workflows/proof-preview-reap.yml
-          # (the reaper derives the identical subpath from github.head_ref; the two
-          # sed expressions MUST stay byte-for-byte identical or the reaper deletes
-          # the wrong subdir / misses the live one).
           sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
           subdir="alpenflight/proof-preview/${sanitized}"
           url="https://elekktrisch.github.io/fls/${subdir}/"
@@ -1259,17 +1187,13 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      # Publish the proof gallery to gh-pages — main only (carve decision 2:
-      # build + link-check every run above; publish on merge). Mirrors the
-      # main-gated deploy in alpenflight-e2e.yml (keep_files: true so it
-      # coexists with the e2e dashboard under /alpenflight/). Gated on the
-      # generate step having SUCCEEDED (`steps.gallery.outcome == 'success'`),
-      # not `always()`: a red run (spec failure OR an AC5 link-check failure)
-      # must NOT re-push stale/broken proofs over the live gallery. The
-      # generate step itself still runs on `always()` above so a red run still
-      # fails the job — we only suppress the publish, not the gate.
-      - name: Deploy proof gallery to gh-pages
-        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+      # Publish the single-bookmark gallery to the canonical gh-pages path on
+      # main. `!cancelled()` (not the implicit `success()`) so a red proof CASE
+      # still deploys the page the operator needs to see; `steps.gallery.outcome`
+      # still gates on a built page (never publish a never-built one). keep_files
+      # so it coexists with the e2e dashboard under /alpenflight/.
+      - name: Deploy proof gallery to gh-pages (main)
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1279,32 +1203,10 @@ jobs:
           enable_jekyll: false
           commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
-      # J-5 T-13b — after the canonical gallery (incl. T-13a's persistent
-      # per-journey pages at alpenflight/proof/J-<n>/) lands on main, rebuild the
-      # persistent JOURNEY index so the just-merged journey is listed as a live
-      # row. The index sources J-0…J-N from the persistent canonical + fan-out
-      # archive pages (no active branch needed on main). Fail-soft composite.
-      - name: Rebuild persistent previews index (main)
-        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
-        uses: ./.github/actions/rebuild-previews-index
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # J-25 — per-PR preview deploy. PR-only + gallery-success-gated (a red
-      # run produces no valid gallery, so don't publish a broken preview).
-      # Publishes the SAME generated gallery (public/alpenflight/proof) to a
-      # per-branch subpath under gh-pages: alpenflight/proof-preview/<ref>/.
-      # keep_files: true + the disjoint per-branch destination_dir mean this
-      # NEVER touches the canonical /alpenflight/proof/ (main) or /alpenflight/
-      # (e2e dashboard) — and a second branch's preview can't clobber this one.
-      # Self-clobber on a branch's own rapid re-pushes is already prevented by
-      # the workflow-level `concurrency: ci-${{ github.ref }}` (cancel-in-progress)
-      # group, which cancels the prior run before its preview deploy lands; a
-      # job-level group keyed on head_ref would OVERRIDE that inherited group
-      # (and head_ref is empty on push, breaking main runs), so we intentionally
-      # do NOT add one — see the journey note.
-      - name: Deploy proof preview to gh-pages (PR)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+      # Per-PR preview deploy of the SAME single page to a disjoint per-branch
+      # subpath. `!cancelled()` so a red proof case still deploys the bookmark.
+      - name: Deploy proof gallery to gh-pages (PR preview)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1315,179 +1217,34 @@ jobs:
           enable_jekyll: false
           commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
 
-      # J-4 T-24 — after the clean-seed gallery lands at .../<branch>/, rebuild
-      # the persistent previews index (alpenflight/previews/index.html) from the
-      # fresh gh-pages scan so this branch's "Clean-seed tenant-isolation" link is
-      # current. Fail-soft inside the composite (the index is an entry point, not
-      # a gate). Same PR + non-fork + gallery-green gate as the deploy above.
-      - name: Rebuild persistent previews index
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
-        uses: ./.github/actions/rebuild-previews-index
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # J-7 T-12 — DEPLOYED-JOURNEY post-deploy guard (operator grill, J-6 retro:
-      # "a procedure rule kept failing, so this must be structural"). The baseline
-      # caption check below ONLY runs for the J-0 baseline path
-      # (proof_is_baseline == 'true'); a JOURNEY-UNDER-WORK run (e.g. J-7) had NO
-      # deployed assertion at all — exactly where the page shipped wrong ~4× (the
-      # generator was green while the deployed bookmark read `pending` or the page
-      # was thin, deploy-path/probe-path drifting independently). This step runs
-      # the browserless proof-gallery-links spec in `[deployed-journey]` mode
-      # against the LIVE PR preview + the persistent previews index, asserting the
-      # journey-under-work's bookmark row is a LIVE LINK (200) and its per-journey
-      # page declares ≥1 asset with EVERY asset resolving 200 (the spec polls ~60s
-      # for gh-pages). Runs AFTER the preview deploy + index rebuild, PR + non-fork
-      # + gallery-green gated, for the non-baseline journey-under-work path only
-      # (the baseline path is covered by the caption check below).
-      - name: Deployed-journey guard (bookmark live + page assets 200)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey != '' }}
+      # The DEPLOYED bookmark link-check — the catch the generator unit test can't
+      # make (the deploy path drifts independently). Asserts the live bookmark +
+      # every declared asset resolve 200, and — when a journey-under-work ran (not
+      # the baseline) — that the page is that journey's page, not a thin placeholder.
+      # The spec polls for gh-pages CDN propagation.
+      - name: Deployed-bookmark link-check
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
-          # Empty on a baseline run: a baseline (J-0 fail-safe) produces NO
-          # journey-under-work captures by definition, so the deployed-journey
-          # guard must not demand a complete journey page. The guard
-          # `test.skip`s when GALLERY_DEPLOYED_JOURNEY is empty-string (falsy).
-          # The step `if:` already gates on `proof_is_baseline != 'true'`; this
-          # is the defense-in-depth twin closing the latent bug for any future
-          # path that reaches the guard on a baseline fallback (J-26 T-31).
           GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline == 'true' && '' || needs.changes.outputs.proof_journey }}
           GALLERY_LINKS_ONLY: '1'
-          # J-26 T-26 — this is the PER-PUSH proof deploy. The both-sides-of-every-
-          # declared-pair check enforces only the shots `producedBy: proof` (+
-          # untagged) so a read-side journey's fanout-produced legacy side (deployed
-          # by the fanout, not here) is tolerated-absent on this deploy rather than
-          # false-redding it. A pair both sides of which are proof/untagged must
-          # render BOTH sides here.
-          GALLERY_PROOF_CONTEXT: proof
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=proof-gallery-links \
-            --grep '\[deployed-journey\]'
+            --grep '\[deployed'
 
-      # J-25 T-02 — THE provable green: a live link-check against the deployed
-      # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy
-      # step above so the gh-pages push has already happened. Polls the computed
-      # preview URL (steps.preview.outputs.url) with bounded retry — gh-pages
-      # serves a freshly-pushed subpath anywhere from a few seconds to ~1 min
-      # later, so we loop 12× with 10s sleeps (≈2 min budget) until HTTP 200,
-      # then assert the returned HTML contains the J-0 proof captions the
-      # generator emits (esc() only touches & < > " — none of which appear in
-      # these captions, so they render verbatim and grep-match literally). The
-      # caption substrings are the distinctive tails of the three J-0 captions
-      # in alpenflight/web/e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
-      # (the `proofVideo({ caption })` calls). If the URL never 200s within budget,
-      # OR 200s but a caption is absent, the step fails the job red. Inherent
-      # timing caveat: on the FIRST-EVER push of a brand-new subpath, Pages
-      # build latency can exceed even this budget — the failure message names
-      # the URL so a transient propagation miss is diagnosable + re-runnable.
-      # Dependency-free: bash + curl (both on the ubuntu runner).
-      #
-      # J-5 T-14 — the captions below are the J-0 Locations spec's. They are only
-      # present when this push ran the J-0 BASELINE spec (the fail-safe path).
-      # When the per-push proof ran a journey-under-work's OWN real-idp spec
-      # (proof_is_baseline != 'true'), the gallery carries that journey's
-      # captions instead, so this J-0-specific grep would false-red. Gate the
-      # check on the baseline having run — the journey-specific run is still
-      # proven green by its own `pw` step (the gate signal), and the gallery
-      # still deploys + the preview index still rebuilds above.
-      - name: Live link-check the deployed preview (200 + captions)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_is_baseline == 'true' }}
+      - name: Surface proof bookmark (step summary)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
-          set -uo pipefail
-          # Distinctive tails of the three J-0 captions emitted by the gallery
-          # generator (see locations-crud-tenant-isolation.spec.ts proofVideo
-          # captions). ASCII-only substrings (no multibyte `·`) for a robust grep.
-          captions=(
-            "club A admin creates a Location and sees it in club A's list"
-            "club B is denied club A's Location (404 not 403)"
-            "the same ICAO is creatable independently in club B"
-          )
-          attempts=12
-          sleep_s=10
-          body="$(mktemp)"
-          code=000
-          for i in $(seq 1 "$attempts"); do
-            code="$(curl -s -o "$body" -w '%{http_code}' "$PREVIEW_URL" || echo 000)"
-            if [ "$code" = "200" ]; then
-              echo "preview served HTTP 200 on attempt ${i}/${attempts}: ${PREVIEW_URL}"
-              break
-            fi
-            echo "attempt ${i}/${attempts}: preview not ready (HTTP ${code}) — sleeping ${sleep_s}s"
-            sleep "$sleep_s"
-          done
-          if [ "$code" != "200" ]; then
-            echo "::error::preview URL never served (last HTTP ${code}) within budget at ${PREVIEW_URL}"
-            exit 1
-          fi
-          missing=0
-          for c in "${captions[@]}"; do
-            if grep -qF -- "$c" "$body"; then
-              echo "  ✓ caption present: ${c}"
-            else
-              echo "::error::caption absent from served preview: \"${c}\""
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "::error::preview served 200 but J-0 captions absent at ${PREVIEW_URL}"
-            exit 1
-          fi
-          echo "live link-check passed: 200 + all 3 J-0 captions present at ${PREVIEW_URL}"
-
-      # J-25 — surface the clickable preview URL: a $GITHUB_STEP_SUMMARY line
-      # PLUS a sticky PR comment upserted by a hidden HTML marker (find-and-update
-      # via github-script, so re-runs update one comment instead of spamming).
-      # Both gated on the preview deploy having published (PR + non-fork + gallery
-      # green) — there's no preview URL to surface when the deploy itself skipped,
-      # and a fork PR has no write token for the comment anyway, so both skip
-      # cleanly on fork PRs (the documented "fork PRs silently skip" contract)
-      # rather than failing the required proof gate red.
-      # J-4 T-24 — surface the PERSISTENT previews index (the single bookmark),
-      # not this branch's ephemeral clean-seed URL, on the step summary.
-      - name: Surface previews index (step summary)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
-        run: |
           {
-            echo "### Proof previews index (permanent bookmark)"
+            echo "### Proof gallery (this journey's bookmark)"
             echo ""
-            echo "[$INDEX_URL]($INDEX_URL)"
+            echo "[$PREVIEW_URL]($PREVIEW_URL)"
           } >> "$GITHUB_STEP_SUMMARY"
-        env:
-          INDEX_URL: https://elekktrisch.github.io/fls/alpenflight/previews/index.html
-
-      # J-4 T-24 — THE single sticky PR comment. Replaces the former
-      # `<!-- proof-preview -->` (clean-seed) and `<!-- fanout-proof-preview -->`
-      # (fanout) comments: one `<!-- proof-index -->` comment that points at the
-      # PERSISTENT, bookmarkable index. The index lists THIS branch's proofs (and
-      # every other active branch's) with per-proof links + last-updated, so the
-      # operator bookmarks ONE URL and always returns to it. No per-branch URL in
-      # the comment — the index is the entry point.
-      - name: Upsert single sticky proof-index comment
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
-        uses: actions/github-script@v7
-        env:
-          INDEX_URL: https://elekktrisch.github.io/fls/alpenflight/previews/index.html
-        with:
-          script: |
-            const marker = '<!-- proof-index -->';
-            const url = process.env.INDEX_URL;
-            const body = `${marker}\n### Proof previews index — **permanent bookmark**\n\n[${url}](${url})\n\n_One stable page lists every active branch's proofs (clean-seed · dashboards · /profile · legacy-parity) with per-proof links + last-updated. Bookmark it — the URL never changes; the per-branch galleries come and go. Rebuilt on every proof deploy._`;
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number, per_page: 100,
-            });
-            const existing = comments.find((c) => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
 
       - name: Stop backend
         if: always()
@@ -1793,55 +1550,6 @@ jobs:
             echo "No J-3 dashboard PNGs found — the dashboard spec likely red before capture."
           fi
 
-      # Build + link-check the gallery from this run's manifest + the staged J-3
-      # screenshots. --no-nav: this is a LEAF per-run gallery deployed to a
-      # namespaced subpath, so the canonical-index "per-run galleries" nav is not
-      # rendered here. The generator exits non-zero on a declared-but-missing PNG
-      # (AC5) — that must fail the job.
-      - name: Build + link-check proof gallery (J-3 dashboard, showcase)
-        id: gallery
-        if: always()
-        working-directory: alpenflight/web
-        run: |
-          SHOT="${{ github.workspace }}/j3-screenshots"
-          SHOT_ARG=""
-          if [ -f "$SHOT/screenshots.json" ]; then
-            SHOT_ARG="--screenshots $SHOT"
-          fi
-          node e2e/proof-gallery/generate-gallery.mjs \
-            --report test-results/proof-manifest.json \
-            --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md \
-            --no-nav \
-            $SHOT_ARG
-
-      # `!cancelled()` (not the implicit `success()`): the J-3 dashboard proof is
-      # the journey's VISUAL showcase, non-blocking (not in `required.needs`). A
-      # red spec CASE (e.g. the brittle pilot last-flight-card assertion) must NOT
-      # cost the operator eyes-on the dashboards. The spec captures each variant
-      # screenshot the moment its container is visible (before the deep
-      # assertions), staging + gallery-build already run `if: always()`, and the
-      # gallery built green — so the deploy chain MUST proceed on a spec red too.
-      # Mirrors J-2 fanout's continue-on-error posture on non-blocking capture.
-      - name: Compute J-3 dashboard preview destination
-        id: preview
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          # SANITIZE RULE — byte-identical to ci.yml's `Compute proof-preview
-          # destination` + proof-preview-reap.yml so the reaper's per-branch
-          # parent (`alpenflight/proof-preview/<sanitized>`) recursively removes
-          # this nested `.../dashboard` subdir on PR close.
-          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
-          subdir="alpenflight/proof-preview/${sanitized}/dashboard"
-          url="https://elekktrisch.github.io/fls/${subdir}/"
-          {
-            echo "subdir=${subdir}"
-            echo "url=${url}"
-          } >> "$GITHUB_OUTPUT"
-          echo "J-3 dashboard proof preview → ${url}"
-
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -1850,6 +1558,9 @@ jobs:
           echo "── keycloak log ────────────────────────────" >&2
           docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
 
+      # The showcase dashboard screenshots upload as a run artifact (the in-flight
+      # journey's single-bookmark page is built + deployed by the alpenflight-proof
+      # job; this non-blocking showcase no longer deploys a separate sub-path gallery).
       - name: Upload dashboard proof artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -1860,48 +1571,8 @@ jobs:
             alpenflight/web/test-results
             alpenflight/web/screenshots
             alpenflight/server/backend.log
-            public/alpenflight/proof
           retention-days: 14
           if-no-files-found: warn
-
-      # Deploy the J-3 dashboard gallery to a DISJOINT per-branch preview subpath
-      # (`alpenflight/proof-preview/<ref>/dashboard`). keep_files:true + the
-      # nested per-branch destination mean it never clobbers the canonical
-      # /alpenflight/proof/ (main), the `alpenflight-proof` preview, or the
-      # fan-out's `.../legacy-parity` preview.
-      - name: Deploy J-3 dashboard gallery to gh-pages (PR preview)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: public/alpenflight/proof
-          destination_dir: ${{ steps.preview.outputs.subdir }}
-          publish_branch: gh-pages
-          keep_files: true
-          enable_jekyll: false
-          commit_message: "J-3 dashboard proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
-
-      # J-4 T-24 — refresh the persistent previews index after the dashboard
-      # gallery lands at .../<branch>/dashboard/ so its "Showcase role dashboards"
-      # link is current. Fail-soft composite.
-      - name: Rebuild persistent previews index
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
-        uses: ./.github/actions/rebuild-previews-index
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Surface J-3 dashboard preview URL (step summary)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
-        env:
-          PREVIEW_URL: ${{ steps.preview.outputs.url }}
-        run: |
-          {
-            echo "### J-3 dashboard proof gallery (showcase seed)"
-            echo ""
-            echo "3 populated variant screenshots (pilot · club-admin · sysadmin):"
-            echo ""
-            echo "[$PREVIEW_URL]($PREVIEW_URL)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop backend
         if: always()
@@ -2188,47 +1859,6 @@ jobs:
             echo "No J-4 profile PNGs found — the profile spec likely red before capture."
           fi
 
-      # Build + link-check the gallery from this run's manifest + the staged J-4
-      # screenshots. --no-nav: LEAF per-run gallery deployed to a namespaced
-      # subpath. The generator exits non-zero on a declared-but-missing PNG (AC5).
-      - name: Build + link-check proof gallery (J-4 profile, showcase)
-        id: gallery
-        if: always()
-        working-directory: alpenflight/web
-        run: |
-          SHOT="${{ github.workspace }}/j4-screenshots"
-          SHOT_ARG=""
-          if [ -f "$SHOT/screenshots.json" ]; then
-            SHOT_ARG="--screenshots $SHOT"
-          fi
-          node e2e/proof-gallery/generate-gallery.mjs \
-            --report test-results/proof-manifest.json \
-            --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md \
-            --no-nav \
-            $SHOT_ARG
-
-      # `!cancelled()`: even on a red profile assertion the resilient-captured
-      # shots should reach the gallery preview (mirrors dashboard-proof's posture).
-      - name: Compute J-4 profile preview destination
-        id: preview
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          # SANITIZE RULE — byte-identical to ci.yml's other preview steps +
-          # proof-preview-reap.yml so the reaper's per-branch parent
-          # (`alpenflight/proof-preview/<sanitized>`) recursively removes this
-          # nested `.../profile` subdir on PR close.
-          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
-          subdir="alpenflight/proof-preview/${sanitized}/profile"
-          url="https://elekktrisch.github.io/fls/${subdir}/"
-          {
-            echo "subdir=${subdir}"
-            echo "url=${url}"
-          } >> "$GITHUB_OUTPUT"
-          echo "J-4 profile proof preview → ${url}"
-
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -2237,6 +1867,9 @@ jobs:
           echo "── keycloak log ────────────────────────────" >&2
           docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
 
+      # The showcase /profile screenshots upload as a run artifact (the in-flight
+      # journey's single-bookmark page is built + deployed by the alpenflight-proof
+      # job; this showcase no longer deploys a separate sub-path gallery).
       - name: Upload profile proof artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -2247,48 +1880,8 @@ jobs:
             alpenflight/web/test-results
             alpenflight/web/screenshots
             alpenflight/server/backend.log
-            public/alpenflight/proof
           retention-days: 14
           if-no-files-found: warn
-
-      # Deploy the J-4 profile gallery to a DISJOINT per-branch preview subpath
-      # (`alpenflight/proof-preview/<ref>/profile`). keep_files:true + the nested
-      # per-branch destination mean it never clobbers the canonical
-      # /alpenflight/proof/ (main), the `alpenflight-proof` preview, or the
-      # `.../dashboard` preview.
-      - name: Deploy J-4 profile gallery to gh-pages (PR preview)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: public/alpenflight/proof
-          destination_dir: ${{ steps.preview.outputs.subdir }}
-          publish_branch: gh-pages
-          keep_files: true
-          enable_jekyll: false
-          commit_message: "J-4 profile proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
-
-      # J-4 T-24 — refresh the persistent previews index after the /profile
-      # gallery lands at .../<branch>/profile/ so its "Showcase /profile self-edit"
-      # link is per-push fresh (this is the required gate's own journey). Fail-soft.
-      - name: Rebuild persistent previews index
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
-        uses: ./.github/actions/rebuild-previews-index
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Surface J-4 profile preview URL (step summary)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
-        env:
-          PREVIEW_URL: ${{ steps.preview.outputs.url }}
-        run: |
-          {
-            echo "### J-4 /profile proof gallery (showcase seed)"
-            echo ""
-            echo "4 self-edit tab screenshots (account · personal · pilot · notifications):"
-            echo ""
-            echo "[$PREVIEW_URL]($PREVIEW_URL)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop backend
         if: always()

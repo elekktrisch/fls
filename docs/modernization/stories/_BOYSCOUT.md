@@ -12,6 +12,20 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-retro J-9b window, 2026-06-22)
+
+- ✅ **[INTERNAL-AFFORDANCE-ARCHGUARD] — SHIPPED in J-11 (T-12).** `arch.InternalAffordanceGuardTest`
+  asserts every `@RestController` mapped under `/api/v1/internal/` carries `@Hidden` + a `@Profile`
+  naming only non-production profiles (`dev`/`test`/`showcase`) and never the production profile
+  (`prod`). Covers `InternalProvisioningController` + `InternalPersonFlightTimeCreditSeedController`
+  (both pass). Bite-proven: injecting `prod` into a `@Profile` reds it. ADR 0029 follow-up closed.
+- ✅ **[HELPER-PRUNE-CREDIT] — SHIPPED in J-11 (T-13).** Deleted the 2 `@helper` credit-edge cases in
+  `real-idp/delivery-creation-test-parity.spec.ts` (zero-balance-skip/unlimited + dry-run-idempotent), each
+  re-confirmed green single-fork (external-PG) before deletion: `FlightTimeStageTest`
+  (`creditBranchSplitsAndStampsTheDiscount` rows `unlimited`/`zeroBalance`, 19/19) +
+  `AccountingDeliveryEngineCreditIT` (`dryRunIsIdempotentAndWritesNoTransaction`, 3/3). The full-cover +
+  split happy paths stay; the orphaned `SeededCredit` interface was pruned. Both specs collect + tsc/lint/prettier clean.
+
 ## Pending (filed by /do-retro J-27 window, 2026-06-20)
 
 - ✅ **[#229 — New flight form broken] — SHIPPED in J-2b.** Not a save bug: today-default list visibility +
@@ -113,12 +127,12 @@ feature; clear them over the next ~2-3 journeys, then revert the budget to ≤40
   (J-7 bloated to 719 lines) + any "Original (for trace)" blocks; that history is in git/commit messages.
   Per-touch (the in-flight + next journeys; don't churn merged ones). The do-* skills now enforce it.
   *(seam: `docs/modernization/stories/*.md` per-touch)* [[feedback_self_explanatory_no_history_comments]]
-- **[HELPER-PRUNE] Drop 3 redundant `@helper` e2e cases.** `alpenflight/web/e2e/tests/forms/validation-hardening.spec.ts`
-  carries 3 `@helper`-tagged logic/error cases whose cheaper backend twins exist + own the logic:
-  dup-FlightCode 409 (`covered-by: FlightTypeDuplicateCodeIT`), dup-clubKey (`ClubsControllerIT`),
-  Instructor×Observer XOR (`FlightTypeDomainTest`) — all three classes verified present. Delete those 3
-  e2e cases (keep the wiring/happy-path cases); the IT/domain tests cover the logic far cheaper. `/do-ship`
-  re-confirms each backend test green before deleting. *(seam: validation-hardening.spec.ts @helper cases)*
+- ✅ **[HELPER-PRUNE] — SHIPPED in J-11 (T-13).** The 3 `@helper` logic/error cases in
+  `validation-hardening.spec.ts` (dup-FlightCode 409, dup-clubKey 409, Instructor×Observer XOR) were already
+  removed in J-9 (`d3050327`, #224) — the spec header now records them as "owned cheaper by their backend
+  twins, not re-asserted here"; no deletion remained for T-13. T-13 re-confirmed the three twins green
+  single-fork (external-PG): `FlightTypeDuplicateCodeIT` 2/2, `ClubsControllerIT` 12/12,
+  `FlightTypeDomainTest` 7/7 (incl. `register/updateFlags_instructorAndObserverBothRequired_rejects`).
 
 ## Pending (filed by /do-ship 2026-06-13, J-8 gate)
 

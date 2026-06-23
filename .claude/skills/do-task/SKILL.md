@@ -147,9 +147,14 @@ declared, and escalations. **Then stop** — do not pick up the next task.
 Stop and escalate (to `/do-ship`'s manager, or the operator if standalone) when:
 a parity assertion only passes by changing behavior; a previously-green test in
 another slice breaks; a `depends_on` artifact is missing; ported legacy code has
-an apparent bug (never silently fix); the AC is unmeetable as written. Consider a
-one-shot read-only consult first (`legacy-oracle` for behavior; `e2e-driver` for
-a flaky spec) — one consult per fork, no chaining.
+an apparent bug (never silently fix); the AC is unmeetable as written. **A `parity
+exclusion` is legitimate only if cosmetic or proven-unreachable** — before you record a
+deliberate not-matching-legacy behavior (an exclusion line, a caveat, or a forward rider),
+justify it as cosmetic OR cite the data/config that makes it unreachable; a *reachable*
+divergence (especially money/safety — billing/accounting/hours/limits) is a suspected bug →
+escalate it, don't bury it (J-9b credit over-credit). Consider a one-shot read-only consult
+first (`legacy-oracle` for behavior; `e2e-driver` for a flaky spec) — one consult per fork, no
+chaining.
 
 ## Quality bar
 

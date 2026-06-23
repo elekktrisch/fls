@@ -224,6 +224,15 @@ re-scope/defer the migration, J-10 ARTICLE→J-11); or `gap-hunter` flags a bloc
 needing a contract/ADR/sacred-cow change. Default next: `/do-retro` captures the
 lesson; `/do-plan` re-carves if the shape was wrong.
 
+**A "parity exclusion" must be cosmetic or proven-unreachable** (J-9b credit). A deliberate
+not-matching-legacy behavior is a legitimate parity exclusion / forward rider ONLY if it's
+cosmetic OR the worker cites the data/config that makes it unreachable. A *reachable* behavioral
+divergence — especially on a money/safety surface (billing, accounting, hours/limits) — is a
+suspected ported-legacy bug → **escalate it, never bury it** in a parity-exclusion line or a
+`_BOYSCOUT.md` rider. (J-9b nearly shipped a reachable over-credit / negative-invoice-line defect
+as a `[CREDIT-MIN-TIER]` rider; the operator caught it at review. Fix-or-keep is the operator's
+call, recorded in ADR 0026 if it's an intentional divergence.)
+
 ## Quality bar
 
 - One journey per invocation; `carved: false` is a hard bail. Every task runs in a fresh worker context.

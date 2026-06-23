@@ -790,11 +790,6 @@ interface DctExample {
   matchedFilterIds: string[];
 }
 
-interface SeededCredit {
-  id: string;
-  currentFlightTimeBalanceInSeconds: number | null;
-}
-
 /** Every FlightTime line on `article`, in emission order (the split yields two). */
 function flightTimeLines(items: DeliveryItem[] | undefined, article: string): DeliveryItem[] {
   return (items ?? []).filter((i) => i.articleNumber === article);
@@ -1098,93 +1093,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
           'price), same article and item text, rendered through the dry-run harness',
         acTag: 'happy',
       });
-    }
-  });
-
-  // Zero-balance skip vs unlimited (no UI render needed — covered by the rendered
-  // full-cover + split cases above; @helper logic edges over the engine):
-  //   NoFlightTimeLimit=false && balance=0 → the credit branch is SKIPPED (pure
-  //   decrement, discount 0); NoFlightTimeLimit=true → unlimited, the whole line
-  //   credited regardless of balance.
-  // @helper covered-by: FlightTimeStageTest
-  test('[edge] zero-balance skips the credit; unlimited credits the whole line', async ({
-    browser,
-  }) => {
-    const ctx = await browser.newContext({ baseURL });
-    try {
-      const zeroBalance = await seedCreditScenario(
-        ctx.request,
-        adminBearer,
-        createdFilters,
-        createdCredits,
-        { balanceInSeconds: 0, noFlightTimeLimit: false },
-      );
-      const zeroExample = await dryRun(ctx.request, adminBearer, zeroBalance.flightId);
-      const zeroLine = flightTimeLine(zeroExample.delivery.items, zeroBalance.ftArticle);
-      expect(zeroLine, 'a zero-balance credit leaves a single pure-decrement line').toBeTruthy();
-      expect(zeroLine!.quantity).toBe(FLIGHT_BILLABLE_MINUTES);
-      expect(
-        zeroLine!.discountInPercent,
-        'zero-balance + NoFlightTimeLimit=false skips the credit branch (no discount)',
-      ).toBe(0);
-
-      const unlimited = await seedCreditScenario(
-        ctx.request,
-        adminBearer,
-        createdFilters,
-        createdCredits,
-        { balanceInSeconds: 0, noFlightTimeLimit: true },
-      );
-      const unlimitedExample = await dryRun(ctx.request, adminBearer, unlimited.flightId);
-      const unlimitedLine = flightTimeLine(unlimitedExample.delivery.items, unlimited.ftArticle);
-      expect(unlimitedLine, 'an unlimited credit emits a single whole-line credited').toBeTruthy();
-      expect(unlimitedLine!.quantity).toBe(FLIGHT_BILLABLE_MINUTES);
-      expect(
-        unlimitedLine!.discountInPercent,
-        'NoFlightTimeLimit=true credits the whole line regardless of the zero balance',
-      ).toBe(CREDIT_DISCOUNT_PERCENT);
-    } finally {
-      await ctx.close();
-    }
-  });
-
-  // Dry-run mutates nothing (AsNoTracking parity): "Create test delivery" twice
-  // yields identical output, and the credit's IsCurrent balance is unchanged — only
-  // a real persisted run would write a PersonFlightTimeCreditTransaction + flip
-  // IsCurrent (out of J-9b scope).
-  // @helper covered-by: AccountingDeliveryEngineCreditIT
-  test('[happy] dry-run is idempotent and writes no transaction (no balance mutation)', async ({
-    browser,
-  }) => {
-    const ctx = await browser.newContext({ baseURL });
-    try {
-      const seededBalance = 30 * 60;
-      const scenario = await seedCreditScenario(
-        ctx.request,
-        adminBearer,
-        createdFilters,
-        createdCredits,
-        { balanceInSeconds: seededBalance, noFlightTimeLimit: false },
-      );
-
-      const first = await dryRun(ctx.request, adminBearer, scenario.flightId);
-      const second = await dryRun(ctx.request, adminBearer, scenario.flightId);
-      expect(
-        flightTimeLines(second.delivery.items, scenario.ftArticle),
-        'a second dry-run yields identical FlightTime lines',
-      ).toEqual(flightTimeLines(first.delivery.items, scenario.ftArticle));
-
-      // The balance never decremented across the two dry-runs (no transaction
-      // written) — the seeded IsCurrent balance is still its original value.
-      const credit = (await ctx.request
-        .get(`${CREDIT_SEED}/${scenario.creditId}`, { headers: { authorization: adminBearer } })
-        .then((r) => r.json())) as SeededCredit;
-      expect(
-        credit.currentFlightTimeBalanceInSeconds,
-        'the dry-run persists no transaction and never mutates the IsCurrent balance',
-      ).toBe(seededBalance);
-    } finally {
-      await ctx.close();
     }
   });
 });

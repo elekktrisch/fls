@@ -161,13 +161,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     permissions:
-      # gh-pages publish (main only) + the legacy-parity branch-preview + the
-      # persistent previews-index rebuild (J-4 T-24) all push to gh-pages.
+      # gh-pages publish of the branch-preview proof bookmark.
       contents: write
-      # Retained (harmless) though the fanout no longer posts its own PR comment
-      # (J-4 T-24 removed the `<!-- fanout-proof-preview -->` upsert — the single
-      # `<!-- proof-index -->` comment in ci.yml points at the persistent index
-      # that now lists this branch's legacy-parity gallery).
       pull-requests: write
     env:
       # Legacy stack
@@ -410,8 +405,8 @@ jobs:
       #     UPDATE) so the person form renders, then displays the field set; no
       #     mutation, no submit (the legacy password form is the dropped-by-design
       #     affordance, Keycloak owns credentials, ADR 0007). Paired side-by-side
-      #     with the AlpenFlight /profile showcase shots (step 6b) under J-4 in the
-      #     legacy-parity gallery (step 7b). J-4 carries NO data migration, so the
+      #     with the AlpenFlight /profile showcase shots (step 6b) on the proof
+      #     bookmark. J-4 carries NO data migration, so the
       #     export→migrate half of the fanout does NOT run for it — only this
       #     legacy-video harness step, exactly like J-0c/J-1/J-2 capture theirs.
       #     Non-blocking parity aid; AlpenFlight green is the gate.
@@ -814,20 +809,14 @@ jobs:
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
             e2e/tests/real-idp/planning-migration-parity.spec.ts \
             e2e/tests/real-idp/accounting-rules-parity.spec.ts \
-            e2e/tests/real-idp/delivery-creation-test-parity.spec.ts
+            e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
+            e2e/tests/real-idp/email-templates.spec.ts
 
-      # J-26 T-25 — upload the per-test failure artifacts (error-context.md +
-      # trace.zip + failure screenshot/video) BEFORE the staging + gallery + guard
-      # steps run. The gallery generate step (and the shots-present guard, which
-      # re-invokes Playwright and CLEANS the output dir) consume/mutate
-      # `test-results/`, so by the time the always()-uploaded fanout artifact runs
-      # the DOM snapshot + trace are already gone — only `proof-manifest.json`
-      # survives. A red fanout parity spec (J-0c/J-1/J-2/J-5/J-6) then can't be
-      # diagnosed from the run (J-7 T-19 precedent). Gated on `failure()` so it
-      # only fires on a red gating spec (the non-blocking legacy parity aids above
-      # are `continue-on-error`, so their reds don't trip this); placed right after
-      # the AlpenFlight parity step. Per-test dirs land at
-      # `alpenflight/web/test-results/<test>/`.
+      # Upload the per-test failure artifacts (error-context.md + trace.zip +
+      # screenshot/video) BEFORE the staging + gallery + link-check steps run: the
+      # deployed-bookmark link-check re-invokes Playwright, which CLEANS the output
+      # dir and would delete this spec's trace. Gated on `failure()` and placed
+      # right after the AlpenFlight parity step so the trace is captured intact.
       - name: Upload Playwright test-results on failure (pre-gallery)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -1225,9 +1214,8 @@ jobs:
             echo "No parity PNGs found — gallery renders videos only."
           fi
 
-      # J-5 T-21 — guarantee a modern Node for EVERY `.mjs`/npx generator that
-      # follows (the maintainability `npx fallow`, the gallery `generate-gallery.mjs`,
-      # and the rebuild-previews-index composite's `generate-previews-index.mjs`).
+      # Guarantee a modern Node for EVERY `.mjs`/npx generator that follows (the
+      # maintainability `npx fallow` + the gallery `generate-gallery.mjs`).
       # This job sets up Node 8 (line ~228, for the legacy flsweb webpack build)
       # BEFORE later Node 20/22 setups. Those later setups are plain steps with no
       # `if:`, so if ANY upstream step in the long legacy→migrate→real chain fails,
@@ -1301,64 +1289,21 @@ jobs:
           if [ -f "$SHOT/screenshots.json" ]; then
             SHOT_ARG="--screenshots $SHOT"
           fi
-          # T-14 — derive the journey-under-work id off the dispatched branch
-          # (`integration/J-NNN` → `J-NNN`) and pass it EXPLICITLY so the
-          # per-journey Maintainability panel renders this journey's FE
-          # fallow-audit DELTA, not just the repo snapshot. The fanout dispatches
-          # ON the integration branch, so github.ref_name IS `integration/J-NNN`
-          # here (no PR merge ref). A non-integration dispatch → empty → the
-          # generator's own fallback applies (snapshot only), harmless.
+          # Derive the journey-under-work id off the dispatched integration branch
+          # (`integration/J-NNN` → `J-NNN`) so the single page renders that
+          # journey's proof. A non-integration dispatch → empty → the generator's
+          # own fallback applies.
           JUW_ARG=""
           JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
           if [ -n "$JID" ]; then
             JUW_ARG="--journey-under-work ${JID}"
           fi
-          # --no-nav: this is the LEAF (per-run) fan-out gallery, deployed to a
-          # namespaced subpath; the "per-run galleries" nav belongs only on the
-          # canonical index (T-24), not on the gallery the nav points AT.
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md \
-            --no-nav \
             $LEGACY_ARG \
             $SHOT_ARG \
             $JUW_ARG
-
-      # J-7 T-12 — SHOTS-PRESENT pre-deploy guard (mirror ci.yml). add_shot
-      # silently drops a missing PNG, so a partial-red fanout could deploy a thin
-      # per-journey page while the generator stays green. This browserless guard
-      # reads expected-shots.json + the staged screenshots.json (the j1-screenshots
-      # dir) and FAILS if any `expected` <side>:<view> for the journey-under-work is
-      # absent (`pending`/deferred shots tolerated). Derives the journey id off the
-      # dispatched branch (`integration/J-NNN`); a non-integration dispatch /
-      # un-guarded journey skips cleanly inside the spec. `always()` + gallery-built
-      # gated so a partial-red run is still guarded before the deploy.
-      - name: Shots-present guard (journey-under-work, pre-deploy)
-        if: ${{ always() && steps.gallery.outcome == 'success' }}
-        working-directory: alpenflight/web
-        env:
-          REF_NAME: ${{ github.ref_name }}
-          GALLERY_SHOTS_DIR: ${{ github.workspace }}/j1-screenshots
-          GALLERY_LINKS_ONLY: '1'
-          # J-7 T-16 — this is the FANOUT context: it produces the legacy capture +
-          # the migration parity AF shots (J-0c/J-1/J-2/J-5/J-6), but NOT a
-          # read-side journey's AF shots (J-7's reporting spec runs only in the
-          # per-push proof job). The guard therefore tolerates J-7's
-          # `producedBy: proof` AF shots being absent here (they are enforced in
-          # the proof context) while still enforcing the fanout-produced shots.
-          GALLERY_PROOF_CONTEXT: fanout
-        run: |
-          JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
-          if [ -z "$JID" ]; then
-            echo "non-integration dispatch (${REF_NAME:-?}) — no journey-under-work to guard."
-            exit 0
-          fi
-          GALLERY_EXPECT_JOURNEY="$JID" \
-          pnpm exec playwright test \
-            --config=e2e/playwright.config.ts \
-            --project=proof-gallery-links \
-            --grep '\[shots-present\]'
 
       - name: Collect logs on failure
         if: failure()
@@ -1389,90 +1334,30 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      # Deploy the fan-out gallery to its OWN namespaced subpath, NOT publish_dir:
-      # public (which writes the canonical /alpenflight/proof/index.html — the
-      # fan-out index has J-0c/J-1/… but no J-0 section, so it would replace the
-      # rich multi-journey top index on merge). destination_dir + keep_files:true
-      # means this only ever writes /alpenflight/proof/legacy-parity/ — the exact
-      # path the canonical index's "per-run galleries" nav (T-24) links to. The
-      # subpath is journey-agnostic (`legacy-parity`): the fanout now serves the
-      # full legacy→export→migrate parity proof for ALL journeys, not just J-0c.
-      # J-5 T-24 — `!cancelled() &&` so a PARTIAL-RED parity run (an upstream spec
-      # step FAILED, e.g. 3 of 18 red) still deploys the gallery the operator needs
-      # to see. Without a status function GitHub applies an implicit `success()`, so
-      # the deploy auto-skips after any earlier failure even though the gallery built.
-      # `!cancelled()` runs after a FAILED upstream but NOT when the job was actually
-      # cancelled; `steps.gallery.outcome == 'success'` still gates on a built
-      # gallery (never deploy a broken/never-built one). do-ship §4 / J-2 T-42 rule:
-      # the deploy must survive a red case. Main-only canonical deploy stays main-gated.
-      - name: Deploy legacy-parity fan-out gallery to gh-pages (namespaced subpath)
-        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: public/alpenflight/proof
-          destination_dir: alpenflight/proof/legacy-parity
-          publish_branch: gh-pages
-          keep_files: true
-          enable_jekyll: false
-          commit_message: "legacy-parity fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
-
-      # ========================================================================
-      # J-1 T-21 — BRANCH-PREVIEW deploy. The main deploy above is
-      # `github.ref == main`-gated, so a `workflow_dispatch` from a feature
-      # branch produces an artifact only (no clickable URL). Mirror ci.yml's
-      # proven J-25 per-branch proof-preview pattern so the fan-out gallery
-      # (legacy↔AlpenFlight videos + the T-19/T-20 paired parity screenshots) is
-      # reachable via a LINK before merge.
-      #
-      # workflow_dispatch has NO github.head_ref (that's a PR-only field); the
-      # fanout runs ON the dispatched branch, so sanitize github.ref_name (the
-      # short branch name, e.g. `integration/J-1` → `integration-J-1`). The sed
-      # is byte-identical to ci.yml's J-25 preview step + proof-preview-reap.yml
-      # so the reaper deletes the right subpath on PR close (the fanout subpath
-      # nests UNDER the same `alpenflight/proof-preview/<ref>/` parent the reaper
-      # recursively removes).
-      #
-      # Disjoint destination: `alpenflight/proof-preview/<ref>/legacy-parity`.
-      # keep_files:true + this per-branch+nested path mean the preview deploy can
-      # NEVER clobber the canonical /alpenflight/proof/legacy-parity/ (main), the
-      # top index, or another branch's preview.
-      # J-5 T-24 — this staging step is in the deploy PATH: the branch-preview
-      # deploy + index + URL steps all consume `steps.preview.outputs.subdir/url`.
-      # It was implicitly `success()`-gated too, so on a partial-red parity run it
-      # would skip and the deploy would publish to an EMPTY destination_dir. Add
-      # `!cancelled() &&` here as well so the whole deploy path survives a red case.
+      # BRANCH-PREVIEW deploy of the single in-flight-journey bookmark. The fanout
+      # runs on a `workflow_dispatch` (no `github.head_ref`), so sanitize
+      # `github.ref_name` — kept byte-identical to ci.yml's `Compute proof-preview
+      # destination` step + proof-preview-reap.yml so the reaper removes the same
+      # `alpenflight/proof-preview/<sanitized>` subdir on PR close. Same bookmark
+      # ci.yml's PR preview writes (`keep_files:true`): whichever ran serves the
+      # page (the fanout's carries the legacy-paired shots when they exist).
       - name: Compute fan-out branch-preview destination
         id: preview
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
-          # SANITIZE RULE — keep byte-for-byte identical to
-          # .github/workflows/ci.yml's `Compute proof-preview destination` step
-          # AND .github/workflows/proof-preview-reap.yml. The reaper derives the
-          # `alpenflight/proof-preview/<sanitized>` parent from the branch ref and
-          # recursively removes it on PR close; our fan-out preview nests under
-          # that SAME parent (.../legacy-parity), so a drift here orphans the subdir.
           sanitized="$(printf '%s' "$REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
-          subdir="alpenflight/proof-preview/${sanitized}/legacy-parity"
+          subdir="alpenflight/proof-preview/${sanitized}"
           url="https://elekktrisch.github.io/fls/${subdir}/"
-          # The branch-preview PARENT (…/proof-preview/<branch>/) — the base the
-          # T-33 deployed link-check consumes (it appends legacy-parity/index.html
-          # + probes the site previews index). Kept distinct from `url` (the
-          # gallery's own legacy-parity root).
-          parent_url="https://elekktrisch.github.io/fls/alpenflight/proof-preview/${sanitized}/"
           {
             echo "subdir=${subdir}"
             echo "url=${url}"
-            echo "parent_url=${parent_url}"
           } >> "$GITHUB_OUTPUT"
           echo "fan-out proof preview → ${url}"
 
-      # J-5 T-24 — `!cancelled() &&` (see the main deploy + compute-dest steps above):
-      # this is THE deploy that publishes for an integration/J-NNN dispatch, so it
-      # must survive a partial-red parity run. `steps.gallery.outcome == 'success'`
-      # still guards on a built gallery; event/ref gates keep it branch-preview-only.
+      # `!cancelled()` so the deploy survives a partial-red parity run; the
+      # gallery-outcome gate keeps it from publishing a never-built page.
       - name: Deploy fan-out gallery to gh-pages (branch preview)
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
@@ -1485,27 +1370,8 @@ jobs:
           enable_jekyll: false
           commit_message: "fan-out proof preview: ${{ steps.pw.outcome }} for ${{ github.ref_name }} (${{ github.sha }})"
 
-      # J-4 T-24 — refresh the persistent previews index after the legacy-parity
-      # gallery lands at .../<branch>/legacy-parity/ so its "Paired legacy ↔
-      # AlpenFlight (all journeys)" link is current on the single bookmarkable
-      # index. Fail-soft composite — the index is the entry point, not a gate.
-      # J-5 T-24 — `!cancelled() &&` so the persistent proof INDEX (the operator's
-      # single bookmark) updates with this branch's gallery even on a partial-red
-      # parity run — the exact "the proof index is not updating; I'd expect to see
-      # the green specs" symptom. do-ship §4 / J-2 T-42: index rebuild survives red.
-      - name: Rebuild persistent previews index
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
-        uses: ./.github/actions/rebuild-previews-index
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Emit the clickable preview URL to BOTH the job summary and a ::notice::
-      # log line so it's grep-able from the dispatched run (the operator gets the
-      # link, not a chat dump of files). Runs only when the branch-preview deploy
-      # actually published (same gate as the deploy).
-      # J-5 T-24 — `!cancelled() &&` so the operator still gets the clickable preview
-      # URL (::notice:: + job summary) after a partial-red parity run; otherwise the
-      # gallery+index would publish but the link surfacing would silently skip.
+      # Emit the clickable preview URL to both the job summary and a grep-able
+      # ::notice:: log line.
       - name: Emit fan-out preview URL
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
         env:
@@ -1515,50 +1381,20 @@ jobs:
           {
             echo "## Fan-out proof gallery (branch preview)"
             echo ""
-            echo "Legacy↔AlpenFlight parity videos + T-19/T-20 paired screenshots:"
-            echo ""
             echo "**${PREVIEW_URL}**"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # J-5 T-33 — DEPLOYED link-check: the catch that makes "a deployed dead link
-      # can never ship green" TRUE. T-31's local check missed 2/3 of the operator's
-      # live dead links (it walked only the canonical layout + used existsSync, so a
-      # bare-dir link passed). T-33 hardened the LOCAL spec (it now walks the
-      # branch-preview layout + models gh-pages dir-index semantics), and this step
-      # closes the loop against the ACTUAL live deploy: it runs the SAME spec in
-      # `GALLERY_DEPLOYED_URL` mode against the just-deployed branch-preview, fetches
-      # the previews index + every per-journey page + asserts EVERY link returns
-      # HTTP 200 (the spec polls ~60s for gh-pages to serve a freshly-pushed file).
-      # Runs AFTER the branch-preview deploy + the index rebuild, on `!cancelled()`
-      # so it still fires on a PARTIAL-RED parity run (the same resilience rule as
-      # the deploys), but only when the gallery built + a deploy happened (the
-      # `steps.preview.outputs.parent_url` exists). A 404 on any link FAILS the step.
-      # J-7 T-12 — also runs the `[deployed-journey]` guard: against the LIVE
-      # deploy, assert the journey-under-work's bookmark row is a LIVE LINK (not
-      # `pending`) AND its per-journey page declares ≥1 asset with every asset
-      # resolving 200 — the structural catch for the "generator green but deployed
-      # page wrong/thin" failure (operator grill, J-6 retro). The `\[deployed`
-      # grep matches BOTH `[deployed]` (the no-dead-links walk) and
-      # `[deployed-journey]`; the journey id is derived off the dispatched branch
-      # and passed via GALLERY_DEPLOYED_JOURNEY (a non-integration dispatch leaves
-      # it empty → the `[deployed-journey]` test skips, the `[deployed]` walk still
-      # runs).
-      - name: Link-check the DEPLOYED branch-preview gallery (T-33 + T-12 journey guard)
-        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.parent_url != '' }}
+      # The DEPLOYED bookmark link-check — the catch the generator unit test can't
+      # make, because the deploy path drifts independently. Asserts the live
+      # bookmark + every declared asset resolve 200 and, with a journey id, that the
+      # page is that journey's page (not a thin placeholder). Polls for CDN slack.
+      - name: Link-check the DEPLOYED branch-preview gallery
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
         working-directory: alpenflight/web
         env:
-          # The spec appends `legacy-parity/index.html` + probes the site previews
-          # index, so it consumes the branch-preview PARENT, not the gallery root.
-          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.parent_url }}
+          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
           REF_NAME: ${{ github.ref_name }}
-          # Browserless project — skip the dev webServer (see playwright.config.ts).
           GALLERY_LINKS_ONLY: '1'
-          # J-26 T-26 — this is the FANOUT deploy. The both-sides-of-every-declared-
-          # pair check enforces the shots `producedBy: fanout` (+ untagged — the
-          # J-1..J-6 migration journeys whose legacy AND AF sides the fanout
-          # produces, so BOTH must render here); a `producedBy: proof` AF side
-          # (deployed by the per-push job) is tolerated-absent on this deploy.
-          GALLERY_PROOF_CONTEXT: fanout
         run: |
           JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
           GALLERY_DEPLOYED_JOURNEY="$JID" \
@@ -1566,13 +1402,6 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=proof-gallery-links \
             --grep '\[deployed'
-
-      # J-4 T-24 — the former `<!-- fanout-proof-preview -->` sticky PR comment was
-      # REMOVED. The fanout no longer posts its own PR comment; the single
-      # `<!-- proof-index -->` comment (ci.yml's clean-seed job) points at the
-      # persistent previews index, which now lists this branch's legacy-parity
-      # gallery (refreshed by the "Rebuild persistent previews index" step above).
-      # One comment per PR, one bookmarkable entry point.
 
       - name: Stop backend
         if: always()

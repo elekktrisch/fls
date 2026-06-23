@@ -97,10 +97,6 @@ class MapperBindingContractTest {
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
-            EntityType.ARTICLE,
-            // ACCOUNTING_RULE_FILTER bound by J-8 T-10 (producer SELECT + JSON-blob
-            // target extraction + sort-indicator renumber + referenceLookups);
-            // round-trip + collision proven by AccountingRuleFilterProducerDedupeIT.
             EntityType.DELIVERY,
             EntityType.DELIVERY_ITEM,
             EntityType.AUDIT_LOG);

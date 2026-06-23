@@ -1046,6 +1046,35 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?,
                             ?, ?)
                     """)),
+            entry(EntityType.ARTICLE, new Binding(
+                    // operating_club_id resolves the CLUB FK via
+                    // ArticleMapper.foreignKeyColumns() — without it the legacy
+                    // ClubId GUID reaches the INSERT verbatim and 23503s
+                    // fk_article_operating_club_id (the J-10b DeliveryItem RESTRICT
+                    // done-bar). No producer dedupe: legacy UNIQUE
+                    // (ArticleNumber, ClubId) already mirrors V3's
+                    // ux_article_club_number, so no (operating_club_id,
+                    // article_number) collision can reach ingest.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT ArticleId, ClubId, ArticleNumber, ArticleName,
+                           ArticleInfo, Description, IsActive,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM Articles
+                    """,
+                    "t_article",
+                    """
+                    INSERT INTO t_article (
+                      id, operating_club_id, article_number, article_name,
+                      article_info, description, is_active,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
             entry(EntityType.ACCOUNTING_RULE_FILTER, new Binding(
                     // Tenant-scoped accounting-rule aggregate root
                     // (AccountingRuleFilterMapper, J-8 T-10): legacy
