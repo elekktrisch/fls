@@ -1,5 +1,8 @@
 package ch.alpenflight.joinrequests.web;
 
+import ch.alpenflight.joinrequests.application.JoinRequestDecisionsService;
+import ch.alpenflight.joinrequests.application.JoinRequestDtos.ApproveJoinRequest;
+import ch.alpenflight.joinrequests.application.JoinRequestDtos.DenyJoinRequest;
 import ch.alpenflight.joinrequests.application.JoinRequestDtos.JoinRequestResponse;
 import ch.alpenflight.joinrequests.application.JoinRequestDtos.PendingJoinRequestResponse;
 import ch.alpenflight.joinrequests.application.JoinRequestDtos.SubmitJoinRequest;
@@ -35,17 +38,20 @@ import org.springframework.web.bind.annotation.RestController;
  *       own club via Hibernate's {@code @TenantId} discriminator.</li>
  * </ul>
  *
- * <p>Approve / deny (T-06), the rate-limit/cooldown 429 (T-07), and emails / SSE
- * (T-08) are NOT in this resource yet.
+ * <p>Approve / deny are the CLUB_ADMINISTRATOR cross-system decision endpoints
+ * (T-06); the rate-limit/cooldown 429 (T-07) and emails / SSE (T-08) are NOT in
+ * this resource yet.
  */
 @RestController
 @Tag(name = "join-requests", description = "Pilot self-serve club-join requests.")
 class JoinRequestController {
 
     private final JoinRequestsService service;
+    private final JoinRequestDecisionsService decisions;
 
-    JoinRequestController(JoinRequestsService service) {
+    JoinRequestController(JoinRequestsService service, JoinRequestDecisionsService decisions) {
         this.service = service;
+        this.decisions = decisions;
     }
 
     @Operation(summary = "File a pending join request against a club's join code.")
@@ -99,5 +105,35 @@ class JoinRequestController {
             throw new UnsupportedJoinRequestStatusFilterException(status);
         }
         return service.pendingForCurrentTenant();
+    }
+
+    @Operation(summary = "Approve a pending request — KC clubId attribute + t_user + Person + roles.")
+    @ApiResponse(responseCode = "200", description = "Approved; body is the request.")
+    @ApiResponse(responseCode = "403", description = "A role the admin may not grant.")
+    @ApiResponse(responseCode = "404", description = "No pending request in the admin's club.")
+    @ApiResponse(responseCode = "409", description = "Not pending (re-approve), the caller already has "
+            + "a t_user, or the linked Person is in another club.")
+    @PostMapping(path = "/api/v1/join-requests/{id}/approve",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    JoinRequestResponse approve(@AuthenticationPrincipal Jwt jwt,
+                                @PathVariable java.util.UUID id,
+                                @Valid @RequestBody ApproveJoinRequest req) {
+        return decisions.approve(jwt, id, req);
+    }
+
+    @Operation(summary = "Deny a pending request with an optional reason.")
+    @ApiResponse(responseCode = "200", description = "Denied; body is the request.")
+    @ApiResponse(responseCode = "404", description = "No pending request in the admin's club.")
+    @ApiResponse(responseCode = "409", description = "Not pending.")
+    @PostMapping(path = "/api/v1/join-requests/{id}/deny",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    JoinRequestResponse deny(@AuthenticationPrincipal Jwt jwt,
+                             @PathVariable java.util.UUID id,
+                             @Valid @RequestBody DenyJoinRequest req) {
+        return decisions.deny(jwt, id, req);
     }
 }

@@ -2,11 +2,15 @@ package ch.alpenflight.joinrequests.application;
 
 import ch.alpenflight.joinrequests.domain.JoinRequest;
 import ch.alpenflight.joinrequests.domain.JoinRequestStatus;
+import ch.alpenflight.users.domain.Role;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,6 +33,39 @@ public final class JoinRequestDtos {
             @NotBlank @Size(max = 64) String joinCode,
             @Schema(description = "Optional note to the admin (≤500 chars).")
             @Nullable @Size(max = 500) String note) {}
+
+    /**
+     * The admin's approve command. {@code roles} are the realm roles to grant
+     * the new member (validated against {@link RoleAssignmentPolicy} — a
+     * CLUB_ADMINISTRATOR may not escalate). {@code personId}, when present, links
+     * the new {@code t_user} to an existing Person in the admin's tenant (a
+     * cross-tenant id is a 409); when absent, a Person + PersonClub is
+     * auto-created.
+     */
+    @Schema(description = "A CLUB_ADMINISTRATOR's approval of a join request.")
+    public record ApproveJoinRequest(
+            @Schema(description = "Realm roles to grant the new member.")
+            @Nullable List<@NotBlank String> roles,
+            @Schema(description = "Optional existing Person to link (must be in the admin's club).")
+            @Nullable UUID personId) {
+
+        /** The parsed, known realm roles; unknown wire names are dropped. */
+        public Set<Role> parsedRoles() {
+            if (roles == null) {
+                return Set.of();
+            }
+            return roles.stream()
+                    .map(Role::fromWire)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toUnmodifiableSet());
+        }
+    }
+
+    /** The admin's deny command — an optional reason shown to the pilot. */
+    @Schema(description = "A CLUB_ADMINISTRATOR's denial of a join request.")
+    public record DenyJoinRequest(
+            @Schema(description = "Optional reason shown to the denied pilot (≤500 chars).")
+            @Nullable @Size(max = 500) String reason) {}
 
     /**
      * The pilot's own view of their request — what {@code POST

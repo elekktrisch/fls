@@ -1,10 +1,13 @@
 package ch.alpenflight.joinrequests.web;
 
 import ch.alpenflight.joinrequests.application.AlreadyClubMemberException;
+import ch.alpenflight.joinrequests.application.CrossTenantPersonLinkException;
 import ch.alpenflight.joinrequests.application.JoinRequestNotFoundException;
 import ch.alpenflight.joinrequests.application.MissingPrincipalIdentityException;
 import ch.alpenflight.joinrequests.application.NotJoinRequestOwnerException;
 import ch.alpenflight.joinrequests.application.UnknownJoinCodeException;
+import ch.alpenflight.joinrequests.domain.IllegalJoinRequestStateException;
+import ch.alpenflight.users.application.ForbiddenRoleGrantException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +36,24 @@ class JoinRequestExceptionHandler {
     @ExceptionHandler(AlreadyClubMemberException.class)
     ResponseEntity<Void> handleAlreadyMember(AlreadyClubMemberException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    /** Re-approve / decide-on-a-terminal request — the FSM rejects it (T-06). */
+    @ExceptionHandler(IllegalJoinRequestStateException.class)
+    ResponseEntity<Void> handleIllegalState(IllegalJoinRequestStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    /** Approve picked a Person from another club (T-06). */
+    @ExceptionHandler(CrossTenantPersonLinkException.class)
+    ResponseEntity<Void> handleCrossTenantPerson(CrossTenantPersonLinkException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    /** Approve tried to grant a role the CLUB_ADMINISTRATOR may not (T-06). */
+    @ExceptionHandler(ForbiddenRoleGrantException.class)
+    ResponseEntity<Void> handleForbiddenRole(ForbiddenRoleGrantException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
     @ExceptionHandler(NotJoinRequestOwnerException.class)

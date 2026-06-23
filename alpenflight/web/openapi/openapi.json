@@ -2392,6 +2392,132 @@
         }
       }
     },
+    "/api/v1/join-requests/{id}/deny" : {
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "Deny a pending request with an optional reason.",
+        "operationId" : "deny",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DenyJoinRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Denied; body is the request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No pending request in the admin's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Not pending.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{id}/approve" : {
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "Approve a pending request — KC clubId attribute + t_user + Person + roles.",
+        "operationId" : "approve",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApproveJoinRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Approved; body is the request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "A role the admin may not grant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No pending request in the admin's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Not pending (re-approve), the caller already has a t_user, or the linked Person is in another club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights" : {
       "get" : {
         "tags" : [ "flights" ],
@@ -7493,6 +7619,37 @@
           "decidedOn" : {
             "type" : "string",
             "format" : "date-time"
+          }
+        }
+      },
+      "DenyJoinRequest" : {
+        "type" : "object",
+        "description" : "A CLUB_ADMINISTRATOR's denial of a join request.",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "description" : "Optional reason shown to the denied pilot (≤500 chars).",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        }
+      },
+      "ApproveJoinRequest" : {
+        "type" : "object",
+        "description" : "A CLUB_ADMINISTRATOR's approval of a join request.",
+        "properties" : {
+          "roles" : {
+            "type" : "array",
+            "description" : "Realm roles to grant the new member.",
+            "items" : {
+              "type" : "string",
+              "minLength" : 1
+            }
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Optional existing Person to link (must be in the admin's club)."
           }
         }
       },

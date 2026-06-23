@@ -129,6 +129,48 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     }
 
     @Override
+    public void writeClubIdAttribute(UUID sub, UUID clubId) {
+        Objects.requireNonNull(sub, "sub");
+        Objects.requireNonNull(clubId, "clubId");
+        // Read-merge-write: a KC user PUT replaces the whole `attributes` map, so
+        // we read the current attributes first and merge clubId in, preserving
+        // locale (set at signup). Idempotent — re-writing the same clubId is a
+        // no-op against KC's eventual state.
+        Map<String, List<String>> attrs = readAttributes(sub);
+        attrs.put("clubId", List.of(clubId.toString()));
+        try {
+            http.put()
+                    .uri(props.adminBase() + "/users/" + sub)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("attributes", attrs))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpStatusCodeException e) {
+            throw new UserDirectoryException(
+                    "Keycloak write clubId attribute (status " + e.getStatusCode().value() + ")", e);
+        }
+    }
+
+    private Map<String, List<String>> readAttributes(UUID sub) {
+        try {
+            String body = http.get()
+                    .uri(props.adminBase() + "/users/" + sub)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) {
+                return new HashMap<>();
+            }
+            UserAttributesWire wire = objectMapper.readValue(body, UserAttributesWire.class);
+            return wire.attributes() == null ? new HashMap<>() : new HashMap<>(wire.attributes());
+        } catch (HttpStatusCodeException e) {
+            throw new UserDirectoryException(
+                    "Keycloak read user (status " + e.getStatusCode().value() + ")", e);
+        } catch (Exception e) {
+            throw new UserDirectoryException("Keycloak read user: malformed representation", e);
+        }
+    }
+
+    @Override
     public List<UserDirectoryRow> findUsersInClub(UUID clubId, int max) {
         Objects.requireNonNull(clubId, "clubId");
         String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
@@ -344,4 +386,13 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             return new UserDirectoryRow(id, username, email, enabled, requiredActions, createdTimestamp);
         }
     }
+
+    /**
+     * Single-user representation read for the {@code clubId}-attribute
+     * read-merge-write. Carries only the {@code attributes} map; every other KC
+     * field is tolerated-and-dropped (same {@code ignoreUnknown} rationale as
+     * {@link UserWire}).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record UserAttributesWire(@Nullable Map<String, List<String>> attributes) {}
 }
