@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,10 +68,9 @@ import org.springframework.transaction.annotation.Transactional;
  * leaves nothing load-bearing in either system — the integration-risk path the
  * IT pins.
  *
- * <p>Left for later tasks: the brute-force / 24h-deny cooldown guard (T-07) and
- * the success/deny email + the {@code join-request.status-changed} SSE publish
- * (T-08) — the {@code decided}/{@code denied} transitions here are the seam those
- * hook onto.
+ * <p>Each transition publishes a {@link JoinRequestStatusChangedEvent} so the
+ * AFTER_COMMIT notification listeners send the pilot email + the
+ * {@code join-request.status-changed} SSE only once the decision is durable.
  */
 @Service
 @Transactional
@@ -85,6 +85,7 @@ public class JoinRequestDecisionsService {
     private final RoleAssignmentPolicy rolePolicy;
     private final LanguageCodeLookup languages;
     private final AuditTrail auditTrail;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public JoinRequestDecisionsService(JoinRequestRepository requests,
@@ -94,6 +95,7 @@ public class JoinRequestDecisionsService {
                                        RoleAssignmentPolicy rolePolicy,
                                        LanguageCodeLookup languages,
                                        AuditTrail auditTrail,
+                                       ApplicationEventPublisher events,
                                        Clock clock) {
         this.requests = requests;
         this.users = users;
@@ -102,6 +104,7 @@ public class JoinRequestDecisionsService {
         this.rolePolicy = rolePolicy;
         this.languages = languages;
         this.auditTrail = auditTrail;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -162,6 +165,7 @@ public class JoinRequestDecisionsService {
             auditTrail.record(AuditAction.CREATE,
                     AuditedTarget.created("User", rowId.value(), new UserCreatedAuditPayload(clubId, sub)));
         }
+        events.publishEvent(statusChanged(saved));
         return JoinRequestResponse.from(saved);
     }
 
@@ -180,7 +184,19 @@ public class JoinRequestDecisionsService {
         JoinRequest saved = requests.save(request);
         auditTrail.record(AuditAction.STATE_TRANSITION,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
+        events.publishEvent(statusChanged(saved));
         return JoinRequestResponse.from(saved);
+    }
+
+    /**
+     * The decision event the pilot's notifications hook onto. The pilot's
+     * identity travels on the aggregate (stamped at submit), so the AFTER_COMMIT
+     * listeners address the right principal without a tenant context.
+     */
+    private static JoinRequestStatusChangedEvent statusChanged(JoinRequest saved) {
+        return new JoinRequestStatusChangedEvent(
+                saved.getId(), saved.getClubId(), saved.getStatus(), saved.getKeycloakSub(),
+                saved.getEmail(), saved.getFriendlyName(), saved.getDecisionReason());
     }
 
     private UUID autoCreatePerson(UUID clubId, JoinRequest request) {

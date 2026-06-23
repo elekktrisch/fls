@@ -9,6 +9,7 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import java.time.Clock;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,11 +31,16 @@ class JoinRequestTxWriter {
 
     private final JoinRequestRepository requests;
     private final AuditTrail auditTrail;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
-    JoinRequestTxWriter(JoinRequestRepository requests, AuditTrail auditTrail, Clock clock) {
+    JoinRequestTxWriter(JoinRequestRepository requests,
+                        AuditTrail auditTrail,
+                        ApplicationEventPublisher events,
+                        Clock clock) {
         this.requests = requests;
         this.auditTrail = auditTrail;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -48,6 +54,7 @@ class JoinRequestTxWriter {
         // in the snapshot — the S-027 PII redaction is intrinsic to the field.
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, saved.getId(), saved));
+        events.publishEvent(statusChanged(saved));
         return saved;
     }
 
@@ -62,6 +69,13 @@ class JoinRequestTxWriter {
         JoinRequest saved = requests.save(r);
         auditTrail.record(AuditAction.STATE_TRANSITION,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
+        events.publishEvent(statusChanged(saved));
         return saved;
+    }
+
+    private static JoinRequestStatusChangedEvent statusChanged(JoinRequest saved) {
+        return new JoinRequestStatusChangedEvent(
+                saved.getId(), saved.getClubId(), saved.getStatus(), saved.getKeycloakSub(),
+                saved.getEmail(), saved.getFriendlyName(), saved.getDecisionReason());
     }
 }

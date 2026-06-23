@@ -15,10 +15,13 @@
  * check, the {@code UserDirectoryPort} KC attribute / role writes, the
  * {@code RoleAssignmentPolicy} escalation gate, {@code t_user} create),
  * {@code persons.domain} (auto-create / link Person + PersonClub),
- * {@code audit.domain}, and {@code platform.tenancy} (the {@code Tenants.runAs}
+ * {@code audit.domain}, {@code platform.tenancy} (the {@code Tenants.runAs}
  * window that scopes the tenant-less pilot's writes to the resolved club, plus
- * {@code LanguageCodeLookup} for the new member's default language). It must NOT
- * depend on {@code joinrequests.infra}.
+ * {@code LanguageCodeLookup} for the new member's default language),
+ * {@code platform.mail} (the transactional join-request emails), and the OPEN
+ * {@code me.application} publish port (the {@code join-request.status-changed}
+ * SSE fan-out — the producer&rarr;{@code me} direction the bus contract
+ * documents). It must NOT depend on {@code joinrequests.infra}.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.joinrequests.application;

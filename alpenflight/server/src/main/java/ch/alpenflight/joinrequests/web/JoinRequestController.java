@@ -38,10 +38,11 @@ import org.springframework.web.bind.annotation.RestController;
  *       own club via Hibernate's {@code @TenantId} discriminator.</li>
  * </ul>
  *
- * <p>Approve / deny are the CLUB_ADMINISTRATOR cross-system decision endpoints
- * (T-06). Submit is abuse-guarded (T-07): the brute-force rate limit + the 24h
- * deny cooldown surface as 429 + {@code Retry-After}. Emails / SSE (T-08) are not
- * in this resource yet.
+ * <p>Approve / deny are the CLUB_ADMINISTRATOR cross-system decision endpoints.
+ * Submit is abuse-guarded: the brute-force rate limit + the 24h deny cooldown
+ * surface as 429 + {@code Retry-After}. The transactional emails + the
+ * {@code join-request.status-changed} SSE ride each transition as AFTER_COMMIT
+ * side-effects of the application layer, not the controller.
  */
 @RestController
 @Tag(name = "join-requests", description = "Pilot self-serve club-join requests.")
