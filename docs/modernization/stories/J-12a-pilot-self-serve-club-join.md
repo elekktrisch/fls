@@ -2,7 +2,8 @@
 id: J-12a
 title: Pilot self-serve club join (/join)
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-06-23
 journey0: false
 carved: true
 depends_on: [J-3, J-4]
@@ -95,6 +96,21 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
   component; the 4 email templates + send-on-transition (over the J-11 resolver) — one component; the
   pilot SPA (`/join` form + `/join/pending` + post-signup landing flip + `/start` guard + SSE) + store —
   one feature folder.
+
+## Tasks
+
+- [ ] **T-01** — Real-idp `join-request.spec.ts` stub (structure + selectors + thin signup→/join→submit→pending flow) + scaffold the J-12a one-page proof gallery + link from the persistent index.
+- [ ] **T-02** — Scope the per-push gate to J-12a (journey `mock_test`/`real_test` frontmatter + CI filter); prior journeys run mock-IdP (full regression → nightly + the §4 gate).
+- [ ] **T-03** — `Club.joinCode`: Flyway (`t_club.join_code TEXT NOT NULL` + `UNIQUE ux_club_join_code` global) + `Club.rotateJoinCode(Clock)` domain method + `POST /api/v1/clubs/{id}/join-code/rotate` (CLUB_ADMINISTRATOR) + admin-only `ClubResponse.joinCode` (null to pilots) + `club.join_code_rotated` audit (no code in payload).
+- [ ] **T-04** — `JoinRequest` aggregate + state machine (pending→approved/denied/withdrawn ON the aggregate, ADR 0022 §2) + Flyway `t_join_request` (+ partial UNIQUE `ux_join_request_alive` on `(keycloak_sub, club_id) WHERE status='pending'`) + repository.
+- [ ] **T-05** — JoinRequest submit/read REST: `POST /api/v1/join-requests` (joinCode+note → 201; 404 unknown code; 409 already-member; one-open-per-pair) + `POST /{id}/withdraw` + `GET /api/v1/me/join-request` (204 none) + `GET /api/v1/join-requests?status=pending` (CLUB_ADMINISTRATOR, tenant-scoped). Audit note SHA-256 redaction (S-027).
+- [ ] **T-06** — Approve/deny application service (cross-system, one txn): `POST /{id}/approve {roles[], personId?}` → KC clubId user-attribute write + `t_user` + auto-Person/PersonClub (or link picked Person) + roles + audit + email + SSE; `POST /{id}/deny {reason?}` → denied. Order the KC write so a failed DB txn strands nothing; re-approve idempotent (409-on-existing-t_user). **Sizing watch — split KC-write/persist vs endpoints if it overflows.**
+- [ ] **T-07** — Brute-force + cooldown guard: 5 submit attempts / 15 min per sub → 429 + `Retry-After`; 24h deny cooldown per `(sub, club)` (survives code rotation; withdraw starts NO cooldown).
+- [ ] **T-08** — 4 join-request email templates (admin-new-request, pilot-approved, pilot-denied, pilot-withdrawn; i18n) over J-11's Thymeleaf DB-override resolver + send-on-transition; publish SSE `join-request.status-changed` (reuse J-3's SSE infra).
+- [ ] **T-09** — Pilot SPA store + API client (submit / withdraw / me over `/api/v1/join-requests` + club join-code rotate).
+- [ ] **T-10** — `/join` screen: route + 8-char code input (auto-uppercase, monospace) + note textarea ≤500 + submit; error envelope (404 inline, 409 message, 429 countdown); post-signup landing default → `/join` (S-134 flip, intent params).
+- [ ] **T-11** — `/join/pending` screen: public club projection (name/city/logo) + Withdraw + SSE subscribe → on approved force OIDC token-refresh → `/start`, on denied show reason → `/join`, on withdrawn → `/join`; + the `/start` guard (no `t_user` + live request → `/join/pending`; neither → `/join`).
+- [ ] **T-12** — Thicken `join-request.spec.ts` to full real assertions: signup → `/join` → submit → `/join/pending` → approve (real endpoint, admin principal) → SSE → token-refresh → `/start`; deny+reason; withdraw+resubmit; 429 rate-limit; 404 unknown-code.
 
 ## Assumptions made
 
