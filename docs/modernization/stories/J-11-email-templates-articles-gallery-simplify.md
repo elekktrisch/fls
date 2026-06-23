@@ -150,4 +150,4 @@ EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-
 - [x] **T-11** — WORKFLOW-SLIM (partial): quarantine the 3 KC-26 specs + shard the §4 cross-journey real-idp regression (keep coverage, beat the step timeout). Composite-action YAML cut deferred (note for next).
 - [x] **T-12** — INTERNAL-AFFORDANCE-ARCHGUARD: ArchUnit guard asserting every `/api/v1/internal/` controller carries `@Profile`(non-prod) + `@Hidden` (ADR 0029).
 - [x] **T-13** — HELPER-PRUNE + HELPER-PRUNE-CREDIT: re-confirm the backend twins green, then delete the 5 redundant `@helper` e2e cases (3 in `validation-hardening.spec.ts`, 2 in `delivery-creation-test-parity.spec.ts`).
-- [ ] **T-14** — Thicken `email-templates.spec.ts` to full real assertions (union read / clone-on-customize / override-at-send / reset) + add the Articles screen verify (CRUD + soft-delete + includeInactive over the deployed `/articles`).
+- [x] **T-14** — Thicken `email-templates.spec.ts` to full real assertions (union read / clone-on-customize / override-at-send / reset) + add the Articles screen verify (CRUD + soft-delete + includeInactive over the deployed `/articles`).
