@@ -142,7 +142,7 @@ EmailTemplate legacy source: `TemplateService.cs` (`:116-133` union read, `:238-
 - [x] **T-03** — EmailTemplate aggregate + Flyway `t_email_template` (club_id NOT-NULL `@TenantId`, `UNIQUE(club_id,template_key,language_locale)`, structural invariants only; domain customize-upsert + reset methods per ADR 0022 §2).
 - [x] **T-04** — EmailTemplate REST `/api/v1/email-templates/**` + application service: union read (files ∪ overrides), clone-on-customize upsert, reset-delete, `CLUB_ADMINISTRATOR` write / 403 non-admin, audit.
 - [x] **T-05** — Thymeleaf DB-override-then-file-fallback resolver chain (custom `ITemplateResolver` keyed `(tenant,key,locale)` ahead of the file resolver; consumes S-082).
-- [ ] **T-06** — EmailTemplate SPA store + API client (list/get/save/reset over `/api/v1/email-templates`).
+- [x] **T-06** — EmailTemplate SPA store + API client (list/get/save/reset over `/api/v1/email-templates`).
 - [ ] **T-07** — EmailTemplate SPA screen: route + list/edit component + template-source editor + reset-to-default; nav entry + role visibility (chrome-reachable); per-touch COMMENT-STRIP of `nav-sections.ts`/`app.routes.ts`.
 - [ ] **T-08** — Article migration: bind/verify `ArticleMapper` scoped by legacy `ClubId` tenant + a real-producer collision/orphan round-trip IT (reds in `check`); per-touch COMMENT-STRIP of `MapperLegacyBindings.java`. (The J-10b `DeliveryItem.article_id` RESTRICT done-bar.)
 - [ ] **T-09** — GALLERY-SIMPLIFY (a): rewrite `generate-gallery.mjs` to ONE current-journey-only page; delete `generate-previews-index.mjs` + `proof-gallery-links.spec.ts` (replace w/ the one-page deployed-link-check) + `expected-shots.json`.
