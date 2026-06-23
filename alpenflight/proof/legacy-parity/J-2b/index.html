@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-22T07:09:19.941Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-23T06:43:00.449Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,19 +144,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-0670f3f4d506575309bd158a078787d98827dca6.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-f2ed76ccf7c23aa33b3287007fd73ccc0761d054.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2b · #229 · a new flight saved with only date + glider aircraft + pilot persists to the real backend (legacy parity: an incomplete flight saves as Invalid — Save was never blocked; the bug was the invalid-on-load display, fixed below)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-debe26b5ff17bdef2b4da903322332fc886eebe0.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-4fda729e50a12959663a8a73e769976687a38486.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-2b · off-today visibility · the /flights list defaults to today..today (legacy parity); a flight saved a week ahead is surfaced by the post-save &quot;View it →&quot; jump that widens the range to reveal it — it is not silently hidden (#229(a), Option B)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-b8f6f5ee596e2e5d87709b297c8be41080cb1986.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-4e5446200bbfa91432d60604f16a7e1dbf028c45.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2b · valid-on-load · reopening a fully-populated saved flight renders every populated required field VALID — no stale &quot;Entry required.&quot; (the #229(b) root fix: the edit form had ZERO client validators; they are now wired + revalidate against the loaded values)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-9212d95a82c2ac59c64bbfda7950d852d4081161.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-2feadf5523aba04e806d4ac3d84e377327f2b37d.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2b · as-you-type gating · clearing a GATE field (date/aircraft/pilot) shows an inline error AND disables Save; clearing a NON-gate required field (landings) shows the inline error but leaves Save ENABLED — legacy incomplete-save parity (the rest of the minimal-valid set marks the flight Invalid but never blocks Save)</span></figcaption>
         </figure>
         </div>
@@ -178,7 +178,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.4%</strong> duplicated · <strong>69</strong> clone groups</td>
+            <td><strong>3.3%</strong> duplicated · <strong>69</strong> clone groups</td>
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>

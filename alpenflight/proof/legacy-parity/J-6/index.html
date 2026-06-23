@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>main</code> &middot; 2026-06-22T07:09:19.941Z
+      for this journey. Generated on <code>main</code> &middot; 2026-06-23T06:43:00.449Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,31 +144,31 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-f8bfe7b61c7d0851164d7fd70071f33df11a9aef.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-004f9d4f472effb4e6f04f401a3bf9f0e0d85190.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1e7f3f909fd3d2fd7573a0fce97289ea93e163b8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-792955a2bf3b7837ef2c98bacf6e043750083bcc.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-2c79b12743bcad11e4e13e89e1a464e83315b212.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-b166b758c269286ed57a258ae6170369ae45a0a7.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ca811f2b6d38705063bc9ea293c9f52499ef250b.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-160c6e493ae823d982969a57c18456ff7a4dd2ca.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-cf4a28d9b93efe3c52a11a43bc5e4f3821990fb8.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-b40b3882fa08cd059ff7bb5670566a4705bcbef9.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-52fee1e91f89faea0354947d8503ab37cf4d9752.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-5d9f1f0357c8c2f4aa5ce013f7408b783dbf9e90.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d86b8f3ac5c30e3656fca75bcf274db71c154882.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-1ae572c4070d0741441335d1ad11e9926178daa6.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · migrated planning day · a real legacy planning day (remark &quot;Test3&quot;, with crew assignments + a fan-out-resolved own-club location), exported + migrated through the live chain, renders on the migrated TestClub’s /planning list — identity-matched to legacy and pointing at its OWN club’s Location replica (full legacy→export→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -222,7 +222,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.4%</strong> duplicated · <strong>69</strong> clone groups</td>
+            <td><strong>3.3%</strong> duplicated · <strong>69</strong> clone groups</td>
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
