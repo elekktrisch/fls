@@ -49,6 +49,15 @@ public class EmailTemplateCatalog {
         return fileDefaults;
     }
 
+    /**
+     * The locale every shipped file default is keyed under. The single-locale
+     * send path resolves a DB override against this same locale, so a file
+     * default and its override share one identity.
+     */
+    public static String defaultLocale() {
+        return DEFAULT_LOCALE;
+    }
+
     private static List<FileDefault> scan(ResourcePatternResolver resolver) {
         try {
             Resource[] resources = resolver.getResources(LOCATION);
