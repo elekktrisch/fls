@@ -263,6 +263,20 @@ const it: Translations = {
       message: 'Volo modificato altrove — ricarica per ottenere la versione più recente.',
     },
   },
+  join: {
+    headline: 'Unisciti a un club',
+    tagline: 'Inserisci il codice di adesione del tuo club per richiedere di diventare socio.',
+    codeLabel: 'Codice di adesione',
+    codePlaceholder: 'ABCD2345',
+    noteLabel: "Nota all'amministratore del club (facoltativo)",
+    notePlaceholder: 'Presentati brevemente.',
+    noteRemaining: '{{count}} caratteri rimanenti',
+    submit: 'Richiedi di unirti',
+    migrateHint: 'Stai migrando dal vecchio FLS? Inizia qui.',
+    errors: {
+      rateLimited: 'Troppi tentativi. Riprova tra {{seconds}} s.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Richiedi l’accesso',

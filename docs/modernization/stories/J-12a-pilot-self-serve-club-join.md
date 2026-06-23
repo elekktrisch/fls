@@ -109,7 +109,7 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
 - [x] **T-07** — Brute-force + cooldown guard: 5 submit attempts / 15 min per sub → 429 + `Retry-After`; 24h deny cooldown per `(sub, club)` (survives code rotation; withdraw starts NO cooldown).
 - [x] **T-08** — 4 join-request email templates (admin-new-request, pilot-approved, pilot-denied, pilot-withdrawn; i18n) over J-11's Thymeleaf DB-override resolver + send-on-transition; publish SSE `join-request.status-changed` (reuse J-3's SSE infra).
 - [x] **T-09** — Pilot SPA store + API client (submit / withdraw / me over `/api/v1/join-requests` + club join-code rotate).
-- [ ] **T-10** — `/join` screen: route + 8-char code input (auto-uppercase, monospace) + note textarea ≤500 + submit; error envelope (404 inline, 409 message, 429 countdown); post-signup landing default → `/join` (S-134 flip, intent params).
+- [x] **T-10** — `/join` screen: route + 8-char code input (auto-uppercase, monospace) + note textarea ≤500 + submit; error envelope (404 inline, 409 message, 429 countdown); post-signup landing default → `/join` (S-134 flip, intent params).
 - [ ] **T-11** — `/join/pending` screen: public club projection (name/city/logo) + Withdraw + SSE subscribe → on approved force OIDC token-refresh → `/start`, on denied show reason → `/join`, on withdrawn → `/join`; + the `/start` guard (no `t_user` + live request → `/join/pending`; neither → `/join`).
 - [ ] **T-12** — Thicken `join-request.spec.ts` to full real assertions: signup → `/join` → submit → `/join/pending` → approve (real endpoint, admin principal) → SSE → token-refresh → `/start`; deny+reason; withdraw+resubmit; 429 rate-limit; 404 unknown-code.
 

@@ -262,6 +262,20 @@ const en: Translations = {
       message: 'Flight changed elsewhere — reload to get the latest.',
     },
   },
+  join: {
+    headline: 'Join a club',
+    tagline: "Enter your club's join code to request membership.",
+    codeLabel: 'Join code',
+    codePlaceholder: 'ABCD2345',
+    noteLabel: 'Note to the club admin (optional)',
+    notePlaceholder: 'Introduce yourself briefly.',
+    noteRemaining: '{{count}} characters left',
+    submit: 'Request to join',
+    migrateHint: 'Migrating from legacy FLS? Start here.',
+    errors: {
+      rateLimited: 'Too many attempts. Try again in {{seconds}} s.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Request access',

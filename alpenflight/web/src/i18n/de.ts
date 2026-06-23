@@ -269,6 +269,20 @@ const de = {
       message: 'Flug wurde anderweitig geändert — neu laden für den aktuellen Stand.',
     },
   },
+  join: {
+    headline: 'Einem Verein beitreten',
+    tagline: 'Gib den Beitrittscode deines Vereins ein, um eine Mitgliedschaft anzufragen.',
+    codeLabel: 'Beitrittscode',
+    codePlaceholder: 'ABCD2345',
+    noteLabel: 'Notiz an die Vereinsverwaltung (optional)',
+    notePlaceholder: 'Stell dich kurz vor.',
+    noteRemaining: '{{count}} Zeichen übrig',
+    submit: 'Beitritt anfragen',
+    migrateHint: 'Wechselst du vom alten FLS? Hier starten.',
+    errors: {
+      rateLimited: 'Zu viele Versuche. Erneut möglich in {{seconds}} s.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Zugang anfragen',

@@ -33,6 +33,10 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'join',
+    loadChildren: () => import('@features/join/join.routes').then((m) => m.JOIN_ROUTES),
+  },
+  {
     path: 'start',
     loadChildren: () => import('@features/start/start.routes').then((m) => m.START_ROUTES),
   },
