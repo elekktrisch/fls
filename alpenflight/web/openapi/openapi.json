@@ -6384,6 +6384,14 @@
             "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
             "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
+          "city" : {
+            "type" : "string",
+            "description" : "Public-display city, or null."
+          },
+          "logoUrl" : {
+            "type" : "string",
+            "description" : "Public-display logo URL, or null."
+          },
           "joinCode" : {
             "type" : "string",
             "description" : "Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise."
@@ -7611,6 +7619,15 @@
           "clubId" : {
             "type" : "string",
             "format" : "uuid"
+          },
+          "clubName" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "logoUrl" : {
+            "type" : "string"
           },
           "status" : {
             "type" : "string",

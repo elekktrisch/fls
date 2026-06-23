@@ -1,8 +1,10 @@
 package ch.alpenflight.joinrequests.application;
 
+import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.joinrequests.application.JoinRequestDtos.JoinRequestResponse;
 import ch.alpenflight.joinrequests.application.JoinRequestDtos.PendingJoinRequestResponse;
+import ch.alpenflight.joinrequests.domain.JoinRequest;
 import ch.alpenflight.joinrequests.domain.JoinRequestRepository;
 import ch.alpenflight.joinrequests.domain.JoinRequestTenantLookup;
 import ch.alpenflight.platform.tenancy.Tenants;
@@ -79,7 +81,7 @@ public class JoinRequestsService {
         // The tenant carrier must span the whole transaction (open → flush →
         // commit), so the write runs through the transactional writer INSIDE
         // runAs — see JoinRequestTxWriter.
-        return JoinRequestResponse.from(
+        return withClubDisplay(
                 Tenants.runAs(clubId, () -> writer.file(sub, email, friendlyName, clubId, note)));
     }
 
@@ -93,7 +95,7 @@ public class JoinRequestsService {
         UUID sub = subjectOf(jwt);
         UUID clubId = tenantLookup.findClubIdById(requestId)
                 .orElseThrow(() -> new JoinRequestNotFoundException(requestId));
-        return JoinRequestResponse.from(
+        return withClubDisplay(
                 Tenants.runAs(clubId, () -> writer.withdraw(requestId, sub)));
     }
 
@@ -108,8 +110,8 @@ public class JoinRequestsService {
     public Optional<JoinRequestResponse> latestForCaller(Jwt jwt) {
         UUID sub = subjectOf(jwt);
         return tenantLookup.findLatestClubIdBySub(sub)
-                .flatMap(clubId -> Tenants.runAs(clubId, () -> requests.findLatestBySub(sub)))
-                .map(JoinRequestResponse::from);
+                .flatMap(clubId -> Tenants.runAs(clubId,
+                        () -> requests.findLatestBySub(sub).map(this::toResponseWithClub)));
     }
 
     /** The caller's tenant's pending requests — CLUB_ADMINISTRATOR own-club list. */
@@ -118,6 +120,25 @@ public class JoinRequestsService {
         return requests.findPendingForCurrentTenant().stream()
                 .map(PendingJoinRequestResponse::from)
                 .toList();
+    }
+
+    /**
+     * Folds the requested club's public-display fields (name / city / logo) into
+     * the pilot's own response (S-178). The aggregate carries only {@code clubId}
+     * and the pilot has no tenant, so the {@code /join/pending} screen needs the
+     * club resolved here rather than via a cross-tenant endpoint. The club read
+     * runs under the request's own tenant; an absent club leaves the fields null.
+     */
+    private JoinRequestResponse withClubDisplay(JoinRequest request) {
+        UUID clubId = request.getClubId();
+        Club club = Tenants.runAs(clubId, () -> clubs.findActiveById(clubId).orElse(null));
+        return JoinRequestResponse.from(request, club);
+    }
+
+    /** As {@link #withClubDisplay} but for use already inside a tenant scope. */
+    private JoinRequestResponse toResponseWithClub(JoinRequest request) {
+        Club club = clubs.findActiveById(request.getClubId()).orElse(null);
+        return JoinRequestResponse.from(request, club);
     }
 
     private static UUID subjectOf(Jwt jwt) {

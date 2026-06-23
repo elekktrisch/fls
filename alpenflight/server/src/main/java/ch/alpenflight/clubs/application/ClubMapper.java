@@ -36,6 +36,8 @@ final class ClubMapper {
                         "Club is missing countryId (NOT NULL invariant in V2)"),
                 Objects.requireNonNull(ClubStateId.ofNullable(club.getClubStateId()),
                         "Club is missing clubStateId (NOT NULL invariant in V2)"),
+                club.getCity(),
+                club.getLogoUrl(),
                 joinCode);
     }
 }

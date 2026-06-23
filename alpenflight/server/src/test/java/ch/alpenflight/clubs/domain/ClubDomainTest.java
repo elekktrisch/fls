@@ -124,6 +124,21 @@ class ClubDomainTest {
     }
 
     @Test
+    void publicDisplay_stores_city_and_logo_and_normalizes_blank_to_null() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getCity()).isNull();
+        assertThat(club.getLogoUrl()).isNull();
+
+        club.setPublicDisplay("  Zurich  ", "  https://example.com/logo.png  ");
+        assertThat(club.getCity()).isEqualTo("Zurich");
+        assertThat(club.getLogoUrl()).isEqualTo("https://example.com/logo.png");
+
+        club.setPublicDisplay("   ", null);
+        assertThat(club.getCity()).isNull();
+        assertThat(club.getLogoUrl()).isNull();
+    }
+
+    @Test
     void planningNotification_optIn_tracks_a_nonBlank_recipient_address() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.wantsPlanningDayNotifications()).isFalse();

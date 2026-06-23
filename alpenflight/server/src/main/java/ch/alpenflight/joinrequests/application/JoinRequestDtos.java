@@ -1,5 +1,6 @@
 package ch.alpenflight.joinrequests.application;
 
+import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.joinrequests.domain.JoinRequest;
 import ch.alpenflight.joinrequests.domain.JoinRequestStatus;
 import ch.alpenflight.users.domain.Role;
@@ -73,21 +74,40 @@ public final class JoinRequestDtos {
      * /api/v1/me/join-request} return. Carries the lifecycle status + the
      * admin's decision reason (shown to the denied pilot), never the
      * deciding-admin identity.
+     *
+     * <p>{@code clubName} / {@code city} / {@code logoUrl} are the requested
+     * club's public-display projection — the pilot has no tenant yet, so the
+     * {@code /join/pending} screen reads them off the request the pilot owns
+     * rather than a cross-tenant club endpoint (S-178). They are resolved
+     * server-side when the pilot's own request is returned and null on the
+     * admin decision paths, which target the admin (who already has the club).
      */
     @Schema(description = "The pilot's own join-request projection.")
     public record JoinRequestResponse(
             UUID id,
             UUID clubId,
+            @Nullable String clubName,
+            @Nullable String city,
+            @Nullable String logoUrl,
             JoinRequestStatus status,
             @Nullable String note,
             @Nullable String decisionReason,
             Instant createdOn,
             @Nullable Instant decidedOn) {
 
+        /** Without the public club projection — admin decision paths target the admin. */
         public static JoinRequestResponse from(JoinRequest r) {
+            return from(r, null);
+        }
+
+        /** With the requested club's public-display projection, for the request's owner. */
+        public static JoinRequestResponse from(JoinRequest r, @Nullable Club club) {
             return new JoinRequestResponse(
                     r.getId(),
                     r.getClubId(),
+                    club == null ? null : club.getClubname(),
+                    club == null ? null : club.getCity(),
+                    club == null ? null : club.getLogoUrl(),
                     r.getStatus(),
                     r.getNote(),
                     r.getDecisionReason(),

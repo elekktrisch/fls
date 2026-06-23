@@ -264,6 +264,10 @@ audit:
           # to log verbatim.
           - sendPlanningDayInfoMailTo
           - usePlanningDayWithoutReservations
+          # Public-display fields shown to a pilot on /join/pending (S-178) —
+          # club settings meant to be shown publicly, not member PII.
+          - city
+          - logoUrl
           - deletedOn
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a

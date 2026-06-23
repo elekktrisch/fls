@@ -74,7 +74,10 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();
-        codeA = clubs.findActiveById(clubA).map(Club::getJoinCode).orElseThrow();
+        Club a = clubs.findActiveById(clubA).orElseThrow();
+        a.setPublicDisplay("Zurich", "https://example.com/clubA-logo.png");
+        clubs.save(a);
+        codeA = a.getJoinCode();
         codeB = clubs.findActiveById(clubB).map(Club::getJoinCode).orElseThrow();
     }
 
@@ -89,6 +92,8 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("status").asText()).isEqualTo("PENDING");
         assertThat(body.get("clubId").asText()).isEqualTo(clubA.toString());
         assertThat(body.get("note").asText()).isEqualTo("let me in");
+        assertThat(body.get("city").asText()).isEqualTo("Zurich");
+        assertThat(body.get("logoUrl").asText()).isEqualTo("https://example.com/clubA-logo.png");
         URI loc = res.getHeaders().getLocation();
         assertThat(loc).isNotNull();
         assertThat(loc.getPath()).isEqualTo("/api/v1/join-requests/" + body.get("id").asText());
@@ -157,8 +162,23 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         submit(token, codeA, "hi");
         ResponseEntity<String> res = get(token, "/api/v1/me/join-request");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(readJson(res).get("clubId").asText()).isEqualTo(clubA.toString());
-        assertThat(readJson(res).get("status").asText()).isEqualTo("PENDING");
+        JsonNode body = readJson(res);
+        assertThat(body.get("clubId").asText()).isEqualTo(clubA.toString());
+        assertThat(body.get("status").asText()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void me_returns_public_club_display_for_owner() {
+        UUID sub = UuidCreator.getTimeOrderedEpoch();
+        String token = pilotToken(sub);
+        submit(token, codeA, "hi");
+        JsonNode body = readJson(get(token, "/api/v1/me/join-request"));
+        // The tenant-less /join/pending screen reads the club's public display
+        // off the request the pilot owns — no cross-tenant club endpoint.
+        assertThat(body.get("clubName").asText())
+                .isEqualTo(clubs.findActiveById(clubA).orElseThrow().getClubname());
+        assertThat(body.get("city").asText()).isEqualTo("Zurich");
+        assertThat(body.get("logoUrl").asText()).isEqualTo("https://example.com/clubA-logo.png");
     }
 
     // ---- GET /join-requests?status=pending (admin) ----

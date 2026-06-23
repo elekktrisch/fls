@@ -27,7 +27,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Many V2 columns (address, phone, FK to country / club_state, audit cols,
  * etc.) are intentionally NOT mapped on this aggregate today — S-048 is a
  * walking skeleton and the DTO surface is narrow. Future stories that need to
- * read/write those columns will extend the entity.
+ * read/write those columns will extend the entity, as {@code city} +
+ * {@code logo_url} are mapped here for the pilot join-pending public display.
  */
 @Entity
 @Table(name = "t_club")
@@ -54,6 +55,15 @@ public class Club {
 
     @Column(name = "slug", length = 64)
     private @Nullable String slug;
+
+    // Public-display fields shown on the pilot's tenant-less /join/pending page
+    // (S-178). `city` is the legacy t_club.City (V2); `logoUrl` is net-new with
+    // no legacy source — null until a club sets one.
+    @Column(name = "city", length = 100)
+    private @Nullable String city;
+
+    @Column(name = "logo_url", length = 500)
+    private @Nullable String logoUrl;
 
     @Column(name = "public_registration_enabled", nullable = false)
     private boolean publicRegistrationEnabled;
@@ -186,6 +196,16 @@ public class Club {
                         .formatted(MAX_JOIN_CODE_ATTEMPTS));
     }
 
+    /**
+     * Sets the public-display fields shown to a pilot before they belong to the
+     * club (S-178). Both normalize blank to null so an empty input clears the
+     * field rather than storing whitespace.
+     */
+    public void setPublicDisplay(@Nullable String city, @Nullable String logoUrl) {
+        this.city = blankToNull(city);
+        this.logoUrl = blankToNull(logoUrl);
+    }
+
     public void relocate(UUID newCountryId, UUID newClubStateId) {
         if (newCountryId == null) {
             throw new IllegalArgumentException("countryId must not be null");
@@ -217,6 +237,14 @@ public class Club {
         if (this.deletedOn == null) {
             this.deletedOn = Instant.now(clock);
         }
+    }
+
+    private static @Nullable String blankToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.strip();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void setClubKey(String value) {
@@ -251,6 +279,16 @@ public class Club {
 
     public @Nullable String getSlug() {
         return slug;
+    }
+
+    /** The club's city, shown on the pilot join-pending public display (S-178). */
+    public @Nullable String getCity() {
+        return city;
+    }
+
+    /** The club's logo URL, or null when none is set (net-new, no legacy source). */
+    public @Nullable String getLogoUrl() {
+        return logoUrl;
     }
 
     public boolean isPublicRegistrationEnabled() {
