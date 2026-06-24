@@ -2,7 +2,8 @@
 id: J-12b
 title: Admin join-request approval (/join-requests) + invite robustness
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-06-24
 journey0: false
 carved: true
 depends_on: [J-12a]
