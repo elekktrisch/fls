@@ -83,10 +83,18 @@ export const JoinStore = signalStore(
 
     const withdraw = rxMethod<string>(
       pipe(
+        // Optimistically drop the held request up-front: the pending page
+        // navigates to `/join` the moment the pilot clicks Withdraw, and the
+        // `/join` screen bounces a STILL-PENDING held request straight back to
+        // `/join/pending` — racing the eager nav into an `AbortError`. Clearing
+        // before the HTTP round-trip means the `/join` screen sees no live
+        // request and stays put.
+        tap(() => patchState(store, { request: null })),
         switchMap((id) =>
           api.withdraw(id).pipe(
             // A withdraw returns the pilot to /join with no live request and no
-            // cooldown — clear the held request so a re-submit is allowed.
+            // cooldown. The optimistic clear above already emptied the held
+            // request; re-assert null on settle so an error path converges too.
             tapResponse({
               next: () => patchState(store, { request: null }),
               error: () => patchState(store, { request: null }),

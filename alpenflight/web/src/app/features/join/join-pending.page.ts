@@ -2,16 +2,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  Injector,
   type OnInit,
   computed,
   inject,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
+import { filter, switchMap, take } from 'rxjs';
 
 import { MeEventsService } from '@core/events';
+import { SessionStore } from '@core/session/session.store';
 import { formatDdMmYyyy } from '@shared/util/date';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfPageComponent } from '@ui/molecules/af-page';
@@ -121,6 +124,8 @@ export class JoinPendingPageComponent implements OnInit {
   readonly #router = inject(Router);
   readonly #events = inject(MeEventsService);
   readonly #oidc = inject(OidcSecurityService);
+  readonly #session = inject(SessionStore);
+  readonly #injector = inject(Injector);
   readonly #destroyRef = inject(DestroyRef);
 
   protected readonly clubName = computed(() => this.store.request()?.clubName ?? '');
@@ -146,28 +151,54 @@ export class JoinPendingPageComponent implements OnInit {
       .subscribe((event) => this.#onStatusChanged(event.data));
   }
 
+  // Set when the pilot withdraws from THIS page: the eager `toJoin()` below
+  // already routes them away, so the SSE `withdrawn` echo that lands a moment
+  // later must NOT fire a second `/join` navigation — by then a re-submit may
+  // already be navigating to `/join/pending`, and the colliding nav logs
+  // `AbortError: Transition was skipped`.
+  #withdrawHandledLocally = false;
+
   protected withdraw(): void {
     const id = this.store.request()?.id;
     if (!id) return;
-    // The store clears the held request on a successful withdraw — route once
-    // the SSE `withdrawn` echo (or the cleared request) settles. Navigating
-    // here keeps the pilot moving even if their own stream lags.
+    // The store clears the held request on a successful withdraw. Navigate
+    // eagerly so the pilot moves even if their SSE stream lags; the echo's
+    // redundant nav is suppressed by the flag.
+    this.#withdrawHandledLocally = true;
     this.store.withdraw(id);
     void this.toJoin();
   }
 
   protected toJoin(): void {
+    if (this.#router.url.split('?')[0] === '/join') return;
     void this.#router.navigateByUrl('/join');
   }
 
   #onStatusChanged(data: string): void {
     switch (actionForStatus(parseStatusChanged(data))) {
       case 'refresh-and-start':
-        // Refresh so the new token carries the `clubId` claim before /start's
-        // tenant gate evaluates; route once the refresh settles.
+        // Refresh so the new token carries the `clubId` claim, then re-read /me
+        // so the SessionStore's `currentClubId` reflects the now-created t_user.
+        // Navigate to /start only ONCE `currentClubId` is populated — the
+        // refresh-token grant resolves before the `userData()` effect propagates
+        // the claim into the store, so navigating eagerly hits /start's tenant
+        // gate with a still-null clubId and bounces back to /join (the request
+        // is no longer PENDING). Waiting for the tenant to settle closes that
+        // graduation race.
         this.#oidc
           .forceRefreshSession()
-          .pipe(takeUntilDestroyed(this.#destroyRef))
+          .pipe(
+            switchMap(() => {
+              this.#session.loadMe();
+              return toObservable(this.#session.currentClubId, {
+                injector: this.#injector,
+              }).pipe(
+                filter((clubId) => clubId !== null),
+                take(1),
+              );
+            }),
+            takeUntilDestroyed(this.#destroyRef),
+          )
           .subscribe(() => void this.#router.navigateByUrl('/start'));
         break;
       case 'show-denied':
@@ -176,6 +207,9 @@ export class JoinPendingPageComponent implements OnInit {
         this.store.loadMine();
         break;
       case 'to-join':
+        // A local withdraw already routed to `/join`; ignore the echo so it
+        // can't collide with a re-submit's `/join/pending` navigation.
+        if (this.#withdrawHandledLocally) break;
         void this.toJoin();
         break;
       case 'none':

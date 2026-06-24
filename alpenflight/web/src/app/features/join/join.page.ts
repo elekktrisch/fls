@@ -84,7 +84,7 @@ import { JoinStore } from './join.store';
                 id="join-note"
                 data-testid="join-note-input"
                 rows="4"
-                [maxlength]="noteMax"
+                [attr.maxlength]="noteMax"
                 [value]="note()"
                 (input)="onNote($event)"
                 class="w-full px-3 py-2 text-sm bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-hidden"
@@ -163,10 +163,14 @@ export class JoinPageComponent implements OnDestroy {
       }
     });
 
-    // On a 201 the store swaps `submitError` for a held request — route to the
-    // pending page (T-11 owns that screen + the public-club projection).
+    // On a 201 the store swaps `submitError` for a held PENDING request — route
+    // to the pending page (T-11 owns that screen + the public-club projection).
+    // Gate on PENDING: a terminal request the store still holds (a DENIED /
+    // WITHDRAWN request the pilot came back from to re-apply) must NOT bounce
+    // `/join` straight to `/join/pending` — the pilot is here to enter a new
+    // code.
     effect(() => {
-      if (this.store.request()) {
+      if (this.store.request()?.status === 'PENDING') {
         void this.#router.navigateByUrl('/join/pending');
       }
     });
