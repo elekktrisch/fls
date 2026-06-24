@@ -258,15 +258,28 @@ async function installApiFloor(page: Page): Promise<void> {
  */
 const MOCK_AUTH_PROJECT = 'chromium';
 
+/**
+ * Install the full mock-auth `/api/v1/*` stub stack (floor + bootstrap catalogs
+ * + per-screen resources) on `page`, in floor-first priority order. The
+ * auto-fixture applies this to the injected `page`; a spec driving its OWN page
+ * (`context().newPage()` / `browser.newContext().newPage()`) must call this on
+ * that page too — otherwise its shell-bootstrap GETs (the join-request badge,
+ * reference catalogs, …) fall through Vite's proxy to ECONNREFUSED → 500 and
+ * trip the no-console-errors guard. The injected fixture page is unaffected;
+ * the new page gets the SAME floor (GET → `[]`, write → 204).
+ */
+export async function installMockApiStubs(page: Page): Promise<void> {
+  await installApiFloor(page);
+  await installBootstrapReferenceStubs(page);
+  await installPerScreenResourceStubs(page);
+}
+
 export const test = base.extend<{ consoleGuard: void }>({
   consoleGuard: [
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
       if (testInfo.project.name === MOCK_AUTH_PROJECT) {
-        // FIRST so it is the lowest-priority handler — see installApiFloor.
-        await installApiFloor(page);
-        await installBootstrapReferenceStubs(page);
-        await installPerScreenResourceStubs(page);
+        await installMockApiStubs(page);
       }
       await use();
 
