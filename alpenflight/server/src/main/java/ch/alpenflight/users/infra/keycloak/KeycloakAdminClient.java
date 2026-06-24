@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -190,6 +191,29 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     "Keycloak read user (status " + e.getStatusCode().value() + ")", e);
         } catch (Exception e) {
             throw new UserDirectoryException("Keycloak read user: malformed representation", e);
+        }
+    }
+
+    @Override
+    public Optional<DirectoryUser> findUserByEmail(String email) {
+        Objects.requireNonNull(email, "email");
+        String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
+                .queryParam("email", email)
+                .queryParam("exact", true)
+                .queryParam("max", 1)
+                .build()
+                .toUriString();
+        try {
+            String body = http.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
+            return readListOf(body, UserLookupWire.class).stream()
+                    .findFirst()
+                    .map(UserLookupWire::toDirectoryUser);
+        } catch (HttpStatusCodeException e) {
+            throw new UserDirectoryException(
+                    "Keycloak user-by-email lookup (status " + e.getStatusCode().value() + ")", e);
         }
     }
 
@@ -418,4 +442,38 @@ public class KeycloakAdminClient implements UserDirectoryPort {
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserAttributesWire(@Nullable Map<String, List<String>> attributes) {}
+
+    /**
+     * Email-lookup projection (S-181). Carries the {@code id} plus the two
+     * attributes the invite robustness branch decides on — {@code clubId}
+     * (attached-vs-unattached) and {@code locale} (welcome-attached email).
+     * A malformed / multi-valued attribute folds to its first value; an absent
+     * key folds to {@code null}.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record UserLookupWire(UUID id, @Nullable Map<String, List<String>> attributes) {
+        DirectoryUser toDirectoryUser() {
+            return new DirectoryUser(id, firstUuid("clubId"), first("locale"));
+        }
+
+        private @Nullable UUID firstUuid(String key) {
+            String raw = first(key);
+            if (raw == null) {
+                return null;
+            }
+            try {
+                return UUID.fromString(raw);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        private @Nullable String first(String key) {
+            if (attributes == null) {
+                return null;
+            }
+            List<String> values = attributes.get(key);
+            return values == null || values.isEmpty() ? null : values.get(0);
+        }
+    }
 }

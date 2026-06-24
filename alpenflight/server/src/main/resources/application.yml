@@ -448,6 +448,13 @@ audit:
         allow:
           - action
           - targetRole
+      InvitedAuditPayload:
+        # S-181 user.invited payload. `branch` (new_kc_user / attached_existing)
+        # is a non-PII enum-string; `user` recurses into the UserResponse
+        # allow-list above, so its PII fields still ride as `[redacted]`.
+        allow:
+          - branch
+          - user
       LookupAuditPayload:
         # Lookup-audit payload (PersonsService.lookup → LOOKUP_HIT/MISS).
         # Three forensic primitives, all non-PII: tenant uuid + byEmail flag

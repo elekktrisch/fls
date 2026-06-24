@@ -3,7 +3,9 @@ package ch.alpenflight.users.application;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.UserId;
+import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.users.application.UserDtos.UserInviteRequest;
 import ch.alpenflight.users.application.UserDtos.UserListItem;
@@ -14,6 +16,7 @@ import ch.alpenflight.users.domain.User;
 import ch.alpenflight.users.domain.UserConflictException;
 import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserDirectoryPort;
+import ch.alpenflight.users.domain.UserDirectoryPort.DirectoryUser;
 import ch.alpenflight.users.domain.UserDirectoryPort.RealmRoleRef;
 import ch.alpenflight.users.domain.UserDirectoryPort.UserDirectoryRow;
 import ch.alpenflight.users.domain.UserDirectoryPort.UserDirectorySpec;
@@ -70,12 +73,18 @@ public class UsersService {
     private static final String AUDIT_USER = "User";
     private static final String AUDIT_USER_ROLE = "UserRole";
     private static final int LIST_MAX = 200;
+    private static final String BRANCH_NEW_KC_USER = "new_kc_user";
+    private static final String BRANCH_ATTACHED_EXISTING = "attached_existing";
+    private static final String WELCOME_ATTACHED_TEMPLATE = "users/welcome-attached";
+    private static final String WELCOME_ATTACHED_SUBJECT = "Welcome to AlpenFlight";
 
     private final UserRepository users;
     private final UserDirectoryPort kc;
     private final RoleAssignmentPolicy rolePolicy;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final AuditTrail auditTrail;
+    private final ClubRepository clubs;
+    private final TemplatedMailService mail;
     private final Clock clock;
 
     public UsersService(UserRepository users,
@@ -83,12 +92,16 @@ public class UsersService {
                         RoleAssignmentPolicy rolePolicy,
                         ClubTenantIdentifierResolver tenantResolver,
                         AuditTrail auditTrail,
+                        ClubRepository clubs,
+                        TemplatedMailService mail,
                         Clock clock) {
         this.users = users;
         this.kc = kc;
         this.rolePolicy = rolePolicy;
         this.tenantResolver = tenantResolver;
         this.auditTrail = auditTrail;
+        this.clubs = clubs;
+        this.mail = mail;
         this.clock = clock;
     }
 
@@ -149,6 +162,26 @@ public class UsersService {
             throw new UserConflictException("username " + req.username() + " already in use in club " + existing.getClubId());
         });
 
+        Optional<DirectoryUser> existingKc = kc.findUserByEmail(req.notificationEmail());
+        if (existingKc.isPresent()) {
+            DirectoryUser kcUser = existingKc.get();
+            if (kcUser.clubId() != null) {
+                // One-sub-one-club: the invitee is already attached to a club.
+                // The other club's name is NOT exposed — a generic message
+                // (cross-tenant disclosure guard); the specifics are audit-side.
+                LOG.warn("USER_INVITE_ATTACHED_ELSEWHERE email-sub={} attachedClub={} invitingClub={}",
+                        kcUser.sub(), kcUser.clubId(), tenant);
+                throw new UserConflictException(
+                        "this email is already attached to another club — they need to leave "
+                        + "that club first, OR you can share your join code instead.");
+            }
+            return bindExistingKcUser(tenant, req, kcUser);
+        }
+
+        return createNewKcUser(tenant, req);
+    }
+
+    private UserResponse createNewKcUser(UUID tenant, UserInviteRequest req) {
         UUID kcSub = kc.createUser(new UserDirectorySpec(
                 req.username(),
                 req.notificationEmail(),
@@ -202,8 +235,78 @@ public class UsersService {
             LOG.warn("send invite email failed sub={} — operator can resend-invite", kcSub, ex);
         }
         UserResponse response = toResponse(saved);
-        auditTrail.record(AuditAction.CREATE, AuditedTarget.created(AUDIT_USER, rowId, response));
+        auditTrail.record(AuditAction.CREATE,
+                AuditedTarget.created(AUDIT_USER, rowId, new InvitedAuditPayload(BRANCH_NEW_KC_USER, response)));
         return response;
+    }
+
+    /**
+     * Bind an UNATTACHED pre-existing KC user to the inviting tenant (S-181):
+     * set the KC {@code clubId} attribute, create the {@code t_user} with the
+     * existing sub, grant the requested roles, and send a welcome-attached
+     * email (NO password reset — the user already has a credential).
+     *
+     * <p>Tenant-leak compensation (security). The {@code clubId} attribute is
+     * set in KC BEFORE the {@code t_user} exists; the realm's
+     * {@code clubId-mapper} projects it into the user's next JWT, which the
+     * tenant resolver + JIT materializer trust with no {@code t_user}
+     * corroboration. So any failure after the attribute write deterministically
+     * clears it (catch → compensate → rethrow) before the DB transaction rolls
+     * back — a stranded attribute would silently grant tenant access. Mirrors
+     * the join-request approve half-join defence.
+     */
+    private UserResponse bindExistingKcUser(UUID tenant, UserInviteRequest req, DirectoryUser kcUser) {
+        UUID kcSub = kcUser.sub();
+        kc.writeClubIdAttribute(kcSub, tenant);
+        User saved;
+        try {
+            User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
+                    req.notificationEmail(), req.languageId(), req.personId());
+            u.updateProfile(req.friendlyName(), req.notificationEmail(),
+                    req.phoneNumber(), req.remarks(), req.languageId());
+            saved = users.save(u);
+            users.flush();
+            UUID rowId = requireId(saved);
+            applyRoleDelta(rowId, kcSub, Set.of(), req.roles());
+        } catch (RuntimeException e) {
+            try {
+                kc.clearClubIdAttribute(kcSub);
+            } catch (RuntimeException compensationFailure) {
+                e.addSuppressed(compensationFailure);
+            }
+            throw e;
+        }
+
+        sendWelcomeAttached(tenant, req.notificationEmail(), req.friendlyName(), kcUser.locale());
+        UserResponse response = toResponse(saved);
+        auditTrail.record(AuditAction.CREATE,
+                AuditedTarget.created(AUDIT_USER, requireId(saved),
+                        new InvitedAuditPayload(BRANCH_ATTACHED_EXISTING, response)));
+        return response;
+    }
+
+    private void sendWelcomeAttached(UUID tenant, String email, String friendlyName, @Nullable String locale) {
+        String clubName = clubs.findActiveById(tenant)
+                .map(ch.alpenflight.clubs.domain.Club::getClubname)
+                .orElse("");
+        Map<String, Object> model = new HashMap<>();
+        model.put("friendlyName", friendlyName);
+        model.put("clubName", clubName);
+        model.put("locale", normalizeLocale(locale));
+        try {
+            mail.send(email, WELCOME_ATTACHED_SUBJECT, WELCOME_ATTACHED_TEMPLATE, model);
+        } catch (RuntimeException ex) {
+            // Best-effort — same posture as the password-reset email on the
+            // create path: a mail outage must not roll the committed bind back.
+            LOG.warn("welcome-attached email failed sub-email={} — bind committed", email, ex);
+        }
+    }
+
+    private static String normalizeLocale(@Nullable String locale) {
+        if (locale == null || locale.isBlank()) {
+            return "en";
+        }
+        return locale.toLowerCase(java.util.Locale.ROOT).startsWith("de") ? "de" : "en";
     }
 
     public UserResponse update(UserId id, UserUpdateRequest req, @Nullable Jwt callerJwt) {
@@ -668,4 +771,12 @@ public class UsersService {
      * PII, both ride verbatim into the audit trail.
      */
     private record UserRoleAuditPayload(String action, String targetRole) {}
+
+    /**
+     * Audit payload for the {@code user.invited} event (S-181). {@code branch}
+     * distinguishes a fresh KC create ({@code new_kc_user}) from a bind to a
+     * pre-existing unattached KC user ({@code attached_existing}); {@code user}
+     * carries the same redacted projection the create path recorded before.
+     */
+    private record InvitedAuditPayload(String branch, UserResponse user) {}
 }
