@@ -160,6 +160,11 @@ jobs:
     needs: [legacy-server-build, legacy-web-build]
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    # Serialize gh-pages writes across workflows so concurrent deploys from
+    # different refs/workflows don't race the gh-pages ref.
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
     permissions:
       # gh-pages publish of the branch-preview proof bookmark.
       contents: write
