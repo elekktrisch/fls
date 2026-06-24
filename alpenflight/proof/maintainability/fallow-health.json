@@ -1,8 +1,8 @@
 {
   "kind": "health",
   "schema_version": 7,
-  "version": "2.101.0",
-  "elapsed_ms": 411,
+  "version": "2.102.0",
+  "elapsed_ms": 657,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -1037,6 +1037,42 @@
       ]
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<component>",
+      "line": 177,
+      "col": 18,
+      "cyclomatic": 13,
+      "cognitive": 16,
+      "line_count": 116,
+      "param_count": 0,
+      "exceeded": "cognitive",
+      "severity": "moderate",
+      "component_rollup": {
+        "component": "join-pending.page",
+        "class_worst_function": "<anonymous>",
+        "class_cyclomatic": 6,
+        "class_cognitive": 3,
+        "template_path": "src/app/features/join/join-pending.page.ts",
+        "template_cyclomatic": 7,
+        "template_cognitive": 13
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `join-pending.page` to reduce component complexity (rolled-up cyclomatic 13 = 6 on `<anonymous>` + 7 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/accounting/edit/match-list-control.component.ts",
       "name": "<component>",
       "line": 189,
@@ -1883,6 +1919,36 @@
       ]
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<template>",
+      "line": 41,
+      "col": 0,
+      "cyclomatic": 7,
+      "cognitive": 13,
+      "line_count": 74,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/edit/flights-edit.page.ts",
       "name": "finalSubmit",
       "line": 683,
@@ -2149,6 +2215,36 @@
           "description": "Suppress with an inline comment above the Angular decorator",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<anonymous>",
+      "line": 177,
+      "col": 18,
+      "cyclomatic": 6,
+      "cognitive": 3,
+      "line_count": 42,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<anonymous>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
         }
       ]
     },
@@ -3204,19 +3300,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 229,
-    "functions_analyzed": 1900,
-    "functions_above_threshold": 100,
+    "files_analyzed": 235,
+    "functions_analyzed": 1967,
+    "functions_above_threshold": 103,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 180,
-    "average_maintainability": 92.1,
+    "files_scored": 186,
+    "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 24,
-    "severity_high_count": 29,
-    "severity_moderate_count": 47
+    "severity_high_count": 30,
+    "severity_moderate_count": 49
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
@@ -3224,23 +3320,23 @@
     "avg_cyclomatic": 2.0,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 3.6,
+    "duplication_pct": 3.5,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.1,
+    "maintainability_avg": 92.0,
     "maintainability_low_pct": 0.0,
     "unused_dep_count": 0,
     "unused_deps_per_k_files": 0.0,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 229,
-      "total_exports": 505,
+      "total_files": 235,
+      "total_exports": 525,
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 32993,
-      "files_scored": 180,
+      "total_lines": 33917,
+      "files_scored": 186,
       "total_deps": 0
     },
     "unit_size_profile": {
@@ -3249,20 +3345,20 @@
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
-    "functions_over_60_loc_per_k": 35.8,
+    "functions_over_60_loc_per_k": 36.1,
     "unit_interfacing_profile": {
-      "low_risk": 97.4,
-      "medium_risk": 2.3,
+      "low_risk": 97.5,
+      "medium_risk": 2.2,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
-    "coupling_high_pct": 1.7,
-    "total_loc": 32993
+    "coupling_high_pct": 1.6,
+    "total_loc": 33917
   },
   "health_score": {
     "formula_version": 2,
-    "score": 89.1,
+    "score": 89.2,
     "grade": "A",
     "penalties": {
       "dead_files": 0.0,
@@ -3274,7 +3370,7 @@
       "unused_deps": 0.0,
       "circular_deps": 0.0,
       "unit_size": 10.0,
-      "coupling": 0.9,
+      "coupling": 0.8,
       "duplication": 0.0
     }
   },
@@ -3728,6 +3824,20 @@
       "crap_above_threshold": 1
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "fan_in": 1,
+      "fan_out": 7,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.2,
+      "maintainability_index": 85.7,
+      "total_cyclomatic": 44,
+      "total_cognitive": 24,
+      "function_count": 17,
+      "lines": 220,
+      "crap_max": 56.0,
+      "crap_above_threshold": 2
+    },
+    {
       "path": "src/app/shared/ui/organisms/af-autocomplete/af-autocomplete.component.ts",
       "fan_in": 1,
       "fan_out": 3,
@@ -3785,7 +3895,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 43,
+      "fan_in": 44,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -4019,6 +4129,20 @@
       "function_count": 39,
       "lines": 776,
       "crap_max": 21.8,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/join/join.page.ts",
+      "fan_in": 1,
+      "fan_out": 6,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.14,
+      "maintainability_index": 88.0,
+      "total_cyclomatic": 30,
+      "total_cognitive": 12,
+      "function_count": 15,
+      "lines": 212,
+      "crap_max": 20.0,
       "crap_above_threshold": 0
     },
     {
@@ -4442,6 +4566,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.store.ts",
+      "fan_in": 6,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.21,
+      "maintainability_index": 90.9,
+      "total_cyclomatic": 34,
+      "total_cognitive": 11,
+      "function_count": 20,
+      "lines": 163,
+      "crap_max": 10.4,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/util/form/inline-validation.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4500,15 +4638,29 @@
     {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 24,
+      "fan_out": 25,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.33,
-      "maintainability_index": 77.2,
-      "total_cyclomatic": 52,
+      "complexity_density": 0.34,
+      "maintainability_index": 76.8,
+      "total_cyclomatic": 54,
       "total_cognitive": 0,
-      "function_count": 52,
-      "lines": 156,
+      "function_count": 54,
+      "lines": 160,
       "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/core/session/tenant-required.guard.ts",
+      "fan_in": 15,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 90.8,
+      "total_cyclomatic": 12,
+      "total_cognitive": 6,
+      "function_count": 5,
+      "lines": 76,
+      "crap_max": 7.5,
       "crap_above_threshold": 0
     },
     {
@@ -4862,6 +5014,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/core/session/session.guard.ts",
+      "fan_in": 9,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.12,
+      "maintainability_index": 92.0,
+      "total_cyclomatic": 14,
+      "total_cognitive": 8,
+      "function_count": 7,
+      "lines": 114,
+      "crap_max": 4.9,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/ui/organisms/af-page-error/af-page-error.component.ts",
       "fan_in": 1,
       "fan_out": 2,
@@ -4974,6 +5140,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join-page.logic.ts",
+      "fan_in": 2,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.09,
+      "maintainability_index": 94.5,
+      "total_cyclomatic": 9,
+      "total_cognitive": 8,
+      "function_count": 4,
+      "lines": 99,
+      "crap_max": 4.1,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/nav-sections.ts",
       "fan_in": 2,
       "fan_out": 1,
@@ -4984,6 +5164,20 @@
       "total_cognitive": 4,
       "function_count": 2,
       "lines": 92,
+      "crap_max": 4.1,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/join/join-pending.logic.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 95.9,
+      "total_cyclomatic": 7,
+      "total_cognitive": 3,
+      "function_count": 2,
+      "lines": 46,
       "crap_max": 4.1,
       "crap_above_threshold": 0
     },
@@ -5170,20 +5364,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/core/session/session.guard.ts",
-      "fan_in": 9,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.13,
-      "maintainability_index": 91.7,
-      "total_cyclomatic": 13,
-      "total_cognitive": 7,
-      "function_count": 7,
-      "lines": 102,
-      "crap_max": 3.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/start/start-variant.ts",
       "fan_in": 2,
       "fan_out": 1,
@@ -5226,6 +5406,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/signup/signup-intent.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 96.9,
+      "total_cyclomatic": 5,
+      "total_cognitive": 2,
+      "function_count": 2,
+      "lines": 34,
+      "crap_max": 3.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/util/reservation/reservation-time.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -5254,6 +5448,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join/join.routes.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.12,
+      "maintainability_index": 91.1,
+      "total_cyclomatic": 4,
+      "total_cognitive": 0,
+      "function_count": 4,
+      "lines": 34,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/core/i18n/transloco-loader.ts",
       "fan_in": 2,
       "fan_out": 5,
@@ -5278,20 +5486,6 @@
       "total_cognitive": 1,
       "function_count": 4,
       "lines": 70,
-      "crap_max": 2.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 14,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 93.8,
-      "total_cyclomatic": 3,
-      "total_cognitive": 1,
-      "function_count": 2,
-      "lines": 34,
       "crap_max": 2.9,
       "crap_above_threshold": 0
     },
@@ -5478,21 +5672,21 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/start/start.routes.ts",
+      "path": "src/app/features/profile/profile.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 94.4,
+      "complexity_density": 0.08,
+      "maintainability_index": 94.5,
       "total_cyclomatic": 2,
       "total_cognitive": 0,
       "function_count": 2,
-      "lines": 22,
+      "lines": 24,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/profile/profile.routes.ts",
+      "path": "src/app/features/start/start.routes.ts",
       "fan_in": 1,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
@@ -5656,20 +5850,6 @@
       "total_cognitive": 2,
       "function_count": 2,
       "lines": 26,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/signup/signup-intent.ts",
-      "fan_in": 2,
-      "fan_out": 0,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 98.3,
-      "total_cyclomatic": 3,
-      "total_cognitive": 1,
-      "function_count": 2,
-      "lines": 32,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -6133,6 +6313,18 @@
       "line_count": 74
     },
     {
+      "path": "src/app/features/join/join-pending.page.ts",
+      "name": "<template>",
+      "line": 41,
+      "line_count": 74
+    },
+    {
+      "path": "src/app/features/join/join.page.ts",
+      "name": "<template>",
+      "line": 40,
+      "line_count": 73
+    },
+    {
       "path": "src/app/features/profile/profile-shell.page.ts",
       "name": "<template>",
       "line": 39,
@@ -6172,6 +6364,12 @@
       "path": "src/app/features/flight-types/edit/flight-types-edit.page.ts",
       "name": "constructor",
       "line": 358,
+      "line_count": 66
+    },
+    {
+      "path": "src/app/features/join/join.store.ts",
+      "name": "JoinStore",
+      "line": 52,
       "line_count": 66
     },
     {
@@ -6549,7 +6747,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_e44ac40a9762d424"
+      "analysis_run_id": "run_ed7916a15cef23c6"
     }
   }
 }
