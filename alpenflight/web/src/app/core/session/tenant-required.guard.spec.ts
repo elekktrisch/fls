@@ -5,7 +5,7 @@ import {
 } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
-  Router,
+  provideRouter,
   type ActivatedRouteSnapshot,
   type RouterStateSnapshot,
   type UrlTree,
@@ -96,7 +96,10 @@ describe('tenantRequiredGuard', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        provideRouterStub(),
+        // Real router so the guard's parseUrl produces a UrlTree with a
+        // `.root.children` (the /start self-redirect short-circuit reads the
+        // primary first segment); a parseUrl-only stub can't model that.
+        provideRouter([]),
         { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
         {
           provide: JoinRequestsService,
@@ -131,6 +134,27 @@ describe('tenantRequiredGuard', () => {
 
     const { emissions } = collect(runGuard());
     expect(urlOf(emissions[0])).toBe('/start');
+  });
+
+  it('admits a tenant-less SYSTEM_ADMINISTRATOR already at /start (no self-redirect)', () => {
+    const store = TestBed.inject(SessionStore);
+    store.login(tenantlessSysadmin, null);
+
+    // Self-redirecting /start → /start aborts the original /start navigation
+    // once the gate resolves asynchronously (the onboarding probe). Admit it.
+    const { emissions } = collect(runGuard({}, '/start'));
+    expect(emissions).toEqual([true]);
+  });
+
+  it('still routes a tenant-less onboarding pilot at /start to onboarding (guard not weakened)', () => {
+    const store = TestBed.inject(SessionStore);
+    store.login(onboardingPilot, null);
+    myJoinRequestResult = of(livePending);
+
+    // The /start admit is sysadmin-only — a club-less non-admin at /start is
+    // still probed and bounced into the join flow.
+    const { emissions } = collect(runGuard({}, '/start'));
+    expect(urlOf(emissions[0])).toBe('/join/pending');
   });
 
   it('routes a tenant-less onboarding pilot with a live request to /join/pending', () => {
@@ -204,14 +228,3 @@ describe('onboardingRedirect', () => {
     expect(onboardingRedirect({ ...livePending, status: 'DENIED' })).toBe('/join');
   });
 });
-
-// Minimal Router providing only parseUrl — provideRouter([]) would also work
-// but pulls the full router; the guard only needs parseUrl for the bounce.
-function provideRouterStub() {
-  return {
-    provide: Router,
-    useValue: {
-      parseUrl: (url: string) => ({ toString: () => url }) as unknown as UrlTree,
-    } as Pick<Router, 'parseUrl'>,
-  };
-}

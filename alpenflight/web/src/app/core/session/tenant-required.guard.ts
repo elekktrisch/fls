@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { Router, type CanActivateFn, type UrlTree } from '@angular/router';
-import { type Observable, map, of } from 'rxjs';
+import { type Observable, map } from 'rxjs';
 
 import { JoinRequestsService } from '@api/generated/join-requests/join-requests.service';
 import type { JoinRequestResponse } from '@api/generated/model';
@@ -37,18 +37,31 @@ export function onboardingRedirect(request: JoinRequestResponse | null): '/join/
  * AFTER the session settles (when {@code loadMe()} has populated the club id)
  * — never against the transiently-null loading state, which used to bounce a
  * mid-renew navigation.
+ *
+ * <p>A SYSTEM_ADMINISTRATOR already navigating to {@code /start} is admitted
+ * outright rather than redirected to {@code /start}: that self-redirect is a
+ * no-op, and since the gate can now resolve asynchronously (the onboarding
+ * probe), it commits a second redirect navigation that aborts the original
+ * {@code /start} load. {@code /start} is the legitimate club-less sysadmin
+ * landing, so admitting it there is also strictly correct. A tenant-less
+ * NON-admin (onboarding pilot) at {@code /start} is NOT admitted — it still
+ * falls through to the live-request probe and onto {@code /join[/pending]}.
  */
 export const tenantRequiredGuard: CanActivateFn = (route, state) => {
   const session = inject(SessionStore);
   const router = inject(Router);
   const joinRequests = inject(JoinRequestsService);
 
-  const tenantGate = (): boolean | Observable<boolean | UrlTree> => {
+  const targetIsStart = (): boolean => {
+    return router.parseUrl(state.url).root.children['primary']?.segments[0]?.path === 'start';
+  };
+
+  const tenantGate = (): boolean | UrlTree | Observable<boolean | UrlTree> => {
     if (session.currentClubId() !== null) {
       return true;
     }
     if (session.isSystemAdmin()) {
-      return of(router.parseUrl('/start'));
+      return targetIsStart() ? true : router.parseUrl('/start');
     }
     // A tenant-less non-admin is mid-onboarding: probe the live request to
     // choose the pending page vs the code entry. A 204/failure resolves to
