@@ -113,6 +113,11 @@ export const routes: Routes = [
     loadChildren: () => import('@features/users/users.routes').then((m) => m.USERS_ROUTES),
   },
   {
+    path: 'join-requests',
+    loadChildren: () =>
+      import('@features/join-requests/join-requests.routes').then((m) => m.JOIN_REQUESTS_ROUTES),
+  },
+  {
     path: 'articles',
     loadChildren: () => import('@features/articles/articles.routes').then((m) => m.ARTICLES_ROUTES),
   },

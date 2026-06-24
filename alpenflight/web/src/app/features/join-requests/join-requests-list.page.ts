@@ -1,0 +1,139 @@
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+
+import { SessionStore } from '@core/session/session.store';
+import { formatDdMmYyyy } from '@shared/util/date';
+import { AfButtonComponent } from '@ui/atoms/af-button';
+import { AfPageComponent } from '@ui/molecules/af-page';
+import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
+import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+
+import { JoinRequestsStore, type PendingJoinRequestItem } from './join-requests.store';
+
+const NOTE_PREVIEW_LENGTH = 120;
+
+@Component({
+  selector: 'af-join-requests-list',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block' },
+  imports: [
+    AfButtonComponent,
+    AfPageComponent,
+    AfPageErrorComponent,
+    AfPageHeaderComponent,
+    RouterLink,
+  ],
+  template: `
+    <af-page data-testid="join-requests-page">
+      <af-page-header
+        title="Join requests"
+        description="Pending requests to join your club."
+      ></af-page-header>
+
+      <af-page-error
+        [message]="store.loadError()"
+        (retry)="store.loadAll()"
+        data-testid="join-requests-error"
+      />
+
+      @if (!store.isLoading() && store.isEmpty() && !store.loadError()) {
+        <div
+          class="px-3 py-6 text-sm text-slate-500 border border-slate-200 bg-slate-50"
+          data-testid="join-requests-empty"
+        >
+          No pending requests.
+          @if (clubEditLink(); as link) {
+            <a
+              class="text-brand-700 hover:text-brand-800 ml-1"
+              [routerLink]="link"
+              data-testid="join-requests-empty-club-link"
+            >
+              Share your join code.
+            </a>
+          }
+        </div>
+      } @else {
+        <ul
+          class="flex flex-col divide-y divide-slate-200 border border-slate-200"
+          data-testid="join-requests-list"
+        >
+          @for (request of store.entities(); track request.id) {
+            <li
+              class="flex flex-col gap-2 p-4 md:flex-row md:items-start md:justify-between md:gap-6"
+              data-testid="join-request-row"
+            >
+              <div class="flex flex-col gap-1 min-w-0">
+                <span
+                  class="text-sm font-medium text-slate-900"
+                  data-testid="join-request-friendly-name"
+                >
+                  {{ request.friendlyName }}
+                </span>
+                <span class="text-xs text-slate-500" data-testid="join-request-email">
+                  {{ request.email }}
+                </span>
+                <span
+                  class="text-xs text-slate-500 tabular"
+                  data-testid="join-request-submitted-at"
+                >
+                  {{ submittedAt(request) }}
+                </span>
+                @if (notePreview(request); as note) {
+                  <span class="text-sm text-slate-600 mt-1" data-testid="join-request-note">
+                    {{ note }}
+                  </span>
+                }
+              </div>
+              <div class="flex flex-none items-center gap-2">
+                <af-button
+                  type="primary"
+                  htmlType="button"
+                  (clicked)="onApprove(request)"
+                  data-testid="join-request-approve"
+                >
+                  Approve
+                </af-button>
+                <af-button
+                  type="default"
+                  htmlType="button"
+                  (clicked)="onDeny(request)"
+                  data-testid="join-request-deny"
+                >
+                  Deny
+                </af-button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </af-page>
+  `,
+})
+export class JoinRequestsListPage {
+  protected readonly store = inject(JoinRequestsStore);
+  readonly #session = inject(SessionStore);
+
+  protected readonly clubEditLink = computed(() => {
+    const clubId = this.#session.currentClubId();
+    return clubId ? ['/clubs', clubId, 'edit'] : null;
+  });
+
+  protected submittedAt(request: PendingJoinRequestItem): string {
+    return formatDdMmYyyy(request.createdOn);
+  }
+
+  protected notePreview(request: PendingJoinRequestItem): string | null {
+    const note = request.note?.trim();
+    if (!note) return null;
+    return note.length > NOTE_PREVIEW_LENGTH ? `${note.slice(0, NOTE_PREVIEW_LENGTH)}…` : note;
+  }
+
+  protected onApprove(request: PendingJoinRequestItem): void {
+    void request;
+  }
+
+  protected onDeny(request: PendingJoinRequestItem): void {
+    void request;
+  }
+}
