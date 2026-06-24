@@ -1,5 +1,6 @@
 package ch.alpenflight.clubs.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -263,6 +264,54 @@ class ClubsAuthorizationTest {
     void delete_flightoperator_own_club_returns_403() throws Exception {
         mvc.perform(delete("/api/v1/clubs/" + SEED_CLUB_PATH).with(flightOperator(SEED_CLUB_ID)))
                 .andExpect(status().isForbidden());
+    }
+
+    // ----- Join-code rotation + admin-only join-code visibility (S-177) -----
+
+    @Test
+    void rotateJoinCode_clubadmin_own_club_returns_200_with_new_code() throws Exception {
+        String body = mvc.perform(post("/api/v1/clubs/" + SEED_CLUB_PATH + "/join-code/rotate")
+                        .with(clubadmin(SEED_CLUB_ID)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode joinCode = MAPPER.readTree(body).get("joinCode");
+        assertThat(joinCode).isNotNull();
+        assertThat(joinCode.asText()).hasSize(8).matches("[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]+");
+    }
+
+    @Test
+    void rotateJoinCode_clubadmin_other_club_returns_403() throws Exception {
+        mvc.perform(post("/api/v1/clubs/" + SEED_CLUB_PATH + "/join-code/rotate")
+                        .with(clubadmin(OTHER_CLUB_ID)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rotateJoinCode_flightoperator_own_club_returns_403() throws Exception {
+        mvc.perform(post("/api/v1/clubs/" + SEED_CLUB_PATH + "/join-code/rotate")
+                        .with(flightOperator(SEED_CLUB_ID)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getClub_clubadmin_sees_joinCode_field() throws Exception {
+        String body = mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(clubadmin(SEED_CLUB_ID)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode joinCode = MAPPER.readTree(body).get("joinCode");
+        assertThat(joinCode).as("CLUB_ADMINISTRATOR must see the joinCode field").isNotNull();
+        assertThat(joinCode.isNull()).isFalse();
+    }
+
+    @Test
+    void getClub_flightoperator_does_not_see_joinCode() throws Exception {
+        String body = mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(flightOperator(SEED_CLUB_ID)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode joinCode = MAPPER.readTree(body).get("joinCode");
+        assertThat(joinCode == null || joinCode.isNull())
+                .as("FLIGHT_OPERATOR (non-admin) must NOT see the joinCode field")
+                .isTrue();
     }
 
     // ----- Non-catalog role (e.g. legacy OFFICE_USER / PILOT mapped verbatim) -----

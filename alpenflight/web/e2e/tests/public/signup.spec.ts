@@ -13,7 +13,7 @@ import { expect, test } from '../_helpers/console-guard';
  *   - "Sign up" → authorize() with { prompt: 'create', ui_locales }.
  *   - "Continue with Google" → authorize() with { kc_idp_hint: 'google', ui_locales }.
  *   - intent=migrate stamps /migrate/start in post-login-redirect.
- *   - intent=demo (per S-134 grill) is silently coerced to /migrate/start.
+ *   - intent=demo (anonymous-pre-signup) coerces to the /join default.
  *   - /migrate/start with signup-pending stamp emits PII-free signup.completed.
  *   - /migrate/start with NO stamp does not emit signup.completed.
  */
@@ -99,14 +99,14 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
     expect(stamp).toBe('/migrate/start');
   });
 
-  test('intent=demo is silently coerced to /migrate/start (per S-134 grill)', async ({ page }) => {
+  test('intent=demo coerces to the /join post-signup default', async ({ page }) => {
     await page.goto('/signup?intent=demo&lang=de');
     await page.getByTestId('signup-local').click();
 
     const stamp = await page.evaluate(() =>
       sessionStorage.getItem('alpenflight.post-login-redirect'),
     );
-    expect(stamp).toBe('/migrate/start');
+    expect(stamp).toBe('/join');
   });
 
   test('signup-local writes a `local` signup-pending stamp', async ({ page }) => {

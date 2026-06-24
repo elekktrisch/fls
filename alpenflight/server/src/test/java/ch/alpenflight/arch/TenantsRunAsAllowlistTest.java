@@ -70,7 +70,30 @@ class TenantsRunAsAllowlistTest {
             // repository.save-bypass seams (migration ingest, dev-seed startup,
             // showcase). Never on the request path — invoked by the ingest
             // transaction, a dev/showcase-profile runner, or ops tooling.
-            "ch.alpenflight.flights.application.FlightReportRebuildService"
+            "ch.alpenflight.flights.application.FlightReportRebuildService",
+            // Pilot self-serve join (S-178): a tenant-less pilot (no clubId
+            // claim, no t_user) submits / withdraws / me-reads their OWN join
+            // request, which is @TenantId-scoped. The service resolves the club
+            // FIRST — from the join code (submit) or the pilot's own request
+            // (withdraw / me, via JoinRequestTenantLookup) — then runs the
+            // tenant-scoped JPA work under runAs(thatClub). Withdraw re-gates on
+            // keycloak_sub == jwt.sub after the load, so the scope only ever
+            // admits the caller's own row.
+            "ch.alpenflight.joinrequests.application.JoinRequestsService",
+            // Submit abuse guard (S-178, T-07): the 24h deny cooldown derives
+            // from the most-recent DENIED row for (sub, club), which is
+            // @TenantId-scoped. The guard reads it under the already-resolved
+            // club's scope — the same club the submit path resolved from the
+            // join code — never widening beyond that single tenant.
+            "ch.alpenflight.joinrequests.application.JoinRequestSubmitGuard",
+            // Join-request notifications (S-178, T-08): the AFTER_COMMIT email +
+            // SSE listeners re-establish the tenant window for the committed
+            // transition's OWN club to resolve the club's admin recipients (the
+            // @TenantId-scoped t_user lookup), so the request transaction made no
+            // directory round-trip. The scope is the event's clubId — never
+            // widened beyond the single tenant the decision belongs to.
+            "ch.alpenflight.joinrequests.application.JoinRequestEmailListener",
+            "ch.alpenflight.joinrequests.application.JoinRequestSseListener"
     );
 
     @ArchTest

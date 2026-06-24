@@ -77,6 +77,9 @@
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
   }, {
+    "name" : "join-requests",
+    "description" : "Pilot self-serve club-join requests."
+  }, {
     "name" : "Clubs",
     "description" : "Clubs CRUD."
   }, {
@@ -2263,6 +2266,268 @@
         }
       }
     },
+    "/api/v1/join-requests" : {
+      "get" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "The admin's own-club pending join requests.",
+        "operationId" : "listPending",
+        "parameters" : [ {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "pending"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Pending requests for the caller's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PendingJoinRequestResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "File a pending join request against a club's join code.",
+        "operationId" : "submit",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitJoinRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Filed; body is the pending request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active club resolves to that code.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Caller already belongs to a club, or already has an open request for this club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "429" : {
+            "description" : "Rate limit (5 submit attempts / 15 min per principal) or 24h deny cooldown — carries a Retry-After header.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{id}/withdraw" : {
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "Withdraw the caller's own pending request.",
+        "operationId" : "withdraw",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Withdrawn; body is the request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "The request belongs to another pilot.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No request with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{id}/deny" : {
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "Deny a pending request with an optional reason.",
+        "operationId" : "deny",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DenyJoinRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Denied; body is the request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No pending request in the admin's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Not pending.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join-requests/{id}/approve" : {
+      "post" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "Approve a pending request — KC clubId attribute + t_user + Person + roles.",
+        "operationId" : "approve",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApproveJoinRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Approved; body is the request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "A role the admin may not grant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No pending request in the admin's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Not pending (re-approve), the caller already has a t_user, or the linked Person is in another club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights" : {
       "get" : {
         "tags" : [ "flights" ],
@@ -2694,6 +2959,45 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clubs/{clubId}/join-code/rotate" : {
+      "post" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Rotate the club's join code to a fresh value.",
+        "operationId" : "rotateJoinCode",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Rotated; body carries the new code.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinCodeResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active club with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinCodeResponse"
                 }
               }
             }
@@ -3732,6 +4036,35 @@
         }
       }
     },
+    "/api/v1/me/join-request" : {
+      "get" : {
+        "tags" : [ "join-requests" ],
+        "summary" : "The caller's latest join request, or 204 if none.",
+        "operationId" : "myJoinRequest",
+        "responses" : {
+          "200" : {
+            "description" : "The pilot's latest request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          },
+          "204" : {
+            "description" : "The caller has filed no request.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JoinRequestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/events" : {
       "get" : {
         "tags" : [ "me" ],
@@ -4324,7 +4657,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -6050,6 +6383,18 @@
             "format" : "uuid",
             "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
             "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "city" : {
+            "type" : "string",
+            "description" : "Public-display city, or null."
+          },
+          "logoUrl" : {
+            "type" : "string",
+            "description" : "Public-display logo URL, or null."
+          },
+          "joinCode" : {
+            "type" : "string",
+            "description" : "Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise."
           }
         },
         "required" : [ "clubStateId", "countryId" ]
@@ -7244,6 +7589,97 @@
         },
         "required" : [ "countryId", "locationName", "locationTypeId" ]
       },
+      "SubmitJoinRequest" : {
+        "type" : "object",
+        "description" : "A pilot's request to join a club, keyed by the club's join code.",
+        "properties" : {
+          "joinCode" : {
+            "type" : "string",
+            "description" : "The club's 8-char join code (S-177).",
+            "maxLength" : 64,
+            "minLength" : 0
+          },
+          "note" : {
+            "type" : "string",
+            "description" : "Optional note to the admin (≤500 chars).",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "joinCode" ]
+      },
+      "JoinRequestResponse" : {
+        "type" : "object",
+        "description" : "The pilot's own join-request projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubName" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "logoUrl" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "APPROVED", "DENIED", "WITHDRAWN" ]
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "decisionReason" : {
+            "type" : "string"
+          },
+          "createdOn" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "decidedOn" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "DenyJoinRequest" : {
+        "type" : "object",
+        "description" : "A CLUB_ADMINISTRATOR's denial of a join request.",
+        "properties" : {
+          "reason" : {
+            "type" : "string",
+            "description" : "Optional reason shown to the denied pilot (≤500 chars).",
+            "maxLength" : 500,
+            "minLength" : 0
+          }
+        }
+      },
+      "ApproveJoinRequest" : {
+        "type" : "object",
+        "description" : "A CLUB_ADMINISTRATOR's approval of a join request.",
+        "properties" : {
+          "roles" : {
+            "type" : "array",
+            "description" : "Realm roles to grant the new member.",
+            "items" : {
+              "type" : "string",
+              "minLength" : 1
+            }
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Optional existing Person to link (must be in the admin's club)."
+          }
+        }
+      },
       "FlightCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a Flight. State-machine columns are server-set; ownership tenant rides from the JWT (A04 defense).",
@@ -7773,6 +8209,15 @@
           }
         },
         "required" : [ "clubKey", "clubStateId", "countryId", "name", "slug" ]
+      },
+      "JoinCodeResponse" : {
+        "type" : "object",
+        "description" : "The newly rotated club join code.",
+        "properties" : {
+          "joinCode" : {
+            "type" : "string"
+          }
+        }
       },
       "ArticleCreateRequest" : {
         "type" : "object",
@@ -8954,6 +9399,33 @@
         },
         "required" : [ "code", "description", "id", "isAirfield" ]
       },
+      "PendingJoinRequestResponse" : {
+        "type" : "object",
+        "description" : "A pending join request as the club admin sees it.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "friendlyName" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "createdOn" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "FlightListItem" : {
         "type" : "object",
         "description" : "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred. Carries `version` so concurrency-aware actions (e.g. DELETE with If-Match) can fire from the list view without a follow-up GET.",
@@ -9756,7 +10228,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
           },
           "targetEntityType" : {
             "type" : "string"

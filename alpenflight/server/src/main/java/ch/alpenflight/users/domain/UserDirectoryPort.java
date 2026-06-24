@@ -45,6 +45,26 @@ public interface UserDirectoryPort {
      */
     List<UserDirectoryRow> findUsersInClub(UUID clubId, int max);
 
+    /**
+     * Write the {@code clubId} user-attribute on an existing directory entry,
+     * leaving the user's other attributes (e.g. {@code locale}) intact. The
+     * club-join approval (S-178) calls this so the now-member's next-issued JWT
+     * carries the {@code clubId} claim the tenant resolver + JIT materializer
+     * read. Idempotent: writing the same value is a no-op, so a re-approve or a
+     * post-failure retry is safe.
+     */
+    void writeClubIdAttribute(UUID sub, UUID clubId);
+
+    /**
+     * Remove the {@code clubId} user-attribute, leaving the user's other
+     * attributes intact. The compensation for a half-failed club-join approve
+     * (S-178): a {@code clubId} attribute that outlives a rolled-back approve
+     * would project into the pilot's next JWT and grant tenant access with no
+     * corroborating {@code t_user}, so a failure after {@link #writeClubIdAttribute}
+     * must clear it. Idempotent: clearing an absent attribute is a no-op.
+     */
+    void clearClubIdAttribute(UUID sub);
+
     /** Read the realm role-mappings for one user. */
     List<RealmRoleRef> getRealmRoleMappings(UUID sub);
 

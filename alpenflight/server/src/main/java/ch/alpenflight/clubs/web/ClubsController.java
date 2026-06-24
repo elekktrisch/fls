@@ -3,6 +3,7 @@ package ch.alpenflight.clubs.web;
 import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.JoinCodeResponse;
 import ch.alpenflight.clubs.application.ClubsService;
 import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,8 @@ import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -79,8 +82,10 @@ public class ClubsController {
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
             + "or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) "
             + "and #id.value().toString() == principal.claims['clubId'])")
-    public ClubResponse getClub(@PathVariable ClubId id) {
-        return service.getClub(id);
+    public ClubResponse getClub(@PathVariable ClubId id, Authentication authentication) {
+        // The join code is a quasi-secret: only a CLUB_ADMINISTRATOR sees it on
+        // the wire — null for FLIGHT_OPERATOR (read-only viewer) and pilots.
+        return service.getClub(id, hasRole(authentication, "ROLE_CLUB_ADMINISTRATOR"));
     }
 
     @Operation(summary = "Create a new club. Slug must be unique.")
@@ -112,5 +117,21 @@ public class ClubsController {
     public ResponseEntity<Void> deleteClub(@PathVariable ClubId id) {
         service.deleteClub(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Rotate the club's join code to a fresh value.")
+    @ApiResponse(responseCode = "200", description = "Rotated; body carries the new code.")
+    @ApiResponse(responseCode = "404", description = "No active club with that id.")
+    @PostMapping(path = "/{clubId}/join-code/rotate")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR') "
+            + "and #clubId.value().toString() == principal.claims['clubId']")
+    public JoinCodeResponse rotateJoinCode(@PathVariable ClubId clubId) {
+        return service.rotateJoinCode(clubId);
+    }
+
+    private static boolean hasRole(Authentication authentication, String role) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role::equals);
     }
 }

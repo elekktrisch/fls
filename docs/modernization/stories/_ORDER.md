@@ -37,7 +37,8 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-10b | Deliveries — migration + booking + write side | E-09 | J-10, J-11 | S-078 (Delivery/DeliveryItem migration — needs J-11 ARTICLE migrated first, `DeliveryItem.article_id` NOT NULL RESTRICT; + the write half — create/book/delete, gap-free delivery_number counter, Prepared→Booked state machine + 409-terminal, engine→persist) | `Delivery`+`DeliveryItem` migration, `Delivery` (write behavior) | `/deliveries` book/delete actions |
 | J-27 | **Migration-fidelity sprint — drive the fanout fully green** (operator-sanctioned tech-debt, J-10 retro 2026-06-19; clears the hard fanout gate for every future migration journey) | E-02 | J-10 | — (fixes existing mappers/specs: J-0c Location render, J-8 `AccountingRuleFilter` predicate `filter_config`, J-9 migrated FlightTime filter → `article-5001`) | N/A — repairs migrated parity, no new mapper | fanout `[migration/parity]` for J-0c/J-8/J-9 |
 | J-11 | Articles + Email templates | E-06 | J-0 | S-055, S-158, S-177 (+impl S-054) | `Article`, `EmailTemplate` | `masterdata/articles/`, email-templates |
-| J-12 | Club join / invite flow | E-06 | J-3, J-4 | S-178, S-179, S-180, S-181 | N/A (greenfield) | none (new) → `/join` |
+| 🔨 **J-12a** | Pilot self-serve club join (carved 2026-06-23; split from J-12 — pilot screen first for a fast visible result) | E-06 | J-3, J-4 | S-177, S-178, S-179 | N/A (greenfield) | none (new) → `/join` + `/join/pending` |
+| J-12b | Admin join-request approval + invite robustness | E-06 | J-12a | S-180, S-181 | N/A (greenfield) | none (new) → `/join-requests` |
 | J-13 | System data + logs (admin) | E-06 | J-0 | S-056, S-160 | `SystemData` | `system/logs/` → `/system/logs` |
 | J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
 | J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |
@@ -120,7 +121,8 @@ and the proven mapper pattern.
 - **J-9:** `generateExampleDelivery(flightId)` previews invoice items bit-equivalent to legacy for the corpus flight; a stored DeliveryCreationTest run passes.
 - **J-10:** Delivery list; Prepared→Booked transition; deleting a delivery resets affected flights' process states; Proffix-compat GET shape verified.
 - **J-11:** Article + email-template CRUD; branding seven-surface preview renders; join-code rotate visible.
-- **J-12:** Pilot enters a join code → request created → admin approves → auto-Person created → pilot lands in-club.
+- **J-12a:** Pilot signs up → lands on /join → enters a club join code → pending request filed (admin emailed, SSE) → admin approves via the real endpoint → auto-Person+t_user created, KC clubId set → pilot's token refreshes → lands in-club at /start; deny+reason, withdraw+resubmit, 429 rate-limit/cooldown, 404 unknown-code all proven.
+- **J-12b:** Admin /join-requests list (SSE pending-count badge) → approve modal (roles + Person picker) / deny modal (reason) drive the same backend; invite robustness recognises pre-existing Keycloak users (new / unattached / attached-elsewhere-409).
 - **J-13:** Sysadmin views system data + paginated logs; append-only audit role rejects UPDATE.
 - **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
 - **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.

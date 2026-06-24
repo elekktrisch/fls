@@ -3,6 +3,7 @@ id: S-179
 title: Join-request SPA — pilot side (/join, /join/pending, post-signup landing flip)
 epic: E-06
 status: todo
+rolled_up_into: J-12a
 depends_on: [S-178, S-176, S-021, S-134]
 integration_base: integration/users-suite
 acceptance:

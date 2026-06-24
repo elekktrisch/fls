@@ -3,6 +3,7 @@ id: S-177
 title: Club join code — field + admin rotate endpoint + admin UI
 epic: E-06
 status: todo
+rolled_up_into: J-12a
 depends_on: [S-048]
 integration_base: integration/users-suite
 acceptance:

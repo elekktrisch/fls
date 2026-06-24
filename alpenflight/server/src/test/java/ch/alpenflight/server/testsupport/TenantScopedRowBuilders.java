@@ -11,6 +11,7 @@ import ch.alpenflight.emailtemplates.domain.EmailTemplate;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightReportRow;
 import ch.alpenflight.flighttypes.domain.FlightType;
+import ch.alpenflight.joinrequests.domain.JoinRequest;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
 import ch.alpenflight.planning.domain.PlanningDay;
@@ -111,7 +112,11 @@ public final class TenantScopedRowBuilders {
             // Per-club email-template override. club_id is its only FK and the
             // @TenantId discriminator, so it fails fail-closed under NO_TENANT
             // with no reference data to seed (see EmailTemplateSweepFactory).
-            Map.entry(EmailTemplate.class, EmailTemplateSweepFactory::build)
+            Map.entry(EmailTemplate.class, EmailTemplateSweepFactory::build),
+            // Pilot self-serve join request (S-178). club_id is its only FK and
+            // the @TenantId discriminator, so it fails fail-closed under NO_TENANT
+            // with no reference data to seed (see JoinRequestSweepFactory).
+            Map.entry(JoinRequest.class, JoinRequestSweepFactory::build)
     );
 
     private static String uniqueName(String label) {

@@ -22,6 +22,16 @@ spring:
           # URL stays at the same `localhost:8090` value tokens carry.
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs}
 
+keycloak:
+  admin:
+    # `./gradlew bootRun` runs on the host, where the compose-internal
+    # `keycloak:8080` hostname does not resolve (UnresolvedAddressException) —
+    # so the KC Admin REST client (user-directory: role lookup for join-request
+    # admin recipients + the approve flow's clubId attribute write) must target
+    # the host-published port, the same host-vs-container override the JWKS uri
+    # above carries. Tokens still issue from the localhost:8090 issuer.
+    base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://localhost:8090}
+
 server:
   error:
     include-message: always

@@ -63,5 +63,10 @@ public enum AuditAction {
      *  (the scheduled tick OR the guarded run-now affordance).
      *  {@code after_state} carries a non-PII send summary (club id + the
      *  imminent / week-ahead mail counts); {@code before_state} is null. */
-    PLANNING_NOTIFICATIONS_RUN
+    PLANNING_NOTIFICATIONS_RUN,
+    /** S-177 — a CLUB_ADMINISTRATOR rotated their club's join code. The code is
+     *  a quasi-secret, so neither snapshot carries the old or new value — only
+     *  the actor + club id (an admin reading the audit log must not be able to
+     *  recover a club's current code). */
+    CLUB_JOIN_CODE_ROTATED
 }

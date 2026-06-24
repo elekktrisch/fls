@@ -264,6 +264,28 @@ const fr: Translations = {
       message: 'Vol modifié ailleurs — rechargez pour obtenir la dernière version.',
     },
   },
+  join: {
+    headline: 'Rejoindre un club',
+    tagline: "Saisissez le code d'adhésion de votre club pour demander à devenir membre.",
+    codeLabel: "Code d'adhésion",
+    codePlaceholder: 'ABCD2345',
+    noteLabel: "Note à l'administrateur du club (facultatif)",
+    notePlaceholder: 'Présentez-vous brièvement.',
+    noteRemaining: '{{count}} caractères restants',
+    submit: 'Demander à rejoindre',
+    migrateHint: "Vous migrez depuis l'ancien FLS ? Commencez ici.",
+    errors: {
+      rateLimited: 'Trop de tentatives. Réessayez dans {{seconds}} s.',
+    },
+    pending: {
+      headline: 'Demande envoyée',
+      tagline: "Votre demande d'adhésion attend la confirmation de l'administration du club.",
+      submittedOn: 'Envoyée le {{date}}',
+      withdraw: 'Retirer la demande',
+      deniedHeadline: 'Demande refusée',
+      tryDifferent: 'Essayer un autre code',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Demander un accès',

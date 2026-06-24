@@ -50,6 +50,15 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     boolean existsBySlugExcluding(String slug, UUID excludeId);
 
     @Override
+    @Query("select case when count(c) > 0 then true else false end from Club c "
+            + "where c.joinCode = :joinCode")
+    boolean existsByJoinCode(String joinCode);
+
+    @Override
+    @Query("select c.id from Club c where c.joinCode = :joinCode and c.deletedOn is null")
+    Optional<UUID> findActiveIdByJoinCode(String joinCode);
+
+    @Override
     @Query("select c.id from Club c where c.deploymentId = :deploymentId "
             + "and c.deletedOn is null order by c.id")
     List<UUID> findIdsByDeploymentId(UUID deploymentId);

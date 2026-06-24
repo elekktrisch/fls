@@ -114,9 +114,12 @@ clean-context `/do-task` worker on `integration/J-NNN` (now already created + pu
 
 ## Journey definition
 
-- **Granularity:** one SPA screen/route, full CRUD, driven end to end. Maps to a
-  feature folder per `alpenflight/web/CLAUDE.md` §2. Not a multi-screen business
-  process; not a single atomic action.
+- **Granularity:** **at least one** SPA screen/route driven end to end — a visible result the green
+  Playwright run can show — not a single atomic action. A coherent multi-screen feature MAY ride one
+  journey (don't over-split a feature just to hit one screen); the operator may also choose to ship the
+  dominant screen first and defer siblings to a follow-up journey (operator 2026-06-23,
+  [[feedback_journey_min_one_screen_not_exactly_one]]). Maps to a feature folder per
+  `alpenflight/web/CLAUDE.md` §2.
 - **Headless work** never gets its own journey. It's pulled in by the screen
   that uses it, in this order: real product screen → admin screen →
   test-env-only admin/test affordance → else propose options + escalate.
@@ -179,7 +182,9 @@ later). Leave `implemented/` alone.
 
 - Every journey is provable by one green Playwright run. If you can't name what
   the spec asserts, the journey isn't carved.
-- Every journey maps to exactly one screen/route. Multi-screen = split.
+- Every journey delivers at least one screen/route (a visible, provable result). A coherent
+  multi-screen feature may stay one journey; split only when the screens are genuinely independent
+  features (or the operator wants the dominant screen shipped first).
 - Headless work always has a screen home or an escalation — never a layer-slice.
 - Journey-0 exists and is the thinnest chain-bootstrap, before any feature journey.
 - `AskUserQuestion` count ≈ 0. Roadmap order, grouping, parity placement: pick + record.

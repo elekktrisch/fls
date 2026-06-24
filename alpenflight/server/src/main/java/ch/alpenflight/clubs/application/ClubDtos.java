@@ -30,7 +30,16 @@ public final class ClubDtos {
             String clubKey,
             boolean publicRegistrationEnabled,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) CountryId countryId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ClubStateId clubStateId) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ClubStateId clubStateId,
+            @Schema(description = "Public-display city, or null.")
+            @Nullable String city,
+            @Schema(description = "Public-display logo URL, or null.")
+            @Nullable String logoUrl,
+            @Schema(description = "Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise.")
+            @Nullable String joinCode) {}
+
+    @Schema(description = "The newly rotated club join code.")
+    public record JoinCodeResponse(String joinCode) {}
 
     @Schema(description = "Payload to create a new club.")
     public record ClubCreateRequest(
