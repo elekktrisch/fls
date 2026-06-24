@@ -5,10 +5,19 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { JoinRequestsService } from '@api/generated/join-requests/join-requests.service';
-import type { PendingJoinRequestResponse } from '@api/generated/model';
+import type {
+  ApproveJoinRequest,
+  JoinRequestResponse,
+  PendingJoinRequestResponse,
+} from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { JoinRequestsStore } from './join-requests.store';
+
+interface ApproveCapture {
+  id: string;
+  body: ApproveJoinRequest;
+}
 
 const REQUEST_A = 'jr-019e30c3-2c00-7100-8000-000000000001';
 const REQUEST_B = 'jr-019e30c3-2c00-7100-8000-000000000002';
@@ -30,13 +39,23 @@ const pendingB: PendingJoinRequestResponse = {
   createdOn: '2026-06-23T11:00:00Z',
 };
 
-function serviceStub(list: () => Observable<PendingJoinRequestResponse[]>): JoinRequestsService {
+function serviceStub(
+  list: () => Observable<PendingJoinRequestResponse[]>,
+  approve?: {
+    response: () => Observable<JoinRequestResponse>;
+    captured?: ApproveCapture[];
+  },
+): JoinRequestsService {
   const api = {
     listPending: ((params?: unknown, options?: unknown) => {
       void params;
       void options;
       return list();
     }) as JoinRequestsService['listPending'],
+    approve: ((id: string, body: ApproveJoinRequest) => {
+      approve?.captured?.push({ id, body });
+      return approve?.response() ?? of({} as JoinRequestResponse);
+    }) as JoinRequestsService['approve'],
   };
   return api as unknown as JoinRequestsService;
 }
@@ -108,5 +127,68 @@ describe('JoinRequestsStore', () => {
     const store = TestBed.inject(JoinRequestsStore);
     expect(store.loadError()).toMatch(/without id/);
     expect(store.entities()).toEqual([]);
+  });
+
+  it('approve drops the row and raises a success toast carrying the club name', () => {
+    const captured: ApproveCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA, pendingB]), {
+        response: () => of({ clubName: 'Seed Glider Club' }),
+        captured,
+      }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.approve({ id: REQUEST_A, friendlyName: 'Fresh Pilot', roles: ['PILOT'] });
+    expect(store.entities().map((r) => r.id)).toEqual([REQUEST_B]);
+    expect(store.approvedToast()).toEqual({
+      friendlyName: 'Fresh Pilot',
+      clubName: 'Seed Glider Club',
+    });
+    expect(store.approveError()).toBeNull();
+    expect(store.approveBusy()).toBe(false);
+  });
+
+  it('approve omits personId when no Person is picked', () => {
+    const captured: ApproveCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA]), { response: () => of({ clubName: 'C' }), captured }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.approve({ id: REQUEST_A, friendlyName: 'Fresh Pilot', roles: ['PILOT'] });
+    const sent = captured[0]!.body;
+    expect(sent).toEqual({ roles: ['PILOT'] });
+    expect('personId' in sent).toBe(false);
+  });
+
+  it('approve sends personId when a Person is picked', () => {
+    const captured: ApproveCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA]), { response: () => of({ clubName: 'C' }), captured }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.approve({
+      id: REQUEST_A,
+      friendlyName: 'Fresh Pilot',
+      roles: ['PILOT', 'OFFICE_USER'],
+      personId: 'pn-019e30c3-2c00-7100-8000-000000000099',
+    });
+    expect(captured[0]!.body).toEqual({
+      roles: ['PILOT', 'OFFICE_USER'],
+      personId: 'pn-019e30c3-2c00-7100-8000-000000000099',
+    });
+  });
+
+  it('approve surfaces a 409 detail in approveError and keeps the row', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      error: { detail: 'User already attached to a club.' },
+    });
+    configure(serviceStub(() => of([pendingA]), { response: () => throwError(() => err) }));
+    const store = TestBed.inject(JoinRequestsStore);
+    store.approve({ id: REQUEST_A, friendlyName: 'Fresh Pilot', roles: ['PILOT'] });
+    expect(store.approveError()).toBe('User already attached to a club.');
+    expect(store.entities().map((r) => r.id)).toEqual([REQUEST_A]);
+    expect(store.approvedToast()).toBeNull();
+    expect(store.approveBusy()).toBe(false);
   });
 });

@@ -15,20 +15,43 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import { JoinRequestsService } from '@api/generated/join-requests/join-requests.service';
-import type { PendingJoinRequestResponse } from '@api/generated/model';
+import type {
+  ApproveJoinRequest,
+  JoinRequestResponse,
+  PendingJoinRequestResponse,
+} from '@api/generated/model';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 export type PendingJoinRequestItem = PendingJoinRequestResponse & { id: string };
 
+/** What the success toast renders once an approval lands. */
+export interface ApprovedToast {
+  friendlyName: string;
+  clubName: string;
+}
+
+export interface ApproveArgs {
+  id: string;
+  friendlyName: string;
+  roles: string[];
+  personId?: string;
+}
+
 interface JoinRequestsExtraState {
   isLoading: boolean;
   loadError: string | null;
+  approveBusy: boolean;
+  approveError: string | null;
+  approvedToast: ApprovedToast | null;
 }
 
 const initialExtra: JoinRequestsExtraState = {
   isLoading: false,
   loadError: null,
+  approveBusy: false,
+  approveError: null,
+  approvedToast: null,
 };
 
 function withRequestId(r: PendingJoinRequestResponse): PendingJoinRequestItem {
@@ -36,6 +59,16 @@ function withRequestId(r: PendingJoinRequestResponse): PendingJoinRequestItem {
     throw new Error('PendingJoinRequestResponse without id — server contract violation');
   }
   return r as PendingJoinRequestItem;
+}
+
+/**
+ * The 409 envelope carries the human reason (already-attached / cross-tenant
+ * Person) in `detail`; surface it verbatim so the admin reads the cause rather
+ * than a generic failure.
+ */
+function approveErrorMessage(e: HttpErrorResponse): string {
+  const body = (e.error ?? null) as { detail?: string; message?: string } | null;
+  return body?.detail ?? body?.message ?? 'Approval failed. Try again.';
 }
 
 export const JoinRequestsStore = signalStore(
@@ -62,10 +95,44 @@ export const JoinRequestsStore = signalStore(
         ),
       ),
     );
+    const approve = rxMethod<ApproveArgs>(
+      pipe(
+        tap(() => patchState(store, { approveBusy: true, approveError: null })),
+        switchMap((args) => {
+          const body: ApproveJoinRequest = { roles: args.roles };
+          if (args.personId) {
+            body.personId = args.personId;
+          }
+          return api.approve(args.id, body).pipe(
+            tapResponse({
+              next: (res: JoinRequestResponse) => {
+                patchState(store, removeEntity(args.id), {
+                  approveBusy: false,
+                  approveError: null,
+                  approvedToast: {
+                    friendlyName: args.friendlyName,
+                    clubName: res.clubName ?? '',
+                  },
+                });
+              },
+              error: (e: HttpErrorResponse) =>
+                patchState(store, { approveBusy: false, approveError: approveErrorMessage(e) }),
+            }),
+          );
+        }),
+      ),
+    );
     return {
       loadAll,
+      approve,
       removeOne(id: string): void {
         patchState(store, removeEntity(id));
+      },
+      clearApproveError(): void {
+        patchState(store, { approveError: null });
+      },
+      dismissApprovedToast(): void {
+        patchState(store, { approvedToast: null });
       },
     };
   }),

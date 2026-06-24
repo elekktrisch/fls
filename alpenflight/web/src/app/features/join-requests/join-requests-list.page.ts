@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { SessionStore } from '@core/session/session.store';
@@ -8,6 +15,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { ApproveModalComponent } from './approve-modal.component';
 import { JoinRequestsStore, type PendingJoinRequestItem } from './join-requests.store';
 
 const NOTE_PREVIEW_LENGTH = 120;
@@ -22,6 +30,7 @@ const NOTE_PREVIEW_LENGTH = 120;
     AfPageComponent,
     AfPageErrorComponent,
     AfPageHeaderComponent,
+    ApproveModalComponent,
     RouterLink,
   ],
   template: `
@@ -36,6 +45,18 @@ const NOTE_PREVIEW_LENGTH = 120;
         (retry)="store.loadAll()"
         data-testid="join-requests-error"
       />
+
+      @if (store.approvedToast(); as toast) {
+        <div
+          class="flex items-center justify-between gap-3 border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          data-testid="join-request-success-toast"
+        >
+          <span>{{ toast.friendlyName }} added to {{ toast.clubName }}</span>
+          <button type="button" class="text-emerald-700" (click)="store.dismissApprovedToast()">
+            Dismiss
+          </button>
+        </div>
+      }
 
       @if (!store.isLoading() && store.isEmpty() && !store.loadError()) {
         <div
@@ -107,12 +128,28 @@ const NOTE_PREVIEW_LENGTH = 120;
           }
         </ul>
       }
+
+      <af-approve-modal [request]="selectedRequest()" (closed)="closeApprove()" />
     </af-page>
   `,
 })
 export class JoinRequestsListPage {
   protected readonly store = inject(JoinRequestsStore);
   readonly #session = inject(SessionStore);
+
+  protected readonly selectedRequest = signal<PendingJoinRequestItem | null>(null);
+
+  constructor() {
+    // The approval lands asynchronously; close the modal once the selected row
+    // has dropped from the list (success). A 409 keeps the row, so the modal
+    // stays open showing `approve-error`.
+    effect(() => {
+      const selected = this.selectedRequest();
+      if (selected && !this.store.entities().some((r) => r.id === selected.id)) {
+        this.selectedRequest.set(null);
+      }
+    });
+  }
 
   protected readonly clubEditLink = computed(() => {
     const clubId = this.#session.currentClubId();
@@ -130,7 +167,12 @@ export class JoinRequestsListPage {
   }
 
   protected onApprove(request: PendingJoinRequestItem): void {
-    void request;
+    this.store.clearApproveError();
+    this.selectedRequest.set(request);
+  }
+
+  protected closeApprove(): void {
+    this.selectedRequest.set(null);
   }
 
   protected onDeny(request: PendingJoinRequestItem): void {
