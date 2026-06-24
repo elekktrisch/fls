@@ -173,7 +173,7 @@ public class JoinRequestDecisionsService {
                 auditTrail.record(AuditAction.CREATE,
                         AuditedTarget.created("User", rowId.value(), new UserCreatedAuditPayload(clubId, sub)));
             }
-            events.publishEvent(statusChanged(saved));
+            events.publishEvent(JoinRequestStatusChangedEvent.from(saved));
             return JoinRequestResponse.from(saved);
         } catch (RuntimeException e) {
             // The DB transaction will roll back; compensate the directory so the
@@ -204,19 +204,8 @@ public class JoinRequestDecisionsService {
         JoinRequest saved = requests.save(request);
         auditTrail.record(AuditAction.STATE_TRANSITION,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
-        events.publishEvent(statusChanged(saved));
+        events.publishEvent(JoinRequestStatusChangedEvent.from(saved));
         return JoinRequestResponse.from(saved);
-    }
-
-    /**
-     * The decision event the pilot's notifications hook onto. The pilot's
-     * identity travels on the aggregate (stamped at submit), so the AFTER_COMMIT
-     * listeners address the right principal without a tenant context.
-     */
-    private static JoinRequestStatusChangedEvent statusChanged(JoinRequest saved) {
-        return new JoinRequestStatusChangedEvent(
-                saved.getId(), saved.getClubId(), saved.getStatus(), saved.getKeycloakSub(),
-                saved.getEmail(), saved.getFriendlyName(), saved.getDecisionReason());
     }
 
     private UUID autoCreatePerson(UUID clubId, JoinRequest request) {

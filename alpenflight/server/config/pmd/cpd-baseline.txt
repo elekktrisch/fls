@@ -145,5 +145,13 @@
 # aggregate owns its own child entity by design) or lift an enum-converter kernel — the
 # same posture every baselined clone above carries.
 #
+# Re-measured 2026-06-24 (J-12a T-14, join-request write flow): 5420 (-31 vs the
+# prior 5451). The new join code's one clone window was the byte-identical private
+# `statusChanged(JoinRequest)` event factory duplicated across JoinRequestTxWriter
+# and JoinRequestDecisionsService (57t). Rather than baseline it, the factory was
+# extracted to JoinRequestStatusChangedEvent.from(saved) — the established
+# `<Type>.from(saved)` idiom (cf. JoinRequestResponse.from) — collapsing the clone
+# and landing below the prior baseline. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5451
+5420

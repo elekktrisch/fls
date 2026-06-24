@@ -54,7 +54,7 @@ class JoinRequestTxWriter {
         // in the snapshot — the S-027 PII redaction is intrinsic to the field.
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, saved.getId(), saved));
-        events.publishEvent(statusChanged(saved));
+        events.publishEvent(JoinRequestStatusChangedEvent.from(saved));
         return saved;
     }
 
@@ -69,13 +69,7 @@ class JoinRequestTxWriter {
         JoinRequest saved = requests.save(r);
         auditTrail.record(AuditAction.STATE_TRANSITION,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
-        events.publishEvent(statusChanged(saved));
+        events.publishEvent(JoinRequestStatusChangedEvent.from(saved));
         return saved;
-    }
-
-    private static JoinRequestStatusChangedEvent statusChanged(JoinRequest saved) {
-        return new JoinRequestStatusChangedEvent(
-                saved.getId(), saved.getClubId(), saved.getStatus(), saved.getKeycloakSub(),
-                saved.getEmail(), saved.getFriendlyName(), saved.getDecisionReason());
     }
 }
