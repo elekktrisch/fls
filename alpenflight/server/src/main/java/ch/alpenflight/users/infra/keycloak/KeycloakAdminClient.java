@@ -447,24 +447,32 @@ public class KeycloakAdminClient implements UserDirectoryPort {
      * Email-lookup projection (S-181). Carries the {@code id} plus the two
      * attributes the invite robustness branch decides on — {@code clubId}
      * (attached-vs-unattached) and {@code locale} (welcome-attached email).
-     * A malformed / multi-valued attribute folds to its first value; an absent
-     * key folds to {@code null}.
+     * A multi-valued attribute folds to its first value; an ABSENT key folds
+     * to {@code null} (genuinely unattached — the legit bind case). A
+     * present-but-unparseable/blank {@code clubId} fails CLOSED to
+     * {@link DirectoryUser#CORRUPTED_CLUB_ID} so the invite treats a corrupted
+     * attribute as attached (→ 409), never as a relocatable unattached user.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserLookupWire(UUID id, @Nullable Map<String, List<String>> attributes) {
         DirectoryUser toDirectoryUser() {
-            return new DirectoryUser(id, firstUuid("clubId"), first("locale"));
+            return new DirectoryUser(id, clubIdFailClosed(), first("locale"));
         }
 
-        private @Nullable UUID firstUuid(String key) {
-            String raw = first(key);
-            if (raw == null) {
+        private @Nullable UUID clubIdFailClosed() {
+            if (attributes == null || !attributes.containsKey("clubId")) {
+                // Genuinely absent → unattached, the legit bind case.
                 return null;
+            }
+            String raw = first("clubId");
+            if (raw == null || raw.isBlank()) {
+                // Present but blank/empty-valued → corrupted, not unattached.
+                return DirectoryUser.CORRUPTED_CLUB_ID;
             }
             try {
                 return UUID.fromString(raw);
             } catch (IllegalArgumentException e) {
-                return null;
+                return DirectoryUser.CORRUPTED_CLUB_ID;
             }
         }
 

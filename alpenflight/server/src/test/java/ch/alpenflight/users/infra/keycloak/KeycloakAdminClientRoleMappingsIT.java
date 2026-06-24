@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
 import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
 import ch.alpenflight.users.domain.UserDirectoryException;
+import ch.alpenflight.users.domain.UserDirectoryPort.DirectoryUser;
 import ch.alpenflight.users.domain.UserDirectoryPort.RealmRoleRef;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -61,6 +62,7 @@ class KeycloakAdminClientRoleMappingsIT {
     private int port;
     private volatile int roleMappingsStatus;
     private volatile String roleMappingsBody;
+    private volatile String usersListBody;
 
     @BeforeEach
     void startStub() throws IOException {
@@ -89,6 +91,16 @@ class KeycloakAdminClientRoleMappingsIT {
                         os.write(out);
                     }
                 });
+
+        // users (email-lookup) — body is per-test programmable.
+        server.createContext("/admin/realms/test-realm/users", ex -> {
+            byte[] out = usersListBody.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length == 0 ? -1 : out.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(out);
+            }
+        });
 
         server.start();
     }
@@ -162,5 +174,36 @@ class KeycloakAdminClientRoleMappingsIT {
         List<RealmRoleRef> roles = client().getRealmRoleMappings(ORPHAN_SUB);
 
         assertThat(roles).extracting(RealmRoleRef::name).containsExactly("CLUB_ADMINISTRATOR");
+    }
+
+    @Test
+    void emailLookup_absentClubIdAttribute_mapsToUnattached() {
+        // No clubId attribute → genuinely unattached → null → the legit bind case.
+        usersListBody = """
+                [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"locale":["en"]}}]
+                """;
+
+        DirectoryUser user = client().findUserByEmail("absent@example.com").orElseThrow();
+
+        assertThat(user.clubId())
+                .as("an ABSENT clubId attribute is the genuinely-unattached bind case")
+                .isNull();
+    }
+
+    @Test
+    void emailLookup_garbageClubIdAttribute_failsClosedToAttached() {
+        // A present-but-unparseable clubId attribute is an anomaly, never proof
+        // of being unattached: the wire mapping must fail CLOSED to a non-null
+        // sentinel so the invite treats it as attached (→ 409), never relocating
+        // a possibly-attached identity into a new tenant.
+        usersListBody = """
+                [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"clubId":["not-a-uuid"]}}]
+                """;
+
+        DirectoryUser user = client().findUserByEmail("garbage@example.com").orElseThrow();
+
+        assertThat(user.clubId())
+                .as("a present-but-unparseable clubId must fail closed to the corrupted sentinel (attached)")
+                .isEqualTo(DirectoryUser.CORRUPTED_CLUB_ID);
     }
 }

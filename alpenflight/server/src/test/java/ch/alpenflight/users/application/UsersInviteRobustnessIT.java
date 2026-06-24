@@ -82,6 +82,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         clubA = fixture.clubA();
         clubB = fixture.clubB();
         languageId = jdbc.queryForObject("SELECT id FROM t_language WHERE code = 'en' LIMIT 1", UUID.class);
+        jdbc.update("DELETE FROM t_mutation_audit_event WHERE target_entity_type = 'InvitedAuditPayload'");
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'uir-%'");
         directoryClubIdAttr.clear();
         outbox.clear();
@@ -148,6 +149,66 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         verify(directory, never()).createUser(any());
         verify(directory, never()).writeClubIdAttribute(any(), any());
         assertThat(rowCount("uir-attached")).isZero();
+    }
+
+    @Test
+    void invite_auditEvent_exposesBranchDiscriminator_notRedacted() {
+        UUID existingSub = UuidCreator.getTimeOrderedEpoch();
+        when(directory.findUserByEmail("audit@example.com"))
+                .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
+
+        TenantTestContext.runAs(clubA, () ->
+                service.invite(invite("uir-audit", "audit@example.com"), clubAdminJwt()));
+
+        // The audit row is keyed on the payload type (not "User"), so the
+        // InvitedAuditPayload allow-block is reachable and `branch` rides verbatim.
+        String afterState = jdbc.queryForObject(
+                "SELECT after_state::text FROM t_mutation_audit_event "
+                        + "WHERE target_entity_type = 'InvitedAuditPayload' "
+                        + "ORDER BY occurred_at DESC LIMIT 1",
+                String.class);
+        // Postgres jsonb re-serialises with a space after each colon, so match
+        // on the value rather than a brittle no-space key:value literal.
+        assertThat(afterState)
+                .as("the branch discriminator must ride verbatim, not as a redacted sentinel")
+                .contains("\"attached_existing\"")
+                .doesNotContain("\"branch\": \"[redacted]\"");
+    }
+
+    @Test
+    void mixedCaseEmail_ofUnattachedExistingKcUser_binds_not500() {
+        UUID existingSub = UuidCreator.getTimeOrderedEpoch();
+        // Keycloak stores email lowercased; the invite must normalise for the
+        // lookup or the mixed-case email misses the KC user and falls to create.
+        when(directory.findUserByEmail("mixed@example.com"))
+                .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
+
+        UserResponse bound = TenantTestContext.runAs(clubA, () ->
+                service.invite(invite("uir-mixed", "Mixed@Example.COM"), clubAdminJwt()));
+
+        assertThat(bound.clubId()).isEqualTo(clubA);
+        verify(directory, never()).createUser(any());
+        assertThat(directoryClubIdAttr.get(existingSub)).isEqualTo(clubA);
+    }
+
+    @Test
+    void corruptedClubIdAttribute_treatedAsAttached_rejectedWith409_notBound() {
+        UUID corruptedSub = UuidCreator.getTimeOrderedEpoch();
+        // A present-but-unparseable clubId attribute fails closed at the wire to
+        // the corrupted sentinel — the invite must treat it as attached (409),
+        // never bind a possibly-relocated identity into a new tenant.
+        when(directory.findUserByEmail("corrupt@example.com"))
+                .thenReturn(Optional.of(new DirectoryUser(
+                        corruptedSub, DirectoryUser.CORRUPTED_CLUB_ID, "en")));
+
+        assertThatThrownBy(() -> TenantTestContext.runAs(clubA, () ->
+                service.invite(invite("uir-corrupt", "corrupt@example.com"), clubAdminJwt())))
+                .isInstanceOf(UserConflictException.class)
+                .hasMessageContaining("already attached to another club");
+
+        verify(directory, never()).createUser(any());
+        verify(directory, never()).writeClubIdAttribute(any(), any());
+        assertThat(rowCount("uir-corrupt")).isZero();
     }
 
     @Test

@@ -72,6 +72,10 @@ public class UsersService {
     private static final Logger LOG = LoggerFactory.getLogger(UsersService.class);
     private static final String AUDIT_USER = "User";
     private static final String AUDIT_USER_ROLE = "UserRole";
+    // The redactor keys its TOP-LEVEL allow-list on the entityType string, so an
+    // invite audit must be recorded under the payload type — otherwise the
+    // InvitedAuditPayload allow-block is unreachable and `branch`/`user` redact.
+    private static final String AUDIT_INVITED = "InvitedAuditPayload";
     private static final int LIST_MAX = 200;
     private static final String BRANCH_NEW_KC_USER = "new_kc_user";
     private static final String BRANCH_ATTACHED_EXISTING = "attached_existing";
@@ -162,7 +166,11 @@ public class UsersService {
             throw new UserConflictException("username " + req.username() + " already in use in club " + existing.getClubId());
         });
 
-        Optional<DirectoryUser> existingKc = kc.findUserByEmail(req.notificationEmail());
+        // Keycloak stores + matches email lowercased (email=&exact=true), so a
+        // mixed-case invite email must be normalised for the lookup or it misses
+        // the pre-existing KC user and wrongly falls through to create.
+        Optional<DirectoryUser> existingKc = kc.findUserByEmail(
+                req.notificationEmail().toLowerCase(java.util.Locale.ROOT));
         if (existingKc.isPresent()) {
             DirectoryUser kcUser = existingKc.get();
             if (kcUser.clubId() != null) {
@@ -207,12 +215,7 @@ public class UsersService {
 
         User saved;
         try {
-            User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
-                    req.notificationEmail(), req.languageId(), req.personId());
-            u.updateProfile(req.friendlyName(), req.notificationEmail(),
-                    req.phoneNumber(), req.remarks(), req.languageId());
-            saved = users.save(u);
-            users.flush();
+            saved = registerUser(tenant, kcSub, req);
         } catch (RuntimeException e) {
             // Compensating delete — best-effort. The audit row is critical
             // so the operator can reconcile if both KC and the compensation
@@ -236,7 +239,7 @@ public class UsersService {
         }
         UserResponse response = toResponse(saved);
         auditTrail.record(AuditAction.CREATE,
-                AuditedTarget.created(AUDIT_USER, rowId, new InvitedAuditPayload(BRANCH_NEW_KC_USER, response)));
+                AuditedTarget.created(AUDIT_INVITED, rowId, new InvitedAuditPayload(BRANCH_NEW_KC_USER, response)));
         return response;
     }
 
@@ -260,12 +263,7 @@ public class UsersService {
         kc.writeClubIdAttribute(kcSub, tenant);
         User saved;
         try {
-            User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
-                    req.notificationEmail(), req.languageId(), req.personId());
-            u.updateProfile(req.friendlyName(), req.notificationEmail(),
-                    req.phoneNumber(), req.remarks(), req.languageId());
-            saved = users.save(u);
-            users.flush();
+            saved = registerUser(tenant, kcSub, req);
             UUID rowId = requireId(saved);
             applyRoleDelta(rowId, kcSub, Set.of(), req.roles());
         } catch (RuntimeException e) {
@@ -280,9 +278,26 @@ public class UsersService {
         sendWelcomeAttached(tenant, req.notificationEmail(), req.friendlyName(), kcUser.locale());
         UserResponse response = toResponse(saved);
         auditTrail.record(AuditAction.CREATE,
-                AuditedTarget.created(AUDIT_USER, requireId(saved),
+                AuditedTarget.created(AUDIT_INVITED, requireId(saved),
                         new InvitedAuditPayload(BRANCH_ATTACHED_EXISTING, response)));
         return response;
+    }
+
+    /**
+     * Register + flush the {@code t_user} row both invite branches share — a
+     * fresh KC create and a bind to an unattached pre-existing KC user persist
+     * the identical aggregate (the branch differs only in the surrounding KC
+     * orchestration). Flushed here so the partial-unique constraints surface
+     * inside each branch's compensation try/catch.
+     */
+    private User registerUser(UUID tenant, UUID kcSub, UserInviteRequest req) {
+        User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
+                req.notificationEmail(), req.languageId(), req.personId());
+        u.updateProfile(req.friendlyName(), req.notificationEmail(),
+                req.phoneNumber(), req.remarks(), req.languageId());
+        User saved = users.save(u);
+        users.flush();
+        return saved;
     }
 
     private void sendWelcomeAttached(UUID tenant, String email, String friendlyName, @Nullable String locale) {

@@ -118,8 +118,22 @@ public interface UserDirectoryPort {
      * approve has bound them — so {@code clubId != null} is the one-sub-one-club
      * gate. {@code locale} is the BCP-47 string set at signup; null when the IdP
      * carried none.
+     *
+     * <p>A present-but-unparseable {@code clubId} attribute is fail-closed to
+     * {@link #CORRUPTED_CLUB_ID} (non-null) rather than {@code null}: a corrupted
+     * attribute is an anomaly, never proof of being unattached, so the invite
+     * must treat it as attached (→ 409) and never bind a possibly-relocated
+     * identity into a new tenant.
      */
-    record DirectoryUser(UUID sub, @Nullable UUID clubId, @Nullable String locale) {}
+    record DirectoryUser(UUID sub, @Nullable UUID clubId, @Nullable String locale) {
+
+        /**
+         * Sentinel for a present-but-unparseable {@code clubId} attribute — the
+         * invite treats it as {@code clubId != null} (attached) without claiming
+         * a real club id.
+         */
+        public static final UUID CORRUPTED_CLUB_ID = new UUID(0L, 0L);
+    }
 
     /** Domain projection of a directory user row. */
     record UserDirectoryRow(
