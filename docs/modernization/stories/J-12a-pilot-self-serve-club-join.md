@@ -2,8 +2,9 @@
 id: J-12a
 title: Pilot self-serve club join (/join)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-23
+done_at: 2026-06-24
 journey0: false
 carved: true
 depends_on: [J-3, J-4]
@@ -15,7 +16,7 @@ acceptance:
   - "[key-error] Submit errors: unknown code → 404 (inline 'check the code with your club admin'); caller already has a t_user (one-sub-one-club) → 409; 5 attempts / 15 min per sub → 429 + Retry-After (countdown); a denied (sub, club) within 24h → 429 (the cooldown survives join-code rotation)."
   - "[edge] Deny (POST /join-requests/{id}/deny, optional reason ≤500) → pending→denied; the pilot sees the reason on /join/pending + 'try a different code' → /join."
   - "[edge] /start guard: a user without t_user but with a non-final JoinRequest hitting /start (or any tenant-scoped route) is redirected to /join/pending; with neither → /join."
-  - "[edge/audit] Tenant + PII: the pending-list + approve/deny are CLUB_ADMINISTRATOR own-club only; the join code is shown only to admins (null to pilots); audit redacts note + decision_reason (SHA-256) and email/friendly_name per S-027; the join_code_rotated event carries no code."
+  - "[edge/audit] Tenant + PII: the pending-list + approve/deny are CLUB_ADMINISTRATOR own-club only; the join code is shown only to admins (null to pilots); audit redacts note + decision_reason and email/friendly_name per S-027 (deployed redaction emits [redacted]); the join_code_rotated event carries no code."
 screen: /join (+ /join/pending) — new route, no legacy screen
 headless_pulled_in: "JoinRequest backend (aggregate + state machine + submit/withdraw/me/list/approve/deny endpoints + 4 email templates + SSE join-request.status-changed + auto-Person fallback) → homed by the /join screen; Club.joinCode field + rotateJoinCode + POST /clubs/{id}/join-code/rotate + a minimal admin rotate affordance → homed here so the pilot/e2e has a real code"
 migration: "N/A — greenfield. No legacy join mechanism exists (legacy registration is admin-push only). J-12a only WRITES new rows (JoinRequest, t_user, Person+PersonClub) into already-existing schema."
@@ -112,8 +113,8 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
 - [x] **T-10** — `/join` screen: route + 8-char code input (auto-uppercase, monospace) + note textarea ≤500 + submit; error envelope (404 inline, 409 message, 429 countdown); post-signup landing default → `/join` (S-134 flip, intent params).
 - [x] **T-11a** — Club public-display fields for the tenant-less pending page (gate-revealed by T-11): map `city` on the `Club` aggregate (legacy `t_club.City` exists) + add a nullable `logo_url` column (net-new; null until a club sets one) + fold `clubName + city + logoUrl` into `JoinRequestResponse` so `GET /api/v1/me/join-request` returns the public club display to the request's owner (no new cross-tenant endpoint — the pilot owns the request). One backend seam (Club mapping/schema + the DTO).
 - [x] **T-11** — `/join/pending` screen: public club projection (name/city/logo from `/me/join-request`) + Withdraw + SSE subscribe → on approved force OIDC token-refresh → `/start`, on denied show reason → `/join`, on withdrawn → `/join`; + the `/start` guard (no `t_user` + live request → `/join/pending`; neither → `/join`).
-- [x] **T-12** — Thicken `join-request.spec.ts` to full real assertions: signup → `/join` → submit → `/join/pending` → approve (real endpoint, admin principal) → SSE → token-refresh → `/start`; deny+reason; withdraw+resubmit; 429 rate-limit; 404 unknown-code. GREEN on the local real-idp stack (7 passed; proof video captured). Gate-surfaced + fixed: `[maxlength]`→`[attr.maxlength]` /join build error; `keycloak.admin.base-url` dev-profile host override (host `bootRun` hit unreachable `keycloak:8080` → broke admin-recipient resolution + the approve KC write); the approve→`/start` graduation race (refresh resolves before `currentClubId` propagates → bounce); the `/join` redirect effect must gate on PENDING (a held terminal request bounced `/join`→`/join/pending`); optimistic withdraw clear (eager nav vs stale-PENDING re-redirect). `V51` dev-seed gives the seed club a public display (city + logo) so the pending page renders the full projection.
-- [x] **T-13** — Gate fix (gap-hunter blocker): close the half-failed-approve tenant leak. Today approve writes the Keycloak `clubId` attribute BEFORE the DB commit with no compensation; on a DB rollback the stranded attribute projects into the JWT `clubId` claim, which `ClubTenantIdentifierResolver` + JIT user-materialization trust with no `t_user` check → the pilot silently gains tenant access while the request stays PENDING (re-approve 409s, stuck half-joined). Fix WITHIN the join approve flow (deterministic compensation on failure, or write the attribute only after a successful commit) so a half-fail strands nothing — do NOT change the platform tenant-resolver / JIT (would risk the invite flow). Add the IT that re-presents a `clubId`-claim token after the simulated half-fail and asserts the pilot is still tenant-less. Also add the (non-blocking) `approve_forbiddenRole_is_403` HTTP-round-trip IT.
+- [x] **T-12** — Thicken `join-request.spec.ts` to full real assertions (signup → `/join` → submit → `/join/pending` → approve → SSE → token-refresh → `/start`; deny+reason; withdraw+resubmit; 429; 404) and drive it green on the local real-idp stack (7 passed; pass video → gallery).
+- [x] **T-13** — Gate fix (gap-hunter blocker): close the half-failed-approve tenant leak via deterministic compensation in the approve flow (a rolled-back approve clears the stranded Keycloak `clubId` attribute, so no JWT-claim path materializes tenant access); proven by a re-presented-token inertness IT (red→green) + the `approve_forbiddenRole_is_403` round-trip IT.
 
 ## Assumptions made
 
@@ -123,3 +124,23 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
   (Club/Person/PersonClub/User + KC machine client) all exist from J-4/S-052, SSE from J-3.
 - The approve endpoint + its KC-write side-effect ship here (first needed by the pilot lifecycle proof),
   exercised in J-12a's spec by a real CLUB_ADMINISTRATOR principal via the endpoint.
+
+## Outcome
+
+Shipped the greenfield pilot self-serve club-join flow: a rotatable per-club join code, the `JoinRequest`
+aggregate + state machine + REST (submit / withdraw / me / admin-list / approve / deny), abuse guards
+(5/15min brute-force + 24h deny-cooldown, both → 429), 4 transactional emails over J-11's Thymeleaf
+DB-override resolver, the `join-request.status-changed` SSE over J-3's bus, and the `/join` + `/join/pending`
+screens + `/start` onboarding guard. Approve runs the cross-system orchestration (Keycloak `clubId` attribute
++ `t_user` + auto-Person/PersonClub + roles) in one transaction.
+
+Done bar: the real-idp spec ran **green on the local real-idp stack (7 passed, no mocks)** across the full
+lifecycle, with the pass video in the gallery. Three gap-hunters attacked the green: the spec is genuinely
+end-to-end (not hollow), and authz / abuse-guards / data-invariants / tenancy are all enforced. One gap-hunter
+caught a real blocker — a half-failed approve stranded the Keycloak `clubId` attribute, which the JIT
+tenant-materialization would have trusted into silent tenant access; **fixed at the gate** (T-13, deterministic
+compensation) and locked by a re-presented-token inertness IT (red→green). **Mocked seams: none on the
+happy/key-error real path** — the mock-auth store/component vitest are declared inner-loop aids only.
+
+The admin `/join-requests` approval screen + S-181 invite robustness are the sibling **J-12b**
+(`depends_on: [J-12a]`).
