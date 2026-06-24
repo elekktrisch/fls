@@ -2,7 +2,7 @@
 id: S-068
 title: AircraftReservation CRUD + validation
 epic: E-08
-status: todo
+status: done
 rolled_up_into: J-5
 depends_on: [S-050, S-051]
 acceptance:

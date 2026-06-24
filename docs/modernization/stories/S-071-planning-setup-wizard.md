@@ -2,7 +2,7 @@
 id: S-071
 title: Planning-setup wizard
 epic: E-08
-status: todo
+status: done
 rolled_up_into: J-6
 depends_on: [S-070]
 acceptance:

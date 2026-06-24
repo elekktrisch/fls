@@ -2,7 +2,7 @@
 id: S-074
 title: Rules-engine port — FlightTime decrement loop
 epic: E-09
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-073]
 acceptance:

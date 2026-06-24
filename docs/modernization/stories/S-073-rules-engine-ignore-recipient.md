@@ -2,7 +2,7 @@
 id: S-073
 title: Rules-engine port — IgnoreFlight + Recipient stages
 epic: E-09
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-072, S-058]
 acceptance:

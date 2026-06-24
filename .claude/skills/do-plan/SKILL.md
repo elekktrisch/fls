@@ -85,6 +85,13 @@ the first roadmap journey whose `depends_on` are all done.
    Also scan `docs/modernization/stories/_BOYSCOUT.md` for
    pending riders that touch this journey's surface — note them in the journey file
    so `/do-ship` folds them into the task list (they ride forward, not as own stories).
+   **Always sweep newly-filed GitHub bugs into riders.** On every `/do-plan` invocation run
+   `gh issue list --label bug --state open` (also `--search "is:open is:issue bug"` for unlabeled
+   reports); for each open bug not already tracked, record it as a boyscout rider in `_BOYSCOUT.md`
+   (one bullet: the issue # + the fix seam) and, if it touches the in-flight or next journey's surface,
+   note it in that journey file so `/do-ship` folds it into the active journey's gate. A bug is never a
+   tiny standalone story — it rides the next journey's proof loop. Cross-reference the issue # in the
+   rider so `/do-ship` can close it on ship.
 2. For the load-bearing behavior the implementer can't derive from code alone,
    you MAY dispatch `legacy-oracle` now — but it's cheap to defer to ship time.
    Carve captures *shape + contract*; the oracle captures *exact behavior*.

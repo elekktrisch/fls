@@ -84,8 +84,10 @@ journey file — `T-NN` ids, one-line scope each, dependency order. Default deco
 5. **Final task — thicken spec** to full real assertions from the oracle.
 
 **Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders touching this
-journey's surface (or stale infra riders) into `T-NN`s sized per the gate; clear them as they
-ship — that's how `/do-retro` fixes reach the proof loop.
+journey's surface (or stale infra riders) into `T-NN`s sized per the gate — that's how `/do-retro`
+fixes reach the proof loop. **As each rider ships, DELETE its bullet from `_BOYSCOUT.md`** (delete the
+line — never mark it `✅`/struck-through and leave it; shipped work lives in git + the PR). The file
+holds only pending work and must shrink, not grow.
 
 **Sizing gate (pre-dispatch heuristic — every task).** Each `T-NN`: **one seam** (one aggregate+repo / one
 resource's endpoints / one component-route / one migration / one spec edit — *'the domain layer' is not a task,
@@ -131,10 +133,23 @@ superseding an in-flight per-push run with the next push is fine — don't stall
 working tree and return ONLY {failing job, root cause: status / constraint / `file:line`, is a fix
 already uncommitted in the tree?, the fix-shaped next task}. Anchor the next task on that returned
 cause, never on the test diff (J-9: twice anchored wrong off the spec diff; the real causes — a 409
-constraint, a temp-dir bug — were in the job logs, not the diff). **For a migration-fidelity red, have the
+constraint, a temp-dir bug — were in the job logs, not the diff). **Before calling a gate-red a
+pre-existing flake, confirm the job is GREEN on `main`** — a job green on `main` but red on the branch
+is JOURNEY-CAUSED, never a flake (J-12a: the dashboard proof was mis-triaged as a cold-`goto` flake;
+it was green on `main`, red on-branch = a regression the journey introduced). **For a migration-fidelity red, have the
 triage MINE the run's traces/artifacts for the ACTUAL migrated values** (`gh run download`) — never assert an
 ANALYTICAL/derived expected value; those get refuted by the real gate (J-27: shadowing / article-1060 /
 recipient-FK all wrong). Fidelity reds **cluster** — expect a chain (fix → re-mine → next), budget for it.
+
+**Run a full-repo `./gradlew check` + the full mock-e2e suite at the backend-batch boundary, BEFORE §4.**
+Per-task workers verify FOCUSED tests (fast — the right commit bar); but cross-cutting regressions only
+surface in the full suite: the `cpdRatchet`, a shared spec ANOTHER journey asserts (a changed
+landing/guard reds `signup.spec.ts` / the dashboard proof), a `main`-push-only workflow. Run the full
+check ONCE after the backend tasks land — not per-task (too slow), not only at §4 (each miss costs a
+~25-min real-idp cycle). **When a task changes a SHARED surface** (a guard, the post-signup landing, an
+auth/tenant resolver, a spec contract other journeys assert), add a task to grep + update the
+cross-journey consumers up front. J-12a ate three separate gate cycles on cpd + a stale signup
+assertion + a `/start`-guard dashboard regression that one batch-boundary check would have caught.
 
 **Surface the gallery EARLY** ([[feedback_surface_proof_early_on_repeated_failure]]) — the operator's only
 glanceable window for a wrong screen shape. T-01 scaffolds it; give the link at first captures. On a
@@ -202,7 +217,10 @@ truth now — delete file trees, signatures, resolved threads, **and the per-tas
 notes**; keep the frontmatter, ACs, contracts, parity exclusions, the task checklist, a short
 Outcome). The journey file is a contract, not a changelog — task history lives in commit messages,
 not the body (J-7 bloated to 719 lines of per-task prose; don't). Flip `status: done` + `done_at`;
-mark `rolls_up` stories `rolled_up_into: J-NNN`.
+mark each `rolls_up` story `rolled_up_into: J-NNN` **AND flip its `status: todo → done`** (a shipped
+story must not read `todo` — stamping the pointer alone left 24 shipped stories lying as `todo` through
+J-11; operator 2026-06-24). If a story is split across journeys (`rolled_up_into: [J-a, J-b]`), flip it
+to `done` only once the LAST of them merges; until then it stays `todo`.
 **Docs-only head guard** (J-27): this finalization is usually a DOCS-only commit → it becomes the PR head →
 `detect changes` path-skips the required checks → they never report → the ruleset shows BLOCKED (and a "skipped"
 required check is a false-green, never a pass). Keep the merge head proven: **manually `gh workflow run ci.yml

@@ -2,7 +2,7 @@
 id: S-096
 title: Excel parity-verification harness
 epic: E-11
-status: todo
+status: done
 rolled_up_into: J-7
 depends_on: [S-094, S-095]
 acceptance:

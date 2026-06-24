@@ -2,7 +2,7 @@
 id: S-079
 title: DeliveryCreationTest harness + generateExampleDelivery endpoint
 epic: E-09
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-077, S-078]
 acceptance:

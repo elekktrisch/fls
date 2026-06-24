@@ -51,6 +51,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 | ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+| J-28 | Documentation site — user manual + architecture (infra) | E-13 | J-24 | — | N/A (docs tooling) | gh-pages docs site (manual from proof captures + C4 architecture) |
 
 **✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-0b (#198),
 J-0c (#200), J-1 (#202), J-2 (#205), J-3 (#206), J-4 (#207), J-5 (#210), J-6 (#211),
@@ -94,6 +95,17 @@ gh-pages preview (`/alpenflight/proof-preview/<branch>/`) published on each proo
 + a clickable link on the PR. This is the fork J-24's carve deliberately deferred;
 the real carve-time costs are race-avoidance (per-branch namespacing) and preview
 **cleanup** (reaper on PR close, else unbounded accumulation).
+
+**J-28 — Documentation site (infra)** (filed by `/do-retro` 2026-06-24 on operator ask: architecture
+diagrams + a user manual with screenshots). Shaped to honor directive 1 (working software over
+comprehensive docs): documentation as a **byproduct of shipping**, not separate prose that rots. Two
+outputs on a gh-pages docs site: (1) a **user manual** assembled from each journey's already-captured
+proof screenshots/videos + the journey contract (the gallery captures are the source — no new manual
+photography); (2) a **C4-style architecture** doc maintained alongside the ADRs. Carve-time defaults
+(operator to finalize at `/do-plan`): **diagrams-as-code** (Mermaid/Structurizr rendered in CI, so they
+can't drift) over hand-drawn images; gh-pages hosting like the gallery; audience = end-users (manual) +
+developers/stakeholders (architecture). After J-28 ships, the **[PER-JOURNEY-DOC]** standing rider has
+each feature journey contribute its manual page + diagram delta on its gate — keeping both current.
 
 ## Journey-0 — `J-0 Locations CRUD`
 
