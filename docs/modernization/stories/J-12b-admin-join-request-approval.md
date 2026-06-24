@@ -87,7 +87,7 @@ branches (new KC user / unattached-existing / attached-elsewhere-409).
 Backend (list/approve/deny + SSE + the orval client `api/generated/join-requests/`) shipped in J-12a;
 this is FE-screen-heavy + S-181's `UsersService.invite` hardening + folded riders. No migration → no fanout gate.
 
-- [ ] **T-01 — real-idp spec stub + gallery scaffold.** Author `e2e/tests/real-idp/admin-approve.spec.ts` structure/selectors/flow (thin asserts, commits screen shape). Scaffold the J-12b proof-gallery page + link from the persistent index (standing slot).
+- [x] **T-01 — real-idp spec stub + gallery scaffold.** Author `e2e/tests/real-idp/admin-approve.spec.ts` structure/selectors/flow (thin asserts, commits screen shape). Scaffold the J-12b proof-gallery page + link from the persistent index (standing slot).
 - [ ] **T-02 — scope the per-push gate to J-12b.** Heavy real-idp lane runs ONLY `admin-approve.spec.ts`; prior journeys (incl. J-12a) run mock-IdP. Full real-idp regression stays nightly + the §4 gate (standing slot).
 - [ ] **T-03 — `/join-requests` list screen + store + route.** New `features/join-requests/` folder: NgRx store over the generated `listPending`, the pending-list page (friendlyName + email + submitted-at + truncated note + Approve/Deny per row), the empty state ("no pending requests" + link to Club edit join-code panel), route registration (CLUB_ADMINISTRATOR-gated; non-admin → 403/redirect).
 - [ ] **T-04 — Approve modal.** Component: role checkboxes from `role-catalog.ts` (RoleAssignmentPolicy gating), the optional Person picker REUSING `person-picker.component.ts`, read-only request info; POST the generated `approve {roles[], personId?}` → row drops + success toast.
