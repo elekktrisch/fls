@@ -17,6 +17,7 @@ import { pipe, switchMap, tap } from 'rxjs';
 import { JoinRequestsService } from '@api/generated/join-requests/join-requests.service';
 import type {
   ApproveJoinRequest,
+  DenyJoinRequest,
   JoinRequestResponse,
   PendingJoinRequestResponse,
 } from '@api/generated/model';
@@ -38,12 +39,19 @@ export interface ApproveArgs {
   personId?: string;
 }
 
+export interface DenyArgs {
+  id: string;
+  reason?: string;
+}
+
 interface JoinRequestsExtraState {
   isLoading: boolean;
   loadError: string | null;
   approveBusy: boolean;
   approveError: string | null;
   approvedToast: ApprovedToast | null;
+  denyBusy: boolean;
+  denyError: string | null;
 }
 
 const initialExtra: JoinRequestsExtraState = {
@@ -52,6 +60,8 @@ const initialExtra: JoinRequestsExtraState = {
   approveBusy: false,
   approveError: null,
   approvedToast: null,
+  denyBusy: false,
+  denyError: null,
 };
 
 function withRequestId(r: PendingJoinRequestResponse): PendingJoinRequestItem {
@@ -62,13 +72,13 @@ function withRequestId(r: PendingJoinRequestResponse): PendingJoinRequestItem {
 }
 
 /**
- * The 409 envelope carries the human reason (already-attached / cross-tenant
- * Person) in `detail`; surface it verbatim so the admin reads the cause rather
- * than a generic failure.
+ * The error envelope carries the human reason (already-attached / cross-tenant
+ * Person / already-decided) in `detail`; surface it verbatim so the admin reads
+ * the cause rather than a generic failure.
  */
-function approveErrorMessage(e: HttpErrorResponse): string {
+function decisionErrorMessage(e: HttpErrorResponse, fallback: string): string {
   const body = (e.error ?? null) as { detail?: string; message?: string } | null;
-  return body?.detail ?? body?.message ?? 'Approval failed. Try again.';
+  return body?.detail ?? body?.message ?? fallback;
 }
 
 export const JoinRequestsStore = signalStore(
@@ -116,7 +126,30 @@ export const JoinRequestsStore = signalStore(
                 });
               },
               error: (e: HttpErrorResponse) =>
-                patchState(store, { approveBusy: false, approveError: approveErrorMessage(e) }),
+                patchState(store, {
+                  approveBusy: false,
+                  approveError: decisionErrorMessage(e, 'Approval failed. Try again.'),
+                }),
+            }),
+          );
+        }),
+      ),
+    );
+    const deny = rxMethod<DenyArgs>(
+      pipe(
+        tap(() => patchState(store, { denyBusy: true, denyError: null })),
+        switchMap((args) => {
+          const reason = args.reason?.trim();
+          const body: DenyJoinRequest = reason ? { reason } : {};
+          return api.deny(args.id, body).pipe(
+            tapResponse({
+              next: () =>
+                patchState(store, removeEntity(args.id), { denyBusy: false, denyError: null }),
+              error: (e: HttpErrorResponse) =>
+                patchState(store, {
+                  denyBusy: false,
+                  denyError: decisionErrorMessage(e, 'Denial failed. Try again.'),
+                }),
             }),
           );
         }),
@@ -125,11 +158,15 @@ export const JoinRequestsStore = signalStore(
     return {
       loadAll,
       approve,
+      deny,
       removeOne(id: string): void {
         patchState(store, removeEntity(id));
       },
       clearApproveError(): void {
         patchState(store, { approveError: null });
+      },
+      clearDenyError(): void {
+        patchState(store, { denyError: null });
       },
       dismissApprovedToast(): void {
         patchState(store, { approvedToast: null });

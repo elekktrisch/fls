@@ -16,6 +16,7 @@ import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { ApproveModalComponent } from './approve-modal.component';
+import { DenyModalComponent } from './deny-modal.component';
 import { JoinRequestsStore, type PendingJoinRequestItem } from './join-requests.store';
 
 const NOTE_PREVIEW_LENGTH = 120;
@@ -31,6 +32,7 @@ const NOTE_PREVIEW_LENGTH = 120;
     AfPageErrorComponent,
     AfPageHeaderComponent,
     ApproveModalComponent,
+    DenyModalComponent,
     RouterLink,
   ],
   template: `
@@ -130,6 +132,7 @@ const NOTE_PREVIEW_LENGTH = 120;
       }
 
       <af-approve-modal [request]="selectedRequest()" (closed)="closeApprove()" />
+      <af-deny-modal [request]="selectedDenyRequest()" (closed)="closeDeny()" />
     </af-page>
   `,
 })
@@ -138,15 +141,21 @@ export class JoinRequestsListPage {
   readonly #session = inject(SessionStore);
 
   protected readonly selectedRequest = signal<PendingJoinRequestItem | null>(null);
+  protected readonly selectedDenyRequest = signal<PendingJoinRequestItem | null>(null);
 
   constructor() {
-    // The approval lands asynchronously; close the modal once the selected row
-    // has dropped from the list (success). A 409 keeps the row, so the modal
-    // stays open showing `approve-error`.
+    // The decision lands asynchronously; close the open modal once its selected
+    // row has dropped from the list (success). A failure keeps the row, so the
+    // modal stays open showing its inline error.
     effect(() => {
-      const selected = this.selectedRequest();
-      if (selected && !this.store.entities().some((r) => r.id === selected.id)) {
+      const ids = new Set(this.store.entities().map((r) => r.id));
+      const approving = this.selectedRequest();
+      if (approving && !ids.has(approving.id)) {
         this.selectedRequest.set(null);
+      }
+      const denying = this.selectedDenyRequest();
+      if (denying && !ids.has(denying.id)) {
+        this.selectedDenyRequest.set(null);
       }
     });
   }
@@ -176,6 +185,11 @@ export class JoinRequestsListPage {
   }
 
   protected onDeny(request: PendingJoinRequestItem): void {
-    void request;
+    this.store.clearDenyError();
+    this.selectedDenyRequest.set(request);
+  }
+
+  protected closeDeny(): void {
+    this.selectedDenyRequest.set(null);
   }
 }

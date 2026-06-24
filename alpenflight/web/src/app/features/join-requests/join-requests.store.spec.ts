@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { JoinRequestsService } from '@api/generated/join-requests/join-requests.service';
 import type {
   ApproveJoinRequest,
+  DenyJoinRequest,
   JoinRequestResponse,
   PendingJoinRequestResponse,
 } from '@api/generated/model';
@@ -17,6 +18,11 @@ import { JoinRequestsStore } from './join-requests.store';
 interface ApproveCapture {
   id: string;
   body: ApproveJoinRequest;
+}
+
+interface DenyCapture {
+  id: string;
+  body: DenyJoinRequest;
 }
 
 const REQUEST_A = 'jr-019e30c3-2c00-7100-8000-000000000001';
@@ -45,6 +51,10 @@ function serviceStub(
     response: () => Observable<JoinRequestResponse>;
     captured?: ApproveCapture[];
   },
+  deny?: {
+    response: () => Observable<JoinRequestResponse>;
+    captured?: DenyCapture[];
+  },
 ): JoinRequestsService {
   const api = {
     listPending: ((params?: unknown, options?: unknown) => {
@@ -56,6 +66,10 @@ function serviceStub(
       approve?.captured?.push({ id, body });
       return approve?.response() ?? of({} as JoinRequestResponse);
     }) as JoinRequestsService['approve'],
+    deny: ((id: string, body: DenyJoinRequest) => {
+      deny?.captured?.push({ id, body });
+      return deny?.response() ?? of({} as JoinRequestResponse);
+    }) as JoinRequestsService['deny'],
   };
   return api as unknown as JoinRequestsService;
 }
@@ -190,5 +204,64 @@ describe('JoinRequestsStore', () => {
     expect(store.entities().map((r) => r.id)).toEqual([REQUEST_A]);
     expect(store.approvedToast()).toBeNull();
     expect(store.approveBusy()).toBe(false);
+  });
+
+  it('deny drops the row and leaves no error', () => {
+    const captured: DenyCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA, pendingB]), undefined, {
+        response: () => of({} as JoinRequestResponse),
+        captured,
+      }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.deny({ id: REQUEST_A, reason: 'No spare slots this season.' });
+    expect(store.entities().map((r) => r.id)).toEqual([REQUEST_B]);
+    expect(store.denyError()).toBeNull();
+    expect(store.denyBusy()).toBe(false);
+    expect(captured[0]!.body).toEqual({ reason: 'No spare slots this season.' });
+  });
+
+  it('deny omits reason when it is blank', () => {
+    const captured: DenyCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA]), undefined, {
+        response: () => of({} as JoinRequestResponse),
+        captured,
+      }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.deny({ id: REQUEST_A });
+    const sent = captured[0]!.body;
+    expect(sent).toEqual({});
+    expect('reason' in sent).toBe(false);
+  });
+
+  it('deny omits a whitespace-only reason', () => {
+    const captured: DenyCapture[] = [];
+    configure(
+      serviceStub(() => of([pendingA]), undefined, {
+        response: () => of({} as JoinRequestResponse),
+        captured,
+      }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.deny({ id: REQUEST_A, reason: '   ' });
+    expect('reason' in captured[0]!.body).toBe(false);
+  });
+
+  it('deny surfaces an error and keeps the row on HTTP failure', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      error: { detail: 'Request already decided.' },
+    });
+    configure(
+      serviceStub(() => of([pendingA]), undefined, { response: () => throwError(() => err) }),
+    );
+    const store = TestBed.inject(JoinRequestsStore);
+    store.deny({ id: REQUEST_A, reason: 'No spare slots.' });
+    expect(store.denyError()).toBe('Request already decided.');
+    expect(store.entities().map((r) => r.id)).toEqual([REQUEST_A]);
+    expect(store.denyBusy()).toBe(false);
   });
 });
