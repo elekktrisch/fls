@@ -53,20 +53,23 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>validate the {@code roles} are grantable (403 escalation guard);</li>
  *   <li>reject a sub that already has a {@code t_user} (409 — the one-sub-one-
  *       club rule makes a retry safe);</li>
- *   <li>write the KC {@code clubId} attribute — the FIRST external side effect,
- *       chosen first because it is idempotent (same value = no-op): if the DB
- *       transaction later rolls back, the stranded attribute is inert (a
- *       {@code clubId} attribute with no {@code t_user} grants nothing) and the
- *       request stays PENDING, so a re-approve re-runs the whole flow safely;</li>
+ *   <li>write the KC {@code clubId} attribute — written before the commit so it
+ *       is durable before the AFTER_COMMIT approval SSE races the pilot's
+ *       token-refresh on the happy path (the refreshed JWT must already carry the
+ *       {@code clubId} claim);</li>
  *   <li>create the {@code t_user}, link or auto-create Person + PersonClub, and
  *       grant the roles in KC (idempotent grant) — all inside the one
  *       transaction;</li>
  *   <li>commit the aggregate transition + audit.</li>
  * </ol>
  *
- * <p>Any failure after the KC attribute write rolls the DB transaction back and
- * leaves nothing load-bearing in either system — the integration-risk path the
- * IT pins.
+ * <p>A {@code clubId} attribute is NOT inert: the realm's {@code clubId-mapper}
+ * projects it into the pilot's next JWT, which the tenant resolver + the JIT
+ * user-materializer trust with no {@code t_user} corroboration. So any failure
+ * after the attribute write deterministically clears it (catch &rarr; compensate
+ * &rarr; rethrow) before the DB transaction rolls back — a half-fail strands
+ * nothing in either system and the request stays PENDING, re-approvable. This is
+ * the integration-risk path the leak IT pins.
  *
  * <p>Each transition publishes a {@link JoinRequestStatusChangedEvent} so the
  * AFTER_COMMIT notification listeners send the pilot email + the
@@ -141,32 +144,49 @@ public class JoinRequestDecisionsService {
             throw new AlreadyClubMemberException();
         }
 
-        // (4) KC clubId attribute — the idempotent first external side effect.
+        // (4) KC clubId attribute — written before the commit so it is durable
+        // before the AFTER_COMMIT SSE races the pilot's token-refresh on the happy
+        // path. A failure after this point strands a clubId attribute that would
+        // project into the pilot's next JWT and grant tenant access with no
+        // corroborating t_user, so any such failure deterministically clears it
+        // before rethrowing (the half-join defence).
         directory.writeClubIdAttribute(sub, clubId);
+        try {
+            // (5) Local rows: t_user bound to the existing KC sub + a Person link.
+            UUID personId = cmd.personId() == null
+                    ? autoCreatePerson(clubId, request)
+                    : linkExistingPerson(cmd.personId());
+            User user = User.register(clubId, sub, friendlyToUsername(request), request.getFriendlyName(),
+                    request.getEmail(), languages.resolve(null), personId);
+            User savedUser = users.save(user);
+            users.flush();
 
-        // (5) Local rows: t_user bound to the existing KC sub + a Person link.
-        UUID personId = cmd.personId() == null
-                ? autoCreatePerson(clubId, request)
-                : linkExistingPerson(cmd.personId());
-        User user = User.register(clubId, sub, friendlyToUsername(request), request.getFriendlyName(),
-                request.getEmail(), languages.resolve(null), personId);
-        User savedUser = users.save(user);
-        users.flush();
+            // (6) Roles in KC — idempotent grant.
+            grantRoles(sub, roles);
 
-        // (6) Roles in KC — idempotent grant.
-        grantRoles(sub, roles);
-
-        // (7) Commit the transition + audit.
-        JoinRequest saved = requests.save(request);
-        auditTrail.record(AuditAction.STATE_TRANSITION,
-                AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
-        UserId rowId = savedUser.getId();
-        if (rowId != null) {
-            auditTrail.record(AuditAction.CREATE,
-                    AuditedTarget.created("User", rowId.value(), new UserCreatedAuditPayload(clubId, sub)));
+            // (7) Commit the transition + audit.
+            JoinRequest saved = requests.save(request);
+            auditTrail.record(AuditAction.STATE_TRANSITION,
+                    AuditedTarget.updated(AUDIT_ENTITY_TYPE, saved.getId(), saved, saved));
+            UserId rowId = savedUser.getId();
+            if (rowId != null) {
+                auditTrail.record(AuditAction.CREATE,
+                        AuditedTarget.created("User", rowId.value(), new UserCreatedAuditPayload(clubId, sub)));
+            }
+            events.publishEvent(statusChanged(saved));
+            return JoinRequestResponse.from(saved);
+        } catch (RuntimeException e) {
+            // The DB transaction will roll back; compensate the directory so the
+            // clubId attribute never outlives a rolled-back approve. A failure to
+            // compensate is suppressed onto the original cause — the request stays
+            // PENDING either way, but a noisy original cause beats a swallowed one.
+            try {
+                directory.clearClubIdAttribute(sub);
+            } catch (RuntimeException compensationFailure) {
+                e.addSuppressed(compensationFailure);
+            }
+            throw e;
         }
-        events.publishEvent(statusChanged(saved));
-        return JoinRequestResponse.from(saved);
     }
 
     /**

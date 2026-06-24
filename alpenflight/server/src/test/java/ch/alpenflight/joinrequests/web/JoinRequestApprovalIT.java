@@ -244,6 +244,26 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void approve_forbiddenRole_is_403() {
+        UUID sub = UuidCreator.getTimeOrderedEpoch();
+        String reqId = filePending(sub, codeA);
+
+        // A CLUB_ADMINISTRATOR may not grant SYSTEM_ADMINISTRATOR — the escalation
+        // gate rejects it before any external write, so the request stays pending.
+        ResponseEntity<String> res = approve(adminToken(clubA, adminSubA), reqId,
+                List.of("SYSTEM_ADMINISTRATOR"), null);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        verify(directory, never()).writeClubIdAttribute(eq(sub), any());
+        Integer users = jdbc.queryForObject(
+                "SELECT count(*) FROM t_user WHERE keycloak_sub = ?::uuid", Integer.class, sub.toString());
+        assertThat(users).isZero();
+        String status = jdbc.queryForObject(
+                "SELECT status FROM t_join_request WHERE id = ?::uuid", String.class, reqId);
+        assertThat(status).isEqualTo("PENDING");
+    }
+
+    @Test
     void approve_crossTenantRequest_is_404() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);

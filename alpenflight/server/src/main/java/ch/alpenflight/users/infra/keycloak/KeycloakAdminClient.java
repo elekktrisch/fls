@@ -151,6 +151,29 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
+    @Override
+    public void clearClubIdAttribute(UUID sub) {
+        Objects.requireNonNull(sub, "sub");
+        // Read-merge-write mirror of writeClubIdAttribute: a KC user PUT replaces
+        // the whole `attributes` map, so read first and drop only clubId,
+        // preserving locale. Idempotent — clearing an absent attribute is a no-op.
+        Map<String, List<String>> attrs = readAttributes(sub);
+        if (attrs.remove("clubId") == null) {
+            return;
+        }
+        try {
+            http.put()
+                    .uri(props.adminBase() + "/users/" + sub)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("attributes", attrs))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpStatusCodeException e) {
+            throw new UserDirectoryException(
+                    "Keycloak clear clubId attribute (status " + e.getStatusCode().value() + ")", e);
+        }
+    }
+
     private Map<String, List<String>> readAttributes(UUID sub) {
         try {
             String body = http.get()
