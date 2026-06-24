@@ -19,7 +19,7 @@ acceptance:
 screen: /join-requests (new admin screen) + the users-invite flow hardened (S-181 — backend, no new screen)
 headless_pulled_in: "none new — rides J-12a's JoinRequest backend (list / approve / deny + the join-request.status-changed SSE), the S-168 role catalog + /persons/lookup Person-picker, and the S-052 alpenflight-backend-admin KC machine client. S-181 hardens UsersService.invite (recognise a pre-existing Keycloak user)."
 migration: "N/A — greenfield (JoinRequest + invite are greenfield; the approve side-effects write into existing schema)."
-parity_test: alpenflight/web/e2e/tests/real-idp/admin-approve.spec.ts (new) + UsersInviteRobustnessIT
+parity_test: alpenflight/web/e2e/tests/real-idp/admin-approve.spec.ts (new) + UsersInviteRobustnessIT   # per-push real-idp proof runs ONLY this spec (ci.yml proof_spec derive off the integration branch name); a still-fixme stub fail-safes to the J-0 baseline, then auto-scopes once it carries an active test — prior journeys' real-idp specs stay nightly (alpenflight-e2e-real-idp.yml) + the §4 gate; no mock_test: → prior journeys' mock specs run the full chromium suite per-push
 adr_refs: [0008, 0022, 0027]
 ---
 
@@ -88,7 +88,7 @@ Backend (list/approve/deny + SSE + the orval client `api/generated/join-requests
 this is FE-screen-heavy + S-181's `UsersService.invite` hardening + folded riders. No migration → no fanout gate.
 
 - [x] **T-01 — real-idp spec stub + gallery scaffold.** `admin-approve.spec.ts` (5 `test.fixme`; clubadmin4=admin, pilot1=non-admin). **Testids T-03..T-06 MUST expose** (`TESTIDS` @ `admin-approve.spec.ts:43`): `join-requests-page/-list/-empty/-empty-club-link`; `join-request-row` + `-friendly-name/-email/-submitted-at/-note/-approve/-deny`; `approve-modal` + `-role-checkbox/-person-picker/-request-info/-submit/-error`; `deny-modal`/`deny-reason`/`-counter`/`deny-submit`; `join-request-success-toast`; `nav-join-requests-badge`. Gallery data-driven (already in `_ORDER.md` + generator `ROADMAP_FALLBACK`).
-- [ ] **T-02 — scope the per-push gate to J-12b.** Heavy real-idp lane runs ONLY `admin-approve.spec.ts`; prior journeys (incl. J-12a) run mock-IdP. Full real-idp regression stays nightly + the §4 gate (standing slot).
+- [x] **T-02 — scope the per-push gate to J-12b.** Heavy real-idp lane runs ONLY `admin-approve.spec.ts`; prior journeys (incl. J-12a) run mock-IdP. Full real-idp regression stays nightly + the §4 gate (standing slot). Scoped by the branch-name `ci.yml` proof_spec derive (no hardcoded spec in any workflow) → `parity_test:` first token; while the spec is all-fixme it fail-safes to the J-0 baseline, auto-scoping once thickened. No `mock_test:` → prior journeys' mock specs run the full chromium suite per-push.
 - [ ] **T-03 — `/join-requests` list screen + store + route.** New `features/join-requests/` folder: NgRx store over the generated `listPending`, the pending-list page (friendlyName + email + submitted-at + truncated note + Approve/Deny per row), the empty state ("no pending requests" + link to Club edit join-code panel), route registration (CLUB_ADMINISTRATOR-gated; non-admin → 403/redirect).
 - [ ] **T-04 — Approve modal.** Component: role checkboxes from `role-catalog.ts` (RoleAssignmentPolicy gating), the optional Person picker REUSING `person-picker.component.ts`, read-only request info; POST the generated `approve {roles[], personId?}` → row drops + success toast.
 - [ ] **T-05 — Deny modal.** Component: optional reason textarea ≤500 + char counter; POST the generated `deny {reason?}` → row drops.
