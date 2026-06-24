@@ -38,7 +38,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-27 | **Migration-fidelity sprint — drive the fanout fully green** (operator-sanctioned tech-debt, J-10 retro 2026-06-19; clears the hard fanout gate for every future migration journey) | E-02 | J-10 | — (fixes existing mappers/specs: J-0c Location render, J-8 `AccountingRuleFilter` predicate `filter_config`, J-9 migrated FlightTime filter → `article-5001`) | N/A — repairs migrated parity, no new mapper | fanout `[migration/parity]` for J-0c/J-8/J-9 |
 | J-11 | Articles + Email templates | E-06 | J-0 | S-055, S-158, S-177 (+impl S-054) | `Article`, `EmailTemplate` | `masterdata/articles/`, email-templates |
 | 🔨 **J-12a** | Pilot self-serve club join (carved 2026-06-23; split from J-12 — pilot screen first for a fast visible result) | E-06 | J-3, J-4 | S-177, S-178, S-179 | N/A (greenfield) | none (new) → `/join` + `/join/pending` |
-| J-12b | Admin join-request approval + invite robustness | E-06 | J-12a | S-180, S-181 | N/A (greenfield) | none (new) → `/join-requests` |
+| 🔨 **J-12b** | Admin join-request approval + invite robustness (carved 2026-06-24) | E-06 | J-12a | S-180, S-181 | N/A (greenfield) | none (new) → `/join-requests` |
 | J-13 | System data + logs (admin) | E-06 | J-0 | S-056, S-160 | `SystemData` | `system/logs/` → `/system/logs` |
 | J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
 | J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |

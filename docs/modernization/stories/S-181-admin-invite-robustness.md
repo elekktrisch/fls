@@ -3,6 +3,7 @@ id: S-181
 title: Admin invite robustness — recognise pre-existing KC user (federated or local)
 epic: E-06
 status: todo
+rolled_up_into: J-12b
 depends_on: [S-052, S-168]
 integration_base: integration/users-suite
 acceptance:

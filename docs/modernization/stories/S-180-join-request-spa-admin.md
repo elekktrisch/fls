@@ -3,6 +3,7 @@ id: S-180
 title: Join-request SPA — admin approval page + modal
 epic: E-06
 status: todo
+rolled_up_into: J-12b
 depends_on: [S-178, S-176, S-168, S-051]
 integration_base: integration/users-suite
 acceptance:
