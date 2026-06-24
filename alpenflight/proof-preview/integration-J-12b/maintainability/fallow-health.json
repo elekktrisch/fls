@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.102.0",
-  "elapsed_ms": 399,
+  "elapsed_ms": 437,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -1109,6 +1109,42 @@
       ]
     },
     {
+      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "name": "<component>",
+      "line": 150,
+      "col": 11,
+      "cyclomatic": 13,
+      "cognitive": 16,
+      "line_count": 111,
+      "param_count": 0,
+      "exceeded": "cognitive",
+      "severity": "moderate",
+      "component_rollup": {
+        "component": "join-requests-list.page",
+        "class_worst_function": "<arrow>",
+        "class_cyclomatic": 5,
+        "class_cognitive": 4,
+        "template_path": "src/app/features/join-requests/join-requests-list.page.ts",
+        "template_cyclomatic": 8,
+        "template_cognitive": 12
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `join-requests-list.page` to reduce component complexity (rolled-up cyclomatic 13 = 5 on `<arrow>` + 8 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/start/start.page.ts",
       "name": "routeLabel",
       "line": 203,
@@ -1679,6 +1715,36 @@
       ]
     },
     {
+      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "name": "<template>",
+      "line": 24,
+      "col": 0,
+      "cyclomatic": 8,
+      "cognitive": 12,
+      "line_count": 100,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 72.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flight-types/edit/flight-types-edit.page.ts",
       "name": "<template>",
       "line": 65,
@@ -2009,36 +2075,6 @@
       ]
     },
     {
-      "path": "src/app/features/join-requests/join-requests-list.page.ts",
-      "name": "<template>",
-      "line": 15,
-      "col": 0,
-      "cyclomatic": 7,
-      "cognitive": 11,
-      "line_count": 85,
-      "param_count": 0,
-      "exceeded": "crap",
-      "severity": "high",
-      "crap": 56.0,
-      "coverage_tier": "none",
-      "coverage_source": "estimated",
-      "actions": [
-        {
-          "type": "add-tests",
-          "auto_fixable": false,
-          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
-          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
-        },
-        {
-          "type": "suppress-line",
-          "auto_fixable": false,
-          "description": "Suppress with an inline comment above the Angular decorator",
-          "comment": "// fallow-ignore-next-line complexity",
-          "placement": "above-angular-decorator"
-        }
-      ]
-    },
-    {
       "path": "src/app/features/start/start-clubadmin.page.ts",
       "name": "<template>",
       "line": 23,
@@ -2065,6 +2101,36 @@
           "description": "Suppress with an inline comment above the Angular decorator",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/join-requests/approve-modal.component.ts",
+      "name": "onSubmit",
+      "line": 120,
+      "col": 20,
+      "cyclomatic": 7,
+      "cognitive": 4,
+      "line_count": 14,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `onSubmit` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
         }
       ]
     },
@@ -2879,6 +2945,36 @@
       ]
     },
     {
+      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "name": "<arrow>",
+      "line": 150,
+      "col": 11,
+      "cyclomatic": 5,
+      "cognitive": 4,
+      "line_count": 11,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<arrow>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/accounting/delivery-creation-tests/delivery-creation-tests.store.ts",
       "name": "<arrow>",
       "line": 383,
@@ -2905,6 +3001,36 @@
           "description": "Suppress with an inline comment above the function declaration",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/join-requests/approve-modal.component.ts",
+      "name": "<template>",
+      "line": 25,
+      "col": 0,
+      "cyclomatic": 5,
+      "cognitive": 7,
+      "line_count": 53,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
         }
       ]
     },
@@ -3330,19 +3456,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 238,
-    "functions_analyzed": 1989,
-    "functions_above_threshold": 104,
+    "files_analyzed": 240,
+    "functions_analyzed": 2019,
+    "functions_above_threshold": 108,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 189,
+    "files_scored": 191,
     "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 24,
-    "severity_high_count": 31,
-    "severity_moderate_count": 49
+    "severity_high_count": 32,
+    "severity_moderate_count": 52
   },
   "vital_signs": {
     "dead_file_pct": 0.0,
@@ -3360,31 +3486,31 @@
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 238,
-      "total_exports": 529,
+      "total_files": 240,
+      "total_exports": 534,
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 34165,
-      "files_scored": 189,
+      "total_lines": 34567,
+      "files_scored": 191,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 87.5,
-      "medium_risk": 6.3,
+      "low_risk": 87.6,
+      "medium_risk": 6.2,
       "high_risk": 2.6,
       "very_high_risk": 3.6
     },
     "functions_over_60_loc_per_k": 36.2,
     "unit_interfacing_profile": {
-      "low_risk": 97.5,
-      "medium_risk": 2.2,
+      "low_risk": 97.6,
+      "medium_risk": 2.1,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.6,
-    "total_loc": 34165
+    "total_loc": 34567
   },
   "health_score": {
     "formula_version": 2,
@@ -3589,7 +3715,7 @@
     },
     {
       "path": "src/app/features/users/edit/person-picker.component.ts",
-      "fan_in": 1,
+      "fan_in": 2,
       "fan_out": 4,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.11,
@@ -3726,6 +3852,20 @@
       "lines": 362,
       "crap_max": 79.4,
       "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "fan_in": 1,
+      "fan_out": 9,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.13,
+      "maintainability_index": 86.9,
+      "total_cyclomatic": 25,
+      "total_cognitive": 19,
+      "function_count": 11,
+      "lines": 196,
+      "crap_max": 72.0,
+      "crap_above_threshold": 2
     },
     {
       "path": "src/app/features/reporting/edit/report-custom-builder.page.ts",
@@ -3882,18 +4022,18 @@
       "crap_above_threshold": 3
     },
     {
-      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "path": "src/app/features/join-requests/approve-modal.component.ts",
       "fan_in": 1,
-      "fan_out": 7,
+      "fan_out": 5,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.11,
-      "maintainability_index": 88.4,
-      "total_cyclomatic": 15,
+      "complexity_density": 0.14,
+      "maintainability_index": 88.6,
+      "total_cyclomatic": 21,
       "total_cognitive": 14,
-      "function_count": 6,
-      "lines": 140,
+      "function_count": 9,
+      "lines": 146,
       "crap_max": 56.0,
-      "crap_above_threshold": 1
+      "crap_above_threshold": 2
     },
     {
       "path": "src/app/features/users/list/users-list.page.ts",
@@ -4414,6 +4554,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join-requests/join-requests.store.ts",
+      "fan_in": 4,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.18,
+      "maintainability_index": 91.8,
+      "total_cyclomatic": 35,
+      "total_cognitive": 8,
+      "function_count": 24,
+      "lines": 194,
+      "crap_max": 13.8,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/locations/edit/locations-edit.mapper.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4591,7 +4745,7 @@
       "total_cyclomatic": 3,
       "total_cognitive": 3,
       "function_count": 1,
-      "lines": 71,
+      "lines": 79,
       "crap_max": 12.0,
       "crap_above_threshold": 0
     },
@@ -4946,6 +5100,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/join-requests/deny-modal.component.ts",
+      "fan_in": 1,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.06,
+      "maintainability_index": 93.8,
+      "total_cyclomatic": 5,
+      "total_cognitive": 1,
+      "function_count": 4,
+      "lines": 88,
+      "crap_max": 6.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/reporting/canned-report-request.ts",
       "fan_in": 2,
       "fan_out": 1,
@@ -5068,20 +5236,6 @@
       "total_cognitive": 8,
       "function_count": 7,
       "lines": 114,
-      "crap_max": 4.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/join-requests/join-requests.store.ts",
-      "fan_in": 2,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.17,
-      "maintainability_index": 92.1,
-      "total_cyclomatic": 15,
-      "total_cognitive": 3,
-      "function_count": 12,
-      "lines": 90,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -5619,7 +5773,7 @@
     },
     {
       "path": "src/app/features/users/role-catalog.ts",
-      "fan_in": 3,
+      "fan_in": 4,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.08,
@@ -6295,6 +6449,12 @@
       "line_count": 103
     },
     {
+      "path": "src/app/features/join-requests/join-requests-list.page.ts",
+      "name": "<template>",
+      "line": 24,
+      "line_count": 100
+    },
+    {
       "path": "src/app/features/clubs/edit/clubs-edit.page.ts",
       "name": "<template>",
       "line": 44,
@@ -6319,10 +6479,10 @@
       "line_count": 91
     },
     {
-      "path": "src/app/features/join-requests/join-requests-list.page.ts",
-      "name": "<template>",
-      "line": 15,
-      "line_count": 85
+      "path": "src/app/features/join-requests/join-requests.store.ts",
+      "name": "<arrow>",
+      "line": 92,
+      "line_count": 84
     },
     {
       "path": "src/app/features/clubs/list/clubs-list.page.ts",
@@ -6504,6 +6664,12 @@
       "confidence": "high",
       "factors": [
         {
+          "metric": "fan_out",
+          "value": 9.0,
+          "threshold": 9.0,
+          "detail": "imports 9 modules"
+        },
+        {
           "metric": "cognitive_complexity",
           "value": 42.0,
           "threshold": 30.0,
@@ -6558,7 +6724,7 @@
         {
           "metric": "fan_out",
           "value": 12.0,
-          "threshold": 10.0,
+          "threshold": 9.0,
           "detail": "imports 12 modules"
         },
         {
@@ -6636,7 +6802,7 @@
         {
           "metric": "fan_out",
           "value": 11.0,
-          "threshold": 10.0,
+          "threshold": 9.0,
           "detail": "imports 11 modules"
         },
         {
@@ -6782,7 +6948,7 @@
     "fan_in_p95": 5.0,
     "fan_in_p75": 3.0,
     "fan_out_p95": 12.0,
-    "fan_out_p90": 10
+    "fan_out_p90": 9
   },
   "framework_health": {
     "detected_frameworks": [
@@ -6825,7 +6991,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_df06fb51d3928bc8"
+      "analysis_run_id": "run_e4918c7d14c88338"
     }
   }
 }

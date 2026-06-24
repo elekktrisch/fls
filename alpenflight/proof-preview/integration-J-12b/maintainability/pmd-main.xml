@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-24T19:20:17.966">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-24T19:43:49.722">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
 <violation beginline="135" endline="144" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
