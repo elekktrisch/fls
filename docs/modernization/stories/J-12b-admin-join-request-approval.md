@@ -81,3 +81,20 @@ branches (new KC user / unattached-existing / attached-elsewhere-409).
   proof is the real-idp admin-approval lifecycle, not a legacy pairing.
 - Carved on the **`do-retro/J-12a-window`** retro branch (clean off `origin/main`), so the retro's suite
   edits + `_BOYSCOUT.md` riders ride J-12b and merge with it (the fix-forward path).
+
+## Tasks
+
+Backend (list/approve/deny + SSE + the orval client `api/generated/join-requests/`) shipped in J-12a;
+this is FE-screen-heavy + S-181's `UsersService.invite` hardening + folded riders. No migration → no fanout gate.
+
+- [ ] **T-01 — real-idp spec stub + gallery scaffold.** Author `e2e/tests/real-idp/admin-approve.spec.ts` structure/selectors/flow (thin asserts, commits screen shape). Scaffold the J-12b proof-gallery page + link from the persistent index (standing slot).
+- [ ] **T-02 — scope the per-push gate to J-12b.** Heavy real-idp lane runs ONLY `admin-approve.spec.ts`; prior journeys (incl. J-12a) run mock-IdP. Full real-idp regression stays nightly + the §4 gate (standing slot).
+- [ ] **T-03 — `/join-requests` list screen + store + route.** New `features/join-requests/` folder: NgRx store over the generated `listPending`, the pending-list page (friendlyName + email + submitted-at + truncated note + Approve/Deny per row), the empty state ("no pending requests" + link to Club edit join-code panel), route registration (CLUB_ADMINISTRATOR-gated; non-admin → 403/redirect).
+- [ ] **T-04 — Approve modal.** Component: role checkboxes from `role-catalog.ts` (RoleAssignmentPolicy gating), the optional Person picker REUSING `person-picker.component.ts`, read-only request info; POST the generated `approve {roles[], personId?}` → row drops + success toast.
+- [ ] **T-05 — Deny modal.** Component: optional reason textarea ≤500 + char counter; POST the generated `deny {reason?}` → row drops.
+- [ ] **T-06 — Nav entry + live pending-count badge + SSE.** Add the `/join-requests` entry to `nav-sections.ts` (CLUB_ADMINISTRATOR-visible) with a pending-count badge subscribing to `/api/v1/me/events` `join-request.status-changed` (bump/decrement live). Folds **[COMMENT-STRIP]** (`app.routes.ts` + `nav-sections.ts`) + **[TEST-ORPHAN]** (relocate `nav-bar.spec.ts` into the collected subdir).
+- [ ] **T-07 — S-181 invite robustness (backend).** `UsersService.invite` (`UsersService.java:141`) gains a KC pre-check by email: no KC user → today's create+password-reset path; UNATTACHED existing KC user → bind to the inviting tenant + welcome-attached email (skip password reset), localised per the KC `locale`; email ATTACHED elsewhere → 409. New `welcome-attached.html` template. `user.invited` audit carries the branch. New `UsersInviteRobustnessIT` over the three branches. Folds **[JIT-username robustness]** if it touches `JitUserMaterializerImpl`.
+- [ ] **T-08 — S-181 SPA spec extension.** Extend S-168's `users-invite` spec with the unattached-existing-KC-user case (Google-signup fixture → admin invites → `t_user` appears + KC clubId attribute set + NO password-reset email + welcome-attached email asserted via Mailpit).
+- [ ] **T-09 — [GH-PAGES-DEPLOY-RACE] rider.** Align the gh-pages deploy concurrency across `ci.yml` + `alpenflight-e2e.yml` onto one shared `gh-pages-deploy` group so the two deploy jobs serialise (currently disjoint `ci-${ref}` vs `alpenflight-e2e-${ref}` → intermittent red `main`).
+- [ ] **— BATCH-BOUNDARY full check** (after T-09, before §4): full-repo `./gradlew check` + full mock-e2e suite — catches cross-journey regressions (a changed nav/route/guard reds `nav-bar.spec.ts`/`signup.spec.ts`/dashboard; cpdRatchet).
+- [ ] **T-10 — thicken the real-idp spec.** Full real assertions in `admin-approve.spec.ts`: list own-club pending → approve modal (roles + optional Person) → row drops + badge decrements via SSE + pilot admitted; deny+reason → pilot-denied email; empty state; the 409s (already-attached / cross-tenant Person); non-admin 403. Captures the gallery pairing.
