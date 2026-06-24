@@ -1,10 +1,17 @@
-import { type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
-import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import {
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
+import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
+import { enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { freshTestUser, type TestUser } from './_helpers/test-user';
 import { createUserWithAttributes, findUserByEmail, deleteUser } from './_helpers/keycloak-admin';
-import { purgeMailpit } from './_helpers/mailpit-client';
+import { waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
@@ -14,16 +21,13 @@ import { proofVideo } from './_helpers/proof-video';
  * (list / approve / deny + the `join-request.status-changed` SSE), so the proof
  * is the real-idp admin-approval lifecycle, not a legacy pairing.
  *
- * STUB STATE (T-01): this commits the screen SHAPE — the route, the `data-testid`
- * contract the list / approve-modal / deny-modal / empty-state / nav-badge will
- * expose, and the flow order. The lifecycle cases are `test.fixme` so the file
- * PARSES + COLLECTS without redding the per-push gate (the screen does not exist
- * yet); T-10 drops the fixmes and thickens the assertions once T-03..T-06 land
- * the screen. The `parity_test:` derive treats a fixme-only spec as not-yet-
- * thickened → the gallery renders the J-12b section as pending until T-10.
- *
- * The selectors below are the binding contract for the screen tasks — T-03..T-06
- * MUST expose exactly these testids so T-10's thicken needs no selector churn.
+ * The admin enters through the real chrome (landing sign-in → real KC redirect
+ * login → masterdata nav → `/join-requests`) and drives every acceptance item
+ * fully real: the own-club pending list + the LIVE nav badge; approve via the
+ * modal (role catalogue + optional Person) admitting the pilot (verified by the
+ * pilot reaching their auto-created Person over `/api/v1/me/person`); deny with a
+ * reason + the pilot-denied Mailpit mail; a real already-decided 409 surfaced
+ * inline; the empty state + the non-admin reach guard.
  */
 
 /** seed-club-1's clean-seed CLUB_ADMINISTRATOR — the approving admin (V29). */
@@ -37,9 +41,12 @@ const PILOT_PASSWORD = 'pilot1-dev-2026!';
 /** The fixed seed-club-1 join code a fresh pilot submits to create a pending row. */
 const SEED_JOIN_CODE = 'SEEDCLUB';
 
+/** German subject from JoinRequestEmailListener (de is the realm default). */
+const SUBJECT_PILOT_DENIED = 'Beitrittsanfrage abgelehnt';
+
 const JOIN_REQUESTS_PATH = '/join-requests';
 
-/** The screen-shape contract — the testids T-03..T-06 expose, T-10 asserts on. */
+/** The screen-shape contract — the testids T-03..T-06 expose, asserted here. */
 const TESTIDS = {
   page: 'join-requests-page',
   list: 'join-requests-list',
@@ -66,6 +73,12 @@ const TESTIDS = {
   navBadge: 'nav-join-requests-badge',
 } as const;
 
+interface PendingRow {
+  readonly id: string;
+  readonly email: string;
+  readonly clubId: string;
+}
+
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -87,14 +100,17 @@ async function loginAs(page: Page, username: string, password: string): Promise<
 
 /**
  * Provision a fresh, email-verified, TENANT-LESS pilot and file a pending join
- * request against seed-club-1, so the admin's `/join-requests` list has an
- * own-club row to triage. The pilot's KC user is cleaned up in afterEach.
+ * request against seed-club-1 through the real submit flow, so the admin's
+ * `/join-requests` list has an own-club row to triage. The pilot's KC user is
+ * cleaned up in afterEach. Returns the pilot's friendlyName so the row's
+ * friendly-name cell can be asserted on a known value.
  */
 async function filePendingRequest(
   browser: Browser,
   baseURL: string,
   user: TestUser,
-): Promise<void> {
+): Promise<string> {
+  const friendlyName = `${user.firstName} ${user.lastName}`;
   await createUserWithAttributes(user, {});
   const ctx = await browser.newContext({ baseURL });
   const page = await ctx.newPage();
@@ -107,6 +123,76 @@ async function filePendingRequest(
   } finally {
     await ctx.close();
   }
+  return friendlyName;
+}
+
+/**
+ * Drive clubadmin4 (seed-club-1) through the SPA login in a throwaway context
+ * and capture the Bearer the OIDC interceptor attaches to its first `/api/v1/`
+ * read, so the spec can read the tenant-scoped pending list / verify the
+ * auto-created Person as a real CLUB_ADMINISTRATOR off the UI thread.
+ */
+async function captureAdminBearer(browser: Browser, baseURL: string): Promise<string> {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  try {
+    const bearerPromise = page.waitForRequest((req) => {
+      const auth = req.headers()['authorization'];
+      return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
+    });
+    await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
+    const req = await bearerPromise;
+    return req.headers()['authorization']!;
+  } finally {
+    await context.close();
+  }
+}
+
+/** The admin's own-club pending list (tenant-scoped to seed-club-1). */
+async function listPending(api: APIRequestContext, adminBearer: string): Promise<PendingRow[]> {
+  const res = await api.get('/api/v1/join-requests?status=pending', {
+    headers: { authorization: adminBearer },
+  });
+  expect(res.status(), await res.text()).toBe(200);
+  return (await res.json()) as PendingRow[];
+}
+
+/** Find the pilot's pending request in the admin's own-club list, keyed by email. */
+async function findPendingFor(
+  api: APIRequestContext,
+  adminBearer: string,
+  pilotEmail: string,
+): Promise<PendingRow> {
+  const rows = await listPending(api, adminBearer);
+  const mine = rows.find((r) => r.email === pilotEmail);
+  expect(mine, `no pending request for ${pilotEmail} in the admin's club`).toBeDefined();
+  return mine!;
+}
+
+/**
+ * Drain every pending request in the admin's tenant by denying it over the real
+ * endpoint, so the empty-state case asserts a genuinely empty own-club queue
+ * regardless of rows a sibling case left undecided. The denied requests' KC
+ * users are foreign here, so they're swept by `global-teardown.ts`, not us.
+ */
+async function drainPending(api: APIRequestContext, adminBearer: string): Promise<void> {
+  for (const row of await listPending(api, adminBearer)) {
+    const res = await api.post(`/api/v1/join-requests/${row.id}/deny`, {
+      headers: { authorization: adminBearer, 'content-type': 'application/json' },
+      data: { reason: 'Draining the queue for the empty-state proof.' },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+  }
+}
+
+/** Read the live nav-badge count (the rolled-up Masterdata trigger pill); 0 when absent. */
+async function navBadgeCount(page: Page): Promise<number> {
+  const badge = page.getByTestId(TESTIDS.navBadge).first();
+  if ((await badge.count()) === 0) {
+    return 0;
+  }
+  const text = (await badge.textContent())?.trim() ?? '0';
+  return Number.parseInt(text, 10) || 0;
 }
 
 test.describe('Admin join-request approval — real chain (real-idp)', () => {
@@ -122,7 +208,7 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
     await purgeMailpit();
   });
 
-  test.fixme('[happy] admin lists own-club pending → approve via the modal → row drops + success toast + badge decrements', async ({
+  test('[happy] admin lists own-club pending → approve via the modal → row drops + success toast + badge decrements + pilot admitted', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -131,48 +217,99 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       cleanupEmails.push(pilot.email);
-      await filePendingRequest(browser, baseURL, pilot);
+      const friendlyName = await filePendingRequest(browser, baseURL, pilot);
 
+      // ENTER via the chrome: real KC login → /start → the Masterdata nav → the
+      // nested Join requests entry. enterViaNav opens the Masterdata group first.
       await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
-      await page.goto(JOIN_REQUESTS_PATH);
+      await page.goto('/start');
+      await expect(page).toHaveURL('/start');
+      await enterViaNav(page, JOIN_REQUESTS_PATH);
+      await expect(page).toHaveURL(JOIN_REQUESTS_PATH);
       await expect(page.getByTestId(TESTIDS.page)).toBeVisible();
 
       // The own-club pending row carries the pilot's friendlyName + email +
-      // submitted-at + note + Approve/Deny affordances; the nav badge reflects
-      // the count.
+      // submitted-at; the nav badge reflects a positive pending count.
       const row = page.getByTestId(TESTIDS.row).filter({ hasText: pilot.email });
       await expect(row).toBeVisible();
       await expect(row.getByTestId(TESTIDS.rowEmail)).toHaveText(pilot.email);
-      await expect(row.getByTestId(TESTIDS.rowFriendlyName)).toBeVisible();
+      await expect(row.getByTestId(TESTIDS.rowFriendlyName)).toHaveText(friendlyName);
       await expect(row.getByTestId(TESTIDS.rowSubmittedAt)).toBeVisible();
-      await expect(page.getByTestId(TESTIDS.navBadge)).toBeVisible();
+      const countBefore = await navBadgeCount(page);
+      expect(countBefore).toBeGreaterThanOrEqual(1);
 
-      // Approve via the modal: role checkboxes (gated by RoleAssignmentPolicy),
-      // an optional Person picker, read-only request info.
+      // Capture the populated LIST shot for the gallery BEFORE the deeper flow.
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-join-requests-list.png`,
+        fullPage: true,
+      });
+
+      // Approve via the modal: read-only request info, the grantable-role
+      // checkboxes (S-168 catalogue), an optional Person picker. SYSTEM_ADMINISTRATOR
+      // is intentionally NOT offered (the backend 403s the grant).
       await row.getByTestId(TESTIDS.rowApprove).click();
       await expect(page.getByTestId(TESTIDS.approveModal)).toBeVisible();
       await expect(page.getByTestId(TESTIDS.approveRequestInfo)).toBeVisible();
       await expect(page.getByTestId(TESTIDS.approvePersonPicker)).toBeVisible();
-      await page.getByTestId(TESTIDS.approveRoleCheckbox).first().check();
+      await expect(page.getByTestId(TESTIDS.approveRoleCheckbox).first()).toBeVisible();
+      await expect(page.getByText('System administrator')).toHaveCount(0);
+
+      // Capture the populated FORM (modal-open) shot for the gallery, with the
+      // inline request info + role catalogue rendered, BEFORE submitting.
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-join-requests-form.png`,
+        fullPage: true,
+      });
+
+      // PILOT is checked by default; approve with the baseline role.
       await page.getByTestId(TESTIDS.approveSubmit).click();
 
-      // The row drops, a success toast shows, and the badge decrements live.
+      // The row drops, the success toast shows, and the live badge decrements by 1.
       await expect(row).toHaveCount(0, { timeout: 30_000 });
       await expect(page.getByTestId(TESTIDS.successToast)).toBeVisible();
+      await expect(page.getByTestId(TESTIDS.successToast)).toContainText(friendlyName);
+      await expect.poll(async () => navBadgeCount(page), { timeout: 30_000 }).toBe(countBefore - 1);
+
+      // The pilot is admitted AND the approve-WITHOUT-Person path auto-created a
+      // Person + PersonClub server-side — both proven by the admin's own-club
+      // users list, read over the real endpoint as a real CLUB_ADMINISTRATOR. The
+      // now-member surfaces as a `t_user` (admission) keyed by their username
+      // (the join email), carrying a non-empty `personId` (the auto-created
+      // Person link) and the granted PILOT role. A bound t_user with a personId
+      // is the auto-create + PersonClub the approve path writes; a half-join
+      // would surface no row or a null personId. (The KC clubId-attribute write
+      // is pinned by J-12a's SSE → token-refresh → in-club /start; not re-checked
+      // here — the suite's provisioned users carry no KC `email` field, so a
+      // fresh pilot re-login hits KC's incomplete-profile required action.)
+      const adminBearer = await captureAdminBearer(browser, baseURL);
+      const usersRes = await ctx.request.get('/api/v1/users', {
+        headers: { authorization: adminBearer },
+      });
+      expect(usersRes.status(), await usersRes.text()).toBe(200);
+      const users = (await usersRes.json()) as {
+        username: string;
+        personId?: string;
+        roles: string[];
+      }[];
+      const member = users.find((u) => u.username === pilot.email);
+      expect(member, `the admitted pilot has a t_user in the admin's club`).toBeDefined();
+      expect(member!.personId, 'the approve auto-created + linked a Person').toBeTruthy();
+      expect(member!.roles).toContain('PILOT');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-12b',
         caption:
-          'J-12b · admin approve · a CLUB_ADMINISTRATOR opens /join-requests, sees the own-club ' +
-          'pending request, approves it through the modal (roles + optional Person), and the row ' +
-          'drops with a success toast while the nav pending-count badge decrements live',
+          'J-12b · admin approve · a CLUB_ADMINISTRATOR opens /join-requests via the chrome, sees the ' +
+          'own-club pending request, approves it through the modal (roles + optional Person), the row ' +
+          'drops with a success toast while the nav pending-count badge decrements live, and the pilot ' +
+          'is admitted as a t_user with an auto-created, linked Person in the admin’s users list',
         acTag: 'happy',
       });
     }
   });
 
-  test.fixme('[edge] deny via the modal (reason ≤500 + char counter) → row drops + the badge decrements', async ({
+  test('[edge] deny via the modal (reason ≤500 + char counter) → row drops + badge decrements + pilot-denied mail', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -185,40 +322,40 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
       await filePendingRequest(browser, baseURL, pilot);
 
       await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
-      await page.goto(JOIN_REQUESTS_PATH);
+      await page.goto('/start');
+      await expect(page).toHaveURL('/start');
+      await enterViaNav(page, JOIN_REQUESTS_PATH);
+      await expect(page).toHaveURL(JOIN_REQUESTS_PATH);
+
       const row = page.getByTestId(TESTIDS.row).filter({ hasText: pilot.email });
       await expect(row).toBeVisible();
+      const countBefore = await navBadgeCount(page);
+      expect(countBefore).toBeGreaterThanOrEqual(1);
 
       await row.getByTestId(TESTIDS.rowDeny).click();
       await expect(page.getByTestId(TESTIDS.denyModal)).toBeVisible();
       await page.getByTestId(TESTIDS.denyReason).fill(reason);
-      await expect(page.getByTestId(TESTIDS.denyReasonCounter)).toBeVisible();
+      // The counter reflects the typed length (the load-bearing ≤500 affordance).
+      await expect(page.getByTestId(TESTIDS.denyReasonCounter)).toHaveText(`${reason.length}/500`);
       await page.getByTestId(TESTIDS.denySubmit).click();
 
+      // The row drops + the badge decrements live.
       await expect(row).toHaveCount(0, { timeout: 30_000 });
+      await expect.poll(async () => navBadgeCount(page), { timeout: 30_000 }).toBe(countBefore - 1);
+
+      // The denied pilot is emailed (unique recipient → keyed on the denied
+      // subject; the reason rides the body).
+      const mail = await waitForMessageWithSubject(pilot.email, SUBJECT_PILOT_DENIED, {
+        timeoutMs: 20_000,
+      });
+      const body = mail.HTML ?? mail.Text ?? '';
+      expect(body).toContain(reason);
     } finally {
       await ctx.close();
     }
   });
 
-  test.fixme('[edge] empty state — no pending requests shows the empty state + a Club-edit link', async ({
-    browser,
-  }, testInfo) => {
-    const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    const ctx = await newRecordedContext(browser, baseURL, testInfo);
-    const page = await ctx.newPage();
-    try {
-      await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
-      await page.goto(JOIN_REQUESTS_PATH);
-      await expect(page.getByTestId(TESTIDS.page)).toBeVisible();
-      await expect(page.getByTestId(TESTIDS.emptyState)).toBeVisible();
-      await expect(page.getByTestId(TESTIDS.emptyStateClubLink)).toBeVisible();
-    } finally {
-      await ctx.close();
-    }
-  });
-
-  test.fixme('[key-error] 409 surfaced on the screen — a picked Person from another tenant is rejected', async ({
+  test('[key-error] 409 surfaced inline — an already-decided request approved from a stale modal', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -226,22 +363,78 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
+      // The deliberate 409 surfaces as a resource-load console.error.
+      allowConsoleErrors(testInfo, /Failed to load resource.*join-requests.*409/i, /409/);
       cleanupEmails.push(pilot.email);
       await filePendingRequest(browser, baseURL, pilot);
 
       await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
-      await page.goto(JOIN_REQUESTS_PATH);
+      await page.goto('/start');
+      await expect(page).toHaveURL('/start');
+      await enterViaNav(page, JOIN_REQUESTS_PATH);
+      await expect(page).toHaveURL(JOIN_REQUESTS_PATH);
+
       const row = page.getByTestId(TESTIDS.row).filter({ hasText: pilot.email });
+      await expect(row).toBeVisible();
       await row.getByTestId(TESTIDS.rowApprove).click();
       await expect(page.getByTestId(TESTIDS.approveModal)).toBeVisible();
-      // T-10 wires the cross-tenant Person pick → 409 surfaced inline.
-      await expect(page.getByTestId(TESTIDS.approveError)).toBeVisible();
+
+      // Decide the SAME request out-of-band (a second admin / a stale tab):
+      // deny it through the real endpoint so the open modal's request is no
+      // longer PENDING. The FSM rejects the subsequent approve with a 409
+      // (IllegalJoinRequestStateException) the modal surfaces inline.
+      const adminBearer = await captureAdminBearer(browser, baseURL);
+      const pending = await findPendingFor(ctx.request, adminBearer, pilot.email);
+      const denied = await ctx.request.post(`/api/v1/join-requests/${pending.id}/deny`, {
+        headers: { authorization: adminBearer, 'content-type': 'application/json' },
+        data: { reason: 'Decided out of band before the modal submitted.' },
+      });
+      expect(denied.status(), await denied.text()).toBe(200);
+
+      // Submit the stale modal → real 409 → surfaced in approve-error inline.
+      await page.getByTestId(TESTIDS.approveSubmit).click();
+      await expect(page.getByTestId(TESTIDS.approveError)).toBeVisible({ timeout: 30_000 });
+      // The modal STAYS open on the conflict (fire-and-stay) so the admin reads it.
+      await expect(page.getByTestId(TESTIDS.approveModal)).toBeVisible();
     } finally {
       await ctx.close();
     }
   });
 
-  test.fixme('[edge] non-admin cannot reach /join-requests (403 / redirect)', async ({
+  test('[edge] empty state — no pending requests shows the empty state + a Club-edit join-code link', async ({
+    browser,
+  }, testInfo) => {
+    const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      // Drain any rows a sibling case left undecided so the queue is genuinely
+      // empty for the admin's tenant (assert what the realm genuinely produces).
+      const adminBearer = await captureAdminBearer(browser, baseURL);
+      await drainPending(ctx.request, adminBearer);
+
+      await loginAs(page, ADMIN_USER, ADMIN_PASSWORD);
+      await page.goto('/start');
+      await expect(page).toHaveURL('/start');
+      await enterViaNav(page, JOIN_REQUESTS_PATH);
+      await expect(page).toHaveURL(JOIN_REQUESTS_PATH);
+      await expect(page.getByTestId(TESTIDS.page)).toBeVisible();
+
+      await expect(page.getByTestId(TESTIDS.emptyState)).toBeVisible();
+      await expect(page.getByTestId(TESTIDS.emptyStateClubLink)).toBeVisible();
+      // The empty queue carries no nav badge pill.
+      await expect(page.getByTestId(TESTIDS.navBadge)).toHaveCount(0);
+      // The Club-edit link points at the admin's own club's edit screen.
+      await expect(page.getByTestId(TESTIDS.emptyStateClubLink)).toHaveAttribute(
+        'href',
+        new RegExp(`/clubs/.+/edit$`),
+      );
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test('[edge] non-admin cannot reach /join-requests (403 / redirect)', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -249,11 +442,16 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       // A real low-privilege PILOT (not a mock admin-everything principal) must
-      // not land on the admin screen — the route guard redirects away.
+      // not land on the admin screen — the clubAdminGuard redirects away. pilot1
+      // is a tenant-resolved member, so the post-login warm session lands on
+      // /start; navigating to the guarded path drives the guard.
       await loginAs(page, PILOT_USER, PILOT_PASSWORD);
+      await page.waitForURL(/\/start$/, { timeout: 30_000 });
       await page.goto(JOIN_REQUESTS_PATH);
       await expect(page).not.toHaveURL(new RegExp(`${JOIN_REQUESTS_PATH}$`));
       await expect(page.getByTestId(TESTIDS.page)).toHaveCount(0);
+      // A PILOT's nav has no Join-requests entry at all (admin-gated child).
+      await expect(page.getByTestId(`af-nav-section-${JOIN_REQUESTS_PATH}`)).toHaveCount(0);
     } finally {
       await ctx.close();
     }

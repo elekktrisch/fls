@@ -29,6 +29,7 @@ const MASTERDATA_PATHS: ReadonlySet<string> = new Set([
   '/locations',
   '/persons',
   '/flight-types',
+  '/join-requests',
   '/users',
   '/accountingrules',
   '/deliverycreationtests',
