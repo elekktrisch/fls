@@ -19,7 +19,6 @@ stragglers each ceremony so the file shrinks.
 
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
-- **[GH-PAGES-DEPLOY-RACE]** ci.yml + alpenflight-e2e.yml (and the other gh-pages pushers — nightly.yml, alpenflight-proof-fanout.yml, proof-preview-reap.yml) all deploy to the single gh-pages branch on push, but with DISJOINT concurrency groups, so their pushes race → non-fast-forward `cannot lock ref 'refs/heads/gh-pages'` intermittently reds the post-merge "Merge reports + publish dashboard" job on main (latent; surfaced at the J-12a merge 43cfa18a, build+tests were green). Fix: add a SHARED `concurrency: {group: gh-pages-deploy, cancel-in-progress: false}` to every gh-pages-deploying job so they serialize. Non-blocking publish race. *(seam: the gh-pages deploy/publish jobs across ci.yml + alpenflight-e2e.yml + the 3 other pushers)*
 - **[PER-JOURNEY-DOC]** (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*
 
 ## Pending (filed by /do-ship J-27 gate, 2026-06-20)
