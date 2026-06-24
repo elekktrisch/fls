@@ -2,7 +2,7 @@
 <pmd-cpd xmlns="https://pmd-code.org/schema/cpd-report"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          pmdVersion="7.7.0"
-         timestamp="2026-06-24T19:43:51.912448537Z"
+         timestamp="2026-06-24T21:03:44.550345535Z"
          version="1.0.0"
          xsi:schemaLocation="https://pmd-code.org/schema/cpd-report https://pmd.github.io/schema/cpd-report_1_0_0.xsd">
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/AlpenFlightApplication.java"
@@ -1286,7 +1286,7 @@
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UserDtos.java"
          totalNumberOfTokens="496"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"
-         totalNumberOfTokens="3290"/>
+         totalNumberOfTokens="3873"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/package-info.java"
          totalNumberOfTokens="8"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/Role.java"
@@ -1298,7 +1298,7 @@
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserDirectoryException.java"
          totalNumberOfTokens="36"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserDirectoryPort.java"
-         totalNumberOfTokens="210"/>
+         totalNumberOfTokens="237"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserNotFoundException.java"
          totalNumberOfTokens="35"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/domain/UserRepository.java"
@@ -1308,7 +1308,7 @@
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/JpaUserRepository.java"
          totalNumberOfTokens="178"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java"
-         totalNumberOfTokens="2172"/>
+         totalNumberOfTokens="2465"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/package-info.java"
          totalNumberOfTokens="8"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/package-info.java"
@@ -1703,6 +1703,33 @@
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noStartTimeInformation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noLdgTimeInformation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState,
+]]></codefragment>
+   </duplication>
+   <duplication lines="10" tokens="93">
+      <file begintoken="163742"
+            column="10"
+            endcolumn="26"
+            endline="215"
+            endtoken="163834"
+            line="206"
+            path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
+      <file begintoken="164006"
+            column="46"
+            endcolumn="26"
+            endline="268"
+            endtoken="164098"
+            line="260"
+            path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
+      <codefragment><![CDATA[        });
+
+        User saved;
+        try {
+            User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
+                    req.notificationEmail(), req.languageId(), req.personId());
+            u.updateProfile(req.friendlyName(), req.notificationEmail(),
+                    req.phoneNumber(), req.remarks(), req.languageId());
+            saved = users.save(u);
+            users.flush();
 ]]></codefragment>
    </duplication>
    <duplication lines="17" tokens="90">
@@ -2422,19 +2449,19 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="67">
-      <file begintoken="164220"
+      <file begintoken="164791"
             column="42"
             endcolumn="33"
-            endline="297"
-            endtoken="164286"
-            line="287"
+            endline="400"
+            endtoken="164857"
+            line="390"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="166178"
+      <file begintoken="166749"
             column="36"
             endcolumn="33"
-            endline="650"
-            endtoken="166244"
-            line="640"
+            endline="753"
+            endtoken="166815"
+            line="743"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[    private UserResponse selfEditSnapshot(User u) {
         return new UserResponse(
@@ -2583,12 +2610,12 @@
             endtoken="92528"
             line="135"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/application/MeService.java"/>
-      <file begintoken="165265"
+      <file begintoken="165836"
             column="54"
             endcolumn="18"
-            endline="514"
-            endtoken="165328"
-            line="504"
+            endline="617"
+            endtoken="165899"
+            line="607"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[        if (realmAccess == null) {
             return List.of();
@@ -2604,26 +2631,26 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="64">
-      <file begintoken="164223"
+      <file begintoken="164794"
             column="49"
             endcolumn="33"
-            endline="297"
-            endtoken="164286"
-            line="287"
+            endline="400"
+            endtoken="164857"
+            line="390"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="165155"
+      <file begintoken="165726"
             column="64"
             endcolumn="33"
-            endline="496"
-            endtoken="165218"
-            line="486"
+            endline="599"
+            endtoken="165789"
+            line="589"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="166181"
+      <file begintoken="166752"
             column="43"
             endcolumn="33"
-            endline="650"
-            endtoken="166244"
-            line="640"
+            endline="753"
+            endtoken="166815"
+            line="743"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[    private UserResponse selfEditSnapshot(User u) {
         return new UserResponse(
@@ -2677,11 +2704,11 @@
             endtoken="94548"
             line="30"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeNotificationPrefsExceptionHandler.java"/>
-      <file begintoken="171134"
+      <file begintoken="172037"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="171194"
+            endtoken="172097"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2702,11 +2729,11 @@
             endtoken="95239"
             line="29"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonExceptionHandler.java"/>
-      <file begintoken="171134"
+      <file begintoken="172037"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="171194"
+            endtoken="172097"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2727,11 +2754,11 @@
             endtoken="95930"
             line="29"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonLicencesExceptionHandler.java"/>
-      <file begintoken="171134"
+      <file begintoken="172037"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="171194"
+            endtoken="172097"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2862,19 +2889,19 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="9" tokens="58">
-      <file begintoken="168563"
+      <file begintoken="169173"
             column="9"
             endcolumn="46"
-            endline="149"
-            endtoken="168620"
-            line="141"
+            endline="150"
+            endtoken="169230"
+            line="142"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java"/>
-      <file begintoken="168686"
+      <file begintoken="169296"
             column="9"
             endcolumn="46"
-            endline="172"
-            endtoken="168743"
-            line="164"
+            endline="173"
+            endtoken="169353"
+            line="165"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java"/>
       <codefragment><![CDATA[        try {
             http.put()
@@ -3075,11 +3102,11 @@
             endtoken="97272"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeProfileExceptionHandler.java"/>
-      <file begintoken="171134"
+      <file begintoken="172037"
             column="5"
             endcolumn="15"
             endline="71"
-            endtoken="171189"
+            endtoken="172092"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -3218,12 +3245,12 @@
             endtoken="155310"
             line="43"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/provisioning/infra/KeycloakDeploymentDirectoryAdapter.java"/>
-      <file begintoken="168058"
+      <file begintoken="168668"
             column="31"
             endcolumn="16"
-            endline="64"
-            endtoken="168112"
-            line="52"
+            endline="65"
+            endtoken="168722"
+            line="53"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java"/>
       <codefragment><![CDATA[    public KeycloakDeploymentDirectoryAdapter(KeycloakAdminTokenSupplier tokens,
                                               KeycloakAdminProperties props,
