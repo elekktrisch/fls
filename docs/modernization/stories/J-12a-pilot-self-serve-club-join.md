@@ -2,8 +2,9 @@
 id: J-12a
 title: Pilot self-serve club join (/join)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-23
+done_at: 2026-06-24
 journey0: false
 carved: true
 depends_on: [J-3, J-4]
@@ -115,7 +116,7 @@ and the 404 unknown-code — i.e. acceptance items 1–7.
 - [x] **T-12** — Thicken `join-request.spec.ts` to full real assertions (signup → `/join` → submit → `/join/pending` → approve → SSE → token-refresh → `/start`; deny+reason; withdraw+resubmit; 429; 404) and drive it green on the local real-idp stack (7 passed; pass video → gallery).
 - [x] **T-13** — Gate fix (gap-hunter blocker): close the half-failed-approve tenant leak via deterministic compensation in the approve flow (a rolled-back approve clears the stranded Keycloak `clubId` attribute, so no JWT-claim path materializes tenant access); proven by a re-presented-token inertness IT (red→green) + the `approve_forbiddenRole_is_403` round-trip IT.
 - [x] **T-14** — Gate-regression fixes (full-suite reveal): (1) update mock `signup.spec.ts` (title + the post-signup stamp assertion) to expect `/join` — the intentional S-134 landing flip, not `/migrate/start`; (2) resolve `cpdRatchet` (duplication 5477 > baseline 5451 from the new join-flow code) — dedupe if cleanly extractable, else re-measure + commit `config/pmd/cpd-baseline.txt`. (The shard-4/4 `persons/lookup` timeout cleared on re-run — a real flake. The dashboard proof did NOT clear → see T-15.)
-- [x] **T-15** — Gate regression (J-12a-caused): `alpenflight dashboard proof (real-idp, showcase seed)` is GREEN on `main` (`26b08197`) but RED on this branch (3×, not a flake) — `start-dashboard.spec.ts` `loginAsRole` cold `page.goto` → `ERR_ABORTED`. Find how J-12a broke it (prime suspect: the `/start` `tenantRequiredGuard`'s new `myJoinRequest()` probe altering the post-login redirect timing; rule out a showcase-seed break from V48 `gen_join_code` default / V49–V51). Fix so the dashboard proof is green again without weakening the `/start` onboarding guard; verify on the local real-idp stack. (`required` is green without it, but a journey doesn't ship breaking another's green.)
+- [x] **T-15** — Gate regression (J-12a-caused) fixed: T-11's async `composeAfterAuth` rewrite made a club-less SYSTEM_ADMINISTRATOR at `/start` self-redirect, aborting `start-dashboard.spec.ts`'s cold `goto` (dashboard proof green on main, red on branch). Fix: admit a club-less sysadmin already targeting `/start` (tenant-less non-admins still probe → `/join` — onboarding guard intact); +3 guard tests. `start-dashboard.spec.ts` + `join-request.spec.ts` green on the local real-idp stack.
 
 ## Assumptions made
 
