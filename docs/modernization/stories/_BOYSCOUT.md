@@ -43,9 +43,9 @@ stragglers each ceremony so the file shrinks.
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
 - **[COMMENT-STRIP] Self-explanatory code, why-only comments** — the pre-existing cross-journey narration carried
-  in `MapperLegacyBindings.java`, `app.routes.ts`, `nav-sections.ts`, and the real-idp
-  `_helpers/fan-out-parity-fixture.ts` (its own burndown slot — too big for a per-touch fold). The do-* skills
-  enforce why-only going forward. *(seam: those four files + per-touch elsewhere)*
+  in `MapperLegacyBindings.java` and the real-idp `_helpers/fan-out-parity-fixture.ts` (its own burndown slot —
+  too big for a per-touch fold). The do-* skills enforce why-only going forward.
+  *(seam: those two files + per-touch elsewhere)*
   [[feedback_self_explanatory_no_history_comments]]
 - **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
   task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
@@ -60,7 +60,6 @@ stragglers each ceremony so the file shrinks.
   the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was
   live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a
   propagation pre-wait). *(seam: proof-gallery-links.spec.ts test timeout)* [[false_green_derive_fallback]]
-- **[TEST-ORPHAN] `alpenflight/web/e2e/tests/nav-bar.spec.ts` is uncollected by every Playwright project** (it sits at `tests/nav-bar.spec.ts` while chromium `testMatch` requires a subdirectory `tests/!(real-idp|profile)/**/*.spec.ts`) — pre-existing since S-097, surfaced by T-22a. Its `/clubs`-top-level + responsive + lang-picker assertions stay valid under the masterdata grouping but never run. Move it into a collected subdir (e.g. `tests/nav/`) on the next web touch. *(seam: e2e nav-bar.spec.ts relocation)*
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 
