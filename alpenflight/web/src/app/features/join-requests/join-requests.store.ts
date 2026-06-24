@@ -89,7 +89,7 @@ export const JoinRequestsStore = signalStore(
     isEmpty: computed(() => entities().length === 0),
     pendingCount: computed(() => entities().length),
   })),
-  withMethods((store, api = inject(JoinRequestsService)) => {
+  withMethods((store, api = inject(JoinRequestsService), bus = inject(MUTATION_BUS)) => {
     const loadAll = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
@@ -124,6 +124,7 @@ export const JoinRequestsStore = signalStore(
                     clubName: res.clubName ?? '',
                   },
                 });
+                bus.next({ kind: 'join-request.decided', id: args.id });
               },
               error: (e: HttpErrorResponse) =>
                 patchState(store, {
@@ -143,8 +144,10 @@ export const JoinRequestsStore = signalStore(
           const body: DenyJoinRequest = reason ? { reason } : {};
           return api.deny(args.id, body).pipe(
             tapResponse({
-              next: () =>
-                patchState(store, removeEntity(args.id), { denyBusy: false, denyError: null }),
+              next: () => {
+                patchState(store, removeEntity(args.id), { denyBusy: false, denyError: null });
+                bus.next({ kind: 'join-request.decided', id: args.id });
+              },
               error: (e: HttpErrorResponse) =>
                 patchState(store, {
                   denyBusy: false,

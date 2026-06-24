@@ -59,9 +59,6 @@ export const routes: Routes = [
       import('@features/reservations/reservations.routes').then((m) => m.RESERVATIONS_ROUTES),
   },
   {
-    // Calendar view of the reservation data (J-5 T-10) — a top-level route the
-    // scheduler spec navigates to (`/reservation-scheduler`), served lazily by
-    // the reservations feature folder.
     path: 'reservation-scheduler',
     loadChildren: () =>
       import('@features/reservations/reservations.routes').then(
@@ -73,24 +70,15 @@ export const routes: Routes = [
     loadChildren: () => import('@features/planning/planning.routes').then((m) => m.PLANNING_ROUTES),
   },
   {
-    // `/planningsetup` — the bulk-setup wizard (J-6 T-09), a top-level route
-    // (matches the list-page Setup button + legacy), served by the planning
-    // feature folder.
     path: 'planningsetup',
     loadChildren: () =>
       import('@features/planning/planning.routes').then((m) => m.PLANNING_SETUP_ROUTES),
   },
   {
-    // Motor flights ("air movements") are unified into this same /flights list
-    // (a Flight with a motor aircraft + no tow) — legacy's separate
-    // /airmovements screen is NOT carried forward (J-2 T-36 / S-064).
     path: 'flights',
     loadChildren: () => import('@features/flights/flights.routes').then((m) => m.FLIGHTS_ROUTES),
   },
   {
-    // `/flightreports` — canned + custom flight reports (J-7), replacing the
-    // legacy flsweb/src/reporting/ FlightReportsModule. Served by the reporting
-    // feature folder.
     path: 'flightreports',
     loadChildren: () =>
       import('@features/reporting/reporting.routes').then((m) => m.REPORTING_ROUTES),
@@ -129,18 +117,11 @@ export const routes: Routes = [
       ),
   },
   {
-    // `/accountingrules` — the AccountingRuleFilter config screen (J-8),
-    // replacing legacy masterdata/accountingRules/. CLUB_ADMINISTRATOR-gated on
-    // the server (all CRUD endpoints); the nav entry lives under
-    // CLUB_ADMIN_SECTIONS (nav-sections.ts).
     path: 'accountingrules',
     loadChildren: () =>
       import('@features/accounting/accounting.routes').then((m) => m.ACCOUNTING_ROUTES),
   },
   {
-    // `/deliverycreationtests` — the rules-engine test harness (J-9), replacing
-    // legacy masterdata/deliveryCreationTests/. CLUB_ADMINISTRATOR-gated on the
-    // server; the nav entry lives under the Masterdata group (nav-sections.ts).
     path: 'deliverycreationtests',
     loadChildren: () =>
       import('@features/accounting/delivery-creation-tests/delivery-creation-tests.routes').then(
@@ -148,9 +129,6 @@ export const routes: Routes = [
       ),
   },
   {
-    // `/deliveries` — the read-only invoice-draft viewer (list + view), replacing
-    // legacy masterdata/deliveries/ (read path). The nav entry lives under the
-    // Masterdata group (nav-sections.ts).
     path: 'deliveries',
     loadChildren: () =>
       import('@features/accounting/deliveries/deliveries.routes').then((m) => m.DELIVERIES_ROUTES),

@@ -1,5 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  type Signal,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
@@ -22,6 +31,14 @@ export interface NavItem {
   readonly icon?: string;
   /** Present on a group; absent on a leaf. A group never carries `path`. */
   readonly children?: readonly NavItem[];
+  /**
+   * Live count rendered as a pill next to the label. A group with no badge of
+   * its own rolls up its children's badges onto its trigger, so a count carried
+   * by a dropdown child still shows when the menu is collapsed.
+   */
+  readonly badge?: Signal<number>;
+  /** `data-testid` for the rendered badge pill; rolls up onto a parent group. */
+  readonly badgeTestId?: string;
 }
 
 export interface UserSummary {
@@ -46,6 +63,7 @@ export interface UserSummary {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NgTemplateOutlet,
     NzDrawerModule,
     NzDropDownModule,
     RouterLink,
@@ -102,6 +120,11 @@ export interface UserSummary {
                 [attr.data-testid]="'af-nav-group-' + slug(item.label)"
               >
                 {{ item.label }}
+                @if (groupBadge(item); as badged) {
+                  <ng-container
+                    *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
+                  ></ng-container>
+                }
                 <af-icon name="chevron-down" [size]="16" />
               </button>
               <nz-dropdown-menu #groupMenu="nzDropdownMenu">
@@ -122,6 +145,11 @@ export interface UserSummary {
                           <af-icon [name]="child.icon" [size]="16" />
                         }
                         <span>{{ child.label }}</span>
+                        @if (child.badge) {
+                          <ng-container
+                            *ngTemplateOutlet="badgePill; context: { $implicit: child }"
+                          ></ng-container>
+                        }
                       </a>
                     </li>
                   }
@@ -135,6 +163,11 @@ export interface UserSummary {
                 [attr.data-testid]="'af-nav-section-' + item.path"
               >
                 {{ item.label }}
+                @if (item.badge) {
+                  <ng-container
+                    *ngTemplateOutlet="badgePill; context: { $implicit: item }"
+                  ></ng-container>
+                }
               </a>
             }
           }
@@ -250,6 +283,11 @@ export interface UserSummary {
                         <af-icon [name]="item.icon" [size]="18" />
                       }
                       <span class="flex-1">{{ item.label }}</span>
+                      @if (groupBadge(item); as badged) {
+                        <ng-container
+                          *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
+                        ></ng-container>
+                      }
                       <af-icon name="chevron-down" [size]="16" />
                     </button>
                     @if (isGroupOpen(item.label)) {
@@ -267,6 +305,11 @@ export interface UserSummary {
                                 <af-icon [name]="child.icon" [size]="18" />
                               }
                               <span>{{ child.label }}</span>
+                              @if (child.badge) {
+                                <ng-container
+                                  *ngTemplateOutlet="badgePill; context: { $implicit: child }"
+                                ></ng-container>
+                              }
                             </a>
                           </li>
                         }
@@ -284,6 +327,11 @@ export interface UserSummary {
                         <af-icon [name]="item.icon" [size]="18" />
                       }
                       <span>{{ item.label }}</span>
+                      @if (item.badge) {
+                        <ng-container
+                          *ngTemplateOutlet="badgePill; context: { $implicit: item }"
+                        ></ng-container>
+                      }
                     </a>
                   }
                 </li>
@@ -295,6 +343,20 @@ export interface UserSummary {
         <af-lang-picker ariaLabel="Language" />
       </ng-container>
     </nz-drawer>
+
+    <!-- Count pill: a positive live count binds (zero is falsy → no stray pill
+         on an empty queue). The host (leaf / dropdown child / rolled-up group
+         trigger) supplies the NavItem carrying the badge signal + its testid. -->
+    <ng-template #badgePill let-item>
+      @if (item.badge(); as count) {
+        <span
+          class="ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-brand-500 text-white text-xs font-medium tabular"
+          [attr.data-testid]="item.badgeTestId"
+          [attr.aria-label]="count + ' ' + item.label"
+          >{{ count }}</span
+        >
+      }
+    </ng-template>
   `,
 })
 export class AfNavBarComponent {
@@ -327,6 +389,14 @@ export class AfNavBarComponent {
     ),
     { initialValue: this.#router.url },
   );
+
+  /**
+   * The badge a group surfaces on its (collapsed) trigger: the first child that
+   * carries one. A leaf badges itself, so this only resolves the roll-up.
+   */
+  protected groupBadge(item: NavItem): NavItem | null {
+    return item.children?.find((c) => c.badge) ?? null;
+  }
 
   /** A group is active when the current url matches any of its children's paths. */
   protected groupActive(children: readonly NavItem[]): boolean {

@@ -1,4 +1,4 @@
-import { expect, test } from './_helpers/console-guard';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Nav-bar visibility + responsive behavior + post-auth lang picker (S-097).

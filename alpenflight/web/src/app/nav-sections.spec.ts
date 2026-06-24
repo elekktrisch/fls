@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 
 import { navSectionsFor } from './nav-sections';
@@ -54,13 +55,14 @@ describe('navSectionsFor', () => {
     expect(allPaths(flags)).not.toContain('/clubs');
   });
 
-  it('club-admin: Masterdata group ALSO carries Users + Accounting rules + Delivery creation tests + Deliveries + Email templates; NO Clubs', () => {
+  it('club-admin: Masterdata group ALSO carries Join requests + Users + Accounting rules + Delivery creation tests + Deliveries + Email templates; NO Clubs', () => {
     const flags = { isSystemAdmin: false, isClubAdmin: true };
     expect(masterdataPaths(flags)).toEqual([
       '/aircraft',
       '/locations',
       '/persons',
       '/flight-types',
+      '/join-requests',
       '/users',
       '/accountingrules',
       '/deliverycreationtests',
@@ -103,12 +105,34 @@ describe('navSectionsFor', () => {
       '/locations',
       '/persons',
       '/flight-types',
+      '/join-requests',
       '/users',
       '/accountingrules',
       '/deliverycreationtests',
       '/deliveries',
       '/email-templates',
     ]);
+  });
+
+  it('threads the join-request badge signal + testid onto the /join-requests entry only', () => {
+    const flags = { isSystemAdmin: false, isClubAdmin: true };
+    const badge = signal(4);
+    const md = navSectionsFor(flags, { joinRequests: badge }).find(
+      (s) => s.label === 'Masterdata',
+    )?.children;
+    const joinEntry = md?.find((c) => c.path === '/join-requests');
+    expect(joinEntry?.badge?.()).toBe(4);
+    expect(joinEntry?.badgeTestId).toBe('nav-join-requests-badge');
+    // No other entry carries a badge.
+    expect(md?.filter((c) => c.badge).map((c) => c.path)).toEqual(['/join-requests']);
+  });
+
+  it('omits the badge when no signal is supplied (default assembly)', () => {
+    const flags = { isSystemAdmin: false, isClubAdmin: true };
+    const md = navSectionsFor(flags)
+      .find((s) => s.label === 'Masterdata')
+      ?.children?.find((c) => c.path === '/join-requests');
+    expect(md?.badge).toBeUndefined();
   });
 
   it('Flight types is the tail of the open tenant masterdata items (legacy nav parity, J-26 T-28)', () => {
