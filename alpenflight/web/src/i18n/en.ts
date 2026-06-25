@@ -135,6 +135,14 @@ const en: Translations = {
   },
   deliveries: {
     title: 'Deliveries',
+    actions: {
+      create: 'Create deliveries',
+      delete: 'Delete',
+      cancel: 'Cancel',
+      deleteTitle: 'Delete delivery',
+      deleteConfirm: 'Delete the delivery to {{recipient}}?',
+      dismissError: 'Dismiss message',
+    },
     list: {
       unbooked: 'Draft',
       columns: {

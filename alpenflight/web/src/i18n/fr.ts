@@ -137,6 +137,14 @@ const fr: Translations = {
   },
   deliveries: {
     title: 'Livraisons',
+    actions: {
+      create: 'Créer des livraisons',
+      delete: 'Supprimer',
+      cancel: 'Annuler',
+      deleteTitle: 'Supprimer la livraison',
+      deleteConfirm: 'Supprimer la livraison à {{recipient}} ?',
+      dismissError: 'Fermer le message',
+    },
     list: {
       unbooked: 'Brouillon',
       columns: {

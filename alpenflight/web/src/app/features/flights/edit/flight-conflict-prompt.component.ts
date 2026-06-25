@@ -11,7 +11,6 @@ import {
 } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 
-import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import type { ConflictFieldName, FlightConflict } from './conflict-resolver';
@@ -38,7 +37,7 @@ export type ConflictResolution = Readonly<Record<ConflictFieldName, ConflictChoi
   selector: 'af-flight-conflict-prompt',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AfDialogComponent, AfButtonComponent, TranslocoDirective],
+  imports: [AfDialogComponent, TranslocoDirective],
   template: `
     <ng-container *transloco="let t; read: 'flight.conflict'">
       <af-dialog

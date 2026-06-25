@@ -136,6 +136,14 @@ const it: Translations = {
   },
   deliveries: {
     title: 'Consegne',
+    actions: {
+      create: 'Crea consegne',
+      delete: 'Elimina',
+      cancel: 'Annulla',
+      deleteTitle: 'Elimina consegna',
+      deleteConfirm: 'Eliminare la consegna a {{recipient}}?',
+      dismissError: 'Chiudi messaggio',
+    },
     list: {
       unbooked: 'Bozza',
       columns: {

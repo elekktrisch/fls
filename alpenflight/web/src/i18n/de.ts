@@ -141,6 +141,14 @@ const de = {
   },
   deliveries: {
     title: 'Lieferungen',
+    actions: {
+      create: 'Lieferungen erstellen',
+      delete: 'Löschen',
+      cancel: 'Abbrechen',
+      deleteTitle: 'Lieferung löschen',
+      deleteConfirm: 'Lieferung an {{recipient}} wirklich löschen?',
+      dismissError: 'Meldung schliessen',
+    },
     list: {
       unbooked: 'Entwurf',
       columns: {
