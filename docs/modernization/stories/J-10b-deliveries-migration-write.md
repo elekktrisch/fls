@@ -154,7 +154,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   flight **and tow (persisted, correct target — fix both legacy bugs)** → Locked; reverse the balanced
   credit transaction (append-only, IsCurrent flip, original kept); reject `>1-delivery-per-flight` → 409,
   no partial mutation; non-admin → 401/403. + domain tests asserting the flip persists + the reversal row.
-- [ ] **T-04** — Booked-terminal guard (flight/delivery in `DeliveryBooked` rejects mutation → 409) +
+- [x] **T-04** — Booked-terminal guard (flight/delivery in `DeliveryBooked` rejects mutation → 409) +
   `POST /api/v1/deliveries/delivered` `{deliveryId, deliveryDateTime, deliveryNumber}` → stamp number/
   DeliveredOn/IsFurtherProcessed, flip flight(+tow)→`DeliveryBooked`, 200; unknown id → 200 `false`. + tests.
 - [ ] **T-05** — Delivery/DeliveryItem migration mapper (`MapperLegacyBindings`): `ArticleNumber→article_id`

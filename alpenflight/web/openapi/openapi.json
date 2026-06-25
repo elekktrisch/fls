@@ -56,11 +56,11 @@
     "name" : "AccountingReferenceData",
     "description" : "Reference catalogs for the accounting rule-filter edit form (cross-tenant)."
   }, {
-    "name" : "Audit Events",
-    "description" : "Mutation-audit trail (per-tenant, admin-only)."
-  }, {
     "name" : "Deliveries",
     "description" : "Read-only delivery (invoice-draft) viewer — tenant-scoped; paged list + view-by-id."
+  }, {
+    "name" : "Audit Events",
+    "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
     "name" : "Migration bundle ingest",
     "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
@@ -2907,6 +2907,45 @@
         }
       }
     },
+    "/api/v1/deliveries/delivered" : {
+      "post" : {
+        "tags" : [ "Deliveries" ],
+        "summary" : "Book a Prepared delivery as delivered (stamp number/date, flip flight+tow to Booked). Returns true on success, false for an unknown id; 409 if already booked.",
+        "operationId" : "bookDelivery",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeliveryBookingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "true when booked, false for an unknown / cross-tenant id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "boolean"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The delivery is already booked (terminal); no mutation.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deliveries/create" : {
       "post" : {
         "tags" : [ "Deliveries" ],
@@ -4381,6 +4420,31 @@
                 }
               }
             }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Deliveries" ],
+        "summary" : "Delete a delivery — cascades items, resets the flight (+ tow) to Locked, reverses the consumed credit. 409 when >1 delivery shares the flight.",
+        "operationId" : "deleteDelivery",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The delivery was deleted."
+          },
+          "404" : {
+            "description" : "No active delivery with that id (includes cross-tenant)."
+          },
+          "409" : {
+            "description" : "More than one delivery shares the flight; no mutation."
           }
         }
       }
@@ -8193,6 +8257,26 @@
           }
         },
         "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
+      },
+      "DeliveryBookingRequest" : {
+        "type" : "object",
+        "description" : "Book a Prepared delivery as delivered (external finance confirmation).",
+        "properties" : {
+          "deliveryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deliveryDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "deliveryNumber" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Externally-supplied delivery (invoice) number; free-text, no counter."
+          }
+        },
+        "required" : [ "deliveryDateTime", "deliveryId" ]
       },
       "DeliveryDetail" : {
         "type" : "object",

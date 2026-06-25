@@ -16,6 +16,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -81,6 +82,9 @@ public class Delivery extends SoftDeletableAggregate {
     @Column(name = "delivery_number")
     private @Nullable Integer deliveryNumber;
 
+    @Column(name = "delivered_on")
+    private @Nullable Instant deliveredOn;
+
     @Column(name = "batch_id", nullable = false)
     private long batchId;
 
@@ -144,6 +148,30 @@ public class Delivery extends SoftDeletableAggregate {
     }
 
     /**
+     * Books this Prepared delivery ({@code DeliveryService.cs:338}): stamps the
+     * free-text, request-supplied {@code deliveryNumber} (no counter / allocation),
+     * the delivered timestamp, and flips the state to
+     * {@link DeliveryProcessState#BOOKED} (legacy {@code IsFurtherProcessed=true}).
+     * Flipping the linked flight + tow to {@code DeliveryBooked} is the caller's
+     * cross-aggregate side effect.
+     *
+     * <p>Booked is terminal — re-booking an already-booked delivery is a
+     * {@link DeliveryBookedTerminalException} (a clean 409, no mutation), mirroring
+     * the delete guard ({@link #delete}).
+     *
+     * @throws DeliveryBookedTerminalException when this delivery is already booked
+     */
+    public void book(@Nullable Integer deliveryNumber, Instant deliveredAt) {
+        if (deliveredAt == null) {
+            throw new IllegalArgumentException("deliveredAt must not be null");
+        }
+        requireNotBooked();
+        this.deliveryNumber = deliveryNumber;
+        this.deliveredOn = deliveredAt;
+        this.processState = DeliveryProcessState.BOOKED;
+    }
+
+    /**
      * Removes this delivery and (by parent invisibility) its line items
      * ({@code DeliveryService.DeleteDelivery:1226}). Soft-delete (stamp
      * {@code deleted_on}) — the read path filters {@code deleted_on is null} and
@@ -152,9 +180,27 @@ public class Delivery extends SoftDeletableAggregate {
      * .balanced_delivery_id} back-reference (no-cascade) and the audit trail keep a
      * resolvable FK. Resetting the linked flights + reversing the consumed credit are
      * the caller's cross-aggregate side effects. Idempotent.
+     *
+     * <p>A booked delivery is immutable — deleting one is a
+     * {@link DeliveryBookedTerminalException} (409, no mutation), so a booked
+     * billing record can never be silently dropped.
+     *
+     * @throws DeliveryBookedTerminalException when this delivery is already booked
      */
     public void delete(@Nullable UUID deletedByUserId, Clock clock) {
+        requireNotBooked();
         softDelete(deletedByUserId, clock);
+    }
+
+    /** True once {@link #book} has stamped the delivery ({@link DeliveryProcessState#BOOKED}). */
+    public boolean isBooked() {
+        return processState == DeliveryProcessState.BOOKED;
+    }
+
+    private void requireNotBooked() {
+        if (isBooked()) {
+            throw new DeliveryBookedTerminalException(id);
+        }
     }
 
     private static DeliveryRecipient snapshotOf(Recipient recipient) {
@@ -200,6 +246,10 @@ public class Delivery extends SoftDeletableAggregate {
 
     public @Nullable Integer getDeliveryNumber() {
         return deliveryNumber;
+    }
+
+    public @Nullable Instant getDeliveredOn() {
+        return deliveredOn;
     }
 
     public long getBatchId() {

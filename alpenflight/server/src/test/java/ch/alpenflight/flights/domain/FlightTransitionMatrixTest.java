@@ -181,6 +181,18 @@ class FlightTransitionMatrixTest {
     }
 
     @Test
+    void bookDelivery_flipsPreparedToBooked_andRejectsFromNonPrepared() {
+        Flight prepared = newGliderInState(FlightProcessState.DELIVERY_PREPARED);
+        prepared.bookDelivery();
+        assertThat(prepared.getProcessState()).isEqualTo(FlightProcessState.DELIVERY_BOOKED);
+
+        Flight booked = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
+        assertThatThrownBy(booked::bookDelivery)
+                .as("an already-booked flight rejects re-booking")
+                .isInstanceOf(IllegalFlightTransitionException.class);
+    }
+
+    @Test
     void delivery_booked_is_sink_at_aggregate_level() {
         Flight f = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
         for (FlightProcessState to : FlightProcessState.values()) {

@@ -1,11 +1,14 @@
 package ch.alpenflight.accounting.web;
 
 import ch.alpenflight.accounting.application.DeliveriesService;
+import ch.alpenflight.accounting.application.DeliveryBookingService;
 import ch.alpenflight.accounting.application.DeliveryCreationService;
 import ch.alpenflight.accounting.application.DeliveryDeletionService;
+import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryBookingRequest;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryDetail;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryPage;
 import ch.alpenflight.audit.domain.ReadOnlyQuery;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,13 +57,16 @@ public class DeliveriesController {
     private final DeliveriesService service;
     private final DeliveryCreationService creationService;
     private final DeliveryDeletionService deletionService;
+    private final DeliveryBookingService bookingService;
 
     public DeliveriesController(DeliveriesService service,
                                 DeliveryCreationService creationService,
-                                DeliveryDeletionService deletionService) {
+                                DeliveryDeletionService deletionService,
+                                DeliveryBookingService bookingService) {
         this.service = service;
         this.creationService = creationService;
         this.deletionService = deletionService;
+        this.bookingService = bookingService;
     }
 
     /**
@@ -77,6 +84,25 @@ public class DeliveriesController {
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public List<DeliveryDetail> createDeliveries() {
         return creationService.createFromEligibleFlights();
+    }
+
+    /**
+     * Books a Prepared delivery as delivered (the external finance / Proffix
+     * confirmation): stamps the request-supplied delivery number + delivered
+     * timestamp, marks the delivery Booked, and flips the linked flight (+ tow) to
+     * {@code DeliveryBooked}. Returns {@code true} on success, {@code false} when no
+     * active delivery with that id exists in the caller's tenant (legacy parity — an
+     * unknown id is not an error). A delivery already booked is terminal → {@code 409}.
+     */
+    @Operation(operationId = "bookDelivery",
+            summary = "Book a Prepared delivery as delivered (stamp number/date, flip flight+tow to Booked). "
+                    + "Returns true on success, false for an unknown id; 409 if already booked.")
+    @ApiResponse(responseCode = "200", description = "true when booked, false for an unknown / cross-tenant id.")
+    @ApiResponse(responseCode = "409", description = "The delivery is already booked (terminal); no mutation.")
+    @PostMapping("/delivered")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    public boolean bookDelivery(@Valid @RequestBody DeliveryBookingRequest request) {
+        return bookingService.book(request.deliveryId(), request.deliveryDateTime(), request.deliveryNumber());
     }
 
     /**

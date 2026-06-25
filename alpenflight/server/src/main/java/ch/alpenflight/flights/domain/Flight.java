@@ -501,6 +501,19 @@ public class Flight {
     }
 
     /**
+     * Transitions a {@link FlightProcessState#DELIVERY_PREPARED} flight into
+     * {@link FlightProcessState#DELIVERY_BOOKED} when its delivery is booked
+     * ({@code DeliveryService.cs:349}). Applied to the billed flight AND its tow
+     * (the accounting pair books together). {@code DeliveryBooked} is the terminal
+     * billing state — no further transition is legal from it per the
+     * {@link FlightTransitionMatrix} ({@link TransitionTrigger#BOOKING}), so an
+     * already-booked flight rejects re-booking.
+     */
+    public void bookDelivery() {
+        transition(FlightProcessState.DELIVERY_BOOKED, TransitionTrigger.BOOKING);
+    }
+
+    /**
      * Resets a {@link FlightProcessState#DELIVERY_PREPARED} flight back to
      * {@link FlightProcessState#LOCKED} when its delivery is deleted, so the next
      * delivery-create run re-bills it ({@code Flight.cs:640}
