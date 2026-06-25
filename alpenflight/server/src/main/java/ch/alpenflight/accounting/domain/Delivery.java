@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -140,6 +141,20 @@ public class Delivery extends SoftDeletableAggregate {
             delivery.items.add(DeliveryItem.fromEngineLine(operatingClubId, articleId, line));
         }
         return delivery;
+    }
+
+    /**
+     * Removes this delivery and (by parent invisibility) its line items
+     * ({@code DeliveryService.DeleteDelivery:1226}). Soft-delete (stamp
+     * {@code deleted_on}) — the read path filters {@code deleted_on is null} and
+     * fetches items only through the parent, so both disappear from the list while
+     * the row survives: the {@code person_flight_time_credit_transaction
+     * .balanced_delivery_id} back-reference (no-cascade) and the audit trail keep a
+     * resolvable FK. Resetting the linked flights + reversing the consumed credit are
+     * the caller's cross-aggregate side effects. Idempotent.
+     */
+    public void delete(@Nullable UUID deletedByUserId, Clock clock) {
+        softDelete(deletedByUserId, clock);
     }
 
     private static DeliveryRecipient snapshotOf(Recipient recipient) {

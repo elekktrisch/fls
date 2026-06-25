@@ -43,6 +43,10 @@ public interface JpaDeliveryRepository
     @Query("select coalesce(max(d.batchId), 0) from Delivery d")
     long findMaxBatchId();
 
+    @Override
+    @Query("select count(d) from Delivery d where d.flightId = :flightId and d.deletedOn is null")
+    long countActiveByFlightId(@Param("flightId") UUID flightId);
+
     // Disambiguates DeliveryRepository.save(Delivery) from CrudRepository.<S>save(S)
     // for callers that hold the JpaDeliveryRepository type directly.
     @Override

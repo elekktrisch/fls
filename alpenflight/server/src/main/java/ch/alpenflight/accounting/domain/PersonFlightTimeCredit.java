@@ -146,6 +146,36 @@ public class PersonFlightTimeCredit {
     }
 
     /**
+     * Reverses the consumption {@code deliveryId} balanced against this credit — the
+     * inverse of {@link #appendConsumption}, the delivery-delete compensating path
+     * ({@code DeliveryService.cs:1257-1269}). It is <strong>append-only</strong>: the
+     * original consumption row is KEPT (the audit trail needs it), the prior current
+     * row is un-currented, and a NEW current row is appended that adds the consumed
+     * seconds back. The restored delta negates whatever create applied (the original
+     * row's negated delta), so it is correct regardless of how create summed the
+     * glider + tow passes. Call {@link #releaseCurrent} + flush FIRST. A no-op when no
+     * transaction is balanced by {@code deliveryId} (an unconsumed delivery).
+     *
+     * @return whether a reversal row was appended
+     */
+    public boolean appendReversal(UUID deliveryId, @Nullable Long currentBalanceSeconds, Instant balanceDateTime) {
+        Optional<PersonFlightTimeCreditTransaction> balanced = transactions.stream()
+                .filter(t -> t.balances(deliveryId))
+                .findFirst();
+        if (balanced.isEmpty()) {
+            return false;
+        }
+        long restoredSeconds = -balanced.get().getFlightTimeBalanceInSeconds();
+        boolean unlimited = noFlightTimeLimit;
+        Long newBalance = unlimited || currentBalanceSeconds == null
+                ? null
+                : currentBalanceSeconds + restoredSeconds;
+        transactions.add(PersonFlightTimeCreditTransaction.reversal(
+                this, unlimited, currentBalanceSeconds, newBalance, restoredSeconds, deliveryId, balanceDateTime));
+        return true;
+    }
+
+    /**
      * The current balance in seconds — the single {@code IsCurrent} transaction's
      * {@code CurrentFlightTimeBalanceInSeconds} ({@code AircraftFlightTimeRule.cs:61}).
      * {@code null} ⇒ unlimited ({@code NoFlightTimeLimit}). Distinguish "unlimited"

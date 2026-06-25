@@ -150,7 +150,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   (ClubAdmin). Eligibility (Locked, glider/motor, `CreatedOn ≤ today−3d`); one Delivery+items/flight;
   `BatchId=max+1`; flip flight(+tow)→`DeliveryPrepared`+`DeliveryCreatedOn`; add the credit transaction
   (IsCurrent flip); per-flight swallow (Excluded/PreparationError). + domain tests.
-- [ ] **T-03** — `Delivery.delete` + `DELETE /api/v1/deliveries/{id}` (ClubAdmin). Cascade items; reset
+- [x] **T-03** — `Delivery.delete` + `DELETE /api/v1/deliveries/{id}` (ClubAdmin). Cascade items; reset
   flight **and tow (persisted, correct target — fix both legacy bugs)** → Locked; reverse the balanced
   credit transaction (append-only, IsCurrent flip, original kept); reject `>1-delivery-per-flight` → 409,
   no partial mutation; non-admin → 401/403. + domain tests asserting the flip persists + the reversal row.

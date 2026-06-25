@@ -29,6 +29,15 @@ public interface PersonFlightTimeCreditRepository {
 
     Optional<PersonFlightTimeCredit> findById(UUID id);
 
+    /**
+     * The credit holding the transaction balanced by {@code deliveryId} (its
+     * {@code transactions} fetched), or empty when the delivery consumed no credit —
+     * the delete-time reversal lookup ({@code DeliveryService.cs:1257}). The credit
+     * carries no {@code @TenantId}; the balanced delivery (loaded under the caller's
+     * tenant) is the scoping anchor.
+     */
+    Optional<PersonFlightTimeCredit> findByBalancedDeliveryId(UUID deliveryId);
+
     PersonFlightTimeCredit save(PersonFlightTimeCredit credit);
 
     void deleteById(UUID id);

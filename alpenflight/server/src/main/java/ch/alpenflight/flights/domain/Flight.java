@@ -501,6 +501,28 @@ public class Flight {
     }
 
     /**
+     * Resets a {@link FlightProcessState#DELIVERY_PREPARED} flight back to
+     * {@link FlightProcessState#LOCKED} when its delivery is deleted, so the next
+     * delivery-create run re-bills it ({@code Flight.cs:640}
+     * {@code DeletedDeliveryForFlight}). Applied to the billed flight AND its tow.
+     *
+     * <p>Persisting this transition on the aggregate corrects the two reachable
+     * legacy bugs in {@code FlightService.DeleteDeliveriesAndUpdateProcessStatesOfFlight}
+     * ({@code :1457-1493}): the tow reset wrote the wrong flight's state
+     * ({@code :1482}) and the whole batch was never {@code SaveChanges()}d. The
+     * clean delete path ({@code DeliveryService.DeleteDelivery:1226}) does persist
+     * and reset the correct flights — this method ports that, not the buggy sibling.
+     *
+     * <p>{@code at} stamps {@code locked_at} (the billing gate keys on it, S-061).
+     */
+    public void resetFromDeliveryPrepared(Instant at) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        transition(FlightProcessState.LOCKED, TransitionTrigger.OPERATOR, at);
+    }
+
+    /**
      * Moves a Locked flight to {@link FlightProcessState#DELIVERY_PREPARATION_ERROR}
      * — the per-flight failure outcome of a delivery-create batch (a flight that
      * yields no items / no recipient, {@code DeliveryService.cs}). The batch

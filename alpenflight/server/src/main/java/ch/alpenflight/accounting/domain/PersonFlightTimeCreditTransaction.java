@@ -109,8 +109,41 @@ public class PersonFlightTimeCreditTransaction {
         return tx;
     }
 
+    /**
+     * The new {@code IsCurrent} balance row that reverses a delivery delete
+     * ({@code DeliveryService.cs:1257-1269}): it adds {@code restoredSeconds}
+     * back onto the credit. {@code flightTimeBalanceInSeconds} is the positive
+     * restored delta (the negation of the original consumption's negated delta);
+     * {@code currentFlightTimeBalanceInSeconds} the new remaining balance (null
+     * for an unlimited credit, {@code old + restored} otherwise). It keeps the
+     * original transaction's {@code balancedDeliveryId} so the audit trail still
+     * links the reversal to the deleted delivery.
+     */
+    static PersonFlightTimeCreditTransaction reversal(PersonFlightTimeCredit credit,
+                                                      boolean unlimited,
+                                                      @Nullable Long oldBalanceSeconds,
+                                                      @Nullable Long newBalanceSeconds,
+                                                      long restoredSeconds,
+                                                      @Nullable UUID balancedDeliveryId,
+                                                      Instant balanceDateTime) {
+        PersonFlightTimeCreditTransaction tx = new PersonFlightTimeCreditTransaction();
+        tx.credit = credit;
+        tx.noFlightTimeLimit = unlimited;
+        tx.oldFlightTimeBalanceInSeconds = unlimited ? null : oldBalanceSeconds;
+        tx.currentFlightTimeBalanceInSeconds = unlimited ? null : newBalanceSeconds;
+        tx.flightTimeBalanceInSeconds = restoredSeconds;
+        tx.balancedDeliveryId = balancedDeliveryId;
+        tx.balanceDateTime = balanceDateTime;
+        tx.current = true;
+        return tx;
+    }
+
     void clearCurrent() {
         this.current = false;
+    }
+
+    boolean balances(UUID deliveryId) {
+        return deliveryId.equals(balancedDeliveryId);
     }
 
     public @Nullable UUID getId() {

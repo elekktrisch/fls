@@ -2,6 +2,7 @@ package ch.alpenflight.accounting.web;
 
 import ch.alpenflight.accounting.application.DeliveriesService;
 import ch.alpenflight.accounting.application.DeliveryCreationService;
+import ch.alpenflight.accounting.application.DeliveryDeletionService;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryDetail;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryPage;
 import ch.alpenflight.audit.domain.ReadOnlyQuery;
@@ -10,12 +11,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -48,10 +52,14 @@ public class DeliveriesController {
 
     private final DeliveriesService service;
     private final DeliveryCreationService creationService;
+    private final DeliveryDeletionService deletionService;
 
-    public DeliveriesController(DeliveriesService service, DeliveryCreationService creationService) {
+    public DeliveriesController(DeliveriesService service,
+                                DeliveryCreationService creationService,
+                                DeliveryDeletionService deletionService) {
         this.service = service;
         this.creationService = creationService;
+        this.deletionService = deletionService;
     }
 
     /**
@@ -99,5 +107,25 @@ public class DeliveriesController {
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public DeliveryDetail getDelivery(@PathVariable UUID id) {
         return service.getDetail(id);
+    }
+
+    /**
+     * Deletes a Prepared delivery (club-admin): it + its line items disappear, the
+     * linked flight AND its tow reset to {@code Locked} (persisted), and any
+     * flight-time credit the create consumed is reversed (append-only compensating
+     * row). Rejected with {@code 409} when more than one delivery shares the flight
+     * (no partial mutation); {@code 404} when the id is unknown or cross-tenant.
+     */
+    @Operation(operationId = "deleteDelivery",
+            summary = "Delete a delivery — cascades items, resets the flight (+ tow) to Locked, "
+                    + "reverses the consumed credit. 409 when >1 delivery shares the flight.")
+    @ApiResponse(responseCode = "204", description = "The delivery was deleted.")
+    @ApiResponse(responseCode = "404", description = "No active delivery with that id (includes cross-tenant).")
+    @ApiResponse(responseCode = "409", description = "More than one delivery shares the flight; no mutation.")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDelivery(@PathVariable UUID id) {
+        deletionService.delete(id);
     }
 }
