@@ -132,6 +132,13 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   dispose (the Prepared→Locked reset is silently dropped). AlpenFlight must persist + reset the **tow** flight.
   `gap-hunter` confirms a real migrated flight actually flips to Locked, not just the spec. **Surfaced to the
   operator at §5 review for sign-off** (ADR 0026 fix-not-reproduce pattern) — a reachable money/safety divergence.
+- **THIRD legacy money bug (net-new, found T-02, operator pre-blessed "Proceed" 2026-06-25 → fix-not-reproduce;
+  confirm at §5 with proof).** When a glider flight + its tow flight both draw on ONE `PersonFlightTimeCredit`,
+  legacy applies consumption per-pass with **last-write-wins over an unflipped balance** → the second pass
+  overwrites the first → the credit is **under-consumed** (the member keeps flight-time they actually used —
+  a reachable money error). AlpenFlight **sums** both passes' consumed seconds onto the credit (append-only,
+  correct accounting). The discriminator is a seeded glider+tow e2e — built in T-07/T-09, so the §5 review sees
+  it proven. Reversal (T-03) negates whatever create applied, so it's correct under either choice.
 
 ## Tasks
 
