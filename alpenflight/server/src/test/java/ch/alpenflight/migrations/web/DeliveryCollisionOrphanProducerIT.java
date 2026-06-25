@@ -50,11 +50,18 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
-    // The seed-club-1 + its dev-seed flight (V5 / V36) — stable, read-only FK
-    // targets for the direct t_delivery inserts; the deliveries below are this
-    // test's own rows (random ids), cleaned up after each run.
+    // seed-club-1 is the canonical dev club — a stable, read-only FK target. The
+    // flight the two deliveries share is THIS test's own row (own aircraft + own
+    // flight, random ids, seeded per run): the shared dev-seed flight is mutated
+    // by sibling write-side ITs in the full suite, so depending on it FK-fails.
     private static final UUID SEED_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
-    private static final UUID SEED_FLIGHT = UUID.fromString("019e30c3-2c00-7001-8000-000000000f20");
+    private static final UUID GLIDER_AIRCRAFT_TYPE =
+            UUID.fromString("019e2e15-2c00-7af9-8000-000000002af9");
+    private static final UUID FLIGHT_PROCESS_STATE_VALID =
+            UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
+
+    private final UUID ownAircraftId = UUID.randomUUID();
+    private final UUID ownFlightId = UUID.randomUUID();
 
     private final UUID clubId = UUID.randomUUID();
     private final UUID deliveryId = UUID.randomUUID();
@@ -130,6 +137,8 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
         insertItem(resolvableItemId, 1, resolvableNumber);
         insertItem(orphanItemId, 2, orphanNumber);
+
+        seedOwnFlight();
     }
 
     @AfterEach
@@ -139,6 +148,34 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
         jdbc.execute("DROP TABLE IF EXISTS Articles");
         jdbc.update("DELETE FROM t_delivery WHERE id IN (?::uuid, ?::uuid)",
                 dlvA.toString(), dlvB.toString());
+        jdbc.update("DELETE FROM t_flight WHERE id = ?::uuid", ownFlightId.toString());
+        jdbc.update("DELETE FROM t_aircraft WHERE id = ?::uuid", ownAircraftId.toString());
+    }
+
+    // Own aircraft + flight under the stable seed club so the two t_delivery
+    // inserts share a flight_id this test fully owns and cleans up — independent
+    // of any sibling IT that mutates the shared dev-seed flight.
+    private void seedOwnFlight() {
+        jdbc.update("""
+                INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
+                                      immatriculation, is_towing_or_winch_required,
+                                      is_towing_start_allowed, is_winch_start_allowed,
+                                      is_towing_aircraft, is_fast_entry_record, nr_of_seats)
+                VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?,
+                        false, false, false, false, false, 2)
+                """,
+                ownAircraftId.toString(), SEED_CLUB.toString(), SEED_CLUB.toString(),
+                GLIDER_AIRCRAFT_TYPE.toString(),
+                "HB-DLV" + Long.toString(ownAircraftId.getLeastSignificantBits() & 0xFFFF, 36));
+        jdbc.update("""
+                INSERT INTO t_flight (id, operating_club_id, aircraft_id, flight_aircraft_type_id,
+                                    flight_date, is_solo_flight, no_start_time_information,
+                                    no_ldg_time_information, process_state_id)
+                VALUES (?::uuid, ?::uuid, ?::uuid, 1, CURRENT_DATE - 7,
+                        false, false, false, ?::uuid)
+                """,
+                ownFlightId.toString(), SEED_CLUB.toString(), ownAircraftId.toString(),
+                FLIGHT_PROCESS_STATE_VALID.toString());
     }
 
     @Test
@@ -174,13 +211,13 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
     @Test
     void multipleDeliveriesShareOneFlightWithoutA23505UniqueViolation() {
-        insertDeliveryOnSeedFlight(dlvA);
-        insertDeliveryOnSeedFlight(dlvB);
+        insertDeliveryOnFlight(dlvA);
+        insertDeliveryOnFlight(dlvB);
 
-        Integer onSeedFlight = jdbc.queryForObject(
+        Integer onSharedFlight = jdbc.queryForObject(
                 "SELECT count(*) FROM t_delivery WHERE flight_id = ?::uuid AND id IN (?::uuid, ?::uuid)",
-                Integer.class, SEED_FLIGHT.toString(), dlvA.toString(), dlvB.toString());
-        assertThat(onSeedFlight)
+                Integer.class, ownFlightId.toString(), dlvA.toString(), dlvB.toString());
+        assertThat(onSharedFlight)
                 .as("two deliveries share one flight_id with no 23505 — t_delivery must "
                         + "carry NO UNIQUE(flight_id) (legacy permits multiples; the write "
                         + "side's delete guard exists precisely because of it). A regression "
@@ -202,13 +239,13 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 Timestamp.valueOf("2024-01-01 12:00:00"));
     }
 
-    private void insertDeliveryOnSeedFlight(UUID id) {
+    private void insertDeliveryOnFlight(UUID id) {
         jdbc.update("""
                 INSERT INTO t_delivery
                     (id, operating_club_id, process_state_id, flight_id, batch_id,
                      created_on, modified_on)
                 VALUES (?::uuid, ?::uuid, 10, ?::uuid, 0, now(), now())
                 """,
-                id.toString(), SEED_CLUB.toString(), SEED_FLIGHT.toString());
+                id.toString(), SEED_CLUB.toString(), ownFlightId.toString());
     }
 }

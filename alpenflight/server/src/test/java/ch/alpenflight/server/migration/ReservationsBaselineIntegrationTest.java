@@ -97,9 +97,9 @@ class ReservationsBaselineIntegrationTest {
     // Table presence + counter + extension
     // ============================================================================
 
-    /** AC1 — all 12 domain tables + the club_delivery_number_counter operational table. */
+    /** AC1 — all 12 domain tables present. */
     @Test
-    void all_12_tables_plus_counter_present() throws Exception {
+    void all_12_domain_tables_present() throws Exception {
         Set<String> actual = new LinkedHashSet<>();
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
@@ -111,8 +111,9 @@ class ReservationsBaselineIntegrationTest {
                 .as("V4 migration must create all 12 S-014 domain tables")
                 .containsAll(S014_DOMAIN_TABLES);
         assertThat(actual)
-                .as("V4 migration must create the club_delivery_number_counter operational table")
-                .contains("t_club_delivery_number_counter");
+                .as("V53 dropped the never-wired t_club_delivery_number_counter; "
+                        + "delivery_number is externally-supplied free text, no allocator")
+                .doesNotContain("t_club_delivery_number_counter");
     }
 
     @Test
@@ -130,7 +131,6 @@ class ReservationsBaselineIntegrationTest {
     void all_pk_columns_are_uuid_not_null() throws Exception {
         record PkRow(String table, String column, String type, String nullable) {}
         List<String> allTables = new ArrayList<>(S014_DOMAIN_TABLES);
-        allTables.add("t_club_delivery_number_counter");
         List<PkRow> rows = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement("""
@@ -174,7 +174,6 @@ class ReservationsBaselineIntegrationTest {
     @Test
     void all_fk_columns_are_uuid() throws Exception {
         List<String> allTables = new ArrayList<>(S014_DOMAIN_TABLES);
-        allTables.add("t_club_delivery_number_counter");
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement("""
                         SELECT c.table_name, k.column_name, col.data_type
@@ -815,42 +814,6 @@ class ReservationsBaselineIntegrationTest {
     @Test
     void delivery_creation_test_item_fk_cascade() throws Exception {
         assertFkDeleteRule("t_delivery_creation_test_item", "delivery_creation_test_id", "CASCADE");
-    }
-
-    // ============================================================================
-    // Counter table
-    // ============================================================================
-
-    @Test
-    void club_delivery_number_counter_pk_is_operating_club_id() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT a.attname FROM pg_index i "
-                                + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
-                                + "WHERE i.indrelid = 't_club_delivery_number_counter'::regclass AND i.indisprimary")) {
-            List<String> cols = new ArrayList<>();
-            while (rs.next()) cols.add(rs.getString(1));
-            assertThat(cols)
-                    .as("club_delivery_number_counter PK must be operating_club_id (one row per club)")
-                    .containsExactly("operating_club_id");
-        }
-    }
-
-    @Test
-    void club_delivery_number_counter_next_number_default_1() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT column_default FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='t_club_delivery_number_counter' "
-                                + "AND column_name='next_number'")) {
-            assertThat(rs.next()).isTrue();
-            assertThat(rs.getString(1)).isEqualTo("1");
-        }
-    }
-
-    @Test
-    void club_delivery_number_counter_club_fk_cascade() throws Exception {
-        assertFkDeleteRule("t_club_delivery_number_counter", "operating_club_id", "CASCADE");
     }
 
     // ============================================================================
