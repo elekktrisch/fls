@@ -225,6 +225,13 @@ mark each `rolls_up` story `rolled_up_into: J-NNN` **AND flip its `status: todo 
 story must not read `todo` — stamping the pointer alone left 24 shipped stories lying as `todo` through
 J-11; operator 2026-06-24). If a story is split across journeys (`rolled_up_into: [J-a, J-b]`), flip it
 to `done` only once the LAST of them merges; until then it stays `todo`.
+**Retire the shipped journey from the forward backlog** (operator 2026-06-25): `_ORDER.md` is FORWARD-ONLY
+— in the finalization commit, **remove this journey's row** from the `_ORDER.md` roadmap table, **append a
+one-line entry** to `docs/modernization/stories/_SHIPPED.md` (`- J-NNN — <title> — #PR`, newest-first), and
+**`git mv` the journey file to `docs/modernization/stories/implemented/`** (mirroring done `S-NNN` stories).
+The journey's `parity_test`/contract still resolve from `implemented/`; the move is the LAST commit (docs-only
+head, proof already green on the code head), so the in-flight derive — which only reads the ACTIVE journey from
+`stories/` — is unaffected.
 **Docs-only head guard** (J-27, J-12b): this finalization is usually a DOCS-only commit → it becomes the PR
 head → `detect changes` gates the heavy lane on a per-push `docs_only` flag → build/e2e/proof all **skip** on
 that head, and the `required` aggregate returns **success over the skipped deps**. So `gh pr checks --required`
