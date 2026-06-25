@@ -58,6 +58,7 @@ export const ROADMAP_FALLBACK = [
   'J-8',
   'J-9',
   'J-10',
+  'J-10b',
   'J-11',
   'J-12a',
   'J-12b',

@@ -135,7 +135,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
 
 ## Tasks
 
-- [ ] **T-01** — Author `deliveries-write-parity.spec.ts` stub (6-case structure + testids + flow, thin
+- [x] **T-01** — Author `deliveries-write-parity.spec.ts` stub (6-case structure + testids + flow, thin
   assertions, ≥1 active `test(`) + scaffold the J-10b proof-gallery page + link from the index. Confirm the
   `parity_test:` frontmatter resolves to this spec (auto-scopes the per-push real-idp gate to J-10b, drops
   J-12b to nightly — `ci.yml:170-249` derives it; no manual workflow edit).
