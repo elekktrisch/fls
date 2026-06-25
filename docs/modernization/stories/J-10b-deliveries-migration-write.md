@@ -173,6 +173,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   minimal **deterministic** AccountingRuleFilter producing one known item + recipient; a `DeliveryPrepared`
   flight + its Delivery + a balanced credit transaction; a `DeliveryBooked` flight; a not-further-processed
   Delivery for booking; a shared-flight (>1 delivery) fixture.
+- [ ] **T-07b** — Green the backend batch (3 regressions the batch-boundary check found): (A) update `ReservationsBaselineIntegrationTest` (5 cases) for the intended V53 `t_club_delivery_number_counter` drop; (B) fix `DeliveryCollisionOrphanProducerIT` seed to create the referenced flight before inserting the delivery (FK `fk_dlv_flight_id`); (C) fix the bare-table-name fixture SQL flagged by `FixtureTableNamingConventionTest`. `./gradlew check` green.
 - [ ] **T-08** — `/deliveries` SPA write actions over `DeliveriesStore`: "create deliveries" button (→ POST
   create, refresh list), delete-confirm modal (booked rows disabled), booked badge; orval regen for the new
   endpoints + store write methods. **Fold [NG8113-DEADIMPORT]** (drop unused `AfButtonComponent` from
