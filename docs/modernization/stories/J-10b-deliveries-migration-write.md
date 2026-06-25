@@ -169,7 +169,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
 - [x] **T-06** — Collision/orphan migration IT (real-producer): orphan `ArticleNumber` → keep-null/skip
   (not 23503) + a multiple-deliveries-per-flight row proving no `UNIQUE(flight_id)` violation. Reds in
   `check` (minutes), not the ~20-min fanout.
-- [ ] **T-07** — Legacy seed contribution: a Locked eligible glider flight (`CreatedOn ≤ today−4d`) + a
+- [x] **T-07** — Legacy seed contribution: a Locked eligible glider flight (`CreatedOn ≤ today−4d`) + a
   minimal **deterministic** AccountingRuleFilter producing one known item + recipient; a `DeliveryPrepared`
   flight + its Delivery + a balanced credit transaction; a `DeliveryBooked` flight; a not-further-processed
   Delivery for booking; a shared-flight (>1 delivery) fixture.

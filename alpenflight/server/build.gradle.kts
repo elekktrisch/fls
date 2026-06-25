@@ -690,6 +690,31 @@ val seedDelivery by tasks.registering(JavaExec::class) {
     }
 }
 
+// DB-fixture seam for the clean-seed half of the deliveries WRITE-side parity
+// spec. The spec mints the engine-consumable inputs (masterdata, flights, the
+// pilot's PersonFlightTimeCredit) over the real REST APIs; the input STATES no
+// REST surface can set — a flight flipped to Locked + back-dated past the create
+// eligibility window, a glider->tow link (the shared-credit discriminator), a
+// minimal deterministic FlightTime rule filter, a pre-built >1-delivery flight,
+// and a cross-tenant Delivery — are materialized here against the live dev
+// Postgres. The write endpoints + @TenantId scope + credit reversal still run
+// fully real off these rows. Connects via DATASOURCE_*.
+val seedDeliveryWriteFixture by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Seed the write-side input states (locked/aged flight, tow link, rule filter, " +
+        "pre-built + cross-tenant deliveries) for the e2e deliveries-write spec."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.migrations.web.DeliveryWriteFixtureSeeder"
+    // Args supplied by the spec at invocation (one of the seeder's subcommands):
+    //   lock-and-age <flightId> [agedDays] | link-tow <gliderId> <towId>
+    //   | rule-filter <clubId> <articleNumber> | delivery <clubId> <flightId|-> <lastName> <batchId>
+    //   | delete-delivery <deliveryId> | delete-filter <filterId>
+    val seederArgs = providers.gradleProperty("seederArgs")
+    if (seederArgs.isPresent) {
+        args = seederArgs.get().split(" ")
+    }
+}
+
 // J-7 T-08: one-shot generator for the FlightReports Excel golden-parity fixture
 // (story S-096). Renders the documented S-093/oracle layout contract
 // (FlightReportGoldenFixture) to a deterministic .xlsx so the committed fixture can
