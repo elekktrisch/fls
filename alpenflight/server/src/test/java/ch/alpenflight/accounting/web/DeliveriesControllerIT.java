@@ -163,7 +163,7 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
                 : DeliveryProcessState.BOOKED;
         return TenantTestContext.runAs(clubId, () -> {
             Delivery delivery = DeliveryTestHydrator.delivery(
-                    state, items.isEmpty() ? null : 4711, batchId, recipient, items);
+                    state, items.isEmpty() ? null : "INV-2026-001", batchId, recipient, items);
             if (flightId != null) {
                 DeliveryTestHydrator.withFlight(delivery, flightId);
             }

@@ -8213,9 +8213,8 @@
             "format" : "uuid"
           },
           "deliveryNumber" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "Booked delivery number (null until booked)."
+            "type" : "string",
+            "description" : "Booked delivery number (free-text, null until booked)."
           },
           "recipientName" : {
             "type" : "string",
@@ -8271,8 +8270,7 @@
             "format" : "date-time"
           },
           "deliveryNumber" : {
-            "type" : "integer",
-            "format" : "int32",
+            "type" : "string",
             "description" : "Externally-supplied delivery (invoice) number; free-text, no counter."
           }
         },
@@ -8287,9 +8285,8 @@
             "format" : "uuid"
           },
           "deliveryNumber" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "Booked delivery number (null until booked)."
+            "type" : "string",
+            "description" : "Booked delivery number (free-text, null until booked)."
           },
           "batchId" : {
             "type" : "integer",

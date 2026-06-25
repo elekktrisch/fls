@@ -30,15 +30,10 @@ import java.util.UUID;
  * everything else → {@code 10 (Prepared)} default. Mapper reads the
  * resolved SMALLINT verbatim from the producer-aliased column.
  *
- * <p>{@code delivery_number INTEGER NULL} / {@code legacy_delivery_number_text TEXT NULL}
- * (V19) — legacy {@code DeliveryNumber NVARCHAR(100)} is parsed
- * producer-side: {@code Integer.parseInt} success → integer in
- * {@code delivery_number} + NULL {@code legacy_delivery_number_text};
- * parse failure → NULL {@code delivery_number} + raw text in
- * {@code legacy_delivery_number_text} + {@code DELIVERY_NUMBER_NON_INTEGER}
- * warning. The mapper reads both producer-aliased columns; the
- * mutually-exclusive invariant lives on the Delivery aggregate at
- * S-064.
+ * <p>{@code delivery_number VARCHAR(100) NULL} — legacy
+ * {@code DeliveryNumber NVARCHAR(100)} is free-text (externally supplied at
+ * booking; the workflow job stamps non-numeric values like
+ * {@code "Workflow {ts}"}), preserved verbatim.
  *
  * <p>9 frozen {@code recipient_*} columns straight passthrough — Swiss
  * OR Art. 957a immutability. Pre-snapshot legacy rows
@@ -85,9 +80,6 @@ public final class DeliveryMapper implements Mapper {
     @ParitySentinel
     static final String DELIVERY_NUMBER = "delivery_number";
 
-    @ParitySentinel
-    static final String LEGACY_DELIVERY_NUMBER_TEXT = "legacy_delivery_number_text";
-
     static final String DELIVERED_ON = "delivered_on";
     static final String BATCH_ID = "batch_id";
 
@@ -108,7 +100,7 @@ public final class DeliveryMapper implements Mapper {
             RECIPIENT_ZIP_CODE, RECIPIENT_CITY, RECIPIENT_COUNTRY_NAME,
             RECIPIENT_PERSON_CLUB_MEMBER_NUMBER,
             DELIVERY_INFORMATION, ADDITIONAL_INFORMATION,
-            DELIVERY_NUMBER, LEGACY_DELIVERY_NUMBER_TEXT,
+            DELIVERY_NUMBER,
             DELIVERED_ON, BATCH_ID,
             CREATED_ON, CREATED_BY_USER_ID,
             MODIFIED_ON, MODIFIED_BY_USER_ID,
@@ -162,10 +154,8 @@ public final class DeliveryMapper implements Mapper {
                 source.getString("DeliveryInformation"));
         Coercions.writeOptionalString(target, ADDITIONAL_INFORMATION,
                 source.getString("AdditionalInformation"));
-        Coercions.writeOptionalInt(target, DELIVERY_NUMBER,
-                source.getObject("ResolvedDeliveryNumber", Integer.class));
-        Coercions.writeOptionalString(target, LEGACY_DELIVERY_NUMBER_TEXT,
-                source.getString("ResolvedLegacyDeliveryNumberText"));
+        Coercions.writeOptionalString(target, DELIVERY_NUMBER,
+                source.getString("DeliveryNumber"));
         Coercions.writeOptionalTimestamp(target, DELIVERED_ON,
                 source.getTimestamp("DeliveredOn"));
         target.writeNumberField(BATCH_ID, source.getLong("BatchId"));
@@ -202,9 +192,7 @@ public final class DeliveryMapper implements Mapper {
                 Coercions.readStringOrNull(source, RECIPIENT_PERSON_CLUB_MEMBER_NUMBER));
         target.setString(position++, Coercions.readStringOrNull(source, DELIVERY_INFORMATION));
         target.setString(position++, Coercions.readStringOrNull(source, ADDITIONAL_INFORMATION));
-        target.setObject(position++, Coercions.readIntOrNull(source, DELIVERY_NUMBER));
-        target.setString(position++,
-                Coercions.readStringOrNull(source, LEGACY_DELIVERY_NUMBER_TEXT));
+        target.setString(position++, Coercions.readStringOrNull(source, DELIVERY_NUMBER));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, DELIVERED_ON));
         target.setLong(position++, source.get(BATCH_ID).longValue());
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, CREATED_ON));

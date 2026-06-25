@@ -25,9 +25,9 @@ class DeliveryBookDomainTest {
         Delivery delivery = preparedDelivery();
         assertThat(delivery.getProcessState()).isEqualTo(DeliveryProcessState.PREPARED);
 
-        delivery.book(7_042, DELIVERED_AT);
+        delivery.book("INV-2026-001", DELIVERED_AT);
 
-        assertThat(delivery.getDeliveryNumber()).isEqualTo(7_042);
+        assertThat(delivery.getDeliveryNumber()).isEqualTo("INV-2026-001");
         assertThat(delivery.getDeliveredOn()).isEqualTo(DELIVERED_AT);
         assertThat(delivery.getProcessState()).isEqualTo(DeliveryProcessState.BOOKED);
         assertThat(delivery.isBooked()).isTrue();
@@ -36,21 +36,21 @@ class DeliveryBookDomainTest {
     @Test
     void bookedDelivery_rejectsReBook_andDoesNotMutate() {
         Delivery delivery = preparedDelivery();
-        delivery.book(7_042, DELIVERED_AT);
+        delivery.book("INV-2026-001", DELIVERED_AT);
 
-        assertThatThrownBy(() -> delivery.book(8_000, Instant.parse("2026-07-01T00:00:00Z")))
+        assertThatThrownBy(() -> delivery.book("INV-2026-999", Instant.parse("2026-07-01T00:00:00Z")))
                 .isInstanceOf(DeliveryBookedTerminalException.class);
 
         assertThat(delivery.getDeliveryNumber())
                 .as("a rejected re-book leaves the original number untouched")
-                .isEqualTo(7_042);
+                .isEqualTo("INV-2026-001");
         assertThat(delivery.getDeliveredOn()).isEqualTo(DELIVERED_AT);
     }
 
     @Test
     void bookedDelivery_rejectsDelete() {
         Delivery delivery = preparedDelivery();
-        delivery.book(7_042, DELIVERED_AT);
+        delivery.book("INV-2026-001", DELIVERED_AT);
 
         assertThatThrownBy(() -> delivery.delete(null, CLOCK))
                 .isInstanceOf(DeliveryBookedTerminalException.class);

@@ -291,38 +291,28 @@ class ReservationsBaselineIntegrationTest {
     }
 
     @Test
-    void delivery_unique_per_club_delivery_number_partial() throws Exception {
+    void delivery_number_carries_no_unique_index() throws Exception {
         List<String> defs = indexDefs("t_delivery");
         assertThat(defs)
-                .as("delivery must carry partial UNIQUE (operating_club_id, delivery_number) WHERE delivery_number IS NOT NULL AND deleted_on IS NULL")
-                .anyMatch(d -> {
+                .as("delivery_number is free-text (Proffix-supplied, collisions exist) — "
+                        + "it must NOT carry a UNIQUE index")
+                .noneMatch(d -> {
                     String lc = d.toLowerCase(Locale.ROOT);
-                    return lc.contains("unique")
-                            && lc.contains("operating_club_id") && lc.contains("delivery_number")
-                            && lc.contains("delivery_number is not null")
-                            && lc.contains("deleted_on is null");
+                    return lc.contains("unique") && lc.contains("delivery_number");
                 });
     }
 
-    /** Live provocation: same delivery_number in same club must collide; cross-club must succeed. */
+    /** Free-text delivery_number: duplicate values (incl. non-numeric) in one club must be accepted. */
     @Test
-    void delivery_number_unique_within_club_but_not_across_clubs() throws Exception {
+    void delivery_number_is_free_text_and_permits_duplicates() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                String clubA = seedMinimalClub(conn, "TST_DLV_A");
-                String clubB = seedMinimalClub(conn, "TST_DLV_B");
+                String club = seedMinimalClub(conn, "TST_DLV_A");
                 insertDeliveryWithNumber(conn,
-                        newDeterministicUuid("t_delivery", "uniq_A_1"), clubA, 1, 10);
+                        newDeterministicUuid("t_delivery", "free_1"), club, "Workflow 2026-06-25T08:00:00", 10);
                 insertDeliveryWithNumber(conn,
-                        newDeterministicUuid("t_delivery", "uniq_B_1"), clubB, 1, 10);
-
-                Throwable dup = catchThrowable(() -> insertDeliveryWithNumber(
-                        conn, newDeterministicUuid("t_delivery", "uniq_A_1_dup"), clubA, 1, 10));
-                assertThat(dup).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) dup).getSQLState())
-                        .as("SQLSTATE 23505 (unique_violation) — same delivery_number within same club")
-                        .isEqualTo("23505");
+                        newDeterministicUuid("t_delivery", "free_2"), club, "Workflow 2026-06-25T08:00:00", 10);
             } finally {
                 conn.rollback();
             }
@@ -1073,7 +1063,7 @@ class ReservationsBaselineIntegrationTest {
     }
 
     private void insertDeliveryWithNumber(Connection conn, String id, String clubId,
-            int deliveryNumber, int processStateId) throws SQLException {
+            String deliveryNumber, int processStateId) throws SQLException {
         try (var s = conn.prepareStatement(
                 "INSERT INTO t_delivery (id, operating_club_id, process_state_id, "
                         + "  delivery_number, delivered_on, recipient_lastname, recipient_firstname) "
@@ -1081,7 +1071,7 @@ class ReservationsBaselineIntegrationTest {
             s.setString(1, id);
             s.setString(2, clubId);
             s.setInt(3, processStateId);
-            s.setInt(4, deliveryNumber);
+            s.setString(4, deliveryNumber);
             s.executeUpdate();
         }
     }

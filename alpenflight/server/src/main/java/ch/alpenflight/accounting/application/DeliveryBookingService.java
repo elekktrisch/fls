@@ -59,7 +59,7 @@ public class DeliveryBookingService {
      * @throws ch.alpenflight.accounting.domain.DeliveryBookedTerminalException when
      *     the delivery is already booked (→ 409, no mutation)
      */
-    public boolean book(UUID deliveryId, Instant deliveredAt, @Nullable Integer deliveryNumber) {
+    public boolean book(UUID deliveryId, Instant deliveredAt, @Nullable String deliveryNumber) {
         Optional<Delivery> found = deliveries.findActiveById(deliveryId);
         if (found.isEmpty()) {
             return false;

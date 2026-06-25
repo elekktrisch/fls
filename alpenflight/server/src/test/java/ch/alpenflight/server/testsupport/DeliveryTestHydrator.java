@@ -34,7 +34,7 @@ public final class DeliveryTestHydrator {
      * deliberately NOT set — the resolver fills it on save.
      */
     public static Delivery delivery(DeliveryProcessState state,
-                                    @Nullable Integer deliveryNumber,
+                                    @Nullable String deliveryNumber,
                                     long batchId,
                                     DeliveryRecipient recipient,
                                     List<DeliveryItem> items) {

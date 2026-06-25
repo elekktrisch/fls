@@ -72,7 +72,7 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
                     clubA, 1, articleId, "ART-FT", "first 30min",
                     new BigDecimal("0.5000"), new BigDecimal("120.0000"), 10, "Min");
             Delivery delivery = DeliveryTestHydrator.delivery(
-                    DeliveryProcessState.BOOKED, 4711, 90L, recipient, List.of(item));
+                    DeliveryProcessState.BOOKED, "INV-2026-001", 90L, recipient, List.of(item));
             return jpaDeliveries.save(delivery).getId();
         });
 
@@ -80,7 +80,7 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
             Delivery reloaded = deliveries.findActiveById(id).orElseThrow();
             assertThat(reloaded.getOperatingClubId()).isEqualTo(clubA);
             assertThat(reloaded.getProcessState()).isEqualTo(DeliveryProcessState.BOOKED);
-            assertThat(reloaded.getDeliveryNumber()).isEqualTo(4711);
+            assertThat(reloaded.getDeliveryNumber()).isEqualTo("INV-2026-001");
             assertThat(reloaded.getBatchId()).isEqualTo(90L);
             assertThat(reloaded.getRecipient()).isEqualTo(recipient);
             assertThat(reloaded.getItems())

@@ -59,7 +59,7 @@ class DeliveryBookControllerIT extends PostgresIntegrationTest {
     private static final String DELIVERIES = "/api/v1/deliveries";
     private static final String DELIVERED = "/api/v1/deliveries/delivered";
 
-    private static final int DELIVERY_NUMBER = 7_042;
+    private static final String DELIVERY_NUMBER = "INV-2026-001";
     private static final Instant DELIVERED_AT = Instant.parse("2026-06-25T09:30:00Z");
 
     @Autowired TestRestTemplate rest;
@@ -169,9 +169,9 @@ class DeliveryBookControllerIT extends PostgresIntegrationTest {
         return v == null ? -1 : v;
     }
 
-    private Integer deliveryNumber(UUID deliveryId) {
+    private String deliveryNumber(UUID deliveryId) {
         return jdbc.queryForObject(
-                "SELECT delivery_number FROM t_delivery WHERE id = ?", Integer.class, deliveryId);
+                "SELECT delivery_number FROM t_delivery WHERE id = ?", String.class, deliveryId);
     }
 
     private Instant deliveredOn(UUID deliveryId) {
@@ -186,9 +186,9 @@ class DeliveryBookControllerIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
-    private ResponseEntity<String> book(UUID deliveryId, Instant deliveredAt, Integer number, String token) {
+    private ResponseEntity<String> book(UUID deliveryId, Instant deliveredAt, String number, String token) {
         String body = "{\"deliveryId\":\"" + deliveryId + "\",\"deliveryDateTime\":\"" + deliveredAt
-                + "\",\"deliveryNumber\":" + number + "}";
+                + "\",\"deliveryNumber\":\"" + number + "\"}";
         return rest.exchange(RequestEntity.post(URI.create(DELIVERED))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)

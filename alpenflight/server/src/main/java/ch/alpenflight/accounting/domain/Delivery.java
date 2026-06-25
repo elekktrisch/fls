@@ -79,8 +79,8 @@ public class Delivery extends SoftDeletableAggregate {
     @Column(name = "additional_information", length = 250)
     private @Nullable String additionalInformation;
 
-    @Column(name = "delivery_number")
-    private @Nullable Integer deliveryNumber;
+    @Column(name = "delivery_number", length = 100)
+    private @Nullable String deliveryNumber;
 
     @Column(name = "delivered_on")
     private @Nullable Instant deliveredOn;
@@ -161,7 +161,7 @@ public class Delivery extends SoftDeletableAggregate {
      *
      * @throws DeliveryBookedTerminalException when this delivery is already booked
      */
-    public void book(@Nullable Integer deliveryNumber, Instant deliveredAt) {
+    public void book(@Nullable String deliveryNumber, Instant deliveredAt) {
         if (deliveredAt == null) {
             throw new IllegalArgumentException("deliveredAt must not be null");
         }
@@ -244,7 +244,7 @@ public class Delivery extends SoftDeletableAggregate {
         return additionalInformation;
     }
 
-    public @Nullable Integer getDeliveryNumber() {
+    public @Nullable String getDeliveryNumber() {
         return deliveryNumber;
     }
 
