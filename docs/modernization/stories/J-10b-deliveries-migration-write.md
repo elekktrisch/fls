@@ -157,6 +157,11 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
 - [x] **T-04** — Booked-terminal guard (flight/delivery in `DeliveryBooked` rejects mutation → 409) +
   `POST /api/v1/deliveries/delivered` `{deliveryId, deliveryDateTime, deliveryNumber}` → stamp number/
   DeliveredOn/IsFurtherProcessed, flip flight(+tow)→`DeliveryBooked`, 200; unknown id → 200 `false`. + tests.
+- [x] **T-04b** — Correct `delivery_number` to a single nullable **text** column (legacy is free-text
+  `nvarchar(100)`, not Integer — the workflow job stamps `"Workflow {ts}"`). Flyway alter on J-10's table +
+  change the booking DTO/aggregate (T-04) from `Integer` to `String`; do NOT add a separate
+  `legacy_delivery_number_text` column — unify so both the native booking write and the T-05 mapper use one
+  text `delivery_number`. (worker-revealed fidelity gap, T-04.)
 - [ ] **T-05** — Delivery/DeliveryItem migration mapper (`MapperLegacyBindings`): `ArticleNumber→article_id`
   per-club resolution + orphan-keep (unresolvable → null/skip, NOT 23503); parent-scoped DeliveryItem
   tenancy; free-text `delivery_number` verbatim; `BatchId`/bigint-seconds preserved; `BalancedDeliveryId`
