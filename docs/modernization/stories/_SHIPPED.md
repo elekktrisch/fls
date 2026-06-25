@@ -1,0 +1,29 @@
+# Shipped journeys
+
+Forward-looking roadmap lives in `_ORDER.md`; shipped journey contracts live in `implemented/`.
+One line per merged journey (newest first). Cross-references (`depends_on`) resolve here + in `implemented/`.
+
+- **J-12b** — Admin join-request approval (/join-requests) + invite robustness — #239  (2026-06-25)
+- **J-12a** — Pilot self-serve club join (/join) — #238  (2026-06-24)
+- **J-11** — Email templates + Articles masterdata (+ gallery simplification) — #236  (2026-06-23)
+- **J-9b** — Flight-time-credit / discount sub-engine — #232  (2026-06-22)
+- **J-2c** — Flights list date-range filter — default visibility + working controls + styling — #234  (2026-06-21)
+- **J-2b** — Flights hardening — new-flight visibility + edit-form validation + migration fidelity — #230  (2026-06-20)
+- **J-27** — Migration-fidelity sprint — drive the fanout fully green — #228  (2026-06-20)
+- **J-10** — Deliveries — read-only screen (clean-seed) — #226  (2026-06-15)
+- **J-9** — Delivery creation test (rules-engine proof) — #224  (2026-06-14)
+- **J-8** — Accounting rule filters — #221  (2026-06-13)
+- **J-26** — Hardening sprint — validation bugfixes, UX corrections, JDBC retirement, redundancy purge — #219  (2026-06-13)
+- **J-7** — Flight reports (/flightreports — canned + custom builder + Excel export) — #215  (2026-06-10)
+- **J-6b** — Reservations & Planning hardening + inline form validation — #213  (2026-06-08)
+- **J-6** — Planning days + setup — #211  (2026-06-07)
+- **J-5** — Aircraft reservations — #210  (2026-06-06)
+- **J-4** — Profile self-edit (/profile) — #207  (2026-06-05)
+- **J-3** — Dashboard / home — role variants + live updates (/start) — #206  (2026-06-05)
+- **J-2** — Flight list + edit forms (airfield hot path) — #204  (2026-06-04)
+- **J-1** — Aircraft register — #202  (2026-06-03)
+- **J-0c** — Fan-out migration parity proof — legacy→migrate+Keycloak→AlpenFlight (UI + video) — #200  (2026-06-01)
+- **J-0b** — Migration fan-out foundation — (legacy_guid, club_id) → distinct new_id — #198  (2026-06-01)
+- **J-25** — Proof-gallery PR previews — clickable per-branch gallery before merge — #196  (2026-06-01)
+- **J-24** — Proof-video gallery — clickable gh-page explaining each pass-video — #192  (2026-06-01)
+- **J-0** — Locations CRUD — chain bootstrap — #190  (2026-06-01)
