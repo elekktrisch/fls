@@ -66,6 +66,8 @@ class KeycloakAdminClientRoleMappingsIT {
     private volatile int roleMappingsStatus;
     private volatile String roleMappingsBody;
     private volatile String usersListBody;
+    /** The KC representation the single-user GET returns — per-test programmable. */
+    private volatile String bindUserGetBody;
     /** Captured body of the last PUT /users/{BIND_SUB}. */
     private volatile String lastBindPutBody;
 
@@ -74,6 +76,17 @@ class KeycloakAdminClientRoleMappingsIT {
         server = HttpServer.create(
                 new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         port = server.getAddress().getPort();
+
+        // Default single-user GET: a disabled invitee with pending requiredActions
+        // and a locale, but no clubId yet — the bind WRITE source. Tests that need
+        // a present clubId (the clear/compensation path) override this.
+        bindUserGetBody = """
+                {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
+                 "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
+                 "firstName":"E2e","lastName":"Bind","enabled":false,"emailVerified":true,
+                 "requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"],
+                 "attributes":{"locale":["en"]}}
+                """;
 
         // Service-account token endpoint — the supplier fetches a bearer once.
         server.createContext("/realms/test-realm/protocol/openid-connect/token", ex -> {
@@ -108,13 +121,8 @@ class KeycloakAdminClientRoleMappingsIT {
                 return;
             }
             // GET: the current KC representation the merge reads back — carries
-            // the identity fields that must survive a clubId-attribute write.
-            byte[] out = """
-                    {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
-                     "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
-                     "firstName":"E2e","lastName":"Bind","emailVerified":true,
-                     "attributes":{"locale":["en"]}}
-                    """.getBytes(StandardCharsets.UTF_8);
+            // the fields that must survive a clubId-attribute write.
+            byte[] out = bindUserGetBody.getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().add("Content-Type", "application/json");
             ex.sendResponseHeaders(200, out.length);
             try (OutputStream os = ex.getResponseBody()) {
@@ -247,24 +255,17 @@ class KeycloakAdminClientRoleMappingsIT {
     }
 
     @Test
-    void writeClubIdAttribute_resendsIdentityFields_soTheBoundUserDoesNotVanish() {
-        // KC's PUT /users/{id} is a full-representation replace: a body carrying
-        // only `attributes` NULLS username/email/firstName/lastName, so the
-        // bound user then drops out of ?email=&exact=true. The read-merge-write
-        // must re-send the identity fields it read back, alongside the merged
-        // attributes (clubId added, locale preserved).
+    void writeClubIdAttribute_resendsEveryMutableField_soTheBindCantDowngradeTheUser() {
+        // The bind WRITE path. KC's attribute-only PUT clears email/firstName/
+        // lastName, so identity must be re-sent; enabled + requiredActions are
+        // re-sent too so a bind can never re-enable a disabled invitee or drop a
+        // pending VERIFY_EMAIL/UPDATE_PASSWORD (a credential-posture downgrade).
         UUID clubId = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
         client().writeClubIdAttribute(BIND_SUB, clubId);
 
         JsonNode put = parse(lastBindPutBody);
-        assertThat(put.path("username").asText())
-                .as("the PUT must re-send username or KC nulls it")
-                .isEqualTo("e2e-bind@example.com");
-        assertThat(put.path("email").asText()).isEqualTo("e2e-bind@example.com");
-        assertThat(put.path("firstName").asText()).isEqualTo("E2e");
-        assertThat(put.path("lastName").asText()).isEqualTo("Bind");
-        assertThat(put.path("emailVerified").asBoolean()).isTrue();
+        assertIdentityAndPostureSurvive(put);
 
         JsonNode attrs = put.path("attributes");
         assertThat(attrs.path("clubId").get(0).asText())
@@ -276,10 +277,39 @@ class KeycloakAdminClientRoleMappingsIT {
     }
 
     @Test
+    void clearClubIdAttribute_presentClubId_dropsOnlyClubId_keepsIdentityAndPosture() {
+        // The T-07 compensation path (clearClubIdAttribute after a failed bind).
+        // The GET carries a present clubId so the clear actually PUTs; that PUT
+        // must drop ONLY clubId while re-sending identity + enabled +
+        // requiredActions + locale — otherwise the compensation would vanish the
+        // user or downgrade its credential posture.
+        bindUserGetBody = """
+                {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
+                 "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
+                 "firstName":"E2e","lastName":"Bind","enabled":false,"emailVerified":true,
+                 "requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"],
+                 "attributes":{"clubId":["11111111-2222-3333-4444-555555555555"],"locale":["en"]}}
+                """;
+
+        client().clearClubIdAttribute(BIND_SUB);
+
+        JsonNode put = parse(lastBindPutBody);
+        assertIdentityAndPostureSurvive(put);
+
+        JsonNode attrs = put.path("attributes");
+        assertThat(attrs.has("clubId"))
+                .as("the clear drops clubId")
+                .isFalse();
+        assertThat(attrs.path("locale").get(0).asText())
+                .as("the clear preserves the locale attribute")
+                .isEqualTo("en");
+    }
+
+    @Test
     void clearClubIdAttribute_absentClubId_isANoOpWithNoPut() {
-        // The stub GET carries only locale (no clubId), so the clear short-
-        // circuits before any PUT — an absent attribute is nothing to drop, and
-        // the identity is never touched.
+        // The default stub GET carries only locale (no clubId), so the clear
+        // short-circuits before any PUT — an absent attribute is nothing to
+        // drop, and the identity is never touched.
         lastBindPutBody = null;
 
         client().clearClubIdAttribute(BIND_SUB);
@@ -287,5 +317,31 @@ class KeycloakAdminClientRoleMappingsIT {
         assertThat(lastBindPutBody)
                 .as("clearing an absent clubId is a no-op — no PUT, so identity can't be touched")
                 .isNull();
+    }
+
+    /**
+     * Every clubId read-merge-write PUT body must re-send the user's identity
+     * and credential posture verbatim from the GET, so an attribute edit can
+     * never null an identity field, re-enable a disabled user, or drop a
+     * pending required action.
+     */
+    private static void assertIdentityAndPostureSurvive(JsonNode put) {
+        assertThat(put.path("username").asText())
+                .as("the PUT must re-send username or KC nulls it")
+                .isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("email").asText()).isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("firstName").asText()).isEqualTo("E2e");
+        assertThat(put.path("lastName").asText()).isEqualTo("Bind");
+        assertThat(put.path("emailVerified").asBoolean()).isTrue();
+        assertThat(put.path("enabled").asBoolean())
+                .as("a disabled invitee must stay disabled — the bind can't re-enable it")
+                .isFalse();
+        assertThat(put.path("requiredActions"))
+                .as("pending required actions must survive the write (no posture downgrade)")
+                .hasSize(2);
+        List<String> actions = List.of(
+                put.path("requiredActions").get(0).asText(),
+                put.path("requiredActions").get(1).asText());
+        assertThat(actions).containsExactlyInAnyOrder("VERIFY_EMAIL", "UPDATE_PASSWORD");
     }
 }

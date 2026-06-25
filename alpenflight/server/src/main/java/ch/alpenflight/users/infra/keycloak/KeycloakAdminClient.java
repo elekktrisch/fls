@@ -116,6 +116,11 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     @Override
     public void setEnabled(UUID sub, boolean enabled) {
+        // No read-merge-write needed: probed against KC 26.5.7, an
+        // {enabled}-only PUT preserves username/email/firstName/lastName/
+        // emailVerified/requiredActions and changes only `enabled` — the
+        // field-selective clearing that bites putMergedUser fires on absent
+        // email/firstName/lastName, none of which this body omits-and-clears.
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
@@ -152,12 +157,17 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     /**
      * Read-merge-write the clubId attribute. Keycloak's {@code PUT /users/{id}}
-     * is a FULL-representation replace, NOT a top-level merge: a body carrying
-     * only {@code attributes} NULLS {@code email}/{@code username}/{@code
-     * firstName}/{@code lastName} (verified against KC 26.5.7 — a bound user
-     * then vanishes from {@code ?email=&exact=true} and can't log in by email).
-     * So the body must re-send the identity fields read back from KC alongside
-     * the merged {@code attributes}.
+     * is field-selective, not a top-level merge: probed against KC 26.5.7, a
+     * body omitting {@code email}/{@code firstName}/{@code lastName} CLEARS
+     * them (a bound user then vanishes from {@code ?email=&exact=true} and
+     * can't log in by email), so the write must re-send the identity read back
+     * from KC alongside the merged {@code attributes}. {@code enabled} and
+     * {@code requiredActions} happen to survive an attribute-only PUT today,
+     * but they are re-sent too: re-sending what KC holds is inert, while
+     * silently relying on KC NOT clearing them would let a bind re-enable a
+     * disabled user or drop a pending {@code VERIFY_EMAIL}/{@code
+     * UPDATE_PASSWORD} the moment that quirk changes. Each field is guarded
+     * non-null so an absent value never force-clears.
      */
     private void putMergedUser(
             UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
@@ -174,8 +184,14 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         if (current.lastName() != null) {
             body.put("lastName", current.lastName());
         }
+        if (current.enabled() != null) {
+            body.put("enabled", current.enabled());
+        }
         if (current.emailVerified() != null) {
             body.put("emailVerified", current.emailVerified());
+        }
+        if (current.requiredActions() != null) {
+            body.put("requiredActions", current.requiredActions());
         }
         body.put("attributes", attrs);
         try {
@@ -451,12 +467,19 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     /**
      * Single-user representation read for the {@code clubId}-attribute
-     * read-merge-write. Carries the {@code attributes} map PLUS the identity
-     * fields that a full-representation {@code PUT} must re-send to avoid
-     * nulling them ({@code username}/{@code email}/{@code firstName}/{@code
-     * lastName}/{@code emailVerified}); every other KC field is
-     * tolerated-and-dropped (same {@code ignoreUnknown} rationale as
-     * {@link UserWire}).
+     * read-merge-write. Carries the {@code attributes} map PLUS every mutable
+     * top-level field the {@code PUT} re-sends so an attribute-only edit can't
+     * downgrade the user.
+     *
+     * <p>KC 26.5.7's {@code PUT /users/{id}} is field-selective, not a blanket
+     * full-representation replace (probed against the local realm): an absent
+     * {@code email}/{@code firstName}/{@code lastName} CLEARS them, whereas an
+     * absent {@code username}/{@code enabled}/{@code emailVerified}/{@code
+     * requiredActions} is PRESERVED. We re-send all of them anyway — re-sending
+     * what KC already holds is a no-op, omitting a future-cleared field is the
+     * bug, and the round-trip stays correct if KC widens which fields it clears.
+     * Every other KC field is tolerated-and-dropped (same {@code ignoreUnknown}
+     * rationale as {@link UserWire}).
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserMutableWire(
@@ -464,10 +487,12 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             @Nullable String email,
             @Nullable String firstName,
             @Nullable String lastName,
+            @Nullable Boolean enabled,
             @Nullable Boolean emailVerified,
+            @Nullable List<String> requiredActions,
             @Nullable Map<String, List<String>> attributes) {
         static UserMutableWire empty() {
-            return new UserMutableWire(null, null, null, null, null, null);
+            return new UserMutableWire(null, null, null, null, null, null, null, null);
         }
 
         Map<String, List<String>> attributesOrEmpty() {
