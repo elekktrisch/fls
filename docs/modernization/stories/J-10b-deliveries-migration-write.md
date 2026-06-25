@@ -166,7 +166,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   per-club resolution + orphan-keep (unresolvable → null/skip, NOT 23503); parent-scoped DeliveryItem
   tenancy; free-text `delivery_number` verbatim; `BatchId`/bigint-seconds preserved; `BalancedDeliveryId`
   remap on migrated J-9b credit rows → new delivery ids; **no new UNIQUE/CASCADE** (schema guard).
-- [ ] **T-06** — Collision/orphan migration IT (real-producer): orphan `ArticleNumber` → keep-null/skip
+- [x] **T-06** — Collision/orphan migration IT (real-producer): orphan `ArticleNumber` → keep-null/skip
   (not 23503) + a multiple-deliveries-per-flight row proving no `UNIQUE(flight_id)` violation. Reds in
   `check` (minutes), not the ~20-min fanout.
 - [ ] **T-07** — Legacy seed contribution: a Locked eligible glider flight (`CreatedOn ≤ today−4d`) + a
