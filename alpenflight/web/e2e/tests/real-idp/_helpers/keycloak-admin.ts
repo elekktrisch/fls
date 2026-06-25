@@ -72,6 +72,9 @@ export interface AdminUser {
   email?: string;
   enabled?: boolean;
   emailVerified?: boolean;
+  // KC represents every user-attribute value as a string array; a scalar
+  // attribute (e.g. `clubId`) is a single-element array.
+  attributes?: Record<string, string[]>;
 }
 
 interface CachedToken {
@@ -162,6 +165,21 @@ export async function findUserByEmail(email: string): Promise<AdminUser | undefi
     throw new Error(`expected ≤1 user with email '${email}', found ${users.length}`);
   }
   return users[0];
+}
+
+/**
+ * Read one user's full representation by id, including `attributes`. The
+ * enumeration surface (`GET /users?email=`) used by {@link findUserByEmail}
+ * omits attributes; the single-user `GET /users/{id}` is the one that returns
+ * them, so the S-181 bind-existing assertion ("the `clubId` attribute is now
+ * set on the invitee") reads through here.
+ */
+export async function getUserById(userId: string): Promise<AdminUser> {
+  const res = await adminRequest(`/users/${encodeURIComponent(userId)}`);
+  if (!res.ok) {
+    throw new Error(`getUserById(${userId}) failed (${res.status}): ${await res.text()}`);
+  }
+  return (await res.json()) as AdminUser;
 }
 
 export async function createUser(user: TestUser): Promise<string> {

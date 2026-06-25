@@ -168,6 +168,11 @@ jobs:
     name: Merge reports + publish dashboard
     needs: [playwright]
     runs-on: ubuntu-22.04
+    # Serialize gh-pages writes across workflows so concurrent deploys from
+    # different refs/workflows don't race the gh-pages ref.
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
     # `!cancelled()` keeps this alive when a shard's test step was red — the whole
     # point of publishing is reading the failing run's report. It does NOT run on
     # a genuine cancel (push-superseded).

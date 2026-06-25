@@ -1,5 +1,5 @@
 import { type Page, type Route } from '@playwright/test';
-import { expect, test, watchConsoleErrors } from '../_helpers/console-guard';
+import { expect, installMockApiStubs, test, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
@@ -417,6 +417,10 @@ test.describe('flights list page', () => {
     // the active range, not a genuinely empty logbook — the copy reflects that.
     const emptyPage = await page.context().newPage();
     watchConsoleErrors(emptyPage, testInfo);
+    // This page bypasses the auto-fixture, so it needs the same mock-auth floor
+    // the fixture page gets — else the shell's join-request-badge GET (and other
+    // bootstrap calls) ECONNREFUSE through the proxy and trip the guard.
+    await installMockApiStubs(emptyPage);
     await stubReferenceData(emptyPage);
     await emptyPage.route('**/api/v1/flights**', async (route) => {
       await route.fulfill({

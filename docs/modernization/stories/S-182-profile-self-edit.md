@@ -2,7 +2,7 @@
 id: S-182
 title: Profile self-edit — /profile with Account / Personal / Pilot / Notifications tabs
 epic: E-06
-status: todo
+status: done
 rolled_up_into: J-4
 depends_on: [S-052, S-051, S-178]
 integration_base: integration/users-suite

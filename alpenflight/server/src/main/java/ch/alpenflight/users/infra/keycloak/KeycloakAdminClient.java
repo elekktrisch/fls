@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -115,6 +116,11 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     @Override
     public void setEnabled(UUID sub, boolean enabled) {
+        // No read-merge-write needed: probed against KC 26.5.7, an
+        // {enabled}-only PUT preserves username/email/firstName/lastName/
+        // emailVerified/requiredActions and changes only `enabled` — the
+        // field-selective clearing that bites putMergedUser fires on absent
+        // email/firstName/lastName, none of which this body omits-and-clears.
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
@@ -132,64 +138,113 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     public void writeClubIdAttribute(UUID sub, UUID clubId) {
         Objects.requireNonNull(sub, "sub");
         Objects.requireNonNull(clubId, "clubId");
-        // Read-merge-write: a KC user PUT replaces the whole `attributes` map, so
-        // we read the current attributes first and merge clubId in, preserving
-        // locale (set at signup). Idempotent — re-writing the same clubId is a
-        // no-op against KC's eventual state.
-        Map<String, List<String>> attrs = readAttributes(sub);
+        UserMutableWire current = readUserForMerge(sub);
+        Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         attrs.put("clubId", List.of(clubId.toString()));
-        try {
-            http.put()
-                    .uri(props.adminBase() + "/users/" + sub)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("attributes", attrs))
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (HttpStatusCodeException e) {
-            throw new UserDirectoryException(
-                    "Keycloak write clubId attribute (status " + e.getStatusCode().value() + ")", e);
-        }
+        putMergedUser(sub, current, attrs, "write clubId attribute");
     }
 
     @Override
     public void clearClubIdAttribute(UUID sub) {
         Objects.requireNonNull(sub, "sub");
-        // Read-merge-write mirror of writeClubIdAttribute: a KC user PUT replaces
-        // the whole `attributes` map, so read first and drop only clubId,
-        // preserving locale. Idempotent — clearing an absent attribute is a no-op.
-        Map<String, List<String>> attrs = readAttributes(sub);
+        UserMutableWire current = readUserForMerge(sub);
+        Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         if (attrs.remove("clubId") == null) {
             return;
         }
+        putMergedUser(sub, current, attrs, "clear clubId attribute");
+    }
+
+    /**
+     * Read-merge-write the clubId attribute. Keycloak's {@code PUT /users/{id}}
+     * is field-selective, not a top-level merge: probed against KC 26.5.7, a
+     * body omitting {@code email}/{@code firstName}/{@code lastName} CLEARS
+     * them (a bound user then vanishes from {@code ?email=&exact=true} and
+     * can't log in by email), so the write must re-send the identity read back
+     * from KC alongside the merged {@code attributes}. {@code enabled} and
+     * {@code requiredActions} happen to survive an attribute-only PUT today,
+     * but they are re-sent too: re-sending what KC holds is inert, while
+     * silently relying on KC NOT clearing them would let a bind re-enable a
+     * disabled user or drop a pending {@code VERIFY_EMAIL}/{@code
+     * UPDATE_PASSWORD} the moment that quirk changes. Each field is guarded
+     * non-null so an absent value never force-clears.
+     */
+    private void putMergedUser(
+            UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
+        Map<String, Object> body = new HashMap<>();
+        if (current.username() != null) {
+            body.put("username", current.username());
+        }
+        if (current.email() != null) {
+            body.put("email", current.email());
+        }
+        if (current.firstName() != null) {
+            body.put("firstName", current.firstName());
+        }
+        if (current.lastName() != null) {
+            body.put("lastName", current.lastName());
+        }
+        if (current.enabled() != null) {
+            body.put("enabled", current.enabled());
+        }
+        if (current.emailVerified() != null) {
+            body.put("emailVerified", current.emailVerified());
+        }
+        if (current.requiredActions() != null) {
+            body.put("requiredActions", current.requiredActions());
+        }
+        body.put("attributes", attrs);
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("attributes", attrs))
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
-                    "Keycloak clear clubId attribute (status " + e.getStatusCode().value() + ")", e);
+                    "Keycloak " + op + " (status " + e.getStatusCode().value() + ")", e);
         }
     }
 
-    private Map<String, List<String>> readAttributes(UUID sub) {
+    private UserMutableWire readUserForMerge(UUID sub) {
         try {
             String body = http.get()
                     .uri(props.adminBase() + "/users/" + sub)
                     .retrieve()
                     .body(String.class);
             if (body == null || body.isBlank()) {
-                return new HashMap<>();
+                return UserMutableWire.empty();
             }
-            UserAttributesWire wire = objectMapper.readValue(body, UserAttributesWire.class);
-            return wire.attributes() == null ? new HashMap<>() : new HashMap<>(wire.attributes());
+            return objectMapper.readValue(body, UserMutableWire.class);
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak read user (status " + e.getStatusCode().value() + ")", e);
         } catch (Exception e) {
             throw new UserDirectoryException("Keycloak read user: malformed representation", e);
+        }
+    }
+
+    @Override
+    public Optional<DirectoryUser> findUserByEmail(String email) {
+        Objects.requireNonNull(email, "email");
+        String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
+                .queryParam("email", email)
+                .queryParam("exact", true)
+                .queryParam("max", 1)
+                .build()
+                .toUriString();
+        try {
+            String body = http.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
+            return readListOf(body, UserLookupWire.class).stream()
+                    .findFirst()
+                    .map(UserLookupWire::toDirectoryUser);
+        } catch (HttpStatusCodeException e) {
+            throw new UserDirectoryException(
+                    "Keycloak user-by-email lookup (status " + e.getStatusCode().value() + ")", e);
         }
     }
 
@@ -412,10 +467,78 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     /**
      * Single-user representation read for the {@code clubId}-attribute
-     * read-merge-write. Carries only the {@code attributes} map; every other KC
-     * field is tolerated-and-dropped (same {@code ignoreUnknown} rationale as
-     * {@link UserWire}).
+     * read-merge-write. Carries the {@code attributes} map PLUS every mutable
+     * top-level field the {@code PUT} re-sends so an attribute-only edit can't
+     * downgrade the user.
+     *
+     * <p>KC 26.5.7's {@code PUT /users/{id}} is field-selective, not a blanket
+     * full-representation replace (probed against the local realm): an absent
+     * {@code email}/{@code firstName}/{@code lastName} CLEARS them, whereas an
+     * absent {@code username}/{@code enabled}/{@code emailVerified}/{@code
+     * requiredActions} is PRESERVED. We re-send all of them anyway — re-sending
+     * what KC already holds is a no-op, omitting a future-cleared field is the
+     * bug, and the round-trip stays correct if KC widens which fields it clears.
+     * Every other KC field is tolerated-and-dropped (same {@code ignoreUnknown}
+     * rationale as {@link UserWire}).
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record UserAttributesWire(@Nullable Map<String, List<String>> attributes) {}
+    record UserMutableWire(
+            @Nullable String username,
+            @Nullable String email,
+            @Nullable String firstName,
+            @Nullable String lastName,
+            @Nullable Boolean enabled,
+            @Nullable Boolean emailVerified,
+            @Nullable List<String> requiredActions,
+            @Nullable Map<String, List<String>> attributes) {
+        static UserMutableWire empty() {
+            return new UserMutableWire(null, null, null, null, null, null, null, null);
+        }
+
+        Map<String, List<String>> attributesOrEmpty() {
+            return attributes == null ? Map.of() : attributes;
+        }
+    }
+
+    /**
+     * Email-lookup projection (S-181). Carries the {@code id} plus the two
+     * attributes the invite robustness branch decides on — {@code clubId}
+     * (attached-vs-unattached) and {@code locale} (welcome-attached email).
+     * A multi-valued attribute folds to its first value; an ABSENT key folds
+     * to {@code null} (genuinely unattached — the legit bind case). A
+     * present-but-unparseable/blank {@code clubId} fails CLOSED to
+     * {@link DirectoryUser#CORRUPTED_CLUB_ID} so the invite treats a corrupted
+     * attribute as attached (→ 409), never as a relocatable unattached user.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record UserLookupWire(UUID id, @Nullable Map<String, List<String>> attributes) {
+        DirectoryUser toDirectoryUser() {
+            return new DirectoryUser(id, clubIdFailClosed(), first("locale"));
+        }
+
+        private @Nullable UUID clubIdFailClosed() {
+            if (attributes == null || !attributes.containsKey("clubId")) {
+                // Genuinely absent → unattached, the legit bind case.
+                return null;
+            }
+            String raw = first("clubId");
+            if (raw == null || raw.isBlank()) {
+                // Present but blank/empty-valued → corrupted, not unattached.
+                return DirectoryUser.CORRUPTED_CLUB_ID;
+            }
+            try {
+                return UUID.fromString(raw);
+            } catch (IllegalArgumentException e) {
+                return DirectoryUser.CORRUPTED_CLUB_ID;
+            }
+        }
+
+        private @Nullable String first(String key) {
+            if (attributes == null) {
+                return null;
+            }
+            List<String> values = attributes.get(key);
+            return values == null || values.isEmpty() ? null : values.get(0);
+        }
+    }
 }

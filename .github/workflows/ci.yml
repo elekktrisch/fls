@@ -605,6 +605,11 @@ jobs:
     if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
+    # Serialize gh-pages writes across workflows so concurrent deploys from
+    # different refs/workflows don't race the gh-pages ref.
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
     # `contents: write` lets the gh-pages deploy steps push the proof gallery
     # to the gh-pages branch (mirrors alpenflight-e2e.yml). Without it the
     # deploy fails with 403; the rest of the job needs read.

@@ -2,7 +2,7 @@
 id: S-107
 title: Rules-engine combinatorial corpus (C11)
 epic: E-13
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-079]
 acceptance:

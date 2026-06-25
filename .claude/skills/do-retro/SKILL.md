@@ -103,6 +103,11 @@ present) — the lessons are then reconstruction-only.
    scope** (a missing screen, a re-carve of an oversized journey) — that, and only that,
    feeds `/do-plan`. Infra/efficiency work (proof-chain speedups, flake fixes, CI
    hardening) is a rider too unless it's a vertical slice in its own right.
+   **`_BOYSCOUT.md` shrinking is `/do-ship`'s job (delete-on-ship), not the retro's** (operator
+   2026-06-24). The retro only AUDITS it: if any shipped rider survives (a `✅`/`SHIPPED`/struck-through
+   bullet), that's a `/do-ship` discipline slip — delete the straggler AND note it as a friction signal,
+   don't treat bulk cleanup as routine retro work. Shipped work lives in git + the PR, never a
+   kept-for-trace bullet.
 4. **Memory hygiene** (via `codebase-memory-mcp` + `.claude/memory/`):
    - **Capture** durable, non-obvious lessons (feedback/project facts).
    - **Update** stale memories whose facts the recent work changed.

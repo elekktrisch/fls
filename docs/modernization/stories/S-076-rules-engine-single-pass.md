@@ -2,7 +2,7 @@
 id: S-076
 title: Rules-engine port — single-pass rule types
 epic: E-09
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-075]
 acceptance:

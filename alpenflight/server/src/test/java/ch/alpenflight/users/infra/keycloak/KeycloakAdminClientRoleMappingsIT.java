@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
 import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
 import ch.alpenflight.users.domain.UserDirectoryException;
+import ch.alpenflight.users.domain.UserDirectoryPort.DirectoryUser;
 import ch.alpenflight.users.domain.UserDirectoryPort.RealmRoleRef;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -56,17 +58,35 @@ class KeycloakAdminClientRoleMappingsIT {
 
     private static final UUID ORPHAN_SUB =
             UUID.fromString("b365dc65-b93a-4d6e-8005-fc77377b418f");
+    private static final UUID BIND_SUB =
+            UUID.fromString("46d526dc-4981-4ccf-aa5f-b0a3fcda5b39");
 
     private HttpServer server;
     private int port;
     private volatile int roleMappingsStatus;
     private volatile String roleMappingsBody;
+    private volatile String usersListBody;
+    /** The KC representation the single-user GET returns — per-test programmable. */
+    private volatile String bindUserGetBody;
+    /** Captured body of the last PUT /users/{BIND_SUB}. */
+    private volatile String lastBindPutBody;
 
     @BeforeEach
     void startStub() throws IOException {
         server = HttpServer.create(
                 new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         port = server.getAddress().getPort();
+
+        // Default single-user GET: a disabled invitee with pending requiredActions
+        // and a locale, but no clubId yet — the bind WRITE source. Tests that need
+        // a present clubId (the clear/compensation path) override this.
+        bindUserGetBody = """
+                {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
+                 "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
+                 "firstName":"E2e","lastName":"Bind","enabled":false,"emailVerified":true,
+                 "requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"],
+                 "attributes":{"locale":["en"]}}
+                """;
 
         // Service-account token endpoint — the supplier fetches a bearer once.
         server.createContext("/realms/test-realm/protocol/openid-connect/token", ex -> {
@@ -89,6 +109,36 @@ class KeycloakAdminClientRoleMappingsIT {
                         os.write(out);
                     }
                 });
+
+        // Single-user GET (read-merge-write source) + PUT (capture body). Bound
+        // BEFORE the broader /users context so it wins the longest-prefix match.
+        server.createContext("/admin/realms/test-realm/users/" + BIND_SUB, ex -> {
+            if ("PUT".equals(ex.getRequestMethod())) {
+                lastBindPutBody = new String(
+                        ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(204, -1);
+                ex.close();
+                return;
+            }
+            // GET: the current KC representation the merge reads back — carries
+            // the fields that must survive a clubId-attribute write.
+            byte[] out = bindUserGetBody.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(out);
+            }
+        });
+
+        // users (email-lookup) — body is per-test programmable.
+        server.createContext("/admin/realms/test-realm/users", ex -> {
+            byte[] out = usersListBody.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length == 0 ? -1 : out.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(out);
+            }
+        });
 
         server.start();
     }
@@ -120,6 +170,15 @@ class KeycloakAdminClientRoleMappingsIT {
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                 .build();
+    }
+
+    private static JsonNode parse(String json) {
+        try {
+            assertThat(json).as("a PUT body must have been captured").isNotNull();
+            return prodLikeMapper().readTree(json);
+        } catch (Exception e) {
+            throw new AssertionError("captured PUT body is not JSON: " + json, e);
+        }
     }
 
     @Test
@@ -162,5 +221,127 @@ class KeycloakAdminClientRoleMappingsIT {
         List<RealmRoleRef> roles = client().getRealmRoleMappings(ORPHAN_SUB);
 
         assertThat(roles).extracting(RealmRoleRef::name).containsExactly("CLUB_ADMINISTRATOR");
+    }
+
+    @Test
+    void emailLookup_absentClubIdAttribute_mapsToUnattached() {
+        // No clubId attribute → genuinely unattached → null → the legit bind case.
+        usersListBody = """
+                [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"locale":["en"]}}]
+                """;
+
+        DirectoryUser user = client().findUserByEmail("absent@example.com").orElseThrow();
+
+        assertThat(user.clubId())
+                .as("an ABSENT clubId attribute is the genuinely-unattached bind case")
+                .isNull();
+    }
+
+    @Test
+    void emailLookup_garbageClubIdAttribute_failsClosedToAttached() {
+        // A present-but-unparseable clubId attribute is an anomaly, never proof
+        // of being unattached: the wire mapping must fail CLOSED to a non-null
+        // sentinel so the invite treats it as attached (→ 409), never relocating
+        // a possibly-attached identity into a new tenant.
+        usersListBody = """
+                [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"clubId":["not-a-uuid"]}}]
+                """;
+
+        DirectoryUser user = client().findUserByEmail("garbage@example.com").orElseThrow();
+
+        assertThat(user.clubId())
+                .as("a present-but-unparseable clubId must fail closed to the corrupted sentinel (attached)")
+                .isEqualTo(DirectoryUser.CORRUPTED_CLUB_ID);
+    }
+
+    @Test
+    void writeClubIdAttribute_resendsEveryMutableField_soTheBindCantDowngradeTheUser() {
+        // The bind WRITE path. KC's attribute-only PUT clears email/firstName/
+        // lastName, so identity must be re-sent; enabled + requiredActions are
+        // re-sent too so a bind can never re-enable a disabled invitee or drop a
+        // pending VERIFY_EMAIL/UPDATE_PASSWORD (a credential-posture downgrade).
+        UUID clubId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+
+        client().writeClubIdAttribute(BIND_SUB, clubId);
+
+        JsonNode put = parse(lastBindPutBody);
+        assertIdentityAndPostureSurvive(put);
+
+        JsonNode attrs = put.path("attributes");
+        assertThat(attrs.path("clubId").get(0).asText())
+                .as("the merge adds clubId")
+                .isEqualTo(clubId.toString());
+        assertThat(attrs.path("locale").get(0).asText())
+                .as("the merge preserves the signup-set locale attribute")
+                .isEqualTo("en");
+    }
+
+    @Test
+    void clearClubIdAttribute_presentClubId_dropsOnlyClubId_keepsIdentityAndPosture() {
+        // The T-07 compensation path (clearClubIdAttribute after a failed bind).
+        // The GET carries a present clubId so the clear actually PUTs; that PUT
+        // must drop ONLY clubId while re-sending identity + enabled +
+        // requiredActions + locale — otherwise the compensation would vanish the
+        // user or downgrade its credential posture.
+        bindUserGetBody = """
+                {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
+                 "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
+                 "firstName":"E2e","lastName":"Bind","enabled":false,"emailVerified":true,
+                 "requiredActions":["VERIFY_EMAIL","UPDATE_PASSWORD"],
+                 "attributes":{"clubId":["11111111-2222-3333-4444-555555555555"],"locale":["en"]}}
+                """;
+
+        client().clearClubIdAttribute(BIND_SUB);
+
+        JsonNode put = parse(lastBindPutBody);
+        assertIdentityAndPostureSurvive(put);
+
+        JsonNode attrs = put.path("attributes");
+        assertThat(attrs.has("clubId"))
+                .as("the clear drops clubId")
+                .isFalse();
+        assertThat(attrs.path("locale").get(0).asText())
+                .as("the clear preserves the locale attribute")
+                .isEqualTo("en");
+    }
+
+    @Test
+    void clearClubIdAttribute_absentClubId_isANoOpWithNoPut() {
+        // The default stub GET carries only locale (no clubId), so the clear
+        // short-circuits before any PUT — an absent attribute is nothing to
+        // drop, and the identity is never touched.
+        lastBindPutBody = null;
+
+        client().clearClubIdAttribute(BIND_SUB);
+
+        assertThat(lastBindPutBody)
+                .as("clearing an absent clubId is a no-op — no PUT, so identity can't be touched")
+                .isNull();
+    }
+
+    /**
+     * Every clubId read-merge-write PUT body must re-send the user's identity
+     * and credential posture verbatim from the GET, so an attribute edit can
+     * never null an identity field, re-enable a disabled user, or drop a
+     * pending required action.
+     */
+    private static void assertIdentityAndPostureSurvive(JsonNode put) {
+        assertThat(put.path("username").asText())
+                .as("the PUT must re-send username or KC nulls it")
+                .isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("email").asText()).isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("firstName").asText()).isEqualTo("E2e");
+        assertThat(put.path("lastName").asText()).isEqualTo("Bind");
+        assertThat(put.path("emailVerified").asBoolean()).isTrue();
+        assertThat(put.path("enabled").asBoolean())
+                .as("a disabled invitee must stay disabled — the bind can't re-enable it")
+                .isFalse();
+        assertThat(put.path("requiredActions"))
+                .as("pending required actions must survive the write (no posture downgrade)")
+                .hasSize(2);
+        List<String> actions = List.of(
+                put.path("requiredActions").get(0).asText(),
+                put.path("requiredActions").get(1).asText());
+        assertThat(actions).containsExactlyInAnyOrder("VERIFY_EMAIL", "UPDATE_PASSWORD");
     }
 }

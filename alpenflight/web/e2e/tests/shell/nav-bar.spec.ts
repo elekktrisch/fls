@@ -1,4 +1,4 @@
-import { expect, test } from './_helpers/console-guard';
+import { expect, test } from '../_helpers/console-guard';
 
 /**
  * Nav-bar visibility + responsive behavior + post-auth lang picker (S-097).
@@ -55,10 +55,33 @@ test.describe('AC-DIR-1 — responsive nav-bar', () => {
 
   test('collapses to hamburger at <md (360x640)', async ({ page }) => {
     await page.route('**/api/v1/clubs**', (route) => route.fulfill({ json: { items: [] } }));
+    // Two pending join requests so the live badge resolves to a non-zero count,
+    // proving the badge survives the collapse + reopen (S-178). Layered last so
+    // it wins over the console-guard `**/api/v1/**` floor's empty-array default.
+    await page.route(/\/api\/v1\/join-requests(\?|$)/, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[{},{}]' }),
+    );
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto(`${VISIBLE_ROUTE}?lang=de`);
     await expect(page.getByTestId('af-nav-burger')).toBeVisible();
-    await expect(page.getByTestId('af-nav-section-/clubs')).toHaveCount(0);
+
+    // The section tabs collapse INTO the drawer (ng-zorro portals it to <body>,
+    // offscreen via translateX(-100%) while closed — `toBeHidden()` can't see
+    // the transform). The collapse proof is that no section is presented in an
+    // OPEN drawer: the closed drawer carries no `.ant-drawer-open`.
+    await expect(page.locator('.ant-drawer-open').getByTestId('af-nav-section-/clubs')).toHaveCount(
+      0,
+    );
+
+    // Reopening the burger must restore reachability: the section returns and the
+    // live join-request badge rolls up onto the collapsed Masterdata trigger, so
+    // a club admin still sees the pending count on mobile without expanding.
+    await page.getByTestId('af-nav-burger').click();
+    const drawer = page.locator('.ant-drawer-open');
+    await expect(drawer.getByTestId('af-nav-section-/clubs')).toBeVisible();
+    const badge = drawer.getByTestId('nav-join-requests-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveText('2');
   });
 });
 

@@ -46,7 +46,11 @@ export type MutationEvent =
   | { kind: 'accounting-rule-filter.deleted'; id: string }
   | { kind: 'delivery-creation-test.created'; id: string }
   | { kind: 'delivery-creation-test.updated'; id: string }
-  | { kind: 'delivery-creation-test.deleted'; id: string };
+  | { kind: 'delivery-creation-test.deleted'; id: string }
+  // An admin resolved a pending join request (approve / deny). Drives the nav
+  // pending-count badge down without a refetch; the admin's own decision is not
+  // echoed back over their SSE channel (that frame goes to the pilot).
+  | { kind: 'join-request.decided'; id: string };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {
   providedIn: 'root',

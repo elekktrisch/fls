@@ -2,7 +2,7 @@
 id: S-178
 title: Join-request domain + REST + emails + auto-Person on approve
 epic: E-06
-status: todo
+status: done
 rolled_up_into: J-12a
 depends_on: [S-082, S-176, S-177, S-051, S-052, S-026, S-027]
 integration_base: integration/users-suite

@@ -2,7 +2,7 @@
 id: S-055
 title: Email templates CRUD
 epic: E-06
-status: todo
+status: done
 rolled_up_into: J-11
 depends_on: [S-048, S-082]
 acceptance:

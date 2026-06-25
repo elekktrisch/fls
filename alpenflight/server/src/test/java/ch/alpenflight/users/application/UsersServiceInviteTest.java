@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import ch.alpenflight.audit.domain.AuditTrail;
+import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.users.application.UserDtos.UserInviteRequest;
 import ch.alpenflight.users.domain.Role;
@@ -54,9 +56,11 @@ class UsersServiceInviteTest {
     private final RoleAssignmentPolicy rolePolicy = new RoleAssignmentPolicy();
     private final ClubTenantIdentifierResolver tenant = mock(ClubTenantIdentifierResolver.class);
     private final AuditTrail audit = mock(AuditTrail.class);
+    private final ClubRepository clubs = mock(ClubRepository.class);
+    private final TemplatedMailService mail = mock(TemplatedMailService.class);
 
     private final UsersService service =
-            new UsersService(users, directory, rolePolicy, tenant, audit, CLOCK);
+            new UsersService(users, directory, rolePolicy, tenant, audit, clubs, mail, CLOCK);
 
     private static Jwt clubAdminJwt() {
         return Jwt.withTokenValue("token")
@@ -103,6 +107,7 @@ class UsersServiceInviteTest {
     void invite_compensating_delete_fires_when_local_save_throws() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
+        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         doThrow(new RuntimeException("simulated DB failure"))
                 .when(users).save(any(User.class));
@@ -131,6 +136,7 @@ class UsersServiceInviteTest {
     void invite_happy_path_creates_kc_user_then_local_row_then_grants_roles() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
+        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         when(users.save(any(User.class))).thenReturn(savedUser());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
@@ -148,6 +154,7 @@ class UsersServiceInviteTest {
     void invite_kc_email_failure_does_not_roll_back_business_tx() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
+        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         when(users.save(any(User.class))).thenReturn(savedUser());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(

@@ -2,7 +2,7 @@
 id: S-086
 title: Port PlanningDayNotificationJob + email template
 epic: E-10
-status: todo
+status: done
 rolled_up_into: J-6
 depends_on: [S-082, S-070]
 acceptance:

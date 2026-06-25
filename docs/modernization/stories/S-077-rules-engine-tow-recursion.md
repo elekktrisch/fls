@@ -2,7 +2,7 @@
 id: S-077
 title: Rules-engine port — glider→tow recursion via TowFlightId
 epic: E-09
-status: todo
+status: done
 rolled_up_into: J-9
 depends_on: [S-076, S-063]
 acceptance:

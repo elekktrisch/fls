@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
+import { JoinRequestsBadgeService } from './core/join-requests-badge/join-requests-badge.service';
 import { SessionStore } from './core/session/session.store';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
 import { navSectionsFor } from './nav-sections';
@@ -22,6 +23,9 @@ export class AppComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly session = inject(SessionStore);
+  // Constructed here (not in the feature) so the live pending-count badge tracks
+  // on every page, active whenever a club admin is signed in.
+  private readonly joinRequestsBadge = inject(JoinRequestsBadgeService);
 
   // Per S-159: a sysadmin-ONLY principal has no managing tenant (no clubId
   // claim), so the tenant-scoped pages render empty — it gets the cross-tenant
@@ -32,10 +36,13 @@ export class AppComponent {
   // Section assembly is a pure helper (`navSectionsFor`) so the per-role
   // matrix is unit-testable without a TestBed.
   protected readonly sections = computed<readonly NavItem[]>(() =>
-    navSectionsFor({
-      isSystemAdmin: this.session.isSystemAdmin(),
-      isClubAdmin: this.session.isClubAdmin(),
-    }),
+    navSectionsFor(
+      {
+        isSystemAdmin: this.session.isSystemAdmin(),
+        isClubAdmin: this.session.isClubAdmin(),
+      },
+      { joinRequests: this.joinRequestsBadge.count },
+    ),
   );
 
   protected readonly userSummary = computed<UserSummary | null>(() => {

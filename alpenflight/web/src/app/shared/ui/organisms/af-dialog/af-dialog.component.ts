@@ -47,7 +47,12 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
             <af-button (clicked)="dismiss.emit()" data-testid="af-dialog-dismiss">
               {{ dismissLabel() }}
             </af-button>
-            <af-button type="primary" (clicked)="confirm.emit()" data-testid="af-dialog-confirm">
+            <af-button
+              type="primary"
+              [disabled]="confirmDisabled()"
+              (clicked)="confirm.emit()"
+              [attr.data-testid]="confirmTestid()"
+            >
               {{ confirmLabel() }}
             </af-button>
           </div>
@@ -64,6 +69,9 @@ export class AfDialogComponent {
   readonly message = input<string | null>(null);
   readonly confirmLabel = input<string>('Confirm');
   readonly dismissLabel = input<string>('Cancel');
+  /** Override so a host can target its own submit testid (e.g. approve-modal-submit). */
+  readonly confirmTestid = input<string>('af-dialog-confirm');
+  readonly confirmDisabled = input<boolean>(false);
 
   readonly confirm = output<void>();
   readonly dismiss = output<void>();

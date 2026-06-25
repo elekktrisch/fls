@@ -2,6 +2,7 @@ package ch.alpenflight.users.domain;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -34,6 +35,17 @@ public interface UserDirectoryPort {
 
     /** Flip the directory entry's {@code enabled} flag (true = active). */
     void setEnabled(UUID sub, boolean enabled);
+
+    /**
+     * Look up a directory user by exact email — the admin-invite robustness
+     * pre-check (S-181). Returns the user's {@code sub} plus the two attributes
+     * the invite branch decides on: {@code clubId} (present ⇒ already attached
+     * to a club) and {@code locale} (drives the welcome-attached email). Empty
+     * when no directory user carries the email, so the invite falls through to
+     * its create path. The realm is shared across tenants, so the lookup is
+     * deliberately realm-wide (an email is globally unique in the realm).
+     */
+    Optional<DirectoryUser> findUserByEmail(String email);
 
     /**
      * List users in a club. The implementation MUST scope by
@@ -98,6 +110,30 @@ public interface UserDirectoryPort {
             @Nullable String locale,
             List<String> requiredActions,
             boolean enabled) {}
+
+    /**
+     * Email-lookup projection for the invite robustness pre-check (S-181). The
+     * {@code clubId} attribute is {@code null} for an unattached directory user
+     * (signed up but not yet a club member) and present once a club admin /
+     * approve has bound them — so {@code clubId != null} is the one-sub-one-club
+     * gate. {@code locale} is the BCP-47 string set at signup; null when the IdP
+     * carried none.
+     *
+     * <p>A present-but-unparseable {@code clubId} attribute is fail-closed to
+     * {@link #CORRUPTED_CLUB_ID} (non-null) rather than {@code null}: a corrupted
+     * attribute is an anomaly, never proof of being unattached, so the invite
+     * must treat it as attached (→ 409) and never bind a possibly-relocated
+     * identity into a new tenant.
+     */
+    record DirectoryUser(UUID sub, @Nullable UUID clubId, @Nullable String locale) {
+
+        /**
+         * Sentinel for a present-but-unparseable {@code clubId} attribute — the
+         * invite treats it as {@code clubId != null} (attached) without claiming
+         * a real club id.
+         */
+        public static final UUID CORRUPTED_CLUB_ID = new UUID(0L, 0L);
+    }
 
     /** Domain projection of a directory user row. */
     record UserDirectoryRow(

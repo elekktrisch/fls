@@ -2,7 +2,7 @@
 id: S-065
 title: Flight reports + custom report builder
 epic: E-07
-status: todo
+status: done
 rolled_up_into: J-7
 depends_on: [S-062a, S-093]
 acceptance:

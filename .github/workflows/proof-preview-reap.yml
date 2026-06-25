@@ -37,6 +37,11 @@ jobs:
     needs: self-check
     runs-on: ubuntu-22.04
     timeout-minutes: 10
+    # Serialize gh-pages writes across workflows so concurrent deploys from
+    # different refs/workflows don't race the gh-pages ref.
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
     steps:
       - name: Derive sanitized preview subpath
         id: preview

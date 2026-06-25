@@ -2,7 +2,7 @@
 id: S-093
 title: Inventory every Excel export (column/row spec)
 epic: E-11
-status: todo
+status: done
 rolled_up_into: J-7
 depends_on: []
 acceptance:
