@@ -37,7 +37,6 @@ public class PersonFlightTimeCreditTransaction {
     private @Nullable PersonFlightTimeCredit credit;
 
     @Column(name = "balanced_delivery_id")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID balancedDeliveryId;
 
     @Column(name = "balance_date_time", nullable = false)
@@ -53,7 +52,6 @@ public class PersonFlightTimeCreditTransaction {
     private long flightTimeBalanceInSeconds;
 
     @Column(name = "old_flight_time_balance_in_seconds")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable Long oldFlightTimeBalanceInSeconds;
 
     @Column(name = "is_current", nullable = false)
@@ -82,8 +80,57 @@ public class PersonFlightTimeCreditTransaction {
         return tx;
     }
 
+    /**
+     * The new {@code IsCurrent} balance row a delivery create writes when it
+     * consumes {@code consumedSeconds} from this credit
+     * ({@code AircraftFlightTimeRule.cs:73-184}, {@code DeliveryService.cs:201-216}).
+     * {@code flightTimeBalanceInSeconds} is the negated consumed delta;
+     * {@code currentFlightTimeBalanceInSeconds} the new remaining balance
+     * (null for an unlimited credit, {@code old - consumed} floored at 0
+     * otherwise); {@code balancedDeliveryId} links it to the delivery so a later
+     * delete can reverse it.
+     */
+    static PersonFlightTimeCreditTransaction consumption(PersonFlightTimeCredit credit,
+                                                         boolean unlimited,
+                                                         @Nullable Long oldBalanceSeconds,
+                                                         @Nullable Long newBalanceSeconds,
+                                                         long consumedSeconds,
+                                                         UUID balancedDeliveryId,
+                                                         Instant balanceDateTime) {
+        PersonFlightTimeCreditTransaction tx = new PersonFlightTimeCreditTransaction();
+        tx.credit = credit;
+        tx.noFlightTimeLimit = unlimited;
+        tx.oldFlightTimeBalanceInSeconds = unlimited ? null : oldBalanceSeconds;
+        tx.currentFlightTimeBalanceInSeconds = unlimited ? null : newBalanceSeconds;
+        tx.flightTimeBalanceInSeconds = -consumedSeconds;
+        tx.balancedDeliveryId = balancedDeliveryId;
+        tx.balanceDateTime = balanceDateTime;
+        tx.current = true;
+        return tx;
+    }
+
+    void clearCurrent() {
+        this.current = false;
+    }
+
     public @Nullable UUID getId() {
         return id;
+    }
+
+    public @Nullable UUID getBalancedDeliveryId() {
+        return balancedDeliveryId;
+    }
+
+    public long getFlightTimeBalanceInSeconds() {
+        return flightTimeBalanceInSeconds;
+    }
+
+    public @Nullable Long getOldFlightTimeBalanceInSeconds() {
+        return oldFlightTimeBalanceInSeconds;
+    }
+
+    public Instant getBalanceDateTime() {
+        return balanceDateTime;
     }
 
     public @Nullable Long currentFlightTimeBalanceInSeconds() {

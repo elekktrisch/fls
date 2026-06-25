@@ -1,12 +1,14 @@
 package ch.alpenflight.accounting.web;
 
 import ch.alpenflight.accounting.application.DeliveriesService;
+import ch.alpenflight.accounting.application.DeliveryCreationService;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryDetail;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryPage;
 import ch.alpenflight.audit.domain.ReadOnlyQuery;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,10 +19,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Read-only REST surface for the {@code Delivery} aggregate — the invoice-draft
- * viewer, replacing the legacy {@code masterdata/deliveries/} read path. The write
- * side (create / book / delete + the state machine) is deferred, so this controller
- * carries GET endpoints only.
+ * REST surface for the {@code Delivery} aggregate — the invoice-draft viewer plus
+ * the create write path, replacing the legacy {@code masterdata/deliveries/}.
+ * {@code POST /create} runs the rules engine over eligible flights and persists
+ * one delivery each; the read endpoints serve the list + detail. Book / delete are
+ * separate write endpoints.
  *
  * <p>Delivery is <strong>tenant-scoped</strong> via Hibernate's {@code @TenantId}
  * discriminator on {@code Delivery.operatingClubId} (ADR 0008). A CLUB_ADMINISTRATOR
@@ -44,9 +47,28 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeliveriesController {
 
     private final DeliveriesService service;
+    private final DeliveryCreationService creationService;
 
-    public DeliveriesController(DeliveriesService service) {
+    public DeliveriesController(DeliveriesService service, DeliveryCreationService creationService) {
         this.service = service;
+        this.creationService = creationService;
+    }
+
+    /**
+     * Runs the rules engine over every eligible flight (Locked, glider/motor,
+     * {@code created_on <= today - 3d}) in the caller's tenant and persists one
+     * delivery per flight, returning the created deliveries. Mutating POST (replaces
+     * the legacy mutating {@code GET /deliveries/create} quirk). Per-flight failures
+     * are swallowed; the batch never aborts.
+     */
+    @Operation(operationId = "createDeliveries",
+            summary = "Create deliveries from all eligible Locked flights (engine -> persist). "
+                    + "Returns the created deliveries; empty when none are eligible.")
+    @ApiResponse(responseCode = "200", description = "The created deliveries (one per eligible flight).")
+    @PostMapping("/create")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    public List<DeliveryDetail> createDeliveries() {
+        return creationService.createFromEligibleFlights();
     }
 
     /**

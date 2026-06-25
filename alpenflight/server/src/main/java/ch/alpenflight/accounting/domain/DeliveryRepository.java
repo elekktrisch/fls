@@ -38,4 +38,15 @@ public interface DeliveryRepository {
      * cross-tenant-404 foundation — there is deliberately no by-id-only variant.
      */
     Optional<Delivery> findActiveById(UUID id);
+
+    /** Persists a delivery (and its cascaded items) under the caller's tenant. */
+    Delivery save(Delivery delivery);
+
+    /**
+     * The highest {@code batch_id} across the caller's tenant's deliveries
+     * (including soft-deleted, so a deleted batch never re-issues), or 0 when the
+     * club has none. The next create assigns {@code max+1} (legacy app-generated
+     * per-club batch counter, not a DB sequence).
+     */
+    long findMaxBatchId();
 }

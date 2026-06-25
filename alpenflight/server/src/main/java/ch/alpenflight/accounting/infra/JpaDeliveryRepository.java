@@ -38,4 +38,13 @@ public interface JpaDeliveryRepository
     @Query("select d from Delivery d left join fetch d.items "
             + "where d.id = :id and d.deletedOn is null")
     Optional<Delivery> findActiveById(@Param("id") UUID id);
+
+    @Override
+    @Query("select coalesce(max(d.batchId), 0) from Delivery d")
+    long findMaxBatchId();
+
+    // Disambiguates DeliveryRepository.save(Delivery) from CrudRepository.<S>save(S)
+    // for callers that hold the JpaDeliveryRepository type directly.
+    @Override
+    Delivery save(Delivery delivery);
 }

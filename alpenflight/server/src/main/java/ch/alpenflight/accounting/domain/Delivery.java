@@ -1,5 +1,6 @@
 package ch.alpenflight.accounting.domain;
 
+import ch.alpenflight.accounting.domain.RuleBasedDeliveryDetails.Recipient;
 import ch.alpenflight.audit.domain.AuditRedact;
 import ch.alpenflight.platform.persistence.SoftDeletableAggregate;
 import jakarta.persistence.CascadeType;
@@ -17,6 +18,7 @@ import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
@@ -25,10 +27,12 @@ import org.jspecify.annotations.Nullable;
  * produces for a flight: the billing line items + the frozen recipient snapshot.
  * Maps the EXISTING V4 table {@code t_delivery} (substrate built ahead in V4).
  *
- * <p><strong>Read-only this iteration.</strong> The aggregate maps the columns +
- * exposes getters; the write side — {@code create}, {@code book()} with gap-free
- * numbering, delete, the Prepared→Booked state machine — is deferred. Per ADR 0022
- * directive 2 this iteration adds no business rules.
+ * <p>{@link #createFromEligibleFlight} owns the create-from-engine-output business
+ * rule (ADR 0022 directive 2): it maps a computed {@link RuleBasedDeliveryDetails}
+ * into the persisted recipient snapshot + line items + batch id, rejecting an
+ * un-billable engine output ({@link DeliveryPreparationException}). The
+ * {@code delivery_number} is a free-text string assigned at booking (externally
+ * supplied, no counter); booking + delete are separate write methods.
  *
  * <p>Tenant-scoped via Hibernate's {@code @TenantId} on {@code operatingClubId}
  * (ADR 0008): every read is auto-filtered to the caller's tenant, so a
@@ -86,6 +90,65 @@ public class Delivery extends SoftDeletableAggregate {
 
     protected Delivery() {
         // JPA.
+    }
+
+    /**
+     * Builds the persisted {@code Delivery} for one eligible flight from the rules
+     * engine's computed {@link RuleBasedDeliveryDetails}: the frozen recipient
+     * snapshot, the line items (each {@code articleNumber} resolved to an
+     * {@code article_id} via {@code articleIdResolver}), the two free-text info
+     * fields, and the app-generated {@code batchId} (legacy {@code max+1}). The
+     * delivery starts {@link DeliveryProcessState#PREPARED}.
+     *
+     * <p>A flight that the engine produced NO recipient or NO items for is a
+     * preparation error, not a delivery ({@code DeliveryService.cs} —
+     * {@code DeliveryPreparationError}); the batch swallows it and leaves the
+     * flight in that error state. An item whose {@code articleNumber} resolves to
+     * no article is likewise unbillable.
+     *
+     * @throws DeliveryPreparationException when the engine yields no recipient, no
+     *     items, or an item whose article cannot be resolved
+     */
+    public static Delivery createFromEligibleFlight(UUID operatingClubId,
+                                                    UUID flightId,
+                                                    RuleBasedDeliveryDetails computed,
+                                                    long batchId,
+                                                    Function<String, @Nullable UUID> articleIdResolver) {
+        Recipient recipient = computed.recipient();
+        if (recipient == null) {
+            throw new DeliveryPreparationException("flight " + flightId + " resolved no billing recipient");
+        }
+        List<DeliveryItemDetails> lines = computed.deliveryItems();
+        if (lines.isEmpty()) {
+            throw new DeliveryPreparationException("flight " + flightId + " produced no delivery items");
+        }
+        Delivery delivery = new Delivery();
+        delivery.operatingClubId = operatingClubId;
+        delivery.flightId = flightId;
+        delivery.batchId = batchId;
+        delivery.processState = DeliveryProcessState.PREPARED;
+        delivery.recipientPersonId = recipient.personId();
+        delivery.recipient = snapshotOf(recipient);
+        delivery.deliveryInformation = computed.getDeliveryInformation();
+        delivery.additionalInformation = computed.getAdditionalInformation();
+        for (DeliveryItemDetails line : lines) {
+            UUID articleId = articleIdResolver.apply(line.articleNumber());
+            if (articleId == null) {
+                throw new DeliveryPreparationException(
+                        "flight " + flightId + " item article unresolved: " + line.articleNumber());
+            }
+            delivery.items.add(DeliveryItem.fromEngineLine(operatingClubId, articleId, line));
+        }
+        return delivery;
+    }
+
+    private static DeliveryRecipient snapshotOf(Recipient recipient) {
+        return new DeliveryRecipient(
+                recipient.recipientName(),
+                recipient.firstname(),
+                recipient.lastname(),
+                null, null, null, null, null,
+                recipient.personClubMemberNumber());
     }
 
     public @Nullable UUID getId() {

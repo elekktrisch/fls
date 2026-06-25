@@ -139,7 +139,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   assertions, ≥1 active `test(`) + scaffold the J-10b proof-gallery page + link from the index. Confirm the
   `parity_test:` frontmatter resolves to this spec (auto-scopes the per-push real-idp gate to J-10b, drops
   J-12b to nightly — `ci.yml:170-249` derives it; no manual workflow edit).
-- [ ] **T-02** — `Delivery.createFromEligibleFlights` (engine→persist) + `POST /api/v1/deliveries/create`
+- [x] **T-02** — `Delivery.createFromEligibleFlights` (engine→persist) + `POST /api/v1/deliveries/create`
   (ClubAdmin). Eligibility (Locked, glider/motor, `CreatedOn ≤ today−3d`); one Delivery+items/flight;
   `BatchId=max+1`; flip flight(+tow)→`DeliveryPrepared`+`DeliveryCreatedOn`; add the credit transaction
   (IsCurrent flip); per-flight swallow (Excluded/PreparationError). + domain tests.

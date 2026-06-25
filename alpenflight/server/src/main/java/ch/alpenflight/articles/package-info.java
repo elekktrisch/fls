@@ -24,6 +24,15 @@
  * role). Cross-tenant detail reads surface as 404 — the row is invisible
  * under the caller's tenant scope, not 403. SYSTEM_ADMINISTRATOR has no
  * rights here.
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module (matching {@code aircraft} / {@code flighttypes} /
+ * {@code clubs} / {@code referencedata}) so the accounting delivery-create engine
+ * may resolve a frozen {@code article_number} back to its {@code article_id}
+ * through {@link ch.alpenflight.articles.domain.ArticleRepository} when persisting
+ * a Delivery's line items.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.articles;

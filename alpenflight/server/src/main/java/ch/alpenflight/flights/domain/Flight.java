@@ -187,7 +187,6 @@ public class Flight {
     private @Nullable UUID flightCostBalanceTypeId;
 
     @Column(name = "delivery_created_on")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable Instant deliveryCreatedOn;
 
     @Column(name = "validated_on")
@@ -482,6 +481,46 @@ public class Flight {
             this.lockedAt = at;
         }
         this.processStateId = target.id();
+    }
+
+    /**
+     * Transitions a Locked flight into {@link FlightProcessState#DELIVERY_PREPARED}
+     * and stamps {@link #deliveryCreatedOn} — the delivery-create side effect
+     * ({@code DeliveryService.cs:187-188}). Applied to the billed flight AND its
+     * tow (the legacy {@code FlightService.cs:1457-1493} bugs that left the tow
+     * falsely Prepared and never persisted are corrected: this stamps the real
+     * transition on the aggregate). Illegal from any non-Locked state per the
+     * {@link FlightTransitionMatrix} ({@link TransitionTrigger#DELIVERY_PREP}).
+     */
+    public void prepareForDelivery(Instant at) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        transition(FlightProcessState.DELIVERY_PREPARED, TransitionTrigger.DELIVERY_PREP);
+        this.deliveryCreatedOn = at;
+    }
+
+    /**
+     * Moves a Locked flight to {@link FlightProcessState#DELIVERY_PREPARATION_ERROR}
+     * — the per-flight failure outcome of a delivery-create batch (a flight that
+     * yields no items / no recipient, {@code DeliveryService.cs}). The batch
+     * swallows this so one bad flight never aborts the run.
+     */
+    public void markDeliveryPreparationError() {
+        transition(FlightProcessState.DELIVERY_PREPARATION_ERROR, TransitionTrigger.DELIVERY_PREP);
+    }
+
+    /**
+     * Excludes a Locked flight from the delivery process
+     * ({@link FlightProcessState#EXCLUDED_FROM_DELIVERY_PROCESS}) — the outcome
+     * when a {@code DoNotInvoiceFlightRule} matches, so no delivery is produced.
+     */
+    public void excludeFromDeliveryProcess() {
+        transition(FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS, TransitionTrigger.DELIVERY_PREP);
+    }
+
+    public @Nullable Instant getDeliveryCreatedOn() {
+        return deliveryCreatedOn;
     }
 
     /** Marks this flight as soft-deleted. Idempotent. */

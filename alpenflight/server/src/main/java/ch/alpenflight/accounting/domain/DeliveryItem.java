@@ -68,6 +68,27 @@ public class DeliveryItem {
         // JPA.
     }
 
+    /**
+     * Builds a billing line from one engine-emitted {@link DeliveryItemDetails}.
+     * The {@code articleNumber} + {@code unitTypeCode} are frozen verbatim from the
+     * engine output (OR Art. 957a snapshots); {@code articleId} is the resolved
+     * article for the line; {@code unitPrice} is left ZERO (the engine computes
+     * quantity, not price — pricing is a downstream Proffix concern).
+     */
+    static DeliveryItem fromEngineLine(UUID operatingClubId, UUID articleId, DeliveryItemDetails line) {
+        DeliveryItem item = new DeliveryItem();
+        item.operatingClubId = operatingClubId;
+        item.position = line.position();
+        item.articleId = articleId;
+        item.articleNumber = line.articleNumber();
+        item.itemText = line.itemText();
+        item.additionalInformation = line.additionalInformation();
+        item.quantity = line.quantity();
+        item.discountInPercent = line.discountInPercent();
+        item.unitTypeCode = line.unitType();
+        return item;
+    }
+
     public @Nullable UUID getId() {
         return id;
     }
