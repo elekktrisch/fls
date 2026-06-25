@@ -70,7 +70,13 @@ interface InviteeUser extends TestUser {
 
 function freshInvitee(): InviteeUser {
   const user = freshTestUser();
-  return { ...user, friendlyName: 'Gina Federated' };
+  // The displayed friendlyName must be UNIQUE per run/retry: the users-list
+  // assertion (getByText) is strict-mode, so a hardcoded "Gina Federated" left
+  // over from a prior run/retry matches two rows. Suffix the same uuid8 the
+  // email already carries (the run-scoped tail before `@example.com`) so the
+  // list lookup resolves exactly one row.
+  const tail = user.email.split('@')[0]!.split('-').pop()!;
+  return { ...user, friendlyName: `Gina Federated ${tail}` };
 }
 
 /** Invite an email through the real `/users/new` admin UI and save. */
@@ -143,7 +149,9 @@ test.describe('Admin invite robustness — bind unattached existing KC user (rea
       await inviteThroughUi(page, invitee, username);
 
       // 1. The t_user row landed — the invitee surfaces in the users list.
-      await expect(page.getByText(invitee.friendlyName)).toBeVisible();
+      //    Exact match (the run-unique friendlyName resolves a single row, so
+      //    a leftover row from a prior run can't satisfy a substring hit).
+      await expect(page.getByText(invitee.friendlyName, { exact: true })).toBeVisible();
 
       // 2. The bind set the KC clubId attribute on the EXISTING user (read via
       //    the single-user GET, which returns attributes). The value is the

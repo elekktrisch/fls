@@ -133,59 +133,74 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     public void writeClubIdAttribute(UUID sub, UUID clubId) {
         Objects.requireNonNull(sub, "sub");
         Objects.requireNonNull(clubId, "clubId");
-        // Read-merge-write: a KC user PUT replaces the whole `attributes` map, so
-        // we read the current attributes first and merge clubId in, preserving
-        // locale (set at signup). Idempotent — re-writing the same clubId is a
-        // no-op against KC's eventual state.
-        Map<String, List<String>> attrs = readAttributes(sub);
+        UserMutableWire current = readUserForMerge(sub);
+        Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         attrs.put("clubId", List.of(clubId.toString()));
-        try {
-            http.put()
-                    .uri(props.adminBase() + "/users/" + sub)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("attributes", attrs))
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (HttpStatusCodeException e) {
-            throw new UserDirectoryException(
-                    "Keycloak write clubId attribute (status " + e.getStatusCode().value() + ")", e);
-        }
+        putMergedUser(sub, current, attrs, "write clubId attribute");
     }
 
     @Override
     public void clearClubIdAttribute(UUID sub) {
         Objects.requireNonNull(sub, "sub");
-        // Read-merge-write mirror of writeClubIdAttribute: a KC user PUT replaces
-        // the whole `attributes` map, so read first and drop only clubId,
-        // preserving locale. Idempotent — clearing an absent attribute is a no-op.
-        Map<String, List<String>> attrs = readAttributes(sub);
+        UserMutableWire current = readUserForMerge(sub);
+        Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         if (attrs.remove("clubId") == null) {
             return;
         }
+        putMergedUser(sub, current, attrs, "clear clubId attribute");
+    }
+
+    /**
+     * Read-merge-write the clubId attribute. Keycloak's {@code PUT /users/{id}}
+     * is a FULL-representation replace, NOT a top-level merge: a body carrying
+     * only {@code attributes} NULLS {@code email}/{@code username}/{@code
+     * firstName}/{@code lastName} (verified against KC 26.5.7 — a bound user
+     * then vanishes from {@code ?email=&exact=true} and can't log in by email).
+     * So the body must re-send the identity fields read back from KC alongside
+     * the merged {@code attributes}.
+     */
+    private void putMergedUser(
+            UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
+        Map<String, Object> body = new HashMap<>();
+        if (current.username() != null) {
+            body.put("username", current.username());
+        }
+        if (current.email() != null) {
+            body.put("email", current.email());
+        }
+        if (current.firstName() != null) {
+            body.put("firstName", current.firstName());
+        }
+        if (current.lastName() != null) {
+            body.put("lastName", current.lastName());
+        }
+        if (current.emailVerified() != null) {
+            body.put("emailVerified", current.emailVerified());
+        }
+        body.put("attributes", attrs);
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("attributes", attrs))
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
-                    "Keycloak clear clubId attribute (status " + e.getStatusCode().value() + ")", e);
+                    "Keycloak " + op + " (status " + e.getStatusCode().value() + ")", e);
         }
     }
 
-    private Map<String, List<String>> readAttributes(UUID sub) {
+    private UserMutableWire readUserForMerge(UUID sub) {
         try {
             String body = http.get()
                     .uri(props.adminBase() + "/users/" + sub)
                     .retrieve()
                     .body(String.class);
             if (body == null || body.isBlank()) {
-                return new HashMap<>();
+                return UserMutableWire.empty();
             }
-            UserAttributesWire wire = objectMapper.readValue(body, UserAttributesWire.class);
-            return wire.attributes() == null ? new HashMap<>() : new HashMap<>(wire.attributes());
+            return objectMapper.readValue(body, UserMutableWire.class);
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak read user (status " + e.getStatusCode().value() + ")", e);
@@ -436,12 +451,29 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     /**
      * Single-user representation read for the {@code clubId}-attribute
-     * read-merge-write. Carries only the {@code attributes} map; every other KC
-     * field is tolerated-and-dropped (same {@code ignoreUnknown} rationale as
+     * read-merge-write. Carries the {@code attributes} map PLUS the identity
+     * fields that a full-representation {@code PUT} must re-send to avoid
+     * nulling them ({@code username}/{@code email}/{@code firstName}/{@code
+     * lastName}/{@code emailVerified}); every other KC field is
+     * tolerated-and-dropped (same {@code ignoreUnknown} rationale as
      * {@link UserWire}).
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record UserAttributesWire(@Nullable Map<String, List<String>> attributes) {}
+    record UserMutableWire(
+            @Nullable String username,
+            @Nullable String email,
+            @Nullable String firstName,
+            @Nullable String lastName,
+            @Nullable Boolean emailVerified,
+            @Nullable Map<String, List<String>> attributes) {
+        static UserMutableWire empty() {
+            return new UserMutableWire(null, null, null, null, null, null);
+        }
+
+        Map<String, List<String>> attributesOrEmpty() {
+            return attributes == null ? Map.of() : attributes;
+        }
+    }
 
     /**
      * Email-lookup projection (S-181). Carries the {@code id} plus the two

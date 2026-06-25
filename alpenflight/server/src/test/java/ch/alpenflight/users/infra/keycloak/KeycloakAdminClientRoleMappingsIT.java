@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -57,12 +58,16 @@ class KeycloakAdminClientRoleMappingsIT {
 
     private static final UUID ORPHAN_SUB =
             UUID.fromString("b365dc65-b93a-4d6e-8005-fc77377b418f");
+    private static final UUID BIND_SUB =
+            UUID.fromString("46d526dc-4981-4ccf-aa5f-b0a3fcda5b39");
 
     private HttpServer server;
     private int port;
     private volatile int roleMappingsStatus;
     private volatile String roleMappingsBody;
     private volatile String usersListBody;
+    /** Captured body of the last PUT /users/{BIND_SUB}. */
+    private volatile String lastBindPutBody;
 
     @BeforeEach
     void startStub() throws IOException {
@@ -91,6 +96,31 @@ class KeycloakAdminClientRoleMappingsIT {
                         os.write(out);
                     }
                 });
+
+        // Single-user GET (read-merge-write source) + PUT (capture body). Bound
+        // BEFORE the broader /users context so it wins the longest-prefix match.
+        server.createContext("/admin/realms/test-realm/users/" + BIND_SUB, ex -> {
+            if ("PUT".equals(ex.getRequestMethod())) {
+                lastBindPutBody = new String(
+                        ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(204, -1);
+                ex.close();
+                return;
+            }
+            // GET: the current KC representation the merge reads back — carries
+            // the identity fields that must survive a clubId-attribute write.
+            byte[] out = """
+                    {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
+                     "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
+                     "firstName":"E2e","lastName":"Bind","emailVerified":true,
+                     "attributes":{"locale":["en"]}}
+                    """.getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, out.length);
+            try (OutputStream os = ex.getResponseBody()) {
+                os.write(out);
+            }
+        });
 
         // users (email-lookup) — body is per-test programmable.
         server.createContext("/admin/realms/test-realm/users", ex -> {
@@ -132,6 +162,15 @@ class KeycloakAdminClientRoleMappingsIT {
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                 .build();
+    }
+
+    private static JsonNode parse(String json) {
+        try {
+            assertThat(json).as("a PUT body must have been captured").isNotNull();
+            return prodLikeMapper().readTree(json);
+        } catch (Exception e) {
+            throw new AssertionError("captured PUT body is not JSON: " + json, e);
+        }
     }
 
     @Test
@@ -205,5 +244,48 @@ class KeycloakAdminClientRoleMappingsIT {
         assertThat(user.clubId())
                 .as("a present-but-unparseable clubId must fail closed to the corrupted sentinel (attached)")
                 .isEqualTo(DirectoryUser.CORRUPTED_CLUB_ID);
+    }
+
+    @Test
+    void writeClubIdAttribute_resendsIdentityFields_soTheBoundUserDoesNotVanish() {
+        // KC's PUT /users/{id} is a full-representation replace: a body carrying
+        // only `attributes` NULLS username/email/firstName/lastName, so the
+        // bound user then drops out of ?email=&exact=true. The read-merge-write
+        // must re-send the identity fields it read back, alongside the merged
+        // attributes (clubId added, locale preserved).
+        UUID clubId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+
+        client().writeClubIdAttribute(BIND_SUB, clubId);
+
+        JsonNode put = parse(lastBindPutBody);
+        assertThat(put.path("username").asText())
+                .as("the PUT must re-send username or KC nulls it")
+                .isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("email").asText()).isEqualTo("e2e-bind@example.com");
+        assertThat(put.path("firstName").asText()).isEqualTo("E2e");
+        assertThat(put.path("lastName").asText()).isEqualTo("Bind");
+        assertThat(put.path("emailVerified").asBoolean()).isTrue();
+
+        JsonNode attrs = put.path("attributes");
+        assertThat(attrs.path("clubId").get(0).asText())
+                .as("the merge adds clubId")
+                .isEqualTo(clubId.toString());
+        assertThat(attrs.path("locale").get(0).asText())
+                .as("the merge preserves the signup-set locale attribute")
+                .isEqualTo("en");
+    }
+
+    @Test
+    void clearClubIdAttribute_absentClubId_isANoOpWithNoPut() {
+        // The stub GET carries only locale (no clubId), so the clear short-
+        // circuits before any PUT — an absent attribute is nothing to drop, and
+        // the identity is never touched.
+        lastBindPutBody = null;
+
+        client().clearClubIdAttribute(BIND_SUB);
+
+        assertThat(lastBindPutBody)
+                .as("clearing an absent clubId is a no-op — no PUT, so identity can't be touched")
+                .isNull();
     }
 }

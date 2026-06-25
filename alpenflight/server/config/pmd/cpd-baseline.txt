@@ -153,5 +153,13 @@
 # `<Type>.from(saved)` idiom (cf. JoinRequestResponse.from) — collapsing the clone
 # and landing below the prior baseline. Lock the gain.
 #
+# Re-measured 2026-06-25 (J-12b T-13, putMergedUser extraction): 5362 (-58 vs
+# the prior 5420). The clubId-attribute write/clear paths each carried a
+# byte-identical read-merge-write PUT block (build the `attributes` body, PUT,
+# wrap the HttpStatusCodeException). Extracting the shared
+# KeycloakAdminClient.putMergedUser(sub, current, attrs, op) — which also re-sends
+# the identity fields a KC full-representation PUT would otherwise null —
+# collapsed that clone and landed below the prior baseline. Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5420
+5362
