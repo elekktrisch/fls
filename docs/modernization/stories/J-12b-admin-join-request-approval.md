@@ -2,8 +2,9 @@
 id: J-12b
 title: Admin join-request approval (/join-requests) + invite robustness
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-24
+done_at: 2026-06-25
 journey0: false
 carved: true
 depends_on: [J-12a]
@@ -85,23 +86,46 @@ branches (new KC user / unattached-existing / attached-elsewhere-409).
 ## Tasks
 
 Backend (list/approve/deny + SSE + the orval client `api/generated/join-requests/`) shipped in J-12a;
-this is FE-screen-heavy + S-181's `UsersService.invite` hardening + folded riders. No migration → no fanout gate.
+J-12b is FE-screen-heavy + S-181's `UsersService.invite` hardening + folded riders. No migration → no fanout gate.
 
-- [x] **T-01 — real-idp spec stub + gallery scaffold.** `admin-approve.spec.ts` (5 `test.fixme`; clubadmin4=admin, pilot1=non-admin). **Testids T-03..T-06 MUST expose** (`TESTIDS` @ `admin-approve.spec.ts:43`): `join-requests-page/-list/-empty/-empty-club-link`; `join-request-row` + `-friendly-name/-email/-submitted-at/-note/-approve/-deny`; `approve-modal` + `-role-checkbox/-person-picker/-request-info/-submit/-error`; `deny-modal`/`deny-reason`/`-counter`/`deny-submit`; `join-request-success-toast`; `nav-join-requests-badge`. Gallery data-driven (already in `_ORDER.md` + generator `ROADMAP_FALLBACK`).
-- [x] **T-02 — scope the per-push gate to J-12b.** Heavy real-idp lane runs ONLY `admin-approve.spec.ts`; prior journeys (incl. J-12a) run mock-IdP. Full real-idp regression stays nightly + the §4 gate (standing slot). Scoped by the branch-name `ci.yml` proof_spec derive (no hardcoded spec in any workflow) → `parity_test:` first token; while the spec is all-fixme it fail-safes to the J-0 baseline, auto-scoping once thickened. No `mock_test:` → prior journeys' mock specs run the full chromium suite per-push.
-- [x] **T-03 — `/join-requests` list screen + store + route.** New `features/join-requests/` folder: NgRx store over the generated `listPending`, the pending-list page (friendlyName + email + submitted-at + truncated note + Approve/Deny per row), the empty state ("no pending requests" + link to Club edit join-code panel), route registration (CLUB_ADMINISTRATOR-gated; non-admin → 403/redirect).
-- [x] **T-04 — Approve modal.** Component: role checkboxes from `role-catalog.ts` (RoleAssignmentPolicy gating), the optional Person picker REUSING `person-picker.component.ts`, read-only request info; POST the generated `approve {roles[], personId?}` → row drops + success toast.
-- [x] **T-05 — Deny modal.** Component: optional reason textarea ≤500 + char counter; POST the generated `deny {reason?}` → row drops.
-- [x] **T-06 — Nav entry + live pending-count badge + SSE.** Add the `/join-requests` entry to `nav-sections.ts` (CLUB_ADMINISTRATOR-visible) with a pending-count badge subscribing to `/api/v1/me/events` `join-request.status-changed` (bump/decrement live). Folds **[COMMENT-STRIP]** (`app.routes.ts` + `nav-sections.ts`) + **[TEST-ORPHAN]** (relocate `nav-bar.spec.ts` into the collected subdir).
-- [x] **T-07 — S-181 invite robustness (backend).** `UsersService.invite` (`UsersService.java:141`) gains a KC pre-check by email: no KC user → today's create+password-reset path; UNATTACHED existing KC user → bind to the inviting tenant + welcome-attached email (skip password reset), localised per the KC `locale`; email ATTACHED elsewhere → 409. New `welcome-attached.html` template. `user.invited` audit carries the branch. New `UsersInviteRobustnessIT` over the three branches. Folds **[JIT-username robustness]** if it touches `JitUserMaterializerImpl`.
-- [x] **T-08 — S-181 SPA spec extension.** Extend S-168's `users-invite` spec with the unattached-existing-KC-user case (Google-signup fixture → admin invites → `t_user` appears + KC clubId attribute set + NO password-reset email + welcome-attached email asserted via Mailpit). The real-KC+Mailpit assertion can't run in the mock `tests/users/users-invite.spec.ts` (page.route harness), so the case lands as the real-idp counterpart `tests/real-idp/users-invite.spec.ts`; the suite drives no live Google login (creds never enter Playwright — `auth/README.md`), so the unattached existing user is the provisioned-no-clubId KC identity `join-request.spec.ts` already uses. New `getUserById` KC attribute-read helper.
-- [x] **T-09 — [GH-PAGES-DEPLOY-RACE] rider.** Align the gh-pages deploy concurrency across `ci.yml` + `alpenflight-e2e.yml` onto one shared `gh-pages-deploy` group so the two deploy jobs serialise (currently disjoint `ci-${ref}` vs `alpenflight-e2e-${ref}` → intermittent red `main`).
-- [x] **— BATCH-BOUNDARY full check** (§4 fail-safe `ci` + real-idp regression on final head) — caught a cluster (below); the per-task focused runs missed all of it.
-- [x] **T-10 — thicken the real-idp spec.** Full real assertions in `admin-approve.spec.ts`: list own-club pending → approve modal (roles + optional Person) → row drops + badge decrements via SSE + pilot admitted; deny+reason → pilot-denied email; empty state; the 409s (already-attached / cross-tenant Person); non-admin 403. Captures the gallery pairing.
+- [x] T-01 — real-idp spec stub (`admin-approve.spec.ts`) + data-driven gallery scaffold
+- [x] T-02 — scope the per-push heavy lane to J-12b (branch-name `proof_spec` derive)
+- [x] T-03 — `/join-requests` list screen + NgRx store + CLUB_ADMINISTRATOR-gated route + empty state
+- [x] T-04 — approve modal (S-168 role catalog + reused Person picker + 409→inline error + toast)
+- [x] T-05 — deny modal (optional reason ≤500 + char counter)
+- [x] T-06 — nav entry + live SSE pending-count badge; folds [COMMENT-STRIP] + [TEST-ORPHAN] (nav-bar relocation)
+- [x] T-07 — S-181 invite robustness backend (3-branch KC pre-check + welcome-attached template + tenant-leak compensation)
+- [x] T-08 — S-181 real-idp `users-invite.spec.ts` (bind-existing: KC clubId set + welcome-attached + no reset)
+- [x] T-09 — [GH-PAGES-DEPLOY-RACE]: one shared `gh-pages-deploy` concurrency group across 5 deploy jobs
+- [x] T-10 — thicken `admin-approve.spec.ts` to the full real-idp lifecycle + gallery capture
+- [x] T-11 — gate cluster (one seam): cpd helper extraction · audit re-keyed to `InvitedAuditPayload` · email lowercased pre-lookup · clubId fail-closed
+- [x] T-12 — nav-change mock fallout: `nav-bar.spec.ts` collapsed assertion + `flights-list` `emptyPage` api-floor
+- [x] T-13 — KC PUT identity bug (below) + `users-invite.spec.ts` made retry-idempotent
+- [x] T-14 — faithful KC PUT round-trip (re-send `enabled`+`requiredActions`) + real wire-stub IT for write+clear paths
 
-### Gate-revealed (§4)
+## Outcome
 
-- [x] **T-11 — S-181 backend gate failures (one seam).** (a) **cpd** — extract the cloned `register→updateProfile→save→flush` block (`UsersService.java:208` ↔ `:261`) into a shared helper (build red: cpd 5513>5420). (b) **audit BLOCKER** — `AuditedTarget.created` is keyed on `"User"` not `InvitedAuditPayload`, so `PiiRedactor` redacts the `branch` + whole `user` projection (`application.yml:451` block is dead) — key it on the payload type + add an IT assertion reading `t_mutation_audit_event` for `branch` present. (c) **email** — lowercase before `findUserByEmail` (mixed-case → 500 instead of bind/409). (d) **clubId fail-closed** — present-but-unparseable clubId attr → treat as ATTACHED (409), not unattached.
-- [x] **T-12 — nav-change mock fallout (one seam).** (a) `e2e/tests/shell/nav-bar.spec.ts:61` collapsed-nav assertion stale (`af-nav-section-/clubs` now present for the badge rollup — assert hidden, verify badge reachable via hamburger). (b) `flights-list.spec.ts` `emptyPage` (manual `newPage()`) never gets the api floor → shell badge's `/join-requests` fetch 500s the console-guard — extend the `**/api/v1/**` floor (`[]`) to manually-created pages.
-- [x] **T-13 — real-idp `users-invite.spec.ts` first real run.** Surfaced a genuine S-181 **backend bug**: `writeClubIdAttribute`/`clearClubIdAttribute` PUT only `{attributes}`, but KC's `PUT /users/{id}` is a FULL-representation replace → the bind NULLED the user's `email`/`username`/`firstName`/`lastName`, so the bound user vanished from `?email=&exact=true` (`findUserByEmail → undefined`). Fix: `putMergedUser` re-sends the identity fields read back from KC + preserves `locale`. IT asserts identity survives the attribute write; cpd 5362 (baseline tightened). Spec also made retry-idempotent (run-unique friendlyName + exact match). Green twice-in-a-row local real-idp. The other 3 regression reds (token-lifecycle, hardening-J26, fan-out) are pre-existing flakes, proven red on `main`, untouched.
-- [x] **T-14 — faithful KC PUT round-trip (gap-hunter BLOCKER).** `putMergedUser` re-sends identity but DROPS `enabled` + `requiredActions` → under the full-replace premise a bind re-enables a disabled user and CLEARS a pending `VERIFY_EMAIL`/`UPDATE_PASSWORD` (credential-posture downgrade). **First establish KC 26.5.7's real partial-PUT semantics empirically** (which fields a `{attributes}`-only / `{enabled}`-only PUT actually nulls) — that resolves the premise vs shipped `setEnabled` (`:118`) PUT-ing `{enabled}` only. Then read-back + re-send `enabled` + `requiredActions` (non-null-guarded) in `putMergedUser`; if the probe shows `setEnabled` also nulls identity, fix it the same way. Add a wire-stub IT capturing the **clear-clubId (T-07 compensation) PUT body** — it currently mocks the port, never the real read-merge-write — asserting identity + enabled + requiredActions + locale all survive.
+Shipped: the `/join-requests` CLUB_ADMINISTRATOR screen (tenant-scoped pending list, approve modal with
+RoleAssignmentPolicy-gated roles + optional Person link, deny modal, live SSE pending-count badge, empty
+state, non-admin guard) over J-12a's approve/deny backend, plus **S-181** — `UsersService.invite` binds a
+pre-existing Keycloak user (unattached → bind + welcome-attached, skip reset; attached-elsewhere → 409)
+with deterministic clubId-attribute compensation. Riders cleared: [GH-PAGES-DEPLOY-RACE] (5 deploy jobs
+serialized), [COMMENT-STRIP] (`app.routes.ts`+`nav-sections.ts`), [TEST-ORPHAN] (`nav-bar.spec.ts`).
+
+**Load-bearing finding (escalation-worthy, fixed):** the §4 real-idp gate exposed a genuine backend bug in
+the shipped S-181 bind path — `writeClubIdAttribute`/`clearClubIdAttribute` PUT `{attributes}` only, but
+Keycloak 26.5.7's `PUT /users/{id}` is **field-selective**: a body omitting `email`/`firstName`/`lastName`
+NULLS them (empirically probed 3×), so the bind wiped the bound user's identity and it vanished from
+`?email=&exact=true`. Fixed with a full read-merge-write (`putMergedUser`) that re-sends identity +
+`enabled` + `requiredActions` (the latter two defensively, against KC version drift) and preserves `locale`;
+proven by wire-stub ITs capturing both the write and the clear-compensation PUT bodies. `setEnabled`'s
+`{enabled}`-only PUT was empirically confirmed safe. cpd baseline tightened 5420 → 5362.
+
+**Gate:** `ci` job-level green on the merge head (build + `check` + all mock-e2e shards + the admin-approve
+real-idp clean-seed proof + dashboard/profile proofs). gap-hunter ×3 + a confirming pass → green-is-honest
+(no mocked seams on happy/key-error; the one credential-posture blocker fixed + tested). Cross-journey
+real-idp regression: J-12b's own specs green; the only reds are 4 chronic pre-existing flakes
+(`token-lifecycle:87/:190`, `hardening-J26:226`, `fan-out-migration-parity:143`), each proven red on `main`.
+
+**Parity exclusion / for /do-retro:** the 4 chronic real-idp flakes above are not J-12b's — candidate for a
+quarantine/stabilization rider.
