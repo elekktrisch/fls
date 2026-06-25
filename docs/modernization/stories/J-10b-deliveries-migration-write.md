@@ -2,7 +2,8 @@
 id: J-10b
 title: Deliveries — migration + write side (create / book-terminal / delete)
 epic: E-09
-status: todo
+status: in_progress
+started_at: 2026-06-25
 journey0: false
 carved: true
 depends_on: [J-10, J-11, J-2, J-9b]
@@ -100,3 +101,73 @@ The real-idp run drives, through the real `/deliveries` UI (entered via the mast
   the Proffix maintainer (seed §Proffix, S-150) — not derivable here.
 - Carved on **`do-retro/J-12b-window`** (clean off `origin/main`, retro parent == main), so that retro's
   suite edits + the J-12b-window riders ride J-10b and merge with it (fix-forward).
+
+## Oracle-pinned contract (ship-time corrections to the carve)
+
+The `legacy-oracle` read of `DeliveryService.cs`/`FlightService.cs`/`Flight.cs` pinned these — they
+override any looser carve wording. Deliberate legacy→AlpenFlight modernizations are **cosmetic
+error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit per the parity-exclusion rule:
+
+- **Create verb.** Legacy is `GET /deliveries/create` (mutating GET — a quirk). AlpenFlight: **`POST
+  /api/v1/deliveries/create`** (ClubAdmin) → 200 + created list. Eligibility filter: `ProcessState=Locked`
+  AND flight-type ∈ {Glider, Motor} AND **`CreatedOn ≤ today−3d`** (NOT StartDateTime/LockedOn), club-scoped.
+- **Create's side effects (oracle, not in carve).** Per eligible flight create ALSO flips the flight **and
+  tow flight → `DeliveryPrepared`** + stamps `DeliveryCreatedOn`, assigns `BatchId = max+1` (app-generated
+  `long`, not a DB sequence), and **adds** a `PersonFlightTimeCreditTransaction` (`IsCurrent=true`, prior
+  flipped false) — so delete's credit *reversal* undoes a credit that *create* made. Per-flight failures are
+  swallowed (`ExcludedFromDeliveryProcess` / `DeliveryPreparationError`), the batch never aborts.
+- **Status codes.** Booked-terminal reject: legacy throws **400** (`BadRequestException`); `>1-delivery-per-
+  flight` delete guard: legacy throws an **unmapped 500** (`FLSServerException`). AlpenFlight returns **409
+  Conflict** for both (correct conflict semantics + matches the flights-store optimistic-lock convention). Non-
+  admin delete → 401/403; missing delivery → 404. Booking unknown id → 200 `false` (not an error — parity).
+- **Credit reversal is append-only.** The original balanced transaction row is **kept** (`IsCurrent`→false); a
+  new negated reversal row is inserted (`IsCurrent`→true). Do NOT delete the original — the audit trail needs it.
+- **Schema guards (hard — real legacy data violates the opposite).** Do **NOT** add `UNIQUE(flight_id)` on
+  `delivery` (legacy permits multiple deliveries per flight — that's *why* the delete guard exists),
+  `UNIQUE(delivery_number)` (nullable free-text, collisions exist), or `CASCADE` on
+  `person_flight_time_credit_transaction.balanced_delivery_id` (nullable, no-cascade — transactions must
+  survive a delivery delete or the reversal breaks). The collision IT proves multiples + orphan-ArticleNumber.
+- **Both legacy bugs confirmed:** `FlightService.cs:1482` sets `flight.ProcessStateId` inside the
+  `towFlight` block (wrong target); `:1457-1493` opens its own DbContext and never `SaveChanges()` before
+  dispose (the Prepared→Locked reset is silently dropped). AlpenFlight must persist + reset the **tow** flight.
+  `gap-hunter` confirms a real migrated flight actually flips to Locked, not just the spec. **Surfaced to the
+  operator at §5 review for sign-off** (ADR 0026 fix-not-reproduce pattern) — a reachable money/safety divergence.
+
+## Tasks
+
+- [ ] **T-01** — Author `deliveries-write-parity.spec.ts` stub (6-case structure + testids + flow, thin
+  assertions, ≥1 active `test(`) + scaffold the J-10b proof-gallery page + link from the index. Confirm the
+  `parity_test:` frontmatter resolves to this spec (auto-scopes the per-push real-idp gate to J-10b, drops
+  J-12b to nightly — `ci.yml:170-249` derives it; no manual workflow edit).
+- [ ] **T-02** — `Delivery.createFromEligibleFlights` (engine→persist) + `POST /api/v1/deliveries/create`
+  (ClubAdmin). Eligibility (Locked, glider/motor, `CreatedOn ≤ today−3d`); one Delivery+items/flight;
+  `BatchId=max+1`; flip flight(+tow)→`DeliveryPrepared`+`DeliveryCreatedOn`; add the credit transaction
+  (IsCurrent flip); per-flight swallow (Excluded/PreparationError). + domain tests.
+- [ ] **T-03** — `Delivery.delete` + `DELETE /api/v1/deliveries/{id}` (ClubAdmin). Cascade items; reset
+  flight **and tow (persisted, correct target — fix both legacy bugs)** → Locked; reverse the balanced
+  credit transaction (append-only, IsCurrent flip, original kept); reject `>1-delivery-per-flight` → 409,
+  no partial mutation; non-admin → 401/403. + domain tests asserting the flip persists + the reversal row.
+- [ ] **T-04** — Booked-terminal guard (flight/delivery in `DeliveryBooked` rejects mutation → 409) +
+  `POST /api/v1/deliveries/delivered` `{deliveryId, deliveryDateTime, deliveryNumber}` → stamp number/
+  DeliveredOn/IsFurtherProcessed, flip flight(+tow)→`DeliveryBooked`, 200; unknown id → 200 `false`. + tests.
+- [ ] **T-05** — Delivery/DeliveryItem migration mapper (`MapperLegacyBindings`): `ArticleNumber→article_id`
+  per-club resolution + orphan-keep (unresolvable → null/skip, NOT 23503); parent-scoped DeliveryItem
+  tenancy; free-text `delivery_number` verbatim; `BatchId`/bigint-seconds preserved; `BalancedDeliveryId`
+  remap on migrated J-9b credit rows → new delivery ids; **no new UNIQUE/CASCADE** (schema guard).
+- [ ] **T-06** — Collision/orphan migration IT (real-producer): orphan `ArticleNumber` → keep-null/skip
+  (not 23503) + a multiple-deliveries-per-flight row proving no `UNIQUE(flight_id)` violation. Reds in
+  `check` (minutes), not the ~20-min fanout.
+- [ ] **T-07** — Legacy seed contribution: a Locked eligible glider flight (`CreatedOn ≤ today−4d`) + a
+  minimal **deterministic** AccountingRuleFilter producing one known item + recipient; a `DeliveryPrepared`
+  flight + its Delivery + a balanced credit transaction; a `DeliveryBooked` flight; a not-further-processed
+  Delivery for booking; a shared-flight (>1 delivery) fixture.
+- [ ] **T-08** — `/deliveries` SPA write actions over `DeliveriesStore`: "create deliveries" button (→ POST
+  create, refresh list), delete-confirm modal (booked rows disabled), booked badge; orval regen for the new
+  endpoints + store write methods. **Fold [NG8113-DEADIMPORT]** (drop unused `AfButtonComponent` from
+  `flight-conflict-prompt.component.ts:41` imports).
+- [ ] **T-09** — Thicken `deliveries-write-parity.spec.ts` to full real assertions (oracle-pinned, all 6
+  cases) + wire gallery captures (paired legacy↔AlpenFlight shots + pass video + migration round-trip).
+- [ ] **T-10** — **[REALIDP-FLAKE-QUARANTINE]** rider: stabilize/quarantine the 4 chronic real-idp flakes
+  (`token-lifecycle:87/:190`, `hardening-J26:226`, `fan-out-migration-parity:143`) so the §4 gate's
+  merge-shards stop redding (console-guard allow-list for the deliberate errors; warm-nav/longer budget for
+  the timeouts).
