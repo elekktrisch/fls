@@ -40,7 +40,10 @@ public class DeliveryItem {
     @Column(name = "position", nullable = false)
     private int position;
 
-    @Column(name = "article_id", nullable = false)
+    // Nullable: a migrated line whose free-text legacy ArticleNumber matched no
+    // live article is kept with a null article_id (the article_number snapshot
+    // is preserved). Engine-created lines always resolve a non-null article.
+    @Column(name = "article_id")
     private @Nullable UUID articleId;
 
     @Column(name = "article_number", nullable = false, length = 50)

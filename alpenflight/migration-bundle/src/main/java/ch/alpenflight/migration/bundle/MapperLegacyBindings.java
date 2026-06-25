@@ -1214,6 +1214,136 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?,
                             ?, ?)
                     """)),
+            entry(EntityType.DELIVERY, new Binding(
+                    // Tenant-scoped invoice-delivery aggregate root (DeliveryMapper):
+                    // legacy Deliveries.DeliveryId → t_delivery.id; operating_club_id
+                    // is the @TenantId per V4, set from the real legacy ClubId column.
+                    // NOT fan-out — one legacy row → one row, legacy_guid → id, so a
+                    // credit transaction's balanced_delivery_id (= the legacy DeliveryId
+                    // its producer projects) lands on this row's id with no rewrite
+                    // (ADR 0019 GUID preservation) — the remap aligns for free.
+                    //
+                    // process_state_id is DERIVED, not stored: legacy Deliveries has no
+                    // ProcessStateId column. IsFurtherProcessed=1 is the durable booked
+                    // marker (set atomically with flight→DeliveryBooked) and wins → 20
+                    // (Booked). Otherwise the linked Flight's ProcessStateId maps
+                    // 60→20 / 50→10(Prepared) / 45→30(Error) / else→10. The JOIN to
+                    // Flights is a LEFT JOIN so a FlightId-NULL delivery survives and
+                    // falls through to the Prepared floor (10). The new codes are
+                    // DeliveryProcessState (10/20/30/99).
+                    //
+                    // recipient_* + recipient_person_id are real columns in the final
+                    // FLSTest schema: DBUpdate_v1.10.5p1 split the old RecipientDetails
+                    // JSON blob into columns and v1.10.6 dropped the blob — so the
+                    // mapper reads them directly, no JSON extraction. recipient_person_id
+                    // is a loose nullable Guid with no FK (kept raw).
+                    //
+                    // batch_id: legacy BatchId is bigint NULL; t_delivery.batch_id is
+                    // NOT NULL DEFAULT 0, so a NULL coalesces to 0. delivery_number is
+                    // free-text nvarchar(100) preserved verbatim (V52 text column).
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT d.DeliveryId, d.ClubId,
+                           CASE WHEN d.IsFurtherProcessed = 1 THEN 20
+                                WHEN f.ProcessStateId = 60 THEN 20
+                                WHEN f.ProcessStateId = 50 THEN 10
+                                WHEN f.ProcessStateId = 45 THEN 30
+                                ELSE 10 END AS ResolvedProcessStateId,
+                           d.FlightId, d.RecipientPersonId,
+                           d.RecipientName, d.RecipientFirstname, d.RecipientLastname,
+                           d.RecipientAddressLine1, d.RecipientAddressLine2,
+                           d.RecipientZipCode, d.RecipientCity, d.RecipientCountryName,
+                           d.RecipientPersonClubMemberNumber,
+                           d.DeliveryInformation, d.AdditionalInformation,
+                           d.DeliveryNumber, d.DeliveredOn,
+                           COALESCE(d.BatchId, 0) AS BatchId,
+                           d.CreatedOn, d.CreatedByUserId, d.ModifiedOn, d.ModifiedByUserId,
+                           d.DeletedOn, d.DeletedByUserId
+                    FROM Deliveries d
+                    LEFT JOIN Flights f ON f.FlightId = d.FlightId
+                    """,
+                    "t_delivery",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 25 params match
+                    // DeliveryMapper.columns() order.
+                    """
+                    INSERT INTO t_delivery (
+                      id, operating_club_id, process_state_id,
+                      flight_id, recipient_person_id,
+                      recipient_name, recipient_firstname, recipient_lastname,
+                      recipient_address_line1, recipient_address_line2,
+                      recipient_zip_code, recipient_city, recipient_country_name,
+                      recipient_person_club_member_number,
+                      delivery_information, additional_information,
+                      delivery_number, delivered_on, batch_id,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.DELIVERY_ITEM, new Binding(
+                    // Tenant-scoped delivery line item (DeliveryItemMapper): legacy
+                    // DeliveryItems.DeliveryItemId → t_delivery_item.id. NOT fan-out —
+                    // legacy_guid → id.
+                    //
+                    // operating_club_id is denormalised producer-side: DeliveryItems
+                    // has no own ClubId — JOIN the parent Deliveries and project its
+                    // ClubId AS OperatingClubId (the name the mapper reads). The item
+                    // inherits the parent Delivery's tenant.
+                    //
+                    // ARTICLE-NUMBER → article_id RESOLUTION + ORPHAN-KEEP: legacy
+                    // ArticleNumber is free text with no FK. LEFT JOIN the live Article
+                    // master keyed by (ClubId, ArticleNumber) → a.ArticleId AS
+                    // ResolvedArticleId. The JOIN pins a.IsDeleted = 0 because the legacy
+                    // Articles UNIQUE is (ArticleNumber, ClubId, DeletedOn) — without it
+                    // a re-created (soft-deleted + live) article of the same number fans
+                    // the item row out. An ArticleNumber matching no live article →
+                    // NULL ResolvedArticleId → the line is kept with a null article_id
+                    // (the article_number snapshot is preserved), never a 23503.
+                    //
+                    // unit_price has no legacy source (neither DeliveryItems nor Articles
+                    // carries a price) — emit a literal 0 aliased ResolvedUnitPrice.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT di.DeliveryItemId, d.ClubId AS OperatingClubId,
+                           di.DeliveryId, di.Position,
+                           a.ArticleId AS ResolvedArticleId, di.ArticleNumber,
+                           di.ItemText, di.AdditionalInformation, di.Quantity,
+                           CAST(0 AS DECIMAL(12, 4)) AS ResolvedUnitPrice,
+                           di.DiscountInPercent, di.UnitType,
+                           di.CreatedOn, di.CreatedByUserId,
+                           di.ModifiedOn, di.ModifiedByUserId,
+                           di.DeletedOn, di.DeletedByUserId
+                    FROM DeliveryItems di
+                    JOIN Deliveries d ON d.DeliveryId = di.DeliveryId
+                    LEFT JOIN Articles a
+                        ON a.ClubId = d.ClubId
+                       AND a.ArticleNumber = di.ArticleNumber
+                       AND a.IsDeleted = 0
+                    """,
+                    "t_delivery_item",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 18 params match
+                    // DeliveryItemMapper.columns() order.
+                    """
+                    INSERT INTO t_delivery_item (
+                      id, operating_club_id, delivery_id, position,
+                      article_id, article_number, item_text, additional_information,
+                      quantity, unit_price, discount_in_percent, unit_type_code,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
             entry(EntityType.PERSON_FLIGHT_TIME_CREDIT, new Binding(
                     // Cross-tenant pre-paid credit aggregate root
                     // (PersonFlightTimeCreditMapper): legacy
@@ -1275,15 +1405,16 @@ public final class MapperLegacyBindings {
                     // and the Postgres test container agree). Locked by
                     // PersonFlightTimeCreditProducerDedupeIT.
                     //
-                    // ORPHAN-NULL BalancedDeliveryId: the nullable FK → Delivery is
-                    // nulled when its target is not migrated (Delivery migration
-                    // deferred to J-10b — no Delivery is in the migrated set today). A
-                    // LEFT JOIN Deliveries projects ResolvedBalancedDeliveryId only when
-                    // the linked Delivery row exists; absent → NULL, so the row carries
-                    // no orphan FK that fk_pftc_transaction_balanced_delivery_id would
-                    // reject. (When J-10b migrates Deliveries the JOIN resolves them for
-                    // free.) The engine needs only the current balance, not the
-                    // historical delivery link.
+                    // BalancedDeliveryId REMAP + orphan-null: the nullable FK → Delivery
+                    // resolves to the NEW migrated delivery id for free — DELIVERY is
+                    // non-fan-out FULL_PORT (legacy_guid → id, ADR 0019), so the legacy
+                    // DeliveryId this LEFT JOIN projects (ResolvedBalancedDeliveryId) IS
+                    // the migrated t_delivery.id, no rewrite. A LEFT JOIN Deliveries
+                    // projects it only when the linked Delivery row exists; absent (the
+                    // delivery was hard-deleted in legacy) → NULL, so the row carries no
+                    // orphan FK that fk_pftc_transaction_balanced_delivery_id would
+                    // reject. The engine needs only the current balance, but the link is
+                    // preserved when present.
                     PortPolicy.FULL_PORT,
                     """
                     SELECT tx.PersonFlightTimeCreditTransactionId,

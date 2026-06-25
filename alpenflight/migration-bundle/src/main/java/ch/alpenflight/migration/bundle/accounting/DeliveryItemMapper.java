@@ -20,12 +20,18 @@ import java.util.UUID;
  * Invoice-retention semantics inherited from the parent Delivery
  * aggregate (Swiss OR Art. 957a 10-year retention; tombstones ported).
  *
- * <p>{@code unit_price NUMERIC(12,4) NOT NULL} — legacy
- * {@code DeliveryItems} has no {@code UnitPrice} column. Resolved
- * producer-side by JOIN to the Article master keyed by
- * {@code (ClubId, ArticleNumber)} per the V4 schema header cutover
- * note. The mapper reads the producer-aliased
- * {@code ResolvedUnitPrice} column.
+ * <p>{@code article_id} resolves the free-text legacy {@code ArticleNumber}
+ * (no FK in legacy) to the migrated per-club {@code t_article.id} producer-side,
+ * keyed by {@code (ClubId, ArticleNumber)} against the live (non-deleted)
+ * Article. An ArticleNumber matching no live article (free-typed or deleted)
+ * yields a NULL {@code ResolvedArticleId} — the line is kept with a null
+ * {@code article_id} (the {@code article_number} snapshot is preserved), never
+ * a 23503 bundle failure.
+ *
+ * <p>{@code unit_price NUMERIC(12,4) NOT NULL} — neither legacy
+ * {@code DeliveryItems} nor the Article master carries any price column
+ * (FLS never priced lines; Proffix did). The producer emits a literal 0
+ * aliased {@code ResolvedUnitPrice}; the mapper reads it verbatim.
  *
  * <p>{@code quantity decimal(18,3) → NUMERIC(12,4)} — precision
  * narrowing (15 integer digits → 8). Real-world line-item quantities
@@ -108,7 +114,7 @@ public final class DeliveryItemMapper implements Mapper {
         target.writeStringField(OPERATING_CLUB_ID, source.getString("OperatingClubId"));
         target.writeStringField(DELIVERY_ID, source.getString("DeliveryId"));
         target.writeNumberField(POSITION, source.getInt("Position"));
-        target.writeStringField(ARTICLE_ID, source.getString("ResolvedArticleId"));
+        Coercions.writeOptionalString(target, ARTICLE_ID, source.getString("ResolvedArticleId"));
         target.writeStringField(ARTICLE_NUMBER, source.getString("ArticleNumber"));
         Coercions.writeOptionalString(target, ITEM_TEXT, source.getString("ItemText"));
         Coercions.writeOptionalString(target, ADDITIONAL_INFORMATION,
@@ -138,7 +144,7 @@ public final class DeliveryItemMapper implements Mapper {
         target.setObject(position++, UUID.fromString(source.get(OPERATING_CLUB_ID).asText()));
         target.setObject(position++, UUID.fromString(source.get(DELIVERY_ID).asText()));
         target.setInt(position++, source.get(POSITION).intValue());
-        target.setObject(position++, UUID.fromString(source.get(ARTICLE_ID).asText()));
+        target.setObject(position++, Coercions.readUuidOrNull(source, ARTICLE_ID));
         target.setString(position++, source.get(ARTICLE_NUMBER).asText());
         target.setString(position++, Coercions.readStringOrNull(source, ITEM_TEXT));
         target.setString(position++, Coercions.readStringOrNull(source, ADDITIONAL_INFORMATION));

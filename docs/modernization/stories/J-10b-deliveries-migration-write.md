@@ -162,7 +162,7 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   change the booking DTO/aggregate (T-04) from `Integer` to `String`; do NOT add a separate
   `legacy_delivery_number_text` column — unify so both the native booking write and the T-05 mapper use one
   text `delivery_number`. (worker-revealed fidelity gap, T-04.)
-- [ ] **T-05** — Delivery/DeliveryItem migration mapper (`MapperLegacyBindings`): `ArticleNumber→article_id`
+- [x] **T-05** — Delivery/DeliveryItem migration mapper (`MapperLegacyBindings`): `ArticleNumber→article_id`
   per-club resolution + orphan-keep (unresolvable → null/skip, NOT 23503); parent-scoped DeliveryItem
   tenancy; free-text `delivery_number` verbatim; `BatchId`/bigint-seconds preserved; `BalancedDeliveryId`
   remap on migrated J-9b credit rows → new delivery ids; **no new UNIQUE/CASCADE** (schema guard).
