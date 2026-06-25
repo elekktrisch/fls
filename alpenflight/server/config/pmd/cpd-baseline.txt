@@ -161,18 +161,16 @@
 # the identity fields a KC full-representation PUT would otherwise null —
 # collapsed that clone and landed below the prior baseline. Lock the gain.
 #
-# Re-measured 2026-06-25 (J-10b T-03/T-04, delivery delete + book write side):
-# 5441 (+79 vs the prior 5362). The single new clone window is the
-# `currentUserId()` + `currentJwt()` JWT-to-audit-user resolver block in
-# DeliveryDeletionService cloning PlanningDaysService (the
-# SecurityContextHolder → JwtAuthenticationToken → resolveUserIdFor idiom every
-# tenant-scoped write service that audits a delete carries). It is the same
-# per-service JWT/audit-wiring boilerplate the J-9 T-14 note above already
-# baselines as irreducible: lifting it to a shared kernel would couple every
-# module's write service to a cross-module audit-principal base (ADR 0023
-# boundary). The T-04 booking service (DeliveryBookingService) and the booked-
-# terminal guard added NO new clone — book() audits via the same AuditTrail.record
-# the create/delete paths use without re-cloning the resolver. Lock the measurement.
+# Re-measured 2026-06-25 (delivery delete + book write side): 5362 (-79 vs the
+# transient 5441). The new clone window was the `currentUserId()` + `currentJwt()`
+# JWT-to-audit-user resolver block DeliveryDeletionService shared with
+# PlanningDaysService. Contrary to the prior "irreducible per-service boilerplate"
+# read, this is exactly the shared security plumbing ADR 0023 routes through
+# platform/ (the one package every module may depend on, where UserPrincipalLookup
+# already lives) — NOT a per-module base class. Extracting the new
+# platform.security.CurrentPrincipal (jwt() + userId() over SecurityContextHolder)
+# collapsed the clone in both services and landed back at the pre-batch baseline.
+# Lock the gain.
 #
 # Single non-comment, non-blank line = the token baseline.
-5441
+5362

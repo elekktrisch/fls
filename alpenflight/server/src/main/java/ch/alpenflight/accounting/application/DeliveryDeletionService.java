@@ -11,16 +11,11 @@ import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.platform.id.FlightId;
-import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
+import ch.alpenflight.platform.security.CurrentPrincipal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,20 +45,20 @@ public class DeliveryDeletionService {
     private final FlightRepository flights;
     private final PersonFlightTimeCreditRepository credits;
     private final AuditTrail auditTrail;
-    private final UserPrincipalLookup principals;
+    private final CurrentPrincipal currentPrincipal;
     private final Clock clock;
 
     public DeliveryDeletionService(DeliveryRepository deliveries,
                                    FlightRepository flights,
                                    PersonFlightTimeCreditRepository credits,
                                    AuditTrail auditTrail,
-                                   UserPrincipalLookup principals,
+                                   CurrentPrincipal currentPrincipal,
                                    Clock clock) {
         this.deliveries = deliveries;
         this.flights = flights;
         this.credits = credits;
         this.auditTrail = auditTrail;
-        this.principals = principals;
+        this.currentPrincipal = currentPrincipal;
         this.clock = clock;
     }
 
@@ -89,7 +84,7 @@ public class DeliveryDeletionService {
         Instant now = clock.instant();
         DeliveryDtos.DeliveryDetail before = DeliveryDetailMapper.toDetail(delivery);
 
-        delivery.delete(currentUserId(), clock);
+        delivery.delete(currentPrincipal.userId().orElse(null), clock);
         deliveries.save(delivery);
 
         if (flightId != null) {
@@ -133,18 +128,5 @@ public class DeliveryDeletionService {
             credits.save(credit);
             credits.flush();
         });
-    }
-
-    private @Nullable UUID currentUserId() {
-        Jwt jwt = currentJwt();
-        return jwt == null ? null : principals.resolveUserIdFor(jwt).orElse(null);
-    }
-
-    private static @Nullable Jwt currentJwt() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth instanceof JwtAuthenticationToken jwtAuth && auth.isAuthenticated()) {
-            return jwtAuth.getToken();
-        }
-        return null;
     }
 }

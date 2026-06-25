@@ -26,6 +26,7 @@ import {
 } from 'rxjs';
 
 import type {
+  DeliveryBookingRequest,
   DeliveryDetail,
   DeliveryPage
 } from '../model';
@@ -119,6 +120,78 @@ export class DeliveriesService {
     );
   }
 /**
+ * @summary Book a Prepared delivery as delivered (stamp number/date, flip flight+tow to Booked). Returns true on success, false for an unknown id; 409 if already booked.
+ */
+ bookDelivery<TData = boolean>(deliveryBookingRequest: DeliveryBookingRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ bookDelivery<TData = boolean>(deliveryBookingRequest: DeliveryBookingRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ bookDelivery<TData = boolean>(deliveryBookingRequest: DeliveryBookingRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  bookDelivery<TData = boolean>(
+    deliveryBookingRequest: DeliveryBookingRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/deliveries/delivered`,
+      deliveryBookingRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/deliveries/delivered`,
+      deliveryBookingRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/deliveries/delivered`,
+      deliveryBookingRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Create deliveries from all eligible Locked flights (engine -> persist). Returns the created deliveries; empty when none are eligible.
+ */
+ createDeliveries<TData = DeliveryDetail[]>( options?: HttpClientBodyOptions): Observable<TData>;
+ createDeliveries<TData = DeliveryDetail[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ createDeliveries<TData = DeliveryDetail[]>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  createDeliveries<TData = DeliveryDetail[]>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/deliveries/create`,
+      undefined,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/deliveries/create`,
+      undefined,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/deliveries/create`,
+      undefined,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
  * @summary View a single delivery by id (read-only line items, frozen recipient, flight link).
  */
  getDelivery<TData = DeliveryDetail>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
@@ -145,6 +218,39 @@ export class DeliveriesService {
     }
 
     return this.http.get<TData>(
+      `/api/v1/deliveries/${id}`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Delete a delivery — cascades items, resets the flight (+ tow) to Locked, reverses the consumed credit. 409 when >1 delivery shares the flight.
+ */
+ deleteDelivery<TData = void>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
+ deleteDelivery<TData = void>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ deleteDelivery<TData = void>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  deleteDelivery<TData = void>(
+    id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.delete<TData>(
+      `/api/v1/deliveries/${id}`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.delete<TData>(
+      `/api/v1/deliveries/${id}`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.delete<TData>(
       `/api/v1/deliveries/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',

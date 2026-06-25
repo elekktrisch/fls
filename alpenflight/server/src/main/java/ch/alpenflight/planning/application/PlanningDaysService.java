@@ -19,8 +19,8 @@ import ch.alpenflight.planning.domain.PlanningDayRepository;
 import ch.alpenflight.planning.domain.PlanningDayRepository.ListRow;
 import ch.alpenflight.planning.domain.PlanningRole;
 import ch.alpenflight.platform.id.PersonId;
+import ch.alpenflight.platform.security.CurrentPrincipal;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
-import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -35,10 +35,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,20 +85,20 @@ public class PlanningDaysService {
 
     private final PlanningDayRepository planningDays;
     private final PlanningDayAssignmentTypeRepository assignmentTypes;
-    private final UserPrincipalLookup principals;
+    private final CurrentPrincipal currentPrincipal;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final Clock clock;
     private final AuditTrail auditTrail;
 
     public PlanningDaysService(PlanningDayRepository planningDays,
                                PlanningDayAssignmentTypeRepository assignmentTypes,
-                               UserPrincipalLookup principals,
+                               CurrentPrincipal currentPrincipal,
                                ClubTenantIdentifierResolver tenantResolver,
                                Clock clock,
                                AuditTrail auditTrail) {
         this.planningDays = planningDays;
         this.assignmentTypes = assignmentTypes;
-        this.principals = principals;
+        this.currentPrincipal = currentPrincipal;
         this.tenantResolver = tenantResolver;
         this.clock = clock;
         this.auditTrail = auditTrail;
@@ -142,7 +139,7 @@ public class PlanningDaysService {
         // validatePlanningDate() runs at construction → InvalidPlanningDateException (422).
         PlanningDay day = PlanningDay.create(
                 operatingClubId, req.planningDate(), req.locationId().value(), req.info());
-        day.recordCreatedBy(currentUserId());
+        day.recordCreatedBy(currentPrincipal.userId().orElse(null));
         applyCrew(day, req.instructorPersonId(), req.towingPilotPersonId(),
                 req.flightOperatorPersonId());
         // Dedup-aware save → PlanningDayConflictException (409) on duplicate.
@@ -171,7 +168,7 @@ public class PlanningDaysService {
         if (dates.isEmpty()) {
             return List.of();
         }
-        UUID creator = currentUserId();
+        UUID creator = currentPrincipal.userId().orElse(null);
         List<PlanningDayDetail> created = new ArrayList<>();
         for (LocalDate date : dates) {
             // Skip-existing idempotent: a (club, date, location) already planned
@@ -212,7 +209,7 @@ public class PlanningDaysService {
         PlanningDay day = loadOrThrow(id);
         requireCanMutate(day);
         PlanningDayDetail before = toDetail(day);
-        day.softDelete(currentUserId(), clock);
+        day.softDelete(currentPrincipal.userId().orElse(null), clock);
         planningDays.save(day);
         auditTrail.record(AuditAction.DELETE,
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
@@ -363,7 +360,7 @@ public class PlanningDaysService {
      * unauthenticated / unresolvable caller cannot mutate.
      */
     boolean canMutate(PlanningDay day) {
-        Jwt jwt = currentJwt();
+        Jwt jwt = currentPrincipal.jwt().orElse(null);
         if (jwt == null) {
             return false;
         }
@@ -371,7 +368,7 @@ public class PlanningDaysService {
             return true;
         }
         UUID creator = day.getCreatedByUserId();
-        UUID caller = currentUserId();
+        UUID caller = currentPrincipal.userId().orElse(null);
         return creator != null && creator.equals(caller);
     }
 
@@ -381,20 +378,6 @@ public class PlanningDaysService {
             throw new AccessDeniedException(
                     "Only a club administrator or the record's creator may modify this planning day");
         }
-    }
-
-    /** The caller's internal {@code user.id} (JWT sub → {@code t_user.id}), or null. */
-    private @Nullable UUID currentUserId() {
-        Jwt jwt = currentJwt();
-        return jwt == null ? null : principals.resolveUserIdFor(jwt).orElse(null);
-    }
-
-    private static @Nullable Jwt currentJwt() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth instanceof JwtAuthenticationToken jwtAuth && auth.isAuthenticated()) {
-            return jwtAuth.getToken();
-        }
-        return null;
     }
 
     private static boolean hasAnyRole(Jwt jwt, String... roles) {

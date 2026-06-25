@@ -52,6 +52,7 @@ export * from './clubStateResponse';
 export * from './clubUpdateRequest';
 export * from './counterUnitTypeResponse';
 export * from './countryResponse';
+export * from './deliveryBookingRequest';
 export * from './deliveryCreationTestDetail';
 export * from './deliveryCreationTestListItem';
 export * from './deliveryCreationTestWriteRequest';
