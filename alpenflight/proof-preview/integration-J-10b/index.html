@@ -88,17 +88,61 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-10b — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-10b</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-10b</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 2 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>integration/J-10b</code> &middot; 2026-06-26T04:08:07.574Z
+      merged journeys' proof lives in their PRs. Generated on <code>integration/J-10b</code> &middot; 2026-06-26T04:44:21.137Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-cc4435a799d174109fe75db4eff4f5139e741f87.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · a club admin logs in via real Keycloak, ENTERS /deliveries via the masterdata nav, and triggers the engine &quot;create deliveries&quot; action — the J-9 rules engine produces one Delivery (+line items) for the eligible aged-Locked glider flight, which renders in the tenant-scoped list and flips the flight to DeliveryPrepared</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-aa191d835236028bab115512ae9ab618eeb55369.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · deleting a Prepared delivery (confirm modal) resets BOTH the glider flight and its tow back to Locked (re-GET) and REVERSES the flight-time credit it consumed — append-only: a new negated transaction restores the original balance, the consumption row kept un-current (the destructive money path, fixing the two reachable legacy reset bugs)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-dc76fc3cfb80a3a9cae68e81e093560a7346d5b9.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-10b · deliveries · deleting a delivery whose flight is shared by another delivery is rejected with 409 (the legacy shared-flight guard parity), surfaced as a non-blocking toast on the /deliveries screen — neither delivery is mutated</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-518eddae302e73cfe692bd7d17fb123e786b0fc2.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-10b · deliveries · a Booked delivery is terminal — its /deliveries row shows the Booked badge with a disabled delete affordance, and a forced delete is rejected with 409 leaving the closed billing record unmutated</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-23133e2ceba374fc2fd8600c51dce60765f32afd.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · when a glider flight and its tow both draw on ONE PersonFlightTimeCredit, create SUMS both passes onto the credit (asserting the actual balance == original − glider − tow) rather than the legacy last-write-wins under-consumption — the proof for the 3rd reachable legacy money bug</span></figcaption>
+        </figure>
+        </div>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">list</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-deliveries-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-deliveries-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /deliveries list after the engine 'create deliveries' action — the new Prepared delivery row (recipient · batch · Prepared badge · delete affordance), entered via the masterdata nav</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">form</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-deliveries-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-deliveries-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: an engine-created delivery's detail — the inline FlightTime line item, the resolved recipient (PILOT_PAYS_ALL fallback), the Prepared badge, and the linked flight</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
