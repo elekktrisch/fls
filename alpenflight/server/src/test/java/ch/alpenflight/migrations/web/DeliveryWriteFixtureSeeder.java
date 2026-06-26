@@ -72,6 +72,10 @@ public final class DeliveryWriteFixtureSeeder {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final UUID LOCKED_PROCESS_STATE =
             UUID.fromString("019e2e15-2c00-7a9b-8000-000000003a9b");
+    private static final UUID DELIVERY_PREPARED_PROCESS_STATE =
+            UUID.fromString("019e2e15-2c00-7a9d-8000-000000003a9d");
+    private static final UUID VALID_PROCESS_STATE =
+            UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
             UUID.fromString("019e2e15-2c00-7652-8000-000000004652");
     private static final UUID UNIT_MINUTES =
@@ -91,6 +95,8 @@ public final class DeliveryWriteFixtureSeeder {
             case "lock-and-age" -> lockAndAge(
                     UUID.fromString(args[1]),
                     args.length > 2 ? Integer.parseInt(args[2]) : 4);
+            case "prepare-flight" -> prepareFlight(UUID.fromString(args[1]));
+            case "reset-flight" -> resetFlight(UUID.fromString(args[1]));
             case "link-tow" -> linkTow(UUID.fromString(args[1]), UUID.fromString(args[2]));
             case "rule-filter" -> ruleFilter(UUID.fromString(args[1]), args[2]);
             case "delivery" -> delivery(
@@ -105,8 +111,8 @@ public final class DeliveryWriteFixtureSeeder {
     }
 
     private static void usage() {
-        System.err.println("usage: DeliveryWriteFixtureSeeder <lock-and-age|link-tow|rule-filter|"
-                + "delivery|delete-delivery|delete-filter> <args...>");
+        System.err.println("usage: DeliveryWriteFixtureSeeder <lock-and-age|prepare-flight|"
+                + "reset-flight|link-tow|rule-filter|delivery|delete-delivery|delete-filter> <args...>");
         System.exit(2);
     }
 
@@ -127,6 +133,52 @@ public final class DeliveryWriteFixtureSeeder {
         ObjectNode result = JSON.createObjectNode();
         result.put("flightId", flightId.toString());
         result.put("processState", "LOCKED");
+        System.out.println(JSON.writeValueAsString(result));
+    }
+
+    /**
+     * Set the flight to {@code DeliveryPrepared} — the fixture state a pre-seeded
+     * Prepared delivery's flight must carry so the booking write (Prepared→Booked)
+     * is a legal transition (the booking + booked-terminal cases that seed the
+     * delivery directly rather than via the engine create).
+     */
+    private static void prepareFlight(UUID flightId) throws Exception {
+        try (Connection conn = connect()) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE t_flight SET process_state_id = ?::uuid, modified_on = ? "
+                            + "WHERE id = ?::uuid")) {
+                ps.setString(1, DELIVERY_PREPARED_PROCESS_STATE.toString());
+                ps.setObject(2, OffsetDateTime.now(ZoneOffset.UTC));
+                ps.setString(3, flightId.toString());
+                ps.executeUpdate();
+            }
+        }
+        ObjectNode result = JSON.createObjectNode();
+        result.put("flightId", flightId.toString());
+        result.put("processState", "DELIVERY_PREPARED");
+        System.out.println(JSON.writeValueAsString(result));
+    }
+
+    /**
+     * Reset a spec-created flight back to {@code VALID} + clear its tow link — the
+     * afterAll cleanup, so a spec-created flight never lingers in a Locked/Prepared
+     * state where the next tenant-wide create batch would re-process it (a linked
+     * Locked pair would double-prep → illegal transition).
+     */
+    private static void resetFlight(UUID flightId) throws Exception {
+        try (Connection conn = connect()) {
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE t_flight SET process_state_id = ?::uuid, tow_flight_id = NULL, "
+                            + "modified_on = ? WHERE id = ?::uuid")) {
+                ps.setString(1, VALID_PROCESS_STATE.toString());
+                ps.setObject(2, OffsetDateTime.now(ZoneOffset.UTC));
+                ps.setString(3, flightId.toString());
+                ps.executeUpdate();
+            }
+        }
+        ObjectNode result = JSON.createObjectNode();
+        result.put("flightId", flightId.toString());
+        result.put("processState", "VALID");
         System.out.println(JSON.writeValueAsString(result));
     }
 
@@ -158,29 +210,37 @@ public final class DeliveryWriteFixtureSeeder {
         String filterName = "Delivery write fixture FlightTime " + articleNumber;
         UUID filterId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        // isRuleForGliderFlights + an empty FlightTime threshold (min absent ⇒ 0):
-        // the engine bills the whole active duration as one line on articleNumber.
-        String filterConfig = "{\"isRuleForGliderFlights\":true,\"articleNumber\":\""
-                + articleNumber + "\",\"deliveryLineText\":\"Flight time\"}";
+        // The article number is the rule's article_target column (a bare string, no
+        // FK); deliveryLineText is the only target-text that travels in filter_config.
+        // filter_config carries ONLY FilterConfig component names — an unknown key
+        // (e.g. articleNumber) fails the engine's FAIL_ON_UNKNOWN_PROPERTIES read.
+        // isRuleForGliderFlights + an empty FlightTime threshold (min absent ⇒ 0)
+        // bills the whole active duration as one line on the article target.
+        String filterConfig = "{\"isRuleForGliderFlights\":true,\"deliveryLineText\":\"Flight time\"}";
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
+            // The engine resolves the rule's article_target to a live Article; an
+            // unresolvable number is a DeliveryPreparationError on the create path,
+            // so the fixture article must exist alongside the filter.
+            upsertArticle(conn, clubId, articleNumber, now);
             UUID resolved = resolveFilterId(conn, clubId, filterName);
             if (resolved == null) {
                 int sort = nextSortIndicator(conn, clubId);
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO t_accounting_rule_filter (id, operating_club_id, filter_type_id, "
                                 + "accounting_unit_type_id, rule_filter_name, is_active, sort_indicator, "
-                                + "filter_config, created_on, modified_on) "
-                                + "VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, true, ?, ?::jsonb, ?, ?)")) {
+                                + "article_target, filter_config, created_on, modified_on) "
+                                + "VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, true, ?, ?, ?::jsonb, ?, ?)")) {
                     ps.setString(1, filterId.toString());
                     ps.setString(2, clubId.toString());
                     ps.setString(3, FILTER_TYPE_FLIGHT_TIME.toString());
                     ps.setString(4, UNIT_MINUTES.toString());
                     ps.setString(5, filterName);
                     ps.setInt(6, sort);
-                    ps.setString(7, filterConfig);
-                    ps.setObject(8, now);
+                    ps.setString(7, articleNumber);
+                    ps.setString(8, filterConfig);
                     ps.setObject(9, now);
+                    ps.setObject(10, now);
                     ps.executeUpdate();
                 }
                 resolved = filterId;
