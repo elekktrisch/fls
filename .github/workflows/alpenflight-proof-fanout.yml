@@ -777,7 +777,7 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine + J-10b deliveries write)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 25
@@ -814,6 +814,7 @@ jobs:
             e2e/tests/real-idp/reservations-migration-parity.spec.ts \
             e2e/tests/real-idp/planning-migration-parity.spec.ts \
             e2e/tests/real-idp/accounting-rules-parity.spec.ts \
+            e2e/tests/real-idp/deliveries-write-parity.spec.ts \
             e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
             e2e/tests/real-idp/email-templates.spec.ts
 
