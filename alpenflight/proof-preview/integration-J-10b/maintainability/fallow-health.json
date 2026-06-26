@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.102.0",
-  "elapsed_ms": 393,
+  "elapsed_ms": 416,
   "findings": [
     {
       "path": "src/app/features/accounting/edit/accounting-edit.page.ts",
@@ -2075,6 +2075,36 @@
       ]
     },
     {
+      "path": "src/app/features/accounting/deliveries/list/deliveries-list.page.ts",
+      "name": "<template>",
+      "line": 25,
+      "col": 0,
+      "cyclomatic": 7,
+      "cognitive": 6,
+      "line_count": 137,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/start/start-clubadmin.page.ts",
       "name": "<template>",
       "line": 23,
@@ -2677,7 +2707,7 @@
     {
       "path": "src/app/features/flights/edit/flight-conflict-prompt.component.ts",
       "name": "resolution",
-      "line": 131,
+      "line": 130,
       "col": 61,
       "cyclomatic": 5,
       "cognitive": 3,
@@ -2707,7 +2737,7 @@
     {
       "path": "src/app/features/flights/edit/flight-conflict-prompt.component.ts",
       "name": "<template>",
-      "line": 37,
+      "line": 36,
       "col": 0,
       "cyclomatic": 5,
       "cognitive": 5,
@@ -3127,7 +3157,7 @@
     {
       "path": "src/app/features/accounting/deliveries/process-state.ts",
       "name": "processStateKey",
-      "line": 8,
+      "line": 13,
       "col": 7,
       "cyclomatic": 5,
       "cognitive": 1,
@@ -3157,7 +3187,7 @@
     {
       "path": "src/app/features/accounting/deliveries/process-state.ts",
       "name": "processStateClass",
-      "line": 23,
+      "line": 28,
       "col": 7,
       "cyclomatic": 5,
       "cognitive": 1,
@@ -3457,8 +3487,8 @@
   ],
   "summary": {
     "files_analyzed": 242,
-    "functions_analyzed": 2036,
-    "functions_above_threshold": 108,
+    "functions_analyzed": 2054,
+    "functions_above_threshold": 109,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
@@ -3467,7 +3497,7 @@
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 24,
-    "severity_high_count": 32,
+    "severity_high_count": 33,
     "severity_moderate_count": 52
   },
   "vital_signs": {
@@ -3487,30 +3517,30 @@
     "circular_deps_per_k_files": 0.0,
     "counts": {
       "total_files": 242,
-      "total_exports": 539,
+      "total_exports": 540,
       "dead_files": 0,
       "dead_exports": 0,
       "duplicated_lines": 1133,
-      "total_lines": 34745,
+      "total_lines": 34979,
       "files_scored": 193,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 87.5,
+      "low_risk": 87.6,
       "medium_risk": 6.3,
-      "high_risk": 2.6,
-      "very_high_risk": 3.6
+      "high_risk": 2.4,
+      "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 35.9,
+    "functions_over_60_loc_per_k": 36.5,
     "unit_interfacing_profile": {
-      "low_risk": 97.5,
-      "medium_risk": 2.2,
+      "low_risk": 97.6,
+      "medium_risk": 2.1,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 5,
     "coupling_high_pct": 1.6,
-    "total_loc": 34745
+    "total_loc": 34979
   },
   "health_score": {
     "formula_version": 2,
@@ -4022,6 +4052,20 @@
       "crap_above_threshold": 3
     },
     {
+      "path": "src/app/features/accounting/deliveries/list/deliveries-list.page.ts",
+      "fan_in": 1,
+      "fan_out": 9,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.09,
+      "maintainability_index": 88.1,
+      "total_cyclomatic": 21,
+      "total_cognitive": 9,
+      "function_count": 12,
+      "lines": 234,
+      "crap_max": 56.0,
+      "crap_above_threshold": 1
+    },
+    {
       "path": "src/app/features/join-requests/approve-modal.component.ts",
       "fan_in": 1,
       "fan_out": 5,
@@ -4079,7 +4123,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 47,
+      "fan_in": 48,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -4220,14 +4264,14 @@
     {
       "path": "src/app/features/flights/edit/flight-conflict-prompt.component.ts",
       "fan_in": 1,
-      "fan_out": 3,
+      "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.13,
-      "maintainability_index": 90.6,
+      "maintainability_index": 91.7,
       "total_cyclomatic": 21,
       "total_cognitive": 11,
       "function_count": 9,
-      "lines": 162,
+      "lines": 161,
       "crap_max": 30.0,
       "crap_above_threshold": 2
     },
@@ -4236,12 +4280,12 @@
       "fan_in": 2,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.28,
-      "maintainability_index": 94.0,
-      "total_cyclomatic": 10,
+      "complexity_density": 0.27,
+      "maintainability_index": 93.4,
+      "total_cyclomatic": 11,
       "total_cognitive": 2,
-      "function_count": 2,
-      "lines": 36,
+      "function_count": 3,
+      "lines": 41,
       "crap_max": 30.0,
       "crap_above_threshold": 2
     },
@@ -4680,20 +4724,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/accounting/deliveries/deliveries.store.ts",
-      "fan_in": 2,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.16,
-      "maintainability_index": 92.4,
-      "total_cyclomatic": 18,
-      "total_cognitive": 2,
-      "function_count": 16,
-      "lines": 112,
-      "crap_max": 12.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/persons/member-states.store.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -5058,20 +5088,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/accounting/deliveries/list/deliveries-list.page.ts",
-      "fan_in": 1,
-      "fan_out": 6,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.06,
-      "maintainability_index": 90.4,
-      "total_cyclomatic": 6,
-      "total_cognitive": 1,
-      "function_count": 5,
-      "lines": 98,
-      "crap_max": 6.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/migrate-handshake/migrate-handshake.store.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -5194,6 +5210,20 @@
       "total_cognitive": 4,
       "function_count": 23,
       "lines": 161,
+      "crap_max": 4.9,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/deliveries.store.ts",
+      "fan_in": 3,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 90.8,
+      "total_cyclomatic": 28,
+      "total_cognitive": 2,
+      "function_count": 26,
+      "lines": 174,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -6207,7 +6237,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 68,
+      "fan_in": 69,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -6387,6 +6417,12 @@
       "line_count": 153
     },
     {
+      "path": "src/app/features/accounting/deliveries/list/deliveries-list.page.ts",
+      "name": "<template>",
+      "line": 25,
+      "line_count": 137
+    },
+    {
       "path": "src/app/features/planning/setup/planning-setup.page.ts",
       "name": "<template>",
       "line": 84,
@@ -6499,6 +6535,12 @@
       "name": "<template>",
       "line": 64,
       "line_count": 94
+    },
+    {
+      "path": "src/app/features/accounting/deliveries/deliveries.store.ts",
+      "name": "<arrow>",
+      "line": 70,
+      "line_count": 92
     },
     {
       "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
@@ -7019,7 +7061,7 @@
   ],
   "_meta": {
     "telemetry": {
-      "analysis_run_id": "run_452feedfca4583ea"
+      "analysis_run_id": "run_30b9a2e7664e72f4"
     }
   }
 }
