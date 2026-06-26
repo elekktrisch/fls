@@ -18,7 +18,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| 🔨 **J-10b** | Deliveries — migration + write side (carved 2026-06-25) | E-09 | J-10, J-11, J-2, J-9b | S-078 (Delivery/DeliveryItem migration — `ArticleNumber`→J-11 `article_id` per-club + orphan-keep, parent-scoped item tenancy; + write half — engine create / delete-resets-flights+reverses-credit / Prepared→Booked 409-terminal. `delivery_number` is free-text booking-time, NOT a counter — carve-corrected by oracle. 2 reachable legacy bugs to fix-not-reproduce) | `Delivery`+`DeliveryItem` migration, `Delivery` (write behavior) | `/deliveries` create + delete actions |
 | J-13 | System data + logs (admin) | E-06 | J-0 | S-056, S-160 | `SystemData` | `system/logs/` → `/system/logs` |
 | J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
 | J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |
