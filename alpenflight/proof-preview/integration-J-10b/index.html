@@ -88,17 +88,39 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-10b — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-10b</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-10b</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>integration/J-10b</code> &middot; 2026-06-26T03:37:06.614Z
+      merged journeys' proof lives in their PRs. Generated on <code>240/merge</code> &middot; 2026-06-26T03:47:05.243Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-2e8e981bd86df24bb13dfc65cb8e889627a2ae13.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · a club admin logs in via real Keycloak, ENTERS /deliveries via the masterdata nav, and triggers the engine &quot;create deliveries&quot; action — the J-9 rules engine produces one Delivery (+line items) for the eligible aged-Locked glider flight, which renders in the tenant-scoped list and flips the flight to DeliveryPrepared</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-0eca7e045030657e5775394b408d78c4b154cdbf.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · deleting a Prepared delivery (confirm modal) resets BOTH the glider flight and its tow back to Locked (re-GET) and REVERSES the flight-time credit it consumed — append-only: a new negated transaction restores the original balance, the consumption row kept un-current (the destructive money path, fixing the two reachable legacy reset bugs)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-308cecc644b963fc56526a081fe6af3fb1969c2e.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-10b · deliveries · deleting a delivery whose flight is shared by another delivery is rejected with 409 (the legacy shared-flight guard parity), surfaced as a non-blocking toast on the /deliveries screen — neither delivery is mutated</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-3bb2815f847b464b5b275fb30f1e16c18f9f4855.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-10b · deliveries · a Booked delivery is terminal — its /deliveries row shows the Booked badge with a disabled delete affordance, and a forced delete is rejected with 409 leaving the closed billing record unmutated</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-03f5cdfe5eaf8f3db639d2075a8087d660ce50e3.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-10b · deliveries · when a glider flight and its tow both draw on ONE PersonFlightTimeCredit, create SUMS both passes onto the credit (asserting the actual balance == original − glider − tow) rather than the legacy last-write-wins under-consumption — the proof for the 3rd reachable legacy money bug</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
