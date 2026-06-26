@@ -129,6 +129,29 @@ class DeliveryBookControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void reBookOfBookedDelivery_is409_andNoMutation() {
+        Scenario s = seedPreparedDeliveryWithTow();
+        assertThat(book(s.deliveryId(), DELIVERED_AT, DELIVERY_NUMBER, adminA).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        Instant secondDeliveredAt = DELIVERED_AT.plusSeconds(3600);
+        ResponseEntity<String> res = book(s.deliveryId(), secondDeliveredAt, "INV-2026-RB", adminA);
+
+        assertThat(res.getStatusCode())
+                .as("booked is terminal — re-booking is rejected with 409")
+                .isEqualTo(HttpStatus.CONFLICT);
+        assertThat(deliveryNumber(s.deliveryId()))
+                .as("no mutation — the original number survives the rejected re-book")
+                .isEqualTo(DELIVERY_NUMBER);
+        assertThat(deliveredOn(s.deliveryId()))
+                .as("no mutation — the original delivered timestamp is untouched")
+                .isEqualTo(DELIVERED_AT);
+        assertThat(deliveryProcessState(s.deliveryId()))
+                .as("no mutation — the delivery stays Booked")
+                .isEqualTo((short) 20);
+    }
+
+    @Test
     void deleteOfBookedDelivery_is409_andNoMutation() {
         Scenario s = seedPreparedDeliveryWithTow();
         assertThat(book(s.deliveryId(), DELIVERED_AT, DELIVERY_NUMBER, adminA).getStatusCode())
