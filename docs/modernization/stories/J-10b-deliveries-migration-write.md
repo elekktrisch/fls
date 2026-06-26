@@ -178,9 +178,9 @@ error/verb divergences** (the reject/persist BEHAVIOR is exact parity), legit pe
   create, refresh list), delete-confirm modal (booked rows disabled), booked badge; orval regen for the new
   endpoints + store write methods. **Fold [NG8113-DEADIMPORT]** (drop unused `AfButtonComponent` from
   `flight-conflict-prompt.component.ts:41` imports).
-- [ ] **T-09** — Thicken `deliveries-write-parity.spec.ts` to full real assertions (oracle-pinned, all 6
+- [x] **T-09** — Thicken `deliveries-write-parity.spec.ts` to full real assertions (oracle-pinned, all 6
   cases) + wire gallery captures (paired legacy↔AlpenFlight shots + pass video + migration round-trip).
-- [ ] **T-10** — **[REALIDP-FLAKE-QUARANTINE]** rider: stabilize/quarantine the 4 chronic real-idp flakes
+- [x] **T-10** — **[REALIDP-FLAKE-QUARANTINE]** rider: stabilize/quarantine the 4 chronic real-idp flakes
   (`token-lifecycle:87/:190`, `hardening-J26:226`, `fan-out-migration-parity:143`) so the §4 gate's
   merge-shards stop redding (console-guard allow-list for the deliberate errors; warm-nav/longer budget for
   the timeouts).
