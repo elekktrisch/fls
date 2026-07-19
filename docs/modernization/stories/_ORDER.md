@@ -29,18 +29,9 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | J-28 | Documentation site — user manual + architecture (infra) | E-13 | J-24 | — | N/A (docs tooling) | gh-pages docs site (manual from proof captures + C4 architecture) |
-| J-29 | Scheduled-proof stabilization — flights date-range widen refetch (fidelity fix) | E-02 | — | — | N/A (test-helper fix) | none — repairs the real-idp `flight-migration-parity` helper |
 
 **🔨 = in flight.** All other unmarked rows are `todo`. Shipped-journey PR numbers and
 done-dates live in `_SHIPPED.md`; their full carve prose lives in `implemented/`.
-
-**J-29 — Scheduled-proof stabilization (fidelity fix)** (filed 2026-07-19 on operator ask). Main's two
-**scheduled** proof workflows (`alpenflight proof fan-out` + `alpenflight e2e real-idp`) have been red 6+
-days on ONE untracked, deterministic failure: `flight-migration-parity.spec.ts`'s `widenFlightListRange­ToRecent`
-times out after 20s waiting for the `/flights` date-range refetch. Required `ci` is green throughout — this is
-scheduled-only + non-gating. A **pure test-fix** (0% new feature) → deviates from the 60/40 rule at operator's
-explicit request because the daily proofs read as perpetually broken; precedent J-27 (fidelity sprint,
-migration:N/A, screen:none). Immediately shippable (no `depends_on`).
 
 **J-28 — Documentation site (infra)** (filed by `/do-retro` 2026-06-24 on operator ask: architecture
 diagrams + a user manual with screenshots). Shaped to honor directive 1 (working software over
@@ -75,7 +66,6 @@ and the proven mapper pattern.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
-- **J-29:** The proof-fanout + real-idp `flight-migration-parity` spec runs GREEN — the migrated glider flight (today-5) renders in the owning club `/flights` list after the date-range widen fires exactly one `GET /api/v1/flights?from≠to` (200); fix is test-side (app refetch proven by the mock `flights-list` round-trip + `flight.store` unit).
 
 ## Headless homing decisions
 
