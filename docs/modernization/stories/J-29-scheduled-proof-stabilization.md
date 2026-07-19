@@ -2,7 +2,8 @@
 id: J-29
 title: Scheduled-proof stabilization — flights date-range widen refetch (fidelity fix)
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-07-19
 journey0: false
 carved: true
 depends_on: []
@@ -29,6 +30,19 @@ proofs read as perpetually broken. Operator chose a **fix-only branch** (this de
 rule — it delivers 0% new feature — done at explicit operator request because the reds are untracked and
 misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint with `migration: N/A` and
 `screen: none`).
+
+## Tasks
+
+- [ ] T-01 — Fix `widenFlightListRangeToRecent` (`flight-migration-parity.spec.ts:506-536`): replace the
+  `.ant-picker-header-super-prev-btn` year jump (`:527`, + now-unused `leftPanel`) with a single
+  `.ant-picker-header-prev-btn` month page-back, then pick first + last in-view non-disabled cell so the
+  committed `from≠to` window spans last-month→this-month (covers today-5 **and** today-10 across month
+  boundaries). Keep the existing cell locator + `from≠to` `waitForResponse` predicate. Assert the committed
+  range spans the seeded flight's date before awaiting the refetch. Test-side only (`flights-row-<id>` exists).
+
+§4 gate (post-T-01, driven by `e2e-driver`): `flight-migration-parity.spec.ts` green locally on the real-idp
+stack, then the scheduled `alpenflight proof fan-out` (`Run AlpenFlight parity specs`) + `alpenflight e2e
+real-idp` shard confirmed green on-branch.
 
 ## Spec must assert
 
