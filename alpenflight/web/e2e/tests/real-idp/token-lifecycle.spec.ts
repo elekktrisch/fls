@@ -5,6 +5,7 @@ import {
   SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS,
   createUser,
   deleteUser,
+  pollUserDisabled,
   setUserEnabled,
   withRealmPatch,
 } from './_helpers/keycloak-admin';
@@ -107,32 +108,65 @@ test.describe('token-lifecycle — realm-mutating', () => {
           // session bridge re-authorizes. Either silent-refresh-fail OR
           // direct API-401 lands the SPA on KC's login URL.
           await setUserEnabled(userCtx.userId, false, userCtx.user.email);
+          // Propagation barrier: the PUT returns before the disable is
+          // guaranteed visible to KC's refresh-grant handler. Poll the user
+          // store until `enabled === false` so the redirect step below can
+          // never race an as-yet-unapplied disable.
+          await pollUserDisabled(userCtx.userId);
 
-          // Trigger periodic API activity by navigating + waiting past
-          // the shortened lifespan window. The renewal failure path is
-          // the deterministic trigger inside the test window.
-          await page.goto('/flights');
-          await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 10) * 1000);
-          // Force another navigation to give the guard / interceptor a
-          // chance to run with the now-invalid session. The redirect
-          // may interrupt the navigation; surface every other error.
-          try {
-            await page.goto('/start');
-          } catch (err) {
-            if (!/interrupted|aborted|navigation/i.test((err as Error).message)) {
-              throw err;
+          // Wait past ONE shortened lifespan so the in-flight, offline-valid
+          // access token has expired. Past expiry the SPA can only stay
+          // authenticated by a refresh-token grant — which KC now denies for
+          // the disabled user — so the session is doomed; only the moment of
+          // observation remains.
+          await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 5) * 1000);
+
+          // Drive the redirect deterministically instead of waiting on the
+          // library's internal renewal timer to fire at the right instant.
+          // Each iteration triggers a WARM in-app navigation by clicking a
+          // persistent nav-bar RouterLink — no cold `page.goto` reboot, no
+          // `clearCookies` (either kills the OIDC session-restore path). The
+          // two targets ALTERNATE so every iteration is a real URL change
+          // (a same-URL router nav is a no-op that would never re-run the
+          // guard). With the access token expired and the refresh grant
+          // denied, activating a protected route runs `authGuard` on an
+          // unauthenticated session (or the concurrent `SilentRenewFailed`)
+          // → `oidc.authorize()` → KC. The redirect may interrupt the in-flight
+          // navigation and tear the authed shell down; that is the signal
+          // under test, not an error.
+          const spaHost = new URL(SPA_BASE_URL).host;
+          const isRedirected = (): boolean => {
+            const url = new URL(page.url());
+            return (
+              url.host === KC_HOST ||
+              (url.host === spaHost && (url.pathname === '/' || url.pathname.startsWith('/auth/')))
+            );
+          };
+          for (let attempt = 0; attempt < 12 && !isRedirected(); attempt++) {
+            // Warm nav: click a nav-bar RouterLink if the authed shell is
+            // still mounted; if it has already unmounted (redirect in flight),
+            // skip straight to the settle-check. `.catch` swallows the click's
+            // own navigation-interrupt when the redirect races it.
+            const navTestId =
+              attempt % 2 === 0 ? 'af-nav-section-/flights' : 'af-nav-section-/flightreports';
+            const navLink = page.getByTestId(navTestId);
+            if (await navLink.count()) {
+              await navLink.click({ timeout: 2_000 }).catch(() => {
+                /* redirect may interrupt the click's navigation */
+              });
             }
+            // Give the guard / silent-renew failure a beat to settle the
+            // redirect before re-checking / re-driving.
+            await page
+              .waitForURL(() => isRedirected(), { timeout: 5_000 })
+              .catch(() => {
+                /* not yet — next iteration re-drives the navigation */
+              });
           }
 
           // Observable: the SPA must end up on KC's login (re-auth) or
           // the public landing — never on an authed route.
-          await page.waitForURL(
-            (url) =>
-              url.host === KC_HOST ||
-              (url.host === new URL(SPA_BASE_URL).host &&
-                (url.pathname === '/' || url.pathname.startsWith('/auth/'))),
-            { timeout: 30_000 },
-          );
+          await page.waitForURL(() => isRedirected(), { timeout: 15_000 });
         },
       );
     } finally {

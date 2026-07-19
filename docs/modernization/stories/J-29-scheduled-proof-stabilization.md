@@ -50,7 +50,7 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   to `journey: 'J-29'` per the generator's annotation contract (`generate-gallery.mjs:149-151`) + refresh its
   caption to the J-29 proof. The video is real — only its journey attribution changes; no assertion touched.
 
-- [ ] T-03 — Fix the `token-lifecycle.spec.ts:87` disabled-user redirect race (folded `_BOYSCOUT.md`
+- [x] T-03 — Fix the `token-lifecycle.spec.ts:87` disabled-user redirect race (folded `_BOYSCOUT.md`
   [TOKEN-LIFECYCLE-87-RESIDUAL]). Root cause is NOT shared-user mutation (the login user is already a per-test
   throwaway `freshTestUser()`): `setUserEnabled(userId,false)` (`_helpers/keycloak-admin.ts:540`) is a plain PUT
   with no poll, then a fixed 40s wallclock wait assumes the silent refresh-grant rotation is rejected in-window.
