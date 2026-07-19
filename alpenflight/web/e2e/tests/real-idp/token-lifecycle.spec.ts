@@ -92,7 +92,12 @@ test.describe('token-lifecycle — realm-mutating', () => {
     // failure) before the re-auth redirect. That is the behavior under test, not
     // a regression — allow ONLY the 401 / refresh-failure markers; any other
     // console.error still fails the guard.
-    allowConsoleErrors(testInfo, /\b401\b/, /SilentRenewFailed/i);
+    allowConsoleErrors(
+      testInfo,
+      /\b401\b/,
+      /SilentRenewFailed/i,
+      /token\(s\) validation failed, resetting/i,
+    );
     let userCtx: { user: TestUser; userId: string } | undefined;
     try {
       await withRealmPatch(
