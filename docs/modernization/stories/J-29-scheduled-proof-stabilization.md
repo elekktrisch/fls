@@ -40,7 +40,7 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   boundaries). Keep the existing cell locator + `from≠to` `waitForResponse` predicate. Assert the committed
   range spans the seeded flight's date before awaiting the refetch. Test-side only (`flights-row-<id>` exists).
 
-- [ ] T-02 — Attribute the flight-migration-parity proof video to J-29 for the gallery. ci.yml's `alpenflight
+- [x] T-02 — Attribute the flight-migration-parity proof video to J-29 for the gallery. ci.yml's `alpenflight
   proof (real-idp, clean-seed)` derives this journey's `parity_test` and its step-28 deployed-bookmark guard
   requires the current journey's gallery page to carry ≥1 proof video; but every video annotation in
   `flight-migration-parity.spec.ts` is tagged `journey: 'J-2'`, so `generate-gallery.mjs` attributes 0 to J-29 →

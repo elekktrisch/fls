@@ -1078,11 +1078,12 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-2',
+        journey: 'J-29',
         caption:
-          'J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live ' +
-          "migration endpoint, renders in the owning club's /flights list under its immatriculation " +
-          '(crew + tow link; full legacy→migrate→Keycloak→UI chain)',
+          'J-29 · scheduled-proof stabilization · after widening the /flights date range (single ' +
+          'from≠to refetch), the recent-past migrated legacy Flight + FlightCrew renders in the owning ' +
+          "club's /flights list under its immatriculation (crew + tow link; full " +
+          'legacy→migrate→Keycloak→UI chain)',
         acTag: 'happy',
       });
     }
