@@ -33,7 +33,7 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
 
 ## Tasks
 
-- [ ] T-01 — Fix `widenFlightListRangeToRecent` (`flight-migration-parity.spec.ts:506-536`): replace the
+- [x] T-01 — Fix `widenFlightListRangeToRecent` (`flight-migration-parity.spec.ts:506-536`): replace the
   `.ant-picker-header-super-prev-btn` year jump (`:527`, + now-unused `leftPanel`) with a single
   `.ant-picker-header-prev-btn` month page-back, then pick first + last in-view non-disabled cell so the
   committed `from≠to` window spans last-month→this-month (covers today-5 **and** today-10 across month
