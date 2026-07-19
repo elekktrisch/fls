@@ -57,7 +57,7 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   Fix: add `pollUserDisabled(userId)` (re-GET `/users/{id}` until `enabled===false`) after the disable, and
   drive the redirect deterministically (refetch loop) rather than the fixed timeout. Verify via `alpenflight
   e2e real-idp` dispatch (iterative — KC-26 refresh-grant territory, ~2-3 ~25-min cycles).
-- [ ] T-04 — Nightly 30-min cap (folded `_BOYSCOUT.md`): the legacy `e2e (Playwright)` job exceeds its 30-min
+- [x] T-04 — Nightly 30-min cap (folded `_BOYSCOUT.md`): the legacy `e2e (Playwright)` job exceeds its 30-min
   max-execution + is cancelled (a duration budget, not a red test). Shard the legacy Playwright run or raise the
   cap in `nightly.yml` so the job completes. Separate legacy stack; lowest priority.
 
