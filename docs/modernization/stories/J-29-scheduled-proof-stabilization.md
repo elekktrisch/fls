@@ -12,8 +12,8 @@ acceptance:
   - "[happy] The proof-fanout `Run AlpenFlight parity specs` step runs `flight-migration-parity.spec.ts` GREEN — the migrated glider flight (today-5) renders in the owning club's /flights list after the date-range widen (was a 20s `page.waitForResponse` timeout in `widenFlightListRangeToRecent`, red 6+ days)."
   - "[key] Widening the /flights date range fires exactly one `GET /api/v1/flights?from=…&to=…` (from≠to, 200) whose window covers the migrated flight's date; the row is identified by immatriculation and carries a `flights-row-<uuid>` testid."
   - "[edge] The `alpenflight e2e real-idp` cross-journey shard no longer reds on `flight-migration-parity`; the change is test-side only — app refetch is unchanged (proven by the mock `flights-list.spec.ts` round-trip + `flight.store.spec.ts` unit)."
-  - "[fully-green-1] `token-lifecycle.spec.ts:87` (disabled-user redirect) passes deterministically in the `alpenflight e2e real-idp` run — the Keycloak disable is polled-until-propagated and the redirect driven, not a fixed-wallclock refresh-grant race (folded in on operator ask 2026-07-19 to make the scheduled proofs FULLY green)."
-  - "[fully-green-2] The `nightly` legacy `e2e (Playwright)` job completes within its execution budget instead of being cancelled at the 30-min max (sharded or cap raised) — a duration budget, not a red test."
+  - "[fully-green-1] `token-lifecycle.spec.ts` (disabled-user redirect) passes deterministically in the `alpenflight e2e real-idp` run — the Keycloak disable is polled-until-propagated, the redirect driven via warm nav (not a fixed-wallclock refresh-grant race), and the expected OIDC token-rejection console log (`token(s) validation failed, resetting`) allowlisted per-test (folded in on operator ask 2026-07-19 to make the scheduled proofs FULLY green)."
+  - "[fully-green-2] The `nightly` legacy `e2e (Playwright)` job's docker-stack bring-up is fixed so it runs instead of hanging: the missing `external` network `alpenflight_shared` is created + `up -d mssql` + the healthy threshold corrected to `>=1` + bring-up failures surfaced loudly. Empirical root cause (NOT the rider's 'duration budget'): the job was silently dead ~6 weeks (0/40 runs since 2026-05-28), hanging the full 30 min on a failed `docker compose up` (network never created), never running a test. Validated post-merge on the scheduled warm-cache nightly (on-branch dispatch is blocked by the cold-NuGet legacy build the e2e job `needs`)."
 screen: none — the fix targets the existing /flights list; no new screen/route.
 headless_pulled_in: none
 migration: N/A — test-helper fix; no mapper/entity/schema touched.
@@ -57,9 +57,18 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   Fix: add `pollUserDisabled(userId)` (re-GET `/users/{id}` until `enabled===false`) after the disable, and
   drive the redirect deterministically (refetch loop) rather than the fixed timeout. Verify via `alpenflight
   e2e real-idp` dispatch (iterative — KC-26 refresh-grant territory, ~2-3 ~25-min cycles).
-- [x] T-04 — Nightly 30-min cap (folded `_BOYSCOUT.md`): the legacy `e2e (Playwright)` job exceeds its 30-min
-  max-execution + is cancelled (a duration budget, not a red test). Shard the legacy Playwright run or raise the
-  cap in `nightly.yml` so the job completes. Separate legacy stack; lowest priority.
+- [x] T-04 — Nightly e2e stack bring-up (folded `_BOYSCOUT.md`). REAL root cause (empirical, NOT the rider's
+  "duration budget"): the `e2e (Playwright)` job hung the full 30 min in `Wait for docker stack healthchecks`
+  and NEVER ran a test — dead ~6 weeks (0/40 runs since 2026-05-28). `docker compose -p fls-e2e up -d` failed
+  silently because the `external` network `alpenflight_shared` was never created, so the `/tmp/.done-stack`
+  marker was never written (+ the wait's `>=2` healthy threshold could never be met with only mssql). Fix
+  (mirror the fanout `alpenflight-proof-fanout.yml:208-209`): create the network + `up -d mssql` + threshold
+  `>=1` + bounded wait that cats `/tmp/stack.log` + `docker compose ps` loudly on timeout. Kept the 50-min cap
+  as headroom (corrected rationale). Ship + validate post-merge (operator 2026-07-19); on-branch verify blocked
+  by the cold-NuGet legacy build the e2e job `needs`. Residual: 6-weeks-dead downstream steps may reveal own rot.
+
+- T-01/T-02 proven green on code head `ca82c4e6`; T-03 proven on `97139337` (real-idp: redirect deterministic
+  + allowlist); T-04 structural, post-merge-validated.
 
 **Scope expanded 2026-07-19 (operator):** fold the two OPTIONAL ride-alongs in so the scheduled proofs go
 FULLY green in one PR (#241), not just the dominant `flight-migration-parity` red. T-01/T-02 already proven
