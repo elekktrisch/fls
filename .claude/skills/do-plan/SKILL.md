@@ -77,6 +77,11 @@ review checkpoint.
 Deep-carve a single journey JIT, just before `/do-ship` needs it. `next` =
 the first roadmap journey whose `depends_on` are all done.
 
+**`_ORDER.md` is forward-only** (operator 2026-06-25): it lists only todo/in-flight journeys. Shipped
+journeys live in `docs/modernization/stories/_SHIPPED.md` (a one-line log: `J-NNN — title — #PR`) and their
+journey files in `stories/implemented/`. So when resolving a `depends_on` journey's contract (or checking it's
+`done`), look in **`stories/implemented/`** (and `_SHIPPED.md`), not just the forward `_ORDER.md`.
+
 1. Pull the journey's roll-up stories + their refinement; read the legacy
    screen(s) it replaces. **Read the design reference** `docs/modernization/design-reference/screens-<feature>.jsx`
    (the ADR-0024 pixel oracle) for this screen — bake its STRUCTURE into the ACs + "Spec

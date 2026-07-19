@@ -118,6 +118,12 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
   let clubBLocationId: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
+    // The seed runs a Gradle seeder + a live migration ingest + a Keycloak
+    // fan-out provision (one club-admin per migrated club). On a maximally
+    // loaded fanout runner that legitimately exceeds the 45s per-test budget the
+    // hook inherits — a runner-perf cost, not a hang — so give the setup its own
+    // headroom. The 5s per-assertion `expect.timeout` stays the fail-fast lever.
+    testInfo.setTimeout(120_000);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // Seeds through the REAL migration endpoint — fan-out + Keycloak provision
     // both run live. ~30-60s (Gradle seeder + ingest); covered by the

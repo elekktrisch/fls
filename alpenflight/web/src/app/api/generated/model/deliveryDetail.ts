@@ -14,8 +14,8 @@ import type { DeliveryRecipientView } from './deliveryRecipientView';
  */
 export type DeliveryDetail = {
   id: string;
-  /** Booked delivery number (null until booked). */
-  deliveryNumber?: number;
+  /** Booked delivery number (free-text, null until booked). */
+  deliveryNumber?: string;
   batchId: number;
   /** V4 process-state code: 10 Prepared / 20 Booked / 30 Error / 99 Cancelled. */
   processStateId: number;

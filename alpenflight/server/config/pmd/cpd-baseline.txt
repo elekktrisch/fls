@@ -161,5 +161,16 @@
 # the identity fields a KC full-representation PUT would otherwise null —
 # collapsed that clone and landed below the prior baseline. Lock the gain.
 #
+# Re-measured 2026-06-25 (delivery delete + book write side): 5362 (-79 vs the
+# transient 5441). The new clone window was the `currentUserId()` + `currentJwt()`
+# JWT-to-audit-user resolver block DeliveryDeletionService shared with
+# PlanningDaysService. Contrary to the prior "irreducible per-service boilerplate"
+# read, this is exactly the shared security plumbing ADR 0023 routes through
+# platform/ (the one package every module may depend on, where UserPrincipalLookup
+# already lives) — NOT a per-module base class. Extracting the new
+# platform.security.CurrentPrincipal (jwt() + userId() over SecurityContextHolder)
+# collapsed the clone in both services and landed back at the pre-batch baseline.
+# Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
 5362

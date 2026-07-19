@@ -2,7 +2,9 @@ package ch.alpenflight.accounting.application;
 
 import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -30,7 +32,7 @@ public final class DeliveryDtos {
     @Schema(description = "Delivery list-row projection — tenant-scoped, sorted batch desc / recipient asc.")
     public record DeliveryOverview(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
-            @Schema(description = "Booked delivery number (null until booked).") @Nullable Integer deliveryNumber,
+            @Schema(description = "Booked delivery number (free-text, null until booked).") @Nullable String deliveryNumber,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                             description = "Recipient display name (lastname firstname, or the company name).")
                     String recipientName,
@@ -42,7 +44,7 @@ public final class DeliveryDtos {
     @Schema(description = "Delivery detail projection — full read-only invoice draft.")
     public record DeliveryDetail(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
-            @Schema(description = "Booked delivery number (null until booked).") @Nullable Integer deliveryNumber,
+            @Schema(description = "Booked delivery number (free-text, null until booked).") @Nullable String deliveryNumber,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long batchId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
                             description = "V4 process-state code: 10 Prepared / 20 Booked / 30 Error / 99 Cancelled.")
@@ -89,6 +91,20 @@ public final class DeliveryDtos {
      * legacy PascalCase); {@code totalRows} is the unpaged tenant-scoped count so
      * the SPA renders pagination without a second round-trip.
      */
+    /**
+     * Booking request for {@code POST .../delivered} — driven by the external
+     * (Proffix) booker. {@code deliveryNumber} is the free-text, externally-supplied
+     * invoice number (no counter / allocation); {@code deliveryDateTime} is the
+     * booking instant. Both the id and the datetime are required; the number may be
+     * absent.
+     */
+    @Schema(description = "Book a Prepared delivery as delivered (external finance confirmation).")
+    public record DeliveryBookingRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @NotNull UUID deliveryId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @NotNull Instant deliveryDateTime,
+            @Schema(description = "Externally-supplied delivery (invoice) number; free-text, no counter.")
+                    @Nullable String deliveryNumber) {}
+
     @Schema(description = "Paged delivery list envelope (SPA-compat page shape).")
     public record DeliveryPage(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<DeliveryOverview> items,

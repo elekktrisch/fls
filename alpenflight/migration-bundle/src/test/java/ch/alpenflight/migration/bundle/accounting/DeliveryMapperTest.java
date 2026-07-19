@@ -43,11 +43,7 @@ class DeliveryMapperTest extends AbstractMapperContractTest<DeliveryMapper> {
         row.put("RecipientPersonClubMemberNumber", "1001");
         row.put("DeliveryInformation", "Pickup at front desk");
         row.put("AdditionalInformation", "");
-        // Producer-aliased — Integer.parseInt success path. Both columns
-        // populated here for round-trip contract coverage; the at-most-one
-        // invariant lives on the Delivery aggregate at S-064.
-        row.put("ResolvedDeliveryNumber", 42);
-        row.put("ResolvedLegacyDeliveryNumberText", "INV-2024-001");
+        row.put("DeliveryNumber", "INV-2024-001");
         row.put("DeliveredOn", Timestamp.from(Instant.parse("2024-06-15T18:30:00Z")));
         row.put("BatchId", 0L);
         row.put("CreatedOn", Timestamp.from(Instant.parse("2024-01-01T12:00:00Z")));
@@ -91,12 +87,9 @@ class DeliveryMapperTest extends AbstractMapperContractTest<DeliveryMapper> {
     }
 
     @Test
-    void deliveryNumberAndLegacyTextBothPresentOnEveryRow() throws Exception {
-        // Mutually-exclusive invariant lives on Delivery (S-064) — at the
-        // mapper level both columns are declared and populated per the
-        // producer-resolved values.
+    void deliveryNumberPreservesFreeTextVerbatim() throws Exception {
         JsonNode emitted = invokeWriteNdjson(mapper, legacyRow(seededFaker()));
-        assertThat(emitted.has(DeliveryMapper.DELIVERY_NUMBER)).isTrue();
-        assertThat(emitted.has(DeliveryMapper.LEGACY_DELIVERY_NUMBER_TEXT)).isTrue();
+        assertThat(emitted.get(DeliveryMapper.DELIVERY_NUMBER).asText())
+                .isEqualTo("INV-2024-001");
     }
 }

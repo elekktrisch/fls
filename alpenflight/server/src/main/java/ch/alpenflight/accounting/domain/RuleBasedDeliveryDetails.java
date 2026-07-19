@@ -1,8 +1,10 @@
 package ch.alpenflight.accounting.domain;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -35,6 +37,7 @@ public final class RuleBasedDeliveryDetails {
     private boolean noLandingTaxForFlight;
     private boolean doNotInvoiceFlight;
     private final Set<UUID> matchedFilterIds = new LinkedHashSet<>();
+    private final Map<UUID, Long> consumedSecondsByCreditId = new LinkedHashMap<>();
 
     private RuleBasedDeliveryDetails(UUID clubId) {
         this.clubId = clubId;
@@ -85,6 +88,27 @@ public final class RuleBasedDeliveryDetails {
 
     public void markFilterMatched(UUID filterId) {
         matchedFilterIds.add(filterId);
+    }
+
+    /**
+     * Records that the FlightTime stage drew {@code seconds} from the credit
+     * {@code creditId} for this delivery. Accumulated per credit across the
+     * glider AND its tow recursion (the legacy single-transaction object
+     * overwrites and so under-consumes a glider+tow pair — a reachable money
+     * bug; summing the passes is the corrected AlpenFlight behavior, ADR 0026).
+     */
+    public void recordCreditConsumption(UUID creditId, long seconds) {
+        if (seconds <= 0) {
+            return;
+        }
+        consumedSecondsByCreditId.merge(creditId, seconds, Long::sum);
+    }
+
+    /** The seconds drawn from each credit this delivery, the create-time ledger input. */
+    public List<CreditConsumption> creditConsumptions() {
+        return consumedSecondsByCreditId.entrySet().stream()
+                .map(e -> new CreditConsumption(e.getKey(), e.getValue()))
+                .toList();
     }
 
     public List<DeliveryItemDetails> deliveryItems() {
@@ -187,4 +211,7 @@ public final class RuleBasedDeliveryDetails {
             @Nullable String recipientName,
             @Nullable String firstname,
             @Nullable String lastname) {}
+
+    /** Seconds the FlightTime stage drew from one {@code PersonFlightTimeCredit} this delivery. */
+    public record CreditConsumption(UUID creditId, long consumedSeconds) {}
 }

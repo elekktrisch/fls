@@ -97,8 +97,6 @@ class MapperBindingContractTest {
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
-            EntityType.DELIVERY,
-            EntityType.DELIVERY_ITEM,
             EntityType.AUDIT_LOG);
 
     /** Legacy column literals every {@code writeNdjson} reads from the cursor. */

@@ -86,6 +86,11 @@ class FixtureTableNamingConventionTest {
             // PersonFlightTimeCreditProducerDedupeIT seeds those staging tables
             // verbatim. Legacy MSSQL source names, not new-stack t_ tables.
             "personflighttimecredits", "personflighttimecredittransactions", "deliveries",
+            // The DELIVERY_ITEM producer SELECT reads `FROM DeliveryItems di LEFT JOIN
+            // Articles a` (the ArticleNumber→ResolvedArticleId resolution with the
+            // IsDeleted = 0 predicate); DeliveryCollisionOrphanProducerIT seeds those
+            // staging tables verbatim. Legacy MSSQL source names, not new-stack t_ tables.
+            "deliveryitems", "articles",
             // The PERSON_CLUB producer SELECT reads `FROM PersonClub` (composite-PK
             // membership, MemberStateId orphan-nulled); the same IT's PersonClub
             // dedupe case seeds that staging table verbatim. Legacy MSSQL source

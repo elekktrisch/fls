@@ -15,10 +15,21 @@ import { pipe, switchMap, tap } from 'rxjs';
 
 import { DeliveriesService } from '@api/generated/deliveries/deliveries.service';
 import type { DeliveryDetail, DeliveryOverview, DeliveryPage } from '@api/generated/model';
+import { mapApiSaveError } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 
 const PAGE_SIZE = 20;
+
+// The destructive guards the backend returns as a 409: deleting a delivery
+// whose flight is shared by another delivery, or whose flight is already Booked.
+// Both surface as a non-blocking toast — the row stays, nothing mutated. The
+// mapped string is the implicit-German source (mirrors PlanningStore).
+const WRITE_ERROR_KEYS: Readonly<Record<string, string>> = {
+  'delivery.flight.shared':
+    'Diese Lieferung kann nicht gelöscht werden: mehrere Lieferungen teilen sich den Flug.',
+  'delivery.booked': 'Verbuchte Lieferungen sind unveränderlich.',
+};
 
 interface DeliveriesState {
   rows: DeliveryOverview[];
@@ -27,7 +38,10 @@ interface DeliveriesState {
   selectedDetail: DeliveryDetail | null;
   isLoading: boolean;
   isLoadingDetail: boolean;
+  isCreating: boolean;
   loadError: string | null;
+  createError: string | null;
+  deleteError: string | null;
   notFound: boolean;
 }
 
@@ -38,7 +52,10 @@ const initialState: DeliveriesState = {
   selectedDetail: null,
   isLoading: false,
   isLoadingDetail: false,
+  isCreating: false,
   loadError: null,
+  createError: null,
+  deleteError: null,
   notFound: false,
 };
 
@@ -71,11 +88,56 @@ export const DeliveriesStore = signalStore(
         ),
       ),
     );
+    const refresh = (): void => {
+      loadPage(store.pageStart());
+    };
     return {
       loadPage,
       loadFirstPage(): void {
         loadPage(0);
       },
+      clearActionErrors(): void {
+        patchState(store, { createError: null, deleteError: null });
+      },
+      // The engine create: run the rules engine over eligible Locked flights,
+      // persist the produced deliveries, then refresh so the new rows render.
+      createDeliveries: rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { isCreating: true, createError: null })),
+          switchMap(() =>
+            api.createDeliveries().pipe(
+              tapResponse({
+                next: () => {
+                  patchState(store, { isCreating: false });
+                  refresh();
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, {
+                    isCreating: false,
+                    createError: mapApiSaveError(e, WRITE_ERROR_KEYS),
+                  }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      // Delete: cascade items, reset the flight (+tow) to Locked, reverse the
+      // consumed credit. A 409 (shared-flight / booked-terminal) is surfaced as
+      // a non-blocking error — the row is untouched, so just refresh + toast.
+      deleteDelivery: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { deleteError: null })),
+          switchMap((id) =>
+            api.deleteDelivery(id).pipe(
+              tapResponse({
+                next: () => refresh(),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { deleteError: mapApiSaveError(e, WRITE_ERROR_KEYS) }),
+              }),
+            ),
+          ),
+        ),
+      ),
       // A 404 is the tenant-isolation outcome — the @TenantId finder never
       // returns another club's row, so a cross-tenant id surfaces not-found.
       loadDetail: rxMethod<string>(

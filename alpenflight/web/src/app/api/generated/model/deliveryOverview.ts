@@ -11,8 +11,8 @@
  */
 export type DeliveryOverview = {
   id: string;
-  /** Booked delivery number (null until booked). */
-  deliveryNumber?: number;
+  /** Booked delivery number (free-text, null until booked). */
+  deliveryNumber?: string;
   /** Recipient display name (lastname firstname, or the company name). */
   recipientName: string;
   batchId: number;

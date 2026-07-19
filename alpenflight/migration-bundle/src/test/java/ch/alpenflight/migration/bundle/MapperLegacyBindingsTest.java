@@ -244,9 +244,9 @@ class MapperLegacyBindingsTest {
     @Test
     void unregisteredEntityStillFailsLoudly() {
         // Guard the fail-closed contract survives the registry growth: the negative
-        // case points at a genuinely still-unbound EntityType — DELIVERY has an
+        // case points at a genuinely still-unbound EntityType — MEMBER_STATE has an
         // authored mapper + KnownMappers entry but no MapperLegacyBindings entry yet.
-        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.DELIVERY))
+        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.MEMBER_STATE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No legacy binding registered");
     }
@@ -1016,6 +1016,156 @@ class MapperLegacyBindingsTest {
         assertThat(article.foreignKeyColumns())
                 .as("ArticleMapper must rewrite the CLUB FK on operating_club_id")
                 .containsExactly(new ForeignKeyColumn("operating_club_id", EntityType.CLUB));
+    }
+
+    // -------------------------------------------------------------------------
+    // DELIVERY + DELIVERY_ITEM (J-10b T-05). The mappers + KnownMappers entries
+    // existed (J-10 authoring, read-side) but were UNBOUND; T-05 wires the
+    // producer SELECT (reconciled against the FINAL legacy FLSTest schema —
+    // post DBUpdate_v1.10.5/.6, where RecipientDetails is split into columns then
+    // dropped) + the consumer INSERT. The Article-number resolution keeps orphans
+    // (null article_id) rather than failing the bundle; the closure guard forces
+    // DELIVERY's FK targets (CLUB/FLIGHT/PERSON) and DELIVERY_ITEM's
+    // (CLUB/DELIVERY/ARTICLE) to be bound the moment they are.
+    // -------------------------------------------------------------------------
+
+    /** Every legacy cursor column {@code DeliveryMapper.writeNdjson} reads. */
+    private static final List<String> DELIVERY_LEGACY_COLUMNS = List.of(
+            "DeliveryId", "ClubId", "ResolvedProcessStateId", "FlightId",
+            "RecipientPersonId", "RecipientName", "RecipientFirstname",
+            "RecipientLastname", "RecipientAddressLine1", "RecipientAddressLine2",
+            "RecipientZipCode", "RecipientCity", "RecipientCountryName",
+            "RecipientPersonClubMemberNumber", "DeliveryInformation",
+            "AdditionalInformation", "DeliveryNumber", "DeliveredOn", "BatchId",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy cursor column {@code DeliveryItemMapper.writeNdjson} reads. */
+    private static final List<String> DELIVERY_ITEM_LEGACY_COLUMNS = List.of(
+            "DeliveryItemId", "OperatingClubId", "DeliveryId", "Position",
+            "ResolvedArticleId", "ArticleNumber", "ItemText", "AdditionalInformation",
+            "Quantity", "ResolvedUnitPrice", "DiscountInPercent", "UnitType",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void deliveryAndItemAreRegisteredTenantScopedFullPort() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.DELIVERY))
+                .as("DELIVERY must be bound (J-10b T-05) so the delivery register migrates")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.DELIVERY_ITEM))
+                .as("DELIVERY_ITEM must be bound — it is the Delivery aggregate child")
+                .isTrue();
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.DELIVERY))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.DELIVERY_ITEM))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void deliverySelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY);
+        for (String legacyColumn : DELIVERY_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("DeliveryMapper.writeNdjson reads %s — the bound SELECT must "
+                            + "project it (else: silent NULL / export abort)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy Deliveries table")
+                .contains("Deliveries");
+    }
+
+    @Test
+    void deliverySelectDerivesProcessStateFromIsFurtherProcessedThenFlightState() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY)
+                .toUpperCase(java.util.Locale.ROOT)
+                .replaceAll("\\s+", " ");
+        // process_state_id is DERIVED (legacy Deliveries has no ProcessStateId
+        // column): IsFurtherProcessed=1 wins → 20 (Booked); else the LEFT-JOINed
+        // Flight's ProcessStateId maps 60→20 / 50→10 / 45→30 / else→10. The LEFT
+        // JOIN keeps a FlightId-NULL delivery (falls through to the Prepared floor).
+        assertThat(select)
+                .as("IsFurtherProcessed=1 short-circuits to Booked (20) before any "
+                        + "flight-state inspection")
+                .contains("CASE WHEN D.ISFURTHERPROCESSED = 1 THEN 20");
+        assertThat(select)
+                .as("the flight-state JOIN must be a LEFT JOIN so FlightId-NULL "
+                        + "deliveries survive and fall through to the Prepared floor")
+                .contains("LEFT JOIN FLIGHTS");
+        assertThat(select)
+                .as("resolved state is aliased AS ResolvedProcessStateId")
+                .contains("AS RESOLVEDPROCESSSTATEID");
+    }
+
+    @Test
+    void deliverySelectCoalescesNullBatchIdToZero() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY)
+                .toUpperCase(java.util.Locale.ROOT);
+        // legacy BatchId is bigint NULL; t_delivery.batch_id is NOT NULL DEFAULT 0.
+        assertThat(select)
+                .as("NULL legacy BatchId must coalesce to 0 for the NOT-NULL column")
+                .contains("COALESCE(D.BATCHID, 0)");
+    }
+
+    @Test
+    void deliveryConsumerInsertTargetsTDeliveryWithOperatingClubId() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.DELIVERY);
+        assertThat(insert).contains("INSERT INTO t_delivery");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_delivery is tenant-scoped via operating_club_id (V4)")
+                .contains("operating_club_id");
+    }
+
+    @Test
+    void deliveryItemSelectResolvesArticleByLiveArticleAndKeepsOrphansNull() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY_ITEM);
+        for (String legacyColumn : DELIVERY_ITEM_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("DeliveryItemMapper.writeNdjson reads %s — the bound SELECT "
+                            + "must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        String upper = select.toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
+        // operating_club_id is denormalised from the parent Delivery (the item has
+        // no own ClubId) — JOIN Deliveries and alias its ClubId AS OperatingClubId.
+        assertThat(upper)
+                .as("item tenant is the parent Delivery's club, aliased AS OperatingClubId")
+                .contains("D.CLUBID AS OPERATINGCLUBID");
+        // ArticleNumber → article_id resolves via a LEFT JOIN to the LIVE Article
+        // (IsDeleted=0 — the legacy UNIQUE is (ArticleNumber, ClubId, DeletedOn), so
+        // without it a re-created article fans the item out). Unresolvable → NULL.
+        assertThat(upper)
+                .as("article resolution is a LEFT JOIN (orphan ArticleNumber → null "
+                        + "article_id, NOT a 23503 bundle failure)")
+                .contains("LEFT JOIN ARTICLES");
+        assertThat(upper)
+                .as("the Article JOIN keys on (ClubId, ArticleNumber) AND IsDeleted=0 "
+                        + "to pin the single live article (no soft-delete fan-out)")
+                .contains("A.CLUBID = D.CLUBID")
+                .contains("A.ARTICLENUMBER = DI.ARTICLENUMBER")
+                .contains("A.ISDELETED = 0");
+        assertThat(upper).contains("AS RESOLVEDARTICLEID");
+    }
+
+    @Test
+    void deliveryItemSelectEmitsZeroUnitPriceSinceLegacyHasNone() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY_ITEM)
+                .toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
+        // Neither DeliveryItems nor Articles carries a price — the producer emits a
+        // literal 0 aliased ResolvedUnitPrice for the NOT-NULL t_delivery_item.unit_price.
+        assertThat(select)
+                .as("unit_price has no legacy source → literal 0")
+                .contains("CAST(0 AS DECIMAL(12, 4)) AS RESOLVEDUNITPRICE");
+    }
+
+    @Test
+    void deliveryItemConsumerInsertTargetsTDeliveryItem() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.DELIVERY_ITEM);
+        assertThat(insert).contains("INSERT INTO t_delivery_item");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("the item carries the parent's tenant via operating_club_id")
+                .contains("operating_club_id");
     }
 
     @Test

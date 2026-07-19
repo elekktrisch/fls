@@ -47,6 +47,10 @@ class ExportCommandSmokeTest {
         // PersonFlightTimeCredit load JOINs through (Person -> PersonClubs.club_id)
         // resolves over migrated data — without it the membership never exports and a
         // migrated credit never reaches the engine.
+        // + the DELIVERY aggregate (DELIVERY + its aggregate-internal DELIVERY_ITEM)
+        // bound in J-10b T-05 — the ArticleNumber→article_id resolution keeps orphans
+        // (null article_id), and DELIVERY's legacy_guid→id preservation makes a J-9b
+        // credit transaction's balanced_delivery_id resolve to the migrated delivery.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
@@ -62,6 +66,7 @@ class ExportCommandSmokeTest {
                 EntityType.PLANNING_DAY_ASSIGNMENT_TYPE,
                 EntityType.ACCOUNTING_RULE_FILTER,
                 EntityType.ARTICLE,
+                EntityType.DELIVERY, EntityType.DELIVERY_ITEM,
                 EntityType.PERSON_FLIGHT_TIME_CREDIT,
                 EntityType.PERSON_FLIGHT_TIME_CREDIT_TRANSACTION);
     }

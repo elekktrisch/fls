@@ -203,6 +203,10 @@ The stable bookmark renders ONLY the in-flight journey (paired legacy↔AlpenFli
 migration round-trip); no all-journeys index / history pages / sub-path split (merged proof lives in PRs).
 **Verify the DEPLOYED artifact, not the spec pass** (recurred ~4× in J-6): curl the bookmark + every asset
 (200). `e2e-driver` owns the deploy detail; GALLERY-SIMPLIFY collapses the old plumbing to this.
+**The in-flight window is the per-PR PREVIEW bookmark** (`…/alpenflight/proof-preview/<branch>/`, deployed on
+the `pull_request` event) — give the operator THAT link. The canonical `…/alpenflight/proof/` deploys only on
+`main` pushes, where the derive resolves to the J-0 baseline → it always reads "proof — unknown"; that's
+expected, NOT a clobbered gallery (J-12b wasted an investigation here). `workflow_dispatch` runs deploy nothing.
 
 **Mock governance.** Happy + key-error run fully real. Any mocked seam (edge/error only) carries
 an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked seams"** list + **one operator signoff**
@@ -221,12 +225,26 @@ mark each `rolls_up` story `rolled_up_into: J-NNN` **AND flip its `status: todo 
 story must not read `todo` — stamping the pointer alone left 24 shipped stories lying as `todo` through
 J-11; operator 2026-06-24). If a story is split across journeys (`rolled_up_into: [J-a, J-b]`), flip it
 to `done` only once the LAST of them merges; until then it stays `todo`.
-**Docs-only head guard** (J-27): this finalization is usually a DOCS-only commit → it becomes the PR head →
-`detect changes` path-skips the required checks → they never report → the ruleset shows BLOCKED (and a "skipped"
-required check is a false-green, never a pass). Keep the merge head proven: **manually `gh workflow run ci.yml
---ref integration/J-NNN`** on that head (`workflow_dispatch` is fail-safe → runs the heavy lane) so the required
-checks genuinely run+report green on the to-be-merged sha — and re-dispatch the migration fanout there too. Verify
-they EXECUTED (not skipped) before calling the PR mergeable. [[project_false_green_derive_fallback]]
+**Retire the shipped journey from the forward backlog** (operator 2026-06-25): `_ORDER.md` is FORWARD-ONLY
+— in the finalization commit, **remove this journey's row** from the `_ORDER.md` roadmap table, **append a
+one-line entry** to `docs/modernization/stories/_SHIPPED.md` (`- J-NNN — <title> — #PR`, newest-first), and
+**`git mv` the journey file to `docs/modernization/stories/implemented/`** (mirroring done `S-NNN` stories).
+The journey's `parity_test`/contract still resolve from `implemented/`; the move is the LAST commit (docs-only
+head, proof already green on the code head), so the in-flight derive — which only reads the ACTIVE journey from
+`stories/` — is unaffected.
+**Docs-only head guard** (J-27, J-12b): this finalization is usually a DOCS-only commit → it becomes the PR
+head → `detect changes` gates the heavy lane on a per-push `docs_only` flag → build/e2e/proof all **skip** on
+that head, and the `required` aggregate returns **success over the skipped deps**. So `gh pr checks --required`
+= `pass` is **NOT proof** — it greens over skips; a side `gh workflow run ci.yml` (`workflow_dispatch`) makes a
+*separate* run green but does NOT change the PR's own (skipped) checks, so it's not the gate either (operator
+2026-06-25 chose to keep the dev-time `docs_only` skip — fix it procedurally here, not in ci.yml). To declare
+the PR honestly mergeable: (1) the heavy lane already ran **job-level GREEN on the last CODE-bearing commit**
+(the proof head — that's §4); (2) confirm the finalization commit is **truly docs-only** (`git diff --stat
+<proof-head>..HEAD` touches only `docs/`/journey/story files) so the head-skip is legitimate (nothing untested
+rode in on it); (3) for a **migration** journey, the `fan-out parity` job must have executed green on the proof
+head (a docs head skips it — never let a skipped fanout read as a pass). Verify by reading the run's JOBS
+(executed/green), never the `required` rollup. A docs-head's own skipped checks are then expected + safe — say
+so to the operator rather than papering over them with a confusing side-run. [[project_false_green_derive_fallback]]
 `gh pr ready`. Give the operator the **proof-gallery link** (in the gallery, not SendUserFile'd
 into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link + Mocked-seams list.
 **Stop — the operator merges** `integration/J-NNN` up the line.

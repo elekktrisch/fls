@@ -1,5 +1,5 @@
 import { type Page, type Request } from '@playwright/test';
-import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import {
   SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS,
@@ -84,7 +84,14 @@ test.describe('token-lifecycle — realm-mutating', () => {
     );
   });
 
-  test('hard 401 — disabled user is redirected on next API call', async ({ page }) => {
+  test('hard 401 — disabled user is redirected on next API call', async ({ page }, testInfo) => {
+    // The disabled-user path deliberately drives an API call onto a now-invalid
+    // session: the refresh-grant rejection / 401 makes the browser log a
+    // `Failed to load resource … 401` (and the OIDC bridge logs its renewal
+    // failure) before the re-auth redirect. That is the behavior under test, not
+    // a regression — allow ONLY the 401 / refresh-failure markers; any other
+    // console.error still fails the guard.
+    allowConsoleErrors(testInfo, /\b401\b/, /SilentRenewFailed/i);
     let userCtx: { user: TestUser; userId: string } | undefined;
     try {
       await withRealmPatch(
@@ -204,8 +211,21 @@ test.describe('token-lifecycle — non-mutating', () => {
     // Drive some authenticated navigation so the Bearer interceptor fires
     // on at least one /api/v1/* call. The prefetch on SessionStore.login
     // hits /api/v1/ref-data + /api/v1/me; both are observable here.
+    //
+    // Deterministic wait for the SPECIFIC signal under test — a Bearer-carrying
+    // /api/v1/* request — instead of `networkidle`, which is inherently racy on
+    // a busy real-idp stack (a stray late XHR / SSE keeps the network non-idle
+    // and the 45s budget elapses). Once that response settles, the prefetch
+    // batch has fired and the captured `observed` list is populated.
+    const apiResponse = page.waitForResponse(
+      (r) => {
+        const u = new URL(r.url());
+        return u.host === new URL(SPA_BASE_URL).host && u.pathname.startsWith('/api/v1/');
+      },
+      { timeout: 15_000 },
+    );
     await page.goto('/start');
-    await page.waitForLoadState('networkidle');
+    await apiResponse;
     page.off('request', onRequest);
 
     const apiCalls = observed.filter((r) => {

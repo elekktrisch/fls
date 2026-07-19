@@ -40,7 +40,10 @@ public class DeliveryItem {
     @Column(name = "position", nullable = false)
     private int position;
 
-    @Column(name = "article_id", nullable = false)
+    // Nullable: a migrated line whose free-text legacy ArticleNumber matched no
+    // live article is kept with a null article_id (the article_number snapshot
+    // is preserved). Engine-created lines always resolve a non-null article.
+    @Column(name = "article_id")
     private @Nullable UUID articleId;
 
     @Column(name = "article_number", nullable = false, length = 50)
@@ -66,6 +69,27 @@ public class DeliveryItem {
 
     protected DeliveryItem() {
         // JPA.
+    }
+
+    /**
+     * Builds a billing line from one engine-emitted {@link DeliveryItemDetails}.
+     * The {@code articleNumber} + {@code unitTypeCode} are frozen verbatim from the
+     * engine output (OR Art. 957a snapshots); {@code articleId} is the resolved
+     * article for the line; {@code unitPrice} is left ZERO (the engine computes
+     * quantity, not price — pricing is a downstream Proffix concern).
+     */
+    static DeliveryItem fromEngineLine(UUID operatingClubId, UUID articleId, DeliveryItemDetails line) {
+        DeliveryItem item = new DeliveryItem();
+        item.operatingClubId = operatingClubId;
+        item.position = line.position();
+        item.articleId = articleId;
+        item.articleNumber = line.articleNumber();
+        item.itemText = line.itemText();
+        item.additionalInformation = line.additionalInformation();
+        item.quantity = line.quantity();
+        item.discountInPercent = line.discountInPercent();
+        item.unitTypeCode = line.unitType();
+        return item;
     }
 
     public @Nullable UUID getId() {

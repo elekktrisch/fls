@@ -219,6 +219,7 @@ audit:
           - deliveryInformation
           - additionalInformation
           - deliveryNumber
+          - deliveredOn
           - batchId
           - items
           - deletedOn

@@ -5,7 +5,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
-import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
@@ -226,6 +226,11 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
   test('[key-error] duplicate FlightCode over the real chain → inline 409 on the code field (not a raw 500, not mislabeled on the name)', async ({
     browser,
   }, testInfo) => {
+    // The second create deliberately trips the real `ux_flight_type_club_code`
+    // constraint → 409; the browser logs a `Failed to load resource … 409` for
+    // that intentional POST. That is the behavior under test — allow ONLY the
+    // 409 marker; any other console.error still fails the guard.
+    allowConsoleErrors(testInfo, /\b409\b/);
     const ctx = await newRecordedContext(browser, projectBaseUrl(testInfo), testInfo);
     const page = await ctx.newPage();
     try {

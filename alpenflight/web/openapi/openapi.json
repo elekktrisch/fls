@@ -56,11 +56,11 @@
     "name" : "AccountingReferenceData",
     "description" : "Reference catalogs for the accounting rule-filter edit form (cross-tenant)."
   }, {
-    "name" : "Audit Events",
-    "description" : "Mutation-audit trail (per-tenant, admin-only)."
-  }, {
     "name" : "Deliveries",
     "description" : "Read-only delivery (invoice-draft) viewer — tenant-scoped; paged list + view-by-id."
+  }, {
+    "name" : "Audit Events",
+    "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
     "name" : "Migration bundle ingest",
     "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
@@ -2907,6 +2907,67 @@
         }
       }
     },
+    "/api/v1/deliveries/delivered" : {
+      "post" : {
+        "tags" : [ "Deliveries" ],
+        "summary" : "Book a Prepared delivery as delivered (stamp number/date, flip flight+tow to Booked). Returns true on success, false for an unknown id; 409 if already booked.",
+        "operationId" : "bookDelivery",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeliveryBookingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "true when booked, false for an unknown / cross-tenant id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "boolean"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The delivery is already booked (terminal); no mutation.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/deliveries/create" : {
+      "post" : {
+        "tags" : [ "Deliveries" ],
+        "summary" : "Create deliveries from all eligible Locked flights (engine -> persist). Returns the created deliveries; empty when none are eligible.",
+        "operationId" : "createDeliveries",
+        "responses" : {
+          "200" : {
+            "description" : "The created deliveries (one per eligible flight).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/DeliveryDetail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
@@ -4359,6 +4420,31 @@
                 }
               }
             }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Deliveries" ],
+        "summary" : "Delete a delivery — cascades items, resets the flight (+ tow) to Locked, reverses the consumed credit. 409 when >1 delivery shares the flight.",
+        "operationId" : "deleteDelivery",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The delivery was deleted."
+          },
+          "404" : {
+            "description" : "No active delivery with that id (includes cross-tenant)."
+          },
+          "409" : {
+            "description" : "More than one delivery shares the flight; no mutation."
           }
         }
       }
@@ -8127,9 +8213,8 @@
             "format" : "uuid"
           },
           "deliveryNumber" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "Booked delivery number (null until booked)."
+            "type" : "string",
+            "description" : "Booked delivery number (free-text, null until booked)."
           },
           "recipientName" : {
             "type" : "string",
@@ -8171,6 +8256,144 @@
           }
         },
         "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
+      },
+      "DeliveryBookingRequest" : {
+        "type" : "object",
+        "description" : "Book a Prepared delivery as delivered (external finance confirmation).",
+        "properties" : {
+          "deliveryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deliveryDateTime" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "deliveryNumber" : {
+            "type" : "string",
+            "description" : "Externally-supplied delivery (invoice) number; free-text, no counter."
+          }
+        },
+        "required" : [ "deliveryDateTime", "deliveryId" ]
+      },
+      "DeliveryDetail" : {
+        "type" : "object",
+        "description" : "Delivery detail projection — full read-only invoice draft.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deliveryNumber" : {
+            "type" : "string",
+            "description" : "Booked delivery number (free-text, null until booked)."
+          },
+          "batchId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "processStateId" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "V4 process-state code: 10 Prepared / 20 Booked / 30 Error / 99 Cancelled."
+          },
+          "deliveryInformation" : {
+            "type" : "string",
+            "description" : "Free-text delivery information (legacy DeliveryInformation)."
+          },
+          "additionalInformation" : {
+            "type" : "string",
+            "description" : "Free-text additional information (legacy AdditionalInformation)."
+          },
+          "recipient" : {
+            "$ref" : "#/components/schemas/DeliveryRecipientView"
+          },
+          "flight" : {
+            "$ref" : "#/components/schemas/DeliveryFlightSummary",
+            "description" : "The linked flight (id only; the SPA decorates date/aircraft/pilot). Null on a delivery not linked to a flight."
+          },
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DeliveryItemView"
+            }
+          }
+        },
+        "required" : [ "batchId", "id", "items", "processStateId", "recipient" ]
+      },
+      "DeliveryFlightSummary" : {
+        "type" : "object",
+        "description" : "The linked flight (id only; the SPA decorates the rest — no cross-module join).",
+        "properties" : {
+          "flightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required" : [ "flightId" ]
+      },
+      "DeliveryItemView" : {
+        "type" : "object",
+        "description" : "Read-only line item (engine output, never hand-editable).",
+        "properties" : {
+          "position" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "articleNumber" : {
+            "type" : "string"
+          },
+          "itemText" : {
+            "type" : "string",
+            "description" : "Frozen line text (legacy ItemText)."
+          },
+          "quantity" : {
+            "type" : "number"
+          },
+          "unitType" : {
+            "type" : "string",
+            "description" : "Frozen unit-type code (legacy UnitType, e.g. Sec/Pcs/Min)."
+          },
+          "discountInPercent" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "articleNumber", "discountInPercent", "position", "quantity", "unitType" ]
+      },
+      "DeliveryRecipientView" : {
+        "type" : "object",
+        "description" : "The nine frozen recipient-snapshot fields (OR Art. 957a; never re-resolved).",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "firstName" : {
+            "type" : "string"
+          },
+          "lastName" : {
+            "type" : "string"
+          },
+          "addressLine1" : {
+            "type" : "string"
+          },
+          "addressLine2" : {
+            "type" : "string"
+          },
+          "zipCode" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "country" : {
+            "type" : "string"
+          },
+          "clubMemberNumber" : {
+            "type" : "string"
+          }
+        }
       },
       "ClubCreateRequest" : {
         "type" : "object",
@@ -9786,126 +10009,6 @@
           }
         },
         "required" : [ "delivery", "matchedFilterIds" ]
-      },
-      "DeliveryDetail" : {
-        "type" : "object",
-        "description" : "Delivery detail projection — full read-only invoice draft.",
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "deliveryNumber" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "Booked delivery number (null until booked)."
-          },
-          "batchId" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "processStateId" : {
-            "type" : "integer",
-            "format" : "int32",
-            "description" : "V4 process-state code: 10 Prepared / 20 Booked / 30 Error / 99 Cancelled."
-          },
-          "deliveryInformation" : {
-            "type" : "string",
-            "description" : "Free-text delivery information (legacy DeliveryInformation)."
-          },
-          "additionalInformation" : {
-            "type" : "string",
-            "description" : "Free-text additional information (legacy AdditionalInformation)."
-          },
-          "recipient" : {
-            "$ref" : "#/components/schemas/DeliveryRecipientView"
-          },
-          "flight" : {
-            "$ref" : "#/components/schemas/DeliveryFlightSummary",
-            "description" : "The linked flight (id only; the SPA decorates date/aircraft/pilot). Null on a delivery not linked to a flight."
-          },
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/DeliveryItemView"
-            }
-          }
-        },
-        "required" : [ "batchId", "id", "items", "processStateId", "recipient" ]
-      },
-      "DeliveryFlightSummary" : {
-        "type" : "object",
-        "description" : "The linked flight (id only; the SPA decorates the rest — no cross-module join).",
-        "properties" : {
-          "flightId" : {
-            "type" : "string",
-            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        },
-        "required" : [ "flightId" ]
-      },
-      "DeliveryItemView" : {
-        "type" : "object",
-        "description" : "Read-only line item (engine output, never hand-editable).",
-        "properties" : {
-          "position" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "articleNumber" : {
-            "type" : "string"
-          },
-          "itemText" : {
-            "type" : "string",
-            "description" : "Frozen line text (legacy ItemText)."
-          },
-          "quantity" : {
-            "type" : "number"
-          },
-          "unitType" : {
-            "type" : "string",
-            "description" : "Frozen unit-type code (legacy UnitType, e.g. Sec/Pcs/Min)."
-          },
-          "discountInPercent" : {
-            "type" : "integer",
-            "format" : "int32"
-          }
-        },
-        "required" : [ "articleNumber", "discountInPercent", "position", "quantity", "unitType" ]
-      },
-      "DeliveryRecipientView" : {
-        "type" : "object",
-        "description" : "The nine frozen recipient-snapshot fields (OR Art. 957a; never re-resolved).",
-        "properties" : {
-          "name" : {
-            "type" : "string"
-          },
-          "firstName" : {
-            "type" : "string"
-          },
-          "lastName" : {
-            "type" : "string"
-          },
-          "addressLine1" : {
-            "type" : "string"
-          },
-          "addressLine2" : {
-            "type" : "string"
-          },
-          "zipCode" : {
-            "type" : "string"
-          },
-          "city" : {
-            "type" : "string"
-          },
-          "country" : {
-            "type" : "string"
-          },
-          "clubMemberNumber" : {
-            "type" : "string"
-          }
-        }
       },
       "CountryResponse" : {
         "type" : "object",

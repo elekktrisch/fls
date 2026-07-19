@@ -4,6 +4,11 @@ const BOOKED = 20;
 const ERROR = 30;
 const CANCELLED = 99;
 
+/** A Booked delivery is terminal — its delete affordance is disabled. */
+export function isBookedState(processStateId: number): boolean {
+  return processStateId === BOOKED;
+}
+
 /** The `deliveries.state.*` i18n key for a process-state code (fallback: prepared). */
 export function processStateKey(processStateId: number): string {
   switch (processStateId) {

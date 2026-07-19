@@ -6,6 +6,9 @@ import ch.alpenflight.accounting.domain.DeliveryItemPipeline.RuleFilters;
 import ch.alpenflight.accounting.domain.DeliveryItemPipeline.TowInput;
 import ch.alpenflight.accounting.domain.MatchableFlight.MatchableCrew;
 import ch.alpenflight.flights.domain.FlightAircraftType;
+import ch.alpenflight.persons.domain.Person;
+import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -132,6 +135,61 @@ class DeliveryItemPipelineTest {
         assertThat(acc.deliveryItems())
                 .extracting(DeliveryItemDetails::articleNumber)
                 .containsExactly("FT_T");
+    }
+
+    // One credit whose immat CSV lists both flights matches the glider AND the tow
+    // pass, so each draws on the same credit and the consumption must SUM — under
+    // overwrite the second pass would silently erase the first (the legacy
+    // under-consume bug, RuleBasedDeliveryDetails#recordCreditConsumption). The two
+    // passes carry DISTINCT articles because a same-article second pass coalesces
+    // into the existing line and skips the credit branch (FlightTimeStage#apply).
+    @Test
+    void gliderAndTowSharingOneCreditSumBothPassesOntoIt() throws Exception {
+        var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
+        UUID creditId = UUID.randomUUID();
+        PersonFlightTimeCredit shared = creditMatching("HB-GLDR,HB-TOWA", 10_000L, creditId);
+
+        RuleFilters filters = buckets(
+                List.of(creditTier("FT_G", true, false), creditTier("FT_T", false, true)),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+
+        PIPELINE.run(acc, glider().build(), filters, 1800, 0,
+                new TowInput(tow().build(), 600, 0), List.of(shared));
+
+        assertThat(acc.creditConsumptions())
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.creditId()).isEqualTo(creditId);
+                    assertThat(c.consumedSeconds()).isEqualTo(2400L);
+                });
+    }
+
+    // A SEC-unit, min=0 FlightTime filter scoped to one aircraft kind, so the credit
+    // covers the whole active duration each pass and the recorded consumption equals
+    // each flight's full duration (1800 glider + 600 tow).
+    private static RuleFilterInput creditTier(String article, boolean glider, boolean towing) {
+        FilterConfig base = FilterConfig.empty();
+        FilterConfig config = new FilterConfig(
+                glider, towing, false,
+                false, false, false, false, false, false,
+                null, 0, null, null, null,
+                base.aircraftImmatriculations(), base.startTypes(), base.flightTypeCodes(),
+                base.startLocations(), base.ldgLocations(), base.clubMemberNumbers(),
+                base.flightCrewTypes(), base.aircraftHomebases(), base.memberStates(),
+                base.personCategories(),
+                null, null);
+        return new RuleFilterInput(UUID.randomUUID(), null, article, AccountingUnitType.SEC, config);
+    }
+
+    private static PersonFlightTimeCredit creditMatching(String matchedImmats, long balanceSeconds, UUID id)
+            throws Exception {
+        PersonFlightTimeCredit credit = PersonFlightTimeCredit.grant(
+                Person.register("Test", "Pilot", null),
+                Instant.EPOCH, false, matchedImmats, 0, false, balanceSeconds);
+        Field idField = PersonFlightTimeCredit.class.getDeclaredField("id");
+        idField.setAccessible(true);
+        idField.set(credit, id);
+        return credit;
     }
 
     // A FlightTime/Instructor filter scoped to GLIDER flights only.

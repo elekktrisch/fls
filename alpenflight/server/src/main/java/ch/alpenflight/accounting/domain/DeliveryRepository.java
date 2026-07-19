@@ -38,4 +38,23 @@ public interface DeliveryRepository {
      * cross-tenant-404 foundation — there is deliberately no by-id-only variant.
      */
     Optional<Delivery> findActiveById(UUID id);
+
+    /** Persists a delivery (and its cascaded items) under the caller's tenant. */
+    Delivery save(Delivery delivery);
+
+    /**
+     * Count of active (non-deleted) deliveries linked to {@code flightId} within the
+     * caller's tenant — the {@code >1-delivery-per-flight} delete guard
+     * ({@code DeliveryService.cs:1242}). A previously soft-deleted delivery on the
+     * same flight is excluded (it is gone), unlike legacy's hard-delete count.
+     */
+    long countActiveByFlightId(UUID flightId);
+
+    /**
+     * The highest {@code batch_id} across the caller's tenant's deliveries
+     * (including soft-deleted, so a deleted batch never re-issues), or 0 when the
+     * club has none. The next create assigns {@code max+1} (legacy app-generated
+     * per-club batch counter, not a DB sequence).
+     */
+    long findMaxBatchId();
 }

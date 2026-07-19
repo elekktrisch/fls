@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -153,10 +154,25 @@ public final class FlightTimeStage {
             long remainderSeconds = lineSeconds - creditedSeconds;
             emit(accumulator, articleNumber, itemText, creditedSeconds, credit.discountInPercent(), unit, false);
             emit(accumulator, articleNumber, itemText, remainderSeconds, 0, unit, false);
+            recordConsumption(accumulator, credit, creditedSeconds);
         } else {
             emit(accumulator, articleNumber, itemText, lineSeconds, credit.discountInPercent(), unit, false);
+            recordConsumption(accumulator, credit, lineSeconds);
         }
         accumulator.markFilterMatched(filter.filterId());
+    }
+
+    // The credit-ledger entry on RuleBasedDeliveryDetails the real persist path
+    // turns into a PersonFlightTimeCreditTransaction; the dry-run ignores it. An
+    // unlimited credit (no id-bearing balance) still records its consumed delta so
+    // the create-time ledger writes the audit row legacy writes for it.
+    private static void recordConsumption(RuleBasedDeliveryDetails accumulator,
+                                          CreditLedger.Match credit,
+                                          long seconds) {
+        UUID creditId = credit.creditId();
+        if (creditId != null) {
+            accumulator.recordCreditConsumption(creditId, seconds);
+        }
     }
 
     // coalesce mirrors legacy's two add paths: the fresh-add path (cs:138/:170 direct
@@ -259,6 +275,10 @@ public final class FlightTimeStage {
 
             long balanceSeconds() {
                 return balanceSeconds;
+            }
+
+            @Nullable UUID creditId() {
+                return credit.getId();
             }
 
             int discountInPercent() {

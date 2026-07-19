@@ -1,20 +1,12 @@
 package ch.alpenflight.accounting.application;
 
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryDetail;
-import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryFlightSummary;
-import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryItemView;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryOverview;
 import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryPage;
-import ch.alpenflight.accounting.application.DeliveryDtos.DeliveryRecipientView;
 import ch.alpenflight.accounting.domain.Delivery;
-import ch.alpenflight.accounting.domain.DeliveryItem;
-import ch.alpenflight.accounting.domain.DeliveryRecipient;
 import ch.alpenflight.accounting.domain.DeliveryRepository;
-import ch.alpenflight.platform.id.FlightId;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,80 +51,13 @@ public class DeliveriesService {
         int safeStart = Math.max(pageStart, 0);
         int pageNumber = safeStart / safeSize;
         List<DeliveryOverview> items = deliveries.findActivePage(PageRequest.of(pageNumber, safeSize)).stream()
-                .map(DeliveriesService::toOverview)
+                .map(DeliveryDetailMapper::toOverview)
                 .toList();
         return new DeliveryPage(items, safeStart, safeSize, deliveries.countActive());
     }
 
     public DeliveryDetail getDetail(UUID id) {
-        return toDetail(deliveries.findActiveById(id)
+        return DeliveryDetailMapper.toDetail(deliveries.findActiveById(id)
                 .orElseThrow(() -> new DeliveryNotFoundException(id)));
-    }
-
-    private static DeliveryOverview toOverview(Delivery delivery) {
-        return new DeliveryOverview(
-                requireId(delivery),
-                delivery.getDeliveryNumber(),
-                recipientDisplayName(delivery.getRecipient()),
-                delivery.getBatchId(),
-                delivery.getProcessState().code());
-    }
-
-    private static DeliveryDetail toDetail(Delivery delivery) {
-        return new DeliveryDetail(
-                requireId(delivery),
-                delivery.getDeliveryNumber(),
-                delivery.getBatchId(),
-                delivery.getProcessState().code(),
-                delivery.getDeliveryInformation(),
-                delivery.getAdditionalInformation(),
-                toRecipientView(delivery.getRecipient()),
-                toFlightSummary(delivery.getFlightId()),
-                delivery.getItems().stream().map(DeliveriesService::toItemView).toList());
-    }
-
-    private static DeliveryItemView toItemView(DeliveryItem item) {
-        return new DeliveryItemView(
-                item.getPosition(),
-                item.getArticleNumber(),
-                item.getItemText(),
-                item.getQuantity(),
-                item.getUnitTypeCode(),
-                item.getDiscountInPercent());
-    }
-
-    private static DeliveryRecipientView toRecipientView(DeliveryRecipient r) {
-        return new DeliveryRecipientView(
-                r.name(), r.firstname(), r.lastname(),
-                r.addressLine1(), r.addressLine2(),
-                r.zipCode(), r.city(), r.countryName(),
-                r.personClubMemberNumber());
-    }
-
-    private static @Nullable DeliveryFlightSummary toFlightSummary(@Nullable UUID flightId) {
-        return flightId == null ? null : new DeliveryFlightSummary(FlightId.of(flightId));
-    }
-
-    /**
-     * The list-row recipient label: the company {@code name} when present, else
-     * {@code lastname firstname} (the legacy {@code RecipientName} fallback), else
-     * empty when the snapshot is blank (a not-yet-booked delivery).
-     */
-    private static String recipientDisplayName(DeliveryRecipient r) {
-        String name = r.name();
-        if (name != null && !name.isBlank()) {
-            return name;
-        }
-        String last = orEmpty(r.lastname());
-        String first = orEmpty(r.firstname());
-        return (last + " " + first).trim();
-    }
-
-    private static String orEmpty(@Nullable String s) {
-        return s == null ? "" : s;
-    }
-
-    private static UUID requireId(Delivery delivery) {
-        return Objects.requireNonNull(delivery.getId(), "Cannot map an unpersisted Delivery");
     }
 }
