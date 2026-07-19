@@ -12,6 +12,8 @@ acceptance:
   - "[happy] The proof-fanout `Run AlpenFlight parity specs` step runs `flight-migration-parity.spec.ts` GREEN — the migrated glider flight (today-5) renders in the owning club's /flights list after the date-range widen (was a 20s `page.waitForResponse` timeout in `widenFlightListRangeToRecent`, red 6+ days)."
   - "[key] Widening the /flights date range fires exactly one `GET /api/v1/flights?from=…&to=…` (from≠to, 200) whose window covers the migrated flight's date; the row is identified by immatriculation and carries a `flights-row-<uuid>` testid."
   - "[edge] The `alpenflight e2e real-idp` cross-journey shard no longer reds on `flight-migration-parity`; the change is test-side only — app refetch is unchanged (proven by the mock `flights-list.spec.ts` round-trip + `flight.store.spec.ts` unit)."
+  - "[fully-green-1] `token-lifecycle.spec.ts:87` (disabled-user redirect) passes deterministically in the `alpenflight e2e real-idp` run — the Keycloak disable is polled-until-propagated and the redirect driven, not a fixed-wallclock refresh-grant race (folded in on operator ask 2026-07-19 to make the scheduled proofs FULLY green)."
+  - "[fully-green-2] The `nightly` legacy `e2e (Playwright)` job completes within its execution budget instead of being cancelled at the 30-min max (sharded or cap raised) — a duration budget, not a red test."
 screen: none — the fix targets the existing /flights list; no new screen/route.
 headless_pulled_in: none
 migration: N/A — test-helper fix; no mapper/entity/schema touched.
@@ -48,11 +50,27 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   to `journey: 'J-29'` per the generator's annotation contract (`generate-gallery.mjs:149-151`) + refresh its
   caption to the J-29 proof. The video is real — only its journey attribution changes; no assertion touched.
 
+- [ ] T-03 — Fix the `token-lifecycle.spec.ts:87` disabled-user redirect race (folded `_BOYSCOUT.md`
+  [TOKEN-LIFECYCLE-87-RESIDUAL]). Root cause is NOT shared-user mutation (the login user is already a per-test
+  throwaway `freshTestUser()`): `setUserEnabled(userId,false)` (`_helpers/keycloak-admin.ts:540`) is a plain PUT
+  with no poll, then a fixed 40s wallclock wait assumes the silent refresh-grant rotation is rejected in-window.
+  Fix: add `pollUserDisabled(userId)` (re-GET `/users/{id}` until `enabled===false`) after the disable, and
+  drive the redirect deterministically (refetch loop) rather than the fixed timeout. Verify via `alpenflight
+  e2e real-idp` dispatch (iterative — KC-26 refresh-grant territory, ~2-3 ~25-min cycles).
+- [ ] T-04 — Nightly 30-min cap (folded `_BOYSCOUT.md`): the legacy `e2e (Playwright)` job exceeds its 30-min
+  max-execution + is cancelled (a duration budget, not a red test). Shard the legacy Playwright run or raise the
+  cap in `nightly.yml` so the job completes. Separate legacy stack; lowest priority.
+
+**Scope expanded 2026-07-19 (operator):** fold the two OPTIONAL ride-alongs in so the scheduled proofs go
+FULLY green in one PR (#241), not just the dominant `flight-migration-parity` red. T-01/T-02 already proven
+green on code head `ca82c4e6`.
+
 §4 gate (driven by `e2e-driver`): the box cannot host the real-idp stack (OOM), so CI is the proof. The
 `alpenflight e2e real-idp` shard confirmed `flight-migration-parity.spec.ts` GREEN on-branch (migrated context);
-the PR's `alpenflight proof (real-idp, clean-seed)` job re-runs the same spec + gallery guard on the final sha.
-An on-branch fanout is a known cold-NuGet no-op (migration: N/A ⇒ not a merge blocker); [happy] fanout-green
-lands post-merge on the scheduled warm-cache run.
+the PR's `alpenflight proof (real-idp, clean-seed)` job re-runs the same spec + gallery guard on the code head.
+The T-03/T-04 done bar is the `alpenflight e2e real-idp` run GREEN at run level (token-lifecycle:87 passing) +
+the nightly legacy job completing within budget. On-branch fanout is a known cold-NuGet no-op (migration:
+N/A ⇒ not a merge blocker); [happy] fanout-green lands post-merge on the scheduled warm-cache run.
 
 ## Spec must assert
 
