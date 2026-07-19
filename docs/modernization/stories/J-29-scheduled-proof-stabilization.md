@@ -40,9 +40,19 @@ misleading; precedent: J-27 "drive the fanout fully green", a fidelity sprint wi
   boundaries). Keep the existing cell locator + `from≠to` `waitForResponse` predicate. Assert the committed
   range spans the seeded flight's date before awaiting the refetch. Test-side only (`flights-row-<id>` exists).
 
-§4 gate (post-T-01, driven by `e2e-driver`): `flight-migration-parity.spec.ts` green locally on the real-idp
-stack, then the scheduled `alpenflight proof fan-out` (`Run AlpenFlight parity specs`) + `alpenflight e2e
-real-idp` shard confirmed green on-branch.
+- [ ] T-02 — Attribute the flight-migration-parity proof video to J-29 for the gallery. ci.yml's `alpenflight
+  proof (real-idp, clean-seed)` derives this journey's `parity_test` and its step-28 deployed-bookmark guard
+  requires the current journey's gallery page to carry ≥1 proof video; but every video annotation in
+  `flight-migration-parity.spec.ts` is tagged `journey: 'J-2'`, so `generate-gallery.mjs` attributes 0 to J-29 →
+  thin page → guard reds. Re-tag the primary proof video (migrated glider renders in /flights after the widen)
+  to `journey: 'J-29'` per the generator's annotation contract (`generate-gallery.mjs:149-151`) + refresh its
+  caption to the J-29 proof. The video is real — only its journey attribution changes; no assertion touched.
+
+§4 gate (driven by `e2e-driver`): the box cannot host the real-idp stack (OOM), so CI is the proof. The
+`alpenflight e2e real-idp` shard confirmed `flight-migration-parity.spec.ts` GREEN on-branch (migrated context);
+the PR's `alpenflight proof (real-idp, clean-seed)` job re-runs the same spec + gallery guard on the final sha.
+An on-branch fanout is a known cold-NuGet no-op (migration: N/A ⇒ not a merge blocker); [happy] fanout-green
+lands post-merge on the scheduled warm-cache run.
 
 ## Spec must assert
 
