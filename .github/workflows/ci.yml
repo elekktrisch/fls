@@ -845,10 +845,17 @@ jobs:
           # --workers=1: real-idp must run serial (one realm + one Mailpit inbox);
           # `workers` is top-level-only so the project's per-project value is a no-op
           # and would otherwise inherit the top-level CI count.
+          # --max-failures=0: run ALL of the journey spec's cases and report EVERY
+          # failing one in a single ~24-min cycle. Playwright's default already runs
+          # to completion (no global maxFailures in playwright.config.ts), but this
+          # pins the intent locally to THIS clean-seed proof step — it derives+runs
+          # ONLY the one journey-under-work spec, so surfacing all its case gaps at
+          # once (instead of one-per-cycle) has no gate-wide blast radius.
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             --workers=1 \
+            --max-failures=0 \
             "$SPEC"
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +

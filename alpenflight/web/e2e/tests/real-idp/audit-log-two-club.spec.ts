@@ -333,24 +333,37 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       // The action select is back to its all-actions placeholder (no value).
       await expect(page.getByTestId(TESTIDS.rowAction).first()).toBeVisible();
 
-      // (6) Row-detail diff (UPDATE) — expand the UPDATE row for our Location and
-      //     assert the before/after payload renders (the field-diff table). Filter
-      //     to Location UPDATE rows first so the expanded row is deterministically
-      //     ours: this fresh tenant's only UPDATE/Location event is this test's own
-      //     rename, so the sole row after both filters is ours. The collapsed row
+      // (6) Row-detail diff (UPDATE) — expand OUR Location's UPDATE row and assert
+      //     the before/after payload renders (the field-diff table). Filter to
+      //     Location UPDATE rows first, then find the row that is ours by its
+      //     UNIQUE edited name rather than by exact count: club A is the shared
+      //     Flyway seed-club-1 tenant, so a Playwright retry (which re-runs the
+      //     serial group's beforeAll → a fresh club-A admin whose own rename lands
+      //     in the same tenant) leaves >1 UPDATE/Location row. The collapsed row
       //     surfaces action / target-type / actor / status / time only — the edited
       //     NAME lives in the afterState diff, which renders in `audit-row-detail`
-      //     after expansion, so target the row by its filtered position, then prove
-      //     the name via the expanded diff.
+      //     after expansion. So expand each UPDATE/Location row until one exposes a
+      //     detail carrying THIS attempt's unique `editedName` (fresh per-nonce), and
+      //     assert the genuine before→after on that one.
       await selectAfOption(page, TESTIDS.filterAction, 'UPDATE');
       await page.getByTestId(TESTIDS.filterTarget).locator('input').fill('Location');
       await expect(page.getByTestId(TESTIDS.rowTarget).first()).toHaveText('Location');
-      await expect(page.getByTestId(TESTIDS.row)).toHaveCount(1);
-      const updateRow = page.getByTestId(TESTIDS.row).first();
-      await expect(updateRow).toBeVisible();
-      await updateRow.click();
+      await expect(page.getByTestId(TESTIDS.row).first()).toBeVisible();
+      const locationUpdateRows = page.getByTestId(TESTIDS.row);
+      const locationUpdateRowCount = await locationUpdateRows.count();
       const detail = page.getByTestId(TESTIDS.rowDetail);
-      await expect(detail).toBeVisible();
+      let ours = false;
+      for (let i = 0; i < locationUpdateRowCount; i++) {
+        await locationUpdateRows.nth(i).click();
+        await expect(detail).toBeVisible();
+        if (((await detail.textContent()) ?? '').includes(editedName)) {
+          ours = true;
+          break;
+        }
+        // Not ours — collapse (toggle) before probing the next row.
+        await locationUpdateRows.nth(i).click();
+      }
+      expect(ours, `an UPDATE/Location audit row must carry this rename's editedName`).toBe(true);
       // The UPDATE diff table carries a Field/Before/After header + the edited
       // locationName value in the after column (a genuine before→after diff).
       await expect(detail).toContainText(editedName);
@@ -441,9 +454,14 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
         50,
       );
       expect(firstPageCount, 'seed guarantees a full first page').toBe(50);
-      const pagerNext = page.getByTestId(TESTIDS.pagerNext);
+      // `af-button` puts `disabled` on its INNER `<button nz-button>`, not on the
+      // host element the testid resolves to (the host is not a form control, so a
+      // host-level toBeDisabled/toBeEnabled is meaningless — toBeEnabled trivially
+      // passes, toBeDisabled trivially fails). Target the inner button, matching the
+      // house pattern (flight-migration-parity.spec.ts:379).
+      const pagerNext = page.getByTestId(TESTIDS.pagerNext).locator('button');
       await expect(pagerNext).toBeEnabled();
-      await expect(page.getByTestId(TESTIDS.pagerPrev)).toBeDisabled();
+      await expect(page.getByTestId(TESTIDS.pagerPrev).locator('button')).toBeDisabled();
       const offsetBefore = (await page.getByTestId(TESTIDS.pagerOffset).textContent())?.trim();
 
       // The seeded rows are failed DELETE→404 mutations — the ONLY audit rows that
@@ -463,7 +481,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await pagerNext.click();
       await nextReq;
       await expect(page.getByTestId(TESTIDS.row).first()).toBeVisible();
-      await expect(page.getByTestId(TESTIDS.pagerPrev)).toBeEnabled();
+      await expect(page.getByTestId(TESTIDS.pagerPrev).locator('button')).toBeEnabled();
       await expect
         .poll(async () => (await page.getByTestId(TESTIDS.pagerOffset).textContent())?.trim())
         .not.toBe(offsetBefore);
