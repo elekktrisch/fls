@@ -567,7 +567,26 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await expect(page.getByTestId(TESTIDS.table)).toHaveCount(0);
 
       // (2) A PILOT's Masterdata nav has no Audit-logs entry (admin-gated child).
-      await expect(page.getByTestId(`af-nav-section-${AUDIT_LOGS_PATH}`)).toHaveCount(0);
+      //     The group children live in a CDK dropdown overlay and are absent from
+      //     the DOM until the group is OPENED — so a count(0) on a closed group
+      //     passes vacuously (proves nothing). Open the Masterdata group, confirm
+      //     a pilot-visible child renders (the group genuinely opened), THEN assert
+      //     the admin-only Audit-logs child is absent — a real negative proof.
+      //     The guard redirect above already left us on the app shell (nav
+      //     rendered) — drive the nav in-app rather than a cold goto (avoids the
+      //     OIDC reboot/renew stall).
+      const masterdata = page.getByTestId('af-nav-group-masterdata');
+      await expect(masterdata, 'a pilot still sees the Masterdata nav group').toBeVisible();
+      await masterdata.click();
+      await expect(
+        page.getByTestId('af-nav-section-/aircraft'),
+        'a pilot-visible Masterdata child renders once the group is open',
+      ).toBeVisible();
+      await expect(
+        page.getByTestId(`af-nav-section-${AUDIT_LOGS_PATH}`),
+        'a pilot has no Audit-logs entry under the opened Masterdata group',
+      ).toHaveCount(0);
+      await page.keyboard.press('Escape');
 
       // (3) The endpoint itself 403s a PILOT — the server role gate, driven with
       //     the pilot's OWN real token.
