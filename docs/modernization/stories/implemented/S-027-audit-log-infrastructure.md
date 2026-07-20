@@ -67,10 +67,13 @@ ArchUnit rule.
   policy key. `@AuditRedact` overrides the policy for known-PII fields
   even if accidentally allow-listed. `AuditRedactionCoverageTest`
   ArchUnit guard catches `@Entity` fields lacking an explicit decision.
-- **Append-only by convention; structural enforcement deferred to S-160.**
-  The port exposes only `append`; no `UPDATE` / `DELETE` surfaces exist.
-  S-160 (split migration + app DB roles) will revoke the application
-  role's `UPDATE` / `DELETE` privilege on `mutation_audit_event`.
+- **Append-only — enforced structurally (S-160).** The port exposes only
+  `append`; no `UPDATE` / `DELETE` surfaces exist. S-160 split the DB roles
+  (migration V54): the running app boots as `alpenflight_app`, granted only
+  `INSERT, SELECT` on `t_mutation_audit_event` — its `UPDATE` / `DELETE`
+  privilege is revoked, so app-credential compromise cannot tamper or erase
+  audit history. Flyway migrates as the separate `alpenflight` migrator role,
+  which retains full CRUD for lawful maintenance.
 - **Logs never carry the jsonb.** `AuditPayloadTurboFilter` denies any
   log line containing the redactor sentinel or the explicit
   `AUDIT_PAYLOAD_MARKER` — defense-in-depth against PII bleeding from
@@ -94,8 +97,6 @@ ArchUnit rule.
 
 ## Follow-ups
 
-- **S-160** — split migration + app DB roles to revoke
-  `UPDATE` / `DELETE` on `mutation_audit_event` (structural append-only).
 - **S-023 (existing)** — cross-tenant audit read for SYSADMIN; until it
   lands, `cross_tenant_admin_read_blocked` is `@Disabled` in the IT.
 - Future: tamper-detection HMAC chain, jsonb-at-rest encryption (out of

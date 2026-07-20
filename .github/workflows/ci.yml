@@ -722,25 +722,33 @@ jobs:
           fi
 
       # Apply Flyway migrations against the target Postgres so the alpenflight
-      # backend has the (clean-seeded) schema it expects at boot.
+      # backend has the (clean-seeded) schema it expects at boot. S-160: runs as
+      # the MIGRATOR role (alpenflight); APP_DB_PASSWORD is the password V54
+      # provisions the app role with, matched by the app-boot step below.
       - name: Flyway migrate (alpenflight Postgres)
         working-directory: alpenflight/server
         run: |
           DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
           DATASOURCE_USER=alpenflight \
           DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
           ./gradlew flywayMigrate --no-daemon --console=plain --quiet
 
       - name: Build alpenflight backend bootJar
         working-directory: alpenflight/server
         run: ./gradlew bootJar --no-daemon --console=plain --quiet
 
+      # S-160: the running backend boots as the APP role (alpenflight_app), while
+      # Flyway (spring.flyway.*) migrates as the migrator (alpenflight).
       - name: Start alpenflight backend
         working-directory: alpenflight/server
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
-          DATASOURCE_USER: alpenflight
-          DATASOURCE_PASSWORD: alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
           SPRING_PROFILES_ACTIVE: dev
           # Pin log level so payload logging can't leak the canned dev
           # password into the uploaded backend.log artifact.
@@ -1407,12 +1415,15 @@ jobs:
             pnpm exec playwright install --with-deps chromium
           fi
 
+      # S-160: migrate as the migrator (alpenflight); APP_DB_PASSWORD is the
+      # password V54 provisions the app role with.
       - name: Flyway migrate (alpenflight Postgres)
         working-directory: alpenflight/server
         run: |
           DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
           DATASOURCE_USER=alpenflight \
           DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
           ./gradlew flywayMigrate --no-daemon --console=plain --quiet
 
       # Load the showcase seed BEFORE starting the long-running backend. The
@@ -1421,12 +1432,17 @@ jobs:
       # (the deterministic 2-club demo dataset) and exits 0. No Keycloak needed
       # here — the showcase principals are realm-export + Flyway-seeded `t_user`
       # rows; the seeder only writes the DB rows that reference their subs.
+      # S-160: this short-lived app also boots as the app role (its own Flyway
+      # re-run is a no-op migrate as the migrator).
       - name: Load showcase seed (gradlew seedShowcase)
         working-directory: alpenflight/server
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
-          DATASOURCE_USER: alpenflight
-          DATASOURCE_PASSWORD: alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
           LOGGING_LEVEL_ROOT: INFO
         run: ./gradlew seedShowcase --no-daemon --console=plain --quiet
 
@@ -1436,13 +1452,17 @@ jobs:
 
       # Long-running backend on the `dev` profile (NOT showcase — the seed is
       # already committed; the live backend just reads it). Same host-bootJar ↔
-      # host-mapped-Keycloak wiring as `alpenflight-proof`.
+      # host-mapped-Keycloak wiring as `alpenflight-proof`. S-160: boots as the
+      # app role (alpenflight_app); Flyway migrates as the migrator.
       - name: Start alpenflight backend
         working-directory: alpenflight/server
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
-          DATASOURCE_USER: alpenflight
-          DATASOURCE_PASSWORD: alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
           SPRING_PROFILES_ACTIVE: dev
           LOGGING_LEVEL_ROOT: INFO
           ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
@@ -1731,23 +1751,31 @@ jobs:
             pnpm exec playwright install --with-deps chromium
           fi
 
+      # S-160: migrate as the migrator (alpenflight); APP_DB_PASSWORD is the
+      # password V54 provisions the app role with.
       - name: Flyway migrate (alpenflight Postgres)
         working-directory: alpenflight/server
         run: |
           DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
           DATASOURCE_USER=alpenflight \
           DATASOURCE_PASSWORD=alpenflight \
+          APP_DB_PASSWORD=alpenflight_app \
           ./gradlew flywayMigrate --no-daemon --console=plain --quiet
 
       # Same showcase seed the dashboard job loads — the profile spec drives the
       # PILOT pilot1 principal (a showcase Person with the full self-edit field
       # set) and asserts against it. Loaded BEFORE the long-running backend.
+      # S-160: short-lived app boots as the app role; its Flyway re-run is a
+      # no-op migrate as the migrator.
       - name: Load showcase seed (gradlew seedShowcase)
         working-directory: alpenflight/server
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
-          DATASOURCE_USER: alpenflight
-          DATASOURCE_PASSWORD: alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
           LOGGING_LEVEL_ROOT: INFO
         run: ./gradlew seedShowcase --no-daemon --console=plain --quiet
 
@@ -1755,12 +1783,16 @@ jobs:
         working-directory: alpenflight/server
         run: ./gradlew bootJar --no-daemon --console=plain --quiet
 
+      # S-160: boots as the app role (alpenflight_app); Flyway migrates as the migrator.
       - name: Start alpenflight backend
         working-directory: alpenflight/server
         env:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
-          DATASOURCE_USER: alpenflight
-          DATASOURCE_PASSWORD: alpenflight
+          DATASOURCE_USER: alpenflight_app
+          DATASOURCE_PASSWORD: alpenflight_app
+          MIGRATOR_DB_USER: alpenflight
+          MIGRATOR_DB_PASSWORD: alpenflight
+          APP_DB_PASSWORD: alpenflight_app
           SPRING_PROFILES_ACTIVE: dev
           LOGGING_LEVEL_ROOT: INFO
           ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090

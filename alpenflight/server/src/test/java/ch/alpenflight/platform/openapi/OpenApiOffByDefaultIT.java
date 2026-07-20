@@ -44,6 +44,11 @@ class OpenApiOffByDefaultIT {
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        // S-160 split points base spring.flyway.* at the MIGRATOR role; override
+        // to the container so boot-time Flyway connects with the container creds.
+        r.add("spring.flyway.url", pg::jdbcUrl);
+        r.add("spring.flyway.user", pg::username);
+        r.add("spring.flyway.password", pg::password);
     }
 
     @Autowired
