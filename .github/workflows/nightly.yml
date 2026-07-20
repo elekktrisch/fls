@@ -131,15 +131,17 @@ jobs:
     name: e2e (Playwright)
     needs: [legacy-server-build, legacy-web-build]
     runs-on: ubuntu-22.04
-    # 50 is HEADROOM for the ~142-test suite once it actually runs. The prior
-    # 30-min cap was never a duration problem: the job hung on a broken bring-up
-    # (the backgrounded compose `up` aborted on the missing external
+    # 10-min cap. When this job last ran green (2026-05-24..28, before the
+    # bring-up broke) it finished end-to-end in ~5 min — 10 is ~2x that. The
+    # prior 30-min cancel was never a duration problem: the job hung on a broken
+    # bring-up (the backgrounded compose `up` aborted on the missing external
     # `alpenflight_shared` network, so the marker was never written and the wait
     # spun to the cap) — fixed by creating the network + narrowing to `up -d
     # mssql` + a >= 1 healthy threshold, mirroring alpenflight-proof-fanout.yml.
-    # The per-test 60s timeout + maxFailures:10 (playwright.config.ts) cap a
-    # genuine hang / mass-regression well inside this budget.
-    timeout-minutes: 50
+    # A broken bring-up now loud-fails at the bounded marker wait (<= 5 min, well
+    # inside this cap), and the per-test 60s timeout + maxFailures:10 cap a hang /
+    # mass-regression too.
+    timeout-minutes: 10
     # Serialize gh-pages writes across workflows so concurrent deploys from
     # different refs/workflows don't race the gh-pages ref.
     concurrency:
