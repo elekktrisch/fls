@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — unknown</title>
+<title>AlpenFlight proof — J-13</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -86,19 +86,41 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>unknown — proof</h1>
+    <h1>J-13 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">unknown</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-13</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>242/merge</code> &middot; 2026-07-20T10:23:28.597Z
+      merged journeys' proof lives in their PRs. Generated on <code>242/merge</code> &middot; 2026-07-20T16:23:27.074Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-0cdd136037c36c855da2bcb15b3bf151aac9f323.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-13 · audit trail · a club-A admin creates + edits a Location through the real chrome, then opens /system/logs and sees the live CREATE + UPDATE audit rows (action, target type, actor, occurredAt, HTTP status); filters by action + target narrow the list and clearing restores it; expanding the UPDATE row shows the real before→after field diff</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-6b045362dca4f22dd6bfb227aa0e94e2abe44697.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-13 · time-range filter · a from-date bound issues a REAL occurredFrom request and narrows the audit list to events in range (a future bound empties it); clearing restores the list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-16345f0f790ccedbb707095778516201bc23430c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-13 · pagination · with &gt;50 real audit events the default page renders 50 rows, the Next pager is enabled (hasMore) and advancing issues a REAL pageOffset=50 request that fetches the next page (nextOffset cursor)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-e839d62dd37251ca50e1b3c2367868307fa6dcb1.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-13 · tenant isolation · a Location CREATE audit event written in club B is ABSENT from club A admin's /system/logs, and a direct API read as club A's real token never surfaces a club-B-scoped row — the structural @TenantId proof</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d1ca10fa020043fe0ef49b1b7a8186786ebf5eec.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-13 · pilot denied · a real low-privilege PILOT is redirected off /system/logs by the clubAdminGuard, has no Audit-logs nav entry, and GET /api/v1/admin/audit-events returns 403</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
@@ -120,7 +142,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
-          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>unknown</strong></p>
+          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>J-13</strong></p>
         </section>
   </section>
 
