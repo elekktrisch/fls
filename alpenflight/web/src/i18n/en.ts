@@ -130,6 +130,15 @@ const en: Translations = {
       occurredAt: 'When',
       status: 'Status',
     },
+    detail: {
+      after: 'After',
+      before: 'Before',
+      failureReason: 'Failure reason',
+      field: 'Field',
+      noPayload: 'No state payload.',
+      toggle: 'Show detail',
+      value: 'Value',
+    },
     empty: 'No events.',
     filters: {
       action: 'Action',

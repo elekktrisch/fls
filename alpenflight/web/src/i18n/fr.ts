@@ -132,6 +132,15 @@ const fr: Translations = {
       occurredAt: 'Quand',
       status: 'Statut',
     },
+    detail: {
+      after: 'Après',
+      before: 'Avant',
+      failureReason: "Motif de l'échec",
+      field: 'Champ',
+      noPayload: "Aucune donnée d'état.",
+      toggle: 'Afficher le détail',
+      value: 'Valeur',
+    },
     empty: 'Aucun événement.',
     filters: {
       action: 'Action',

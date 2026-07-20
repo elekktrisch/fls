@@ -136,6 +136,15 @@ const de = {
       occurredAt: 'Zeitpunkt',
       status: 'Status',
     },
+    detail: {
+      after: 'Nachher',
+      before: 'Vorher',
+      failureReason: 'Fehlergrund',
+      field: 'Feld',
+      noPayload: 'Keine Zustandsdaten.',
+      toggle: 'Details anzeigen',
+      value: 'Wert',
+    },
     empty: 'Keine Ereignisse.',
     filters: {
       action: 'Aktion',

@@ -10,22 +10,24 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { debounceTime, distinctUntilChanged, skip } from 'rxjs';
 
+import { NzSpinModule } from 'ng-zorro-antd/spin';
+
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
-import { AfDataTableComponent } from '@ui/organisms/af-data-table';
 import { AfDatePickerComponent, type DateValue } from '@ui/organisms/af-date-picker';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { formatIsoDateTime, localDateFromIso } from '@shared/util/date';
 
 import { ListAuditEventsAction } from '@api/generated/model';
-import type { ListAuditEventsAction as AuditAction } from '@api/generated/model';
+import type { AuditEventRow, ListAuditEventsAction as AuditAction } from '@api/generated/model';
 
 import { actionBadgeClass, actionLabel } from './action-catalog';
+import { buildAuditDiff } from './audit-diff';
 import { AuditLogsStore } from '../audit-logs.store';
 
 const ACTION_OPTIONS: readonly AfSelectOption<AuditAction>[] = (
@@ -55,7 +57,6 @@ function startOfLocalDateOnly(date: Date): string {
   host: { class: 'block' },
   imports: [
     AfButtonComponent,
-    AfDataTableComponent,
     AfDatePickerComponent,
     AfFormFieldComponent,
     AfInputComponent,
@@ -63,6 +64,7 @@ function startOfLocalDateOnly(date: Date): string {
     AfPageErrorComponent,
     AfPageHeaderComponent,
     AfSelectComponent,
+    NzSpinModule,
     TranslocoDirective,
   ],
   template: `
@@ -142,51 +144,133 @@ function startOfLocalDateOnly(date: Date): string {
           </div>
         }
 
-        <af-data-table
-          data-testid="audit-logs-table"
-          [items]="store.items()"
-          [loading]="store.isLoading()"
-          [total]="null"
-          [showPagination]="false"
-        >
-          <ng-template #primary let-row>
-            <span
-              class="flex items-center gap-2"
-              data-testid="audit-row"
-              [attr.data-audit-id]="row.id"
-            >
-              <span
-                class="inline-block px-2 py-0.5 text-xs border"
-                [class]="badgeClass(row.action)"
-                data-testid="audit-row-action"
-              >
-                {{ label(row.action) }}
-              </span>
-              <span class="text-slate-900 font-medium" data-testid="audit-row-target">
-                {{ row.targetEntityType }}
-              </span>
-            </span>
-          </ng-template>
-          <ng-template #secondary let-row>
-            <span class="tabular" data-testid="audit-row-actor">
-              {{ row.systemActor ? t('systemActor') : row.actorUserId }}
-            </span>
-          </ng-template>
-          <ng-template #meta let-row>
-            <span class="flex items-center gap-3">
-              <span
-                class="text-xs tabular"
-                [class]="row.failed ? 'text-red-700' : 'text-slate-500'"
-                data-testid="audit-row-status"
-              >
-                {{ row.httpStatus }}
-              </span>
-              <span class="text-xs text-slate-500 tabular" data-testid="audit-row-time">
-                {{ formatWhen(row.occurredAt) }}
-              </span>
-            </span>
-          </ng-template>
-        </af-data-table>
+        @if (store.isLoading()) {
+          <div class="flex justify-center py-12" data-testid="audit-logs-table">
+            <nz-spin />
+          </div>
+        } @else {
+          <ul
+            role="list"
+            class="flex flex-col gap-2 list-none m-0 p-0"
+            data-testid="audit-logs-table"
+          >
+            @for (row of store.items(); track row.id) {
+              <li class="bg-white border border-slate-200 hover:border-slate-300">
+                <button
+                  type="button"
+                  class="w-full flex items-center gap-4 p-4 text-left bg-transparent border-0 cursor-pointer"
+                  [attr.aria-expanded]="isExpanded(row)"
+                  [attr.aria-label]="t('detail.toggle')"
+                  (click)="toggleRow(row)"
+                  data-testid="audit-row"
+                  [attr.data-audit-id]="row.id"
+                >
+                  <span class="flex-1 min-w-0 flex items-center gap-2">
+                    <span
+                      class="inline-block px-2 py-0.5 text-xs border"
+                      [class]="badgeClass(row.action)"
+                      data-testid="audit-row-action"
+                    >
+                      {{ label(row.action) }}
+                    </span>
+                    <span
+                      class="text-slate-900 font-medium truncate"
+                      data-testid="audit-row-target"
+                    >
+                      {{ row.targetEntityType }}
+                    </span>
+                  </span>
+                  <span
+                    class="flex-none text-sm text-slate-500 tabular"
+                    data-testid="audit-row-actor"
+                  >
+                    {{ row.systemActor ? t('systemActor') : row.actorUserId }}
+                  </span>
+                  <span class="flex-none flex items-center gap-3">
+                    <span
+                      class="text-xs tabular"
+                      [class]="row.failed ? 'text-red-700' : 'text-slate-500'"
+                      data-testid="audit-row-status"
+                    >
+                      {{ row.httpStatus }}
+                    </span>
+                    <span class="text-xs text-slate-500 tabular" data-testid="audit-row-time">
+                      {{ formatWhen(row.occurredAt) }}
+                    </span>
+                  </span>
+                </button>
+
+                @if (isExpanded(row)) {
+                  @let diff = diffOf(row);
+                  <div
+                    class="border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                    data-testid="audit-row-detail"
+                  >
+                    @if (diff.mode === 'empty') {
+                      <p class="text-slate-500 m-0">{{ t('detail.noPayload') }}</p>
+                    } @else if (diff.mode === 'diff') {
+                      <table class="w-full border-collapse font-mono text-xs">
+                        <thead>
+                          <tr class="text-left text-slate-500">
+                            <th class="py-1 pr-4 font-medium">{{ t('detail.field') }}</th>
+                            <th class="py-1 pr-4 font-medium">{{ t('detail.before') }}</th>
+                            <th class="py-1 font-medium">{{ t('detail.after') }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (dr of diff.rows; track dr.key) {
+                            <tr
+                              class="align-top border-t border-slate-200"
+                              [class.bg-amber-50]="dr.changed"
+                            >
+                              <td class="py-1 pr-4 text-slate-600">{{ dr.key }}</td>
+                              <td class="py-1 pr-4 text-slate-500 whitespace-pre-wrap break-all">
+                                {{ dr.before }}
+                              </td>
+                              <td
+                                class="py-1 whitespace-pre-wrap break-all"
+                                [class]="
+                                  dr.changed ? 'text-slate-900 font-medium' : 'text-slate-500'
+                                "
+                              >
+                                {{ dr.after }}
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    } @else {
+                      <table class="w-full border-collapse font-mono text-xs">
+                        <thead>
+                          <tr class="text-left text-slate-500">
+                            <th class="py-1 pr-4 font-medium">{{ t('detail.field') }}</th>
+                            <th class="py-1 font-medium">{{ t('detail.value') }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (dr of diff.rows; track dr.key) {
+                            <tr class="align-top border-t border-slate-200">
+                              <td class="py-1 pr-4 text-slate-600">{{ dr.key }}</td>
+                              <td class="py-1 text-slate-900 whitespace-pre-wrap break-all">
+                                {{ diff.mode === 'delete' ? dr.before : dr.after }}
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    }
+
+                    @if (row.failed && row.failureReason) {
+                      <p class="mt-3 mb-0 text-red-700" data-testid="audit-row-failure">
+                        {{ t('detail.failureReason') }}: {{ row.failureReason }}
+                      </p>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        }
 
         <div class="mt-3 flex items-center gap-2">
           <af-button
@@ -223,6 +307,10 @@ export class AuditLogsListPage implements OnInit {
   protected readonly formatWhen = formatIsoDateTime;
   protected readonly actionOptions = ACTION_OPTIONS;
 
+  // View-only state: which row's before/after payload is currently expanded.
+  // One at a time — kept on the page, not the store (it's not domain state).
+  protected readonly expandedRowId = signal<string | null>(null);
+
   protected readonly selectedAction = computed<AuditAction | null>(
     () => this.store.filters().action ?? null,
   );
@@ -252,6 +340,19 @@ export class AuditLogsListPage implements OnInit {
 
   ngOnInit(): void {
     this.store.loadPage();
+  }
+
+  protected isExpanded(row: AuditEventRow): boolean {
+    return !!row.id && this.expandedRowId() === row.id;
+  }
+
+  protected toggleRow(row: AuditEventRow): void {
+    if (!row.id) return;
+    this.expandedRowId.update((current) => (current === row.id ? null : row.id!));
+  }
+
+  protected diffOf(row: AuditEventRow) {
+    return buildAuditDiff(row);
   }
 
   protected onActionChange(action: AuditAction | null): void {

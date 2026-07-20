@@ -131,6 +131,15 @@ const it: Translations = {
       occurredAt: 'Quando',
       status: 'Stato',
     },
+    detail: {
+      after: 'Dopo',
+      before: 'Prima',
+      failureReason: "Motivo dell'errore",
+      field: 'Campo',
+      noPayload: 'Nessun dato di stato.',
+      toggle: 'Mostra dettaglio',
+      value: 'Valore',
+    },
     empty: 'Nessun evento.',
     filters: {
       action: 'Azione',
