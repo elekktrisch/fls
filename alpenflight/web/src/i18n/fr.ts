@@ -123,6 +123,23 @@ const fr: Translations = {
     },
     title: 'Aéronefs',
   },
+  auditLogs: {
+    title: 'Journaux',
+    columns: {
+      action: 'Action',
+      target: 'Objet',
+      actor: 'Utilisateur',
+      occurredAt: 'Quand',
+      status: 'Statut',
+    },
+    empty: 'Aucun événement.',
+    pager: {
+      prev: 'Précédent',
+      next: 'Suivant',
+      page: 'À partir de {{offset}}',
+    },
+    systemActor: 'Système',
+  },
   common: {
     errors: {
       duplicate: 'Déjà utilisé.',

@@ -127,6 +127,23 @@ const de = {
     },
     title: 'Flugzeuge',
   },
+  auditLogs: {
+    title: 'Protokolle',
+    columns: {
+      action: 'Aktion',
+      target: 'Objekt',
+      actor: 'Benutzer',
+      occurredAt: 'Zeitpunkt',
+      status: 'Status',
+    },
+    empty: 'Keine Ereignisse.',
+    pager: {
+      prev: 'Zurück',
+      next: 'Weiter',
+      page: 'Ab Position {{offset}}',
+    },
+    systemActor: 'System',
+  },
   common: {
     errors: {
       duplicate: 'Wird bereits verwendet.',

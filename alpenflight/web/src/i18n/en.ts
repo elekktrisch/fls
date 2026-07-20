@@ -121,6 +121,23 @@ const en: Translations = {
     },
     title: 'Aircraft',
   },
+  auditLogs: {
+    title: 'Audit logs',
+    columns: {
+      action: 'Action',
+      target: 'Target',
+      actor: 'Actor',
+      occurredAt: 'When',
+      status: 'Status',
+    },
+    empty: 'No events.',
+    pager: {
+      prev: 'Previous',
+      next: 'Next',
+      page: 'From offset {{offset}}',
+    },
+    systemActor: 'System',
+  },
   common: {
     errors: {
       duplicate: 'Already in use.',

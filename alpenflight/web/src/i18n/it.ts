@@ -122,6 +122,23 @@ const it: Translations = {
     },
     title: 'Aeromobili',
   },
+  auditLogs: {
+    title: 'Registri',
+    columns: {
+      action: 'Azione',
+      target: 'Oggetto',
+      actor: 'Utente',
+      occurredAt: 'Quando',
+      status: 'Stato',
+    },
+    empty: 'Nessun evento.',
+    pager: {
+      prev: 'Precedente',
+      next: 'Successivo',
+      page: 'Dalla posizione {{offset}}',
+    },
+    systemActor: 'Sistema',
+  },
   common: {
     errors: {
       duplicate: 'Già in uso.',
