@@ -336,14 +336,17 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       // (6) Row-detail diff (UPDATE) — expand the UPDATE row for our Location and
       //     assert the before/after payload renders (the field-diff table). Filter
       //     to Location UPDATE rows first so the expanded row is deterministically
-      //     ours (its afterState carries the edited name).
+      //     ours: this fresh tenant's only UPDATE/Location event is this test's own
+      //     rename, so the sole row after both filters is ours. The collapsed row
+      //     surfaces action / target-type / actor / status / time only — the edited
+      //     NAME lives in the afterState diff, which renders in `audit-row-detail`
+      //     after expansion, so target the row by its filtered position, then prove
+      //     the name via the expanded diff.
       await selectAfOption(page, TESTIDS.filterAction, 'UPDATE');
       await page.getByTestId(TESTIDS.filterTarget).locator('input').fill('Location');
       await expect(page.getByTestId(TESTIDS.rowTarget).first()).toHaveText('Location');
-      const updateRow = page
-        .getByTestId(TESTIDS.row)
-        .filter({ has: page.getByText(editedName) })
-        .first();
+      await expect(page.getByTestId(TESTIDS.row)).toHaveCount(1);
+      const updateRow = page.getByTestId(TESTIDS.row).first();
       await expect(updateRow).toBeVisible();
       await updateRow.click();
       const detail = page.getByTestId(TESTIDS.rowDetail);
