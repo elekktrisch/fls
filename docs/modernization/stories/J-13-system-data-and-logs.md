@@ -2,7 +2,8 @@
 id: J-13
 title: Audit-log viewer (/system/logs)
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-07-20
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -22,6 +23,18 @@ migration: N/A — audit trail is app-generated (live events); legacy SystemData
 parity_test: alpenflight/web/e2e/tests/system/audit-log.spec.ts   # + real-idp two-club gate spec
 adr_refs: [0007, 0008, 0022]
 ---
+
+## Tasks
+
+- [ ] **T-01 — spec stub + J-13 proof-gallery scaffold.** Author `web/e2e/tests/audit-logs/audit-logs-list.spec.ts` stub (mock `/api/v1/admin/audit-events`; testids + flow, thin assertions committing the screen shape: table, row, filter controls, row-detail region). Scaffold the per-journey gallery page for J-13 + link it from the persistent index (glanceable slot from task 1). [NG8113-DEADIMPORT] already fixed in tree — delete its `_BOYSCOUT.md` bullet only.
+- [ ] **T-02 — scope per-push gate to J-13 (real-idp); prior journeys mock-IdP.** Verify current `ci.yml` scoping first (J-29 shipped real-idp/nightly fully-green). Only J-13's own spec runs the heavy real-idp lane per-push; prior journeys mock-IdP; full cross-journey real-idp stays nightly + §4 gate. Fold [MAINTAINABILITY-TOOLING — Qodana baseline backfill] only if a CI cycle allows.
+- [ ] **T-03 — audit-logs feature scaffold (route + guard + nav + store).** `features/audit-logs/audit-logs.routes.ts` (`/system/logs`, `clubAdminGuard`, showNavBar) + lazy-load into `app.routes.ts`; nav entry in `nav-sections.ts` `MASTERDATA_CLUB_ADMIN_ITEMS` + `MASTERDATA_PATHS` (`_helpers/nav.ts`); `audit-logs.store.ts` Signal Store over `AuditEventsService.listAuditEvents` (filter + cursor state {pageOffset, pageSize:50, items, hasMore, nextOffset}, loading/error); minimal `list/audit-logs-list.page.ts` shell.
+- [ ] **T-04 — audit-logs list table.** `audit-logs-list.page.ts` renders `af-data-table` (`total=null`, custom cursor pagination — Next gated by `hasMore`, advance `pageOffset += pageSize`, page size 50) with columns: action, target entity type, actor, occurredAt, HTTP status; loading + empty states.
+- [ ] **T-05 — filter controls.** Action select (`AuditAction` enum), target-entity-type, time-range (occurredFrom/occurredTo) wired to store; applying narrows, Clear restores full list.
+- [ ] **T-06 — row-detail expansion.** Expandable row → before/after payload: field diff for UPDATE, after-only for CREATE, before-only for DELETE. Small detail sub-component + page wiring + testids.
+- [ ] **T-07 — S-160 append-only DB-role split + IT.** Split `alpenflight_migrator` (DDL+DML) / `alpenflight_app` (DML; INSERT,SELECT-only on `t_mutation_audit_event`) roles; compose + CI (+ Helm) use migrator for `flywayMigrate`, app for runtime; server IT asserts UPDATE as app role → `permission denied` (skip-with-fail-loud if Testcontainers can't split roles, cite S-160). Drop "deferred" from S-027 threat-row (d) prose. May overflow → split a-role-split / b-IT.
+- [ ] **T-08 — S-104 endpoint role-matrix test.** Server test on `/api/v1/admin/audit-events`: PILOT → 403, CLUB_ADMINISTRATOR → 200, SYSTEM_ADMINISTRATOR → 200. This endpoint only.
+- [ ] **T-09 — thicken e2e + real-idp two-club gate (e2e-driver).** Spec performs a real mutation first (live audit event), then opens `/system/logs` and asserts row fields, action + target-type filters (+ clear), time-range, cursor pagination (default 50, advance via nextOffset — seed >50 events server-side if needed), row-detail diff (UPDATE/CREATE/DELETE). Author real-idp two-club tenant-isolation + pilot-denied gate (guard redirect + nav absent + 403). Paired legacy↔AlpenFlight screenshots + pass video → J-13 gallery. [REALIDP-FLAKE-QUARANTINE] — verify current gate state; quarantine only what still flakes.
 
 ## Context
 
