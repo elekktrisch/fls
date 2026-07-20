@@ -127,6 +127,21 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void list_denies_plain_pilot() {
+        // A plain PILOT holds a tenant context but no admin authority; the
+        // @PreAuthorize role gate rebukes it before any tenant-scoped read.
+        String token = jwts.mint(c -> c
+                .claim("clubId", SYSADMIN_TENANT.toString())
+                .claim("realm_access", Map.of("roles", List.of("PILOT"))));
+
+        ResponseEntity<String> res = rest.exchange(
+                authed(RequestEntity.get(URI.create("/api/v1/admin/audit-events")), token).build(),
+                String.class);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void list_denies_unauthenticated_request() {
         ResponseEntity<String> res = rest.exchange(
                 RequestEntity.get(URI.create("/api/v1/admin/audit-events")).build(),
