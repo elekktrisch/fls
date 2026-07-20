@@ -3,7 +3,7 @@ id: S-160
 rolled_up_into: J-13
 title: Split migration + app DB roles; grant audit table INSERT,SELECT-only to the app role
 epic: E-03
-status: todo
+status: done
 estimate: S
 depends_on: [S-027]
 origin: rework-meta

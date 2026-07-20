@@ -3,7 +3,7 @@ id: S-056
 rolled_up_into: J-13
 title: System data + system-logs view
 epic: E-06
-status: todo
+status: done
 depends_on: [S-027]
 acceptance:
   - System-admin-only `SystemData` (key/value config) entity ported with edit UI.
