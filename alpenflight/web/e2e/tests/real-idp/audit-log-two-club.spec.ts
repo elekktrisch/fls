@@ -117,11 +117,17 @@ async function selectSwitzerland(page: Page): Promise<void> {
  * return to the list. Waits on the real 201 as a save signal; the created id is
  * read from the rendered list row's `location-row-<id>` testid AFTER navigation
  * (the SPA evicts the POST body across the nav — J-2 T-43). Returns that id.
+ *
+ * ICAO is deliberately LEFT EMPTY. It is optional (`icaoFormatValidator` returns
+ * null on blank) and never an audit assertion here — the unique `name` is the
+ * addressable marker. Filling it invited a nonce-dependent bug: a hex-uuid tail
+ * (e.g. `LS9F`, `LBC0`) fails the ICAO pattern (`[A-Z]{4}` | `[A-Z]{2}[0-9]{2}`),
+ * which DISABLES the Save button so the POST never fires and the 201 wait times
+ * out at 45s. And the per-club partial-unique `(club_id, icao_code)` (WHERE
+ * icao_code IS NOT NULL) would 409 a fixed ICAO across Playwright retries into
+ * the shared seed-club-A tenant — a blank ICAO sidesteps both hazards.
  */
-async function createLocationViaUi(
-  page: Page,
-  opts: { name: string; icao: string },
-): Promise<string> {
+async function createLocationViaUi(page: Page, opts: { name: string }): Promise<string> {
   const created = page.waitForResponse(
     (r) =>
       r.request().method() === 'POST' &&
@@ -132,11 +138,16 @@ async function createLocationViaUi(
   await page.getByRole('button', { name: 'New location' }).click();
   await expect(page).toHaveURL('/locations/new');
   await page.locator('#LocationName').fill(opts.name);
-  await page.locator('#IcaoCode').fill(opts.icao);
   await selectSwitzerland(page);
   await page.getByTestId('locations-type-select').locator('nz-select').click();
   await page.locator('nz-option-item').first().click();
-  await page.getByTestId('locations-save-button').click();
+  // Gate on Save becoming enabled before clicking: an invalid form leaves it
+  // disabled, so clicking would no-op and the 201 wait would burn the full 45s
+  // test budget with a vague "Test timeout" — assert the enabled state so a
+  // form-invalid regression fails FAST here with a clear cause.
+  const saveButton = page.getByTestId('locations-save-button');
+  await expect(saveButton.locator('button')).toBeEnabled();
+  await saveButton.click();
   await created;
   await expect(page).toHaveURL('/locations');
 
@@ -262,14 +273,13 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     const nonce = randomUuid().slice(0, 8);
     const clubALocationName = `Audit A ${nonce}`;
     const editedName = `Audit A edited ${nonce}`;
-    const icao = `LS${nonce.slice(0, 2).toUpperCase()}`;
     try {
       await loginAsClubAdmin(page, fixture.clubA);
 
       // (1) Generate LIVE audit events through the real chrome: a CREATE then an
       //     UPDATE of a real Location → a CREATE row (after-only) + an UPDATE row
       //     (before/after diff), both under club A's tenant.
-      const locId = await createLocationViaUi(page, { name: clubALocationName, icao });
+      const locId = await createLocationViaUi(page, { name: clubALocationName });
       await renameLocationViaUi(page, locId, editedName);
 
       // (2) Open /system/logs through the Masterdata nav chrome + assert the row
@@ -505,12 +515,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     const page = await ctx.newPage();
     const nonce = randomUuid().slice(0, 8);
     const clubBTargetName = `Audit B ${nonce}`;
-    const clubBIcao = `LB${nonce.slice(0, 2).toUpperCase()}`;
     try {
       // (1) Generate a Location CREATE audit event in CLUB B (via the club-B
       //     principal) — a row that lives ONLY under club B's tenant.
       await loginAsClubAdmin(page, fixture.clubB);
-      const bLocId = await createLocationViaUi(page, { name: clubBTargetName, icao: clubBIcao });
+      const bLocId = await createLocationViaUi(page, { name: clubBTargetName });
       expect(bLocId).toBeTruthy();
     } finally {
       // Close the club-B session cleanly before opening club A's (separate
