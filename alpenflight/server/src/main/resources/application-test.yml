@@ -43,6 +43,11 @@ spring:
       # writes a stable owner-sub on the operator Deployment for IT
       # assertions to grep against.
       alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
+      # S-160 V54: pin the alpenflight_app login password to a known constant so
+      # the container provisions a role AppendOnlyAuditRoleIT can log in as
+      # (PostgresTestContainerLifecycle.APP_ROLE_PASSWORD). Set here explicitly —
+      # not inherited — because a profile placeholders block replaces the base map.
+      app_role_password: alpenflight_app
   security:
     oauth2:
       resourceserver:
