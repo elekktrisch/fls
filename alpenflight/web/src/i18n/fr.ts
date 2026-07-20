@@ -133,6 +133,17 @@ const fr: Translations = {
       status: 'Statut',
     },
     empty: 'Aucun événement.',
+    filters: {
+      action: 'Action',
+      allActions: 'Toutes les actions',
+      clear: 'Réinitialiser les filtres',
+      from: 'Du',
+      fromPlaceholder: 'Date de début',
+      target: 'Objet',
+      targetPlaceholder: "Type d'objet",
+      to: 'Au',
+      toPlaceholder: 'Date de fin',
+    },
     pager: {
       prev: 'Précédent',
       next: 'Suivant',

@@ -137,6 +137,17 @@ const de = {
       status: 'Status',
     },
     empty: 'Keine Ereignisse.',
+    filters: {
+      action: 'Aktion',
+      allActions: 'Alle Aktionen',
+      clear: 'Filter zurücksetzen',
+      from: 'Von',
+      fromPlaceholder: 'Startdatum',
+      target: 'Objekt',
+      targetPlaceholder: 'Objekttyp',
+      to: 'Bis',
+      toPlaceholder: 'Enddatum',
+    },
     pager: {
       prev: 'Zurück',
       next: 'Weiter',

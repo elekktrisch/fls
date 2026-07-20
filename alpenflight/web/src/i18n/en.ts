@@ -131,6 +131,17 @@ const en: Translations = {
       status: 'Status',
     },
     empty: 'No events.',
+    filters: {
+      action: 'Action',
+      allActions: 'All actions',
+      clear: 'Clear filters',
+      from: 'From',
+      fromPlaceholder: 'Start date',
+      target: 'Target',
+      targetPlaceholder: 'Entity type',
+      to: 'To',
+      toPlaceholder: 'End date',
+    },
     pager: {
       prev: 'Previous',
       next: 'Next',

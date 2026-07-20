@@ -132,6 +132,17 @@ const it: Translations = {
       status: 'Stato',
     },
     empty: 'Nessun evento.',
+    filters: {
+      action: 'Azione',
+      allActions: 'Tutte le azioni',
+      clear: 'Reimposta filtri',
+      from: 'Da',
+      fromPlaceholder: 'Data iniziale',
+      target: 'Oggetto',
+      targetPlaceholder: 'Tipo di oggetto',
+      to: 'A',
+      toPlaceholder: 'Data finale',
+    },
     pager: {
       prev: 'Precedente',
       next: 'Successivo',
