@@ -192,7 +192,7 @@ function startOfLocalDateOnly(date: Date): string {
                       [class]="row.failed ? 'text-red-700' : 'text-slate-500'"
                       data-testid="audit-row-status"
                     >
-                      {{ row.httpStatus }}
+                      {{ row.httpStatus ?? '—' }}
                     </span>
                     <span class="text-xs text-slate-500 tabular" data-testid="audit-row-time">
                       {{ formatWhen(row.occurredAt) }}

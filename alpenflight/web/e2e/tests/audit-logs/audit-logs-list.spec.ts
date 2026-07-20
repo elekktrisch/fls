@@ -34,7 +34,10 @@ const seedRows: AuditEventRow[] = [
     afterState: { callSign: 'HB-9999' },
     failed: false,
     systemActor: false,
-    httpStatus: 200,
+    // httpStatus is a FAILURE-ONLY field: success rows (AFTER_COMMIT audit listener)
+    // carry a null status by design — only `RequestAuditFilter` records a status on a
+    // failed mutation. Omit it here (mirror the real success contract) so this mock
+    // never masks the gap the real gate caught (success rows render the "—" dash).
   },
   {
     id: 'aud-019e30c3-2c00-7200-8000-000000000002',
@@ -47,7 +50,6 @@ const seedRows: AuditEventRow[] = [
     afterState: { name: 'Birrfeld' },
     failed: false,
     systemActor: false,
-    httpStatus: 201,
   },
   {
     id: 'aud-019e30c3-2c00-7200-8000-000000000003',
@@ -60,7 +62,21 @@ const seedRows: AuditEventRow[] = [
     beforeState: { code: 'SCHOOL' },
     failed: false,
     systemActor: false,
-    httpStatus: 204,
+  },
+  {
+    // A FAILED mutation row — the only kind that carries a real httpStatus (the
+    // `RequestAuditFilter` records a 4xx). Keeps the mock honest: the status column
+    // renders a code on failure and the em-dash placeholder on success.
+    id: 'aud-019e30c3-2c00-7200-8000-000000000004',
+    occurredAt: '2026-07-20T11:00:00Z',
+    actorUserId: ACTOR_USER_ID,
+    tenantClubId: CLUB_A_ID,
+    action: AuditEventRowAction.DELETE,
+    targetEntityType: 'Location',
+    targetEntityId: 'loc-019e30c3-2c00-7400-8000-000000000099',
+    failed: true,
+    systemActor: false,
+    httpStatus: 404,
   },
 ];
 

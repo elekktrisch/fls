@@ -285,7 +285,12 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await expect(locationRow.getByTestId(TESTIDS.rowAction)).toBeVisible();
       await expect(locationRow.getByTestId(TESTIDS.rowTarget)).toHaveText('Location');
       await expect(locationRow.getByTestId(TESTIDS.rowActor)).toBeVisible();
-      await expect(locationRow.getByTestId(TESTIDS.rowStatus)).toBeVisible();
+      // httpStatus is a FAILURE-ONLY field: success rows (this create/edit) carry a
+      // null status by design (the AFTER_COMMIT audit listener records no status —
+      // only `RequestAuditFilter` on a failed mutation does). So the status cell of
+      // a success row renders the em-dash placeholder, never an HTTP code. The real
+      // "404" status render is asserted on a FAILED row in the pagination case.
+      await expect(locationRow.getByTestId(TESTIDS.rowStatus)).toHaveText('—');
       await expect(locationRow.getByTestId(TESTIDS.rowTime)).toBeVisible();
 
       // Capture the populated LIST shot for the gallery BEFORE the deeper flow —
@@ -437,6 +442,13 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await expect(pagerNext).toBeEnabled();
       await expect(page.getByTestId(TESTIDS.pagerPrev)).toBeDisabled();
       const offsetBefore = (await page.getByTestId(TESTIDS.pagerOffset).textContent())?.trim();
+
+      // The seeded rows are failed DELETE→404 mutations — the ONLY audit rows that
+      // carry an httpStatus (success rows are null-by-design). So the status column
+      // genuinely renders "404" here, proving the HTTP-status field surfaces the
+      // failure code (the AC's "HTTP status" intent on the field that carries it).
+      const statusCells = page.getByTestId(TESTIDS.rowStatus);
+      await expect(statusCells.first()).toHaveText('404');
 
       // Advance the cursor: a REAL request carrying pageOffset=50 fires, the
       // offset indicator changes, and Prev becomes enabled.
