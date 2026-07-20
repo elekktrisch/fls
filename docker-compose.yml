@@ -110,6 +110,12 @@ services:
   postgres:
     profiles: ["next"]
     image: postgres:17.4-alpine
+    # S-160 two-role model: POSTGRES_USER stays `alpenflight` — the schema
+    # OWNER / MIGRATOR that Flyway runs as. The runtime app role `alpenflight_app`
+    # (INSERT,SELECT-only on t_mutation_audit_event) is created by migration V54
+    # during flywayMigrate, so no init-script / extra env is needed here. The
+    # alpenflight app itself is NOT a compose service (it runs via `bootRun` /
+    # the CI bootJar on the host); it connects with DATASOURCE_USER=alpenflight_app.
     environment:
       POSTGRES_DB: alpenflight
       POSTGRES_USER: alpenflight

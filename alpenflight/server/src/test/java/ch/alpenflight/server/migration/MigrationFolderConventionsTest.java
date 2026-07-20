@@ -221,6 +221,24 @@ class MigrationFolderConventionsTest {
                 .isTrue();
     }
 
+    /**
+     * The role-provisioning patterns V54 (S-160) is the security-reviewed
+     * exception for: it splits the migrator role from the append-only app role.
+     * The data-INSERT / DROP-SCHEMA / TRUNCATE / gen_random_uuid bans stay in
+     * force even for V54 — only the role/grant/password surface is waived.
+     */
+    private static final Set<String> ROLE_PROVISIONING_PATTERNS = Set.of(
+            "PASSWORD\\s*'",
+            "\\bGRANT\\s",
+            "\\bREVOKE\\s",
+            "\\bALTER\\s+ROLE\\b",
+            "\\bCREATE\\s+USER\\b",
+            "\\bCREATE\\s+ROLE\\b");
+
+    private static boolean isRoleProvisioningException(String filename, String patternText) {
+        return filename.startsWith("V54__") && ROLE_PROVISIONING_PATTERNS.contains(patternText);
+    }
+
     @Test
     void no_forbidden_patterns_in_migrations() throws IOException {
         List<Pattern> forbidden = loadForbiddenPatterns();
@@ -233,9 +251,13 @@ class MigrationFolderConventionsTest {
             // discussed in a comment ("never use `DEFAULT gen_random_uuid()`")
             // is exactly the kind of guidance we want, not a violation.
             String stripped = content.replaceAll("(?m)--[^\\n]*", "");
+            String filename = m.getFileName().toString();
             for (Pattern p : forbidden) {
+                if (isRoleProvisioningException(filename, p.pattern())) {
+                    continue;
+                }
                 if (p.matcher(stripped).find()) {
-                    violations.add(m.getFileName() + " matches forbidden pattern: " + p.pattern());
+                    violations.add(filename + " matches forbidden pattern: " + p.pattern());
                 }
             }
         }

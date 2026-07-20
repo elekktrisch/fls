@@ -25,6 +25,7 @@ export const MASTERDATA_CLUB_ADMIN_ITEMS: readonly NavItem[] = [
   { path: '/deliverycreationtests', label: 'Delivery creation tests', icon: 'file-text' },
   { path: '/deliveries', label: 'Deliveries', icon: 'file-text' },
   { path: '/email-templates', label: 'Email templates', icon: 'file-text' },
+  { path: '/system/logs', label: 'Audit logs', icon: 'file-text' },
 ];
 
 // Clubs is a cross-tenant surface deliberately hidden from club-admins + regular

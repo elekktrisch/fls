@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatDdMmYyyy,
   formatIsoDateDdMmYyyy,
+  formatIsoDateTime,
   isoDateFromLocal,
   localDateFromIso,
 } from './format-date';
@@ -27,6 +28,24 @@ describe('formatDdMmYyyy', () => {
     expect(formatDdMmYyyy(undefined)).toBe('');
     expect(formatDdMmYyyy('')).toBe('');
     expect(formatDdMmYyyy('not-a-date')).toBe('');
+  });
+});
+
+describe('formatIsoDateTime', () => {
+  it('formats a Date as DD.MM.YYYY HH:mm from local fields, zero-padded', () => {
+    expect(formatIsoDateTime(new Date(2026, 2, 7, 8, 5))).toBe('07.03.2026 08:05');
+  });
+
+  it('accepts an epoch-ms number', () => {
+    const epoch = new Date(2026, 4, 21, 14, 30).getTime();
+    expect(formatIsoDateTime(epoch)).toBe('21.05.2026 14:30');
+  });
+
+  it('returns empty string for null / undefined / empty / unparseable input', () => {
+    expect(formatIsoDateTime(null)).toBe('');
+    expect(formatIsoDateTime(undefined)).toBe('');
+    expect(formatIsoDateTime('')).toBe('');
+    expect(formatIsoDateTime('not-a-date')).toBe('');
   });
 });
 

@@ -127,6 +127,43 @@ const de = {
     },
     title: 'Flugzeuge',
   },
+  auditLogs: {
+    title: 'Protokolle',
+    columns: {
+      action: 'Aktion',
+      target: 'Objekt',
+      actor: 'Benutzer',
+      occurredAt: 'Zeitpunkt',
+      status: 'Status',
+    },
+    detail: {
+      after: 'Nachher',
+      before: 'Vorher',
+      failureReason: 'Fehlergrund',
+      field: 'Feld',
+      noPayload: 'Keine Zustandsdaten.',
+      toggle: 'Details anzeigen',
+      value: 'Wert',
+    },
+    empty: 'Keine Ereignisse.',
+    filters: {
+      action: 'Aktion',
+      allActions: 'Alle Aktionen',
+      clear: 'Filter zurücksetzen',
+      from: 'Von',
+      fromPlaceholder: 'Startdatum',
+      target: 'Objekt',
+      targetPlaceholder: 'Objekttyp',
+      to: 'Bis',
+      toPlaceholder: 'Enddatum',
+    },
+    pager: {
+      prev: 'Zurück',
+      next: 'Weiter',
+      page: 'Ab Position {{offset}}',
+    },
+    systemActor: 'System',
+  },
   common: {
     errors: {
       duplicate: 'Wird bereits verwendet.',

@@ -55,7 +55,7 @@ describe('navSectionsFor', () => {
     expect(allPaths(flags)).not.toContain('/clubs');
   });
 
-  it('club-admin: Masterdata group ALSO carries Join requests + Users + Accounting rules + Delivery creation tests + Deliveries + Email templates; NO Clubs', () => {
+  it('club-admin: Masterdata group ALSO carries Join requests + Users + Accounting rules + Delivery creation tests + Deliveries + Email templates + Audit logs; NO Clubs', () => {
     const flags = { isSystemAdmin: false, isClubAdmin: true };
     expect(masterdataPaths(flags)).toEqual([
       '/aircraft',
@@ -68,6 +68,7 @@ describe('navSectionsFor', () => {
       '/deliverycreationtests',
       '/deliveries',
       '/email-templates',
+      '/system/logs',
     ]);
     expect(topLabels(flags)).not.toContain('/clubs');
     // Reservations + Flights stay top-level (not under Masterdata).
@@ -111,6 +112,7 @@ describe('navSectionsFor', () => {
       '/deliverycreationtests',
       '/deliveries',
       '/email-templates',
+      '/system/logs',
     ]);
   });
 

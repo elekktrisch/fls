@@ -121,6 +121,43 @@ const en: Translations = {
     },
     title: 'Aircraft',
   },
+  auditLogs: {
+    title: 'Audit logs',
+    columns: {
+      action: 'Action',
+      target: 'Target',
+      actor: 'Actor',
+      occurredAt: 'When',
+      status: 'Status',
+    },
+    detail: {
+      after: 'After',
+      before: 'Before',
+      failureReason: 'Failure reason',
+      field: 'Field',
+      noPayload: 'No state payload.',
+      toggle: 'Show detail',
+      value: 'Value',
+    },
+    empty: 'No events.',
+    filters: {
+      action: 'Action',
+      allActions: 'All actions',
+      clear: 'Clear filters',
+      from: 'From',
+      fromPlaceholder: 'Start date',
+      target: 'Target',
+      targetPlaceholder: 'Entity type',
+      to: 'To',
+      toPlaceholder: 'End date',
+    },
+    pager: {
+      prev: 'Previous',
+      next: 'Next',
+      page: 'From offset {{offset}}',
+    },
+    systemActor: 'System',
+  },
   common: {
     errors: {
       duplicate: 'Already in use.',

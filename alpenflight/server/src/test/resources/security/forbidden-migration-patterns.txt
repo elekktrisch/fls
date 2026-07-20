@@ -6,11 +6,12 @@
 # Adding a pattern here means "no migration may contain this." Removing one
 # means relaxing a security gate — requires CODEOWNERS sign-off.
 
-# Plain-text credential literal (e.g. `CREATE USER foo WITH PASSWORD 'secret'`).
+# Plain-text credential literal (e.g. `CREATE USER foo WITH PASSWORD 'secret'`)
+# and the privilege-escalation surface — role / user creation + grants. Blocked
+# outright, EXCEPT V54 (S-160): the ONE security-reviewed exception, splitting
+# the migrator role from the append-only app role. MigrationFolderConventionsTest
+# allow-lists V54 for these six patterns only (never the data/DROP bans below).
 PASSWORD\s*'
-
-# Privilege-escalation surface. Block role / user creation + grants outright;
-# legitimate role provisioning is operator-only and runs outside Flyway.
 \bGRANT\s
 \bREVOKE\s
 \bALTER\s+ROLE\b

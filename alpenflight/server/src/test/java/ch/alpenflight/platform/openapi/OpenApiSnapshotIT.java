@@ -47,6 +47,12 @@ class OpenApiSnapshotIT {
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        // S-160 split points base spring.flyway.{url,user,password} at the
+        // MIGRATOR role; without this override boot-time Flyway would connect
+        // as `alpenflight` instead of the container user.
+        r.add("spring.flyway.url", pg::jdbcUrl);
+        r.add("spring.flyway.user", pg::username);
+        r.add("spring.flyway.password", pg::password);
     }
 
     @Autowired

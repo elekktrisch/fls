@@ -122,6 +122,43 @@ const it: Translations = {
     },
     title: 'Aeromobili',
   },
+  auditLogs: {
+    title: 'Registri',
+    columns: {
+      action: 'Azione',
+      target: 'Oggetto',
+      actor: 'Utente',
+      occurredAt: 'Quando',
+      status: 'Stato',
+    },
+    detail: {
+      after: 'Dopo',
+      before: 'Prima',
+      failureReason: "Motivo dell'errore",
+      field: 'Campo',
+      noPayload: 'Nessun dato di stato.',
+      toggle: 'Mostra dettaglio',
+      value: 'Valore',
+    },
+    empty: 'Nessun evento.',
+    filters: {
+      action: 'Azione',
+      allActions: 'Tutte le azioni',
+      clear: 'Reimposta filtri',
+      from: 'Da',
+      fromPlaceholder: 'Data iniziale',
+      target: 'Oggetto',
+      targetPlaceholder: 'Tipo di oggetto',
+      to: 'A',
+      toPlaceholder: 'Data finale',
+    },
+    pager: {
+      prev: 'Precedente',
+      next: 'Successivo',
+      page: 'Dalla posizione {{offset}}',
+    },
+    systemActor: 'Sistema',
+  },
   common: {
     errors: {
       duplicate: 'Già in uso.',

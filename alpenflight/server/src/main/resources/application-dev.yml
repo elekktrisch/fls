@@ -1,12 +1,22 @@
 spring:
   datasource:
-    # Loopback defaults so `./gradlew bootRun` works against a compose-up
-    # Postgres without setting env vars. CI + prod must set the real env.
+    # S-160: `./gradlew bootRun` boots as the APP role (alpenflight_app), which
+    # V54 creates during the migrator's flywayMigrate (dev-up-alpenflight.sh runs
+    # that as `alpenflight`). Loopback defaults so bootRun works against a
+    # compose-up Postgres without setting env vars. CI + prod must set the real env.
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}
-    username: ${DATASOURCE_USER:alpenflight}
-    password: ${DATASOURCE_PASSWORD:alpenflight}
+    username: ${DATASOURCE_USER:alpenflight_app}
+    password: ${DATASOURCE_PASSWORD:alpenflight_app}
   flyway:
+    # S-160: boot-time Flyway (bootRun) connects as the MIGRATOR role. The
+    # POSTGRES_USER/PASSWORD in docker-compose is `alpenflight` (owner/migrator),
+    # so these loopback defaults match. app_role_password defaults to the
+    # alpenflight_app loopback creds above so V54 creates a role bootRun can log in as.
+    url: ${MIGRATOR_DB_URL:${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}}
+    user: ${MIGRATOR_DB_USER:alpenflight}
+    password: ${MIGRATOR_DB_PASSWORD:alpenflight}
     placeholders:
+      app_role_password: ${APP_DB_PASSWORD:alpenflight_app}
       # S-137 dev sentinel — local Flyway runs use this nil-suffixed UUID so
       # the operator-Deployment seed has a valid owner-sub. Distinct from
       # the SANDBOX owner-sub (all-zeros) so the partial UNIQUE invariant

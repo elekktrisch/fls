@@ -74,9 +74,6 @@ CREATE INDEX ix_mutation_audit_event_request_id
     WHERE request_id IS NOT NULL;
 
 -- NOTE: Defense-in-depth append-only via DB-role grant (refinement threat-
--- model row d) is intentionally NOT shipped in this migration. The
--- forbidden-migration-patterns list bans GRANT/REVOKE in migrations
--- (current ops topology runs migrations + app on the same role; revoking
--- privileges from that role is destructive). Splitting the migration
--- role from the app role is tracked in S-160 (split migration + app DB
--- roles; grant audit table INSERT,SELECT-only to the app role).
+-- model row d) ships in V54 (S-160): the migrator role keeps full CRUD here
+-- while the app role gets INSERT,SELECT-only on this table. That migration is
+-- the security-reviewed exception to the forbidden-migration GRANT/REVOKE ban.

@@ -25,6 +25,22 @@ export function formatDdMmYyyy(value: Date | number | string | null | undefined)
 }
 
 /**
+ * Format a full ISO datetime as `DD.MM.YYYY HH:mm` from the value's *local*
+ * calendar fields — the date-only siblings render a day, but audit / event
+ * timestamps carry a wall-clock time the operator needs. Accepts a `Date`, an
+ * epoch ms number, or an ISO string; returns `''` for an unparseable / empty
+ * input.
+ */
+export function formatIsoDateTime(value: Date | number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDdMmYyyy(d)} ${hh}:${min}`;
+}
+
+/**
  * Format a `YYYY-MM-DD` (date-only) ISO string as `DD.MM.YYYY` *without*
  * constructing a `Date` — avoids the `new Date('YYYY-MM-DD')` UTC-midnight
  * gotcha entirely (a date-only string is parsed as UTC, then rendered in local

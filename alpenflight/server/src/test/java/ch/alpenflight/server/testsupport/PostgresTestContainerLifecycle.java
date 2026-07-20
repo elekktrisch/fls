@@ -47,6 +47,17 @@ public final class PostgresTestContainerLifecycle {
     private static final int READINESS_TIMEOUT_SECONDS = 120;
 
     /**
+     * Runtime app login role V54 provisions (S-160): broad DML but INSERT,SELECT-
+     * only on {@code t_mutation_audit_event}. The password is V54's
+     * {@code ${app_role_password}} placeholder; the test profile resolves it to
+     * {@link #APP_ROLE_PASSWORD} (application.yml/-test.yml default, no
+     * {@code APP_DB_PASSWORD} env under test). {@link #appRoleConnection()} opens
+     * a connection AS this role so the append-only IT can prove the REVOKE bites.
+     */
+    public static final String APP_ROLE_USER = "alpenflight_app";
+    public static final String APP_ROLE_PASSWORD = "alpenflight_app";
+
+    /**
      * Advisory-lock key guarding the shared external test database — one test
      * JVM at a time. Arbitrary constant; must only be unique within our use of
      * the external server.
@@ -303,6 +314,22 @@ public final class PostgresTestContainerLifecycle {
             return externalJdbcUrl;
         }
         return "jdbc:postgresql://localhost:" + hostPort + "/" + DB_NAME;
+    }
+
+    /**
+     * Open a JDBC connection AS the {@link #APP_ROLE_USER} runtime role (S-160)
+     * against the SAME database the migrator ran Flyway on — so V54 has already
+     * created the role there. The caller closes it. Throws if the role cannot
+     * log in (e.g. external-PG mode where the shared cluster never provisioned
+     * it): the append-only IT translates that into a fail-loud skip, but CI's
+     * container path always has the role and connects.
+     */
+    public Connection appRoleConnection() throws SQLException {
+        ensureStarted();
+        Properties props = new Properties();
+        props.setProperty("user", APP_ROLE_USER);
+        props.setProperty("password", APP_ROLE_PASSWORD);
+        return DriverManager.getConnection(jdbcUrl(), props);
     }
 
     public String username() {

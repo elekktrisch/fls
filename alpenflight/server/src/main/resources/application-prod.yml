@@ -4,6 +4,17 @@ spring:
   application:
     name: alpenflight-server
 
+# S-160 two-role DB contract (no creds hardcoded here — env only):
+#   Runtime app role (main datasource, INSERT,SELECT-only on the audit table):
+#     DATASOURCE_URL / DATASOURCE_USER (=alpenflight_app) / DATASOURCE_PASSWORD
+#   Migrator role (Flyway only, full DDL+DML) — spring.flyway.{url,user,password}:
+#     MIGRATOR_DB_URL / MIGRATOR_DB_USER (=alpenflight, the schema owner) /
+#     MIGRATOR_DB_PASSWORD  (MIGRATOR_DB_URL falls back to DATASOURCE_URL when unset)
+#   App-role password V54 provisions the alpenflight_app login with — MUST equal
+#   DATASOURCE_PASSWORD so the app can then log in:
+#     APP_DB_PASSWORD
+# The app boots as the app role; boot-time Flyway migrates as the migrator.
+
 # Defense-in-depth re-pin: base application.yml already disables both
 # springdoc endpoints, but ops-readers should see the off-state in the prod
 # config without inheriting through. To enable on a prod-like environment

@@ -496,9 +496,21 @@ tasks.named("check") {
 // dev defaults so an operator with a compose-up Postgres can invoke
 // `./gradlew flywayInfo` / `flywayValidate` locally.
 flyway {
-    url = System.getenv("DATASOURCE_URL") ?: "jdbc:postgresql://localhost:5432/alpenflight"
-    user = System.getenv("DATASOURCE_USER") ?: "alpenflight"
-    password = System.getenv("DATASOURCE_PASSWORD") ?: "alpenflight"
+    // S-160: the flywayMigrate Gradle task runs as the MIGRATOR role (schema
+    // owner, full DDL+DML). Prefers the explicit MIGRATOR_DB_* env vars; falls
+    // back to DATASOURCE_* (the migrator's own creds in dev-up-alpenflight.sh
+    // + CI's flyway step, which set DATASOURCE_USER=alpenflight for this task),
+    // then the loopback dev default. The RUNNING app connects as the app role
+    // via its own DATASOURCE_* — a separate concern from this migrate task.
+    url = System.getenv("MIGRATOR_DB_URL")
+        ?: System.getenv("DATASOURCE_URL")
+        ?: "jdbc:postgresql://localhost:5432/alpenflight"
+    user = System.getenv("MIGRATOR_DB_USER")
+        ?: System.getenv("DATASOURCE_USER")
+        ?: "alpenflight"
+    password = System.getenv("MIGRATOR_DB_PASSWORD")
+        ?: System.getenv("DATASOURCE_PASSWORD")
+        ?: "alpenflight"
     locations = arrayOf("filesystem:src/main/resources/db/migration")
     outOfOrder = false
     cleanDisabled = true
@@ -506,12 +518,14 @@ flyway {
     validateMigrationNaming = true
     // Mirror the application.yml placeholder shape so ad-hoc
     // `./gradlew flywayMigrate` against a local DB doesn't trip on V14's
-    // ${alpenflight.operator.keycloak_sub} substitution. Env override
-    // honoured for non-loopback environments.
+    // ${alpenflight.operator.keycloak_sub} or V54's ${app_role_password}
+    // substitution. Env override honoured for non-loopback environments.
     placeholders = mapOf(
         "alpenflight.operator.keycloak_sub"
             to (System.getenv("ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB")
                 ?: "00000000-0000-0000-0000-0000000000ff"),
+        "app_role_password"
+            to (System.getenv("APP_DB_PASSWORD") ?: "alpenflight_app"),
     )
 }
 
