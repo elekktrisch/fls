@@ -88,24 +88,28 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-13 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-13</span> <span class="status success">2 proofs</span> <span class="summary-counts">2 videos · 0 screenshots</span>
+      <span class="summary-jid">J-13</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>242/merge</code> &middot; 2026-07-20T15:12:41.627Z
+      merged journeys' proof lives in their PRs. Generated on <code>242/merge</code> &middot; 2026-07-20T15:48:11.601Z
     </p>
   </header>
 
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-753b2de849ad73e62f090a6bc3f1494ab641b2d8.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-facb8739d19698fb22bde874cc01a91ac81ce686.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-13 · audit trail · a club-A admin creates + edits a Location through the real chrome, then opens /system/logs and sees the live CREATE + UPDATE audit rows (action, target type, actor, occurredAt, HTTP status); filters by action + target narrow the list and clearing restores it; expanding the UPDATE row shows the real before→after field diff</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-44b39d89ef0963b72a49f0e6c3a6430e5c404f12.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ae741c35aba9b2aafa5803020f0b278687b58bd8.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-13 · time-range filter · a from-date bound issues a REAL occurredFrom request and narrows the audit list to events in range (a future bound empties it); clearing restores the list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-fdfdcd6e343334e8501582ee49df3e6376bf3cf7.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-13 · pagination · with &gt;50 real audit events the default page renders 50 rows, the Next pager is enabled (hasMore) and advancing issues a REAL pageOffset=50 request that fetches the next page (nextOffset cursor)</span></figcaption>
         </figure>
         </div>
 
