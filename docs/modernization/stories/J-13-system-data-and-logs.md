@@ -20,7 +20,7 @@ acceptance:
 screen: /system/logs   # replacing legacy flsweb system/logs/
 headless_pulled_in: none new — the audit read-endpoint (S-027) already exists; the append-only DB-role split (S-160) homes on this screen's gate as a server IT
 migration: N/A — audit trail is app-generated (live events); legacy SystemData (SMTP/base-URL) → infra config, not a domain entity. Audit-history import (legacy AuditLogs → LEGACY_MIGRATED) is J-21's cutover-importer job, not this journey.
-parity_test: alpenflight/web/e2e/tests/system/audit-log.spec.ts   # + real-idp two-club gate spec
+parity_test: alpenflight/web/e2e/tests/real-idp/audit-log-two-club.spec.ts   # real-idp two-club gate spec (T-09)
 adr_refs: [0007, 0008, 0022]
 ---
 
@@ -36,7 +36,7 @@ adr_refs: [0007, 0008, 0022]
 - [x] **T-07a — S-160 DB-role split (infra + config + CI + prose).** Keep existing `alpenflight` role as MIGRATOR; add `alpenflight_app` (broad DML; INSERT,SELECT-only on `t_mutation_audit_event`, no UPDATE/DELETE) via new `V54__*` migration (grants + REVOKE + DEFAULT PRIVILEGES for future tables; app-role password via Flyway placeholder, not hardcoded). Boot the app on the app role (main datasource) while Flyway runs as migrator (`spring.flyway.{url,user,password}`); wire `docker-compose.yml` + `ci.yml` (Flyway-as-migrator, app-boot-as-app) + `application-dev/prod.yml`. Helm/k8s N/A (none exist). Drop "deferred" from S-027 threat-row (d) (`implemented/S-027-*.md:70-73`).
 - [x] **T-07b — S-160 append-only proof IT (real, not skipped).** Provision the second app-only role in `PostgresTestContainerLifecycle` (container mode); server IT opens a connection AS the app role, `UPDATE t_mutation_audit_event` → assert `permission denied` (SQLState 42501). Must run FOR REAL in CI (security seam — [[feedback_safety_claim_needs_negative_test]]); skip-with-fail-loud only as the local-external-PG fallback, citing S-160.
 - [x] **T-08 — S-104 endpoint role-matrix test.** Server test on `/api/v1/admin/audit-events`: PILOT → 403, CLUB_ADMINISTRATOR → 200, SYSTEM_ADMINISTRATOR → 200. This endpoint only.
-- [ ] **T-09 — thicken e2e + real-idp two-club gate (e2e-driver).** Spec performs a real mutation first (live audit event), then opens `/system/logs` and asserts row fields, action + target-type filters (+ clear), time-range, cursor pagination (default 50, advance via nextOffset — seed >50 events server-side if needed), row-detail diff (UPDATE/CREATE/DELETE). Author real-idp two-club tenant-isolation + pilot-denied gate (guard redirect + nav absent + 403). Paired legacy↔AlpenFlight screenshots + pass video → J-13 gallery. [REALIDP-FLAKE-QUARANTINE] — verify current gate state; quarantine only what still flakes.
+- [x] **T-09 — thicken e2e + real-idp two-club gate (e2e-driver).** Spec performs a real mutation first (live audit event), then opens `/system/logs` and asserts row fields, action + target-type filters (+ clear), time-range, cursor pagination (default 50, advance via nextOffset — seed >50 events server-side if needed), row-detail diff (UPDATE/CREATE/DELETE). Author real-idp two-club tenant-isolation + pilot-denied gate (guard redirect + nav absent + 403). Paired legacy↔AlpenFlight screenshots + pass video → J-13 gallery. [REALIDP-FLAKE-QUARANTINE] — verify current gate state; quarantine only what still flakes.
 
 ## Context
 

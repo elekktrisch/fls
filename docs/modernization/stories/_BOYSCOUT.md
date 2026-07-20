@@ -17,14 +17,6 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
-## Pending (filed by /do-retro J-12b window, 2026-06-25 — carried forward on integration/J-13)
-
-> The `do-retro/J-12b-window` branch never merged (J-10b + J-29 shipped without riding it); its
-> do-ship `SKILL.md` half already reached `main` as a superset, so only these two `_BOYSCOUT`
-> riders were stranded. `/do-plan` (J-13 carve) carried them here — they ride J-13's gate.
-
-- **[REALIDP-FLAKE-QUARANTINE]** Four chronic real-idp specs flake the full cross-journey regression (proven red on `main` too, so NOT journey-caused — [[feedback_flake_vs_regression_check_main.md]]): `token-lifecycle.spec.ts:87` (disabled-user redirect — console.error on token-validation reset), `token-lifecycle.spec.ts:190` (`waitForLoadState('networkidle')` 45s timeout), `hardening-J26.spec.ts:226` (console-guard rejects the deliberate 409), `fan-out-migration-parity.spec.ts:143` (`beforeAll` seed/KC fan-out 45s timeout). Stabilize (the console-guard ones likely need an allow-list for the deliberate error; the timeouts need a warm-nav/longer budget) or quarantine into the KC-26 quarantine bucket so they stop redding the gate's merge-shards. **J-29 shipped "real-idp/nightly fully-green" — verify which of these 4 still flake before quarantining.** *(seam: those 3 spec files + the console-guard deliberate-error allow-list)*
-
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
 - **[PER-JOURNEY-DOC]** (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*
