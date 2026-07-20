@@ -141,12 +141,14 @@ triage MINE the run's traces/artifacts for the ACTUAL migrated values** (`gh run
 ANALYTICAL/derived expected value; those get refuted by the real gate (J-27: shadowing / article-1060 /
 recipient-FK all wrong). Fidelity reds **cluster** — expect a chain (fix → re-mine → next), budget for it.
 
-**Run a full-repo `./gradlew check` + the full mock-e2e suite at the backend-batch boundary, BEFORE §4.**
-Per-task workers verify FOCUSED tests (fast — the right commit bar); but cross-cutting regressions only
-surface in the full suite: the `cpdRatchet`, a shared spec ANOTHER journey asserts (a changed
-landing/guard reds `signup.spec.ts` / the dashboard proof), a `main`-push-only workflow. Run the full
-check ONCE after the backend tasks land — not per-task (too slow), not only at §4 (each miss costs a
-~25-min real-idp cycle). **When a task changes a SHARED surface** (a guard, the post-signup landing, an
+**Run a full-repo `./gradlew check` + the full mock-e2e suite at the backend-batch boundary, AND the full
+`pnpm test` (web unit suite) at the FRONTEND-batch boundary, BEFORE §4.** Per-task workers verify FOCUSED
+tests (fast — the right commit bar); but cross-cutting regressions only surface in the full suite: the
+`cpdRatchet`, a shared spec ANOTHER journey asserts (a changed landing/guard reds `signup.spec.ts` / the
+dashboard proof), a `main`-push-only workflow, or a shared web unit spec (J-13: a new nav entry red-ed
+`nav-sections.spec.ts`'s exact-set assertion — found via a CI web-build red, not the local `pnpm test`
+that would have caught it free). Run each full check ONCE after its batch lands — not per-task (too slow),
+not only at §4 (each miss costs a ~25-min real-idp cycle). **When a task changes a SHARED surface** (a guard, the post-signup landing, an
 auth/tenant resolver, a spec contract other journeys assert), add a task to grep + update the
 cross-journey consumers up front. J-12a ate three separate gate cycles on cpd + a stale signup
 assertion + a `/start`-guard dashboard regression that one batch-boundary check would have caught.
@@ -171,10 +173,17 @@ escalate** (shape wrong → likely `/do-plan` re-carve). Never re-dispatch the s
 
 ### 4 — Proof-chain gate
 
-**Drive the real-idp spec green LOCALLY first, then gate on CI.** Before §4, `e2e-driver` drives the
-journey's own real-idp spec to green on the LOCAL real-idp stack — never-run-step gaps surface in fast
-local cycles, not one-CI-cycle-per-gap (J-9 T-22: 4 sequential gaps over 6 commits, spec first ran at
-the gate). §4 CI then CONFIRMS; it isn't where you discover gaps.
+**Drive the real-idp spec green LOCALLY first (DEFAULT), then gate on CI.** Before §4, `e2e-driver` drives
+the journey's own real-idp spec to green on the LOCAL real-idp stack — never-run-step gaps surface in fast
+local cycles, not one-CI-cycle-per-gap. §4 CI then CONFIRMS; it isn't where you discover gaps. **Real-idp
+RUNS locally** — `bash alpenflight/ops/dev-up-full.sh` (KC + Mailpit) + `cd alpenflight/server && ./gradlew
+bootRun` (backend on the **LAN PG** — source `~/.bashrc` `DATASOURCE_*`, NEVER a Docker/compose PG) + `cd
+alpenflight/web && pnpm e2e:real-idp` ([[project_real_idp_runs_locally]], `e2e/README.md`). Skipping local
+is escapable to CI-only ONLY when local is genuinely blocked, with a stated reason — it is NOT the default:
+J-9 T-22 (4 gaps/6 commits) and J-13 (~5 gate cycles, spec first ran at the gate off a stale "OOM → CI-only"
+belief) both burned the gate for want of a local loop. Do NOT `ALPENFLIGHT_TEST_FORCE_DOCKER` a local PG —
+a CREATEROLE-needing IT skips-with-fail-loud locally + runs for real in CI container mode
+([[feedback_no_local_postgres_for_tests]]).
 
 When every task is ticked + the spec is locally green, `e2e-driver` runs the CI gate: the full chain
 (legacy seed → migrate → Keycloak → real Playwright, both fidelities green, video on pass) + — for a
@@ -211,7 +220,9 @@ expected, NOT a clobbered gallery (J-12b wasted an investigation here). `workflo
 **Mock governance.** Happy + key-error run fully real. Any mocked seam (edge/error only) carries
 an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked seams"** list + **one operator signoff**
 at the gate. Spawn `gap-hunter` ×2-3 against `git diff <base>...HEAD` + the spec + the Mocked-seams
-list; undeclared mocks, stubs, un-wired layers, tenancy leaks → **chain is red** → new tasks, return
+list; undeclared mocks, stubs, un-wired layers, tenancy leaks, **gerrymandered inner-loop fixtures**
+(a mock value the real backend never returns — J-13 `httpStatus:200` on a success row vs real null →
+green mock, red gate; [[feedback_honest_inner_loop_fixtures]]) → **chain is red** → new tasks, return
 to step 3. Honor the wallclock budget — surface sharding/snapshot-reuse over silent re-runs.
 
 ### 5 — Document + green PR

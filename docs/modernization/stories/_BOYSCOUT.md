@@ -17,6 +17,17 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-retro J-13 window, 2026-07-20)
+
+- **[LOCAL-PG-GUARD]** Structural guard against spinning a local Postgres on the dev box. A test-preflight
+  that hard-fails when `ALPENFLIGHT_TEST_FORCE_DOCKER=1` (or any local Postgres-container launch) is set
+  while `CI` is unset, with a fail-loud message pointing at the LAN-PG rule
+  ([[feedback_no_local_postgres_for_tests]]): use `~/.bashrc` `DATASOURCE_*`; a CREATEROLE-needing IT (e.g.
+  the S-160 append-only role-split IT) skips-with-fail-loud locally and runs FOR REAL in CI container mode.
+  A worker reached for `FORCE_DOCKER` to run that IT locally (operator, J-13 retro: "why did you try yet
+  again to start postgres locally?"). Procedure rules haven't stuck → make it structural. *(seam:
+  `PostgresTestContainerLifecycle` external-mode preflight / a gradle test-init check)*
+
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
 - **[PER-JOURNEY-DOC]** (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*
