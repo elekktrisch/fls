@@ -17,17 +17,6 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
-## Pending (filed by /do-ship J-10b gate, 2026-06-26)
-
-- **[TOKEN-LIFECYCLE-87-RESIDUAL]** `token-lifecycle.spec.ts:87` (disabled-user redirect) still flakes the
-  **non-gating** nightly cross-journey real-idp shard after J-10b T-10's stabilization. T-10's scoped
-  console-guard allow-list (`/\b401\b/`, `SilentRenewFailed`) landed but didn't fully clear it — the failure
-  is the **realm-mutating race** (the test disables a realm user; the disable hasn't propagated when the
-  assertion runs), not (only) the console error. Needs proper test isolation (a dedicated throwaway realm user
-  per run, or a poll-until-disabled wait before the redirect assertion), not a wider allow-list. Pre-existing /
-  non-J-10b-caused and non-gating, so it never blocked the merge. *(seam: `token-lifecycle.spec.ts:87` + realm
-  user provisioning/isolation in the real-idp harness)* [[feedback_flake_vs_regression_check_main]]
-
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
 - **[PER-JOURNEY-DOC]** (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*

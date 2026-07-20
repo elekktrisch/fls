@@ -490,18 +490,24 @@ function isoDaysAhead(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Oldest migrated flight offset (today-10 = FlightParityBundleSeeder's
+// DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS); a window spanning it also spans the
+// today-5 lockable glider, so it is the tightest range assertion.
+const OLDEST_SEEDED_FLIGHT_OFFSET_DAYS = 10;
+
 /**
  * Widen the /flights list date range through the real date-range affordance (the
  * `nz-range-picker`) so a MIGRATED/historical flight dated outside the today..today
  * default (legacy parity, `flight.store.ts`) is loaded into the list. Mirrors the
  * post-save "View it →" jump's purpose — the UI widens the range rather than the
- * test reaching past it. Pages the picker's left panel back two months, then clicks
- * the earliest + latest in-view day cells to commit a multi-month window covering
- * any recent migrated date (within ~30 days; the FlightParityBundleSeeder dates the
- * migrated rows at today-5/today-10). Cell clicks are the reliable commit path under
- * zoneless ng-zorro (a typed-Enter range never emits the ngModelChange — the
- * round-trip range proven in flights-list.spec.ts). Waits on the resulting refetch
- * so the row assertion runs against the widened list (no fixed timeout).
+ * test reaching past it. Pages the picker's left panel back ONE month, then clicks
+ * the earliest + latest in-view day cells so the two visible panels commit a
+ * last-month→this-month window that spans today-5 and today-10
+ * (`FlightParityBundleSeeder`) even across a month boundary. Cell clicks are the
+ * reliable commit path under zoneless ng-zorro (a typed-Enter range never emits the
+ * ngModelChange — the round-trip range proven in flights-list.spec.ts). Asserts the
+ * committed `from ≤ to` window actually covers the seeded flight's date before
+ * returning, so a mis-paged range fails here rather than as a downstream empty list.
  */
 async function widenFlightListRangeToRecent(page: Page): Promise<void> {
   const refetch = page.waitForResponse(
@@ -520,11 +526,10 @@ async function widenFlightListRangeToRecent(page: Page): Promise<void> {
   );
   const overlay = page.locator('.cdk-overlay-container .ant-picker-panel-container');
   const inputs = page.getByTestId('flights-date-range').locator('input');
-  const leftPanel = overlay.locator('.ant-picker-panel').first();
 
   await inputs.first().click();
   await expect(overlay).toBeVisible();
-  await leftPanel.locator('.ant-picker-header-super-prev-btn').click();
+  await overlay.locator('.ant-picker-panel').first().locator('.ant-picker-header-prev-btn').click();
 
   const cells = overlay.locator(
     '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
@@ -532,7 +537,16 @@ async function widenFlightListRangeToRecent(page: Page): Promise<void> {
   const count = await cells.count();
   await cells.first().click();
   await cells.nth(count - 1).click();
-  await refetch;
+
+  const committed = new URL((await refetch).url());
+  const from = committed.searchParams.get('from')!;
+  const to = committed.searchParams.get('to')!;
+  expect(from <= to, `committed range must be ordered (from=${from} to=${to})`).toBe(true);
+  const oldestSeeded = isoDaysAhead(-OLDEST_SEEDED_FLIGHT_OFFSET_DAYS);
+  expect(
+    from <= oldestSeeded && oldestSeeded <= to,
+    `committed range [${from}, ${to}] must span the oldest seeded flight date ${oldestSeeded}`,
+  ).toBe(true);
 }
 
 // ===========================================================================
@@ -1064,11 +1078,12 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-2',
+        journey: 'J-29',
         caption:
-          'J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live ' +
-          "migration endpoint, renders in the owning club's /flights list under its immatriculation " +
-          '(crew + tow link; full legacy→migrate→Keycloak→UI chain)',
+          'J-29 · scheduled-proof stabilization · after widening the /flights date range (single ' +
+          'from≠to refetch), the recent-past migrated legacy Flight + FlightCrew renders in the owning ' +
+          "club's /flights list under its immatriculation (crew + tow link; full " +
+          'legacy→migrate→Keycloak→UI chain)',
         acTag: 'happy',
       });
     }

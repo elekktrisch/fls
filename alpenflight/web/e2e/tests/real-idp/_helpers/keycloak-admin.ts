@@ -561,6 +561,38 @@ export async function setUserEnabled(
 }
 
 /**
+ * Poll `GET /users/{id}` until the user's `enabled` flag reads `false`.
+ *
+ * `setUserEnabled(userId, false, …)` is a fire-and-forget PUT: it returns as
+ * soon as KC accepts the write, which is BEFORE the disable is guaranteed
+ * visible to the refresh-grant handler that the disabled-user redirect spec
+ * depends on. Reading the user store back until `enabled === false` gives the
+ * assertion a propagation barrier — the redirect step only proceeds once KC's
+ * own user store confirms the disable, instead of gambling on a fixed
+ * wallclock wait that races the refresh-grant rejection.
+ *
+ * Bounded: `attempts` reads spaced `intervalMs` apart (default ~10s total).
+ * Throws with a clear message on timeout so the failure names the propagation
+ * barrier, not the downstream `waitForURL`.
+ */
+export async function pollUserDisabled(
+  userId: string,
+  opts: { attempts?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const attempts = opts.attempts ?? 20;
+  const intervalMs = opts.intervalMs ?? 500;
+  for (let i = 0; i < attempts; i++) {
+    const user = await getUserById(userId);
+    if (user.enabled === false) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `pollUserDisabled(${userId}): user still enabled after ${attempts} reads ` +
+      `(~${(attempts * intervalMs) / 1000}s) — KC disable did not propagate.`,
+  );
+}
+
+/**
  * Best-effort restore of `accessTokenLifespan` to the canonical value. Used
  * by globalTeardown as the safety net for a SIGKILL'd worker that skipped
  * `withRealmPatch`'s `finally`. Idempotent: PUTs only if the live value has

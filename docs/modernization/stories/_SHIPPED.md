@@ -3,6 +3,7 @@
 Forward-looking roadmap lives in `_ORDER.md`; shipped journey contracts live in `implemented/`.
 One line per merged journey (newest first). Cross-references (`depends_on`) resolve here + in `implemented/`.
 
+- **J-29** — Scheduled-proof stabilization — flights widen refetch + real-idp token-lifecycle + nightly stack (fully-green) — #241  (2026-07-19)
 - **J-10b** — Deliveries — migration + write side (create / book-terminal / delete) — #240  (2026-06-26)
 - **J-12b** — Admin join-request approval (/join-requests) + invite robustness — #239  (2026-06-25)
 - **J-12a** — Pilot self-serve club join (/join) — #238  (2026-06-24)
