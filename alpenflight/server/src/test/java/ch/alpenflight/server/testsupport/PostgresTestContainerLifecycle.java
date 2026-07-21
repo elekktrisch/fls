@@ -107,12 +107,55 @@ public final class PostgresTestContainerLifecycle {
                 && System.getenv("ALPENFLIGHT_TEST_FORCE_DOCKER") == null;
     }
 
+    /**
+     * True when {@link #start()} is about to spin a local
+     * {@code alpenflight-pg-test-*} container on the dev box — which is
+     * forbidden: dev-box tests run against the LAN Postgres via {@code ~/.bashrc}
+     * {@code DATASOURCE_*} (external mode), never a local container
+     * ([[feedback_no_local_postgres_for_tests]]). Pure over injected env so the
+     * decision is testable without launching a container.
+     *
+     * <p>Fires only when {@code CI} is unset (dev box) AND the container path
+     * would be taken — i.e. {@code FORCE_DOCKER} is set, or {@code DATASOURCE_URL}
+     * is absent. In CI ({@code CI} set) local-container mode is legitimate (the
+     * S-160 append-only role IT provisions its second role only there), so the
+     * guard stays silent; normal external mode (LAN PG, no {@code FORCE_DOCKER})
+     * is likewise untouched.
+     */
+    static boolean localContainerLaunchForbidden(String datasourceUrl, String ci, String forceDocker) {
+        if (ci != null) {
+            return false;
+        }
+        boolean external = datasourceUrl != null && forceDocker == null;
+        return !external;
+    }
+
+    private static void guardAgainstLocalContainerOnDevBox() {
+        boolean forbidden = localContainerLaunchForbidden(
+                System.getenv("DATASOURCE_URL"),
+                System.getenv("CI"),
+                System.getenv("ALPENFLIGHT_TEST_FORCE_DOCKER"));
+        if (!forbidden) {
+            return;
+        }
+        throw new IllegalStateException(
+                """
+                Refusing to launch a local Postgres container on the dev box (CI is unset).
+                Dev-box tests MUST run against the LAN Postgres in external mode — source \
+                ~/.bashrc DATASOURCE_URL/DATASOURCE_USER/DATASOURCE_PASSWORD and run with \
+                ALPENFLIGHT_TEST_FORKS=1. Never spin an alpenflight-pg-test-* container locally \
+                and do NOT set ALPENFLIGHT_TEST_FORCE_DOCKER to work around this. A CREATEROLE-\
+                needing IT (e.g. the S-160 append-only role-split IT) is EXPECTED to fail-loud-skip \
+                locally and runs FOR REAL in CI's container mode.""");
+    }
+
     public synchronized void start() {
         if (started) return;
         if (externalConfigured()) {
             startExternal();
             return;
         }
+        guardAgainstLocalContainerOnDevBox();
         sweepStaleContainers();
         Runtime.getRuntime().addShutdownHook(new Thread(this::stopQuietly, "alpenflight-pg-shutdown"));
         runOrThrow("docker", "pull", IMAGE);
