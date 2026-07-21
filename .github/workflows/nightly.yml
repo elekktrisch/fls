@@ -171,18 +171,19 @@ jobs:
         run: docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network create alpenflight_shared --driver bridge
 
       # Backgrounded compose `up` pulls mcr.microsoft.com/mssql/server. The
-      # bounded 3-attempt/15s-backoff retry (J-1 T-09, mirrors ci.yml J-25 T-05)
-      # lives INSIDE the subshell so /tmp/.done-stack is touched only on a
-      # successful `up`; on a persistent failure the marker is never written and
-      # the later "Wait for docker stack healthchecks" step times out red, which
-      # is correct. Scoped to the image-pull/up ONLY — the Playwright run below
-      # is not retried. Only `mssql` is needed (the legacy stack's DB); the
-      # AlpenFlight-half services are not part of this suite.
+      # bounded 3-attempt/15s-backoff retry (mirrors ci.yml) lives INSIDE the
+      # subshell so /tmp/.done-stack is touched only on a successful `up`; on a
+      # persistent failure the marker is never written and the later "Wait for
+      # docker stack healthchecks" step times out red, which is correct. Scoped
+      # to the image-pull/up ONLY — the Playwright run below is not retried.
+      # mssql is the legacy DB; mailpit is the SMTP sink the email/registration
+      # specs assert against (`--profile infra` — mailpit is a profiled service,
+      # skipped without its profile even when named on the CLI).
       - name: Start docker-compose stack (background)
         run: |
           (
             for i in 1 2 3; do
-              docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack && break
+              docker compose -p fls-e2e --profile infra up -d mssql mailpit && touch /tmp/.done-stack && break
               echo "compose up attempt $i failed (registry blip?) — retrying in 15s" >&2
               sleep 15
             done
@@ -223,11 +224,11 @@ jobs:
           while [ ! -f /tmp/.done-mono ]; do sleep 2; done
           tail -3 /tmp/mono.log
 
-      # Only mssql runs under the default profile (1 container), so the healthy
-      # threshold is >= 1. The marker wait is bounded (300 * 1s) and dumps the
-      # otherwise-swallowed /tmp/stack.log + `ps` on timeout so a broken
-      # backgrounded `up` surfaces its cause instead of spinning silently to the
-      # job cap.
+      # Two healthchecked containers now come up (mssql + mailpit), so the
+      # healthy threshold is >= 2. The marker wait is bounded (300 * 1s) and
+      # dumps the otherwise-swallowed /tmp/stack.log + `ps` on timeout so a
+      # broken backgrounded `up` surfaces its cause instead of spinning silently
+      # to the job cap.
       - name: Wait for docker stack healthchecks
         run: |
           for i in $(seq 1 300); do
@@ -237,15 +238,15 @@ jobs:
           if [ ! -f /tmp/.done-stack ]; then
             echo "::error::compose up never completed — dumping /tmp/stack.log" >&2
             cat /tmp/stack.log >&2 || true
-            docker compose -p fls-e2e ps >&2 || true
+            docker compose -p fls-e2e --profile infra ps >&2 || true
             exit 1
           fi
           for i in $(seq 1 60); do
-            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
-            if [ "$healthy" -ge 1 ]; then break; fi
+            healthy=$(docker compose -p fls-e2e --profile infra ps --format json | grep -c '"Health":"healthy"' || true)
+            if [ "$healthy" -ge 2 ]; then break; fi
             sleep 2
           done
-          docker compose -p fls-e2e ps
+          docker compose -p fls-e2e --profile infra ps
 
       - name: Apply FLSTest schema and seed
         env:
@@ -377,7 +378,7 @@ jobs:
 
       - name: Tear down docker-compose stack
         if: always()
-        run: docker compose -p fls-e2e down -v
+        run: docker compose -p fls-e2e --profile infra down -v
 
       - name: Mark job as failed (post-deploy)
         if: steps.pw.outcome != 'success'

@@ -47,6 +47,9 @@ const CATEGORIES = [
 
 export default defineConfig({
   testDir: './tests',
+  // Holds the suite until the seed is genuinely populated and mailpit is
+  // reachable — the webServer 200-poll returns before the seed replay finishes.
+  globalSetup: './global-setup.ts',
   // 60s per test: most UI flows finish in 10-15s, but multi-step forms
   // (master-data hydration + ng-table reload + selectize widgets) plus
   // the occasional workflow-job poll need real headroom. 60s leaves room
