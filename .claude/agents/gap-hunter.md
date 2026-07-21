@@ -35,6 +35,13 @@ exists to prevent.
 - **Green-for-the-wrong-reason.** Spec asserts navigation but not data; asserts
   a 200 but not the body; runs against mock-auth and never hits the real
   backend at the gate; the migrated-snapshot run was silently skipped.
+- **Vacuous filter/narrowing assertion (blocker).** A "filter narrows to matching
+  rows" / "tenant sees only its own" assertion that passes because the seed had NO
+  row that SHOULD be excluded. Check the seed: is there an adversarial row (a
+  different entity-type / other tenant / out-of-range) that the filter must drop,
+  and does the spec assert its ABSENCE? Without it, a broken filter passes green
+  (J-13: the audit target-entity filter passed the clean-seed gate — no mixed
+  types seeded — then red-ed the nightly on a leaked `Aircraft` row).
 - **Migration honesty.** For a journey with legacy data: did the full chain
   (legacy seed → migrate → real e2e) actually run, or only the fast inner
   loop? Is the per-entity mapper real, or a passthrough that drops columns?

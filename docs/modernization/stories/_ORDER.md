@@ -18,6 +18,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
+| J-30 | Nightly gate — green both e2e suites + gate `main` on the stable subset | E-10 | J-13, J-29 | — (fixes current nightly reds) | N/A | none (CI infra) — **operator-flagged 2026-07-21: nightly red; /do-plan orders** |
 | J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
 | J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |
 | J-16 | Public landing + nav | E-12 | J-0 | S-133 (+impl S-097, S-157) | N/A | `main/` → `/main` |
@@ -56,7 +57,7 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-13:** Sysadmin views system data + paginated logs; append-only audit role rejects UPDATE.
+- **J-30:** Both nightly workflows are job-level GREEN read from the test tally (real-idp all-shards 0-fail; legacy flsweb e2e gated on a legacy-backend health/seed check so registration/email/report specs stop racing a not-ready server) — NOT merely "the stack comes up"; the J-13 audit target-entity filter fully EXCLUDES non-matching rows (adversarial-seeded — a different entity-type row asserted absent); the stabilized subset GATES `main` (a red nightly blocks the next merge; a residual flake gets a fix-owner rider, never a silent drop).
 - **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
 - **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.
 - **J-16:** Landing renders; nav-bar hidden on public routes by an explicit mechanism; CTAs route correctly.

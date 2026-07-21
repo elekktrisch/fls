@@ -77,6 +77,13 @@ invent a parallel convention.
   no mocking. Any mocked seam (edge/error only) carries an inline
   `@mocked: <seam> — <reason>` tag AND goes in the PR "Mocked seams" list.
   Undeclared mocks make the chain red.
+- **Seed adversarial data for any narrowing/filter/isolation assertion.** A
+  "filter narrows to X" / "tenant sees only its own" case must seed a row that
+  MUST be excluded (a different entity-type, other tenant, out-of-range date) and
+  assert its ABSENCE — else it passes VACUOUSLY when the seed has no counterexample
+  and a broken filter ships green (J-13: the audit target-entity filter passed the
+  clean-seed gate with only `Location` events, then red-ed the nightly on a leaked
+  `Aircraft` row). The clean-seed proof's data is part of the gate.
 - **Journey-0 built the thinnest whole chain** (done). Each later journey extends it:
   add the entity's legacy seed ([happy] + [key-error] data) + the per-entity mapper, then
   the real-stack spec. Reuse the J-0 Keycloak users; extend the realm seed only on identity.
