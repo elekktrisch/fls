@@ -12,7 +12,7 @@ acceptance:
   - "[happy] Audit target-entity-type filter genuinely EXCLUDES: with a Location AND an Aircraft mutation-audit row present in the same tenant, filtering /system/logs by targetEntityType=Location returns the Location row and the Aircraft row is ABSENT — adversarial-seeded (the excluded row is created + asserted absent, not merely 'the visible rows are Location'). Backed by an AuditAdminControllerIT multi-entity-type filter case."
   - "[happy] real-idp nightly (alpenflight-e2e-real-idp.yml) is job-level GREEN read from the real-idp-merge test tally: all 4 shards 0-fail + the all-shards-ran assert passes — NOT merely 'the stack comes up'."
   - "[happy] legacy nightly (nightly.yml `e2e (Playwright)`) is job-level GREEN read from the Playwright test tally: registration/email/reporting specs no longer race a not-ready backend — mailpit is brought up and a readiness gate (seeded-data counts + mailpit /api/v1/info health + backend-warm probe) passes before the suite runs."
-  - "[key-error] gate-main: while either nightly's authoritative job was RED on its latest scheduled run, a new required ci.yml job (`nightly-gate`) FAILS on every PR → the next merge is blocked; when both are green it passes. Demonstrated red→green: a deliberately-red nightly conclusion blocks, green unblocks."
+  - "[key-error] gate-main (informational-only — operator 2026-07-21): both nightly suites report a clear job-level PASS/FAIL conclusion, surfaced LOUDLY via a run summary (pass/fail tally + which specs failed) so a red is never silently swallowed; residual flakes carry fix-owner riders. NO merge-blocking gate; branch protection stays OFF (the operator chose the weakest, louder-than-today enforcement)."
   - "[edge] Residual flakes are tracked, never silently dropped: the stable subset the gate reads EXCLUDES the 3 @quarantine-kc26 real-idp specs (login ?ui_locales=fr / register verify-mail / token-lifecycle silent-refresh), each carrying a named fix-owner rider in _BOYSCOUT.md; the exclusion is explicit + documented, not a bare grep-invert."
 screen: /system/logs (existing — built in J-13; J-30 fixes filter correctness only) + CI/nightly infra (no screen)
 headless_pulled_in: none — CI/test infra + a filter-correctness bugfix; no new headless capability
@@ -73,15 +73,14 @@ residual-flake path).
 **Design reference:** none — `/system/logs` was built in J-13; J-30 changes no screen structure, only filter
 correctness. No `screens-*.jsx` oracle applies.
 
-**Gate mechanism (load-bearing — recommended; /do-ship + operator finalize at ship time).** Add a per-PR
-required ci.yml job `nightly-gate` that queries the latest SCHEDULED run conclusion of both nightly workflows
-(`real-idp-merge` and legacy `e2e`) via `gh api` and FAILS if either was red; add it to the `required`
-aggregator's `needs`. This makes "a red nightly blocks the next merge" literal AND required-able (Option C —
-adding a scheduled check to branch protection — is non-viable: the scheduled check never exists on a PR SHA).
-Rejected as primary: a fixed stable-subset real-idp job re-run per-push (Option A) — heavier CI, re-runs
-specs, and the operator's model is "a red NIGHTLY blocks the next merge", not "a per-push subset". **Enabling
-branch protection requiring `required` (+ `nightly-gate`) is an operator/admin action** (outward repo-config,
-needs admin) — J-30 wires the job + recommends; it does not flip protection itself.
+**Gate mechanism (RESOLVED — operator 2026-07-21: informational-only, no merge-blocking gate).** The operator
+chose the weakest, louder-than-today enforcement: both nightly suites emit a clear job-level PASS/FAIL and a
+loud run summary (pass/fail tally + which specs failed) so a red is never silently swallowed; residual flakes
+carry fix-owner riders (KC-26). NO per-PR blocking `nightly-gate` job is added, and **branch protection stays
+OFF** (`gh api …/branches/main/protection` → 404). Options weighed + declined: a per-PR job reading the latest
+scheduled conclusion (would block the next merge — rejected as too strong for now), and a per-push stable-subset
+re-run (heavier CI). "Never a silent drop" is met by the loud surfacing + the riders, not a gate. If the
+operator later wants blocking, the per-PR-reads-nightly job is the recommended add + they enable protection.
 
 **Legacy stays nightly (reference-only).** Per CLAUDE.md "legacy is reference-only" + the cold-NuGet legacy
 build ([[project_fanout_legacy_build_cold_nuget]]), the legacy suite is NOT promoted per-push — the gate reads
@@ -121,19 +120,18 @@ a current-journey video, else that ci.yml step reds green-on-main / red-on-branc
 - [x] T-03 — Audit backend IT multi-entity-type filter case. `AuditAdminControllerIT`: seed ≥2 entity types, assert the `targetEntityType` filter returns only matching rows (proves the `JpaMutationAuditEventRepository:86-87` predicate genuinely excludes).
 - [x] T-04 — Legacy nightly readiness gate. `nightly.yml`: `up -d mssql mailpit` + a bounded, loud readiness step; new `e2e/global-setup.ts` (poll /countries data-count + mailpit `/api/v1/info` + seeded-club count) wired via `playwright.config.ts` `globalSetup` — stops registration/email/reporting racing a not-ready backend.
 - [x] T-05 — Real-idp quarantine formalization. `alpenflight-e2e-real-idp.yml`: make the `@quarantine-kc26` exclusion explicit + documented (not a bare inline grep); confirm each quarantined spec (login ?ui_locales=fr / register verify-mail / token-lifecycle silent-refresh) carries a named fix-owner rider in `_BOYSCOUT.md`.
-- [ ] T-06 — Gate-main `nightly-gate` required job. New `ci.yml` job querying the latest SCHEDULED conclusion of both nightly workflows (`real-idp-merge` / legacy `e2e`) via gh api, FAIL if either red; add to the `required` aggregator `needs`. Demonstrate red→green.
+- [ ] T-06 — Gate-main (informational-only, operator 2026-07-21). NO blocking `nightly-gate` job. Surface both nightly results LOUDLY: add a `GITHUB_STEP_SUMMARY` pass/fail tally (+ failing spec names) to each nightly's authoritative step (`alpenflight-e2e-real-idp.yml` real-idp-merge; `nightly.yml` e2e) so a red is glanceable, never silently swallowed; confirm each suite's job conclusion is genuinely red on failure. Branch protection stays OFF.
 - [ ] T-07 — [LOCAL-PG-GUARD] structural test-preflight. Hard-fail when a local Postgres-container launch is attempted (`ALPENFLIGHT_TEST_FORCE_DOCKER=1` / any local PG spin) with `CI` unset; fail-loud message pointing at the LAN-PG rule. Seam: `PostgresTestContainerLifecycle` external-mode preflight.
 
 ## Assumptions made
 
-1. **Gate mechanism = per-PR `nightly-gate` job reading the latest scheduled conclusion** (recommended above),
-   not a per-push stable-subset re-run. Recorded, not asked — /do-ship confirms with the operator at ship
-   time (do-ship has its own operator checkpoint).
+1. **Gate mechanism RESOLVED — informational-only** (operator 2026-07-21, asked at ship time): no blocking
+   gate, branch protection stays OFF; reds are surfaced loudly + tracked by fix-owner riders. See Notes.
 2. **The audit bug is most likely test-only** (backend + frontend verified correct); the fix leads with the
    adversarial spec + IT, but J-30 budgets for a real backend/frontend fix if the hardened spec surfaces one.
 3. **The 3 @quarantine-kc26 specs stay quarantined-with-rider** — J-30 formalizes the exclusion (Pillar 5)
    rather than fixing the deep KC-26 OIDC behavior, which needs live-KC iteration beyond one journey.
-4. **Branch protection stays an operator action** — J-30 wires `nightly-gate` into `required`; the operator
-   enables protection (admin) to make `required` binding. Until then the gate is advisory-but-present.
+4. **Branch protection stays OFF** — per the informational-only decision J-30 wires no blocking gate; enabling
+   protection (+ a per-PR nightly-reader) remains a future operator/admin action if stronger enforcement is wanted.
 5. **Epic E-10** per the roadmap assignment (scheduled-jobs + CI area); J-30 is stabilization, not new E-10
    feature scope.
