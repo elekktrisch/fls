@@ -246,9 +246,14 @@ jobs:
       # `--grep-invert` drops two sets the cross-journey clean-seed run must not
       # carry: (1) `showcase seed` — `start-dashboard.spec.ts` asserts the
       # `@Profile("showcase")` counts this run never seeds; its gating job is
-      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — the
-      # KC-26-upgrade reds whose retries blew the step budget (tracked in
-      # _BOYSCOUT.md [KC-26 UPGRADE DRIFT]). Filtering applies before sharding,
+      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — three
+      # specs that regressed against the KC-26 upgrade, not against our code:
+      # login `?ui_locales=fr` (locale param honored differently), register
+      # verify-mail (KC→Mailpit SMTP delivery), and token-lifecycle silent-refresh
+      # (refresh-grant / SSO behavior). Excluded here so the `real-idp-merge`
+      # 0-fail tally is over the stable set; each has a named fix-owner rider in
+      # _BOYSCOUT.md [KC-26 UPGRADE DRIFT] — this exclusion is explicit + tracked,
+      # not a silent grep. Filtering applies before sharding,
       # so the dropped tests leave the pool first; `--shard` then partitions the
       # remainder and `--reporter=blob` feeds the `real-idp-merge` job.
       # `--workers=1` keeps each shard serial (one realm + one Mailpit inbox).
