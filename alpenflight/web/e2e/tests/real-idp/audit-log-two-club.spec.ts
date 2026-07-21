@@ -373,8 +373,18 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       //       - targetEntityType=Location → a Location row is PRESENT and NO row
       //         reads "Aircraft" — the predicate genuinely EXCLUDES the other type
       //         (a dropped `cb.equal` on targetEntityType would surface it and red).
+      // `has: getByText(exact)` (not an anchored `hasText: /^Aircraft$/`): the
+      // target cell renders `{{ targetEntityType }}` with the template's newline
+      // indentation, so its raw textContent is "\n…Aircraft\n…". `hasText` matches
+      // a RegExp against the UN-normalized text, so `^Aircraft$` never matched the
+      // padded value (count 0 despite the row being present). `getByText(exact)`
+      // normalizes whitespace AND stays exact — it matches "Aircraft" but not
+      // "AircraftReservation", keeping the exclusion proof exact. Mirrors
+      // `auditRowsWithTarget`.
       const aircraftTargetRows = () =>
-        page.getByTestId(TESTIDS.rowTarget).filter({ hasText: /^Aircraft$/ });
+        page
+          .getByTestId(TESTIDS.rowTarget)
+          .filter({ has: page.getByText('Aircraft', { exact: true }) });
 
       await page.getByTestId(TESTIDS.clearFilters).click();
       await expect(page.getByTestId(TESTIDS.table)).toBeVisible();

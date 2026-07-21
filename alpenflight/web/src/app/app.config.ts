@@ -6,7 +6,7 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import {
   AbstractSecurityStorage,
   DefaultLocalStorageService,
@@ -39,7 +39,13 @@ export const appConfig: ApplicationConfig = {
     { provide: NZ_DATE_LOCALE, useValue: de },
     provideAlpenflightI18n(),
     provideAlpenflightIcons(),
-    provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
+    // No withViewTransitions: under zoneless the router's startViewTransition
+    // wrapper stalls each SPA navigation ~10s until it times out, aborting with
+    // a "Transition was aborted because of timeout in DOM update" console.error
+    // and leaving the destination route's initial data fetch unrendered. ADR
+    // 0024 mandates restrained motion (opacity 120ms, no route cross-fade), so
+    // the transition buys no design value it would justify the render hazard for.
+    provideRouter(routes, withComponentInputBinding()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     provideAuth({ config: alpenflightOidcConfig }, withAppInitializerAuthCheck()),
     // OIDC state (refresh token, auth-request state token, nonce) in
