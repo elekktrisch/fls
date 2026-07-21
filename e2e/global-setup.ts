@@ -14,6 +14,10 @@ const MAILPIT_BASE = process.env.MAILPIT_BASE ?? 'http://localhost:8025';
 // above an empty pool proves the seed replay finished, not merely that EF is up.
 const MIN_COUNTRIES = 100;
 
+// The seeded TestClub admin; the flights probe scopes to this club's flights.
+const FLS_USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
+const FLS_PASSWORD = process.env.FLS_PASSWORD ?? 's';
+
 const READINESS_TIMEOUT_MS = 180_000;
 const POLL_INTERVAL_MS = 2_000;
 
@@ -55,8 +59,44 @@ async function waitForMailpit(): Promise<void> {
   });
 }
 
+// A populated /countries proves reference data is hydrated, but the flight rows
+// land in a later seed pass — the flights list + flight reports specs default
+// their date filter to TODAY, so they race that pass and see an empty list
+// unless we hold the suite until a today-scoped flight is queryable.
+// `gliderflights/today` computes its window with the server's DateTime.Today
+// (midnight), matching the seed's DATEDIFF(dd,0,SYSDATETIME()); it is
+// [Authorize]-gated + club-scoped, so we bearer it as the seeded TestClub admin
+// whose club owns the seeded flights.
+async function waitForSeededFlights(): Promise<void> {
+  await pollUntil('seeded flights (gliderflights/today >= 1)', async () => {
+    const tokenRes = await fetch(`${API_BASE}/Token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        username: FLS_USERNAME,
+        password: FLS_PASSWORD,
+      }),
+    });
+    if (!tokenRes.ok) return { ok: false, detail: `token HTTP ${tokenRes.status}` };
+    const { access_token: accessToken } = (await tokenRes.json()) as {
+      access_token?: string;
+    };
+    if (!accessToken) return { ok: false, detail: 'token missing access_token' };
+
+    const res = await fetch(`${API_BASE}/api/v1/flights/gliderflights/today`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return { ok: false, detail: `flights HTTP ${res.status}` };
+    const body = (await res.json()) as unknown[];
+    const count = Array.isArray(body) ? body.length : -1;
+    return { ok: count >= 1, detail: `today-flights=${count} (floor 1)` };
+  });
+}
+
 export default async function globalSetup(): Promise<void> {
   await waitForSeededBackend();
   await waitForMailpit();
+  await waitForSeededFlights();
   await clearInbox();
 }
