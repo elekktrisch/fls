@@ -373,7 +373,11 @@ jobs:
             exit 1
           fi
 
+      # always() so the tally can parse the blobs and list failing specs on the
+      # ordinary test-failure path, where "Assert all shards ran" exit-1s first
+      # and would otherwise skip this default-success() download.
       - name: Download shard blobs
+        if: always()
         uses: actions/download-artifact@v4
         with:
           path: alpenflight/web/all-blob-reports
@@ -413,7 +417,11 @@ jobs:
               # excluded from the total. unexpected>0 (or flaky>0) is the RED signal.
               read -r passed failed flaky < <(jq -r '.stats | "\(.expected) \(.unexpected) \(.flaky)"' merged-report.json)
               total=$((passed + failed + flaky))
-              if [ "$failed" -eq 0 ] && [ "$flaky" -eq 0 ]; then verdict="✅ PASS"; else verdict="❌ FAIL"; fi
+              # total==0 means no test executed (all shards crashed pre-test):
+              # a report full of zeros is a no-run, never a pass.
+              if [ "$total" -eq 0 ]; then verdict="❌ NO-RUN / FAIL"
+              elif [ "$failed" -eq 0 ] && [ "$flaky" -eq 0 ]; then verdict="✅ PASS"
+              else verdict="❌ FAIL"; fi
               echo "### real-idp nightly — ${verdict}"
               echo ""
               echo "| total | passed | failed | flaky |"
