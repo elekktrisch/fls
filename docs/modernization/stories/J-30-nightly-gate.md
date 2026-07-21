@@ -2,9 +2,10 @@
 id: J-30
 title: Nightly gate — green both e2e suites + gate `main` on the stable subset
 epic: E-10
-status: todo
+status: in_progress
 journey0: false
 carved: true
+started_at: 2026-07-21
 depends_on: [J-13, J-29]
 rolls_up: []
 acceptance:
@@ -112,6 +113,16 @@ a current-journey video, else that ci.yml step reds green-on-main / red-on-branc
    + formalize the `@quarantine-kc26` exclusion (documented list + riders retained).
 4. Gate-main — `.github/workflows/ci.yml` new required `nightly-gate` job (gh-api reads both nightly
    conclusions) added to the `required` aggregator `needs`.
+
+## Tasks
+
+- [ ] T-01 — Audit adversarial-seed spec + J-30 gallery scaffold. Harden `e2e/tests/real-idp/audit-log-two-club.spec.ts`: create an Aircraft (non-Location) mutation-audit row in the same tenant, filter targetEntityType=Location, assert the Aircraft row is ABSENT (not merely "visible rows are Location"). Scaffold the J-30 proof-gallery page + re-tag ≥1 audit proofVideo `journey: 'J-30'`.
+- [ ] T-02 — Scope the per-push gate to J-30 (verify-only). Confirm ci.yml `alpenflight-proof` derives J-30's `parity_test` (audit-log-two-club.spec.ts) and prior journeys run mock-IdP. Standing slot.
+- [ ] T-03 — Audit backend IT multi-entity-type filter case. `AuditAdminControllerIT`: seed ≥2 entity types, assert the `targetEntityType` filter returns only matching rows (proves the `JpaMutationAuditEventRepository:86-87` predicate genuinely excludes).
+- [ ] T-04 — Legacy nightly readiness gate. `nightly.yml`: `up -d mssql mailpit` + a bounded, loud readiness step; new `e2e/global-setup.ts` (poll /countries data-count + mailpit `/api/v1/info` + seeded-club count) wired via `playwright.config.ts` `globalSetup` — stops registration/email/reporting racing a not-ready backend.
+- [ ] T-05 — Real-idp quarantine formalization. `alpenflight-e2e-real-idp.yml`: make the `@quarantine-kc26` exclusion explicit + documented (not a bare inline grep); confirm each quarantined spec (login ?ui_locales=fr / register verify-mail / token-lifecycle silent-refresh) carries a named fix-owner rider in `_BOYSCOUT.md`.
+- [ ] T-06 — Gate-main `nightly-gate` required job. New `ci.yml` job querying the latest SCHEDULED conclusion of both nightly workflows (`real-idp-merge` / legacy `e2e`) via gh api, FAIL if either red; add to the `required` aggregator `needs`. Demonstrate red→green.
+- [ ] T-07 — [LOCAL-PG-GUARD] structural test-preflight. Hard-fail when a local Postgres-container launch is attempted (`ALPENFLIGHT_TEST_FORCE_DOCKER=1` / any local PG spin) with `CI` unset; fail-loud message pointing at the LAN-PG rule. Seam: `PostgresTestContainerLifecycle` external-mode preflight.
 
 ## Assumptions made
 
