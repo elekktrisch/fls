@@ -75,7 +75,13 @@ export default defineConfig({
   // Override with `--max-failures=0` to surface every spec on a local run.
   maxFailures: 10,
   outputDir: '/tmp/fls-e2e-results',
-  reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
+  // The JSON report is the machine-readable tally the nightly workflow parses
+  // into its loud PASS/FAIL step summary (list + html are for humans).
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }],
+    ['json', { outputFile: '/tmp/fls-e2e-report.json' }],
+  ],
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'retain-on-failure',

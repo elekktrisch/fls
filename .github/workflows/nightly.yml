@@ -305,6 +305,41 @@ jobs:
         run: npx playwright test
         continue-on-error: true
 
+      # Loud tally so a nightly red is glanceable, never silently swallowed. The
+      # job's RED-on-failure conclusion stays owned by "Mark job as failed
+      # (post-deploy)" below (`steps.pw.outcome != 'success'`); this only renders
+      # the numbers + failing spec names from the JSON reporter's report.
+      - name: Nightly tally → step summary
+        if: always()
+        run: |
+          REPORT=/tmp/fls-e2e-report.json
+          {
+            if [ ! -f "$REPORT" ]; then
+              echo "### legacy nightly (Playwright) — ⚠️ NO REPORT"
+              echo ""
+              echo "No JSON report at ${REPORT} (the suite may have aborted before running)."
+            else
+              # stats.{expected,unexpected,flaky} are the run outcomes; skipped is
+              # excluded from the total. unexpected>0 (or flaky>0) is the RED signal.
+              read -r passed failed flaky < <(jq -r '.stats | "\(.expected) \(.unexpected) \(.flaky)"' "$REPORT")
+              total=$((passed + failed + flaky))
+              if [ "$failed" -eq 0 ] && [ "$flaky" -eq 0 ]; then verdict="✅ PASS"; else verdict="❌ FAIL"; fi
+              echo "### legacy nightly (Playwright) — ${verdict}"
+              echo ""
+              echo "| total | passed | failed | flaky |"
+              echo "| ----: | -----: | -----: | ----: |"
+              echo "| ${total} | ${passed} | ${failed} | ${flaky} |"
+              if [ "$failed" -gt 0 ]; then
+                echo ""
+                echo "**Failing specs:**"
+                echo ""
+                # A spec with ok=false is a genuine failure; a flaky spec is ok=true
+                # (passed on retry) and counted only in the table above.
+                jq -r '[.. | objects | select(has("specs")) | .specs[] | select(.ok | not) | "- `\(.file)` › \(.title)"] | unique | .[]' "$REPORT"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Assemble gh-pages artifact
         if: always()
         env:

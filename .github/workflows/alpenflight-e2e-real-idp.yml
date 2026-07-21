@@ -391,6 +391,45 @@ jobs:
         working-directory: alpenflight/web
         run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
 
+      # The HTML merge above owns the RED-on-failure conclusion (its non-zero
+      # exit when any shard had a failed test is the gate). This step exists
+      # only to render the tally LOUDLY into the run summary so a red is never
+      # silently swallowed — so it re-merges to JSON `if: always()` and neutralizes
+      # its own non-zero exit; the job's pass/fail stays the HTML merge's.
+      - name: Nightly tally → step summary
+        if: always()
+        working-directory: alpenflight/web
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: merged-report.json
+        run: |
+          pnpm exec playwright merge-reports --reporter json ./all-blob-reports > /dev/null || true
+          {
+            if [ ! -f merged-report.json ]; then
+              echo "### real-idp nightly — ⚠️ NO REPORT"
+              echo ""
+              echo "No merged JSON report was produced (all shards may have crashed pre-test)."
+            else
+              # stats.{expected,unexpected,flaky} are the run outcomes; skipped is
+              # excluded from the total. unexpected>0 (or flaky>0) is the RED signal.
+              read -r passed failed flaky < <(jq -r '.stats | "\(.expected) \(.unexpected) \(.flaky)"' merged-report.json)
+              total=$((passed + failed + flaky))
+              if [ "$failed" -eq 0 ] && [ "$flaky" -eq 0 ]; then verdict="✅ PASS"; else verdict="❌ FAIL"; fi
+              echo "### real-idp nightly — ${verdict}"
+              echo ""
+              echo "| total | passed | failed | flaky |"
+              echo "| ----: | -----: | -----: | ----: |"
+              echo "| ${total} | ${passed} | ${failed} | ${flaky} |"
+              if [ "$failed" -gt 0 ]; then
+                echo ""
+                echo "**Failing specs:**"
+                echo ""
+                # A spec with ok=false is a genuine failure; a flaky spec is ok=true
+                # (passed on retry) and counted only in the table above.
+                jq -r '[.. | objects | select(has("specs")) | .specs[] | select(.ok | not) | "- `\(.file)` › \(.title)"] | unique | .[]' merged-report.json
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload merged report
         if: always()
         uses: actions/upload-artifact@v4
