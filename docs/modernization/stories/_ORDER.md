@@ -57,7 +57,7 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-30:** Both nightly workflows are job-level GREEN read from the test tally (real-idp all-shards 0-fail; legacy flsweb e2e gated on a legacy-backend health/seed check so registration/email/report specs stop racing a not-ready server) — NOT merely "the stack comes up"; the J-13 audit target-entity filter fully EXCLUDES non-matching rows (adversarial-seeded — a different entity-type row asserted absent); the stabilized subset GATES `main` (a red nightly blocks the next merge; a residual flake gets a fix-owner rider, never a silent drop).
+- **J-30:** Both nightly workflows are job-level GREEN read from the test tally (real-idp all-shards 0-fail; legacy flsweb e2e gated on a legacy-backend health/seed check so registration/email/report specs stop racing a not-ready server) — NOT merely "the stack comes up"; the J-13 audit target-entity filter fully EXCLUDES non-matching rows (adversarial-seeded — a different entity-type row asserted absent); both nightly results are surfaced LOUDLY (a run-summary tally that treats a no-run as FAIL + lists failing specs) so a red is never silently swallowed; a residual flake gets a fix-owner rider. **Informational-only** (operator 2026-07-21): NO merge-blocking gate, branch protection stays OFF.
 - **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
 - **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.
 - **J-16:** Landing renders; nav-bar hidden on public routes by an explicit mechanism; CTAs route correctly.
