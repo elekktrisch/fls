@@ -116,7 +116,7 @@ a current-journey video, else that ci.yml step reds green-on-main / red-on-branc
 
 ## Tasks
 
-- [ ] T-01 — Audit adversarial-seed spec + J-30 gallery scaffold. Harden `e2e/tests/real-idp/audit-log-two-club.spec.ts`: create an Aircraft (non-Location) mutation-audit row in the same tenant, filter targetEntityType=Location, assert the Aircraft row is ABSENT (not merely "visible rows are Location"). Scaffold the J-30 proof-gallery page + re-tag ≥1 audit proofVideo `journey: 'J-30'`.
+- [x] T-01 — Audit adversarial-seed spec + J-30 gallery scaffold. Harden `e2e/tests/real-idp/audit-log-two-club.spec.ts`: create an Aircraft (non-Location) mutation-audit row in the same tenant, filter targetEntityType=Location, assert the Aircraft row is ABSENT (not merely "visible rows are Location"). Scaffold the J-30 proof-gallery page + re-tag ≥1 audit proofVideo `journey: 'J-30'`.
 - [ ] T-02 — Scope the per-push gate to J-30 (verify-only). Confirm ci.yml `alpenflight-proof` derives J-30's `parity_test` (audit-log-two-club.spec.ts) and prior journeys run mock-IdP. Standing slot.
 - [ ] T-03 — Audit backend IT multi-entity-type filter case. `AuditAdminControllerIT`: seed ≥2 entity types, assert the `targetEntityType` filter returns only matching rows (proves the `JpaMutationAuditEventRepository:86-87` predicate genuinely excludes).
 - [ ] T-04 — Legacy nightly readiness gate. `nightly.yml`: `up -d mssql mailpit` + a bounded, loud readiness step; new `e2e/global-setup.ts` (poll /countries data-count + mailpit `/api/v1/info` + seeded-club count) wired via `playwright.config.ts` `globalSetup` — stops registration/email/reporting racing a not-ready backend.
