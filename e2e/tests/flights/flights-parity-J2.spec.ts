@@ -159,9 +159,12 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     // is genuinely present — this is a parity assertion about the tow surface, so
     // the opened flight must be one that has one.
     const aerotowGliderRow = page
-      .locator(
-        'tr[data-testid="row"]:has(td.immatriculation[ng-bind="flight.Immatriculation"] >> text="HB-3407")',
-      )
+      .locator('tr[data-testid="row"]', {
+        has: page.locator(
+          'td.immatriculation[ng-bind="flight.Immatriculation"]',
+          { hasText: "HB-3407" },
+        ),
+      })
       .first();
     await aerotowGliderRow.waitFor({ state: "visible", timeout: 30_000 });
 

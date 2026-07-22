@@ -14,13 +14,12 @@
 //
 // We exercise both surfaces:
 //   1. Verify the picker page renders (at least one report link visible).
-//   2. Drive a pre-canned report. We use `location-flights-this-year`
-//      because the seed in `3 insert/6 Insert Test Flights.sql` inserts the
-//      seed flights with SYSDATETIME (so they fall in the current year on
-//      every run), and the location filter resolves to the testclub's
-//      Homebase (or NULL, which the server treats as "any location") --
-//      meaning the year-wide window robustly contains the seeded flights
-//      regardless of wall-clock drift.
+//   2. Drive a pre-canned report. We use `location-flights-this-year`, whose
+//      server filter counts only flights whose StartLocationId/LdgLocationId
+//      equals the club's HomebaseId (FlightReportService location branch). The
+//      seeded flight is therefore anchored to the club's ACTUAL homebase (see
+//      ensureGliderFlight) and dated today, so the year-wide window counts it
+//      regardless of wall-clock drift or which location is currently homebase.
 //   3. Assert the rendered tables: filter-criteria panel populated,
 //      summaries table has >=1 grouped row, and the flights ng-table has
 //      >=1 data row. HighCharts is out of scope (the controller hides it
@@ -47,18 +46,19 @@ import { testId } from "../../test-id";
 import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
 // Report page calls /api/v1/flightreports/page which scans every flight in
-// the club; under accumulated state this can take > 30s. The TotalFlights poll
-// re-runs the whole report per attempt (fresh getData) up to 90s, on top of the
-// initial picker + report render, so the whole test needs a wider budget.
-test.setTimeout(240_000);
+// the club; under accumulated legacy-suite state a single render can take > 30s.
+// One re-navigate poll cycle plus the initial picker + report render fits well
+// inside this budget; the earlier 240s was a latent 10-min-cap bomb (this is a
+// data assertion, not a slow one).
+test.setTimeout(90_000);
 
 test("flight-reports: pre-canned location-this-year renders tabular output for seeded flights", async ({
   loggedInPage,
 }, testInfo) => {
   // Self-contained: ensure at least one glider flight from THIS test exists
-  // for the current year (location filter is the testclub homebase = LSZK,
-  // which is also what ensureGliderFlight defaults to). Don't depend on
-  // seed-fixture flights surviving the accumulating-state model.
+  // for the current year, anchored to the club's homebase (ensureGliderFlight
+  // resolves it from /clubs/my) so the location-scoped report genuinely counts
+  // it. Don't depend on seed-fixture flights surviving the accumulating state.
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
   await ensureGliderFlight(loggedInPage.request, token, { comment: id.name });
@@ -117,18 +117,13 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
     "expected at least one FlightReportSummaries row for seeded flights in current year",
   ).toBeGreaterThanOrEqual(1);
 
-  // The seeded glider flight is dated today at the club homebase, so it falls
-  // inside this report's window (FlightDate startOf('year')..today, LocationId =
-  // HomebaseId — FlightReportsController.js:320-339) and MUST be counted. The
-  // summary + filter-criteria panel are set together in one `getData` .then()
-  // (FlightReportsController.js:59-61), so a 0-sum after the panel is visible is
-  // NOT a per-cell settle race — re-reading the same DOM never changes it. It is
-  // a fresh-aggregation miss: the report's `/api/v1/flightreports/page` request
-  // can resolve off a stale settings-cache render (empty summaries) before the
-  // full club-wide scan re-fires, especially under CI load. Poll by RE-RUNNING
-  // the report (fresh navigation forces a fresh getData) until the TotalFlights
-  // column (4th td, summary.TotalFlights — flightreportresults.html:81) reflects
-  // the seeded flight; a bare DOM re-read would spin uselessly on the stale render.
+  // The seeded glider flight is dated today at the club's homebase, so it falls
+  // inside this report's window (FlightDate startOf('year')..today) AND matches
+  // the location branch's StartLocationId/LdgLocationId == HomebaseId filter
+  // (FlightReportService), so the TotalFlights column (4th td, summary.TotalFlights
+  // — flightreportresults.html:81) MUST reach >=1. Re-navigate between polls so a
+  // slow /api/v1/flightreports/page render (accumulating club scan) forces a fresh
+  // getData rather than spinning on a still-loading DOM.
   await expect
     .poll(
       async () => {
@@ -154,9 +149,9 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
       },
       {
         message:
-          "expected at least one flight in the per-group totals (seeded self-launch glider at homebase)",
-        timeout: 90_000,
-        intervals: [2_000, 5_000, 10_000],
+          "expected at least one flight in the per-group totals (seeded glider at club homebase)",
+        timeout: 20_000,
+        intervals: [2_000, 5_000],
       },
     )
     .toBeGreaterThanOrEqual(1);
