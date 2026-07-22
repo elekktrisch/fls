@@ -42,16 +42,16 @@
 // the existing `[data-testid="row"]` contract from SELECTORS.md instead of
 // shape-based selectors.
 
-import { expect, gotoRoute, screenshot, test } from '../../fixtures';
-import { testId } from '../../test-id';
-import { ensureGliderFlight, getBearerToken } from '../../test-data';
+import { expect, gotoRoute, screenshot, test } from "../../fixtures";
+import { testId } from "../../test-id";
+import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
 // Report page calls /api/v1/flightreports/page which scans every flight in
 // the club; under accumulated state this can take > 30s. Give the whole test
 // generous headroom.
 test.setTimeout(120_000);
 
-test('flight-reports: pre-canned location-this-year renders tabular output for seeded flights', async ({
+test("flight-reports: pre-canned location-this-year renders tabular output for seeded flights", async ({
   loggedInPage,
 }, testInfo) => {
   // Self-contained: ensure at least one glider flight from THIS test exists
@@ -64,7 +64,7 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
 
   // 1. Picker page — landing for /flightreports. Confirms the route loads
   //    and the navigation links the controller's switch-case maps from.
-  await gotoRoute(loggedInPage, '/flightreports');
+  await gotoRoute(loggedInPage, "/flightreports");
   const myReportsLink = loggedInPage.locator(
     'a[href="#/flightreports/location/location-flights-this-year"]',
   );
@@ -73,27 +73,33 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
   // 2. Drive the pre-canned "location flights this year" report. Direct
   //    navigation avoids a Bootstrap stacking-context click race on the
   //    icon-stack anchor.
-  await gotoRoute(loggedInPage, '/flightreports/location/location-flights-this-year');
+  await gotoRoute(
+    loggedInPage,
+    "/flightreports/location/location-flights-this-year",
+  );
 
   // 3. Filter-criteria panel: ng-show="!!FlightReportFilterCriteria"
   //    becomes truthy once /api/v1/flightreports/page resolves. That
   //    endpoint scans all club flights and can take long under load.
-  const filterPanel = loggedInPage.locator('.filter-criteria-panel');
+  const filterPanel = loggedInPage.locator(".filter-criteria-panel");
   await expect(filterPanel).toBeVisible({ timeout: 60_000 });
 
   // From the filter criteria block: From/To/GliderFlights/MotorFlights/
   // TowFlights labels are visible regardless of locale (we read by *value*
   // rendered through ng-bind / translate filters, not by labels).
-  const fromDate = filterPanel.locator('.filter-value').first();
+  const fromDate = filterPanel.locator(".filter-value").first();
   await expect(fromDate).not.toBeEmpty();
 
   // 4. Flight Report Summary table. The template renders a non-ng-table
   //    `<table class="fls">` with the summary header + one row per
   //    `FlightReportSummaries` entry. Filter for rows that have a populated
   //    `TotalFlights` cell (ng-bind populates it; header row has none).
-  const summaryTable = loggedInPage.locator('table.fls').filter({
-    has: loggedInPage.locator('th >> text=/Total|Anzahl|Starts/i'),
-  }).first();
+  const summaryTable = loggedInPage
+    .locator("table.fls")
+    .filter({
+      has: loggedInPage.locator("th >> text=/Total|Anzahl|Starts/i"),
+    })
+    .first();
   await expect(summaryTable).toBeVisible({ timeout: 10_000 });
 
   // Each summary row has 5 `<td ng-bind="...">` cells. Header rows have
@@ -101,35 +107,53 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
   // the header. We also require at least one of the rows to surface a
   // non-zero TotalFlights count (the 4th `<td>` per template) to prove the
   // assertion is data-derived and not just empty placeholders.
-  const summaryRows = summaryTable.locator('tr').filter({ has: loggedInPage.locator('td') });
+  const summaryRows = summaryTable
+    .locator("tr")
+    .filter({ has: loggedInPage.locator("td") });
   const summaryRowCount = await summaryRows.count();
   expect(
     summaryRowCount,
-    'expected at least one FlightReportSummaries row for seeded flights in current year',
+    "expected at least one FlightReportSummaries row for seeded flights in current year",
   ).toBeGreaterThanOrEqual(1);
 
-  // Total across all summary rows of the TotalFlights column (4th td).
-  const totalsText = await summaryRows.locator('td:nth-child(4)').allInnerTexts();
-  const totalFlightsSum = totalsText
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !Number.isNaN(n))
-    .reduce((a, b) => a + b, 0);
-  expect(
-    totalFlightsSum,
-    'expected at least one flight in the per-group totals (seeded PAX + tow flights)',
-  ).toBeGreaterThanOrEqual(1);
+  // The seeded glider flight is dated today at the club homebase, so it falls
+  // inside this report's window (FlightDate startOf('year')..today, LocationId =
+  // HomebaseId — FlightReportsController.js:320-339) and MUST be counted; the sum
+  // being 0 is per-request ng-table `getData` timing (the summary row exists
+  // before its `<td ng-bind>` cells settle, or a settings-cache getData re-fire
+  // transiently blanks them), not a windowed-out seed. Poll the DOM re-read of the
+  // TotalFlights column (4th td, summary.TotalFlights — flightreportresults.html:81)
+  // until it reflects the seeded flight, mirroring the flights-table poll below.
+  await expect
+    .poll(
+      async () => {
+        const totalsText = await summaryRows
+          .locator("td:nth-child(4)")
+          .allInnerTexts();
+        return totalsText
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !Number.isNaN(n))
+          .reduce((a, b) => a + b, 0);
+      },
+      {
+        message:
+          "expected at least one flight in the per-group totals (seeded PAX + tow flights)",
+        timeout: 10_000,
+      },
+    )
+    .toBeGreaterThanOrEqual(1);
 
   // 5. Flights ng-table: per-flight rows under `<table ng-table="tableParams">`.
   //    Filter to <tr> that contain at least one rendered `td[ng-bind]` so we
   //    skip ng-table's auto-generated header / filter / pager rows.
   const flightsTable = loggedInPage.locator('table[ng-table="tableParams"]');
   await expect(flightsTable).toBeVisible({ timeout: 10_000 });
-  const flightRows = flightsTable.locator('tbody tr').filter({
-    has: loggedInPage.locator('td[ng-bind]'),
+  const flightRows = flightsTable.locator("tbody tr").filter({
+    has: loggedInPage.locator("td[ng-bind]"),
   });
   await expect
     .poll(async () => flightRows.count(), {
-      message: 'expected at least one flight row rendered from seeded data',
+      message: "expected at least one flight row rendered from seeded data",
       timeout: 10_000,
     })
     .toBeGreaterThanOrEqual(1);
@@ -140,6 +164,9 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
     .locator('tbody td[ng-bind="flight.PilotName"]')
     .allInnerTexts();
   const hasPilot = pilotNames.some((t) => t.trim().length > 0);
-  expect(hasPilot, 'expected at least one rendered PilotName cell to be non-empty').toBe(true);
-  await screenshot(loggedInPage, 'flight-reports-01');
+  expect(
+    hasPilot,
+    "expected at least one rendered PilotName cell to be non-empty",
+  ).toBe(true);
+  await screenshot(loggedInPage, "flight-reports-01");
 });

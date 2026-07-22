@@ -124,10 +124,19 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     // first (ng-table can re-render the cell node after the row appears — that
     // re-render was the run's transient retry cell-visible timeout), THEN the
     // glider immatriculation cell, so the recording captures a settled list.
-    await page
-      .locator('tr[data-testid="row"]')
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
+    // Poll the ROW COUNT (not a single-shot waitFor) until the list is
+    // populated: the ng-table's first render can paint an empty tbody before
+    // its per-request `getData` resolves, so a bare `waitFor` on the first row
+    // races that empty frame. Retrying the count until >=1 tolerates the
+    // getData re-fire, matching the flight-reports summary/rows poll.
+    const rows = page.locator('tr[data-testid="row"]');
+    await expect
+      .poll(async () => rows.count(), {
+        message:
+          "expected at least one seeded flight row in the default (today) list",
+        timeout: 30_000,
+      })
+      .toBeGreaterThanOrEqual(1);
     const firstImmat = page
       .locator(
         'tr[data-testid="row"] td.immatriculation[ng-bind="flight.Immatriculation"]',
@@ -237,8 +246,12 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     const towFieldSet = page.locator(
       'fls-flight-edit-tow-form div[ng-if="needsTowplane(flightDetails.StartType)"]',
     );
+    // Wait for the column to be VISIBLE before scrolling: the ng-if column
+    // renders a beat after the form shell, and on attempt 1 the bare
+    // scrollIntoViewIfNeeded fired against the not-yet-rendered node. Gate on
+    // the auto-waiting visibility first so the scroll acts on a stable box.
+    await expect(towFieldSet).toBeVisible({ timeout: 15_000 });
     await towFieldSet.scrollIntoViewIfNeeded();
-    await towFieldSet.waitFor({ state: "visible", timeout: 15_000 });
     // SECONDARY (non-fatal) tow-field signal. The towplane control is rendered by
     // Selectize: the original `[name="TowAircraftId"]` <selectize> host is
     // zero-box (`toBeVisible()` resolves `hidden` — run 26926684710:189), so we

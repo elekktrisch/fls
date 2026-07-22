@@ -31,13 +31,13 @@
 //
 // See SERVER.md sec. 1 (workflow trigger mechanism) and sec. 2 (state machine).
 
-import { test, expect } from '../../fixtures';
-import type { Page } from '@playwright/test';
+import { test, expect } from "../../fixtures";
+import type { Page } from "@playwright/test";
 
-import { testId } from '../../test-id';
-import { ensureGliderFlight, getBearerToken } from '../../test-data';
+import { testId } from "../../test-id";
+import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
-const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 
 // Mirror of FLS.Data.WebApi.Flight.FlightProcessState.
 const ProcessState = {
@@ -57,12 +57,27 @@ async function getFlight(
   // tearing the test down before the poll loop's own 5s deadline could
   // even start. The flight read is cheap server-side; the headroom only
   // covers thread-pool contention, not a slow query.
-  const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 30_000,
-  });
-  expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
-  const body = await res.json();
+  //
+  // Under contention even the 30s per-call can throw a transient TimeoutError,
+  // which would tear the test down. The read is idempotent, so retry the whole
+  // request via toPass — readiness, not a slow query.
+  // res.json() is untyped; the callers below read nested optional fields.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: any;
+  await expect(async () => {
+    const res = await page.request.get(
+      `${API_BASE}/api/v1/flights/${flightId}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30_000,
+      },
+    );
+    expect(
+      res.ok(),
+      `GET /api/v1/flights/${flightId} -> ${res.status()}`,
+    ).toBeTruthy();
+    body = await res.json();
+  }).toPass({ timeout: 60_000 });
   // For glider flights, ProcessStateId is nested under GliderFlightDetailsData,
   // not at the FlightDetails root. (Motor flights would use the Motor variant.)
   // CreatedOn is the same on root and nested; the root value is canonical.
@@ -72,17 +87,21 @@ async function getFlight(
   };
 }
 
-test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
+test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
   loggedInPage,
 }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
   // Create a Valid flight aged 3+ days so the workflow's >=2-day gate clears.
-  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
-    comment: id.name,
-    processStateId: ProcessState.Valid,
-    createdOnDaysAgo: 3,
-  });
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(
+    loggedInPage.request,
+    token,
+    {
+      comment: id.name,
+      processStateId: ProcessState.Valid,
+      createdOnDaysAgo: 3,
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Precondition: test flight is Valid (30) and aged >= 2 days.
@@ -90,10 +109,9 @@ test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
   const before = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
 
   // The flight must be Valid to be eligible for locking.
-  expect(
-    before.ProcessStateId,
-    'test flight should start as Valid (30)',
-  ).toBe(ProcessState.Valid);
+  expect(before.ProcessStateId, "test flight should start as Valid (30)").toBe(
+    ProcessState.Valid,
+  );
 
   // Confirm the time gate is met: CreatedOn must be at least 2 days behind
   // today (server compares `DbFunctions.TruncateTime(flight.CreatedOn) <=
@@ -107,8 +125,8 @@ test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
     test.skip(
       createdOn > twoDaysAgo,
       `Seeded flight CreatedOn=${before.CreatedOn} is within the 2-day lock ` +
-      `gate. Fixture anchor in _test-fixture.sql must be moved further into ` +
-      `the past, or this spec re-run with a backdated wall clock.`,
+        `gate. Fixture anchor in _test-fixture.sql must be moved further into ` +
+        `the past, or this spec re-run with a backdated wall clock.`,
     );
   }
 
@@ -134,12 +152,12 @@ test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
   while (Date.now() < deadline) {
     latest = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
     if (latest.ProcessStateId === ProcessState.Locked) break;
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 200));
   }
 
   expect(
     latest.ProcessStateId,
     `flight should transition Valid(30) -> Locked(40) after running ` +
-    `DailyFlightValidationJob; saw ProcessStateId=${latest.ProcessStateId}`,
+      `DailyFlightValidationJob; saw ProcessStateId=${latest.ProcessStateId}`,
   ).toBe(ProcessState.Locked);
 });
