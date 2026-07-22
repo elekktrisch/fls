@@ -1,5 +1,6 @@
 import { type Request } from '@playwright/test';
 import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
@@ -7,9 +8,12 @@ import { proofVideo } from './_helpers/proof-video';
  *
  * Each route flagged `data.publicAccess: true` in the SPA route tree
  * MUST render anonymously without (a) redirecting to Keycloak's authorize
- * endpoint, and (b) triggering any `/api/v1/*` call — `session.store.ts`'s
+ * endpoint, (b) triggering any `/api/v1/*` call — `session.store.ts`'s
  * `bootstrapPrefetch()` is gated on `isAuthenticated()`; a regression
- * there would surface here.
+ * there would surface here — and (c) showing the app-shell nav-bar, which
+ * every one of these routes suppresses via `data.showNavBar: false`
+ * (the structural close-out of the legacy `||` tautology, R12). The nav
+ * appearing on a public route is exactly that regression.
  *
  * Hardcoded list, not runtime-derived: coupling the e2e build to the app
  * build would invert the dependency direction. When a new public route
@@ -19,6 +23,13 @@ import { proofVideo } from './_helpers/proof-video';
 
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 const KC_HOST = 'localhost:8090';
+
+// pilot1 is seeded in the clean-seed DB (V8 dev-user seed) bound to
+// seed-club-1, so its `tenantRequiredGuard` admits and it lands on the
+// nav-bearing `/start` shell — the post-auth counterpart to the nav-hidden
+// public routes. Read-only seed user; never mutate.
+const SEED_USER = 'pilot1@example.com';
+const SEED_PASSWORD = 'pilot1-dev-2026!';
 
 // publicAccess: true routes from the SPA tree (excludes /dev/primitives,
 // which is opt-in tooling and not a production surface). `/auth/callback`
@@ -62,8 +73,40 @@ test.describe('public routes stay public — real-idp', () => {
       // but the gate that matters here is the prefetch suppression. Any
       // /api/v1/* call from a public-route navigation is the regression.
       expect(apiCalls, `unexpected /api/v1/* call from public route ${path}`).toEqual([]);
+
+      // (c) App-shell nav-bar hidden. Every route here is `showNavBar: false`,
+      // so `AppComponent`'s NavigationEnd handler keeps the chrome off. The
+      // nav appearing is the R12 tautology regressing.
+      await expect(
+        page.locator('af-nav-bar'),
+        `nav-bar leaked onto public route ${path}`,
+      ).toHaveCount(0);
     });
   }
+});
+
+// (c) counterpart: the nav-bar IS present once a tenant-bearing principal is
+// authenticated on a `showNavBar: true` route. Proves the mechanism toggles
+// BOTH ways under the real IdP — the public-route count-0 above would pass
+// vacuously if the nav simply never rendered.
+//
+// pilot1 is tenant-bound (seed-club-1), so `oidc-session-bridge` warm-navigates
+// it to the DEFAULT_POST_LOGIN_ROUTE `/start` on callback and `tenantRequiredGuard`
+// admits it. We wait for that in-app landing rather than a cold `page.goto('/start')`
+// — a cold navigation mid-test restarts the SPA before `checkAuth()` restores the
+// session, so `/start`'s guard would bounce back to the KC authorize endpoint.
+test.describe('nav-bar visible on a post-auth route — real-idp', () => {
+  test('/start shows af-nav-bar after pilot1 login', async ({ page }, testInfo) => {
+    watchConsoleErrors(page, testInfo);
+
+    await page.goto('/');
+    await page.getByTestId('landing-topbar-sign-in').click();
+    await page.waitForURL(/\/realms\/alpenflight\//);
+    await fillKcLogin(page, SEED_USER, SEED_PASSWORD);
+
+    await page.waitForURL(/\/start(\?|$|\/)/, { timeout: 30_000 });
+    await expect(page.locator('af-nav-bar')).toBeVisible();
+  });
 });
 
 // The J-16 proof capture — one AlpenFlight-only (migration N/A) landing pass
