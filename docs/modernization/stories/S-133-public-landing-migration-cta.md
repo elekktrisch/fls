@@ -2,7 +2,7 @@
 id: S-133
 title: Public marketing landing CTA — "Migrate from legacy FLS" + "Try demo"
 epic: E-15
-status: todo
+status: done
 rolled_up_into: J-16
 depends_on: [S-097, S-008]
 acceptance:

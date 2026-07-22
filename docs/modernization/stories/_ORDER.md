@@ -19,7 +19,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
 | J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10), **S-088 (OGN aircraft-DB sync, re-homed from retired J-14)** | N/A | none (admin) → `/system/jobs` |
-| J-16 | Public landing + nav | E-12 | J-0 | S-133 (+impl S-097, S-157) | N/A | `main/` → `/main` |
 | J-17 | Trial-flight registration | E-12 | J-16, J-1 | S-098, S-025 | `Flight` (trial subset) | `tryflight/` → `/trialflight` |
 | J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
@@ -66,7 +65,6 @@ and the proven mapper pattern.
 ## Per-journey Playwright contract (the one-line gate)
 
 - **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events. Includes the **OGN aircraft-DB sync (S-088)** run against a recorded DDB fixture (re-homed from retired J-14).
-- **J-16:** Landing renders unauthenticated at `/`; the **Migrate / Try-demo CTA pair** routes correctly (migrate→`/signup?intent=migrate`, demo→`/demo`-stub) + emits `landing.cta_click`; nav-bar hidden on public routes / visible post-auth (R12); wordmark SVG + favicon render.
 - **J-17 / J-18:** Public POST creates a trial/passenger flight scoped by tenant-from-URL; unsupported tenant ID rejected; nav-bar hidden.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
