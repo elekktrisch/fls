@@ -146,6 +146,25 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     await expect(firstImmat).not.toBeEmpty();
     await screenshot(page, "flights-parity-J2-01-legacy-list");
 
+    // The /flights list is the GLIDER list (PagedFlights.getGliderFlights,
+    // FlightsController.js:88) sorted FlightDate desc (FlightsController.js:56-57);
+    // the seed stamps every glider flight on the SAME @Today so the first row is
+    // NON-DETERMINISTIC across the aerotow PAX flight (HB-3407, StartType=1), the
+    // aerotow school flight (HB-3256, StartType=1), and the self-launcher (HB-2464,
+    // StartType=3 "Selfstarter" — seed lines 172/183). The tow field set below only
+    // renders for a tow launch (`needsTowplane` == `StartType == 1`,
+    // FlightsController.js:418-420 / flight-edit-tow-form.html:2), so opening
+    // `firstImmat` risks landing on the self-launcher and never rendering the tow
+    // column. Open the HB-3407 aerotow glider row explicitly so the tow field set
+    // is genuinely present — this is a parity assertion about the tow surface, so
+    // the opened flight must be one that has one.
+    const aerotowGliderRow = page
+      .locator(
+        'tr[data-testid="row"]:has(td.immatriculation[ng-bind="flight.Immatriculation"] >> text="HB-3407")',
+      )
+      .first();
+    await aerotowGliderRow.waitFor({ state: "visible", timeout: 30_000 });
+
     // J-2 T-10 — STABLE parity screenshot the fanout stages into the gallery
     // (declared in screenshots.json, side=legacy view=list). Written to this
     // test's output dir (under outputDir /tmp/fls-e2e-results/<spec-…>/) with a
@@ -158,11 +177,12 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
       fullPage: true,
     });
 
-    // ----- 2. FORM: open one flight so the legacy glider+tow field set is on
-    // camera. Read-only — clicking a row NAVIGATES to `/flights/:id` (the
-    // ng-click="editFlight(flight)" on the row, `flights.html:32`); no field is
-    // changed, no save fired. This shows WHICH flight to open and never mutates.
-    await firstImmat.click();
+    // ----- 2. FORM: open the aerotow glider flight so the legacy glider+tow
+    // field set is on camera. Read-only — clicking a row NAVIGATES to
+    // `/flights/:id` (the ng-click="editFlight(flight)" on the row,
+    // `flights.html:32`); no field is changed, no save fired. Opening the HB-3407
+    // aerotow row (StartType=1) guarantees the tow field set renders below.
+    await aerotowGliderRow.click();
     // The edit template loads `name="flightDetailsForm"` with the `#FlightDate`
     // date picker as the visible-when-loaded anchor (flight-edit-form.html:17).
     const flightDate = page.locator("#FlightDate");

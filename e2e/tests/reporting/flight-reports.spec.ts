@@ -47,9 +47,10 @@ import { testId } from "../../test-id";
 import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
 // Report page calls /api/v1/flightreports/page which scans every flight in
-// the club; under accumulated state this can take > 30s. Give the whole test
-// generous headroom.
-test.setTimeout(120_000);
+// the club; under accumulated state this can take > 30s. The TotalFlights poll
+// re-runs the whole report per attempt (fresh getData) up to 90s, on top of the
+// initial picker + report render, so the whole test needs a wider budget.
+test.setTimeout(240_000);
 
 test("flight-reports: pre-canned location-this-year renders tabular output for seeded flights", async ({
   loggedInPage,
@@ -118,18 +119,34 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
 
   // The seeded glider flight is dated today at the club homebase, so it falls
   // inside this report's window (FlightDate startOf('year')..today, LocationId =
-  // HomebaseId — FlightReportsController.js:320-339) and MUST be counted; the sum
-  // being 0 is per-request ng-table `getData` timing (the summary row exists
-  // before its `<td ng-bind>` cells settle, or a settings-cache getData re-fire
-  // transiently blanks them), not a windowed-out seed. Poll the DOM re-read of the
-  // TotalFlights column (4th td, summary.TotalFlights — flightreportresults.html:81)
-  // until it reflects the seeded flight, mirroring the flights-table poll below.
+  // HomebaseId — FlightReportsController.js:320-339) and MUST be counted. The
+  // summary + filter-criteria panel are set together in one `getData` .then()
+  // (FlightReportsController.js:59-61), so a 0-sum after the panel is visible is
+  // NOT a per-cell settle race — re-reading the same DOM never changes it. It is
+  // a fresh-aggregation miss: the report's `/api/v1/flightreports/page` request
+  // can resolve off a stale settings-cache render (empty summaries) before the
+  // full club-wide scan re-fires, especially under CI load. Poll by RE-RUNNING
+  // the report (fresh navigation forces a fresh getData) until the TotalFlights
+  // column (4th td, summary.TotalFlights — flightreportresults.html:81) reflects
+  // the seeded flight; a bare DOM re-read would spin uselessly on the stale render.
   await expect
     .poll(
       async () => {
-        const totalsText = await summaryRows
-          .locator("td:nth-child(4)")
-          .allInnerTexts();
+        await gotoRoute(
+          loggedInPage,
+          "/flightreports/location/location-flights-this-year",
+        );
+        await expect(filterPanel).toBeVisible({ timeout: 60_000 });
+        const freshTotals = loggedInPage
+          .locator("table.fls")
+          .filter({
+            has: loggedInPage.locator("th >> text=/Total|Anzahl|Starts/i"),
+          })
+          .first()
+          .locator("tr")
+          .filter({ has: loggedInPage.locator("td") })
+          .locator("td:nth-child(4)");
+        const totalsText = await freshTotals.allInnerTexts();
         return totalsText
           .map((s) => parseInt(s.trim(), 10))
           .filter((n) => !Number.isNaN(n))
@@ -137,8 +154,9 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
       },
       {
         message:
-          "expected at least one flight in the per-group totals (seeded PAX + tow flights)",
-        timeout: 10_000,
+          "expected at least one flight in the per-group totals (seeded self-launch glider at homebase)",
+        timeout: 90_000,
+        intervals: [2_000, 5_000, 10_000],
       },
     )
     .toBeGreaterThanOrEqual(1);
