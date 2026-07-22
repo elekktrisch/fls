@@ -2,7 +2,8 @@
 id: J-16
 title: Public landing + nav (migration CTAs + wordmark)
 epic: E-12
-status: todo
+status: in_progress
+started_at: 2026-07-22
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -97,6 +98,22 @@ don't build the design-ref pair and then redesign to S-133.
   vs `❌ FAIL` when `flaky>0` but job is green); rides any gate. *(seam: nightly.yml / e2e-real-idp tally jq)*
 - **e2e prettier/tsc per-touch** — normalize the landing/nav specs J-16 edits (not a repo-wide sweep).
 - **[COMMENT-STRIP]/[HISTORY→GIT]** per-touch on any landing files edited (why-only comments; contract-only).
+
+## Tasks
+
+Ordered checklist (durable state). Fresh-context worker per `T-NN`, sequential on `integration/J-16`.
+Migration N/A → no backend batch, no fanout; frontend-batch boundary runs full `pnpm test` + mock-e2e before §4.
+
+- [ ] **T-01 — Landing spec stub + J-16 proof-gallery scaffold.** Extend `e2e/tests/landing.spec.ts` with the CTA-routing + telemetry test STRUCTURE (thin): data-testids `landing-cta-migrate` / `landing-cta-demo` / `landing-cta-request-access`, thin nav assertions. Scaffold the per-journey proof-gallery page (renders J-16 AlpenFlight captures + pass video; tag captures `journey:J-16`) linked from the persistent index. *(seam: landing.spec.ts + gallery page)*
+- [ ] **T-02 — Scope per-push gate to J-16 + real-idp public-routes spec.** Only J-16's spec runs real-idp per push (prior journeys mock-idp; full regression → nightly + §4 gate). Create/extend `e2e/tests/real-idp/public-routes.spec.ts` as J-16's heavy spec (landing renders + nav-hidden on public routes / visible on `/start`, under real idp). *(seam: ci/e2e project scoping + public-routes.spec.ts)*
+- [ ] **T-03 — Wordmark SVG brand assets + favicon (S-157).** Author `public/brand/wordmark-full.svg`, `wordmark-compact.svg`, `favicon.svg` per ADR-0024 (plane glyph, brand-500 `oklch(0.62 0.18 254.6)`, Roboto Medium outlined text, ≤4 KB each); wire `favicon.svg` via `<link rel=icon>` in `src/index.html` + `src/index.prod.html`. *(seam: brand assets + favicon)*
+- [ ] **T-04 — Wordmark component consumption (S-157).** Shared `af-wordmark` atom (full ≥md / compact <md) consumed in `landing.component.ts` topbar + `af-nav-bar.component.ts`, replacing `<span>AlpenFlight</span>`. **Shared surface:** grep specs asserting the `AlpenFlight` text wordmark and update them. *(seam: wordmark rendering across landing + nav)*
+- [ ] **T-05 — Landing hero CTA pair + footer + telemetry (S-133).** `landing.component.ts`: hero primary pair `Migrate from legacy FLS` (`data-variant=primary data-size=lg`) → `/signup?intent=migrate` + `Try demo` → `/demo`; demote `Request access` to a tertiary link → `/signup`; add footer (copyright + Status/Documentation/Imprint per design ref); wire both primary CTAs to `emitFunnelEvent({ event_id:'landing.cta_click', timestamp, properties:{ cta_id } })` — the REAL `FunnelEvent` shape, `cta_id ∈ {migrate,demo}`. Repoint `tryDemo` from `authorize(login_hint:demo)` to a `/demo` routerLink. *(seam: landing hero content)*
+- [ ] **T-06 — `/demo` coming-soon stub route.** New `DemoStubComponent` + route `{ path:'demo', data:{ showNavBar:false, publicAccess:true } }` rendering a coming-soon message; the route RESOLVES (no catch-all redirect / 404 / console error); `Try demo` reaches it. *(seam: /demo route + stub component)*
+- [ ] **T-07 — [NIGHTLY-TALLY-FLAKY-LABEL] tally verdict fix.** CI tally jq: distinct `⚠️ PASS (N flaky-recovered)` verdict when `flaky>0` but job green (display-only). Delete the rider bullet from `_BOYSCOUT.md`. *(seam: nightly.yml + alpenflight-e2e-real-idp.yml tally jq)*
+- [ ] **T-08 — Thicken specs + clear FRAME-ANCESTORS.** Thicken `landing.spec.ts` (CTA routing incl. `intent=migrate`→migrate side-path + `/demo` resolves; telemetry emission real shape; breakpoints 360/768/1024/1440 stack/side-by-side + ≥44×44 CSS px; wordmark full/compact; footer; zero-console-error) + `nav-bar.spec.ts` (nav hidden on `/signup`, visible on `/start`). Verify no `frame-ancestors` console error → clear FRAME-ANCESTORS rider bullet. e2e prettier/tsc + COMMENT-STRIP per-touch on edited specs. *(seam: spec thicken)*
+
+**Decisions (load-bearing):** (1) hero primary pair = migrate + demo; `Request access` kept as tertiary link (design-ref carried it, preserves join funnel). (2) `af-wordmark` shared atom (DRY full/compact across landing + nav). (3) FRAME-ANCESTORS confirmed clean at recon (no `frame-ancestors` in either index) — T-08 just verifies + clears. (4) Funnel emission grounded in the real `{event_id,timestamp,properties}` shape, not the AC shorthand.
 
 ## Assumptions made
 1. `/demo` (J-20 sandbox) is unbuilt — the `Try demo` CTA lands on a coming-soon stub; the AC asserts
