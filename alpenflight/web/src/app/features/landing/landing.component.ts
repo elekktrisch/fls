@@ -6,6 +6,7 @@ import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { LocaleService } from '@shared/ui/locale';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
+import { AfWordmarkComponent } from '@ui/atoms/af-wordmark';
 import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
 // Splash placeholder — slate-tinted diagonal-stripes pattern with a
@@ -20,6 +21,7 @@ const SPLASH_DEFAULT_SVG = 'splash.jpg';
   imports: [
     AfButtonComponent,
     AfIconComponent,
+    AfWordmarkComponent,
     AfLangPickerComponent,
     RouterLink,
     TranslocoDirective,
@@ -33,8 +35,7 @@ const SPLASH_DEFAULT_SVG = 'splash.jpg';
           data-testid="landing-topbar"
         >
           <a routerLink="/" class="inline-flex items-center gap-2 text-slate-900 no-underline">
-            <af-icon name="plane" [size]="22" class="text-brand-500" />
-            <span class="text-lg font-medium tracking-tight">AlpenFlight</span>
+            <af-wordmark />
           </a>
           <span class="flex-1"></span>
           <af-button

@@ -15,6 +15,7 @@ import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { filter, map, startWith } from 'rxjs';
 
 import { AfIconComponent } from '../../atoms/af-icon';
+import { AfWordmarkComponent } from '../../atoms/af-wordmark';
 import { AfLangPickerComponent } from '../../molecules/af-lang-picker';
 import { ViewportService } from '../../viewport';
 
@@ -69,6 +70,7 @@ export interface UserSummary {
     RouterLink,
     RouterLinkActive,
     AfIconComponent,
+    AfWordmarkComponent,
     AfLangPickerComponent,
   ],
   host: { class: 'block' },
@@ -96,8 +98,7 @@ export interface UserSummary {
         class="inline-flex items-center gap-2 flex-none text-slate-900 no-underline font-medium"
         data-testid="af-nav-brand"
       >
-        <af-icon name="plane" [size]="22" class="text-brand-500" />
-        <span class="text-lg tracking-tight">{{ title() }}</span>
+        <af-wordmark [label]="title()" />
       </a>
 
       <!-- Section tabs (above md only) -->
