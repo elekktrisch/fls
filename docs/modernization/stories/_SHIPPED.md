@@ -3,6 +3,7 @@
 Forward-looking roadmap lives in `_ORDER.md`; shipped journey contracts live in `implemented/`.
 One line per merged journey (newest first). Cross-references (`depends_on`) resolve here + in `implemented/`.
 
+- **J-30** — Nightly gate — both e2e suites job-level green (real-idp 0-fail + legacy readiness/warm-up/retries; J2 quarantined-with-rider) + loud informational surfacing + audit-filter adversarial fix — #243  (2026-07-22)
 - **J-13** — Audit-log viewer (/system/logs) — club-admin mutation-audit trail + S-160 append-only DB-role split — #242  (2026-07-20)
 - **J-29** — Scheduled-proof stabilization — flights widen refetch + real-idp token-lifecycle + nightly stack (fully-green) — #241  (2026-07-19)
 - **J-10b** — Deliveries — migration + write side (create / book-terminal / delete) — #240  (2026-06-26)
