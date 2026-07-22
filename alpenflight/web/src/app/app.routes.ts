@@ -18,6 +18,10 @@ export const routes: Routes = [
       import('@features/scenic-flight/scenic-flight.routes').then((m) => m.SCENIC_FLIGHT_ROUTES),
   },
   {
+    path: 'demo',
+    loadChildren: () => import('@features/demo/demo.routes').then((m) => m.DEMO_ROUTES),
+  },
+  {
     path: 'auth',
     loadChildren: () => import('./core/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },

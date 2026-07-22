@@ -716,6 +716,8 @@ const de = {
   publicStub: {
     back: 'Zurück zur Startseite',
     body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',
+    demo: 'Demo',
+    demoBody: 'Die interaktive Demo ist in Vorbereitung. Schau bald wieder vorbei.',
     discoveryFlight: 'Schnupperflug',
     scenicFlight: 'Mitflug',
     title: 'Demnächst verfügbar',
