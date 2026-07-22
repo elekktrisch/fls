@@ -40,13 +40,6 @@ stragglers each ceremony so the file shrinks.
   the seed). J-27 applied this to `:577`; the broader suite restructure (audit the other parity specs for hand-crafted
   `_test-fixture.sql` dependencies) rides a future test-architecture slot. *(seam: e2e/tests/real-idp parity specs + `_test-fixture.sql` §4/§5 hand-crafted rows)*
 
-## Pending (filed by /do-ship J-2b gate, 2026-06-20)
-
-- **[FRAME-ANCESTORS-HEADER] `frame-ancestors` removed from the `index.html` meta CSP** (browser-ignored when
-  delivered via `<meta>` — emits a console error every page load, caught by J-2c's §4 zero-console-error guard).
-  Real clickjacking protection (`frame-ancestors` / `X-Frame-Options`) must be a **response header** at the
-  S-041 reverse proxy / static host, not a meta tag. *(seam: S-041 production CSP response header)*
-
 ## Pending (filed by /do-retro 2026-06-14, J-7/J-26/J-8 window — operator debt-burndown)
 
 - **[WORKFLOW-SLIM] Extract the repeated per-journey YAML blocks into composite actions (`.github/actions/`)**
