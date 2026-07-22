@@ -1,4 +1,4 @@
-import { test, expect } from './_helpers/console-guard';
+import { test, expect } from '../_helpers/console-guard';
 
 // `?lang=` query param pins the cold-start locale so tests don't depend on
 // the test browser's Accept-Language (Chromium defaults to en-US, which
@@ -111,5 +111,80 @@ test.describe('landing — i18n + locale switch', () => {
   test('AC-DIR-5: landing has exactly one af-lang-picker (the inline one)', async ({ page }) => {
     await page.goto('/?lang=de');
     await expect(page.locator('af-lang-picker')).toHaveCount(1);
+  });
+});
+
+// STRUCTURE-ONLY (T-01). The S-133 hero CTA pair + telemetry wiring ship in
+// T-05; these cases commit the SHAPE now — locators, routing targets, the funnel
+// contract — and are `test.skip`-guarded until the new testids exist so the
+// journey's inner loop stays green while the component is being built. T-08
+// un-skips + thickens (intent=migrate → migrate side-path, /demo resolves,
+// breakpoints, 44×44, real console.info emission).
+test.describe('landing — S-133 CTA routing + funnel telemetry (structure)', () => {
+  // The testids T-05 exposes. A skip-guard keys off `landing-cta-migrate` so the
+  // whole block flips from skipped to live the moment the CTA pair lands.
+  const CTA_MIGRATE = 'landing-cta-migrate';
+  const CTA_DEMO = 'landing-cta-demo';
+  const CTA_REQUEST_ACCESS = 'landing-cta-request-access';
+
+  async function ctaPairPresent(page: import('@playwright/test').Page): Promise<boolean> {
+    await page.goto('/');
+    return (await page.getByTestId(CTA_MIGRATE).count()) > 0;
+  }
+
+  test('migrate CTA navigates toward /signup?intent=migrate', async ({ page }) => {
+    test.skip(!(await ctaPairPresent(page)), 'CTA pair not built yet (T-05)');
+
+    await page.getByTestId(CTA_MIGRATE).click();
+    // Thin nav assertion — the intent funnel (resolveSignupIntent → migrate
+    // side-path) is thickened in T-08. Here we only prove the CTA routes toward
+    // the migrate signup URL, not the resolved landing screen.
+    await expect(page).toHaveURL(/\/signup\?.*intent=migrate/);
+  });
+
+  test('demo CTA navigates toward /demo', async ({ page }) => {
+    test.skip(!(await ctaPairPresent(page)), 'CTA pair not built yet (T-05)');
+
+    await page.getByTestId(CTA_DEMO).click();
+    // /demo is a coming-soon stub (T-06) until J-20 ships the sandbox; T-08
+    // asserts the route RESOLVES (no 404 / console error). Thin here: navigation
+    // reaches the /demo path.
+    await expect(page).toHaveURL(/\/demo(\?|$|\/)/);
+  });
+
+  test('the tertiary Request access CTA is present and points at /signup', async ({ page }) => {
+    test.skip(!(await ctaPairPresent(page)), 'CTA pair not built yet (T-05)');
+
+    const requestAccess = page.getByTestId(CTA_REQUEST_ACCESS);
+    await expect(requestAccess).toBeVisible();
+    await expect(requestAccess).toHaveAttribute('href', /\/signup(\?|$)/);
+  });
+
+  test('each primary CTA click emits a landing.cta_click funnel event with cta_id', async ({
+    page,
+  }) => {
+    // Observe the REAL funnel sink (funnel-telemetry.ts:26 —
+    // `console.info('[funnel]', JSON.stringify(event))`); mirrors the existing
+    // public/signup.spec.ts assertion. The emitted event is the real FunnelEvent
+    // shape `{ event_id:'landing.cta_click', timestamp, properties:{ cta_id } }`,
+    // NOT the AC-shorthand `{ event, cta_id }`. T-08 thickens per-CTA cta_id.
+    const funnelEvents: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'info' && msg.text().startsWith('[funnel]')) {
+        funnelEvents.push(msg.text());
+      }
+    });
+
+    test.skip(!(await ctaPairPresent(page)), 'CTA pair not built yet (T-05)');
+
+    await page.getByTestId(CTA_MIGRATE).click();
+
+    await expect
+      .poll(() => funnelEvents.filter((e) => e.includes('"event_id":"landing.cta_click"')).length, {
+        timeout: 5_000,
+      })
+      .toBeGreaterThan(0);
+    const emit = funnelEvents.find((e) => e.includes('"event_id":"landing.cta_click"'))!;
+    expect(emit).toContain('"cta_id":"migrate"');
   });
 });

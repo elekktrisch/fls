@@ -1,5 +1,6 @@
 import { type Request } from '@playwright/test';
 import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { proofVideo } from './_helpers/proof-video';
 
 /**
  * Public routes stay public against the live IdP.
@@ -63,4 +64,44 @@ test.describe('public routes stay public — real-idp', () => {
       expect(apiCalls, `unexpected /api/v1/* call from public route ${path}`).toEqual([]);
     });
   }
+});
+
+// The J-16 proof capture — one AlpenFlight-only (migration N/A) landing pass
+// video + fullPage screenshot, tagged `journey:J-16` so the operator's
+// single-bookmark gallery renders THIS journey from task 1 and accumulates as
+// T-08 thickens the landing surface. Own recorded context: the video only
+// flushes to disk after `ctx.close()`, so `proofVideo` runs in `finally` AFTER
+// the close (see _helpers/proof-video.ts).
+test.describe('landing renders on the public front door — J-16 proof', () => {
+  test('[happy] the public landing renders anonymously at / under the real IdP', async ({
+    browser,
+  }, testInfo) => {
+    const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
+    const ctx = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+    const page = await ctx.newPage();
+    watchConsoleErrors(page, testInfo);
+    try {
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+
+      // Anonymous render, no KC redirect.
+      expect(new URL(page.url()).host).not.toBe(KC_HOST);
+      await expect(page.getByTestId('landing')).toBeVisible();
+      await expect(page.getByTestId('landing-topbar')).toBeVisible();
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-landing.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-16',
+        caption:
+          'J-16 · public front door · the AlpenFlight landing renders anonymously at / under the ' +
+          'real IdP — wordmark topbar + hero — with no redirect to Keycloak',
+        acTag: 'happy',
+      });
+    }
+  });
 });
