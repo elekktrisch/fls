@@ -3,6 +3,7 @@ id: S-157
 title: Wordmark v1 SVG assets (full, compact, favicon)
 epic: E-01
 status: todo
+rolled_up_into: J-16
 estimate: S
 parity_test: none
 depends_on: [S-128, S-156]
