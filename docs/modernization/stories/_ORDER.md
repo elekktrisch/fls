@@ -56,7 +56,6 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-13:** Sysadmin views system data + paginated logs; append-only audit role rejects UPDATE.
 - **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
 - **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.
 - **J-16:** Landing renders; nav-bar hidden on public routes by an explicit mechanism; CTAs route correctly.

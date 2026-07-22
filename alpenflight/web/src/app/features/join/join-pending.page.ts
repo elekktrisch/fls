@@ -11,8 +11,9 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { filter, switchMap, take } from 'rxjs';
+import { filter, map, switchMap, take, takeUntil, tap, timer } from 'rxjs';
 
+import { mapClaimsToUser } from '@core/auth/oidc-claims';
 import { MeEventsService } from '@core/events';
 import { SessionStore } from '@core/session/session.store';
 import { formatDdMmYyyy } from '@shared/util/date';
@@ -23,6 +24,20 @@ import { actionForStatus, parseStatusChanged } from './join-pending.logic';
 import { JoinStore } from './join.store';
 
 const JOIN_REQUEST_STATUS_CHANGED = 'join-request.status-changed';
+
+// Graduation depends on the pilot's `t_user` (with its `club_id`) being
+// visible on `/me`. The approve tx commits that row before returning, but the
+// pilot's browser resolves it on its own timeline: under load the just-created
+// row can lag the pilot's next `/me` (JIT-materialisation contention), so a
+// single `/me` read can still see a null `clubId`. Re-read on an interval until
+// the tenant resolves — the fast path is still the SSE-driven first read.
+const GRADUATION_POLL_INTERVAL_MS = 1_500;
+
+// Hard cap on graduation polls so a never-resolving tenant (a genuinely
+// stalled/failed materialisation, not just lag) stops re-reading `/me` instead
+// of spinning until the page is destroyed. 40 × 1.5s ≈ 60s — well past the
+// approve commit + JIT settle window, still bounded.
+const GRADUATION_POLL_MAX_ATTEMPTS = 40;
 
 /**
  * Pilot `/join/pending` waiting screen (T-11). Reads the pilot's own request
@@ -149,6 +164,13 @@ export class JoinPendingPageComponent implements OnInit {
       .on(JOIN_REQUEST_STATUS_CHANGED)
       .pipe(takeUntilDestroyed(this.#destroyRef))
       .subscribe((event) => this.#onStatusChanged(event.data));
+
+    // Background safety net: graduate even if the approval SSE frame is never
+    // delivered (dropped stream, reconnect gap). The poll refreshes the token on
+    // an interval and completes the moment it carries a `clubId`, so a missed
+    // frame degrades from "stranded on /join/pending forever" to "graduates
+    // within one poll interval".
+    this.#graduateWhenTenantResolves();
   }
 
   // Set when the pilot withdraws from THIS page: the eager `toJoin()` below
@@ -177,29 +199,7 @@ export class JoinPendingPageComponent implements OnInit {
   #onStatusChanged(data: string): void {
     switch (actionForStatus(parseStatusChanged(data))) {
       case 'refresh-and-start':
-        // Refresh so the new token carries the `clubId` claim, then re-read /me
-        // so the SessionStore's `currentClubId` reflects the now-created t_user.
-        // Navigate to /start only ONCE `currentClubId` is populated — the
-        // refresh-token grant resolves before the `userData()` effect propagates
-        // the claim into the store, so navigating eagerly hits /start's tenant
-        // gate with a still-null clubId and bounces back to /join (the request
-        // is no longer PENDING). Waiting for the tenant to settle closes that
-        // graduation race.
-        this.#oidc
-          .forceRefreshSession()
-          .pipe(
-            switchMap(() => {
-              this.#session.loadMe();
-              return toObservable(this.#session.currentClubId, {
-                injector: this.#injector,
-              }).pipe(
-                filter((clubId) => clubId !== null),
-                take(1),
-              );
-            }),
-            takeUntilDestroyed(this.#destroyRef),
-          )
-          .subscribe(() => void this.#router.navigateByUrl('/start'));
+        this.#graduateWhenTenantResolves();
         break;
       case 'show-denied':
         // The SSE frame carries no reason — re-read the request to surface the
@@ -215,5 +215,52 @@ export class JoinPendingPageComponent implements OnInit {
       case 'none':
         break;
     }
+  }
+
+  // True once a graduation poll is already running — the SSE `approved` frame
+  // and the on-load background net can both start it, and only one navigation
+  // to /start should be scheduled.
+  #graduationPollActive = false;
+
+  // Drive the pilot to /start reliably, gating on the ACCESS TOKEN carrying the
+  // `clubId` claim — the interceptor's source of truth. Approve writes the KC
+  // `clubId` attribute (durable pre-commit) + commits the t_user; graduation is
+  // complete only once the pilot's refreshed token projects that attribute, so
+  // /start's tenant-scoped dashboard calls carry a tenant and don't 403.
+  //
+  // Poll rather than react once: `forceRefreshSession` on each tick re-fetches
+  // the token, so a KC attribute or t_user that lags this browser under load
+  // still lands within an interval — closing both the SSE-miss and the JIT-lag
+  // races that a single event + single /me left open.
+  #graduateWhenTenantResolves(): void {
+    if (this.#graduationPollActive) return;
+    this.#graduationPollActive = true;
+
+    // Stop polling once the request turns DENIED — the token will never carry a
+    // clubId, and the denied view owns the screen from here.
+    const denied = toObservable(this.denied, { injector: this.#injector }).pipe(
+      filter((isDenied) => isDenied),
+      take(1),
+    );
+
+    // `timer(0, …)` refreshes immediately, then each interval; the poll ends the
+    // instant the token carries a clubId, the request is denied, or the attempt
+    // cap is hit (a genuinely stalled materialisation, not just lag).
+    timer(0, GRADUATION_POLL_INTERVAL_MS)
+      .pipe(
+        take(GRADUATION_POLL_MAX_ATTEMPTS),
+        switchMap(() => this.#oidc.forceRefreshSession()),
+        switchMap(() => this.#oidc.getPayloadFromAccessToken()),
+        map((payload) => mapClaimsToUser(payload)?.clubId ?? null),
+        filter((clubId) => clubId !== null),
+        take(1),
+        takeUntil(denied),
+        // The refreshed token's clubId propagates to the SessionStore via the
+        // OIDC userData effect; also load /me so /start's Person-scoped reads
+        // have the linked personId in place before the dashboard renders.
+        tap(() => this.#session.loadMe()),
+        takeUntilDestroyed(this.#destroyRef),
+      )
+      .subscribe(() => void this.#router.navigateByUrl('/start'));
   }
 }

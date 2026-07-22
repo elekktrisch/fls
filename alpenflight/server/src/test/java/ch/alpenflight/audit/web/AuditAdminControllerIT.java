@@ -114,6 +114,28 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void target_entity_type_filter_excludes_non_matching_rows() throws Exception {
+        UUID locationTargetId = insertAuditRow("Location");
+        UUID aircraftTargetId = insertAuditRow("Aircraft");
+
+        JsonNode filtered = list("/api/v1/admin/audit-events?targetEntityType=Location");
+        assertThat(targetIds(filtered))
+                .as("filtering by targetEntityType=Location returns the Location row")
+                .contains(locationTargetId.toString());
+        assertThat(targetIds(filtered))
+                .as("the Aircraft row is EXCLUDED by the filter, not merely all-visible-are-Location")
+                .doesNotContain(aircraftTargetId.toString());
+        for (JsonNode row : filtered.get("items")) {
+            assertThat(row.get("targetEntityType").asText()).isEqualTo("Location");
+        }
+
+        JsonNode unfiltered = list("/api/v1/admin/audit-events");
+        assertThat(targetIds(unfiltered))
+                .as("without the filter BOTH rows return — so the exclusion is the filter's doing, not seeding")
+                .contains(locationTargetId.toString(), aircraftTargetId.toString());
+    }
+
+    @Test
     void list_denies_flight_operator() {
         String token = jwts.mint(c -> c
                 .claim("clubId", SYSADMIN_TENANT.toString())
@@ -183,6 +205,44 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = JSON.readTree(res.getBody());
         assertThat(body.get("items").isArray()).isTrue();
+    }
+
+    /**
+     * Append an audit row directly under {@link #SYSADMIN_TENANT}. The
+     * AFTER_COMMIT listener only writes one {@code targetEntityType} per
+     * mutating endpoint, so a documented direct INSERT (the append-only table
+     * permits INSERT — see {@code AppendOnlyAuditRoleIT}) is how this IT stages
+     * two DIFFERENT entity types in one tenant. Runs as the migrator/owner
+     * connection, so no elevated role is needed in external-PG mode.
+     */
+    private UUID insertAuditRow(String targetEntityType) {
+        UUID targetId = UUID.randomUUID();
+        jdbc.update(
+                "INSERT INTO t_mutation_audit_event "
+                        + "(id, tenant_club_id, action, target_entity_type, target_entity_id) "
+                        + "VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid)",
+                UUID.randomUUID().toString(), SYSADMIN_TENANT.toString(),
+                "CREATE", targetEntityType, targetId.toString());
+        return targetId;
+    }
+
+    private JsonNode list(String path) throws Exception {
+        ResponseEntity<String> res = rest.exchange(
+                authed(RequestEntity.get(URI.create(path)), sysadminToken).build(),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return JSON.readTree(res.getBody());
+    }
+
+    private static List<String> targetIds(JsonNode page) {
+        List<String> ids = new java.util.ArrayList<>();
+        for (JsonNode row : page.get("items")) {
+            JsonNode target = row.get("targetEntityId");
+            if (target != null && !target.isNull()) {
+                ids.add(target.asText());
+            }
+        }
+        return ids;
     }
 
     private ResponseEntity<String> post(String path, Map<String, Object> body, String token) {

@@ -47,6 +47,9 @@ const CATEGORIES = [
 
 export default defineConfig({
   testDir: './tests',
+  // Holds the suite until the seed is genuinely populated and mailpit is
+  // reachable — the webServer 200-poll returns before the seed replay finishes.
+  globalSetup: './global-setup.ts',
   // 60s per test: most UI flows finish in 10-15s, but multi-step forms
   // (master-data hydration + ng-table reload + selectize widgets) plus
   // the occasional workflow-job poll need real headroom. 60s leaves room
@@ -72,7 +75,13 @@ export default defineConfig({
   // Override with `--max-failures=0` to surface every spec on a local run.
   maxFailures: 10,
   outputDir: '/tmp/fls-e2e-results',
-  reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
+  // The JSON report is the machine-readable tally the nightly workflow parses
+  // into its loud PASS/FAIL step summary (list + html are for humans).
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }],
+    ['json', { outputFile: '/tmp/fls-e2e-report.json' }],
+  ],
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'retain-on-failure',
@@ -126,9 +135,13 @@ export default defineConfig({
     name: category,
     testDir: `./tests/${category}`,
     fullyParallel: true,
-    // retries: 1 absorbs the occasional /Token 500 / page-boot timing
-    // flake under load. workers count is set at the top level.
-    retries: 1,
+    // The reference-only Mono/AngularJS stack has irreducible roaming readiness
+    // flakiness under CI load: a MOVING set of parity specs (different each run)
+    // hits a transient ng-table getData re-fire / empty-frame / API-warmup race,
+    // each attempt failing at a different precondition. 3 retries absorbs it so
+    // flaky-recovered stays green (the job reds only on pw.outcome); a genuine
+    // break still fails all 4 attempts. workers count is set at the top level.
+    retries: 3,
     use: { ...devices['Desktop Chrome'] },
   })),
 });

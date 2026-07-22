@@ -18,10 +18,9 @@ import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
- * J-13 audit-log viewer (`/system/logs`) — the §4 done-bar, driven against the
- * REAL chain (live Keycloak JWT → Hibernate `@TenantId` → Postgres). NO mocking:
- * a `page.route` here would defeat the tenant-isolation seam that is the journey's
- * hardest assertion.
+ * Audit-log viewer (`/system/logs`) driven against the REAL chain (live Keycloak
+ * JWT → Hibernate `@TenantId` → Postgres). NO mocking: a `page.route` here would
+ * defeat the tenant-isolation seam that is the hardest assertion.
  *
  * The audit trail is LIVE app-generated: any mutating `/api/v1/*` call writes a
  * `t_mutation_audit_event` row for the caller's tenant (success rows via the
@@ -29,11 +28,14 @@ import { proofVideo } from './_helpers/proof-video';
  * `RequestAuditFilter`). So the spec GENERATES its own events through the real UI
  * / real endpoints, then reads them back through `/system/logs`:
  *
- *   - [happy] A club-A admin creates + edits a Location through the real chrome →
- *     CREATE + UPDATE audit rows appear at `/system/logs` with action / target
- *     type / actor / occurredAt / httpStatus.
- *   - [happy] Filter by action (UPDATE) + by target-entity-type narrows; clear
- *     restores.
+ *   - [happy] A club-A admin creates + edits a Location AND creates an Aircraft
+ *     through the real chrome → CREATE + UPDATE audit rows appear at
+ *     `/system/logs` with action / target type / actor / occurredAt / httpStatus.
+ *   - [happy] The target-entity-type filter genuinely EXCLUDES: with a Location
+ *     AND an Aircraft audit row in the same tenant, filtering targetEntityType=
+ *     Location surfaces the Location row and the Aircraft row is ABSENT (the
+ *     excluded row is seeded + asserted absent, not merely "the visible rows read
+ *     Location"). The action filter narrows too; clearing restores.
  *   - [happy] Time-range (occurredFrom/occurredTo) narrows to the range — asserted
  *     on the REAL request the store issues + the re-rendered list.
  *   - [happy] Pagination: default page size 50; >50 real events → the Next pager
@@ -181,6 +183,36 @@ async function renameLocationViaUi(page: Page, locId: string, newName: string): 
 }
 
 /**
+ * Create an Aircraft through the real chrome → a CREATE audit row whose
+ * `targetEntityType` is "Aircraft" (`AircraftsService.AUDIT_ENTITY_TYPE`), under
+ * the caller's tenant. This is the ADVERSARIAL non-Location row: the target-type
+ * filter proof asserts a "Location" filter EXCLUDES it, so it must genuinely
+ * exist first. Only `aircraftType` + `immatriculation` are required by
+ * `AircraftCreateRequest`. Immatriculation is GLOBALLY unique among live rows
+ * (`ux_aircraft_immatriculation`), so a per-nonce value avoids a 409 across
+ * Playwright retries into the shared seed tenant. Waits on the real 201.
+ */
+async function createAircraftViaUi(page: Page, immatriculation: string): Promise<void> {
+  const created = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      new URL(r.url()).pathname === '/api/v1/aircraft' &&
+      r.status() === 201,
+  );
+  await page.goto('/aircraft');
+  await page.getByTestId('aircraft-new-button').locator('button').click();
+  await expect(page).toHaveURL('/aircraft/new');
+  await page.locator('#Immatriculation').fill(immatriculation);
+  await page.getByTestId('aircraft-type-select').locator('nz-select').click();
+  await page.locator('nz-option-item').filter({ hasText: 'Glider' }).first().click();
+  const saveButton = page.getByTestId('aircraft-save-button');
+  await expect(saveButton.locator('button')).toBeEnabled();
+  await saveButton.locator('button').click();
+  await created;
+  await expect(page).toHaveURL('/aircraft');
+}
+
+/**
  * Capture the Bearer the OIDC interceptor attaches to an authed principal's first
  * `/api/v1/*` read, so the spec can issue server-side seed writes + the direct
  * 403 check with that same principal's real token.
@@ -273,6 +305,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     const nonce = randomUuid().slice(0, 8);
     const clubALocationName = `Audit A ${nonce}`;
     const editedName = `Audit A edited ${nonce}`;
+    const aircraftImmat = `AU-${nonce.toUpperCase()}`;
     try {
       await loginAsClubAdmin(page, fixture.clubA);
 
@@ -281,6 +314,14 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       //     (before/after diff), both under club A's tenant.
       const locId = await createLocationViaUi(page, { name: clubALocationName });
       await renameLocationViaUi(page, locId, editedName);
+
+      // Also create an Aircraft → an Aircraft-targeted CREATE audit row in the
+      // SAME tenant. It is the should-be-excluded row that makes the target-type
+      // filter proof adversarial rather than vacuous: filtering by "Location"
+      // must drop it (the seed otherwise only ever wrote Location rows, so the
+      // old "every visible row reads Location" passed even with the predicate
+      // dropped).
+      await createAircraftViaUi(page, aircraftImmat);
 
       // (2) Open /system/logs through the Masterdata nav chrome + assert the row
       //     fields (action badge / target type / actor cell / status / time).
@@ -321,16 +362,52 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
         await expect(updateActionCells.nth(i)).toHaveText('Updated');
       }
 
-      // (4) Add a target-entity-type filter = Location → still narrows to Location
-      //     UPDATE rows (additive with the action filter).
+      // (4) Target-entity-type filter EXCLUSION — the adversarial proof. Drop the
+      //     action filter first so only the target predicate decides which rows
+      //     survive (the seeded Aircraft row is a CREATE, so leaving action=UPDATE
+      //     would exclude it for the wrong reason). Then, over two disjoint
+      //     target filters:
+      //       - targetEntityType=Aircraft → the seeded Aircraft row is PRESENT,
+      //         proving the should-be-excluded row genuinely exists in this tenant
+      //         (so the absence assertion below is not vacuous);
+      //       - targetEntityType=Location → a Location row is PRESENT and NO row
+      //         reads "Aircraft" — the predicate genuinely EXCLUDES the other type
+      //         (a dropped `cb.equal` on targetEntityType would surface it and red).
+      // `has: getByText(exact)` (not an anchored `hasText: /^Aircraft$/`): the
+      // target cell renders `{{ targetEntityType }}` with the template's newline
+      // indentation, so its raw textContent is "\n…Aircraft\n…". `hasText` matches
+      // a RegExp against the UN-normalized text, so `^Aircraft$` never matched the
+      // padded value (count 0 despite the row being present). `getByText(exact)`
+      // normalizes whitespace AND stays exact — it matches "Aircraft" but not
+      // "AircraftReservation", keeping the exclusion proof exact. Mirrors
+      // `auditRowsWithTarget`.
+      const aircraftTargetRows = () =>
+        page
+          .getByTestId(TESTIDS.rowTarget)
+          .filter({ has: page.getByText('Aircraft', { exact: true }) });
+
+      await page.getByTestId(TESTIDS.clearFilters).click();
+      await expect(page.getByTestId(TESTIDS.table)).toBeVisible();
+
+      await page.getByTestId(TESTIDS.filterTarget).locator('input').fill('Aircraft');
+      // Debounced free-text (250ms) → the list reloads; gate on the Aircraft cell.
+      await expect(page.getByTestId(TESTIDS.rowTarget).first()).toHaveText('Aircraft');
+      await expect(
+        aircraftTargetRows().first(),
+        'the seeded Aircraft audit row must exist under a targetEntityType=Aircraft filter',
+      ).toBeVisible();
+
       await page.getByTestId(TESTIDS.filterTarget).locator('input').fill('Location');
-      // Debounced free-text (250ms) → the list reloads; gate on the target cells.
       await expect(page.getByTestId(TESTIDS.rowTarget).first()).toHaveText('Location');
-      const narrowedTargets = page.getByTestId(TESTIDS.rowTarget);
-      const narrowedCount = await narrowedTargets.count();
-      for (let i = 0; i < narrowedCount; i++) {
-        await expect(narrowedTargets.nth(i)).toHaveText('Location');
+      const locationTargets = page.getByTestId(TESTIDS.rowTarget);
+      const locationCount = await locationTargets.count();
+      for (let i = 0; i < locationCount; i++) {
+        await expect(locationTargets.nth(i)).toHaveText('Location');
       }
+      await expect(
+        aircraftTargetRows(),
+        'a targetEntityType=Location filter must EXCLUDE the seeded Aircraft row',
+      ).toHaveCount(0);
 
       // (5) Clear filters → the full list is restored (rows for other target types
       //     may reappear; assert the control round-trips by re-widening the count).
@@ -388,12 +465,13 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-13',
+        journey: 'J-30',
         caption:
-          'J-13 · audit trail · a club-A admin creates + edits a Location through the real chrome, ' +
-          'then opens /system/logs and sees the live CREATE + UPDATE audit rows (action, target type, ' +
-          'actor, occurredAt, HTTP status); filters by action + target narrow the list and clearing ' +
-          'restores it; expanding the UPDATE row shows the real before→after field diff',
+          'J-30 · audit filter genuinely excludes · a club-A admin creates a Location AND an Aircraft ' +
+          'through the real chrome, then at /system/logs filters targetEntityType=Location: the Location ' +
+          'row is present and the Aircraft row is ABSENT (adversarially seeded — the excluded row is ' +
+          'created and asserted absent, not merely "the visible rows are Location"); expanding the UPDATE ' +
+          'row shows the real before→after field diff',
         acTag: 'happy',
       });
     }

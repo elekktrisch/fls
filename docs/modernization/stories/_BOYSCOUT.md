@@ -17,6 +17,23 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-30 gate, 2026-07-22)
+
+- **[LEGACY-J2-READINESS]** `e2e/tests/flights/flights-parity-J2.spec.ts` is `@quarantine-legacy`'d (grep-inverted
+  from the nightly) — the heaviest legacy parity spec (list → flight-edit → tow-form → motor) is irreducibly flaky
+  on the Mono/AngularJS reference stack under CI load: the HB-3407 row render + `flightDetails.StartType` bind never
+  arrive reliably, exhausting `retries:3` even after three rounds of step-wait hardening (T-15/T-16/T-18). All 12
+  GENUINE legacy reds were fixed; this is the residual. Un-quarantine via a dedicated legacy render-readiness pass,
+  or re-home that parity coverage on the AlpenFlight side. *(seam: flights-parity-J2 + the legacy flight-edit form load timing)*
+- **[LAN-PG-SEED-DRIFT — dev-box only]** On the shared LAN Postgres, V48's `UPDATE … SET join_code='SEEDCLUB'` hit
+  0 rows for the seed club (`019e30c3-…-001` carries `join_code=L8PDJDXF`) → the default join-code path is broken
+  LOCALLY (T-11 verified via a throwaway env override, reverted). CI's fresh migrate is unaffected. Re-seed the dev
+  DB or make V48 idempotent-by-id. *(seam: dev LAN-PG state / V48)*
+- **[NIGHTLY-TALLY-FLAKY-LABEL]** The T-08 nightly step-summary verdict prints `❌ FAIL` when `flaky>0` even though
+  the job concludes GREEN (flaky-recovered → `pw.outcome=success`); display-only (doesn't gate) but mismatches the
+  green conclusion. Reconcile the tally verdict to a distinct `⚠️ PASS (N flaky-recovered)` state so the loud
+  surfacing matches the job. *(seam: nightly.yml + alpenflight-e2e-real-idp.yml tally jq verdict)*
+
 ## Pending (filed by /do-retro J-12a window, 2026-06-24)
 
 - **[PER-JOURNEY-DOC]** (standing rider — activates once the doc-gen documentation journey ships) Each feature journey contributes its user-manual page + architecture-diagram delta to the generated docs site as a gate rider, so the manual/diagrams stay current as a byproduct of shipping (operator 2026-06-24). *(seam: the doc-gen site generator + per-journey doc delta)*

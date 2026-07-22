@@ -147,10 +147,17 @@ test("J-5 parity: legacy reservation list + edit form (+ scheduler) (parity vide
     // immatriculation cell is `td[ng-bind="reservation.Immatriculation"]`. Wait
     // for the data ROW first, THEN the immat cell, so the recording captures a
     // settled, POPULATED list (the seed gives ≥1 reservation).
-    await page
-      .locator('tr[data-testid="row"]')
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
+    // Poll the ROW COUNT until populated: the ng-table's first paint can show an
+    // empty tbody before its per-request `getData` resolves, so a single-shot
+    // waitFor races that empty frame. Retrying the count tolerates the getData
+    // re-fire (same pattern as the flights-parity list + flight-reports rows).
+    const rows = page.locator('tr[data-testid="row"]');
+    await expect
+      .poll(async () => rows.count(), {
+        message: "expected at least one seeded reservation row",
+        timeout: 30_000,
+      })
+      .toBeGreaterThanOrEqual(1);
     const firstImmat = page
       .locator(
         'tr[data-testid="row"] td[ng-bind="reservation.Immatriculation"]',

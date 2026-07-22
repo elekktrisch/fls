@@ -20,15 +20,27 @@ invent a parallel convention.
   (or `page.route` mocks for FE-only work). Tight feedback during build. The
   spec is authored **stub-first**: structure + selectors + flow steps land
   early with thin assertions, so the screen's shape is committed without
-  rewriting the spec every time a selector shifts.
-- **Gate (real).** The full chain: spin up legacy FLS → seed it → migrate into
-  AlpenFlight (**Postgres + Keycloak**) → run the spec with **full real
+  rewriting the spec every time a selector shifts. **Mock fixtures MUST mirror the
+  REAL contract** — ground each field in the producing service, never a
+  gerrymandered value the backend doesn't return (J-13: a mock `httpStatus:200`
+  on a success row vs the real null passed green then red at the gate)
+  ([[feedback_honest_inner_loop_fixtures]]).
+- **Gate (real).** The full chain: real Keycloak + Postgres (for a migration
+  journey, also legacy FLS → seed → migrate) → run the spec with **full real
   assertions** → retain the **video on pass**. The only run that proves
-  verticality. **Run it LOCALLY to green BEFORE the CI gate** so never-run-step
-  gaps surface in fast local cycles, not one-CI-cycle-per-gap (J-9: 4 gaps, 6
-  commits). The local stack uses the **LAN Postgres via env / `.npmrc`**
-  ([[feedback_no_local_postgres_for_tests]]) — NEVER local Docker Postgres (it
-  OOMs the VM); CI then confirms.
+  verticality. **DEFAULT = drive it green LOCALLY first, then CI only CONFIRMS** —
+  never-run-step gaps surface in fast local cycles, not one-CI-cycle-per-gap (J-9:
+  4 gaps/6 commits; J-13: ~5 gate cycles wasted from skipping local). **Real-idp
+  RUNS locally** ([[project_real_idp_runs_locally]]): `bash
+  alpenflight/ops/dev-up-full.sh` (KC + Mailpit) + `cd alpenflight/server &&
+  ./gradlew bootRun` (backend on the **LAN PG** — source `~/.bashrc`
+  `DATASOURCE_*`) + `cd alpenflight/web && pnpm e2e:real-idp`. **NEVER a local
+  Docker Postgres** (it OOMs the VM — the source of the false "can't run real-idp
+  locally" belief; use the LAN PG) and **never set `ALPENFLIGHT_TEST_FORCE_DOCKER`**:
+  a server IT needing a privilege the LAN migrator lacks (e.g. `CREATEROLE` for a
+  role-split IT) **skips-with-fail-loud locally + runs for real in CI container
+  mode** ([[feedback_no_local_postgres_for_tests]]). Escape to CI-only only when
+  local is genuinely blocked, with a stated reason.
 
 ## Gate: parity videos, parallel CI, helper tags
 
@@ -65,6 +77,13 @@ invent a parallel convention.
   no mocking. Any mocked seam (edge/error only) carries an inline
   `@mocked: <seam> — <reason>` tag AND goes in the PR "Mocked seams" list.
   Undeclared mocks make the chain red.
+- **Seed adversarial data for any narrowing/filter/isolation assertion.** A
+  "filter narrows to X" / "tenant sees only its own" case must seed a row that
+  MUST be excluded (a different entity-type, other tenant, out-of-range date) and
+  assert its ABSENCE — else it passes VACUOUSLY when the seed has no counterexample
+  and a broken filter ships green (J-13: the audit target-entity filter passed the
+  clean-seed gate with only `Location` events, then red-ed the nightly on a leaked
+  `Aircraft` row). The clean-seed proof's data is part of the gate.
 - **Journey-0 built the thinnest whole chain** (done). Each later journey extends it:
   add the entity's legacy seed ([happy] + [key-error] data) + the per-entity mapper, then
   the real-stack spec. Reuse the J-0 Keycloak users; extend the realm seed only on identity.

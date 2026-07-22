@@ -203,24 +203,6 @@ body[data-density='comfortable'] .ant-btn-icon-only {
   font-variant-numeric: tabular-nums;
 }
 
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 50ms;
-  animation-timing-function: ease-out;
-  animation-name: af-fade;
-}
-::view-transition-old(root) {
-  animation-direction: reverse;
-}
-@keyframes af-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 body {
   background: var(--color-surface-bg);
   color: var(--color-surface-fg);

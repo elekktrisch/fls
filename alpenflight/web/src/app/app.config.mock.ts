@@ -11,7 +11,7 @@ import {
   provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { de } from 'date-fns/locale';
 import { NZ_DATE_LOCALE, de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
@@ -131,7 +131,10 @@ export const appConfig: ApplicationConfig = {
     { provide: NZ_DATE_LOCALE, useValue: de },
     provideAlpenflightI18n(),
     provideAlpenflightIcons(),
-    provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
+    // Mirror app.config.ts: no withViewTransitions (zoneless nav-stall hazard;
+    // ADR 0024 restrained-motion). Keep the two router setups aligned so a
+    // mock-auth spec exercises the same navigation behaviour as real-idp.
+    provideRouter(routes, withComponentInputBinding()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     { provide: OidcSecurityService, useValue: MOCK_OIDC_SECURITY_SERVICE },
     provideAppInitializer(mockAuthBootstrap),
