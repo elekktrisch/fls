@@ -135,13 +135,13 @@ export default defineConfig({
     name: category,
     testDir: `./tests/${category}`,
     fullyParallel: true,
-    // retries: 2 absorbs the systemic Mono/AngularJS list-render flakiness under
-    // CI load — a MOVING set of legacy parity specs (different each run) hits a
-    // transient ng-table getData re-fire / empty-frame race that a single retry
-    // sometimes doesn't clear. Two retries makes the reference-only legacy pool
-    // reliably green without masking a hard fail (a genuine break fails all 3
-    // attempts). workers count is set at the top level.
-    retries: 2,
+    // The reference-only Mono/AngularJS stack has irreducible roaming readiness
+    // flakiness under CI load: a MOVING set of parity specs (different each run)
+    // hits a transient ng-table getData re-fire / empty-frame / API-warmup race,
+    // each attempt failing at a different precondition. 3 retries absorbs it so
+    // flaky-recovered stays green (the job reds only on pw.outcome); a genuine
+    // break still fails all 4 attempts. workers count is set at the top level.
+    retries: 3,
     use: { ...devices['Desktop Chrome'] },
   })),
 });
