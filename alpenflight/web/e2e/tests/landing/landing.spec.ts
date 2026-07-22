@@ -83,12 +83,7 @@ test.describe('landing — i18n + locale switch', () => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/?lang=de');
 
-    for (const testId of [
-      'landing-topbar-sign-in',
-      'landing-sign-in',
-      'landing-request-access',
-      'landing-try-demo',
-    ]) {
+    for (const testId of ['landing-topbar-sign-in', 'landing-cta-migrate', 'landing-cta-demo']) {
       const btn = page.getByTestId(testId);
       await expect(btn).toBeVisible();
       const box = await btn.boundingBox();
@@ -129,6 +124,9 @@ test.describe('landing — S-133 CTA routing + funnel telemetry (structure)', ()
 
   async function ctaPairPresent(page: import('@playwright/test').Page): Promise<boolean> {
     await page.goto('/');
+    // Wait for the hero to render before counting — `count()` is a snapshot and
+    // would race the SPA's first paint under the mock-auth bootstrap.
+    await page.getByTestId('landing').waitFor({ state: 'visible' });
     return (await page.getByTestId(CTA_MIGRATE).count()) > 0;
   }
 

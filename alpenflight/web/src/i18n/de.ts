@@ -338,6 +338,7 @@ const de = {
   },
   landing: {
     actions: {
+      migrateFromLegacy: 'Von Legacy-FLS migrieren',
       requestAccess: 'Zugang anfragen',
       signIn: 'Anmelden',
       tryDemo: 'Demo ausprobieren',

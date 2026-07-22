@@ -9,6 +9,8 @@ import { AfIconComponent } from '@ui/atoms/af-icon';
 import { AfWordmarkComponent } from '@ui/atoms/af-wordmark';
 import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
+import { emitFunnelEvent } from '../signup/funnel-telemetry';
+
 // Splash placeholder — slate-tinted diagonal-stripes pattern with a
 // brand-500 tint, 1600×1200 aspect. The `splashUrl` input accepts a
 // per-club override once the whitelabel store lands (AC-DIR-3 follow-up).
@@ -71,40 +73,39 @@ const SPLASH_DEFAULT_SVG = 'splash.jpg';
               {{ t('tagline') }}
             </p>
 
-            <div class="flex flex-wrap gap-3">
-              <af-button
-                class="flex-1 justify-center"
-                type="primary"
-                htmlType="button"
-                data-testid="landing-sign-in"
-                (clicked)="signIn()"
+            <div class="flex flex-col md:flex-row md:flex-wrap gap-3">
+              <a
+                routerLink="/signup"
+                [queryParams]="{ intent: 'migrate' }"
+                data-testid="landing-cta-migrate"
+                data-variant="primary"
+                data-size="lg"
+                class="inline-flex items-center justify-center gap-2 h-11 px-5 no-underline
+                  bg-brand-500 text-white font-medium hover:bg-brand-600"
+                (click)="emitCtaClick('migrate')"
               >
-                <div class="flex flex-1 justify-center flex-nowrap items-center gap-2">
-                  {{ t('actions.signIn') }}
-                  <af-icon name="arrow-right" [size]="16" />
-                </div>
-              </af-button>
-              <af-button
-                class="flex-1"
-                type="default"
-                htmlType="button"
-                data-testid="landing-request-access"
-                (clicked)="requestAccess()"
+                {{ t('actions.migrateFromLegacy') }}
+                <af-icon name="arrow-right" [size]="16" />
+              </a>
+              <a
+                routerLink="/demo"
+                data-testid="landing-cta-demo"
+                data-size="lg"
+                class="inline-flex items-center justify-center gap-2 h-11 px-5 no-underline
+                  border border-slate-300 text-slate-900 font-medium hover:bg-slate-50"
+                (click)="emitCtaClick('demo')"
               >
-                {{ t('actions.requestAccess') }}
-              </af-button>
+                {{ t('actions.tryDemo') }}
+              </a>
             </div>
 
-            <!-- AC-DIR-5: inline picker below is the sole landing picker;
-              landing.routes.ts opts out of the nav-bar (showNavBar false). -->
-            <af-button
-              type="link"
-              htmlType="button"
-              data-testid="landing-try-demo"
-              (clicked)="tryDemo()"
+            <a
+              routerLink="/signup"
+              data-testid="landing-cta-request-access"
+              class="mt-4 inline-flex text-sm font-medium text-brand-600 hover:text-brand-700 underline"
             >
-              {{ t('actions.tryDemo') }}
-            </af-button>
+              {{ t('actions.requestAccess') }}
+            </a>
 
             <div
               class="mt-10 pt-5 border-t border-slate-200 grid grid-cols-3 gap-5"
@@ -184,23 +185,14 @@ export class LandingComponent {
     });
   }
 
-  protected requestAccess(): void {
-    // SaaS self-service signup flow (vision §8 — separate track). Wired
-    // to the same OIDC `authorize()` for now; the dedicated signup route
-    // lands when the self-service onboarding story does. A `prompt=create`
-    // hint nudges a Keycloak realm that supports it; absent that, the
-    // standard login screen surfaces a "Register" link.
-    this.#oidc.authorize(undefined, {
-      customParams: { ui_locales: this.#localeService.current(), prompt: 'create' },
-    });
-  }
-
-  protected tryDemo(): void {
-    // Demo-mode (vision §8) — stubbed until the demo realm lands. Routes
-    // to the standard sign-in flow with a demo hint that's ignored until
-    // the demo realm exists.
-    this.#oidc.authorize(undefined, {
-      customParams: { ui_locales: this.#localeService.current(), login_hint: 'demo' },
+  protected emitCtaClick(ctaId: 'migrate' | 'demo'): void {
+    // Fire-and-forget alongside the CTA's own routerLink so emission never
+    // blocks navigation. Real FunnelEvent shape (funnel-telemetry.ts), not
+    // the AC-shorthand.
+    emitFunnelEvent({
+      event_id: 'landing.cta_click',
+      timestamp: new Date().toISOString(),
+      properties: { cta_id: ctaId },
     });
   }
 }

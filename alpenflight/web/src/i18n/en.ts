@@ -331,9 +331,10 @@ const en: Translations = {
   },
   landing: {
     actions: {
+      migrateFromLegacy: 'Migrate from legacy FLS',
       requestAccess: 'Request access',
       signIn: 'Sign in',
-      tryDemo: 'Try the demo',
+      tryDemo: 'Try demo',
     },
     eyebrow: 'Club operations · Switzerland',
     footer: {

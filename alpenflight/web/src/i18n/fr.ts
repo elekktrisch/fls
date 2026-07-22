@@ -333,6 +333,7 @@ const fr: Translations = {
   },
   landing: {
     actions: {
+      migrateFromLegacy: 'Migrer depuis FLS legacy',
       requestAccess: 'Demander un accès',
       signIn: 'Se connecter',
       tryDemo: 'Essayer la démo',
