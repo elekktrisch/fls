@@ -97,7 +97,13 @@ const PAGED_WARMUPS = [
   },
   { label: "motor flights", path: "flights/motorflights/page/0/100" },
   { label: "aircraft reservations", path: "aircraftreservations/page/0/100" },
-  { label: "flight reports", path: "flightreports/page/0/100" },
+  // flightreports returns FlightReportResult, which nests its PagedList under
+  // .Flights (the other paths return a top-level PagedList).
+  {
+    label: "flight reports",
+    path: "flightreports/page/0/100",
+    nestedUnder: "Flights",
+  },
   { label: "planning days", path: "planningdays/page/0/100" },
 ] as const;
 
@@ -119,14 +125,14 @@ async function warmPagedReadSurface(): Promise<void> {
         body: JSON.stringify({ SearchFilter: {} }),
       });
       if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` };
-      const body = (await res.json()) as {
-        Items?: unknown[];
-        TotalRows?: number;
-      };
-      if (!Array.isArray(body.Items))
+      const raw = (await res.json()) as Record<string, unknown>;
+      const paged = ("nestedUnder" in warmup ? raw[warmup.nestedUnder] : raw) as
+        | { Items?: unknown[]; TotalRows?: number }
+        | undefined;
+      if (!paged || !Array.isArray(paged.Items))
         return { ok: false, detail: "body missing Items[]" };
       const rows =
-        typeof body.TotalRows === "number" ? body.TotalRows : body.Items.length;
+        typeof paged.TotalRows === "number" ? paged.TotalRows : paged.Items.length;
       const minRows = "minRows" in warmup ? warmup.minRows : 0;
       return { ok: rows >= minRows, detail: `rows=${rows} (floor ${minRows})` };
     });
