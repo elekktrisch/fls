@@ -1,5 +1,6 @@
 ---
 id: S-081
+rolled_up_into: J-15
 title: Spring @Scheduled infrastructure + idempotency + runOnce admin endpoint
 epic: E-10
 status: todo

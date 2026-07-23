@@ -1,5 +1,6 @@
 ---
 id: S-082
+rolled_up_into: J-15
 title: JavaMailSender + Thymeleaf baseline + mailpit in compose
 epic: E-10
 status: todo
