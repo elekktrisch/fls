@@ -5,7 +5,9 @@ import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.deployments.application.DeploymentContext;
 import ch.alpenflight.deployments.application.LifecycleStateFilter;
+import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.locations.domain.LocationRepository;
@@ -21,6 +23,8 @@ import ch.alpenflight.planning.domain.PlanningDayAssignmentTypeRepository;
 import ch.alpenflight.planning.domain.PlanningDayRepository;
 import ch.alpenflight.platform.mail.MailSettings;
 import ch.alpenflight.platform.mail.TemplatedMailService;
+import ch.alpenflight.platform.scheduling.BusinessJob;
+import ch.alpenflight.platform.scheduling.MeasuredJob;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -34,6 +38,7 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,9 +76,15 @@ import org.springframework.transaction.annotation.Transactional;
  * ok-vs-cancel and which people to mail.
  */
 @Component
-public class PlanningDayNotificationJob {
+@MeasuredJob(name = PlanningDayNotificationJob.JOB_NAME,
+        cron = "0 0 6 * * *",
+        description = "Planning-day notifications (imminent ok/cancel + week-ahead assignments)")
+public class PlanningDayNotificationJob implements BusinessJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(PlanningDayNotificationJob.class);
+
+    /** Stable registry key — see {@link MeasuredJob#name()}. */
+    public static final String JOB_NAME = "planning-day-notification";
 
     /** Audit entity-type for the run summary (not a persisted entity → PII-safe). */
     static final String AUDIT_ENTITY_TYPE = "PlanningNotificationRun";
@@ -108,6 +119,8 @@ public class PlanningDayNotificationJob {
     private final ClubTenantIdentifierResolver tenantResolver;
     private final MailSettings mailSettings;
     private final AuditTrail auditTrail;
+    private final DeploymentContext deploymentContext;
+    private final ObjectProvider<PlanningDayNotificationJob> self;
     private final Clock clock;
 
     public PlanningDayNotificationJob(PlanningDayRepository planningDays,
@@ -119,6 +132,8 @@ public class PlanningDayNotificationJob {
                                       ClubTenantIdentifierResolver tenantResolver,
                                       MailSettings mailSettings,
                                       AuditTrail auditTrail,
+                                      DeploymentContext deploymentContext,
+                                      ObjectProvider<PlanningDayNotificationJob> self,
                                       Clock clock) {
         this.planningDays = planningDays;
         this.assignmentTypes = assignmentTypes;
@@ -129,12 +144,14 @@ public class PlanningDayNotificationJob {
         this.tenantResolver = tenantResolver;
         this.mailSettings = mailSettings;
         this.auditTrail = auditTrail;
+        this.deploymentContext = deploymentContext;
+        this.self = self;
         this.clock = clock;
     }
 
     /**
      * Scheduled tick (daily, early morning). The
-     * {@link LifecycleStateFilterAspect} wraps this and re-enters
+     * {@code LifecycleStateFilterAspect} wraps this and re-enters
      * {@link #runForCurrentClub()} once per {@code ACTIVE} Club under that Club's
      * tenant scope — so the method body itself runs per-club. The cron is a
      * sensible default; prod cadence is deploy-config (J-6 oracle).
@@ -143,6 +160,36 @@ public class PlanningDayNotificationJob {
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
         runForCurrentClub();
+    }
+
+    /**
+     * Cross-tenant "Run now" entry for the {@code /system/jobs} console. Iterates
+     * every {@code ACTIVE} Deployment's Clubs under each Club's tenant scope (the
+     * same filter the scheduled path applies via {@code @LifecycleStateFilter})
+     * and runs the per-club passes, aggregating the mail counts. The
+     * {@code MeasuredJobAspect} wraps this call — the returned {@link RunSummary}
+     * becomes the console's last-run summary.
+     *
+     * <p>Not {@code @Scheduled}: this is the manual affordance, driven by a
+     * sysadmin with no tenant, so it opens each Club's window explicitly rather
+     * than relying on the scheduled-only lifecycle-filter aspect.
+     */
+    @Override
+    public RunSummary runOnce() {
+        int imminent = 0;
+        int weekAhead = 0;
+        for (Deployment deployment : deploymentContext.findDeployment(LifecycleState.ACTIVE)) {
+            UUID deploymentId = deployment.getId();
+            if (deploymentId == null) {
+                continue;
+            }
+            RunSummary[] acc = {RunSummary.empty(ClubTenantIdentifierResolver.NO_TENANT)};
+            deploymentContext.forEachClub(deploymentId, club ->
+                    acc[0] = acc[0].plus(self.getObject().runForCurrentClub()));
+            imminent += acc[0].imminentMailCount();
+            weekAhead += acc[0].weekAheadMailCount();
+        }
+        return new RunSummary(ClubTenantIdentifierResolver.NO_TENANT, imminent, weekAhead);
     }
 
     /**
@@ -304,6 +351,13 @@ public class PlanningDayNotificationJob {
 
         static RunSummary empty(UUID clubId) {
             return new RunSummary(clubId, 0, 0);
+        }
+
+        /** Folds another club's counts into this one; keeps the receiver's clubId. */
+        RunSummary plus(RunSummary other) {
+            return new RunSummary(clubId,
+                    imminentMailCount + other.imminentMailCount,
+                    weekAheadMailCount + other.weekAheadMailCount);
         }
 
         public int totalMailCount() {
