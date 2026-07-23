@@ -2,7 +2,8 @@
 id: J-15
 title: Scheduled-jobs admin console (/system/jobs)
 epic: E-10
-status: todo
+status: in_progress
+started_at: 2026-07-23
 journey0: false
 carved: true
 depends_on: [J-1, J-2, J-9, J-10, J-12a]
@@ -76,3 +77,30 @@ Migration = N/A (no new entity mapper), so the **⚠ BLOCKS-next-MIGRATION-journ
 3. The Grafana dashboard panel (S-038 AC) is deferred to the observability platform — the Micrometer histogram + persisted `JobRun` last-run record (which the console reads) are the in-scope proof.
 4. The OGN sync uses a recorded DDB fixture in the gate (no live external network in CI) — matches S-088's own "recorded OGN response" acceptance.
 5. Licence-expiry window (S-085) confirmed against legacy at ship time via `legacy-oracle`, not carve time.
+
+## Ship-time scope decision (2026-07-23)
+**S-090 (DeliveryMailExport / zip) splits to a follow-up J-15b** — the carve's sanctioned escape hatch. It has no J-15 AC (the ACs + "spec must assert" cover only PlanningDayNotification + DailyFlightValidation + DailyReport + AircraftDBSync + DeliveryCreation), it's the only L/new-infra job (`ZipOutputStream` + SXSSF-per-recipient), and it carries a legacy billing-surface bug to reconcile (`DeliveryNumber="Workflow {time}"` — non-unique, locale-dependent — do NOT reproduce). J-15 ships the console + 5 jobs (incl. the cheap grounded S-085).
+
+## Oracle-pinned parity anchors (legacy_oracle, ship time)
+- **S-083 LOCK**: `Valid && CreatedOn(date-truncated) ≤ today−2d` → LOCKED (on **CreatedOn**, not FlightDate/ValidatedOn). Validate set: `NotProcessed OR (Invalid && ModifiedOn ≥ ValidatedOn)`.
+- **S-089 delivery eligibility**: `Locked && (Glider|Motor) && CreatedOn ≤ today−3d`; no-items OR no-recipient → `DELIVERY_PREPARATION_ERROR`; DoNotInvoice → `EXCLUDED_FROM_DELIVERY_PROCESS`; per-flight failures isolated.
+- **S-084 report**: recipients = pilot+copilot+instructor, gated on person's `ReceiveFlightReports==true`; marks report-sent on send; per-person/club isolated.
+- **S-085 licence**: **60-day window** (confirmed); 6 types (MedicalLapl/Class1/Class2, Glider/Motor instructor, PartM); NOT club-scoped; skip blank comm-email. Ship the corrected **≤60-day inclusive** window (legacy's exact-day-equality is a fragile quirk — documented divergence).
+- **S-088 OGN sync**: source `ddb.glidernet.org/download?j=1` (JSON); **match by immatriculation ONLY** (normalize: strip `-`, upper); update-only (FLARMId, model, competition-sign), never create; network/parse errors caught → job survives. Recorded fixture in the gate (freeze the DDB JSON shape: `OgnDevices[]` with `DeviceId`, `Registration`, `Cn`, `IsTracked`, `IsIdentified`).
+
+## Tasks
+- [ ] **T-01** — Mock inner-loop spec stub + gallery scaffold. `e2e/tests/jobs-console/jobs-console.spec.ts` (thin: renders list, Run-now button, mocked `/api/v1/admin/jobs` + run response) + scaffold the per-journey proof-gallery page for J-15 + link from the persistent index. *(seam: e2e mock spec + gallery page)*
+- [ ] **T-02** — Scope the per-push gate to J-15 real-idp only; move prior journeys to mock-IdP (full real-idp regression → nightly + §4 gate). *(seam: ci.yml / proof workflow gate-scoping)*
+- [ ] **T-03** — S-038 `@MeasuredJob` AOP instrumentation: annotation + `@Around` advice emitting started/completed/failed + `fls_job_duration_seconds` Micrometer histogram + persisted `JobRun` last-run entity/repo + migration `V55` (job_run table). *(seam: platform/scheduling @MeasuredJob advice + JobRun store)*
+- [ ] **T-04** — S-081 `JobRegistry` (collects `@MeasuredJob` beans) + `JobsAdminController`: `GET /api/v1/admin/jobs` (list + last-run) + `POST /api/v1/admin/jobs/{name}/run` (idempotent runOnce), both `@PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")` + `@Operation(operationId=…)`; retrofit `PlanningDayNotificationJob` with `@MeasuredJob`; IT incl. the **club-admin 403** negative (AC7). *(seam: platform/scheduling JobRegistry + JobsAdminController)*
+- [ ] **T-05** — Web `features/jobs/` console (mirror `features/audit-logs/`): `jobs.routes.ts` (`sysadminGuard`) + `jobs.store.ts` + `list/jobs-list.page.ts` (list + last-run status + Run-now) + nav entry in `SYS_ADMIN_SECTIONS` + orval regen. Mock spec (T-01) goes green here. *(seam: web features/jobs component-route)*
+- [ ] **T-06** — S-083 `DailyFlightValidationJob` (`@UnscopedScheduledJob` + `@MeasuredJob`): per-club validate→lock per the oracle anchor; reuse `FlightValidator` + `LifecycleStateFilter`. IT proving VALID + LOCKED transitions. *(seam: flights/application DailyFlightValidationJob)*
+- [ ] **T-07** — S-089 `DeliveryCreationJob` (thin `@MeasuredJob` cron wrapper over `DeliveryCreationService.createFromEligibleFlights()`). IT proving DELIVERY_PREPARED + DELIVERY_PREPARATION_ERROR isolation. *(seam: accounting/application DeliveryCreationJob)*
+- [ ] **T-08** — S-084 `DailyReportJob` (per-pilot/instructor report email; `ReceiveFlightReports` gate; Thymeleaf template port to `templates/email/`). IT proving Mailpit receipt. *(seam: reporting/application DailyReportJob + email template)*
+- [ ] **T-09** — S-085 `LicenceNotificationJob` (≤60-day inclusive window, 6 licence types, per-person email, skip blank email). IT proving one email per expiring licence. *(seam: person/application LicenceNotificationJob + template)*
+- [ ] **T-10** — S-088 `AircraftDatabaseSyncJob` + OGN DDB client (HTTP + JSON parse + match-by-immat + update-only + recorded fixture; network-fail caught). IT proving matched update + unmatched-skip + no auto-create. *(seam: aircraft/application AircraftDatabaseSyncJob + OGN DDB client)*
+- [ ] **T-11** — S-018 ShedLock **stub** (inert): migration `V56__shedlock.sql` + `net.javacrumbs.shedlock:{spring,provider-jdbc-template}:7.7.0` on classpath (NOT `@EnableSchedulerLock`) + config entry (`application.yml`/tenant-rules surface — no `tenant-rules.yaml` exists) + `ShedLockNotActivatedTest` reflection guard. *(seam: db/migration V56 + build.gradle.kts + config)*
+- [ ] **T-12** — Thicken the real-idp parity spec `e2e/tests/real-idp/jobs-console-parity.spec.ts` to full assertions (drive `sysadmin`; open console; Run-now each AC'd job; verify transitions via a tenant-scoped **club-admin re-read**; Mailpit; OGN fixture; 403) + author its clean seed floor (production-code seeding, ADR 0027 §3). *(seam: real-idp spec + seed)*
+- [ ] **T-13** — Rider: S-092 decommission dead `FLS.Workflow.Activator` + `Alpinely.TownCrier` references (alpenflight-side + `_ORDER.md`/docs — J-15 is the last-job-ported home; legacy files stay read-only). *(seam: dead-ref cleanup)*
+
+**Deferred riders (NOT folded — sized out of J-15):** `[WORKFLOW-SLIM]` composite-action CI refactor stays in `_BOYSCOUT.md` (too big for this already-large journey). `[MAINTAINABILITY-TOOLING]` Qodana baseline backfill handled at the §4 gate (needs the CI `qodana-scan` artifact first).
