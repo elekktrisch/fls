@@ -18,9 +18,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
-| J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10) | N/A | none (admin) → `/system/jobs` |
-| J-16 | Public landing + nav | E-12 | J-0 | S-133 (+impl S-097, S-157) | N/A | `main/` → `/main` |
+| J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9, J-10 | S-081, S-082, S-018, S-083, S-084, S-085, S-038, S-089, S-090 (delivery-creation + mail-export jobs re-homed from J-10), **S-088 (OGN aircraft-DB sync, re-homed from retired J-14)** | N/A | none (admin) → `/system/jobs` |
 | J-17 | Trial-flight registration | E-12 | J-16, J-1 | S-098, S-025 | `Flight` (trial subset) | `tryflight/` → `/trialflight` |
 | J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
@@ -31,6 +29,16 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 **🔨 = in flight.** All other unmarked rows are `todo`. Shipped-journey PR numbers and
 done-dates live in `_SHIPPED.md`; their full carve prose lives in `implemented/`.
+
+**Retired at carve time (operator decision 2026-07-22, `/do-plan next`):**
+- **J-14 — OGN ingestion.** Dropped as a journey (never carved). Carve-time scouting found it
+  mostly-headless with an inbound contract that **cannot be finalized without negotiating with the
+  external OGNAnalyser maintainer** (`sgacond`, separate repo; R9 / S-149 / S-150) — so building it
+  now ships speculative endpoint code, and the roadmap's own Assumption 3 sanctioned dropping it.
+  Its rolled-up stories re-home: **S-088** (aircraft-DB sync) → **J-15** jobs console; **S-023**
+  (UnscopedTenantContext) → **already satisfied** by `Tenants.runAs(clubId,…)` (annotation-sugar
+  deferred); **S-066 / S-149** (ingest endpoint + per-tenant handoff) → **HELD** pending the
+  maintainer contract (revisit as a future journey once the contract lands).
 
 **J-28 — Documentation site (infra)** (filed by `/do-retro` 2026-06-24 on operator ask: architecture
 diagrams + a user manual with screenshots). Shaped to honor directive 1 (working software over
@@ -56,9 +64,7 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
-- **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.
-- **J-16:** Landing renders; nav-bar hidden on public routes by an explicit mechanism; CTAs route correctly.
+- **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events. Includes the **OGN aircraft-DB sync (S-088)** run against a recorded DDB fixture (re-homed from retired J-14).
 - **J-17 / J-18:** Public POST creates a trial/passenger flight scoped by tenant-from-URL; unsupported tenant ID rejected; nav-bar hidden.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
@@ -74,15 +80,15 @@ and the proven mapper pattern.
 | DeliveryCreationJob / MailExportJob (S-089/090) | J-10 Deliveries | real screen — "create deliveries" action |
 | Daily validation / report / licence jobs (S-083–085) | J-15 jobs console | admin screen — "run now" |
 | PlanningDayNotificationJob (S-086) | J-6 Planning | real screen — assigning crew triggers email |
-| AircraftDatabaseSyncJob (S-088) | J-14 OGN | admin screen — co-located with OGN ingest |
+| AircraftDatabaseSyncJob (S-088) | J-15 jobs console (re-homed from retired J-14) | admin screen — "run now" against a recorded OGN DDB fixture |
 | AircraftStatisticReportJob (S-087) | J-10 Deliveries | screen that consumes its Excel output |
 | Excel export infra (S-093/094/096) | J-7 Flight reports | real screen — first sync export consumer |
 | Proffix machine client (S-029) + verification (S-080/150) | J-10 Deliveries | real screen — the API surface Proffix consumes |
-| UnscopedTenantContext (S-023) | J-14 OGN | first cross-club headless consumer |
-| **OGN ingestion (S-066/149)** | **J-14 — INVENTED test-env-only "ingest OGN sample" button** | no product screen surfaces inbound OGN; guarded test affordance gives the inbound contract a Playwright proof. **⚠ operator-flag.** |
+| UnscopedTenantContext (S-023) | ✅ satisfied — `Tenants.runAs(clubId,…)` (used by audit + jobs) | annotation-sugar (`@SystemTenantAware`) deferred; capability exists |
+| **OGN ingestion (S-066/149)** | **HELD — no journey** (retired J-14) | inbound contract is greenfield + **blocked on the external OGNAnalyser maintainer** (R9 / S-149 / S-150); revisit as a future journey once the contract is negotiated. |
 | SSE channel (S-176) | J-3 dashboard | real screen — live tile updates |
 
-No `escalate: true` — every headless item found a screen or a justified test affordance.
+No `escalate: true` — every headless item found a screen, was already satisfied, or (OGN ingestion) is HELD pending an external-maintainer contract (retired J-14).
 
 ## Platform riders (NOT journeys — attach to a journey or land on debugging pain)
 
@@ -105,7 +111,7 @@ carved (Mode B), not eagerly (so re-grouping during adjudication stays cheap).
 
 1. `implemented/` is authoritative — journeys rolling up a done story only re-assert its parity in the spec; they don't rebuild it. J-1/J-3/J-11/J-16 are thin precisely because their backend already exists.
 2. The migration lump is bigger than four IDs — the whole S-183…S-190 / S-187x series folds into per-journey mappers. **Main grouping decision to adjudicate:** track these per-journey (current) vs as one migration epic.
-3. OGN (J-14) gets an invented test-only affordance. Alternative: drop J-14's UI, prove OGN by API-level integration test as a headless rider on J-2.
+3. ~~OGN (J-14) gets an invented test-only affordance.~~ **Resolved (operator, 2026-07-22):** J-14 retired — OGN ingest is greenfield + blocked on the external OGNAnalyser maintainer (S-149/S-150), so it's HELD pending that contract; S-088 re-homes to J-15, S-023 is already satisfied by `Tenants.runAs`. See the "Retired at carve time" note above.
 4. Air movements (S-064) folds into J-2 (motor-aircraft tab of the same flight screen), not its own journey.
 5. Reservations + scheduler (S-068/069) are one journey J-5 (two views on one route family).
 6. Rules-engine internals (J-9) proven through the DeliveryCreationTest dry-run screen (legacy's actual debugging surface); highest-risk journey, gated by S-107 corpus.

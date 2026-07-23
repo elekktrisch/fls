@@ -2,7 +2,9 @@
 id: S-023
 title: UnscopedTenantContext mechanism (system admin, jobs, OGN)
 epic: E-03
-status: todo
+status: done
+resolved_by: "Tenants.runAs(clubId,…) — platform tenancy infra (used by audit listener + jobs)"
+resolved_note: "Capability shipped incidentally; the declarative @SystemTenantAware annotation-sugar is deferred (not load-bearing). Marked satisfied by operator 2026-07-22 on J-14 retirement."
 depends_on: [S-022]
 acceptance:
   - An `UnscopedTenantContext` annotation or programmatic block exists; entering it temporarily switches the tenant resolver to a "no filter" mode.

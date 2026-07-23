@@ -331,9 +331,10 @@ const en: Translations = {
   },
   landing: {
     actions: {
+      migrateFromLegacy: 'Migrate from legacy FLS',
       requestAccess: 'Request access',
       signIn: 'Sign in',
-      tryDemo: 'Try the demo',
+      tryDemo: 'Try demo',
     },
     eyebrow: 'Club operations · Switzerland',
     footer: {
@@ -704,6 +705,8 @@ const en: Translations = {
   publicStub: {
     back: 'Back to the landing page',
     body: 'Public booking is on the way. In the meantime, contact your club directly.',
+    demo: 'Demo',
+    demoBody: 'The interactive demo is on the way. Check back soon.',
     discoveryFlight: 'Discovery flight',
     scenicFlight: 'Scenic flight',
     title: 'Coming soon',

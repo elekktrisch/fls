@@ -15,7 +15,13 @@ import { expect, test } from '../_helpers/console-guard';
 
 test.use({ baseURL: 'http://localhost:4200' });
 
-const HIDDEN_ROUTES = ['/', '/discovery-flight', '/scenic-flight'] as const;
+const HIDDEN_ROUTES = ['/', '/discovery-flight', '/scenic-flight', '/signup'] as const;
+
+// AC #3's post-auth VISIBLE oracle is `/start` (`showNavBar: true`). `/clubs` is
+// retained below only as a representative nav-bearing route for the responsive
+// + lang-picker behavior tests, which exercise nav-bar internals rather than the
+// route-data toggle.
+const POST_AUTH_ROUTE = '/start';
 const VISIBLE_ROUTE = '/clubs';
 
 // `bootstrapPrefetch()` fires `refData.loadAll()` on every route under
@@ -37,9 +43,9 @@ test.describe('nav-bar visibility by route', () => {
     });
   }
 
-  test(`visible on ${VISIBLE_ROUTE} (post-auth)`, async ({ page }) => {
-    await page.route('**/api/v1/clubs**', (route) => route.fulfill({ json: { items: [] } }));
-    await page.goto(`${VISIBLE_ROUTE}?lang=de`);
+  test(`visible on ${POST_AUTH_ROUTE} (post-auth)`, async ({ page }) => {
+    await page.goto(`${POST_AUTH_ROUTE}?lang=de`);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await expect(page.locator('af-nav-bar')).toBeVisible();
   });
 });

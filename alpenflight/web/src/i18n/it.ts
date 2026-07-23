@@ -332,6 +332,7 @@ const it: Translations = {
   },
   landing: {
     actions: {
+      migrateFromLegacy: 'Migra da FLS legacy',
       requestAccess: 'Richiedi l’accesso',
       signIn: 'Accedi',
       tryDemo: 'Prova la demo',
@@ -710,6 +711,8 @@ const it: Translations = {
   publicStub: {
     back: 'Torna alla pagina iniziale',
     body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',
+    demo: 'Demo',
+    demoBody: 'La demo interattiva è in arrivo. Torna a trovarci presto.',
     discoveryFlight: 'Volo di scoperta',
     scenicFlight: 'Volo panoramico',
     title: 'Disponibile a breve',

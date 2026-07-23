@@ -3,6 +3,8 @@ id: S-066
 title: OGN ingestion REST endpoint
 epic: E-07
 status: todo
+held: true
+held_reason: "Greenfield inbound contract blocked on the external OGNAnalyser maintainer (R9 / S-149 / S-150). J-14 retired 2026-07-22; revisit as a future journey once the contract is negotiated."
 depends_on: [S-058, S-023, S-029]
 acceptance:
   - `POST /api/v1/ogn/flights` accepts the inbound flight contract (schema documented in OpenAPI).

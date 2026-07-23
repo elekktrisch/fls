@@ -3,6 +3,8 @@ id: S-149
 title: OGN ingest endpoint — per-tenant handoff with upstream maintainer
 epic: E-07
 status: todo
+held: true
+held_reason: "Blocked on outreach to the OGNAnalyser maintainer (sgacond). J-14 retired 2026-07-22; the ingest endpoint (S-066) + this handoff revisit as a future journey once the contract is agreed."
 depends_on: [S-066]
 acceptance:
   - Contact with the OGNAnalyser maintainer (sgacond on GitHub) is established; the new POST endpoint contract (S-066) is shared with them.

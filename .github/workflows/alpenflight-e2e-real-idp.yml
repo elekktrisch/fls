@@ -414,14 +414,18 @@ jobs:
               echo "No merged JSON report was produced (all shards may have crashed pre-test)."
             else
               # stats.{expected,unexpected,flaky} are the run outcomes; skipped is
-              # excluded from the total. unexpected>0 (or flaky>0) is the RED signal.
+              # excluded from the total. Only unexpected>0 is the RED signal — a
+              # flaky test recovered on retry (job conclusion stays green), so it
+              # surfaces as a distinct ⚠️ PASS rather than contradicting the green
+              # conclusion with ❌ FAIL.
               read -r passed failed flaky < <(jq -r '.stats | "\(.expected) \(.unexpected) \(.flaky)"' merged-report.json)
               total=$((passed + failed + flaky))
               # total==0 means no test executed (all shards crashed pre-test):
               # a report full of zeros is a no-run, never a pass.
               if [ "$total" -eq 0 ]; then verdict="❌ NO-RUN / FAIL"
-              elif [ "$failed" -eq 0 ] && [ "$flaky" -eq 0 ]; then verdict="✅ PASS"
-              else verdict="❌ FAIL"; fi
+              elif [ "$failed" -gt 0 ]; then verdict="❌ FAIL"
+              elif [ "$flaky" -gt 0 ]; then verdict="⚠️ PASS (${flaky} flaky-recovered)"
+              else verdict="✅ PASS"; fi
               echo "### real-idp nightly — ${verdict}"
               echo ""
               echo "| total | passed | failed | flaky |"
