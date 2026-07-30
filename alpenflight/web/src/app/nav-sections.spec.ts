@@ -24,8 +24,11 @@ const allPaths = (flags: Flags): string[] =>
   );
 
 describe('navSectionsFor', () => {
-  it('sysadmin sees Clubs only — no tenant sections, no Masterdata group', () => {
-    expect(topLabels({ isSystemAdmin: true, isClubAdmin: false })).toEqual(['/clubs']);
+  it('sysadmin sees Clubs + Jobs only — no tenant sections, no Masterdata group', () => {
+    expect(topLabels({ isSystemAdmin: true, isClubAdmin: false })).toEqual([
+      '/clubs',
+      '/system/jobs',
+    ]);
     expect(masterdataPaths({ isSystemAdmin: true, isClubAdmin: false })).toBeUndefined();
     expect(allPaths({ isSystemAdmin: true, isClubAdmin: false })).not.toContain('/users');
   });
@@ -100,6 +103,7 @@ describe('navSectionsFor', () => {
       '/planning',
       'group:Masterdata',
       '/clubs',
+      '/system/jobs',
     ]);
     expect(masterdataPaths(flags)).toEqual([
       '/aircraft',

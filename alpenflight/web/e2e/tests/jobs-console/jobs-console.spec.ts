@@ -6,19 +6,15 @@ import { expect, test } from '../_helpers/console-guard';
  * the SCREEN SHAPE. Mock-backend (`page.route`) over `GET /api/v1/admin/jobs` (the
  * `JobRegistry` list) + `POST /api/v1/admin/jobs/{name}/run` (idempotent runOnce).
  *
- * These assertions are THIN on purpose: they pin the stable data-testids the real
- * jobs-console component (T-05) will expose, so the shape is contracted before the
- * feature lands. The full flow — real cross-tenant transitions, Mailpit receipt,
- * OGN fixture sync, delivery creation, and the club-admin 403 — is thickened by the
- * real-idp `sysadmin` gate spec (T-12). The console route + endpoints do not exist
- * until T-03/T-04/T-05, so the whole suite is `describe.fixme` — parsed +
- * typechecked, NOT run — and does NOT red the mock-e2e gate. T-05 un-fixmes it once
- * the screen lands.
+ * These assertions are THIN on purpose: they pin the stable data-testids the
+ * jobs-console component exposes. The full flow — real cross-tenant transitions,
+ * Mailpit receipt, OGN fixture sync, delivery creation, and the club-admin 403 — is
+ * thickened by the real-idp `sysadmin` gate spec.
  *
- * The mocked JSON mirrors the intended `JobsAdminController` contract described in
- * J-15's "Spec must assert": the registry is a list of `{ name, cron, lastRun }`,
- * and `lastRun` is a `JobRun` `{ status, startedAt, finishedAt, summary }` where
- * status ∈ { NEVER_RUN, RUNNING, COMPLETED, FAILED }. Grounded, not gerrymandered.
+ * The mocked JSON mirrors the `JobsAdminController` contract: the registry is a list
+ * of `{ name, cron, lastRun }`, and `lastRun` is a `JobRun`
+ * `{ status, startedAt, finishedAt, summary }` where status ∈
+ * { NEVER_RUN, RUNNING, COMPLETED, FAILED }.
  */
 
 type JobRunStatus = 'NEVER_RUN' | 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -97,7 +93,7 @@ function setupRunNowBackend() {
   };
 }
 
-test.describe.fixme('jobs-console (un-fixmed by T-05 once the screen lands)', () => {
+test.describe('jobs-console', () => {
   test('jobs-console: /system/jobs lists registered jobs + Run-now shows a completed result', async ({
     page,
   }) => {

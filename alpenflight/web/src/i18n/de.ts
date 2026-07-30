@@ -336,6 +336,15 @@ const de = {
       tryDifferent: 'Anderen Code versuchen',
     },
   },
+  jobs: {
+    title: 'Aufträge',
+    empty: 'Keine Aufträge registriert.',
+    runNow: 'Jetzt ausführen',
+    duration: '{{secs}} s',
+    result: {
+      heading: 'Ergebnis: {{name}}',
+    },
+  },
   landing: {
     actions: {
       migrateFromLegacy: 'Von Legacy-FLS migrieren',

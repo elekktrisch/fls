@@ -330,6 +330,15 @@ const it: Translations = {
       tryDifferent: 'Prova un altro codice',
     },
   },
+  jobs: {
+    title: 'Attività',
+    empty: 'Nessuna attività registrata.',
+    runNow: 'Esegui ora',
+    duration: '{{secs}} s',
+    result: {
+      heading: 'Risultato: {{name}}',
+    },
+  },
   landing: {
     actions: {
       migrateFromLegacy: 'Migra da FLS legacy',

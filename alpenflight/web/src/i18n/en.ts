@@ -329,6 +329,15 @@ const en: Translations = {
       tryDifferent: 'Try a different code',
     },
   },
+  jobs: {
+    title: 'Jobs',
+    empty: 'No jobs registered.',
+    runNow: 'Run now',
+    duration: '{{secs}} s',
+    result: {
+      heading: 'Result: {{name}}',
+    },
+  },
   landing: {
     actions: {
       migrateFromLegacy: 'Migrate from legacy FLS',

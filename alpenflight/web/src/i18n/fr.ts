@@ -331,6 +331,15 @@ const fr: Translations = {
       tryDifferent: 'Essayer un autre code',
     },
   },
+  jobs: {
+    title: 'Tâches',
+    empty: 'Aucune tâche enregistrée.',
+    runNow: 'Exécuter maintenant',
+    duration: '{{secs}} s',
+    result: {
+      heading: 'Résultat : {{name}}',
+    },
+  },
   landing: {
     actions: {
       migrateFromLegacy: 'Migrer depuis FLS legacy',

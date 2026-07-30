@@ -110,6 +110,10 @@ export const routes: Routes = [
       import('@features/audit-logs/audit-logs.routes').then((m) => m.AUDIT_LOGS_ROUTES),
   },
   {
+    path: 'system/jobs',
+    loadChildren: () => import('@features/jobs/jobs.routes').then((m) => m.JOBS_ROUTES),
+  },
+  {
     path: 'join-requests',
     loadChildren: () =>
       import('@features/join-requests/join-requests.routes').then((m) => m.JOIN_REQUESTS_ROUTES),
