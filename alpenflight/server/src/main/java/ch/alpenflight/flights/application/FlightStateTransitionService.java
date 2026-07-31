@@ -9,6 +9,7 @@ import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
+import ch.alpenflight.flights.domain.FlightValidator;
 import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
@@ -80,6 +81,33 @@ public class FlightStateTransitionService {
                         null,
                         new StateTransitionPayload(before, target, trigger)));
         return saved;
+    }
+
+    /**
+     * Runs {@link FlightValidator} over one flight and records the outcome
+     * ({@code FlightService.ValidateFlight}) — the per-flight step of the daily
+     * validation pass. Loads with crew because the validator reads it.
+     *
+     * <p>An audit row is emitted only when the process state actually moved, so a
+     * repeated pass over a still-invalid flight doesn't inflate the trail.
+     *
+     * @return the flight's process state after the pass
+     */
+    public FlightProcessState validateAndRecord(FlightId id) {
+        Flight flight = repository.findByIdWithCrew(id)
+                .orElseThrow(() -> new FlightNotFoundException(id));
+        FlightProcessState before = flight.getProcessState();
+        flight.recordValidation(clock.instant(), FlightValidator.validate(flight));
+        Flight saved = repository.save(flight);
+        FlightProcessState after = saved.getProcessState();
+        if (after != before) {
+            audit.record(AuditAction.STATE_TRANSITION,
+                    new AuditedTarget(AUDIT_ENTITY_TYPE,
+                            Objects.requireNonNull(saved.getId()),
+                            null,
+                            new StateTransitionPayload(before, after, TransitionTrigger.VALIDATOR)));
+        }
+        return after;
     }
 
     /**

@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
@@ -177,7 +178,6 @@ public class Flight {
     private @Nullable String incidentComment;
 
     @Column(name = "validation_errors", columnDefinition = "text")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable String validationErrors;
 
     @Column(name = "coupon_number", length = MAX_COUPON_LENGTH)
@@ -190,7 +190,6 @@ public class Flight {
     private @Nullable Instant deliveryCreatedOn;
 
     @Column(name = "validated_on")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable Instant validatedOn;
 
     @Column(name = "nr_of_passengers")
@@ -481,6 +480,44 @@ public class Flight {
             this.lockedAt = at;
         }
         this.processStateId = target.id();
+    }
+
+    /**
+     * Records the outcome of a validation pass ({@code FlightService.cs:1041-1050}):
+     * stamps {@link #validatedOn}, replaces {@link #validationErrors} with the
+     * {@code ;}-joined error codes (empty string when the flight validates), and
+     * moves the flight to {@link FlightProcessState#VALID} or
+     * {@link FlightProcessState#INVALID} under {@link TransitionTrigger#VALIDATOR}.
+     *
+     * <p>A flight already in the outcome state is left where it is rather than
+     * re-transitioned: {@code Invalid → Invalid} is not an edge the
+     * {@link FlightTransitionMatrix} carries, and re-validating a still-invalid
+     * flight is the common case of a repeated nightly pass.
+     */
+    public void recordValidation(Instant at, List<FlightValidator.ValidationError> errors) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        if (errors == null) {
+            throw new IllegalArgumentException("errors must not be null");
+        }
+        this.validatedOn = at;
+        this.validationErrors = errors.stream()
+                .map(FlightValidator.ValidationError::code)
+                .collect(Collectors.joining(";"));
+        FlightProcessState outcome =
+                errors.isEmpty() ? FlightProcessState.VALID : FlightProcessState.INVALID;
+        if (getProcessState() != outcome) {
+            transition(outcome, TransitionTrigger.VALIDATOR);
+        }
+    }
+
+    public @Nullable Instant getValidatedOn() {
+        return validatedOn;
+    }
+
+    public @Nullable String getValidationErrors() {
+        return validationErrors;
     }
 
     /**
