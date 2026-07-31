@@ -199,7 +199,6 @@ public class Flight {
     private @Nullable Short startPosition;
 
     @Column(name = "flight_report_sent_on")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable Instant flightReportSentOn;
 
     @Column(name = "created_on", insertable = false, updatable = false)
@@ -510,6 +509,22 @@ public class Flight {
         if (getProcessState() != outcome) {
             transition(outcome, TransitionTrigger.VALIDATOR);
         }
+    }
+
+    /**
+     * Marks the flight as covered by a daily report mail
+     * ({@code FlightService.SetFlightReportSent}) — what keeps the next run from
+     * reporting it again.
+     */
+    public void markFlightReportSent(Instant at) {
+        if (at == null) {
+            throw new IllegalArgumentException("at must not be null");
+        }
+        this.flightReportSentOn = at;
+    }
+
+    public @Nullable Instant getFlightReportSentOn() {
+        return flightReportSentOn;
     }
 
     public @Nullable Instant getValidatedOn() {

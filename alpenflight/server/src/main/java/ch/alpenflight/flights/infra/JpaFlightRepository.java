@@ -56,6 +56,11 @@ public interface JpaFlightRepository
     List<Flight> findByProcessStateId(@Param("psid") UUID processStateId);
 
     @Override
+    @Query("select f from Flight f where f.flightReportSentOn is null and f.deletedOn is null "
+            + "order by f.flightDate desc")
+    List<Flight> findUnreported();
+
+    @Override
     @Query("select count(f) from Flight f where f.flightDate = :date and f.deletedOn is null")
     long countByFlightDate(@Param("date") LocalDate flightDate);
 
