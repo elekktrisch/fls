@@ -111,6 +111,13 @@ dependencies {
     // spring-aop (already managed by the BOM) + aspectjweaver directly.
     implementation("org.springframework:spring-aop")
     implementation("org.aspectj:aspectjweaver")
+    // S-018 ShedLock, on the classpath but INERT. AlpenFlight runs
+    // single-instance, so @EnableSchedulerLock is deliberately absent and
+    // ShedLockNotActivatedTest fails the build if anyone switches it on without
+    // the multi-instance decision. Shipping the dependency + V56's lock table
+    // now keeps the eventual cutover to one annotation.
+    implementation("net.javacrumbs.shedlock:shedlock-spring:7.7.0")
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.7.0")
     // S-048 adds JPA on top of the JDBC starter (the JDBC dep stays so Flyway
     // keeps working with its lightweight DataSource). Hibernate ships under
     // the JPA umbrella.
