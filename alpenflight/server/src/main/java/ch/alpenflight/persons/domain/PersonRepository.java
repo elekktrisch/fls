@@ -84,6 +84,13 @@ public interface PersonRepository {
     /** Exact-match by identity triple. Birthday is required (no two-of-three fallback). */
     List<Person> findActiveByIdentityTriple(String firstname, String lastname, LocalDate birthday);
 
+    /**
+     * Persons carrying at least one licence or medical whose expiry falls on or
+     * before {@code cutoff} — the candidate set for the licence-expiry mail. The
+     * per-licence decision stays with the caller; this only narrows the scan.
+     */
+    List<Person> findWithLicenceExpiringOnOrBefore(LocalDate cutoff);
+
     Person save(Person person);
 
     void flush();

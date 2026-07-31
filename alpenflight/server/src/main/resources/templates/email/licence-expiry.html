@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--
+  Licence / medical expiry notice (S-085, ADR 0013). One mail per expiring
+  licence. Binds LicenceNotificationJob.LicenceExpiryModel under `licence`.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Ablauf Lizenz / Medical</title>
+  </head>
+  <body>
+    <h2>Ablauf Lizenz / Medical</h2>
+    <p>Hallo <span th:text="${licence.personName}">Name</span>,</p>
+    <p>
+      Deine <strong th:text="${licence.licenceName}">Lizenz</strong> läuft am
+      <strong th:text="${#temporals.format(licence.expiresOn, 'dd.MM.yyyy')}">01.01.2026</strong>
+      ab.
+    </p>
+    <p>Bitte veranlasse die Erneuerung rechtzeitig.</p>
+    <p>Freundliche Grüsse<br />AlpenFlight</p>
+  </body>
+</html>
