@@ -1247,7 +1247,13 @@ jobs:
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
-          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline == 'true' && '' || needs.changes.outputs.proof_journey }}
+          # The journey-under-work id, or '' on a baseline run so the
+          # deployed-journey assertion skips (that run renders the baseline page
+          # by design — see the gallery step's JUW_ARG). The empty string is
+          # FALSY in a GHA expression, so it has to sit on the `||` side: a
+          # `cond && '' || journey` ternary falls through and always yields the
+          # journey, demanding a page the baseline run never produced.
+          GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey || '' }}
           GALLERY_LINKS_ONLY: '1'
         run: |
           pnpm exec playwright test \

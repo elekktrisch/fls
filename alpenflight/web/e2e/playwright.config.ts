@@ -239,6 +239,10 @@ export default defineConfig({
     {
       name: 'proof-gallery-links',
       testMatch: ['tests/proof-gallery/gallery-deployed-link-check.spec.ts'],
+      // Playwright still starts a browser process for this project even though the
+      // spec only uses `request`, so it needs the same musl-launchable executable
+      // as the browser projects — the bundled glibc shell can't relocate here.
+      use: { launchOptions: CHROMIUM_LAUNCH_OPTIONS },
       retries: 0,
       timeout: 60_000,
       expect: { timeout: 10_000 },

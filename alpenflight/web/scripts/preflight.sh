@@ -71,6 +71,9 @@ if [ "$RUN_WEB" = 1 ]; then
   banner "web — tsc (typecheck, no emit)"
   ( cd "${WEB_DIR}" && pnpm exec tsc -p tsconfig.json --noEmit )
 
+  banner "web — unit tests (vitest)"
+  ( cd "${WEB_DIR}" && pnpm test )
+
   banner "web — build"
   ( cd "${WEB_DIR}" && pnpm build )
 
