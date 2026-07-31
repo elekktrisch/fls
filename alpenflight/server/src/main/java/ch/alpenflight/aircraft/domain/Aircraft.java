@@ -545,6 +545,40 @@ public class Aircraft extends SoftDeletableAggregate {
         return aircraftTypeId;
     }
 
+    /**
+     * Applies one OGN device-database entry to this aircraft
+     * ({@code AircraftDatabaseSyncJob.cs:99-101}): FLARM device id, model, and
+     * competition sign.
+     *
+     * <p>Only non-blank incoming values are written. Legacy assigns the device
+     * fields unconditionally, so an entry that carries no competition sign wipes
+     * one an operator had maintained by hand; a registry that does not know a
+     * value is not the same as a value being cleared.
+     *
+     * @return true when the sync actually changed something
+     */
+    public boolean syncFromDeviceDatabase(@Nullable String deviceId,
+                                          @Nullable String model,
+                                          @Nullable String competitionSignValue) {
+        boolean changed = false;
+        String newDeviceId = blankToNull(deviceId);
+        if (newDeviceId != null && !newDeviceId.equals(this.flarmId)) {
+            setFlarmId(newDeviceId);
+            changed = true;
+        }
+        String newModel = blankToNull(model);
+        if (newModel != null && !newModel.equals(this.aircraftModel)) {
+            this.aircraftModel = capLength(newModel, MAX_MODEL_LENGTH, "aircraftModel");
+            changed = true;
+        }
+        String newSign = blankToNull(competitionSignValue);
+        if (newSign != null && !newSign.equals(this.competitionSign)) {
+            setCompetitionSign(newSign);
+            changed = true;
+        }
+        return changed;
+    }
+
     public String getImmatriculation() {
         return immatriculation;
     }

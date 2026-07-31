@@ -1,0 +1,22 @@
+{
+  "devices": [
+    {
+      "device_type": "F",
+      "device_id": "DD1234",
+      "aircraft_model": "ASK-21",
+      "registration": "HB-3000",
+      "cn": "7X",
+      "tracked": "Y",
+      "identified": "Y"
+    },
+    {
+      "device_type": "F",
+      "device_id": "DDBEEF",
+      "aircraft_model": "Discus CS",
+      "registration": "HB9999",
+      "cn": "ZZ",
+      "tracked": "Y",
+      "identified": "Y"
+    }
+  ]
+}
