@@ -1,8 +1,6 @@
 /**
- * Shared-kernel email send-path (J-6 T-10a, ADR 0013). The AlpenFlight
- * equivalent of legacy's {@code System.Net.Mail.SmtpClient} + the vendored
- * {@code Alpinely.TownCrier} templating — replaced here by Spring's
- * {@code JavaMailSender} + Thymeleaf.
+ * Shared-kernel email send-path (ADR 0013): Spring's {@code JavaMailSender}
+ * plus Thymeleaf templates under {@code templates/email/}.
  *
  * <p>Surface:
  * <ul>

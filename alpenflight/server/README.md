@@ -138,6 +138,20 @@ suppress narrowly and explain why:
 | GET | `/actuator/info` | Empty until `info.*` keys land. |
 | GET | `/api/v1/clubs` | Clubs list — requires SYSTEM_ADMINISTRATOR. Worked example for the OpenAPI / `@PreAuthorize` conventions. |
 
+## Scheduled jobs
+
+Business jobs are Spring `@Scheduled` beans carrying `@MeasuredJob`, which puts
+them in the `/system/jobs` console (list, last-run outcome, Run now) and records
+a `JobRun` per invocation. A job implements `BusinessJob.runOnce()` for the
+cross-tenant manual path; per-club work opens each club's tenant window through
+`DeploymentContext`.
+
+Three legacy components are decommissioned in this stack and must not come back:
+`FLS.Workflow.Activator` (cron-on-host calling a bearer-token endpoint) is
+replaced by in-process scheduling, `Alpinely.TownCrier` by Thymeleaf templates
+under `templates/email/`, and `Ionic.Zip` by `java.util.zip`. ShedLock is on the
+classpath but inert — see `ShedLockNotActivatedTest` before switching it on.
+
 ## Database migrations (Flyway)
 
 Schema lives in `src/main/resources/db/migration/V<n>__<desc>.sql`. Flyway
