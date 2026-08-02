@@ -9,6 +9,7 @@ import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.PublicSubmissions;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.net.URI;

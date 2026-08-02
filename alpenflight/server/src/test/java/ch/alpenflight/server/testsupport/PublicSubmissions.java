@@ -1,37 +1,43 @@
-package ch.alpenflight.publicregistration.web;
+package ch.alpenflight.server.testsupport;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The submissions the web-layer ITs post, as the JSON a browser sends rather
- * than as the server's own request records — a rename or a restructured payload
- * has to break these tests, not silently follow them.
+ * The submissions the ITs post to the anonymous registration surface, as the
+ * JSON a browser sends rather than as the server's own request records — a
+ * rename or a restructured payload has to break these tests, not silently
+ * follow them.
  *
  * <p>Both bodies carry the same registrant, which is the contract under test:
  * the scenic form is the discovery form minus the day selection.
+ *
+ * <p>Shared test support rather than a helper inside the publicregistration
+ * package: the surface is also driven from outside it (the audit projection
+ * needs an anonymous write), and a second copy of the payload would let the
+ * two drift.
  */
-final class PublicSubmissions {
+public final class PublicSubmissions {
 
-    static final String FIRSTNAME = "Rosa";
-    static final String LASTNAME = "Renggli";
+    public static final String FIRSTNAME = "Rosa";
+    public static final String LASTNAME = "Renggli";
 
     private PublicSubmissions() {}
 
-    static Map<String, Object> discoveryBody(LocalDate selectedDay) {
+    public static Map<String, Object> discoveryBody(LocalDate selectedDay) {
         Map<String, Object> body = scenicBody();
         body.put("selectedDay", selectedDay.toString());
         return body;
     }
 
-    static Map<String, Object> scenicBody() {
+    public static Map<String, Object> scenicBody() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("registrant", registrant());
         return body;
     }
 
-    static Map<String, Object> registrant() {
+    public static Map<String, Object> registrant() {
         Map<String, Object> registrant = new LinkedHashMap<>();
         registrant.put("firstname", FIRSTNAME);
         registrant.put("lastname", LASTNAME);

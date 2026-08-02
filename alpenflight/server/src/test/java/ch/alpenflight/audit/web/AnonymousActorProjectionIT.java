@@ -6,14 +6,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.PublicSubmissions;
+import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +61,7 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
 
     private static final String PUBLIC_REGISTRATION_ENTITY = "PublicFlightRegistration";
     private static final String CLUB_ENTITY = "Club";
+    private static final LocalDate BOOKABLE_DAY = LocalDate.of(2099, 6, 15);
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -63,6 +69,7 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
     @Autowired ClubRepository clubs;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
 
     private UUID clubId;
     private String clubSlug;
@@ -80,6 +87,8 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
         club.enablePublicRegistration();
         clubs.save(club);
         clubSlug = Objects.requireNonNull(club.getSlug(), "fixture club has no slug");
+        TenantTestContext.runAs(clubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(BOOKABLE_DAY, BOOKABLE_DAY)));
         truncateForTenant(jdbc, clubId);
 
         adminSub = UUID.randomUUID();
@@ -144,8 +153,8 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
     private void submitAnonymously() {
         ResponseEntity<Void> res = rest.postForEntity(
                 "/api/v1/public/clubs/" + clubSlug + "/discovery-flight-registrations",
-                null, Void.class);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+                PublicSubmissions.discoveryBody(BOOKABLE_DAY), Void.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
     private void updateClubAsAdmin() {
