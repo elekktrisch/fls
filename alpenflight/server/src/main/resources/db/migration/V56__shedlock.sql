@@ -8,11 +8,11 @@
 -- Column shape is ShedLock's own contract (JdbcTemplateLockProvider) — it is not
 -- ours to model. Cross-tenant by nature: a scheduler lock is infrastructure, not
 -- club data.
-CREATE TABLE shedlock
+CREATE TABLE t_shedlock
 (
     name       VARCHAR(64)  NOT NULL,
     lock_until TIMESTAMPTZ  NOT NULL,
     locked_at  TIMESTAMPTZ  NOT NULL,
     locked_by  VARCHAR(255) NOT NULL,
-    CONSTRAINT pk_shedlock PRIMARY KEY (name)
+    CONSTRAINT pk_t_shedlock PRIMARY KEY (name)
 );

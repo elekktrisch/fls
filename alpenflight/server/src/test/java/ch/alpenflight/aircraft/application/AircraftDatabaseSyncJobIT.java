@@ -11,8 +11,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,9 +65,26 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
         }
     }
 
+    private final List<String> seeded = new ArrayList<>();
+
     @BeforeEach
     void removeOurFixtureAircraft() {
-        for (String immatriculation : new String[] {KNOWN_IMMATRICULATION, UNKNOWN_IMMATRICULATION}) {
+        seeded.clear();
+        dropSeeded(KNOWN_IMMATRICULATION, UNKNOWN_IMMATRICULATION);
+    }
+
+    /**
+     * Immatriculation is globally unique across tenants, so a leftover row here
+     * would collide with another spec's fixture — this test owns fixed
+     * immatriculations, so it has to hand them back.
+     */
+    @AfterEach
+    void dropSeededAircraft() {
+        dropSeeded(seeded.toArray(new String[0]));
+    }
+
+    private void dropSeeded(String... immatriculations) {
+        for (String immatriculation : immatriculations) {
             jdbc.update("DELETE FROM t_aircraft WHERE immatriculation = ?", immatriculation);
         }
     }
@@ -108,6 +128,7 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     }
 
     private UUID seedAircraft(String immatriculation) {
+        seeded.add(immatriculation);
         UUID acType = jdbc.queryForObject("SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
         UUID club = jdbc.queryForObject("SELECT id FROM t_club LIMIT 1", UUID.class);
         Aircraft craft = Aircraft.register(club, club, acType,

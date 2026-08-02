@@ -1,9 +1,7 @@
 package ch.alpenflight.flights.application;
 
-import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.deployments.application.DeploymentContext;
 import ch.alpenflight.deployments.application.LifecycleStateFilter;
-import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightProcessState;
@@ -108,26 +106,8 @@ public class DailyFlightValidationJob implements BusinessJob {
      */
     @Override
     public RunSummary runOnce() {
-        RunSummary total = RunSummary.empty();
-        for (Deployment deployment : deploymentContext.findDeployment(LifecycleState.ACTIVE)) {
-            UUID deploymentId = deployment.getId();
-            if (deploymentId == null) {
-                continue;
-            }
-            RunSummary[] acc = {RunSummary.empty()};
-            deploymentContext.forEachClub(deploymentId, club -> acc[0] = acc[0].plus(runFor(club)));
-            total = total.plus(acc[0]);
-        }
-        return total;
-    }
-
-    private RunSummary runFor(Club club) {
-        try {
-            return runForCurrentClub();
-        } catch (RuntimeException e) {
-            LOG.error("daily-flight-validation failed for club {} — continuing", club.getId(), e);
-            return RunSummary.empty();
-        }
+        return deploymentContext.foldOverClubs(JOB_NAME, RunSummary.empty(),
+                (total, club) -> total.plus(runForCurrentClub()), LifecycleState.ACTIVE);
     }
 
     /** Both passes for the club in the current tenant context. */

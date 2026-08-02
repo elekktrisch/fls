@@ -1,9 +1,7 @@
 package ch.alpenflight.flights.application;
 
-import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.deployments.application.DeploymentContext;
 import ch.alpenflight.deployments.application.LifecycleStateFilter;
-import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightCrew;
@@ -30,8 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -60,8 +56,6 @@ import org.springframework.transaction.annotation.Transactional;
         cron = DailyReportJob.CRON,
         description = "Daily flight report mail to pilots and instructors")
 public class DailyReportJob implements BusinessJob {
-
-    private static final Logger LOG = LoggerFactory.getLogger(DailyReportJob.class);
 
     /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "daily-report";
@@ -107,7 +101,11 @@ public class DailyReportJob implements BusinessJob {
         this.clock = clock;
     }
 
-    /** Scheduled tick — re-entered once per {@code ACTIVE} Club by the aspect. */
+    /**
+     * Scheduled tick. {@code LifecycleStateFilterAspect} re-enters
+     * {@link #runForCurrentClub()} once per {@code ACTIVE} Club with that Club's
+     * tenant context established, so the body itself runs per-club.
+     */
     @Scheduled(cron = CRON)
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
@@ -117,26 +115,9 @@ public class DailyReportJob implements BusinessJob {
     /** Cross-tenant "Run now" for the {@code /system/jobs} console. */
     @Override
     public RunSummary runOnce() {
-        int mails = 0;
-        for (Deployment deployment : deploymentContext.findDeployment(LifecycleState.ACTIVE)) {
-            UUID deploymentId = deployment.getId();
-            if (deploymentId == null) {
-                continue;
-            }
-            int[] acc = {0};
-            deploymentContext.forEachClub(deploymentId, club -> acc[0] += runFor(club));
-            mails += acc[0];
-        }
-        return new RunSummary(mails);
-    }
-
-    private int runFor(Club club) {
-        try {
-            return self.getObject().runForCurrentClub().mailCount();
-        } catch (RuntimeException e) {
-            LOG.error("daily-report failed for club {} — continuing", club.getId(), e);
-            return 0;
-        }
+        return new RunSummary(deploymentContext.foldOverClubs(JOB_NAME, 0,
+                (total, club) -> total + self.getObject().runForCurrentClub().mailCount(),
+                LifecycleState.ACTIVE));
     }
 
     /** Mails every opted-in person their unreported flights, for the current club. */

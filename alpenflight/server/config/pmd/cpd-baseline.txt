@@ -172,5 +172,20 @@
 # collapsed the clone in both services and landed back at the pre-batch baseline.
 # Lock the gain.
 #
+# Re-measured 2026-08-01 (J-15 T-06..T-11, the five scheduled business jobs):
+# 5417 (+55). The reducible half was fixed at source: the three club-iterating
+# jobs each carried a byte-identical per-club fold with its own try/catch skip,
+# which is now the single DeploymentContext.foldOverClubs(jobName, identity,
+# accumulator, states) — the isolation lives once, in the seam that already owns
+# cross-tenant iteration. The residual 55-token window is DeliveryCreationJob and
+# DailyReportJob sharing the scheduled-tick scaffold: @Scheduled(cron = CRON) +
+# @LifecycleStateFilter({ACTIVE}) + the delegating body + the @Override runOnce
+# signature. That block is irreducible by construction — ScheduledLifecycleFilter
+# CoverageTest REQUIRES every @Scheduled method to declare its own non-empty
+# lifecycle filter, and @Scheduled binds a per-class cron constant, so a shared
+# base class cannot carry either annotation. Same posture as the per-resource
+# @ExceptionHandler registration and per-aggregate @DomainEvents hook above:
+# framework-mandated per-class registration, not logic duplication.
+#
 # Single non-comment, non-blank line = the token baseline.
-5362
+5417

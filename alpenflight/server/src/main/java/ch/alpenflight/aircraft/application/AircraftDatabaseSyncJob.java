@@ -6,6 +6,7 @@ import ch.alpenflight.aircraft.domain.OgnDeviceDatabase;
 import ch.alpenflight.aircraft.domain.OgnDeviceDatabase.OgnDevice;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -57,6 +58,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     /** Scheduled tick — weekly; the registry changes slowly. */
     @Scheduled(cron = CRON)
+    @UnscopedScheduledJob
     public void runScheduled() {
         runOnce();
     }

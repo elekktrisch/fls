@@ -5,6 +5,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -78,6 +79,7 @@ public class LicenceNotificationJob implements BusinessJob {
 
     /** Scheduled tick — monthly, matching legacy's monthly workflow slot. */
     @Scheduled(cron = CRON)
+    @UnscopedScheduledJob
     public void runScheduled() {
         runOnce();
     }

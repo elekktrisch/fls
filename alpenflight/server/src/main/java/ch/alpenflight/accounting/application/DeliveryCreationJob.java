@@ -1,15 +1,10 @@
 package ch.alpenflight.accounting.application;
 
-import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.deployments.application.DeploymentContext;
 import ch.alpenflight.deployments.application.LifecycleStateFilter;
-import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
-import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -32,8 +27,6 @@ import org.springframework.stereotype.Component;
         description = "Delivery creation from eligible locked flights")
 public class DeliveryCreationJob implements BusinessJob {
 
-    private static final Logger LOG = LoggerFactory.getLogger(DeliveryCreationJob.class);
-
     /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "delivery-creation";
 
@@ -50,8 +43,8 @@ public class DeliveryCreationJob implements BusinessJob {
 
     /**
      * Scheduled tick. {@code LifecycleStateFilterAspect} re-enters
-     * {@link #runForCurrentClub()} once per {@code ACTIVE} Club under that Club's
-     * tenant context.
+     * {@link #runForCurrentClub()} once per {@code ACTIVE} Club with that Club's
+     * tenant context established, so the body itself runs per-club.
      */
     @Scheduled(cron = CRON)
     @LifecycleStateFilter({LifecycleState.ACTIVE})
@@ -62,26 +55,9 @@ public class DeliveryCreationJob implements BusinessJob {
     /** Cross-tenant "Run now" for the {@code /system/jobs} console. */
     @Override
     public RunSummary runOnce() {
-        int created = 0;
-        for (Deployment deployment : deploymentContext.findDeployment(LifecycleState.ACTIVE)) {
-            UUID deploymentId = deployment.getId();
-            if (deploymentId == null) {
-                continue;
-            }
-            int[] acc = {0};
-            deploymentContext.forEachClub(deploymentId, club -> acc[0] += runFor(club));
-            created += acc[0];
-        }
-        return new RunSummary(created);
-    }
-
-    private int runFor(Club club) {
-        try {
-            return runForCurrentClub().createdCount();
-        } catch (RuntimeException e) {
-            LOG.error("delivery-creation failed for club {} — continuing", club.getId(), e);
-            return 0;
-        }
+        return new RunSummary(deploymentContext.foldOverClubs(JOB_NAME, 0,
+                (total, club) -> total + runForCurrentClub().createdCount(),
+                LifecycleState.ACTIVE));
     }
 
     /** Creates deliveries for the club in the current tenant context. */
