@@ -202,6 +202,42 @@ class ClubDomainTest {
     }
 
     @Test
+    void acceptsPublicRegistration_requires_the_optIn_flag() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+
+        club.enablePublicRegistration();
+        assertThat(club.acceptsPublicRegistration()).isTrue();
+
+        club.disablePublicRegistration();
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+    }
+
+    @Test
+    void acceptsPublicRegistration_is_false_for_a_softDeleted_club() {
+        Club club = Club.create("X", "x-club", "X", true, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.acceptsPublicRegistration()).isTrue();
+
+        club.softDelete(java.time.Clock.systemUTC());
+
+        assertThat(club.isPublicRegistrationEnabled()).isTrue();
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+    }
+
+    @Test
+    void isWellFormedSlug_matches_the_rebrand_rule() {
+        assertThat(Club.isWellFormedSlug("alpine-soaring")).isTrue();
+        assertThat(Club.isWellFormedSlug("abc")).isTrue();
+        assertThat(Club.isWellFormedSlug("a".repeat(64))).isTrue();
+
+        assertThat(Club.isWellFormedSlug(null)).isFalse();
+        assertThat(Club.isWellFormedSlug("ab")).isFalse();
+        assertThat(Club.isWellFormedSlug("a".repeat(65))).isFalse();
+        assertThat(Club.isWellFormedSlug("Bad-Slug")).isFalse();
+        assertThat(Club.isWellFormedSlug("../../etc/passwd")).isFalse();
+    }
+
+    @Test
     void planningNotification_optIn_tracks_a_nonBlank_recipient_address() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.wantsPlanningDayNotifications()).isFalse();

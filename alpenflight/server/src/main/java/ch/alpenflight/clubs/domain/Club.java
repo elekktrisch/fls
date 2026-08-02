@@ -175,11 +175,21 @@ public class Club {
     }
 
     public void rebrand(String newSlug) {
-        if (newSlug == null || !SLUG_PATTERN.matcher(newSlug).matches()) {
+        if (!isWellFormedSlug(newSlug)) {
             throw new IllegalArgumentException(
                     "Slug must match ^[a-z0-9-]{3,64}$, got: " + newSlug);
         }
         this.slug = newSlug;
+    }
+
+    /**
+     * Whether {@code candidate} is shaped like a club slug at all. Public so the
+     * anonymous slug→club resolution can reject a malformed path segment without
+     * a database round-trip — an unauthenticated surface should not turn arbitrary
+     * URL text into a query.
+     */
+    public static boolean isWellFormedSlug(@Nullable String candidate) {
+        return candidate != null && SLUG_PATTERN.matcher(candidate).matches();
     }
 
     public void enablePublicRegistration() {
@@ -188,6 +198,16 @@ public class Club {
 
     public void disablePublicRegistration() {
         this.publicRegistrationEnabled = false;
+    }
+
+    /**
+     * Whether this club is a legitimate target for an anonymous public-registration
+     * submission (S-025 allowlist). Both conditions are the club's own state, so
+     * the rule lives here rather than in the resolver (ADR 0022 directive 2): a
+     * soft-deleted club admits nobody, and the flag is the club's explicit opt-in.
+     */
+    public boolean acceptsPublicRegistration() {
+        return !isDeleted() && publicRegistrationEnabled;
     }
 
     /**

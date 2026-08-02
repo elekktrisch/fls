@@ -93,7 +93,14 @@ class TenantsRunAsAllowlistTest {
             // directory round-trip. The scope is the event's clubId — never
             // widened beyond the single tenant the decision belongs to.
             "ch.alpenflight.joinrequests.application.JoinRequestEmailListener",
-            "ch.alpenflight.joinrequests.application.JoinRequestSseListener"
+            "ch.alpenflight.joinrequests.application.JoinRequestSseListener",
+            // Anonymous public registration (S-025): there is no principal, so the
+            // target tenant comes from the URL slug. PublicClubResolver resolves and
+            // allowlist-checks it OUTSIDE any scope first — the 404 / 403 paths never
+            // reach runAs — and only the accepted submission opens a window, for
+            // exactly that one club. The surface gate is Club.acceptsPublicRegistration
+            // (the club's own opt-in), not a role.
+            "ch.alpenflight.publicregistration.application.PublicRegistrationIntake"
     );
 
     @ArchTest

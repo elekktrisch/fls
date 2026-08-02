@@ -26,6 +26,9 @@
     "name" : "AccountingRuleFilters",
     "description" : "AccountingRuleFilter CRUD (per-club tenant-scoped billing-rule config)."
   }, {
+    "name" : "public-registration",
+    "description" : "Anonymous discovery- and scenic-flight registration."
+  }, {
     "name" : "DeliveryCreationTests",
     "description" : "DeliveryCreationTest CRUD (per-club tenant-scoped rules-engine regression harness)."
   }, {
@@ -1801,6 +1804,58 @@
           },
           "409" : {
             "description" : "User has no Keycloak identity attached."
+          }
+        }
+      }
+    },
+    "/api/v1/public/clubs/{clubSlug}/scenic-flight-registrations" : {
+      "post" : {
+        "tags" : [ "public-registration" ],
+        "summary" : "Register anonymously for a club's scenic flight.",
+        "operationId" : "submitScenicFlightRegistration",
+        "parameters" : [ {
+          "name" : "clubSlug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "Accepted for the resolved club."
+          },
+          "403" : {
+            "description" : "The club has closed public registration."
+          },
+          "404" : {
+            "description" : "No club is published at that slug."
+          }
+        }
+      }
+    },
+    "/api/v1/public/clubs/{clubSlug}/discovery-flight-registrations" : {
+      "post" : {
+        "tags" : [ "public-registration" ],
+        "summary" : "Register anonymously for a club's discovery flight.",
+        "operationId" : "submitDiscoveryFlightRegistration",
+        "parameters" : [ {
+          "name" : "clubSlug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "description" : "Accepted for the resolved club."
+          },
+          "403" : {
+            "description" : "The club has closed public registration."
+          },
+          "404" : {
+            "description" : "No club is published at that slug."
           }
         }
       }

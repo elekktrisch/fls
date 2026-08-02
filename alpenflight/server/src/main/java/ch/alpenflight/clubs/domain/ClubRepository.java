@@ -32,6 +32,15 @@ public interface ClubRepository {
     /** True iff an active club exists with the given slug. */
     boolean existsBySlug(String slug);
 
+    /**
+     * The active club published at this public slug, or empty for an unknown /
+     * soft-deleted club. Backs the anonymous tenant-from-URL resolution (S-025);
+     * the {@code public_registration_enabled} allowlist decision stays on the
+     * aggregate ({@link Club#acceptsPublicRegistration()}) so "unknown" and
+     * "known but closed" remain distinguishable to the caller.
+     */
+    Optional<Club> findActiveBySlug(String slug);
+
     /** True iff an active club other than {@code excludeId} exists with the given slug. */
     boolean existsBySlugExcluding(String slug, UUID excludeId);
 
