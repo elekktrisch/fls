@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonClub;
 import ch.alpenflight.persons.domain.PersonNotificationPrefs;
@@ -58,6 +60,7 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
     @Autowired PublicRegistrationIntake intake;
     @Autowired PersonRepository persons;
     @Autowired ClubRepository clubs;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
     @Autowired JdbcTemplate jdbc;
@@ -78,6 +81,7 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         club.enablePublicRegistration();
         clubs.save(club);
         slug = Objects.requireNonNull(club.getSlug(), "fixture club has no slug");
+        publishDiscoveryDay(DISCOVERY_DAY);
 
         existingMemberId = TenantTestContext.runAs(clubId, () -> {
             Person member = Person.register("Vreni", "Vorbestand", null);
@@ -206,10 +210,19 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         return new PublicRegistrantDetails(
                 "Rosa", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
                 "041 660 11 22", "041 660 33 44", "079 555 66 77", "rosa.renggli@example.ch",
-                null, invoiceAddressIsSame,
+                null, invoiceAddressIsSame, false,
                 invoiceAddressIsSame ? null : new InvoiceRecipient(
                         "Beat", "Bezahler", "Buchhaltungsweg 3", "6003", "Luzern", null,
                         "beat.bezahler@example.ch"));
+    }
+
+/**
+     * The intake rejects a day the club never published, so every discovery
+     * case here needs the picker's day to genuinely exist.
+     */
+    private void publishDiscoveryDay(LocalDate eventDate) {
+        TenantTestContext.runAs(clubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
     }
 
     /**

@@ -25,6 +25,11 @@ import {
   Observable
 } from 'rxjs';
 
+import type {
+  DiscoveryFlightRegistrationRequest,
+  DiscoveryFlightRegistrationResponse
+} from '../model';
+
 
 
 interface HttpClientOptions {
@@ -112,15 +117,19 @@ export class PublicRegistrationService {
 /**
  * @summary Register anonymously for a club's discovery flight.
  */
- submitDiscoveryFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientBodyOptions): Observable<TData>;
- submitDiscoveryFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- submitDiscoveryFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  submitDiscoveryFlightRegistration<TData = void>(
-    clubSlug: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+ submitDiscoveryFlightRegistration<TData = DiscoveryFlightRegistrationResponse>(clubSlug: string,
+    discoveryFlightRegistrationRequest: DiscoveryFlightRegistrationRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ submitDiscoveryFlightRegistration<TData = DiscoveryFlightRegistrationResponse>(clubSlug: string,
+    discoveryFlightRegistrationRequest: DiscoveryFlightRegistrationRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ submitDiscoveryFlightRegistration<TData = DiscoveryFlightRegistrationResponse>(clubSlug: string,
+    discoveryFlightRegistrationRequest: DiscoveryFlightRegistrationRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  submitDiscoveryFlightRegistration<TData = DiscoveryFlightRegistrationResponse>(
+    clubSlug: string,
+    discoveryFlightRegistrationRequest: DiscoveryFlightRegistrationRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/discovery-flight-registrations`,
-      undefined,{
+      discoveryFlightRegistrationRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -130,7 +139,7 @@ export class PublicRegistrationService {
     if (options?.observe === 'response') {
       return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/discovery-flight-registrations`,
-      undefined,{
+      discoveryFlightRegistrationRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -139,7 +148,40 @@ export class PublicRegistrationService {
 
     return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/discovery-flight-registrations`,
-      undefined,{
+      discoveryFlightRegistrationRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary The days a club still offers discovery flights on.
+ */
+ listPublicDiscoveryFlightDays<TData = string[]>(clubSlug: string, options?: HttpClientBodyOptions): Observable<TData>;
+ listPublicDiscoveryFlightDays<TData = string[]>(clubSlug: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ listPublicDiscoveryFlightDays<TData = string[]>(clubSlug: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  listPublicDiscoveryFlightDays<TData = string[]>(
+    clubSlug: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}/discovery-flight-days`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}/discovery-flight-days`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}/discovery-flight-days`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

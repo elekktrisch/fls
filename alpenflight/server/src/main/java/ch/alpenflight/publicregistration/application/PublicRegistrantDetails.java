@@ -27,6 +27,10 @@ import org.jspecify.annotations.Nullable;
  * it straight into the two notification mails and stores nothing
  * ({@code RegistrationService.cs:109-131}), so it lives on the command rather
  * than on {@code Person}.
+ *
+ * <p>{@code sendCouponToInvoiceAddress} is likewise mail-only: it picks which
+ * of the two people the club posts the voucher to, which only exists as a
+ * choice while the invoice address differs.
  */
 public record PublicRegistrantDetails(
         String firstname,
@@ -41,6 +45,7 @@ public record PublicRegistrantDetails(
         @Nullable String privateEmail,
         @Nullable String remarks,
         boolean invoiceAddressIsSame,
+        boolean sendCouponToInvoiceAddress,
         @Nullable InvoiceRecipient invoiceRecipient) {
 
     public PublicRegistrantDetails {
@@ -65,6 +70,11 @@ public record PublicRegistrantDetails(
         // writer has to remember.
         if (invoiceAddressIsSame) {
             invoiceRecipient = null;
+            // There is no second recipient to post the voucher to, so the flag
+            // cannot mean anything — legacy re-tests InvoiceAddressIsSame at
+            // every read site (RegistrationEmailBuildService.cs:71,135,199,259)
+            // instead, which is the same rule spelled four times.
+            sendCouponToInvoiceAddress = false;
         } else if (invoiceRecipient == null) {
             throw new PublicRegistrationInvalidException(
                     "invoiceRecipient is required when the invoice address differs");

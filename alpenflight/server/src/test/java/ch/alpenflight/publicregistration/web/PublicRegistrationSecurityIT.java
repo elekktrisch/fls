@@ -4,10 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @AutoConfigureTestRestTemplate
 class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
 
+    private static final LocalDate DISCOVERY_DAY = LocalDate.of(2099, 6, 15);
     private static final String UNKNOWN_SLUG = "no-such-club-it-prs";
     private static final String MALFORMED_SLUG = "NotALowercaseSlug";
     private static final String AUDIT_ENTITY_TYPE = "PublicFlightRegistration";
@@ -50,6 +55,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
     @Autowired ClubRepository clubs;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
 
     private UUID openClubId;
     private UUID closedClubId;
@@ -69,13 +75,15 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         clubs.save(open);
         openSlug = requireSlug(open);
         closedSlug = requireSlug(clubs.findActiveById(closedClubId).orElseThrow());
+        TenantTestContext.runAs(openClubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(DISCOVERY_DAY, DISCOVERY_DAY)));
     }
 
     @Test
     void anonymous_submission_reaches_the_endpoint_and_audits_under_the_resolved_club() {
-        ResponseEntity<Void> response = anonymousPost(discoveryPath(openSlug));
+        ResponseEntity<Void> response = anonymousDiscoveryPost(openSlug);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
         // Anonymous-actor plumbing on a genuinely token-less request: no
         // JwtAuthenticationToken means ActorResolver yields Actor.anonymous() and
@@ -99,7 +107,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         long personsBefore = count("t_person");
         long membershipsBefore = count("t_person_club");
 
-        ResponseEntity<Void> response = anonymousPost(discoveryPath(UNKNOWN_SLUG));
+        ResponseEntity<Void> response = anonymousDiscoveryPost(UNKNOWN_SLUG);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNull();
@@ -127,7 +135,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
      */
     @Test
     void a_rejected_submission_leaves_no_tenantScoped_trace() {
-        assertThat(anonymousPost(discoveryPath(closedSlug)).getStatusCode())
+        assertThat(anonymousDiscoveryPost(closedSlug).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(anonymousPost(scenicPath(UNKNOWN_SLUG)).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
@@ -140,9 +148,9 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
 
     @Test
     void a_malformed_slug_is_404_rather_than_a_server_error() {
-        assertThat(anonymousPost(discoveryPath(MALFORMED_SLUG)).getStatusCode())
+        assertThat(anonymousDiscoveryPost(MALFORMED_SLUG).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(anonymousPost(discoveryPath("ab")).getStatusCode())
+        assertThat(anonymousDiscoveryPost("ab").getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -165,6 +173,15 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
 
     private ResponseEntity<Void> anonymousPost(String path) {
         return rest.postForEntity(path, null, Void.class);
+    }
+
+    /**
+     * The rejection paths must fail on the slug, not on the body, so every
+     * discovery probe here posts a submission that would otherwise be accepted.
+     */
+    private ResponseEntity<Void> anonymousDiscoveryPost(String slug) {
+        return rest.postForEntity(discoveryPath(slug),
+                DiscoverySubmissions.body(DISCOVERY_DAY), Void.class);
     }
 
     private static String discoveryPath(String slug) {

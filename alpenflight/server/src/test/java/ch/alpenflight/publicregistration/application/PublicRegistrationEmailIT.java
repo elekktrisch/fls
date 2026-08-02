@@ -12,6 +12,8 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.emailtemplates.application.EmailTemplateCatalog;
 import ch.alpenflight.emailtemplates.domain.EmailTemplate;
 import ch.alpenflight.emailtemplates.domain.EmailTemplateRepository;
@@ -85,6 +87,7 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     @Autowired EmailTemplateRepository overrides;
     @Autowired CapturedMailSender outbox;
     @Autowired ClubRepository clubs;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
     @Autowired LocationTypeRepository locationTypes;
@@ -110,6 +113,7 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
         clubs.save(club);
         slug = Objects.requireNonNull(club.getSlug(), "fixture club has no slug");
         clubName = club.getClubname();
+        publishDiscoveryDay(DISCOVERY_DAY);
 
         outbox.clear();
     }
@@ -211,6 +215,24 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
                 .contains("Rechnungsadresse");
     }
 
+    /**
+     * The coupon recipient the organiser has to post the voucher to. Both
+     * choices are driven, because a template hardcoding either name renders
+     * plausibly on one of them.
+     */
+    @Test
+    void the_organiser_learns_which_of_the_two_people_gets_the_coupon() {
+        intake.acceptScenic(slug, "198.51.100.48", registrant(false, true));
+        assertThat(only(SUBJECT_SCENIC_ORGANISER).htmlBody())
+                .contains("Gutschein an:")
+                .containsSubsequence("Gutschein an:", "Beat Bezahler");
+
+        outbox.clear();
+        intake.acceptScenic(slug, "198.51.100.49", registrant(false, false));
+        assertThat(only(SUBJECT_SCENIC_ORGANISER).htmlBody())
+                .containsSubsequence("Gutschein an:", "Rosa Renggli");
+    }
+
     /** Every skip reason the booker can produce needs its own copy, not just the two above. */
     @Test
     void every_reservation_outcome_has_its_own_organiser_sentence() {
@@ -262,10 +284,15 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     }
 
     private static PublicRegistrantDetails registrant(boolean invoiceAddressIsSame) {
+        return registrant(invoiceAddressIsSame, false);
+    }
+
+    private static PublicRegistrantDetails registrant(boolean invoiceAddressIsSame,
+            boolean sendCouponToInvoiceAddress) {
         return new PublicRegistrantDetails(
                 "Rosa", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
                 "041 660 11 22", "041 660 33 44", "079 555 66 77", "rosa.renggli@example.ch",
-                REMARKS, invoiceAddressIsSame,
+                REMARKS, invoiceAddressIsSame, sendCouponToInvoiceAddress,
                 invoiceAddressIsSame ? null : new InvoiceRecipient(
                         "Beat", "Bezahler", "Buchhaltungsweg 3", "6003", "Luzern", null,
                         "beat.bezahler@example.ch"));
@@ -274,7 +301,7 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     private static PublicRegistrantDetails reachableByPhoneOnly() {
         return new PublicRegistrantDetails(
                 "Rosa", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
-                null, null, "079 555 66 77", null, null, true, null);
+                null, null, "079 555 66 77", null, null, true, false, null);
     }
 
     /** Every key the organiser template dereferences, so only the switch varies. */
@@ -283,10 +310,19 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
         for (String key : List.of("clubName", "locationName", "flightDate", "contactDate",
                 "candidateName", "addressLine1", "zip", "city", "privateEmail", "mobilePhone",
                 "privatePhone", "businessPhone", "remarks", "invoiceName", "invoiceAddressLine1",
-                "invoiceZip", "invoiceCity")) {
+                "invoiceZip", "invoiceCity", "couponRecipientName")) {
             model.put(key, "");
         }
         return model;
+    }
+
+/**
+     * The intake rejects a day the club never published, so every discovery
+     * case here needs the picker's day to genuinely exist.
+     */
+    private void publishDiscoveryDay(LocalDate eventDate) {
+        TenantTestContext.runAs(clubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
     }
 
     private void clearOrganiserAddresses() {

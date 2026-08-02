@@ -6,6 +6,8 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.flighttypes.domain.FlightTypeRepository;
 import ch.alpenflight.locations.domain.Location;
@@ -63,6 +65,7 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
     @Autowired AircraftRepository aircraft;
     @Autowired AircraftTypeRepository aircraftTypes;
     @Autowired FlightTypeRepository flightTypes;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
     @Autowired JdbcTemplate jdbc;
 
     private UUID clubId;
@@ -82,6 +85,7 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
         club.enablePublicRegistration();
         clubs.save(club);
         slug = Objects.requireNonNull(club.getSlug(), "fixture club has no slug");
+        publishDiscoveryDay(DISCOVERY_DAY);
 
         discoveryFlightTypeId = TenantTestContext.runAs(clubId, () -> {
             FlightType type = flightTypes.save(FlightType.register(
@@ -240,6 +244,15 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
                 "discovery registration carries no reservation outcome");
     }
 
+/**
+     * The intake rejects a day the club never published, so every discovery
+     * case here needs the picker's day to genuinely exist.
+     */
+    private void publishDiscoveryDay(LocalDate eventDate) {
+        TenantTestContext.runAs(clubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
+    }
+
     private UUID giveClubAHomebase() {
         UUID homebaseId = TenantTestContext.runAs(clubId, () -> {
             Location home = locations.save(Location.create(
@@ -299,7 +312,7 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
                 firstname, "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
                 null, null, "079 555 66 77",
                 firstname.toLowerCase(Locale.ROOT) + ".renggli@example.ch",
-                null, true, null);
+                null, true, false, null);
     }
 
     private Instant dayStart() {

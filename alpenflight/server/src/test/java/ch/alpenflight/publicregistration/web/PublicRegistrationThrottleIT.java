@@ -4,11 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,6 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @AutoConfigureTestRestTemplate
 class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
 
+    private static final LocalDate DISCOVERY_DAY = LocalDate.of(2099, 6, 15);
     private static final int PER_CLUB_LIMIT = 10;
     private static final int WINDOW_SECONDS = 15 * 60;
     private static final String AUDIT_ENTITY_TYPE = "PublicFlightRegistration";
@@ -50,6 +56,7 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
     @Autowired ClubRepository clubs;
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
+    @Autowired DiscoveryFlightDayRepository discoveryDays;
 
     private UUID openClubId;
     private String openSlug;
@@ -63,18 +70,23 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
         openClubId = fixture.clubA();
         openSlug = openPublicRegistration(openClubId);
         otherSlug = openPublicRegistration(fixture.clubB());
+        TenantTestContext.runAs(openClubId, () ->
+                discoveryDays.save(DiscoveryFlightDay.schedule(DISCOVERY_DAY, DISCOVERY_DAY)));
     }
 
     @Test
     void the_attempt_past_the_limit_is_429_with_a_retryAfter_and_writes_nothing() {
         String source = "203.0.113.11";
-        long personsBefore = count("t_person");
-        long membershipsBefore = count("t_person_club");
 
         for (int attempt = 0; attempt < PER_CLUB_LIMIT; attempt++) {
             assertThat(submitDiscovery(source, openSlug).getStatusCode())
-                    .isEqualTo(HttpStatus.ACCEPTED);
+                    .isEqualTo(HttpStatus.CREATED);
         }
+        // Measured after the accepted run, so the delta belongs to the refused
+        // attempt alone — the ten before it legitimately registered someone.
+        long personsBefore = count("t_person");
+        long membershipsBefore = count("t_person_club");
+
         ResponseEntity<Void> refused = submitDiscovery(source, openSlug);
 
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
@@ -93,7 +105,7 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
         }
 
         assertThat(submitDiscovery(fresh, openSlug).getStatusCode())
-                .isEqualTo(HttpStatus.ACCEPTED);
+                .isEqualTo(HttpStatus.CREATED);
         assertThat(submitDiscovery(exhausted, openSlug).getStatusCode())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
@@ -129,17 +141,17 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
     }
 
     private ResponseEntity<Void> submitDiscovery(String source, String slug) {
-        return anonymousPost(source,
-                "/api/v1/public/clubs/" + slug + "/discovery-flight-registrations");
+        RequestEntity<?> request = RequestEntity
+                .post(URI.create("/api/v1/public/clubs/" + slug + "/discovery-flight-registrations"))
+                .header("X-Forwarded-For", source)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(DiscoverySubmissions.body(DISCOVERY_DAY));
+        return rest.exchange(request, Void.class);
     }
 
     private ResponseEntity<Void> submitScenic(String source, String slug) {
-        return anonymousPost(source,
-                "/api/v1/public/clubs/" + slug + "/scenic-flight-registrations");
-    }
-
-    private ResponseEntity<Void> anonymousPost(String source, String path) {
-        RequestEntity<Void> request = RequestEntity.post(URI.create(path))
+        RequestEntity<Void> request = RequestEntity
+                .post(URI.create("/api/v1/public/clubs/" + slug + "/scenic-flight-registrations"))
                 .header("X-Forwarded-For", source)
                 .build();
         return rest.exchange(request, Void.class);

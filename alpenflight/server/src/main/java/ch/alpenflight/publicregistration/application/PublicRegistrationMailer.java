@@ -147,13 +147,17 @@ class PublicRegistrationMailer {
 
     private static Map<String, Object> model(PublicClub club, PublicRegistrantDetails registrant) {
         InvoiceRecipient invoice = registrant.invoiceRecipient();
+        String candidateName = registrant.firstname() + " " + registrant.lastname();
+        String invoiceName = invoice == null
+                ? candidateName
+                : invoice.firstname() + " " + invoice.lastname();
         Map<String, Object> model = new HashMap<>();
         model.put("clubName", club.clubName());
         model.put("locationName", "");
         model.put("flightDate", "");
         model.put("contactDate", "");
         model.put("reservationMessageKey", "");
-        model.put("candidateName", registrant.firstname() + " " + registrant.lastname());
+        model.put("candidateName", candidateName);
         model.put("addressLine1", registrant.addressLine1());
         model.put("zip", registrant.zip());
         model.put("city", registrant.city());
@@ -162,13 +166,16 @@ class PublicRegistrationMailer {
         model.put("privatePhone", orEmpty(registrant.privatePhone()));
         model.put("businessPhone", orEmpty(registrant.businessPhone()));
         model.put("remarks", orEmpty(registrant.remarks()));
-        model.put("invoiceName", invoice == null
-                ? registrant.firstname() + " " + registrant.lastname()
-                : invoice.firstname() + " " + invoice.lastname());
+        model.put("invoiceName", invoiceName);
         model.put("invoiceAddressLine1",
                 invoice == null ? registrant.addressLine1() : invoice.addressLine1());
         model.put("invoiceZip", invoice == null ? registrant.zip() : invoice.zip());
         model.put("invoiceCity", invoice == null ? registrant.city() : invoice.city());
+        // Legacy ships a role label ("Rechnungs-Empfänger" / "Schnupperflug-
+        // Kandidat"); the name says the same thing and spares the organiser the
+        // cross-reference.
+        model.put("couponRecipientName",
+                registrant.sendCouponToInvoiceAddress() ? invoiceName : candidateName);
         return model;
     }
 

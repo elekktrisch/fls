@@ -6,6 +6,7 @@ import ch.alpenflight.publicregistration.application.PublicRegistrationThrottled
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -32,6 +33,19 @@ class PublicRegistrationExceptionHandler {
 
     @ExceptionHandler(PublicRegistrationInvalidException.class)
     ResponseEntity<Void> handleInvalid(PublicRegistrationInvalidException e) {
+        return ResponseEntity.badRequest().build();
+    }
+
+    /**
+     * The request records reject a missing member from their compact
+     * constructors, so a submission that fails the contract during
+     * deserialization arrives wrapped rather than as
+     * {@link PublicRegistrationInvalidException}. Same 400, same empty body —
+     * an anonymous caller learns no more from malformed JSON than from a
+     * malformed field.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<Void> handleUnreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest().build();
     }
 

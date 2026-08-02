@@ -1850,18 +1850,66 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DiscoveryFlightRegistrationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
-          "202" : {
-            "description" : "Accepted for the resolved club."
+          "201" : {
+            "description" : "Registered; Location names the registrant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightRegistrationResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "The registrant field contract failed, or the day is not one the club still offers.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "403" : {
-            "description" : "The club has closed public registration."
+            "description" : "The club has closed public registration.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "404" : {
-            "description" : "No club is published at that slug."
+            "description" : "No club is published at that slug.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "429" : {
-            "description" : "Abuse guard tripped; retry after the Retry-After header."
+            "description" : "Abuse guard tripped; retry after the Retry-After header.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightRegistrationResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4084,6 +4132,65 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/FlightProcessStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/clubs/{clubSlug}/discovery-flight-days" : {
+      "get" : {
+        "tags" : [ "public-registration" ],
+        "summary" : "The days a club still offers discovery flights on.",
+        "operationId" : "listPublicDiscoveryFlightDays",
+        "parameters" : [ {
+          "name" : "clubSlug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Bookable days ascending; empty when the club has published none.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "type" : "string",
+                    "format" : "date"
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "The club has closed public registration.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "type" : "string",
+                    "format" : "date"
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No club is published at that slug.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "type" : "string",
+                    "format" : "date"
+                  }
                 }
               }
             }
@@ -7367,6 +7474,112 @@
           }
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "DiscoveryFlightRegistrationRequest" : {
+        "type" : "object",
+        "description" : "A discovery-flight submission: who registers, and for which published day.",
+        "properties" : {
+          "registrant" : {
+            "$ref" : "#/components/schemas/PublicRegistrantDetails"
+          },
+          "selectedDay" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }
+      },
+      "InvoiceRecipient" : {
+        "type" : "object",
+        "properties" : {
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          },
+          "addressLine1" : {
+            "type" : "string"
+          },
+          "zip" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "notificationEmail" : {
+            "type" : "string"
+          }
+        }
+      },
+      "PublicRegistrantDetails" : {
+        "type" : "object",
+        "properties" : {
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          },
+          "addressLine1" : {
+            "type" : "string"
+          },
+          "zip" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "privatePhone" : {
+            "type" : "string"
+          },
+          "businessPhone" : {
+            "type" : "string"
+          },
+          "mobilePhone" : {
+            "type" : "string"
+          },
+          "privateEmail" : {
+            "type" : "string"
+          },
+          "remarks" : {
+            "type" : "string"
+          },
+          "invoiceAddressIsSame" : {
+            "type" : "boolean"
+          },
+          "sendCouponToInvoiceAddress" : {
+            "type" : "boolean"
+          },
+          "invoiceRecipient" : {
+            "$ref" : "#/components/schemas/InvoiceRecipient"
+          }
+        }
+      },
+      "DiscoveryFlightRegistrationResponse" : {
+        "type" : "object",
+        "description" : "The accepted discovery-flight registration.",
+        "properties" : {
+          "registrantPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubName" : {
+            "type" : "string"
+          },
+          "selectedDay" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }
       },
       "PlanningDayCreateRequest" : {
         "type" : "object",
