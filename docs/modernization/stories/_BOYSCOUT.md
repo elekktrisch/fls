@@ -17,6 +17,25 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-17 T-07b, 2026-08-02)
+
+- **[AUDIT-ACTOR-KIND]** `AuditActorKind.SYSTEM` has no writer anywhere in the repo: the listener leaves every
+  runtime row at `NORMAL` and the cutover importer is the only thing that writes `LEGACY_MIGRATED`, so
+  `actor_kind` is in practice a native-vs-imported marker while the `system_actor` boolean does the actual
+  actor classification. T-07b confirmed `/system/logs` renders `system_actor` (`AuditEventDtos.AuditEventRow`
+  carries no `actorKind`) and pinned that in `AnonymousActorProjectionIT`, so nothing is user-visibly broken —
+  but the enum keeps a dead constant. Decide one way: **delete `SYSTEM`** (needs a migration to refresh the
+  `COMMENT ON COLUMN t_mutation_audit_event.actor_kind` V18 planted, which still enumerates it — the V18 file
+  itself is applied and must not be edited), **or** promote `actor_kind` to the single classifier and retire
+  `system_actor`, carrying it through the projection + the viewer's actor cell in the same change.
+  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` goes red either way and is the
+  intended tripwire. *(seam: `AuditActorKind` + `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts`)*
+- **[AUDIT-ACTOR-CELL]** Same cell, separate nit: for an authenticated row `/system/logs` prints the raw
+  `actorUserId` UUID, and prints **nothing** when the principal has no `t_user` row (a federated sub the
+  lookup can't resolve — `ActorResolver` legitimately yields a null id while `system_actor` stays false). Give
+  the cell a username/display-name (or at minimum fall back to `actorKeycloakSub`) so an audit reader can tell
+  who acted. *(seam: `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts:187`)*
+
 ## Pending (filed by /do-ship J-15 gate, 2026-08-02)
 
 - **[J-15-MAILPIT-REPORT]** The J-15 AC "Run now → Daily Report → Mailpit email" is the one AC not proven as
