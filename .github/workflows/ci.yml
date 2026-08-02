@@ -64,8 +64,10 @@ jobs:
       # per-push, so an unrelated flaky mock spec can't red this journey's
       # `required`. `mock_is_full` is 'true' when derivation fell back to the
       # WHOLE chromium project (non-integration branch / no `mock_test:`
-      # frontmatter / underivable) — the FAIL-SAFE runs the full suite, never a
-      # no-spec run that Playwright would treat as "match nothing".
+      # frontmatter / underivable / the filter's specs are all still
+      # `test.fixme`) — the FAIL-SAFE runs the full suite, never a no-spec run
+      # that Playwright would treat as "match nothing", and never a scoped run
+      # that executes nothing.
       mock_filter: ${{ steps.mock_spec.outputs.filter }}
       mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
     steps:
@@ -267,9 +269,11 @@ jobs:
       #   1. branch = github.head_ref (PR) || github.ref_name (push).
       #   2. integration/J-NNN  →  journey id  (anything else → full suite).
       #   3. docs/.../J-NNN-*.md  →  `mock_test:` value → first path token →
-      #      strip a leading alpenflight/web/ → assert it exists on disk.
+      #      strip a leading alpenflight/web/ → assert it selects ≥1 spec on disk
+      #      carrying ≥1 active (non-fixme) test.
       # FAIL-SAFE: a non-integration branch, a missing journey file, no
-      # `mock_test:` frontmatter, or a filter that doesn't resolve on disk →
+      # `mock_test:` frontmatter, a filter that doesn't resolve on disk, or one
+      # whose specs are all still stubbed out →
       # emit an EMPTY filter + is_full=true, so the mock job runs the WHOLE
       # chromium project (the pre-T-02b baseline). NEVER a no-spec run — an empty
       # positional arg to `playwright test` means "run everything", which is
@@ -324,46 +328,77 @@ jobs:
           # VALIDATE the token resolves to real spec(s) under alpenflight/web/,
           # else fall back to the full suite (never risk a no-spec run). Two shapes:
           #   • PLAIN PATH (no regex metachars): a tests/<feature>/ dir OR a single
-          #     spec file — check it exists on disk directly (pre-J-6b behaviour).
+          #     spec file.
           #   • REGEX ALTERNATION (contains '(' or '|'): a Playwright positional
           #     regex like `tests/(a/x|b/y|c/z)`. Decompose it into its literal
           #     path stems and require EVERY stem to resolve on disk (a *.spec.ts
           #     file or a prefix of one). The chromium project's testMatch still
           #     applies on top, so the regex only narrows — it can't widen.
+          # Both shapes resolve through `specs_for` so the active-test guard below
+          # inspects exactly the files the filter would hand to Playwright.
+          specs_for() { # $1 path stem → the *.spec.ts files it selects
+            if [ -d "alpenflight/web/$1" ]; then
+              find "alpenflight/web/$1" -type f -name '*.spec.ts'
+            elif [ -f "alpenflight/web/$1" ]; then
+              printf '%s\n' "alpenflight/web/$1"
+            else
+              # A positional regex matches by path PREFIX, so a stem like
+              # `…-hardening` selects `…-hardening.spec.ts`.
+              ls "alpenflight/web/$1"*.spec.ts 2>/dev/null || true
+            fi
+          }
+          selected=''
+          ok=1
           case "$filter" in
             *'('*|*'|'*)
               # Expand the alternation: drop the leading `prefix(`, the trailing
               # `)`, split on '|', and re-prepend the prefix to each branch.
               prefix="$(printf '%s' "$filter" | sed -E 's/\(.*$//')"
               inner="$(printf '%s' "$filter" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//')"
-              ok=1
               IFS='|'
               for branch in $inner; do
                 stem="${prefix}${branch}"
-                # A stem resolves if a *.spec.ts under alpenflight/web/ starts with
-                # it (the regex matches by path prefix, e.g. `…-hardening` → the
-                # `…-hardening.spec.ts` file). Match dir-or-file-prefix via glob.
-                if ! ls "alpenflight/web/${stem}"*.spec.ts >/dev/null 2>&1 \
-                   && [ ! -e "alpenflight/web/${stem}" ]; then
+                found="$(specs_for "$stem")"
+                if [ -z "$found" ]; then
                   echo "mock filter branch '${stem}' resolves to no spec on disk"
                   ok=0
                 fi
+                selected="$(printf '%s\n%s\n' "$selected" "$found")"
               done
               unset IFS
-              if [ "$ok" = 1 ]; then
-                emit "$filter" "false"; exit 0
-              fi
-              echo "mock filter regex '${filter}' has an unresolved branch → full chromium suite (fail-safe)"
-              emit "" "true"; exit 0
               ;;
             *)
-              if [ -e "alpenflight/web/${filter}" ]; then
-                emit "$filter" "false"; exit 0
+              selected="$(specs_for "$filter")"
+              if [ -z "$selected" ]; then
+                echo "mock filter '${filter}' resolves to no spec on disk"
+                ok=0
               fi
-              echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
-              emit "" "true"; exit 0
               ;;
           esac
+          if [ "$ok" != 1 ]; then
+            echo "mock filter '${filter}' does not resolve → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # A filter that resolves on disk can still select ONLY `test.fixme(` /
+          # `test.skip(` cases — a journey's mock spec at stub stage. Scoping to it
+          # would execute ZERO tests and report the gate green for the whole
+          # build-up. So mirror the proof-spec step: narrow only once ≥1 selected
+          # spec declares an active top-level `test(` (a `.` after `test` excludes
+          # fixme/skip/describe), and keep running the full suite until then. This
+          # auto-flips when the assertions are thickened, with no workflow change.
+          active=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            if grep -qE '^[[:space:]]*test\(' "$f"; then
+              active=1
+              break
+            fi
+          done <<< "$selected"
+          if [ "$active" = 1 ]; then
+            emit "$filter" "false"; exit 0
+          fi
+          echo "mock filter '${filter}' selects no ACTIVE (non-fixme) test → full chromium suite until thickened"
+          emit "" "true"; exit 0
 
 
   # ---------------------------------------------------------------------------
@@ -1985,7 +2020,9 @@ jobs:
   # own cron if any) + once at the §4 do-ship gate (e2e-driver's full chain) —
   # the cross-journey mock regression is preserved, just not per-push.
   # FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter /
-  # underivable filter → `mock_is_full=true` + empty filter → the WHOLE chromium
+  # underivable filter / a filter whose specs are all still `test.fixme` (a
+  # scoped run there would execute nothing and report green) →
+  # `mock_is_full=true` + empty filter → the WHOLE chromium
   # project runs (the pre-T-02b baseline), never a no-spec run.
   # ---------------------------------------------------------------------------
   # SHARDING (J-27 T-12). `workers` is a Playwright TOP-LEVEL option (the
