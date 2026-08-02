@@ -287,6 +287,13 @@ audit:
           # club settings meant to be shown publicly, not member PII.
           - city
           - logoUrl
+          # Public flight-experience registration config. The two operator
+          # addresses are the club's organiser notification recipients (club
+          # config, same class as sendPlanningDayInfoMailTo above — not a
+          # member's personal address); the flight type is an id.
+          - discoveryFlightOperatorEmail
+          - scenicFlightOperatorEmail
+          - discoveryFlightTypeId
           - deletedOn
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a

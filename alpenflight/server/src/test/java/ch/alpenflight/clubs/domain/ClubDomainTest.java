@@ -139,6 +139,69 @@ class ClubDomainTest {
     }
 
     @Test
+    void registrationOperatorEmails_canonicalize_a_delimited_list_to_comma_joined() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+
+        club.setRegistrationOperatorEmails(
+                " Schnupper@club.example; ops@club.example , Second@club.example ",
+                "mitflug@club.example");
+
+        assertThat(club.getDiscoveryFlightOperatorEmail())
+                .isEqualTo("schnupper@club.example,ops@club.example,second@club.example");
+        assertThat(club.getScenicFlightOperatorEmail()).isEqualTo("mitflug@club.example");
+        assertThat(club.notifiesDiscoveryFlightOperator()).isTrue();
+        assertThat(club.notifiesScenicFlightOperator()).isTrue();
+    }
+
+    @Test
+    void registrationOperatorEmails_stay_optional_so_an_unset_address_only_skips_the_organiser_mail() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.notifiesDiscoveryFlightOperator()).isFalse();
+        assertThat(club.notifiesScenicFlightOperator()).isFalse();
+
+        club.setRegistrationOperatorEmails("ops@club.example", "ops@club.example");
+        club.setRegistrationOperatorEmails("   ", null);
+
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.getScenicFlightOperatorEmail()).isNull();
+        assertThat(club.notifiesDiscoveryFlightOperator()).isFalse();
+        assertThat(club.notifiesScenicFlightOperator()).isFalse();
+    }
+
+    @Test
+    void registrationOperatorEmails_reject_a_malformed_address_anywhere_in_the_list() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails("ops@club.example,not-an-email", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("discoveryFlightOperatorEmail");
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails(null, "nobody@"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("scenicFlightOperatorEmail");
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails(
+                ("a@b.example," + "c@d.example,").repeat(20), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("250");
+
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.getScenicFlightOperatorEmail()).isNull();
+    }
+
+    @Test
+    void discoveryFlightType_is_optional_and_clearable() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getDiscoveryFlightTypeId()).isNull();
+
+        UUID flightType = UUID.fromString("019e30c3-2c00-7001-8000-0000000000f1");
+        club.setDiscoveryFlightType(flightType);
+        assertThat(club.getDiscoveryFlightTypeId()).isEqualTo(flightType);
+
+        club.setDiscoveryFlightType(null);
+        assertThat(club.getDiscoveryFlightTypeId()).isNull();
+    }
+
+    @Test
     void planningNotification_optIn_tracks_a_nonBlank_recipient_address() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.wantsPlanningDayNotifications()).isFalse();

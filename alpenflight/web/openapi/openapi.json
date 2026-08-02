@@ -6518,6 +6518,24 @@
             "format" : "uuid",
             "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
             "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "discoveryFlightOperatorEmail" : {
+            "type" : "string",
+            "description" : "Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Discovery-flight registrations.",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "scenicFlightOperatorEmail" : {
+            "type" : "string",
+            "description" : "Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Scenic-flight registrations.",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "discoveryFlightTypeId" : {
+            "type" : "string",
+            "description" : "Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
         "required" : [ "clubStateId", "countryId", "name", "slug" ]
@@ -6562,6 +6580,20 @@
           "logoUrl" : {
             "type" : "string",
             "description" : "Public-display logo URL, or null."
+          },
+          "discoveryFlightOperatorEmail" : {
+            "type" : "string",
+            "description" : "Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Discovery-flight registrations."
+          },
+          "scenicFlightOperatorEmail" : {
+            "type" : "string",
+            "description" : "Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Scenic-flight registrations."
+          },
+          "discoveryFlightTypeId" : {
+            "type" : "string",
+            "description" : "Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "joinCode" : {
             "type" : "string",

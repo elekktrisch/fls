@@ -4,6 +4,7 @@ import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
+import ch.alpenflight.platform.id.FlightTypeId;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -38,6 +39,9 @@ final class ClubMapper {
                         "Club is missing clubStateId (NOT NULL invariant in V2)"),
                 club.getCity(),
                 club.getLogoUrl(),
+                club.getDiscoveryFlightOperatorEmail(),
+                club.getScenicFlightOperatorEmail(),
+                FlightTypeId.ofNullable(club.getDiscoveryFlightTypeId()),
                 joinCode);
     }
 }

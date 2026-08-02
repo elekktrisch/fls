@@ -159,6 +159,59 @@ class ClubsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateClub_roundTrips_registration_operator_emails_canonicalized_and_optional() {
+        String slug = "operator-" + suffix();
+        String id = readJson(post("/api/v1/clubs",
+                createPayload("Operator Club", slug, "OPR" + shortSuffix()))).get("id").asText();
+
+        Map<String, Object> payload = updatePayload("Operator Club", slug, true);
+        payload.put("discoveryFlightOperatorEmail", " Schnupper@club.example; ops@club.example ");
+        payload.put("scenicFlightOperatorEmail", "mitflug@club.example");
+        JsonNode updated = readJson(put("/api/v1/clubs/" + id, payload));
+        assertThat(updated.get("discoveryFlightOperatorEmail").asText())
+                .isEqualTo("schnupper@club.example,ops@club.example");
+        assertThat(updated.get("scenicFlightOperatorEmail").asText())
+                .isEqualTo("mitflug@club.example");
+
+        // Blank clears the opt-in rather than failing — an unset organiser
+        // address must never block a registration.
+        Map<String, Object> cleared = updatePayload("Operator Club", slug, true);
+        cleared.put("discoveryFlightOperatorEmail", "");
+        JsonNode afterClear = readJson(put("/api/v1/clubs/" + id, cleared));
+        assertThat(afterClear.hasNonNull("discoveryFlightOperatorEmail")).isFalse();
+        assertThat(afterClear.hasNonNull("scenicFlightOperatorEmail")).isFalse();
+        assertThat(afterClear.hasNonNull("discoveryFlightTypeId")).isFalse();
+    }
+
+    @Test
+    void updateClub_malformed_operator_email_returns_400() {
+        String slug = "badmail-" + suffix();
+        String id = readJson(post("/api/v1/clubs",
+                createPayload("Bad Mail Club", slug, "BML" + shortSuffix()))).get("id").asText();
+
+        Map<String, Object> payload = updatePayload("Bad Mail Club", slug, false);
+        payload.put("discoveryFlightOperatorEmail", "ops@club.example,not-an-email");
+        ResponseEntity<String> res = put("/api/v1/clubs/" + id, payload);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).contains("discoveryFlightOperatorEmail");
+    }
+
+    @Test
+    void updateClub_unknown_discoveryFlightTypeId_returns_400_not_500() {
+        String slug = "badftype-" + suffix();
+        String id = readJson(post("/api/v1/clubs",
+                createPayload("Bad FlightType Club", slug, "BFT" + shortSuffix()))).get("id").asText();
+
+        Map<String, Object> payload = updatePayload("Bad FlightType Club", slug, false);
+        payload.put("discoveryFlightTypeId", "ft-00000000-0000-0000-0000-000000000000");
+        ResponseEntity<String> res = put("/api/v1/clubs/" + id, payload);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).contains("discoveryFlightTypeId");
+    }
+
+    @Test
     void updateClub_unknownId_returns_404() {
         // Valid ClubId external form but no Club with that UUID exists.
         ClubId ghost = ClubId.of(new java.util.UUID(0L, 0L));

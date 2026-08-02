@@ -24,6 +24,15 @@ export type ClubResponse = {
   city?: string;
   /** Public-display logo URL, or null. */
   logoUrl?: string;
+  /** Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Discovery-flight registrations. */
+  discoveryFlightOperatorEmail?: string;
+  /** Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Scenic-flight registrations. */
+  scenicFlightOperatorEmail?: string;
+  /**
+     * Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.
+     * @pattern ^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     */
+  discoveryFlightTypeId?: string;
   /** Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise. */
   joinCode?: string;
 };

@@ -176,6 +176,10 @@ public class ClubsService {
             club.disablePublicRegistration();
         }
         club.relocate(req.countryId().value(), req.clubStateId().value());
+        club.setRegistrationOperatorEmails(
+                req.discoveryFlightOperatorEmail(), req.scenicFlightOperatorEmail());
+        club.setDiscoveryFlightType(
+                req.discoveryFlightTypeId() == null ? null : req.discoveryFlightTypeId().value());
         ClubResponse after = ClubMapper.toResponse(persist(club, req.slug()));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));

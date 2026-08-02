@@ -26,4 +26,21 @@ export type ClubUpdateRequest = {
   countryId: string;
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   clubStateId: string;
+  /**
+     * Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Discovery-flight registrations.
+     * @minLength 0
+     * @maxLength 250
+     */
+  discoveryFlightOperatorEmail?: string;
+  /**
+     * Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Scenic-flight registrations.
+     * @minLength 0
+     * @maxLength 250
+     */
+  scenicFlightOperatorEmail?: string;
+  /**
+     * Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.
+     * @pattern ^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     */
+  discoveryFlightTypeId?: string;
 };

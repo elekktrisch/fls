@@ -33,6 +33,9 @@ class ClubsExceptionHandler {
     private static final URI TYPE_CLUB_KEY_CONFLICT =
             URI.create("urn:alpenflight:problem:club-key-conflict");
 
+    private static final URI TYPE_INVALID_REFERENCE =
+            URI.create("urn:alpenflight:problem:invalid-club-reference");
+
     @ExceptionHandler(ClubNotFoundException.class)
     ResponseEntity<Void> handleNotFound(ClubNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -69,7 +72,25 @@ class ClubsExceptionHandler {
         if (message.contains("ux_club_slug")) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
+        // FlightType is @TenantId-scoped, so the sysadmin path cannot pre-check
+        // the reference through its repository the way countryId / clubStateId
+        // are pre-checked; the FK is the only arbiter and its violation is a
+        // caller error, not a 500.
+        if (message.contains("fk_club_discovery_flight_type_id")) {
+            return ProblemResponses.problem(invalidReference(
+                    "discoveryFlightTypeId", "No flight type with that id exists in this club."));
+        }
         throw e;
+    }
+
+    /**
+     * Aggregate-enforced input rules (ADR 0022 directive 2) — e.g. a malformed
+     * organiser email in {@code Club.setRegistrationOperatorEmails} — reach the
+     * web layer as {@link IllegalArgumentException}; they are caller errors.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
+        return ProblemResponses.badRequest(e);
     }
 
     @ExceptionHandler(InvalidClubReferenceException.class)
@@ -77,6 +98,15 @@ class ClubsExceptionHandler {
         String message = e.getMessage();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiError(e.getField(), message == null ? "Invalid reference" : message));
+    }
+
+    private static ProblemDetail invalidReference(String field, String detail) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(TYPE_INVALID_REFERENCE);
+        pd.setTitle("Invalid club reference");
+        pd.setDetail(detail);
+        pd.setProperty("field", field);
+        return pd;
     }
 
     private static ProblemDetail clubKeyConflict(@Nullable String detail) {
