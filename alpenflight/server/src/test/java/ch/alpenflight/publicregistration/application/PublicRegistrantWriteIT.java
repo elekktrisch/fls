@@ -98,49 +98,8 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
 
         assertThat(countPersons()).isEqualTo(personsBefore + 2);
         assertThat(accepted.club().clubId()).isEqualTo(clubId);
-
-        withPerson(accepted.registered().registrantPersonId(), person -> {
-            assertThat(person.getFirstname()).isEqualTo("Rosa");
-            assertThat(person.getLastname()).isEqualTo("Renggli");
-            assertThat(person.getAddressLine1()).isEqualTo("Flugplatzstrasse 7");
-            assertThat(person.getZip()).isEqualTo("6060");
-            assertThat(person.getCity()).isEqualTo("Sarnen");
-            assertThat(person.getPrivatePhone()).isEqualTo("041 660 11 22");
-            assertThat(person.getBusinessPhone()).isEqualTo("041 660 33 44");
-            assertThat(person.getMobilePhone()).isEqualTo("079 555 66 77");
-            assertThat(person.getEmailPrivate()).isEqualTo("rosa.renggli@example.ch");
-            assertThat(person.hasGliderTraineeLicence()).isTrue();
-
-            PersonClub membership = onlyMembership(person);
-            assertThat(membership.getClubId()).isEqualTo(clubId);
-            assertThat(membership.isGliderTrainee()).isTrue();
-            assertThat(membership.getMemberNumber()).isNull();
-            assertThat(membership.getMemberStateId()).isNull();
-            assertThat(membership.isActive()).isFalse();
-            assertThat(membership.isReceiveFlightReports()).isFalse();
-            assertThat(membership.isReceiveAircraftReservationNotifications()).isFalse();
-            assertThat(membership.isReceivePlanningDayRoleReminder()).isFalse();
-        });
-
-        UUID invoiceId = accepted.registered().invoicePersonId();
-        assertThat(invoiceId).isNotNull();
-        withPerson(Objects.requireNonNull(invoiceId), person -> {
-            assertThat(person.getFirstname()).isEqualTo("Beat");
-            assertThat(person.getLastname()).isEqualTo("Bezahler");
-            assertThat(person.getAddressLine1()).isEqualTo("Buchhaltungsweg 3");
-            assertThat(person.getZip()).isEqualTo("6003");
-            assertThat(person.getCity()).isEqualTo("Luzern");
-            assertThat(person.getEmailPrivate()).isEqualTo("beat.bezahler@example.ch");
-            assertThat(person.getMobilePhone()).isNull();
-            assertThat(person.getPrivatePhone()).isNull();
-            assertThat(person.getBusinessPhone()).isNull();
-            assertThat(person.hasGliderTraineeLicence()).isFalse();
-
-            PersonClub membership = onlyMembership(person);
-            assertThat(membership.getClubId()).isEqualTo(clubId);
-            assertThat(membership.isGliderTrainee()).isFalse();
-            assertThat(membership.isActive()).isFalse();
-        });
+        assertRegistrant(accepted, true);
+        assertInvoiceRecipient(accepted);
 
         // joinClub deduplicates per (person, club) pair: the stranger who was
         // already a member of this club keeps exactly the membership the fixture
@@ -165,12 +124,81 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void a_scenic_registration_leaves_both_trainee_markers_false() {
-        Accepted accepted = intake.acceptScenic(slug, "198.51.100.13", registrant(true));
+    void a_scenic_registration_writes_the_same_shape_with_both_trainee_markers_false() {
+        long personsBefore = countPersons();
 
+        Accepted accepted = intake.acceptScenic(slug, "198.51.100.13", registrant(false));
+
+        assertThat(countPersons()).isEqualTo(personsBefore + 2);
+        assertThat(accepted.club().clubId()).isEqualTo(clubId);
+        assertRegistrant(accepted, false);
+        assertInvoiceRecipient(accepted);
+        assertThat(accepted.reservation())
+                .as("the scenic form has no day selection, so there is nothing to book")
+                .isNull();
+    }
+
+    @Test
+    void no_invoice_person_is_created_for_a_scenic_registration_with_the_same_address() {
+        long personsBefore = countPersons();
+
+        Accepted accepted = intake.acceptScenic(slug, "198.51.100.14", registrant(true));
+
+        assertThat(accepted.registered().invoicePersonId()).isNull();
+        assertThat(countPersons()).isEqualTo(personsBefore + 1);
+        assertThat(countPersonsNamed("Bezahler")).isZero();
+    }
+
+    /**
+     * The registrant both flows write, differing only in the trainee markers —
+     * the same expectations are asserted for discovery and scenic so a marker
+     * that stops tracking {@code PublicRegistrationKind.marksGliderTrainee()}
+     * cannot pass on one flow and fail on the other.
+     */
+    private void assertRegistrant(Accepted accepted, boolean expectTrainee) {
         withPerson(accepted.registered().registrantPersonId(), person -> {
+            assertThat(person.getFirstname()).isEqualTo("Rosa");
+            assertThat(person.getLastname()).isEqualTo("Renggli");
+            assertThat(person.getAddressLine1()).isEqualTo("Flugplatzstrasse 7");
+            assertThat(person.getZip()).isEqualTo("6060");
+            assertThat(person.getCity()).isEqualTo("Sarnen");
+            assertThat(person.getPrivatePhone()).isEqualTo("041 660 11 22");
+            assertThat(person.getBusinessPhone()).isEqualTo("041 660 33 44");
+            assertThat(person.getMobilePhone()).isEqualTo("079 555 66 77");
+            assertThat(person.getEmailPrivate()).isEqualTo("rosa.renggli@example.ch");
+            assertThat(person.hasGliderTraineeLicence()).isEqualTo(expectTrainee);
+
+            PersonClub membership = onlyMembership(person);
+            assertThat(membership.getClubId()).isEqualTo(clubId);
+            assertThat(membership.isGliderTrainee()).isEqualTo(expectTrainee);
+            assertThat(membership.getMemberNumber()).isNull();
+            assertThat(membership.getMemberStateId()).isNull();
+            assertThat(membership.isActive()).isFalse();
+            assertThat(membership.isReceiveFlightReports()).isFalse();
+            assertThat(membership.isReceiveAircraftReservationNotifications()).isFalse();
+            assertThat(membership.isReceivePlanningDayRoleReminder()).isFalse();
+        });
+    }
+
+    private void assertInvoiceRecipient(Accepted accepted) {
+        UUID invoiceId = accepted.registered().invoicePersonId();
+        assertThat(invoiceId).isNotNull();
+        withPerson(Objects.requireNonNull(invoiceId), person -> {
+            assertThat(person.getFirstname()).isEqualTo("Beat");
+            assertThat(person.getLastname()).isEqualTo("Bezahler");
+            assertThat(person.getAddressLine1()).isEqualTo("Buchhaltungsweg 3");
+            assertThat(person.getZip()).isEqualTo("6003");
+            assertThat(person.getCity()).isEqualTo("Luzern");
+            assertThat(person.getEmailPrivate()).isEqualTo("beat.bezahler@example.ch");
+            assertThat(person.getMobilePhone()).isNull();
+            assertThat(person.getPrivatePhone()).isNull();
+            assertThat(person.getBusinessPhone()).isNull();
             assertThat(person.hasGliderTraineeLicence()).isFalse();
-            assertThat(onlyMembership(person).isGliderTrainee()).isFalse();
+
+            PersonClub membership = onlyMembership(person);
+            assertThat(membership.getClubId()).isEqualTo(clubId);
+            assertThat(membership.isGliderTrainee()).isFalse();
+            assertThat(membership.isActive()).isFalse();
         });
     }
 

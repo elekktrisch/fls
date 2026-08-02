@@ -199,6 +199,31 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
         assertThat(onlyReservation().get("flight_type_id")).isNull();
     }
 
+    /**
+     * The scenic flow's one behavioural difference from discovery
+     * ({@code RegistrationService.cs:269-411} books nothing). The club is fully
+     * bookable and the discovery submission that follows proves it, so the empty
+     * reservation count is the scenic flow's doing rather than an inert fixture.
+     */
+    @Test
+    void a_scenic_registration_books_nothing_in_a_club_discovery_can_book_in() {
+        giveClubAHomebase();
+        giveClubADoubleSeaterGlider();
+
+        Accepted scenic = intake.acceptScenic(slug, "198.51.100.28", registrant("Silvia"));
+
+        assertThat(scenic.registered().registrantPersonId()).isNotNull();
+        assertThat(scenic.reservation()).isNull();
+        assertThat(reservationRows()).isEmpty();
+
+        Accepted discovery = intake.acceptDiscovery(
+                slug, "198.51.100.29", registrant("Rosa"), DISCOVERY_DAY);
+
+        assertThat(requireOutcome(discovery).status()).isEqualTo(Status.BOOKED);
+        assertThat(onlyReservation().get("pilot_person_id"))
+                .isEqualTo(discovery.registered().registrantPersonId());
+    }
+
     private void assertRegisteredWithoutReservation(Accepted accepted, Status expected) {
         DiscoveryReservationOutcome outcome = requireOutcome(accepted);
         assertThat(outcome.status()).isEqualTo(expected);

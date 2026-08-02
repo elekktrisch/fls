@@ -56,12 +56,13 @@ public class PublicRegistrationTxWriter {
     }
 
     /**
-     * Creates the registrant and, when the invoice address differs, the second
-     * Person the invoice is addressed to — both joined to the resolved club.
+     * The scenic flow: the shared registrant write and nothing else. The kind is
+     * fixed here rather than passed in, so no caller can route a discovery
+     * submission down a path that silently books no slot.
      */
     @Transactional
-    public RegisteredPersons registerPersons(PublicClub club,
-            PublicRegistrationKind kind, PublicRegistrantDetails details) {
+    public RegisteredPersons registerScenic(PublicClub club, PublicRegistrantDetails details) {
+        PublicRegistrationKind kind = PublicRegistrationKind.SCENIC_FLIGHT;
         RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
         audit(club, kind);
         return registered;

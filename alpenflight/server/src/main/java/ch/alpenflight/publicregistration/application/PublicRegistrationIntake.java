@@ -68,10 +68,18 @@ public class PublicRegistrationIntake {
         return new Accepted(club, written.persons(), written.reservation());
     }
 
-    /** Registers a scenic-flight passenger: a Person in the resolved club, no trainee marker. */
+    /**
+     * Registers a scenic-flight passenger: the same registrant write as
+     * discovery with both trainee markers false, and no aircraft slot — the
+     * scenic form carries no day to book one against.
+     */
     public Accepted acceptScenic(String clubSlug, String clientIp,
             PublicRegistrantDetails registrant) {
-        return register(clubSlug, clientIp, PublicRegistrationKind.SCENIC_FLIGHT, registrant);
+        guard.recordAndCheck(clientIp, clubSlug);
+        PublicClub club = resolver.resolve(clubSlug);
+        RegisteredPersons registered =
+                Tenants.runAs(club.clubId(), () -> writer.registerScenic(club, registrant));
+        return new Accepted(club, registered, null);
     }
 
     private PublicClub accept(String clubSlug, String clientIp, PublicRegistrationKind kind) {
@@ -79,15 +87,6 @@ public class PublicRegistrationIntake {
         PublicClub club = resolver.resolve(clubSlug);
         Tenants.runAs(club.clubId(), () -> writer.recordAccepted(club, kind));
         return club;
-    }
-
-    private Accepted register(String clubSlug, String clientIp,
-            PublicRegistrationKind kind, PublicRegistrantDetails registrant) {
-        guard.recordAndCheck(clientIp, clubSlug);
-        PublicClub club = resolver.resolve(clubSlug);
-        RegisteredPersons registered =
-                Tenants.runAs(club.clubId(), () -> writer.registerPersons(club, kind, registrant));
-        return new Accepted(club, registered, null);
     }
 
     /**
