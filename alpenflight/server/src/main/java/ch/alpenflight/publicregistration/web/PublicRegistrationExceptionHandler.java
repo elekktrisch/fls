@@ -1,6 +1,8 @@
 package ch.alpenflight.publicregistration.web;
 
 import ch.alpenflight.publicregistration.application.PublicClubUnavailableException;
+import ch.alpenflight.publicregistration.application.PublicRegistrationThrottledException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,5 +27,12 @@ class PublicRegistrationExceptionHandler {
             case REGISTRATION_CLOSED -> HttpStatus.FORBIDDEN;
         };
         return ResponseEntity.status(status).build();
+    }
+
+    @ExceptionHandler(PublicRegistrationThrottledException.class)
+    ResponseEntity<Void> handleThrottled(PublicRegistrationThrottledException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(e.retryAfterSeconds()))
+                .build();
     }
 }

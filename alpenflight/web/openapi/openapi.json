@@ -1830,6 +1830,9 @@
           },
           "404" : {
             "description" : "No club is published at that slug."
+          },
+          "429" : {
+            "description" : "Abuse guard tripped; retry after the Retry-After header."
           }
         }
       }
@@ -1856,6 +1859,9 @@
           },
           "404" : {
             "description" : "No club is published at that slug."
+          },
+          "429" : {
+            "description" : "Abuse guard tripped; retry after the Retry-After header."
           }
         }
       }

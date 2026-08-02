@@ -4,6 +4,7 @@ import ch.alpenflight.publicregistration.application.PublicRegistrationIntake;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 class PublicRegistrationController {
 
     private final PublicRegistrationIntake intake;
+    private final ClientIpResolver clientIps;
 
-    PublicRegistrationController(PublicRegistrationIntake intake) {
+    PublicRegistrationController(PublicRegistrationIntake intake, ClientIpResolver clientIps) {
         this.intake = intake;
+        this.clientIps = clientIps;
     }
 
     @Operation(operationId = "submitDiscoveryFlightRegistration",
@@ -36,9 +39,12 @@ class PublicRegistrationController {
     @ApiResponse(responseCode = "202", description = "Accepted for the resolved club.")
     @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
     @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
+    @ApiResponse(responseCode = "429",
+            description = "Abuse guard tripped; retry after the Retry-After header.")
     @PostMapping("/api/v1/public/clubs/{clubSlug}/discovery-flight-registrations")
-    ResponseEntity<Void> submitDiscoveryFlightRegistration(@PathVariable String clubSlug) {
-        intake.acceptDiscovery(clubSlug);
+    ResponseEntity<Void> submitDiscoveryFlightRegistration(
+            @PathVariable String clubSlug, HttpServletRequest request) {
+        intake.acceptDiscovery(clubSlug, clientIps.resolve(request));
         return ResponseEntity.accepted().build();
     }
 
@@ -47,9 +53,12 @@ class PublicRegistrationController {
     @ApiResponse(responseCode = "202", description = "Accepted for the resolved club.")
     @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
     @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
+    @ApiResponse(responseCode = "429",
+            description = "Abuse guard tripped; retry after the Retry-After header.")
     @PostMapping("/api/v1/public/clubs/{clubSlug}/scenic-flight-registrations")
-    ResponseEntity<Void> submitScenicFlightRegistration(@PathVariable String clubSlug) {
-        intake.acceptScenic(clubSlug);
+    ResponseEntity<Void> submitScenicFlightRegistration(
+            @PathVariable String clubSlug, HttpServletRequest request) {
+        intake.acceptScenic(clubSlug, clientIps.resolve(request));
         return ResponseEntity.accepted().build();
     }
 }
