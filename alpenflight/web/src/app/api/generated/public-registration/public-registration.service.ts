@@ -27,7 +27,9 @@ import {
 
 import type {
   DiscoveryFlightRegistrationRequest,
-  DiscoveryFlightRegistrationResponse
+  DiscoveryFlightRegistrationResponse,
+  ScenicFlightRegistrationRequest,
+  ScenicFlightRegistrationResponse
 } from '../model';
 
 
@@ -81,15 +83,19 @@ export class PublicRegistrationService {
 /**
  * @summary Register anonymously for a club's scenic flight.
  */
- submitScenicFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientBodyOptions): Observable<TData>;
- submitScenicFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- submitScenicFlightRegistration<TData = void>(clubSlug: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  submitScenicFlightRegistration<TData = void>(
-    clubSlug: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+ submitScenicFlightRegistration<TData = ScenicFlightRegistrationResponse>(clubSlug: string,
+    scenicFlightRegistrationRequest: ScenicFlightRegistrationRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ submitScenicFlightRegistration<TData = ScenicFlightRegistrationResponse>(clubSlug: string,
+    scenicFlightRegistrationRequest: ScenicFlightRegistrationRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ submitScenicFlightRegistration<TData = ScenicFlightRegistrationResponse>(clubSlug: string,
+    scenicFlightRegistrationRequest: ScenicFlightRegistrationRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  submitScenicFlightRegistration<TData = ScenicFlightRegistrationResponse>(
+    clubSlug: string,
+    scenicFlightRegistrationRequest: ScenicFlightRegistrationRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/scenic-flight-registrations`,
-      undefined,{
+      scenicFlightRegistrationRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -99,7 +105,7 @@ export class PublicRegistrationService {
     if (options?.observe === 'response') {
       return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/scenic-flight-registrations`,
-      undefined,{
+      scenicFlightRegistrationRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -108,7 +114,7 @@ export class PublicRegistrationService {
 
     return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/scenic-flight-registrations`,
-      undefined,{
+      scenicFlightRegistrationRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

@@ -172,6 +172,8 @@ export * from './publicRegistrantDetails';
 export * from './recipient';
 export * from './reservationValidationResult';
 export * from './runTestResult';
+export * from './scenicFlightRegistrationRequest';
+export * from './scenicFlightRegistrationResponse';
 export * from './sseEmitter';
 export * from './streamingResponseBody';
 export * from './submitJoinRequest';

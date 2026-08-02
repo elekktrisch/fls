@@ -49,4 +49,27 @@ public final class PublicRegistrationDtos {
             PersonId registrantPersonId,
             String clubName,
             LocalDate selectedDay) {}
+
+    /**
+     * The scenic submission carries no day, and a day it silently accepted would
+     * be worse than one it refuses: the flow reaches no booker, so the caller
+     * would read the 201 as a blocked slot. The strict object mapper
+     * ({@code spring.jackson.deserialization.fail-on-unknown-properties})
+     * therefore does the refusing — this record stays the scenic wire contract
+     * rather than growing a field it would have to drop.
+     */
+    @Schema(description = "A scenic-flight submission: who registers.")
+    public record ScenicFlightRegistrationRequest(PublicRegistrantDetails registrant) {
+
+        public ScenicFlightRegistrationRequest {
+            if (registrant == null) {
+                throw new PublicRegistrationInvalidException("registrant is required");
+            }
+        }
+    }
+
+    @Schema(description = "The accepted scenic-flight registration.")
+    public record ScenicFlightRegistrationResponse(
+            PersonId registrantPersonId,
+            String clubName) {}
 }

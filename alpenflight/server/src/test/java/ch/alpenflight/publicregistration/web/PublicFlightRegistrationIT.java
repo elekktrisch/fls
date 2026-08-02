@@ -41,8 +41,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * The discovery-flight HTTP surface as an anonymous visitor drives it: the
- * available-days GET the picker reads and the registration POST it submits.
+ * The public-registration HTTP surface as an anonymous visitor drives it: the
+ * available-days GET the picker reads, the discovery POST it submits, and the
+ * scenic POST of the form that has no picker at all.
  *
  * <p>The load-bearing group is the three {@code selectedDay} rejections. The
  * seeded club is genuinely bookable — {@link #a_submission_on_a_published_day_is_201}
@@ -53,13 +54,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * the picker is decorative: an anonymous caller could pick any date and have the
  * club's double-seater blocked on it.
  *
+ * <p>The scenic cases share that same bookable club deliberately: "the scenic
+ * flow books nothing" is only worth asserting where a booking would otherwise
+ * have happened, so the scenic submission's empty reservation count is followed
+ * by a discovery submission into the very same club that fills it.
+ *
  * <p>The days GET is seeded adversarially for the same reason — the past and
  * withdrawn days and the other club's day all exist while it runs, so an
  * unfiltered or untenanted read fails instead of passing on an empty club.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
+class PublicFlightRegistrationIT extends PostgresIntegrationTest {
 
     private static final LocalDate BOOKABLE_DAY = LocalDate.of(2099, 6, 15);
     private static final LocalDate PAST_DAY = LocalDate.of(2020, 6, 15);
@@ -165,6 +171,48 @@ class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void a_scenic_submission_is_201_and_books_nothing_where_discovery_books() {
+        ResponseEntity<Map<String, Object>> response = submitScenic(openSlug);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Map<String, Object> body = Objects.requireNonNull(response.getBody());
+        assertThat(body.get("clubName")).isEqualTo(openClubName);
+        assertThat(body).doesNotContainKey("selectedDay");
+        String registrantPersonId = (String) body.get("registrantPersonId");
+        assertThat(registrantPersonId).startsWith("pn-");
+        assertThat(Objects.requireNonNull(response.getHeaders().getLocation()).getPath())
+                .isEqualTo("/api/v1/persons/" + registrantPersonId);
+
+        assertThat(registrants()).isOne();
+        assertThat(memberships()).isOne();
+        assertThat(traineeMarkers())
+                .as("a scenic passenger is no glider trainee, at person or membership level")
+                .containsExactly(false, false);
+        assertThat(reservations()).isZero();
+
+        assertThat(submit(openSlug, BOOKABLE_DAY).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(reservations())
+                .as("the same club books for discovery, so the scenic zero is the flow's doing")
+                .isOne();
+    }
+
+    /**
+     * The scenic flow reaches no booker, so a day it accepted would be dropped
+     * in silence while the 201 read as a blocked slot. The submission is refused
+     * instead of quietly answered.
+     */
+    @Test
+    void a_scenic_submission_carrying_a_selectedDay_is_rejected() {
+        Map<String, Object> body = PublicSubmissions.scenicBody();
+        body.put("selectedDay", BOOKABLE_DAY.toString());
+
+        assertThat(rest.postForEntity(scenicPath(openSlug), body, Void.class).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(registrants()).isZero();
+        assertThat(reservations()).isZero();
+    }
+
+    @Test
     void a_day_that_has_passed_is_rejected_and_registers_nobody() {
         assertRejectedAndNothingWritten(PAST_DAY);
     }
@@ -195,7 +243,7 @@ class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
      */
     @Test
     void the_registrant_field_contract_is_enforced_through_http() {
-        Map<String, Object> registrant = DiscoverySubmissions.registrant();
+        Map<String, Object> registrant = PublicSubmissions.registrant();
         registrant.remove("city");
         Map<String, Object> body = Map.of("registrant", registrant,
                 "selectedDay", BOOKABLE_DAY.toString());
@@ -208,7 +256,7 @@ class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
     @Test
     void a_submission_without_a_day_is_rejected() {
         assertThat(rest.postForEntity(registrationPath(openSlug),
-                        Map.of("registrant", DiscoverySubmissions.registrant()), Void.class)
+                        Map.of("registrant", PublicSubmissions.registrant()), Void.class)
                 .getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(registrants()).isZero();
@@ -225,7 +273,13 @@ class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
 
     private ResponseEntity<Map<String, Object>> submit(String slug, LocalDate selectedDay) {
         return rest.exchange(registrationPath(slug), HttpMethod.POST,
-                new HttpEntity<>(DiscoverySubmissions.body(selectedDay)),
+                new HttpEntity<>(PublicSubmissions.discoveryBody(selectedDay)),
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+    }
+
+    private ResponseEntity<Map<String, Object>> submitScenic(String slug) {
+        return rest.exchange(scenicPath(slug), HttpMethod.POST,
+                new HttpEntity<>(PublicSubmissions.scenicBody()),
                 new ParameterizedTypeReference<Map<String, Object>>() {});
     }
 
@@ -238,11 +292,25 @@ class DiscoveryFlightRegistrationIT extends PostgresIntegrationTest {
         return "/api/v1/public/clubs/" + slug + "/discovery-flight-registrations";
     }
 
+    private static String scenicPath(String slug) {
+        return "/api/v1/public/clubs/" + slug + "/scenic-flight-registrations";
+    }
+
     private long registrants() {
         return count("SELECT count(*) FROM t_person p "
                 + "JOIN t_person_club pc ON pc.person_id = p.id "
                 + "WHERE p.lastname = ? AND pc.club_id = ?::uuid",
-                DiscoverySubmissions.LASTNAME, openClubId.toString());
+                PublicSubmissions.LASTNAME, openClubId.toString());
+    }
+
+    private List<Boolean> traineeMarkers() {
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT p.has_glider_trainee_licence AS person_marker, "
+                        + "pc.is_glider_trainee AS membership_marker "
+                        + "FROM t_person p JOIN t_person_club pc ON pc.person_id = p.id "
+                        + "WHERE p.lastname = ? AND pc.club_id = ?::uuid",
+                PublicSubmissions.LASTNAME, openClubId.toString());
+        return List.of((Boolean) row.get("person_marker"), (Boolean) row.get("membership_marker"));
     }
 
     private long memberships() {

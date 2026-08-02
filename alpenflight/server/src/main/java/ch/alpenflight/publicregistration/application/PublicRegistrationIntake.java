@@ -57,11 +57,6 @@ public class PublicRegistrationIntake {
         this.clock = clock;
     }
 
-    /** Resolves the slug and records the accepted scenic-flight submission. */
-    public PublicClub acceptScenic(String clubSlug, String clientIp) {
-        return accept(clubSlug, clientIp, PublicRegistrationKind.SCENIC_FLIGHT);
-    }
-
     /**
      * The days the club's picker may offer, ascending. A club that has published
      * none gets an empty list rather than an error — an empty picker is a valid
@@ -135,13 +130,6 @@ public class PublicRegistrationIntake {
             return persons;
         });
         return new Accepted(club, registered, null);
-    }
-
-    private PublicClub accept(String clubSlug, String clientIp, PublicRegistrationKind kind) {
-        guard.recordAndCheck(clientIp, clubSlug);
-        PublicClub club = resolver.resolve(clubSlug);
-        Tenants.runAs(club.clubId(), () -> writer.recordAccepted(club, kind));
-        return club;
     }
 
     /**

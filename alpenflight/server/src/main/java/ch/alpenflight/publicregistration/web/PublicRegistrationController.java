@@ -3,6 +3,8 @@ package ch.alpenflight.publicregistration.web;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationRequest;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationResponse;
+import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.ScenicFlightRegistrationRequest;
+import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.ScenicFlightRegistrationResponse;
 import ch.alpenflight.publicregistration.application.PublicRegistrationIntake;
 import ch.alpenflight.publicregistration.application.PublicRegistrationIntake.Accepted;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,11 +28,10 @@ import org.springframework.web.bind.annotation.RestController;
  * {@link PublicRegistrationIntake} resolves and allowlist-checks before anything
  * tenant-scoped runs.
  *
- * <p>The scenic POST still accepts and records the submission only; its
- * registrant payload is the same
- * {@link ch.alpenflight.publicregistration.application.PublicRegistrantDetails}
- * the discovery request nests, so taking it over is a request record plus a
- * method body.
+ * <p>Both POSTs nest the same
+ * {@link ch.alpenflight.publicregistration.application.PublicRegistrantDetails}:
+ * the two forms differ only in the day selection, so the registrant contract is
+ * one type and cannot drift between them.
  *
  * <p>{@code Location} on the 201 names the registrant's {@code Person} — the
  * durable resource an accepted submission creates. It is not anonymously
@@ -90,15 +91,27 @@ class PublicRegistrationController {
 
     @Operation(operationId = "submitScenicFlightRegistration",
             summary = "Register anonymously for a club's scenic flight.")
-    @ApiResponse(responseCode = "202", description = "Accepted for the resolved club.")
+    @ApiResponse(responseCode = "201", description = "Registered; Location names the registrant.")
+    @ApiResponse(responseCode = "400",
+            description = "The registrant field contract failed, or the submission carried a "
+                    + "member this flow has no meaning for — the scenic form selects no day.")
     @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
     @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
     @ApiResponse(responseCode = "429",
             description = "Abuse guard tripped; retry after the Retry-After header.")
-    @PostMapping("/api/v1/public/clubs/{clubSlug}/scenic-flight-registrations")
-    ResponseEntity<Void> submitScenicFlightRegistration(
-            @PathVariable String clubSlug, HttpServletRequest request) {
-        intake.acceptScenic(clubSlug, clientIps.resolve(request));
-        return ResponseEntity.accepted().build();
+    @PostMapping(path = "/api/v1/public/clubs/{clubSlug}/scenic-flight-registrations",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    ResponseEntity<ScenicFlightRegistrationResponse> submitScenicFlightRegistration(
+            @PathVariable String clubSlug,
+            @RequestBody ScenicFlightRegistrationRequest body,
+            HttpServletRequest request) {
+        Accepted accepted = intake.acceptScenic(
+                clubSlug, clientIps.resolve(request), body.registrant());
+        PersonId registrant = PersonId.of(accepted.registered().registrantPersonId());
+        return ResponseEntity
+                .created(URI.create("/api/v1/persons/" + registrant.toExternal()))
+                .body(new ScenicFlightRegistrationResponse(
+                        registrant, accepted.club().clubName()));
     }
 }

@@ -1821,18 +1821,66 @@
             "type" : "string"
           }
         } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ScenicFlightRegistrationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
-          "202" : {
-            "description" : "Accepted for the resolved club."
+          "201" : {
+            "description" : "Registered; Location names the registrant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScenicFlightRegistrationResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "The registrant field contract failed, or the submission carried a member this flow has no meaning for — the scenic form selects no day.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScenicFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "403" : {
-            "description" : "The club has closed public registration."
+            "description" : "The club has closed public registration.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScenicFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "404" : {
-            "description" : "No club is published at that slug."
+            "description" : "No club is published at that slug.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScenicFlightRegistrationResponse"
+                }
+              }
+            }
           },
           "429" : {
-            "description" : "Abuse guard tripped; retry after the Retry-After header."
+            "description" : "Abuse guard tripped; retry after the Retry-After header.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ScenicFlightRegistrationResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -7475,19 +7523,6 @@
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
       },
-      "DiscoveryFlightRegistrationRequest" : {
-        "type" : "object",
-        "description" : "A discovery-flight submission: who registers, and for which published day.",
-        "properties" : {
-          "registrant" : {
-            "$ref" : "#/components/schemas/PublicRegistrantDetails"
-          },
-          "selectedDay" : {
-            "type" : "string",
-            "format" : "date"
-          }
-        }
-      },
       "InvoiceRecipient" : {
         "type" : "object",
         "properties" : {
@@ -7560,6 +7595,42 @@
           },
           "invoiceRecipient" : {
             "$ref" : "#/components/schemas/InvoiceRecipient"
+          }
+        }
+      },
+      "ScenicFlightRegistrationRequest" : {
+        "type" : "object",
+        "description" : "A scenic-flight submission: who registers.",
+        "properties" : {
+          "registrant" : {
+            "$ref" : "#/components/schemas/PublicRegistrantDetails"
+          }
+        }
+      },
+      "ScenicFlightRegistrationResponse" : {
+        "type" : "object",
+        "description" : "The accepted scenic-flight registration.",
+        "properties" : {
+          "registrantPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubName" : {
+            "type" : "string"
+          }
+        }
+      },
+      "DiscoveryFlightRegistrationRequest" : {
+        "type" : "object",
+        "description" : "A discovery-flight submission: who registers, and for which published day.",
+        "properties" : {
+          "registrant" : {
+            "$ref" : "#/components/schemas/PublicRegistrantDetails"
+          },
+          "selectedDay" : {
+            "type" : "string",
+            "format" : "date"
           }
         }
       },

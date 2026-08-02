@@ -118,7 +118,7 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
         }
 
         assertThat(submitScenic(source, otherSlug).getStatusCode())
-                .isEqualTo(HttpStatus.ACCEPTED);
+                .isEqualTo(HttpStatus.CREATED);
         assertThat(submitDiscovery(source, openSlug).getStatusCode())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
@@ -145,15 +145,16 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
                 .post(URI.create("/api/v1/public/clubs/" + slug + "/discovery-flight-registrations"))
                 .header("X-Forwarded-For", source)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(DiscoverySubmissions.body(DISCOVERY_DAY));
+                .body(PublicSubmissions.discoveryBody(DISCOVERY_DAY));
         return rest.exchange(request, Void.class);
     }
 
     private ResponseEntity<Void> submitScenic(String source, String slug) {
-        RequestEntity<Void> request = RequestEntity
+        RequestEntity<?> request = RequestEntity
                 .post(URI.create("/api/v1/public/clubs/" + slug + "/scenic-flight-registrations"))
                 .header("X-Forwarded-For", source)
-                .build();
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(PublicSubmissions.scenicBody());
         return rest.exchange(request, Void.class);
     }
 

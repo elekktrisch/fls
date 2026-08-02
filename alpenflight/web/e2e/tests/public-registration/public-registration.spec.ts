@@ -34,6 +34,9 @@ const DISCOVERY_DAYS = [
   { id: 'day-2', date: '2099-08-25', flightTypeId: null },
 ];
 
+const CLUB_NAME = 'Alpine Soaring';
+const REGISTRANT_PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000777';
+
 interface SubmittedRegistration {
   path: string;
   body: Record<string, unknown>;
@@ -74,12 +77,19 @@ function stubPublicRegistrationBackend(page: Page, submissions: SubmittedRegistr
       return;
     }
     if (req.method() === 'POST') {
-      submissions.push({ path, body: req.postDataJSON() as Record<string, unknown> });
+      const body = req.postDataJSON() as Record<string, unknown>;
+      submissions.push({ path, body });
+      // Mirrors the deployed contract: Location names the registrant's Person,
+      // and the day only comes back on the flow that selects one.
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        headers: { Location: `${path}/019e30c3-2c00-7001-8000-000000000777` },
-        body: JSON.stringify({ id: '019e30c3-2c00-7001-8000-000000000777' }),
+        headers: { Location: `/api/v1/persons/${REGISTRANT_PERSON_ID}` },
+        body: JSON.stringify({
+          registrantPersonId: REGISTRANT_PERSON_ID,
+          clubName: CLUB_NAME,
+          ...(body['selectedDay'] === undefined ? {} : { selectedDay: body['selectedDay'] }),
+        }),
       });
       return;
     }

@@ -5,21 +5,29 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The discovery-flight submission the web-layer ITs post, as the JSON a browser
- * sends rather than as the server's own request record — a rename or a
- * restructured payload has to break these tests, not silently follow them.
+ * The submissions the web-layer ITs post, as the JSON a browser sends rather
+ * than as the server's own request records — a rename or a restructured payload
+ * has to break these tests, not silently follow them.
+ *
+ * <p>Both bodies carry the same registrant, which is the contract under test:
+ * the scenic form is the discovery form minus the day selection.
  */
-final class DiscoverySubmissions {
+final class PublicSubmissions {
 
     static final String FIRSTNAME = "Rosa";
     static final String LASTNAME = "Renggli";
 
-    private DiscoverySubmissions() {}
+    private PublicSubmissions() {}
 
-    static Map<String, Object> body(LocalDate selectedDay) {
+    static Map<String, Object> discoveryBody(LocalDate selectedDay) {
+        Map<String, Object> body = scenicBody();
+        body.put("selectedDay", selectedDay.toString());
+        return body;
+    }
+
+    static Map<String, Object> scenicBody() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("registrant", registrant());
-        body.put("selectedDay", selectedDay.toString());
         return body;
     }
 

@@ -120,7 +120,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         long personsBefore = count("t_person");
         long membershipsBefore = count("t_person_club");
 
-        ResponseEntity<Void> response = anonymousPost(scenicPath(closedSlug));
+        ResponseEntity<Void> response = anonymousScenicPost(closedSlug);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isNull();
@@ -137,7 +137,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
     void a_rejected_submission_leaves_no_tenantScoped_trace() {
         assertThat(anonymousDiscoveryPost(closedSlug).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(anonymousPost(scenicPath(UNKNOWN_SLUG)).getStatusCode())
+        assertThat(anonymousScenicPost(UNKNOWN_SLUG).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
         Long scopedRows = jdbc.queryForObject(
@@ -176,12 +176,16 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
     }
 
     /**
-     * The rejection paths must fail on the slug, not on the body, so every
-     * discovery probe here posts a submission that would otherwise be accepted.
+     * The rejection paths must fail on the slug, not on the body, so every probe
+     * here posts a submission that would otherwise be accepted.
      */
     private ResponseEntity<Void> anonymousDiscoveryPost(String slug) {
         return rest.postForEntity(discoveryPath(slug),
-                DiscoverySubmissions.body(DISCOVERY_DAY), Void.class);
+                PublicSubmissions.discoveryBody(DISCOVERY_DAY), Void.class);
+    }
+
+    private ResponseEntity<Void> anonymousScenicPost(String slug) {
+        return rest.postForEntity(scenicPath(slug), PublicSubmissions.scenicBody(), Void.class);
     }
 
     private static String discoveryPath(String slug) {

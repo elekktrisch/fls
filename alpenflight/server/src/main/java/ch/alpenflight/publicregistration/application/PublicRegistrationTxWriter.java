@@ -50,11 +50,6 @@ public class PublicRegistrationTxWriter {
         this.reservationBooker = reservationBooker;
     }
 
-    @Transactional
-    public void recordAccepted(PublicClub club, PublicRegistrationKind kind) {
-        audit(club, kind);
-    }
-
     /**
      * The scenic flow: the shared registrant write and nothing else. The kind is
      * fixed here rather than passed in, so no caller can route a discovery
