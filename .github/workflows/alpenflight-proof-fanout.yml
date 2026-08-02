@@ -783,8 +783,14 @@ jobs:
       #    are exported so the aircraft spec's Gradle seeder shell-outs
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
+      #
+      #    THE LIST IS THE GALLERY'S SOURCE. This run deploys the in-flight
+      #    journey's bookmark, and the generator renders only videos carrying that
+      #    journey's `proof-journey` annotation — so a journey whose parity spec is
+      #    absent here publishes a 0-asset page and the deployed link-check reds it
+      #    as thin. Adding a journey means adding its spec here.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine + J-10b deliveries write)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine + J-10b deliveries write + J-17 public registration)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 25
@@ -823,7 +829,8 @@ jobs:
             e2e/tests/real-idp/accounting-rules-parity.spec.ts \
             e2e/tests/real-idp/deliveries-write-parity.spec.ts \
             e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
-            e2e/tests/real-idp/email-templates.spec.ts
+            e2e/tests/real-idp/email-templates.spec.ts \
+            e2e/tests/real-idp/public-registration-parity.spec.ts
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +
       # screenshot/video) BEFORE the staging + gallery + link-check steps run: the
@@ -1300,6 +1307,10 @@ jobs:
         env:
           REF_NAME: ${{ github.ref_name }}
         run: |
+          # pipefail: the generator is piped into `tee` below, and without it a
+          # generator failure would be masked by tee's exit 0 — the deploy steps
+          # gate on this step's outcome.
+          set -o pipefail
           STAGE="${{ github.workspace }}/j0c-legacy-video"
           LEGACY_ARG=""
           if [ -f "$STAGE/legacy-video.json" ]; then
@@ -1327,7 +1338,10 @@ jobs:
             --out ../../public/alpenflight/proof \
             $LEGACY_ARG \
             $SHOT_ARG \
-            $JUW_ARG
+            $JUW_ARG | tee /tmp/proof-gallery.log
+          # Hand the built page's stamp to the deployed link-check: it must read back
+          # THIS page, not whatever the gh-pages CDN still has cached at that URL.
+          sed -nE 's/^proof-gallery: generated-at (.+)$/generated_at=\1/p' /tmp/proof-gallery.log >> "$GITHUB_OUTPUT"
 
       - name: Collect logs on failure
         if: failure()
@@ -1417,6 +1431,7 @@ jobs:
         working-directory: alpenflight/web
         env:
           GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.url }}
+          GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           REF_NAME: ${{ github.ref_name }}
           GALLERY_LINKS_ONLY: '1'
         run: |

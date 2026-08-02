@@ -740,6 +740,9 @@ export function renderPageHtml({ journey, proofs, shots, maint, generatedAt, bra
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<!-- Machine-readable build stamp: the deployed-bookmark link-check compares it
+     against the page IT published, so a stale CDN copy cannot pass as this run's. -->
+<meta name="proof-generated-at" content="${esc(generatedAt)}">
 <title>AlpenFlight proof — ${esc(journey)}</title>
 <style>
 ${GALLERY_CSS}
@@ -884,12 +887,13 @@ export function generateGallery({
   }
 
   const maint = loadMaintainability(outDir, { showDelta: true });
+  const generatedAt = new Date().toISOString();
   const html = renderPageHtml({
     journey,
     proofs,
     shots,
     maint,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     branch,
   });
 
@@ -900,7 +904,7 @@ export function generateGallery({
   // gh-pages 404s a bare dir, so emit a tiny index.html when artifacts are present.
   writeMaintainabilityIndex(outDir);
 
-  return { html, outFile, journey, proofs, shots };
+  return { html, outFile, journey, generatedAt, proofs, shots };
 }
 
 export function parseArgs(argv) {
@@ -947,7 +951,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     }
   }
   try {
-    const { outFile, journey, proofs, shots } = generateGallery({
+    const { outFile, journey, generatedAt, proofs, shots } = generateGallery({
       reportPath,
       outDir,
       branch: args.branch,
@@ -960,6 +964,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     console.log(
       `  journey ${journey}: ${proofs.length} green proof video(s); ${shots.length} parity screenshot(s).`,
     );
+    // Parsed by the deploy workflows into GALLERY_EXPECT_GENERATED_AT — keep the
+    // prefix stable, it is the link-check's freshness contract.
+    console.log(`proof-gallery: generated-at ${generatedAt}`);
   } catch (err) {
     console.error(`proof-gallery: ${err.message}`);
     process.exit(1);

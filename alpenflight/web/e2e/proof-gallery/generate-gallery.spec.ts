@@ -32,6 +32,7 @@ async function loadGenerator(): Promise<{
     html: string;
     outFile: string;
     journey: string;
+    generatedAt: string;
     proofs: { journey: string }[];
     shots: { journey: string }[];
   };
@@ -195,6 +196,22 @@ describe('generateGallery — ONE page, in-flight journey only', () => {
     expect(html).not.toContain('Per-run proof galleries');
     expect(html).not.toContain('alpenflight/previews/');
     expect(html).not.toContain('all-journeys');
+  });
+
+  it('stamps a machine-readable proof-generated-at marker, so a stale CDN copy is distinguishable from this run’s page', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-marker-'));
+    const { reportPath } = singleProofReport(dir, 'J-11');
+    const before = Date.now();
+
+    const { html, generatedAt } = generateGallery({
+      reportPath,
+      outDir: resolve(dir, 'out'),
+      journeyUnderWork: 'J-11',
+    });
+
+    expect(html).toContain(`<meta name="proof-generated-at" content="${generatedAt}">`);
+    expect(Date.parse(generatedAt)).toBeGreaterThanOrEqual(before - 1_000);
   });
 
   it('renders ONLY the journey-under-work; another journey in the report is excluded', async () => {

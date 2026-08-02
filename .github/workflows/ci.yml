@@ -1187,6 +1187,10 @@ jobs:
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
           PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
         run: |
+          # pipefail: the generator is piped into `tee` below, and without it a
+          # generator failure would be masked by tee's exit 0 — the deploy steps
+          # gate on this step's outcome.
+          set -o pipefail
           JUW_ARG=""
           if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
@@ -1203,7 +1207,10 @@ jobs:
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
             $JUW_ARG \
-            $SHOT_ARG
+            $SHOT_ARG | tee /tmp/proof-gallery.log
+          # Hand the built page's stamp to the deployed link-check: it must read back
+          # THIS page, not whatever the gh-pages CDN still has cached at that URL.
+          sed -nE 's/^proof-gallery: generated-at (.+)$/generated_at=\1/p' /tmp/proof-gallery.log >> "$GITHUB_OUTPUT"
 
       # Compute the per-PR preview destination + clickable bookmark URL. PR-only.
       # Sanitize github.head_ref to a single path segment. Keep the sed
@@ -1298,6 +1305,7 @@ jobs:
           # `cond && '' || journey` ternary falls through and always yields the
           # journey, demanding a page the baseline run never produced.
           GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey || '' }}
+          GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           GALLERY_LINKS_ONLY: '1'
         run: |
           pnpm exec playwright test \

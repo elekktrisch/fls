@@ -99,14 +99,6 @@ stragglers each ceremony so the file shrinks.
   next journeys; don't churn merged ones). *(seam: `docs/modernization/stories/*.md` per-touch)*
   [[feedback_self_explanatory_no_history_comments]]
 
-## Pending (filed by /do-ship 2026-06-13, J-8 gate)
-
-- **[PROOF-HARNESS TRANSIENTS — gh-pages CDN propagation race]** The fanout `[deployed-journey]` link-check
-  (`proof-gallery-links.spec.ts:683`) has a **60s Playwright test timeout** that races gh-pages CDN propagation —
-  the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was
-  live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a
-  propagation pre-wait). *(seam: proof-gallery-links.spec.ts test timeout)* [[false_green_derive_fallback]]
-
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 
 - **[MAINTAINABILITY-TOOLING — Qodana baseline backfill].** Qodana shipped report-only (J-8 T-15), but the
