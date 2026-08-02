@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-07-30T20:38:49.412">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-02T03:35:51.488">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
 <violation beginline="135" endline="144" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
@@ -42,7 +42,7 @@ Avoid long parameter lists (8 parameters - threshold is 8).
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/Aircraft.java">
 <violation beginline="79" endline="79" begincolumn="14" endcolumn="22" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'Aircraft' has a total cyclomatic complexity of 104 (highest 10).
+The class 'Aircraft' has a total cyclomatic complexity of 111 (highest 10).
 </violation>
 <violation beginline="79" endline="79" begincolumn="14" endcolumn="22" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.aircraft.domain" class="Aircraft" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
 Too many fields
@@ -78,6 +78,11 @@ The class 'Deployment' has a total cyclomatic complexity of 79 (highest 10).
 The method 'transitionByAdmin(LifecycleState, Clock)' has a cyclomatic complexity of 10.
 </violation>
 </file>
+<file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/DailyReportJob.java">
+<violation beginline="86" endline="93" begincolumn="26" endcolumn="39" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.flights.application" class="DailyReportJob" method="DailyReportJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+Avoid long parameter lists (8 parameters - threshold is 8).
+</violation>
+</file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightListCursor.java">
 <violation beginline="32" endline="32" begincolumn="36" endcolumn="42" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.application" class="FlightListCursor" method="decode" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'decode(String)' has a cyclomatic complexity of 13.
@@ -92,22 +97,22 @@ The method 'listFlights(LocalDate, LocalDate, String, Integer, UUID)' has an NPa
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/Flight.java">
-<violation beginline="70" endline="70" begincolumn="14" endcolumn="20" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'Flight' has a total cyclomatic complexity of 142 (highest 14).
+<violation beginline="71" endline="71" begincolumn="14" endcolumn="20" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The class 'Flight' has a total cyclomatic complexity of 155 (highest 14).
 </violation>
-<violation beginline="70" endline="70" begincolumn="14" endcolumn="20" rule="TooManyMethods" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanymethods" priority="3">
+<violation beginline="71" endline="71" begincolumn="14" endcolumn="20" rule="TooManyMethods" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanymethods" priority="3">
 This class has too many methods, consider refactoring it.
 </violation>
-<violation beginline="70" endline="70" begincolumn="14" endcolumn="20" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
+<violation beginline="71" endline="71" begincolumn="14" endcolumn="20" rule="TooManyFields" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanyfields" priority="3">
 Too many fields
 </violation>
-<violation beginline="288" endline="288" begincolumn="18" endcolumn="38" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="applyOperationalData" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="286" endline="286" begincolumn="18" endcolumn="38" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="applyOperationalData" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'applyOperationalData(FlightOperationalData)' has a cyclomatic complexity of 11.
 </violation>
-<violation beginline="408" endline="408" begincolumn="17" endcolumn="24" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="linkTow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="406" endline="406" begincolumn="17" endcolumn="24" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="linkTow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'linkTow(Flight)' has a cyclomatic complexity of 14.
 </violation>
-<violation beginline="463" endline="463" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="transition" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="461" endline="461" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.domain" class="Flight" method="transition" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'transition(FlightProcessState, TransitionTrigger, Instant)' has a cyclomatic complexity of 10.
 </violation>
 </file>
@@ -139,10 +144,10 @@ The method 'validateRequiredFields(Flight, List&lt;ValidationError&gt;)' has an 
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/infra/JpaFlightRepository.java">
-<violation beginline="133" endline="133" begincolumn="43" endcolumn="57" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="138" endline="138" begincolumn="43" endcolumn="57" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'findListWindow(LocalDate, LocalDate, LocalDate, UUID, int, UUID)' has a cyclomatic complexity of 12.
 </violation>
-<violation beginline="133" endline="133" begincolumn="43" endcolumn="57" rule="NPathComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#npathcomplexity" priority="3">
+<violation beginline="138" endline="138" begincolumn="43" endcolumn="57" rule="NPathComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#npathcomplexity" priority="3">
 The method 'findListWindow(LocalDate, LocalDate, LocalDate, UUID, int, UUID)' has an NPath complexity of 1152, current threshold is 200
 </violation>
 </file>

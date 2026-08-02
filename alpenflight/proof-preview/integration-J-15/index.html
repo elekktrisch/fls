@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — unknown</title>
+<title>AlpenFlight proof — J-15</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -86,19 +86,33 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>unknown — proof</h1>
+    <h1>J-15 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">unknown</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-15</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>245/merge</code> &middot; 2026-07-30T20:38:56.376Z
+      merged journeys' proof lives in their PRs. Generated on <code>245/merge</code> &middot; 2026-08-02T03:35:57.712Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-4664152a4d0bff37c5eef4ec3507ef8f0fb30a15.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A system administrator opens /system/jobs, sees every registered business job with its cron and last-run status, and Run now on Daily Flight Validation completes with the run summary the job returned.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-8892a765102e5a6b59dd2aaffea7223c5c9b2e84.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">A cross-tenant job triggered by a system administrator is read back inside a club administrator’s own tenant: the club dashboard reflects the validation pass, and the pass never adds to the pending-validation set.</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-4ff02f05401022415358084dc4c984e9442336d6.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">A club administrator is redirected off /system/jobs by the sysadmin guard, and both the registry read and the Run now endpoint answer 403 — the jobs are cross-tenant, so only a system administrator may trigger them.</span></figcaption>
+        </figure>
+        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
@@ -112,15 +126,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
-            <td><strong>85</strong> violations · complexity <strong>85</strong> · dead-code <strong>0</strong></td>
+            <td><strong>86</strong> violations · complexity <strong>86</strong> · dead-code <strong>0</strong></td>
           </tr>
           <tr>
             <th>BE duplication (CPD)</th>
-            <td><strong>3.0%</strong> duplicated · <strong>69</strong> clone groups</td>
+            <td><strong>3.0%</strong> duplicated · <strong>70</strong> clone groups</td>
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
-          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>unknown</strong></p>
+          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>J-15</strong></p>
         </section>
   </section>
 
