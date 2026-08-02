@@ -6,6 +6,7 @@ import ch.alpenflight.accounting.domain.DeliveryCreationTest;
 import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
 import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.emailtemplates.domain.EmailTemplate;
 import ch.alpenflight.flights.domain.Flight;
@@ -19,7 +20,9 @@ import ch.alpenflight.planning.domain.PlanningDayAssignmentType;
 import ch.alpenflight.reservations.domain.AircraftReservation;
 import ch.alpenflight.reservations.domain.AircraftReservationType;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -116,8 +119,21 @@ public final class TenantScopedRowBuilders {
             // Pilot self-serve join request (S-178). club_id is its only FK and
             // the @TenantId discriminator, so it fails fail-closed under NO_TENANT
             // with no reference data to seed (see JoinRequestSweepFactory).
-            Map.entry(JoinRequest.class, JoinRequestSweepFactory::build)
+            Map.entry(JoinRequest.class, JoinRequestSweepFactory::build),
+            // Club discovery-flight event day. club_id is its only FK and the
+            // @TenantId discriminator, so it fails fail-closed under NO_TENANT
+            // with no reference data to seed. The date is walked forward per
+            // build so repeated sweeps never collide on the (club, date) UNIQUE.
+            Map.entry(DiscoveryFlightDay.class, ctx ->
+                    DiscoveryFlightDay.schedule(uniqueFutureDate(), LocalDate.EPOCH))
     );
+
+    private static final LocalDate SWEEP_DATE_BASE = LocalDate.of(2999, 1, 1);
+    private static final AtomicInteger SWEEP_DATE_OFFSET = new AtomicInteger();
+
+    private static LocalDate uniqueFutureDate() {
+        return SWEEP_DATE_BASE.plusDays(SWEEP_DATE_OFFSET.getAndIncrement());
+    }
 
     private static String uniqueName(String label) {
         return SWEEP_PREFIX + label + "_" + Long.toString(System.nanoTime(), 36);

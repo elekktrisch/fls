@@ -295,6 +295,16 @@ audit:
           - scenicFlightOperatorEmail
           - discoveryFlightTypeId
           - deletedOn
+      DiscoveryFlightDay:
+        # A club's published discovery-flight event day. Every field is club
+        # configuration shown to anonymous visitors on the public registration
+        # form — a date and two ids, no member data.
+        allow:
+          - id
+          - clubId
+          - eventDate
+          - deletedOn
+          - deletedByUserId
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a
         # LifecycleSnapshot record (lifecycleState only) — the policy is
