@@ -17,6 +17,15 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-17 T-15c, 2026-08-02)
+
+- **[MOCK-CLUB-ID-SHAPE]** `MOCK_CLUB_ID` in the web mock fixtures is a raw UUID while real club ids are
+  `clb-<uuid>`. A dishonest inner-loop fixture in the sense of [[feedback_honest_inner_loop_fixtures]]: mocked
+  specs pass against an id shape the backend never emits, so an id-shape bug goes green locally and reds at the
+  gate. T-15c left it alone because the ripple is broad (many specs share the constant). This is the same class
+  as the club-key-vs-UUID confusion that made `GET /clubs/{id}` 403 for every club admin — worth fixing before
+  it hides a third one. *(seam: web e2e mock fixtures' club-id constant)*
+
 ## Pending (filed by /do-ship J-17 T-07b, 2026-08-02)
 
 - **[AUDIT-ACTOR-KIND]** `AuditActorKind.SYSTEM` has no writer anywhere in the repo: the listener leaves every
