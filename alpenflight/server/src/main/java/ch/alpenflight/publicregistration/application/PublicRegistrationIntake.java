@@ -2,7 +2,10 @@ package ch.alpenflight.publicregistration.application;
 
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.publicregistration.application.PublicClubResolver.PublicClub;
+import ch.alpenflight.publicregistration.application.PublicRegistrationTxWriter.DiscoveryRegistration;
 import ch.alpenflight.publicregistration.application.PublicRegistrationTxWriter.RegisteredPersons;
+import java.time.LocalDate;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,10 +50,22 @@ public class PublicRegistrationIntake {
         return accept(clubSlug, clientIp, PublicRegistrationKind.SCENIC_FLIGHT);
     }
 
-    /** Registers a discovery-flight candidate: a glider-trainee Person in the resolved club. */
+    /**
+     * Registers a discovery-flight candidate: a glider-trainee Person in the
+     * resolved club, plus the club's double-seater booked all day on
+     * {@code selectedDay} for them. A club that cannot be booked against still
+     * gets the registration — see {@link DiscoveryReservationOutcome}.
+     */
     public Accepted acceptDiscovery(String clubSlug, String clientIp,
-            PublicRegistrantDetails registrant) {
-        return register(clubSlug, clientIp, PublicRegistrationKind.DISCOVERY_FLIGHT, registrant);
+            PublicRegistrantDetails registrant, LocalDate selectedDay) {
+        if (selectedDay == null) {
+            throw new PublicRegistrationInvalidException("selectedDay is required");
+        }
+        guard.recordAndCheck(clientIp, clubSlug);
+        PublicClub club = resolver.resolve(clubSlug);
+        DiscoveryRegistration written = Tenants.runAs(club.clubId(),
+                () -> writer.registerDiscovery(club, registrant, selectedDay));
+        return new Accepted(club, written.persons(), written.reservation());
     }
 
     /** Registers a scenic-flight passenger: a Person in the resolved club, no trainee marker. */
@@ -72,9 +87,13 @@ public class PublicRegistrationIntake {
         PublicClub club = resolver.resolve(clubSlug);
         RegisteredPersons registered =
                 Tenants.runAs(club.clubId(), () -> writer.registerPersons(club, kind, registrant));
-        return new Accepted(club, registered);
+        return new Accepted(club, registered, null);
     }
 
-    /** The resolved club plus the Persons the submission created. */
-    public record Accepted(PublicClub club, RegisteredPersons registered) {}
+    /**
+     * The resolved club, the Persons the submission created, and — discovery
+     * only — what happened to the candidate's aircraft slot.
+     */
+    public record Accepted(PublicClub club, RegisteredPersons registered,
+                           @Nullable DiscoveryReservationOutcome reservation) {}
 }

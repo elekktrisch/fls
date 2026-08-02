@@ -16,6 +16,7 @@ import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
+import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -51,6 +52,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * membership must neither collide with the registrant's nor be mutated by it.
  */
 class PublicRegistrantWriteIT extends PostgresIntegrationTest {
+
+    private static final LocalDate DISCOVERY_DAY = LocalDate.of(2099, 6, 15);
 
     @Autowired PublicRegistrationIntake intake;
     @Autowired PersonRepository persons;
@@ -90,7 +93,8 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
     void a_discovery_registration_creates_a_trainee_registrant_and_an_invoice_person() {
         long personsBefore = countPersons();
 
-        Accepted accepted = intake.acceptDiscovery(slug, "198.51.100.11", registrant(false));
+        Accepted accepted = intake.acceptDiscovery(
+                slug, "198.51.100.11", registrant(false), DISCOVERY_DAY);
 
         assertThat(countPersons()).isEqualTo(personsBefore + 2);
         assertThat(accepted.club().clubId()).isEqualTo(clubId);
@@ -152,7 +156,8 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
     void no_invoice_person_is_created_when_the_invoice_address_is_the_same() {
         long personsBefore = countPersons();
 
-        Accepted accepted = intake.acceptDiscovery(slug, "198.51.100.12", registrant(true));
+        Accepted accepted = intake.acceptDiscovery(
+                slug, "198.51.100.12", registrant(true), DISCOVERY_DAY);
 
         assertThat(accepted.registered().invoicePersonId()).isNull();
         assertThat(countPersons()).isEqualTo(personsBefore + 1);
@@ -199,9 +204,16 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         return rows == null ? 0L : rows;
     }
 
+    /**
+     * Scoped to this test's club: {@code t_person} is cross-tenant and the
+     * fixture's teardown only reaches tenant-scoped tables, so a global count
+     * would also see registrants left by earlier runs and other suites.
+     */
     private long countPersonsNamed(String lastname) {
         Long rows = jdbc.queryForObject(
-                "SELECT count(*) FROM t_person WHERE lastname = ?", Long.class, lastname);
+                "SELECT count(*) FROM t_person p JOIN t_person_club pc ON pc.person_id = p.id "
+                        + "WHERE p.lastname = ? AND pc.club_id = ?::uuid",
+                Long.class, lastname, clubId.toString());
         return rows == null ? 0L : rows;
     }
 }

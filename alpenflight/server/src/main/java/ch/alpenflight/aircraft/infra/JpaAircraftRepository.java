@@ -76,6 +76,16 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
     List<AircraftRepository.ListRow> findActiveTowingListRows();
 
     @Override
+    @Query("select a.id from Aircraft a "
+            + "join ch.alpenflight.referencedata.domain.AircraftType t on a.aircraftTypeId = t.id "
+            + "where a.deletedOn is null and a.ownerClubId = :ownerClubId "
+            + "  and t.code = :typeCode and a.nrOfSeats = :nrOfSeats "
+            + "order by a.immatriculation asc")
+    List<UUID> findActiveOwnedIdsByTypeCodeAndSeats(@Param("ownerClubId") UUID ownerClubId,
+                                                    @Param("typeCode") String typeCode,
+                                                    @Param("nrOfSeats") int nrOfSeats);
+
+    @Override
     @Query("select new ch.alpenflight.aircraft.domain.AircraftRepository$PickerRow("
             + "a.id, a.immatriculation, a.aircraftTypeId, a.towingAircraft, a.nrOfSeats) "
             + "from Aircraft a "

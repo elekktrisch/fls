@@ -9,6 +9,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.persons.domain.PersonRoleFlags;
 import ch.alpenflight.publicregistration.application.PublicClubResolver.PublicClub;
 import ch.alpenflight.publicregistration.application.PublicRegistrantDetails.InvoiceRecipient;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -40,10 +41,13 @@ public class PublicRegistrationTxWriter {
 
     private final AuditTrail auditTrail;
     private final PersonRepository persons;
+    private final DiscoveryReservationBooker reservationBooker;
 
-    PublicRegistrationTxWriter(AuditTrail auditTrail, PersonRepository persons) {
+    PublicRegistrationTxWriter(AuditTrail auditTrail, PersonRepository persons,
+            DiscoveryReservationBooker reservationBooker) {
         this.auditTrail = auditTrail;
         this.persons = persons;
+        this.reservationBooker = reservationBooker;
     }
 
     @Transactional
@@ -58,11 +62,35 @@ public class PublicRegistrationTxWriter {
     @Transactional
     public RegisteredPersons registerPersons(PublicClub club,
             PublicRegistrationKind kind, PublicRegistrantDetails details) {
-        UUID registrantId = createRegistrant(club.clubId(), kind, details);
-        InvoiceRecipient invoice = details.invoiceRecipient();
-        UUID invoiceId = invoice == null ? null : createInvoiceRecipient(club.clubId(), invoice);
-        persons.flush();
+        RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
         audit(club, kind);
+        return registered;
+    }
+
+    /**
+     * The discovery flow: the same registrant write, then the candidate's all-day
+     * glider slot on the day they picked. The booking is best-effort — a club
+     * without a double-seater or without a homebase still gets the registration,
+     * and the organiser mail carries the reason (see
+     * {@link DiscoveryReservationOutcome}).
+     */
+    @Transactional
+    public DiscoveryRegistration registerDiscovery(PublicClub club,
+            PublicRegistrantDetails details, LocalDate selectedDay) {
+        PublicRegistrationKind kind = PublicRegistrationKind.DISCOVERY_FLIGHT;
+        RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
+        DiscoveryReservationOutcome reservation = reservationBooker.book(
+                club.clubId(), registered.registrantPersonId(), selectedDay);
+        audit(club, kind);
+        return new DiscoveryRegistration(registered, reservation);
+    }
+
+    private RegisteredPersons writeRegistrants(UUID clubId,
+            PublicRegistrationKind kind, PublicRegistrantDetails details) {
+        UUID registrantId = createRegistrant(clubId, kind, details);
+        InvoiceRecipient invoice = details.invoiceRecipient();
+        UUID invoiceId = invoice == null ? null : createInvoiceRecipient(clubId, invoice);
+        persons.flush();
         return new RegisteredPersons(registrantId, invoiceId);
     }
 
@@ -137,4 +165,8 @@ public class PublicRegistrationTxWriter {
 
     /** The Persons an accepted submission created. */
     public record RegisteredPersons(UUID registrantPersonId, @Nullable UUID invoicePersonId) {}
+
+    /** What a discovery submission wrote: the Persons plus the reservation attempt. */
+    public record DiscoveryRegistration(RegisteredPersons persons,
+                                        DiscoveryReservationOutcome reservation) {}
 }

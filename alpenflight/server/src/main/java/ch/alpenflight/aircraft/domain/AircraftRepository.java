@@ -55,6 +55,27 @@ public interface AircraftRepository {
 
     List<ListRow> findActiveTowingListRows();
 
+    /**
+     * Ids of the club's OWN active aircraft of one type code with an exact seat
+     * count — the club-owned-double-seater-glider lookup a discovery-flight
+     * booking needs ({@code RegistrationService.cs:152-156}: owner club, 2
+     * seats, type Glider).
+     *
+     * <p>Matches on {@code owner_club_id}, not {@code managing_club_id}: legacy
+     * asks who owns the airframe, and a club may not block-book a glider it
+     * merely manages for someone else.
+     *
+     * <p>Ordered by immatriculation so a club with several matching gliders
+     * always yields the same one. Legacy's {@code FirstOrDefault} has no
+     * {@code ORDER BY} and picks whatever the DB returns first; which of N
+     * equally-eligible gliders gets the slot is not a semantic legacy defines,
+     * so making it repeatable costs nothing and gives the club an answer to
+     * "why that glider?".
+     */
+    List<UUID> findActiveOwnedIdsByTypeCodeAndSeats(UUID ownerClubId,
+                                                    String typeCode,
+                                                    int nrOfSeats);
+
     List<PickerRow> findAllActivePickerRows();
 
     Optional<Aircraft> findActiveById(UUID id);
