@@ -25,6 +25,11 @@ import org.springframework.stereotype.Service;
  *
  * <p>An HTTP interceptor establishing the tenant per request was rejected for
  * step 2: it would scope the failure paths too.
+ *
+ * <p>The notification mails go out inside that same window but outside the
+ * writer's {@code @Transactional} boundary — after the rows are durable, and
+ * still tenant-scoped so the club's {@code t_email_template} override resolves
+ * ({@link PublicRegistrationMailer}).
  */
 @Service
 public class PublicRegistrationIntake {
@@ -32,12 +37,15 @@ public class PublicRegistrationIntake {
     private final PublicRegistrationSubmitGuard guard;
     private final PublicClubResolver resolver;
     private final PublicRegistrationTxWriter writer;
+    private final PublicRegistrationMailer mailer;
 
     public PublicRegistrationIntake(PublicRegistrationSubmitGuard guard,
-            PublicClubResolver resolver, PublicRegistrationTxWriter writer) {
+            PublicClubResolver resolver, PublicRegistrationTxWriter writer,
+            PublicRegistrationMailer mailer) {
         this.guard = guard;
         this.resolver = resolver;
         this.writer = writer;
+        this.mailer = mailer;
     }
 
     /** Resolves the slug and records the accepted discovery-flight submission. */
@@ -63,8 +71,11 @@ public class PublicRegistrationIntake {
         }
         guard.recordAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
-        DiscoveryRegistration written = Tenants.runAs(club.clubId(),
-                () -> writer.registerDiscovery(club, registrant, selectedDay));
+        DiscoveryRegistration written = Tenants.runAs(club.clubId(), () -> {
+            DiscoveryRegistration registered = writer.registerDiscovery(club, registrant, selectedDay);
+            mailer.sendDiscovery(club, registrant, selectedDay, registered.reservation());
+            return registered;
+        });
         return new Accepted(club, written.persons(), written.reservation());
     }
 
@@ -77,8 +88,11 @@ public class PublicRegistrationIntake {
             PublicRegistrantDetails registrant) {
         guard.recordAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
-        RegisteredPersons registered =
-                Tenants.runAs(club.clubId(), () -> writer.registerScenic(club, registrant));
+        RegisteredPersons registered = Tenants.runAs(club.clubId(), () -> {
+            RegisteredPersons persons = writer.registerScenic(club, registrant);
+            mailer.sendScenic(club, registrant);
+            return persons;
+        });
         return new Accepted(club, registered, null);
     }
 

@@ -70,7 +70,7 @@ class PublicRegistrantDetailsTest {
     void values_are_trimmed() {
         PublicRegistrantDetails details = new PublicRegistrantDetails(
                 "  Rosa  ", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
-                "   ", null, "079 555 66 77", null, true, null);
+                "   ", null, "079 555 66 77", null, null, true, null);
 
         assertThat(details.firstname()).isEqualTo("Rosa");
         assertThat(details.privatePhone()).isNull();
@@ -80,7 +80,7 @@ class PublicRegistrantDetailsTest {
             boolean invoiceAddressIsSame, InvoiceRecipient invoiceRecipient) {
         return new PublicRegistrantDetails(
                 "Rosa", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
-                null, null, mobilePhone, privateEmail,
+                null, null, mobilePhone, privateEmail, null,
                 invoiceAddressIsSame, invoiceRecipient);
     }
 
@@ -91,7 +91,7 @@ class PublicRegistrantDetailsTest {
                 blankUnless("addressLine1", blankedField, "Flugplatzstrasse 7"),
                 blankUnless("zip", blankedField, "6060"),
                 blankUnless("city", blankedField, "Sarnen"),
-                null, null, null, "079 555 66 77", null, true, null);
+                null, null, null, "079 555 66 77", null, null, true, null);
     }
 
     private static String blankUnless(String field, String blankedField, String value) {

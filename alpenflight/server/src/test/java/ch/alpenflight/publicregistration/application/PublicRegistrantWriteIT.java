@@ -206,7 +206,7 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         return new PublicRegistrantDetails(
                 "Rosa", "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
                 "041 660 11 22", "041 660 33 44", "079 555 66 77", "rosa.renggli@example.ch",
-                invoiceAddressIsSame,
+                null, invoiceAddressIsSame,
                 invoiceAddressIsSame ? null : new InvoiceRecipient(
                         "Beat", "Bezahler", "Buchhaltungsweg 3", "6003", "Luzern", null,
                         "beat.bezahler@example.ch"));

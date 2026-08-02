@@ -22,6 +22,11 @@ import org.jspecify.annotations.Nullable;
  * <p>Length caps and email shape are deliberately NOT re-checked here; the
  * {@code Person} aggregate already rejects both, and duplicating them would
  * fork the limit.
+ *
+ * <p>{@code remarks} is the one field that is never persisted: legacy carries
+ * it straight into the two notification mails and stores nothing
+ * ({@code RegistrationService.cs:109-131}), so it lives on the command rather
+ * than on {@code Person}.
  */
 public record PublicRegistrantDetails(
         String firstname,
@@ -34,6 +39,7 @@ public record PublicRegistrantDetails(
         @Nullable String businessPhone,
         @Nullable String mobilePhone,
         @Nullable String privateEmail,
+        @Nullable String remarks,
         boolean invoiceAddressIsSame,
         @Nullable InvoiceRecipient invoiceRecipient) {
 
@@ -47,6 +53,7 @@ public record PublicRegistrantDetails(
         businessPhone = trimToNull(businessPhone);
         mobilePhone = trimToNull(mobilePhone);
         privateEmail = trimToNull(privateEmail);
+        remarks = trimToNull(remarks);
         if (mobilePhone == null && privateEmail == null) {
             throw new PublicRegistrationInvalidException(
                     "at least one of mobilePhone / privateEmail is required");

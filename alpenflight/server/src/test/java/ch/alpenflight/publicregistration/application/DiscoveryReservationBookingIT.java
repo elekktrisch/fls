@@ -299,7 +299,7 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
                 firstname, "Renggli", "Flugplatzstrasse 7", "6060", "Sarnen", null,
                 null, null, "079 555 66 77",
                 firstname.toLowerCase(Locale.ROOT) + ".renggli@example.ch",
-                true, null);
+                null, true, null);
     }
 
     private Instant dayStart() {
