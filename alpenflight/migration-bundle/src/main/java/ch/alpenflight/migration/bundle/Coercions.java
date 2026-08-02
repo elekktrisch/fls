@@ -14,7 +14,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -190,6 +193,69 @@ public final class Coercions {
         } else {
             target.writeStringField(fieldName, value);
         }
+    }
+
+    /**
+     * Separators a legacy multi-recipient address column may use, per
+     * {@code FLS.Common/Extensions/StringExtensions.cs:12}.
+     */
+    private static final Pattern RECIPIENT_LIST_SEPARATOR = Pattern.compile("[,;\\s]+");
+
+    /**
+     * Emit a multi-recipient address column in the comma-joined, lower-cased
+     * form the new stack's readers assume. Legacy accepts comma, semicolon or
+     * whitespace as the separator while the new stack splits on comma alone, so
+     * a semicolon-separated legacy list would otherwise port as ONE unusable
+     * recipient and the migrated club would notify nobody.
+     *
+     * <p>Addresses are deliberately NOT validated here: legacy never validated
+     * them, and discarding one would delete a club's own configuration behind
+     * its back. An unparseable address ports verbatim and surfaces at the
+     * club-admin edit form, whose aggregate setter rejects it by name.
+     *
+     * <p>A value holding only separators is the opted-out state and ports as
+     * {@code null}. Canonicalisation never lengthens the value (each separator
+     * run collapses to one comma), so a legacy value that fits its column still
+     * fits the destination's.
+     */
+    public static void writeOptionalRecipientList(
+            JsonGenerator target, String fieldName, @Nullable String value)
+            throws IOException {
+        if (value == null) {
+            target.writeNullField(fieldName);
+            return;
+        }
+        if (isCanonicalRecipientList(value)) {
+            target.writeStringField(fieldName, value);
+            return;
+        }
+        String canonical = RECIPIENT_LIST_SEPARATOR.splitAsStream(value)
+                .filter(address -> !address.isEmpty())
+                .map(address -> address.toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining(","));
+        if (canonical.isEmpty()) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeStringField(fieldName, canonical);
+        }
+    }
+
+    /** Keeps the already-canonical common case off the per-row allocation budget. */
+    private static boolean isCanonicalRecipientList(String value) {
+        if (value.isEmpty() || value.charAt(value.length() - 1) == ',') {
+            return false;
+        }
+        char previous = ',';
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (current == ';' || Character.isWhitespace(current)
+                    || Character.isUpperCase(current)
+                    || (current == ',' && previous == ',')) {
+                return false;
+            }
+            previous = current;
+        }
+        return true;
     }
 
     /**

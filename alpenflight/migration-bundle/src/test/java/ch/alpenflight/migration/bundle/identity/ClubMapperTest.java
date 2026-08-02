@@ -90,4 +90,40 @@ class ClubMapperTest extends AbstractMapperContractTest<ClubMapper> {
                 .isFalse();
     }
 
+    @Test
+    void registrationOperatorRecipientsPortCommaJoinedAndLowercased() throws Exception {
+        Map<String, Object> row = legacyRow(seededFaker());
+        row.put("SendTrialFlightRegistrationOperatorEmailTo",
+                "Organiser@Club.CH; second@Club.ch  third@club.ch");
+        row.put("SendPassengerFlightRegistrationOperatorEmailTo", "  Scenic@Club.CH  ");
+
+        JsonNode emitted = invokeWriteNdjson(mapper, row);
+
+        assertThat(emitted.get("send_trial_flight_registration_operator_email").asText())
+                .as("PublicRegistrationMailer splits recipients on comma alone — a legacy "
+                        + "semicolon/whitespace list must arrive comma-joined or the migrated "
+                        + "club resolves to one unusable recipient and notifies nobody")
+                .isEqualTo("organiser@club.ch,second@club.ch,third@club.ch");
+        assertThat(emitted.get("send_passenger_flight_registration_operator_email").asText())
+                .isEqualTo("scenic@club.ch");
+    }
+
+    @Test
+    void unparseableRegistrationOperatorRecipientPortsVerbatimAndBlankPortsAsOptedOut()
+            throws Exception {
+        Map<String, Object> row = legacyRow(seededFaker());
+        row.put("SendTrialFlightRegistrationOperatorEmailTo", "keine;  info@club.ch");
+        row.put("SendPassengerFlightRegistrationOperatorEmailTo", "   ");
+
+        JsonNode emitted = invokeWriteNdjson(mapper, row);
+
+        assertThat(emitted.get("send_trial_flight_registration_operator_email").asText())
+                .as("an address legacy never validated is the club's own configuration — "
+                        + "it ports verbatim to surface at the edit form, never dropped here")
+                .isEqualTo("keine,info@club.ch");
+        assertThat(emitted.get("send_passenger_flight_registration_operator_email").isNull())
+                .as("a whitespace-only legacy value is the opted-out state, not a recipient")
+                .isTrue();
+    }
+
 }

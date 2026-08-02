@@ -137,9 +137,11 @@ public final class ClubMapper implements Mapper {
                 source.getString("SendPlanningDayInfoMailTo"));
         Coercions.writeOptionalString(target, SEND_DELIVERY_MAIL_EXPORT_TO,
                 source.getString("SendDeliveryMailExportTo"));
-        Coercions.writeOptionalString(target, SEND_TRIAL_FLIGHT_REGISTRATION_OPERATOR_EMAIL,
+        Coercions.writeOptionalRecipientList(target,
+                SEND_TRIAL_FLIGHT_REGISTRATION_OPERATOR_EMAIL,
                 source.getString("SendTrialFlightRegistrationOperatorEmailTo"));
-        Coercions.writeOptionalString(target, SEND_PASSENGER_FLIGHT_REGISTRATION_OPERATOR_EMAIL,
+        Coercions.writeOptionalRecipientList(target,
+                SEND_PASSENGER_FLIGHT_REGISTRATION_OPERATOR_EMAIL,
                 source.getString("SendPassengerFlightRegistrationOperatorEmailTo"));
         Coercions.writeOptionalString(target, REPLY_TO_EMAIL_ADDRESS,
                 source.getString("ReplyToEmailAddress"));
