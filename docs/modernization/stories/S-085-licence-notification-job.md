@@ -1,5 +1,6 @@
 ---
 id: S-085
+rolled_up_into: J-15
 title: Port LicenceNotificationJob + email template
 epic: E-10
 status: todo

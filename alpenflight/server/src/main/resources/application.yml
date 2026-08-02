@@ -745,6 +745,17 @@ alpenflight:
   mail:
     enabled: ${ALPENFLIGHT_MAIL_ENABLED:false}
     from: ${ALPENFLIGHT_MAIL_FROM:noreply@alpenflight.ch}
+  # S-088: the OGN device database the aircraft sync reads. Overridden in tests
+  # and at the e2e gate to a recorded fixture so no run depends on a third party.
+  ogn:
+    ddb-url: ${ALPENFLIGHT_OGN_DDB_URL:http://ddb.glidernet.org/download?j=1}
+  # S-018 ShedLock: present, inert. Single-instance deployment means the
+  # scheduler needs no distributed lock; flipping this on is a deliberate
+  # multi-instance decision that also has to add @EnableSchedulerLock, which
+  # ShedLockNotActivatedTest currently forbids.
+  scheduling:
+    lock:
+      enabled: false
   migration:
     master-keyset:
       source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}

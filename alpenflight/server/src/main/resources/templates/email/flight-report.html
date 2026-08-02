@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<!--
+  Daily flight report (S-084, ADR 0013). One mail per opted-in person listing the
+  flights they flew as pilot, co-pilot, or instructor. Binds
+  DailyReportJob.FlightReportModel under `report`.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Flugrapport</title>
+  </head>
+  <body>
+    <h2>Flugrapport</h2>
+    <p>Hallo <span th:text="${report.personName}">Name</span>,</p>
+    <p>Deine erfassten Flüge:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Immatrikulation</th>
+          <th>Start</th>
+          <th>Landung</th>
+          <th>Dauer (min)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="flight : ${report.flights}">
+          <td th:text="${flight.date != null} ? ${#temporals.format(flight.date, 'dd.MM.yyyy')} : ''">
+            01.01.2026
+          </td>
+          <td th:text="${flight.immatriculation}">HB-1234</td>
+          <td th:text="${flight.startLocation}">Bern-Belp</td>
+          <td th:text="${flight.ldgLocation}">Bern-Belp</td>
+          <td th:text="${flight.durationMinutes}">60</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Freundliche Grüsse<br />AlpenFlight</p>
+  </body>
+</html>

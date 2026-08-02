@@ -2,7 +2,7 @@
 id: S-092
 title: Decommission Workflow.Activator + Alpinely.TownCrier references
 epic: E-10
-status: todo
+status: done
 depends_on: [S-083, S-084, S-085, S-086, S-087, S-088, S-089, S-090]
 acceptance:
   - All jobs ported to Spring `@Scheduled`; cron-on-host references to `FLS.Workflow.Activator` are removed from the new deployment recipe.

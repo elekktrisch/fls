@@ -8,7 +8,10 @@ import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.platform.tenancy.Tenants;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -41,6 +44,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class DeploymentContext {
+
+    private static final Logger LOG = LoggerFactory.getLogger(DeploymentContext.class);
 
     private final DeploymentRepository deployments;
     private final ClubRepository clubs;
@@ -79,5 +84,45 @@ public class DeploymentContext {
             Tenants.runAs(clubId, () ->
                     clubs.findActiveById(clubId).ifPresent(body));
         }
+    }
+
+    /**
+     * Runs {@code accumulator} for every Club of every Deployment in one of the
+     * given lifecycle states, each under its own tenant scope, folding the
+     * per-club results together — the shape every cross-tenant "Run now" needs.
+     *
+     * <p>A club whose turn throws is logged and stepped over, so one club's bad
+     * data never denies the rest their run. That isolation lives here rather than
+     * in each job, which is also why {@code jobName} is passed: it is what makes
+     * the skip legible in the log.
+     *
+     * @param jobName     the job's registry key, for the skip log
+     * @param identity    the empty result (an all-zero run summary)
+     * @param accumulator merges one club's result into the running total
+     */
+    public <T> T foldOverClubs(String jobName,
+                               T identity,
+                               BiFunction<T, Club, T> accumulator,
+                               LifecycleState... states) {
+        Object[] total = {identity};
+        for (Deployment deployment : findDeployment(states)) {
+            UUID deploymentId = deployment.getId();
+            if (deploymentId == null) {
+                continue;
+            }
+            forEachClub(deploymentId, club -> {
+                try {
+                    total[0] = accumulator.apply(cast(total[0]), club);
+                } catch (RuntimeException e) {
+                    LOG.error("{} failed for club {} — continuing", jobName, club.getId(), e);
+                }
+            });
+        }
+        return cast(total[0]);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T cast(Object value) {
+        return (T) value;
     }
 }

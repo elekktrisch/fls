@@ -1,5 +1,6 @@
 ---
 id: S-018
+rolled_up_into: J-15
 title: ShedLock stub table in Flyway baseline
 epic: E-02
 status: todo

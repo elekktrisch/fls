@@ -1,5 +1,6 @@
 ---
 id: S-090
+rolled_up_into: J-15
 title: Port DeliveryMailExportJob (POI + ZipOutputStream)
 epic: E-10
 status: todo

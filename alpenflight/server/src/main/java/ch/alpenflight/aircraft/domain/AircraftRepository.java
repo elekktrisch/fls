@@ -61,6 +61,13 @@ public interface AircraftRepository {
 
     Optional<Aircraft> findActiveByImmatriculation(String normalizedImmatriculation);
 
+    /**
+     * Every live aircraft, immatriculation-ordered — the scan side of the OGN
+     * device-database sync, which matches our fleet against the downloaded
+     * registry rather than the other way round.
+     */
+    List<Aircraft> findAllActive();
+
     Aircraft save(Aircraft aircraft);
 
     /**

@@ -84,6 +84,16 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
     List<Person> findActiveByEmail(@Param("email") String lowerCasedEmail);
 
     @Override
+    @Query("select p from Person p where p.deletedOn is null and ("
+            + "p.medicalLaplExpireDate <= :cutoff "
+            + "or p.medicalClass1ExpireDate <= :cutoff "
+            + "or p.medicalClass2ExpireDate <= :cutoff "
+            + "or p.gliderInstructorLicenceExpireDate <= :cutoff "
+            + "or p.motorInstructorLicenceExpireDate <= :cutoff "
+            + "or p.partMLicenceExpireDate <= :cutoff)")
+    List<Person> findWithLicenceExpiringOnOrBefore(@Param("cutoff") LocalDate cutoff);
+
+    @Override
     @Query("select p from Person p where p.deletedOn is null "
             + "and lower(p.firstname) = lower(:firstname) "
             + "and lower(p.lastname) = lower(:lastname) "

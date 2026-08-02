@@ -101,6 +101,13 @@ public interface FlightRepository {
     List<Flight> findByProcessStateId(UUID processStateId);
 
     /**
+     * Flights the daily report has never covered ({@code flight_report_sent_on is
+     * null}), newest flying day first. Soft-deleted excluded; tenant filter
+     * structural.
+     */
+    List<Flight> findUnreported();
+
+    /**
      * Count of non-deleted flights flown on {@code flightDate} within the
      * caller's tenant — feeds the club-admin dashboard "today's flights" tile
      * (J-3 T-08). Tenant filter structural via {@code @TenantId}; "today" is

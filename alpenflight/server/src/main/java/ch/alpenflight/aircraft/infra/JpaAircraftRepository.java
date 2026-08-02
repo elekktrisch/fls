@@ -84,6 +84,10 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
     List<AircraftRepository.PickerRow> findAllActivePickerRows();
 
     @Override
+    @Query("select a from Aircraft a where a.deletedOn is null order by a.immatriculation")
+    List<Aircraft> findAllActive();
+
+    @Override
     @Query("select a from Aircraft a where a.id = :id and a.deletedOn is null")
     Optional<Aircraft> findActiveById(@Param("id") UUID id);
 

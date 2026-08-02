@@ -1,5 +1,6 @@
 ---
 id: S-038
+rolled_up_into: J-15
 title: Scheduled-job instrumentation pattern
 epic: E-04
 status: todo

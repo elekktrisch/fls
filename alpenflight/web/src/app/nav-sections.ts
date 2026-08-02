@@ -32,6 +32,7 @@ export const MASTERDATA_CLUB_ADMIN_ITEMS: readonly NavItem[] = [
 // users (a divergence from legacy, which showed it to everyone).
 export const SYS_ADMIN_SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
+  { path: '/system/jobs', label: 'Jobs', icon: 'file-text' },
 ];
 
 export interface NavRoleFlags {

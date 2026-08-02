@@ -1,0 +1,108 @@
+package ch.alpenflight.persons.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import ch.alpenflight.persons.domain.Person;
+import ch.alpenflight.persons.domain.PersonRepository;
+import ch.alpenflight.platform.mail.CapturedMailSender;
+import ch.alpenflight.platform.mail.MailMessage;
+import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * Integration proof of the licence-expiry notification job (S-085) against the
+ * captured outbox: one mail per expiring licence, none for a licence outside the
+ * 60-day window, and none for a holder without an address.
+ */
+@Import(CapturedMailSender.Config.class)
+class LicenceNotificationJobIT extends PostgresIntegrationTest {
+
+    private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
+
+    /** Inside the {@code today + 60} window. */
+    private static final LocalDate SOON = TODAY.plusDays(30);
+
+    /** Outside it — the narrowing assertion's negative seed. */
+    private static final LocalDate FAR_OFF = TODAY.plusDays(120);
+
+    @Autowired JdbcTemplate jdbc;
+    @Autowired LicenceNotificationJob job;
+    @Autowired CapturedMailSender outbox;
+    @Autowired PersonRepository persons;
+
+    private String holderMail;
+    private String farOffMail;
+
+    @BeforeEach
+    void clean() {
+        outbox.clear();
+        String run = UUID.randomUUID().toString().substring(0, 8);
+        holderMail = "licence.holder." + run + "@example.com";
+        farOffMail = "licence.faroff." + run + "@example.com";
+    }
+
+    @Test
+    void runOnce_mailsOncePerExpiringLicence_andSkipsWhatIsNotDue() {
+        // Two licences inside the window → two mails; one far-off licence → none.
+        seedPerson(holderMail, SOON, SOON, FAR_OFF);
+        seedPerson(farOffMail, null, null, FAR_OFF);
+        seedPerson(null, SOON, null, null);
+
+        LicenceNotificationJob.RunSummary summary = job.runOnce();
+
+        assertThat(mailsTo(holderMail))
+                .as("one mail per expiring licence, not one per person")
+                .isEqualTo(2);
+        assertThat(mailsTo(farOffMail))
+                .as("a licence outside the 60-day window is not notified")
+                .isZero();
+        assertThat(summary.mailCount()).isGreaterThanOrEqualTo(2);
+        assertThat(summary.noAddressCount())
+                .as("the address-less holder is counted as skipped, not mailed")
+                .isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void runOnce_namesTheExpiringLicenceInTheSubjectAndBody() {
+        seedPerson(holderMail, SOON, null, null);
+
+        job.runOnce();
+
+        MailMessage mail = outbox.sent().stream()
+                .filter(m -> m.to().contains(holderMail))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no licence mail for " + holderMail));
+        assertThat(mail.subject()).isEqualTo(LicenceNotificationJob.SUBJECT);
+        assertThat(mail.htmlBody()).contains("Class 1 Medical");
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private long mailsTo(String email) {
+        return outbox.sent().stream().filter(m -> m.to().contains(email)).count();
+    }
+
+    /**
+     * A person carrying up to three expiry dates. {@code email} null leaves the
+     * person without any address, which is the skip case.
+     */
+    private UUID seedPerson(String email, LocalDate class1, LocalDate lapl, LocalDate partM) {
+        Person person = Person.register("Lizenz", "Halter-" + UUID.randomUUID(), null);
+        if (email != null) {
+            person.updateContact(null, null, null, null, null, null, null, null, null, null,
+                    email, null, false, null, null, false);
+        }
+        person.updateLicences(false, false, false, true, false, false, false, false, false, false,
+                null, class1, null, lapl, null, null, partM,
+                false, false, false, false);
+        return persons.save(person).getId().value();
+    }
+}

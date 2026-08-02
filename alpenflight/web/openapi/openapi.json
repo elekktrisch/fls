@@ -20,6 +20,9 @@
     "name" : "Planning days",
     "description" : "Planning-day CRUD (tenant-scoped; 409 on duplicate club+date+location; update/delete gated to admin-or-creator)."
   }, {
+    "name" : "Admin Jobs",
+    "description" : "System-administrator scheduled-jobs console."
+  }, {
     "name" : "AccountingRuleFilters",
     "description" : "AccountingRuleFilter CRUD (per-club tenant-scoped billing-rule config)."
   }, {
@@ -3556,6 +3559,53 @@
         }
       }
     },
+    "/api/v1/admin/jobs/{name}/run" : {
+      "post" : {
+        "tags" : [ "Admin Jobs" ],
+        "summary" : "Run a business job once and return the resulting run.",
+        "operationId" : "runJob",
+        "parameters" : [ {
+          "name" : "name",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The completed (or failed) run projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Caller is not SYSTEM_ADMINISTRATOR.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No registered job with that name.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobRunResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/deployments/{id}/lifecycle" : {
       "post" : {
         "tags" : [ "Admin Deployments" ],
@@ -4670,6 +4720,41 @@
                   "type" : "array",
                   "items" : {
                     "$ref" : "#/components/schemas/AircraftReservationTypeListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/jobs" : {
+      "get" : {
+        "tags" : [ "Admin Jobs" ],
+        "summary" : "List every registered business job with its last run.",
+        "operationId" : "listJobs",
+        "responses" : {
+          "200" : {
+            "description" : "The job registry projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/JobResponse"
+                  }
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Caller is not SYSTEM_ADMINISTRATOR.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/JobResponse"
                   }
                 }
               }
@@ -8867,6 +8952,26 @@
         },
         "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
       },
+      "JobRunResponse" : {
+        "type" : "object",
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "enum" : [ "RUNNING", "COMPLETED", "FAILED" ]
+          },
+          "startedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "finishedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "summary" : {
+            "type" : "string"
+          }
+        }
+      },
       "LifecycleTransitionRequest" : {
         "type" : "object",
         "properties" : {
@@ -10288,6 +10393,23 @@
           }
         },
         "required" : [ "active", "id", "instructorRequired", "name" ]
+      },
+      "JobResponse" : {
+        "type" : "object",
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "cron" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "lastRun" : {
+            "$ref" : "#/components/schemas/JobRunResponse"
+          }
+        }
       },
       "AuditEventPage" : {
         "type" : "object",
