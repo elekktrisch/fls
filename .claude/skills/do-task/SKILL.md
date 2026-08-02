@@ -128,6 +128,15 @@ format-only miss fails CI a whole round later — the most wasteful red there is
 CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
 done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
 
+**The packaged artifact must start.** When a task adds a Spring bean, a dependency, or an
+`@Value`/config key, green tests are NOT evidence that production boots: `spring-boot-starter-test`
+puts auto-config on the test classpath that the boot jar does not carry, so `@SpringBootTest` ITs pass
+over an application that dies at startup. J-15 shipped five green job ITs while `RestClient.Builder`
+was unresolvable in the packaged app, and every real-idp proof job died at "wait for backend health".
+Smoke it: `./gradlew bootJar` → run the jar with the `.bashrc` `DATASOURCE_*` → probe
+`/actuator/health` → kill it. ~2 min, and it fails in the same way CI would.
+[[project_test_classpath_hides_boot_failures]]
+
 **Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **Backend: run `./gradlew check`, NOT `test`** — the build gate's red-makers (`cpdRatchet`, `pmdMain`, the arch-guards, `OpenApiSnapshotIT`) live in `check`, not `test`; a `test`-green commit reds CI on `cpdRatchet` (J-6 T-04/05). And run it on **every module your change reaches, not just the obvious one** — a binding edit in `migration-bundle` reds an `ExportCommandSmokeTest` in `migration-tool` (J-6 T-11); when unsure, `check` from the repo root. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — run `actionlint` or a real dispatch (it misses GitHub's expression-length limit + `success()`/`!cancelled()` step-skip semantics).
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
