@@ -73,7 +73,7 @@ The green run drives an **anonymous** browser (no login, no Bearer) against a se
 - [ ] **T-14** — CLUB producer-SELECT + mapper widening for the two operator-email columns + a real-producer round-trip IT. *(seam: MapperLegacyBindings CLUB binding)*
 - [ ] **T-15** — Club-admin edit page: operator-email fields + discovery-flight-day management panel. **Club PUT is full-replace** — the form must submit all three new fields or a save silently clears them. *(seam: web features/clubs/edit)*
 - [ ] **T-16** — Shared public-form shell + the registrant fieldset shared by both forms (no shared public layout exists today; each stub rolls its own chrome). *(seam: web features/public-registration shared pieces)*
-- [ ] **T-17** — `/discovery-flight/:clubSlug` page + store: day picker, conditional invoice block, success panel, missing-slug redirect. *(seam: one component-route + store)*
+- [ ] **T-17** — `/discovery-flight/:clubSlug` page + store: day picker, conditional invoice block, success panel, missing-slug redirect. **Fix the dishonest fixture first (T-13b):** the mocked `DISCOVERY_DAYS` in `public-registration.spec.ts:32` returns day *objects* while the real GET returns a bare ISO-date *array* — a green mock over a contract the backend never emits. *(seam: one component-route + store)*
 - [ ] **T-18** — `/scenic-flight/:clubSlug` page + store (same shell, no day picker). *(seam: one component-route + store)*
 - [ ] **T-19** — Add both routes to the hardcoded `PUBLIC_ROUTES` list + the mobile-first assertions (360×640 single column, ≥44×44px targets, no PII in URL). *(seam: public-routes spec + viewport assertions)*
 - [ ] **T-20** — **[J-15-MAILPIT-REPORT]** Close the deferred jobs-console Mailpit assertion, riding this journey's Mailpit work. *(rider)*
