@@ -30,10 +30,15 @@ public class HttpOgnDeviceDatabase implements OgnDeviceDatabase {
     private final RestClient restClient;
     private final String ddbUrl;
 
-    public HttpOgnDeviceDatabase(RestClient.Builder builder,
-                                 @Value("${alpenflight.ogn.ddb-url:" + DEFAULT_URL + "}")
+    /**
+     * Builds its own client rather than taking the auto-configured
+     * {@code RestClient.Builder}: that bean is contributed by web auto-config that
+     * is present on the test classpath but not in the packaged application, so
+     * injecting it starts fine under {@code @SpringBootTest} and fails the boot jar.
+     */
+    public HttpOgnDeviceDatabase(@Value("${alpenflight.ogn.ddb-url:" + DEFAULT_URL + "}")
                                  String ddbUrl) {
-        this.restClient = builder.build();
+        this.restClient = RestClient.create();
         this.ddbUrl = ddbUrl;
     }
 
