@@ -2,6 +2,7 @@ package ch.alpenflight.publicregistration.application;
 
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.publicregistration.application.PublicClubResolver.PublicClub;
+import ch.alpenflight.publicregistration.application.PublicRegistrationTxWriter.RegisteredPersons;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,10 +47,34 @@ public class PublicRegistrationIntake {
         return accept(clubSlug, clientIp, PublicRegistrationKind.SCENIC_FLIGHT);
     }
 
+    /** Registers a discovery-flight candidate: a glider-trainee Person in the resolved club. */
+    public Accepted acceptDiscovery(String clubSlug, String clientIp,
+            PublicRegistrantDetails registrant) {
+        return register(clubSlug, clientIp, PublicRegistrationKind.DISCOVERY_FLIGHT, registrant);
+    }
+
+    /** Registers a scenic-flight passenger: a Person in the resolved club, no trainee marker. */
+    public Accepted acceptScenic(String clubSlug, String clientIp,
+            PublicRegistrantDetails registrant) {
+        return register(clubSlug, clientIp, PublicRegistrationKind.SCENIC_FLIGHT, registrant);
+    }
+
     private PublicClub accept(String clubSlug, String clientIp, PublicRegistrationKind kind) {
         guard.recordAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
         Tenants.runAs(club.clubId(), () -> writer.recordAccepted(club, kind));
         return club;
     }
+
+    private Accepted register(String clubSlug, String clientIp,
+            PublicRegistrationKind kind, PublicRegistrantDetails registrant) {
+        guard.recordAndCheck(clientIp, clubSlug);
+        PublicClub club = resolver.resolve(clubSlug);
+        RegisteredPersons registered =
+                Tenants.runAs(club.clubId(), () -> writer.registerPersons(club, kind, registrant));
+        return new Accepted(club, registered);
+    }
+
+    /** The resolved club plus the Persons the submission created. */
+    public record Accepted(PublicClub club, RegisteredPersons registered) {}
 }
