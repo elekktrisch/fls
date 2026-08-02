@@ -25,18 +25,21 @@ PROJECT="alpenflight-dev"
 
 # shellcheck source=lib/shared-network.sh
 source "${SCRIPT_DIR}/lib/shared-network.sh"
+# shellcheck source=lib/fail-loud.sh
+source "${SCRIPT_DIR}/lib/fail-loud.sh"
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 cd "${REPO_ROOT}"
 
+require_compose_v2
 require_shared_network
 
 # Services named explicitly — `--profile next` alone would also pull mssql
 # (default profile) into this project and double-bind 1433. See
 # alpenflight/ops/README.md § Profile matrix for the full rule.
 log "Bringing up target stack (Postgres + pgAdmin + Keycloak) under project ${PROJECT}"
-docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" \
+compose_up_or_die "target stack (postgres + pgadmin + keycloak)" - "${PROJECT}" "${COMPOSE_FILE}" \
     up -d --wait --wait-timeout 240 postgres pgadmin keycloak
 
 log "Applying Flyway migrations against target Postgres"

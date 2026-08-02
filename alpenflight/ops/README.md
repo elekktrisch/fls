@@ -13,7 +13,9 @@ Mirrors ADR 0010's deployment-stack decisions in their dev-laptop form.
 | `alpenflight/ops/dev-up-full.sh` | Thin orchestrator: infra + legacy + seed + alpenflight. |
 | `alpenflight/ops/rebuild-keycloak.sh` | Rebuild + restart Keycloak with a fresh H2 volume. |
 | `alpenflight/ops/pgadmin/` | Custom pgAdmin image (server connection pre-wired). |
+| `alpenflight/ops/lib/fail-loud.sh` | Sourced helpers: compose-v2 preflight, `compose_up_or_die`, `run_step_or_die`. Every bring-up aborts naming the service that did not start. |
 | `alpenflight/ops/lint-compose.sh` | Static checks (healthcheck, floating tags, loopback binds). Run in CI via `.github/workflows/compose-lint.yml`. |
+| `alpenflight/ops/test-bring-up-guards.sh` | Proves the bring-up scripts fail loudly (stubbed `docker`, no daemon) + that the fan-out starts Mailpit before the legacy e2e suite. Run in CI via `compose-lint.yml`. |
 | `alpenflight/ops/.env.example` | Dev-only env overrides; copy to `.env` if you need them. Most contributors won't. |
 | `alpenflight/ops/.env` | **Gitignored.** Local overrides only. |
 

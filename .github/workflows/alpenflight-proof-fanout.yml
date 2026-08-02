@@ -208,6 +208,22 @@ jobs:
       - name: Create alpenflight_shared network
         run: docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network create alpenflight_shared --driver bridge
 
+      # BEFORE the legacy stack, not with the AlpenFlight half: e2e/global-setup.ts
+      # gates the ENTIRE legacy suite on Mailpit's /api/v1/info, so a Mailpit
+      # brought up after the legacy specs times global-setup out before any spec
+      # runs. The legacy server's verify-email path also expects SMTP on 1025.
+      # Registry-pull retry as elsewhere in this job (transient 5xx/timeout);
+      # a persistent failure still exits non-zero after the 3rd attempt.
+      - name: Bring up alpenflight-infra (mailpit)
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
+
       # Backgrounded MSSQL bring-up pulls mcr.microsoft.com/mssql/server. The
       # bounded 3-attempt/15s-backoff retry lives INSIDE the subshell so
       # /tmp/.done-stack is touched only on a successful `up` (J-1 T-09); on a
@@ -574,16 +590,7 @@ jobs:
       # the 3rd attempt, so real breakage stays red. Scoped to image-pull/
       # build/up ONLY — the test/gallery/deploy steps are deliberately NOT
       # retried (a flaky spec must not be silently retried into green).
-      - name: Bring up alpenflight-infra (mailpit)
-        run: |
-          for i in 1 2 3; do
-            bash alpenflight/ops/dev-up-infra.sh && exit 0
-            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
-            sleep 15
-          done
-          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
-          exit 1
-
+      # Mailpit is already up from the pre-legacy step above.
       - name: Build pgAdmin + Keycloak images
         run: |
           for i in 1 2 3; do
