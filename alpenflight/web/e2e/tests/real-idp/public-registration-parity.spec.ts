@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type Request } from '@playwright/test';
 import { expect, test, watchConsoleErrors } from '../_helpers/console-guard';
 import {
@@ -39,6 +41,19 @@ const CLUB_ADMIN = {
   password: 'clubadmin1-dev-2026!',
 } as const;
 
+const EXTERNAL_CLUB_ID = /^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * A far-future date, distinct per run: a fixed one would already be published
+ * on a retry and the duplicate-date 409 would read as a failure of the publish
+ * path rather than of the fixture.
+ */
+function discoveryDayDate(): string {
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + 400 + Math.floor(Math.random() * 300));
+  return day.toISOString().slice(0, 10);
+}
+
 test.describe('public flight registration — anonymous front door', () => {
   test('[happy] the discovery-flight entry is reachable anonymously under the real IdP', async ({
     browser,
@@ -79,6 +94,98 @@ test.describe('public flight registration — anonymous front door', () => {
           'J-17 · anonymous front door · the public discovery-flight entry renders under the real ' +
           'IdP with no Keycloak redirect, no app chrome and no authenticated prefetch — the ' +
           'unauthenticated surface the registration form is built on',
+        acTag: 'happy',
+      });
+    }
+  });
+});
+
+test.describe('club-admin registration settings', () => {
+  test('[happy] a club administrator manages its own club and still cannot read another', async ({
+    browser,
+  }, testInfo) => {
+    const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
+    const ctx = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+    const page = await ctx.newPage();
+    watchConsoleErrors(page, testInfo);
+
+    try {
+      const bearerRequest = page.waitForRequest(
+        (req: Request) =>
+          req.url().includes('/api/v1/') && /^Bearer /i.test(req.headers()['authorization'] ?? ''),
+      );
+      await page.goto('/');
+      await page.getByTestId('landing-topbar-sign-in').click();
+      await page.waitForURL(/\/realms\/alpenflight\//);
+      await fillKcLogin(page, CLUB_ADMIN.username, CLUB_ADMIN.password);
+      await page.waitForURL(/\/start(\?|$|\/)/, { timeout: 30_000 });
+      const authorization = (await bearerRequest).headers()['authorization']!;
+      const api = { headers: { authorization } };
+
+      // The club id `/join-requests` builds its club-edit link from. The realm
+      // stamps a club KEY into the `clubId` claim, so this is the only source of
+      // the routable club id — and the gate has to agree with it.
+      const me = await page.request.get('/api/v1/me', api);
+      expect(me.status()).toBe(200);
+      const clubId = ((await me.json()) as { clubId: string }).clubId;
+      expect(clubId).toMatch(EXTERNAL_CLUB_ID);
+
+      const ownClub = await page.request.get(`/api/v1/clubs/${clubId}`, api);
+      expect(ownClub.status()).toBe(200);
+
+      // Own-club access is not catalog access: the cross-tenant list and any
+      // club that is not the caller's stay closed.
+      expect((await page.request.get('/api/v1/clubs', api)).status()).toBe(403);
+      const foreignClub = await page.request.get(`/api/v1/clubs/clb-${randomUUID()}`, api);
+      expect(foreignClub.status()).toBe(403);
+      expect(await foreignClub.text()).not.toContain('clubKey');
+
+      const operatorEmail = `organiser-${randomUUID().slice(0, 8)}@example.com`;
+      const eventDate = discoveryDayDate();
+
+      await page.goto(`/clubs/${clubId}/edit`);
+      await expect(page.getByTestId('clubs-load-error')).toBeHidden();
+      await expect(page.locator('#clubName')).not.toHaveValue('');
+      await expect(page.getByTestId('clubs-discovery-flight-type-select')).toBeVisible();
+
+      await page.getByTestId('clubs-discovery-operator-email').locator('input').fill(operatorEmail);
+      await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
+      await page.getByTestId('clubs-discovery-day-input').locator('input').fill(eventDate);
+      await page.getByTestId('clubs-discovery-day-add').click();
+      await expect(page.getByTestId(`clubs-discovery-day-${eventDate}`)).toBeVisible();
+
+      await page.getByTestId('clubs-save-button').click();
+      // No club catalog for this role, so saving returns it to its own start page.
+      await page.waitForURL(/\/start(\?|$|\/)/, { timeout: 30_000 });
+
+      // The club PUT is full-replace, so read the stored row back rather than
+      // trusting the form's own echo of what it submitted.
+      const stored = await page.request.get(`/api/v1/clubs/${clubId}`, api);
+      expect(stored.status()).toBe(200);
+      expect((await stored.json()) as Record<string, unknown>).toMatchObject({
+        discoveryFlightOperatorEmail: operatorEmail,
+      });
+
+      await page.goto(`/clubs/${clubId}/edit`);
+      await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+        operatorEmail,
+      );
+      await expect(page.getByTestId(`clubs-discovery-day-${eventDate}`)).toBeVisible();
+      await page.screenshot({
+        path: `${testInfo.outputDir}/club-admin-registration-settings.png`,
+        fullPage: true,
+      });
+
+      await page.getByTestId(`clubs-discovery-day-withdraw-${eventDate}`).click();
+      await expect(page.getByTestId(`clubs-discovery-day-${eventDate}`)).toBeHidden();
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-17',
+        caption:
+          'J-17 · club-admin settings · a real CLUB_ADMINISTRATOR opens its own club, sets the ' +
+          'discovery-flight organiser address and publishes a discovery day, and the values survive ' +
+          'a reload — while the club catalog and every other club stay 403 for that principal',
         acTag: 'happy',
       });
     }

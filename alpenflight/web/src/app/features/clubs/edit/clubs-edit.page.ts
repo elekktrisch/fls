@@ -73,6 +73,11 @@ type ClubForm = FormGroup<{
         data-testid="clubs-save-error"
       />
       <af-page-error
+        [message]="store.loadError()"
+        [retryLabel]="null"
+        data-testid="clubs-load-error"
+      />
+      <af-page-error
         [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
         (retry)="referenceData.loadAll()"
         data-testid="clubs-ref-data-error"
@@ -197,7 +202,7 @@ type ClubForm = FormGroup<{
         }
 
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
-          <af-button htmlType="button" (clicked)="router.navigateByUrl('/clubs')">
+          <af-button htmlType="button" (clicked)="router.navigateByUrl(exitUrl())">
             Cancel
           </af-button>
           <af-button
@@ -305,6 +310,14 @@ export class ClubsEditPage {
       isOwnClub(this.clubId(), this.session.currentClubId()),
   );
 
+  /**
+   * The club catalog is a cross-tenant read, so a club admin has no list to
+   * return to — leaving the screen takes it back to its own start page.
+   */
+  protected readonly exitUrl = computed(() =>
+    this.session.isSystemAdmin() || this.session.isFlightOperator() ? '/clubs' : '/start',
+  );
+
   protected readonly newDay = signal('');
 
   protected readonly countryOptions = computed<readonly AfSelectOption<string>[]>(() =>
@@ -384,12 +397,27 @@ export class ClubsEditPage {
     this.form.controls.scenicFlightOperatorEmail,
   );
 
+  /** One fetch per club id, so a failed read does not re-fire on every signal tick. */
+  private readonly fetchedClubIds = new Set<string>();
+
   constructor() {
     effect(() => {
       // Re-run the slug validator whenever the entity list refreshes so the
       // duplicate flag updates the moment ClubsStore.loadAll() resolves.
       void this.store.entities();
       this.form.controls.slug.updateValueAndValidity({ emitEvent: false });
+    });
+
+    // The club catalog is closed to a CLUB_ADMINISTRATOR, so the club under
+    // edit cannot be assumed to be in the entity map — fetch whatever the
+    // catalog did not supply through the single-club read.
+    effect(() => {
+      const id = this.clubId();
+      if (id === null || this.fetchedClubIds.has(id) || this.store.entityMap()[id]) {
+        return;
+      }
+      this.fetchedClubIds.add(id);
+      this.store.loadOne(id);
     });
 
     effect(() => {
@@ -482,7 +510,7 @@ export class ClubsEditPage {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'club.created' || evt.kind === 'club.updated') {
         this.saveSubmitted.set(false);
-        this.router.navigateByUrl('/clubs');
+        this.router.navigateByUrl(this.exitUrl());
       }
     });
   }

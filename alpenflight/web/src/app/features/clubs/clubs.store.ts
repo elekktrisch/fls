@@ -15,6 +15,7 @@ import {
   removeEntity,
   setAllEntities,
   updateEntity,
+  upsertEntity,
   withEntities,
 } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
@@ -30,6 +31,8 @@ import type {
   DiscoveryFlightDayResponse,
   FlightTypeListItem,
 } from '@api/generated/model';
+
+import { SessionStore } from '@core/session/session.store';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
@@ -114,6 +117,26 @@ export const ClubsStore = signalStore(
                   }),
                 error: (e: HttpErrorResponse) =>
                   patchState(store, { loadError: e.message, isLoading: false }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      /**
+       * Single-club read. `listClubs` is the cross-tenant catalog and is closed
+       * to a CLUB_ADMINISTRATOR, so this is the only way that role reaches its
+       * own club — and the only source the edit screen can rely on.
+       */
+      loadOne: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { isLoading: true, loadError: null })),
+          switchMap((id) =>
+            clubsApi.getClub(id).pipe(
+              tapResponse({
+                next: (c: ClubResponse) =>
+                  patchState(store, upsertEntity(withId(c)), { isLoading: false }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { loadError: clubReadError(e), isLoading: false }),
               }),
             ),
           ),
@@ -243,7 +266,13 @@ export const ClubsStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
-      store.loadAll();
+      const session = inject(SessionStore);
+      // The catalog is the cross-tenant read (`ClubsController.listClubs`); a
+      // club admin would only earn a 403 from it and reads its own club through
+      // `loadOne` instead.
+      if (session.isSystemAdmin() || session.isFlightOperator()) {
+        store.loadAll();
+      }
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
           patchState(store, setAllEntities<Club>([]), {
@@ -262,6 +291,16 @@ function sortByEventDate(
   days: readonly DiscoveryFlightDayResponse[],
 ): readonly DiscoveryFlightDayResponse[] {
   return [...days].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+}
+
+function clubReadError(e: HttpErrorResponse): string {
+  if (e.status === 403) {
+    return 'You are not allowed to view this club.';
+  }
+  if (e.status === 404) {
+    return 'That club no longer exists.';
+  }
+  return e.message;
 }
 
 function dayError(e: HttpErrorResponse): string {

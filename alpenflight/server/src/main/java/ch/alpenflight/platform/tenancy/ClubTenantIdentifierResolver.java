@@ -53,29 +53,40 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
 
     @Override
     public UUID resolveCurrentTenantIdentifier() {
-        Optional<UUID> override = TenantContextCarrier.current();
-        if (override.isPresent()) {
-            return override.get();
-        }
+        return TenantContextCarrier.current()
+                .or(this::resolveForAuthenticatedPrincipal)
+                .orElse(NO_TENANT);
+    }
 
+    /**
+     * The tenant of the authenticated principal alone — steps 2 and 3 of the
+     * precedence list, with the {@link Tenants#runAs} override deliberately
+     * skipped.
+     *
+     * <p>Own-tenant authorization gates read this rather than the raw
+     * {@code clubId} claim: the claim is a hint whose value may be a club key
+     * (the realm seeds {@code clubId=club-1}) or absent altogether, so a string
+     * comparison against it denies a principal access to its own club. Skipping
+     * the override keeps an authorization decision independent of any tenant
+     * window the request itself opened.
+     */
+    public Optional<UUID> resolveForAuthenticatedPrincipal() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {
-            return NO_TENANT;
+            return Optional.empty();
         }
         Jwt jwt = jwtAuth.getToken();
 
         String claim = jwt.getClaimAsString("clubId");
         if (claim != null && !claim.isBlank()) {
             try {
-                return UUID.fromString(claim);
+                return Optional.of(UUID.fromString(claim));
             } catch (IllegalArgumentException ignored) {
                 // fall through to DB lookup
             }
         }
 
-        return userPrincipalLookup
-                .flatMap(lookup -> lookup.resolveTenantFor(jwt))
-                .orElse(NO_TENANT);
+        return userPrincipalLookup.flatMap(lookup -> lookup.resolveTenantFor(jwt));
     }
 
     @Override

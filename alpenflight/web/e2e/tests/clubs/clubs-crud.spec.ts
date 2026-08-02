@@ -614,6 +614,56 @@ test('clubs: publishing a day the club already offers surfaces the conflict', as
   await expect(page.getByTestId('clubs-discovery-days-panel').locator('li')).toHaveCount(1);
 });
 
+// `listClubs` is the cross-tenant catalog and is closed to a CLUB_ADMINISTRATOR,
+// so the edit screen has to populate from the single-club read alone — otherwise
+// the role the discovery-day panel is built for gets an empty form.
+test('clubs: the edit form populates from the single-club read alone', async ({
+  page,
+}, testInfo) => {
+  // The catalog is deliberately refused here; the browser logs that 403.
+  allowConsoleErrors(testInfo, /\b403\b/);
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, [{ id: 'dfd-1', eventDate: '2026-09-12' }]);
+  await page.route('**/api/v1/clubs**', async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    if (req.method() === 'GET' && url.pathname === '/api/v1/clubs') {
+      await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await setupClubsBackend([{ ...seedClub }])(route);
+  });
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+
+  await expect(page.locator('#clubName')).toHaveValue('Seed Club');
+  await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+    'schnupper@seed.example',
+  );
+  await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
+    'mitflug@seed.example',
+  );
+  await expect(page.getByTestId('clubs-discovery-flight-type-select')).toContainText(
+    'Schnupperflug',
+  );
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+});
+
+test('clubs: a club that cannot be read surfaces an error instead of a blank form', async ({
+  page,
+}, testInfo) => {
+  allowConsoleErrors(testInfo, /\b403\b/);
+  await stubReferenceData(page);
+  await page.route('**/api/v1/clubs**', (route) =>
+    route.fulfill({ status: 403, contentType: 'application/json', body: '{}' }),
+  );
+
+  await page.goto(`/clubs/${otherClub.id}/edit`);
+
+  await expect(page.getByTestId('clubs-load-error')).toContainText('not allowed to view');
+  await expect(page.locator('#clubName')).toHaveValue('');
+});
+
 // The day resource is scoped to the caller's own tenant and carries no club id,
 // so the panel must not appear over a club that is not the principal's — it
 // would manage the wrong club's days under that club's heading.
