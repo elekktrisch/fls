@@ -18,10 +18,18 @@ import {
   withEntities,
 } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { concatMap, pipe, switchMap, tap } from 'rxjs';
 
 import { ClubsService } from '@api/generated/clubs/clubs.service';
-import type { ClubCreateRequest, ClubResponse, ClubUpdateRequest } from '@api/generated/model';
+import { DiscoveryFlightDaysService } from '@api/generated/discovery-flight-days/discovery-flight-days.service';
+import { FlightTypesService } from '@api/generated/flight-types/flight-types.service';
+import type {
+  ClubCreateRequest,
+  ClubResponse,
+  ClubUpdateRequest,
+  DiscoveryFlightDayResponse,
+  FlightTypeListItem,
+} from '@api/generated/model';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
@@ -42,6 +50,10 @@ interface ClubsExtraState {
   saveError: string | null;
   saveErrorKind: ClubSaveErrorKind | null;
   lastRefreshedAt: number | null;
+  /** Own-club slices, loaded on demand by the club-admin edit screen. */
+  discoveryFlightDays: readonly DiscoveryFlightDayResponse[];
+  discoveryDayError: string | null;
+  flightTypes: readonly FlightTypeListItem[];
 }
 
 const initialExtra: ClubsExtraState = {
@@ -51,6 +63,9 @@ const initialExtra: ClubsExtraState = {
   saveError: null,
   saveErrorKind: null,
   lastRefreshedAt: null,
+  discoveryFlightDays: [],
+  discoveryDayError: null,
+  flightTypes: [],
 };
 
 function withId(c: ClubResponse): Club {
@@ -72,83 +87,158 @@ export const ClubsStore = signalStore(
       return id ? (entityMap()[id] ?? null) : null;
     }),
   })),
-  withMethods((store, clubsApi = inject(ClubsService), bus = inject(MUTATION_BUS)) => ({
-    select(id: string | null): void {
-      patchState(store, { selectedId: id });
-    },
-    clearSaveError(): void {
-      patchState(store, { saveError: null, saveErrorKind: null });
-    },
-    loadAll: rxMethod<void>(
-      pipe(
-        tap(() => patchState(store, { isLoading: true, loadError: null })),
-        switchMap(() =>
-          clubsApi.listClubs().pipe(
-            tapResponse({
-              next: (cs: ClubResponse[]) =>
-                patchState(store, setAllEntities(cs.map(withId)), {
-                  isLoading: false,
-                  lastRefreshedAt: Date.now(),
-                }),
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { loadError: e.message, isLoading: false }),
-            }),
+  withMethods(
+    (
+      store,
+      clubsApi = inject(ClubsService),
+      daysApi = inject(DiscoveryFlightDaysService),
+      flightTypesApi = inject(FlightTypesService),
+      bus = inject(MUTATION_BUS),
+    ) => ({
+      select(id: string | null): void {
+        patchState(store, { selectedId: id });
+      },
+      clearSaveError(): void {
+        patchState(store, { saveError: null, saveErrorKind: null });
+      },
+      loadAll: rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { isLoading: true, loadError: null })),
+          switchMap(() =>
+            clubsApi.listClubs().pipe(
+              tapResponse({
+                next: (cs: ClubResponse[]) =>
+                  patchState(store, setAllEntities(cs.map(withId)), {
+                    isLoading: false,
+                    lastRefreshedAt: Date.now(),
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { loadError: e.message, isLoading: false }),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    create: rxMethod<ClubCreateRequest>(
-      pipe(
-        tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-        switchMap((req) =>
-          clubsApi.createClub(req).pipe(
-            tapResponse({
-              next: (c: ClubResponse) => {
-                const club = withId(c);
-                patchState(store, addEntity(club));
-                bus.next({ kind: 'club.created', id: club.id });
-              },
-              error: (e: HttpErrorResponse) =>
-                patchState(store, errorPatch(e, { slug: req.slug, clubKey: req.clubKey })),
-            }),
+      create: rxMethod<ClubCreateRequest>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((req) =>
+            clubsApi.createClub(req).pipe(
+              tapResponse({
+                next: (c: ClubResponse) => {
+                  const club = withId(c);
+                  patchState(store, addEntity(club));
+                  bus.next({ kind: 'club.created', id: club.id });
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, errorPatch(e, { slug: req.slug, clubKey: req.clubKey })),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    update: rxMethod<{ id: string; req: ClubUpdateRequest }>(
-      pipe(
-        tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-        switchMap(({ id, req }) =>
-          clubsApi.updateClub(id, req).pipe(
-            tapResponse({
-              next: (c: ClubResponse) => {
-                patchState(store, updateEntity({ id, changes: withId(c) }));
-                bus.next({ kind: 'club.updated', id });
-              },
-              error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, { slug: req.slug })),
-            }),
+      update: rxMethod<{ id: string; req: ClubUpdateRequest }>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap(({ id, req }) =>
+            clubsApi.updateClub(id, req).pipe(
+              tapResponse({
+                next: (c: ClubResponse) => {
+                  patchState(store, updateEntity({ id, changes: withId(c) }));
+                  bus.next({ kind: 'club.updated', id });
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, errorPatch(e, { slug: req.slug })),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    delete: rxMethod<string>(
-      pipe(
-        tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-        switchMap((id) =>
-          clubsApi.deleteClub(id).pipe(
-            tapResponse({
-              next: () => {
-                patchState(store, removeEntity(id));
-                bus.next({ kind: 'club.deleted', id });
-              },
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { saveError: e.message, saveErrorKind: 'other' }),
-            }),
+      delete: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((id) =>
+            clubsApi.deleteClub(id).pipe(
+              tapResponse({
+                next: () => {
+                  patchState(store, removeEntity(id));
+                  bus.next({ kind: 'club.deleted', id });
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { saveError: e.message, saveErrorKind: 'other' }),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-  })),
+      loadDiscoveryFlightDays: rxMethod<void>(
+        pipe(
+          tap(() => patchState(store, { discoveryDayError: null })),
+          switchMap(() =>
+            daysApi.listDiscoveryFlightDays().pipe(
+              tapResponse({
+                next: (days: DiscoveryFlightDayResponse[]) =>
+                  patchState(store, { discoveryFlightDays: sortByEventDate(days) }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { discoveryFlightDays: [], discoveryDayError: dayError(e) }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      // `concatMap`, not `switchMap`: these append to / remove from a list, and a
+      // cancelled-but-already-committed mutation would leave the panel desynced
+      // from the server until a reload.
+      publishDiscoveryFlightDay: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { discoveryDayError: null })),
+          concatMap((eventDate) =>
+            daysApi.publishDiscoveryFlightDay({ eventDate }).pipe(
+              tapResponse({
+                next: (day: DiscoveryFlightDayResponse) =>
+                  patchState(store, {
+                    discoveryFlightDays: sortByEventDate([...store.discoveryFlightDays(), day]),
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { discoveryDayError: dayError(e) }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      withdrawDiscoveryFlightDay: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { discoveryDayError: null })),
+          concatMap((id) =>
+            daysApi.withdrawDiscoveryFlightDay(id).pipe(
+              tapResponse({
+                next: () =>
+                  patchState(store, {
+                    discoveryFlightDays: store.discoveryFlightDays().filter((d) => d.id !== id),
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { discoveryDayError: dayError(e) }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      loadFlightTypes: rxMethod<void>(
+        pipe(
+          switchMap(() =>
+            flightTypesApi.listFlightTypes().pipe(
+              tapResponse({
+                next: (types: FlightTypeListItem[]) => patchState(store, { flightTypes: types }),
+                // An unreachable catalog only costs the picker its labels; the
+                // club's stored flight type still round-trips through the form.
+                error: () => patchState(store, { flightTypes: [] }),
+              }),
+            ),
+          ),
+        ),
+      ),
+    }),
+  ),
   withHooks({
     onInit(store) {
       const bus = inject(MUTATION_BUS);
@@ -156,12 +246,34 @@ export const ClubsStore = signalStore(
       store.loadAll();
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
-          patchState(store, setAllEntities<Club>([]), { selectedId: null });
+          patchState(store, setAllEntities<Club>([]), {
+            selectedId: null,
+            discoveryFlightDays: [],
+            discoveryDayError: null,
+            flightTypes: [],
+          });
         }
       });
     },
   }),
 );
+
+function sortByEventDate(
+  days: readonly DiscoveryFlightDayResponse[],
+): readonly DiscoveryFlightDayResponse[] {
+  return [...days].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+}
+
+function dayError(e: HttpErrorResponse): string {
+  if (e.status === 409) {
+    return 'That day is already offered.';
+  }
+  const body = e.error as { message?: string } | null;
+  if (body && typeof body.message === 'string' && body.message.length > 0) {
+    return body.message;
+  }
+  return e.message;
+}
 
 function errorPatch(
   e: HttpErrorResponse,
