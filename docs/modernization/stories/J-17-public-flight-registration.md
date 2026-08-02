@@ -22,7 +22,7 @@ acceptance:
 screen: /discovery-flight/:clubSlug, /scenic-flight/:clubSlug (+ discovery-day & operator-email panel on the existing club-admin edit screen)
 headless_pulled_in: "Tenant-from-URL public-tenant resolution (S-025: slug → allowlist check → Tenants.runAs window + anonymous-actor audit) → both public forms; discovery-flight-day management → the existing club-admin edit screen; transactional email (J-11 EmailTemplate + J-12a dispatch) → the confirmation sent on submit"
 migration: "Flow is greenfield (creates Person/PersonClub + a reservation; no legacy Flight is migrated — the roadmap's 'Flight subset' label was wrong). One real mapper delta: widen the CLUB producer SELECT + mapper to carry SendTrialFlightRegistrationOperatorEmailTo / SendPassengerFlightRegistrationOperatorEmailTo into the t_club columns that already exist unmapped (V2:187-188). Discovery-flight DAYS are deliberately NOT migrated — see Notes."
-parity_test: "alpenflight/web/e2e/tests/public-registration/public-registration.spec.ts (new, mock inner-loop); alpenflight/web/e2e/tests/real-idp/public-registration-parity.spec.ts (new, anonymous against the deployed stack + Mailpit)"
+parity_test: alpenflight/web/e2e/tests/real-idp/public-registration-parity.spec.ts (anonymous against the deployed stack + Mailpit); alpenflight/web/e2e/tests/public-registration/public-registration.spec.ts (mock inner-loop)
 adr_refs: [0008, 0013, 0022, 0027]
 ---
 
@@ -54,7 +54,7 @@ The green run drives an **anonymous** browser (no login, no Bearer) against a se
 
 ## Tasks
 
-- [ ] **T-01** — Author `public-registration.spec.ts` structure, selectors and flow with thin assertions; scaffold the J-17 proof-gallery page + `proofVideo` journey tagging. *(standing slot — the operator's window exists from task 1)*
+- [x] **T-01** — Author `public-registration.spec.ts` structure, selectors and flow with thin assertions; scaffold the J-17 proof-gallery page + `proofVideo` journey tagging. *(standing slot — the operator's window exists from task 1)*
 - [ ] **T-02** — Scope the per-push gate: only J-17's own specs run real-idp; prior journeys drop to mock-IdP (full regression stays nightly + the §4 gate). *(standing slot)*
 - [ ] **T-03** — **[DEV-UP-FAIL-LOUD]** Fix Mailpit readiness in the fan-out bring-up + make every `dev-up-*.sh` step fail loudly instead of printing "Dev stack ready" over a failed compose. Restores the fan-out (red since `c479bb72`, 2026-07-23) and unblocks local real-idp. *(rider; blocks this journey's own done bar)*
 - [ ] **T-04** — **[GHA-TERNARY-AUDIT]** Grep the workflows for the `${{ cond && '' || x }}` empty-string-falsy trap; move possibly-empty values to the `||` side. *(rider)*
