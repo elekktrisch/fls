@@ -38,14 +38,15 @@ done-dates live in `_SHIPPED.md`; their full carve prose lives in `implemented/`
   deferred); **S-066 / S-149** (ingest endpoint + per-tenant handoff) → **HELD** pending the
   maintainer contract (revisit as a future journey once the contract lands).
 
-**Folded at carve time (2026-07-23, `/do-plan next`):**
-- **J-18 — Passenger-flight registration → folded into J-17.** Carve-time analysis found trial + passenger
-  are two variants of ONE public-registration feature, not genuinely independent screens: identical
+**Folded at carve time (2026-07-23, re-confirmed 2026-08-02, `/do-plan next`):**
+- **J-18 — Passenger/scenic-flight registration → folded into J-17.** Carve-time analysis found discovery +
+  scenic are two variants of ONE public-registration feature, not genuinely independent screens: identical
   registrant/invoice fields, `PassengerFlightRegistrationDetails ⊂ TrialFlightRegistrationDetails` (differs
-  only by `SelectedDay`), identical service wiring except trial reserves a glider + trainee flag + trial email
-  templates. The shared **S-025 public-tenant spine builds once**; both thin forms ride it in one green run
-  (skill: "split only when genuinely independent features"). S-099 stamped `rolled_up_into: J-17`. **Escape
-  hatch:** if the operator wants trial shipped first, split S-099 back to a follow-up J-18 reusing J-17's spine.
+  only by `SelectedDay`), identical service wiring except discovery reserves a glider + sets a trainee flag +
+  uses its own email templates. The shared **S-025 public-tenant spine builds once**; both thin forms ride it
+  in one green run (skill: "split only when genuinely independent features"). S-099 stamped
+  `rolled_up_into: J-17`. **Escape hatch:** scenic is J-17's named deferrable tail — if the gate surfaces heavy
+  unforeseen work, `/do-ship` ships discovery complete and re-files scenic as J-18 rather than half-shipping both.
 
 **J-28 — Documentation site (infra)** (filed by `/do-retro` 2026-06-24 on operator ask: architecture
 diagrams + a user manual with screenshots). Shaped to honor directive 1 (working software over
@@ -71,8 +72,7 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events. Includes the **OGN aircraft-DB sync (S-088)** run against a recorded DDB fixture (re-homed from retired J-14).
-- **J-17 (trial + passenger, J-18 folded in):** Anonymous POST to `/trialflightsregistrations` (creates Person + glider reservation for a chosen day) and `/passengerflightsregistrations` (creates Person, no reservation), each scoped by club slug from the URL (tenant-from-URL); unknown slug → 404, public-registration-disabled → 403; confirmation email in Mailpit; nav-bar hidden; no PII in URL.
+- **J-17 (discovery + scenic, J-18 folded in):** Anonymous submit at `/discovery-flight/{clubSlug}` (creates a glider-trainee Person + PersonClub + an all-day double-seater reservation on a chosen published day) and `/scenic-flight/{clubSlug}` (Person + PersonClub, no reservation), each tenant-scoped by the slug in the URL; unknown slug → 404 and disabled club → 403, both writing nothing; abuse guard → 429; confirmation + organiser emails in Mailpit; nav-bar hidden; no PII in URL.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).

@@ -2,7 +2,7 @@
 id: J-15
 title: Scheduled-jobs admin console (/system/jobs)
 epic: E-10
-status: in_progress
+status: done
 started_at: 2026-07-23
 journey0: false
 carved: true
