@@ -2,7 +2,8 @@
 id: J-17
 title: Public flight-experience registration — discovery + scenic (/discovery-flight, /scenic-flight)
 epic: E-12
-status: todo
+status: in_progress
+started_at: 2026-08-02
 journey0: false
 carved: true
 depends_on: [J-1, J-4, J-5, J-11, J-12a, J-16]
