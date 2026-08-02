@@ -39,10 +39,6 @@ stragglers each ceremony so the file shrinks.
   "CI is in troubleshooting mode" message. Fail-closed is the whole point: the PR must be physically unable to
   go green while the marker exists, so a forgotten re-enable cannot hand the operator a green-over-nothing PR.
   `/do-ship` §4 documents the workflow half. *(seam: `.github/workflows/ci.yml` `required` job)*
-- **[DEV-UP-FAIL-LOUD]** `alpenflight/ops/dev-up-full.sh` prints `==> Dev stack ready` even when every
-  `docker compose` call failed — on this box the compose CLI plugin is absent, so the script reports success
-  while bringing up nothing, and the next real-idp attempt fails far downstream with no hint of the cause.
-  Make each bring-up step check its exit status and abort loudly. *(seam: `alpenflight/ops/dev-up-full.sh`)*
 
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
