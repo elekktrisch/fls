@@ -77,6 +77,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Fail the whole run before any gate job spends compute: a ternary whose
+      # then-branch is falsy silently disables the branch it looks like it
+      # enables, so a gate guard can read as configured while never running.
+      - name: Workflow expression guard (falsy then-branch)
+        run: |
+          python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
+          python3 .github/scripts/gha-falsy-ternary-lint.py
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:

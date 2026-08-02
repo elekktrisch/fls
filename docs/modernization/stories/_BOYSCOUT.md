@@ -39,12 +39,6 @@ stragglers each ceremony so the file shrinks.
   "CI is in troubleshooting mode" message. Fail-closed is the whole point: the PR must be physically unable to
   go green while the marker exists, so a forgotten re-enable cannot hand the operator a green-over-nothing PR.
   `/do-ship` §4 documents the workflow half. *(seam: `.github/workflows/ci.yml` `required` job)*
-- **[GHA-TERNARY-AUDIT]** Audit `ci.yml` for the empty-string-falsy trap. `${{ cond && '' || x }}` ALWAYS
-  yields `x` in a GitHub expression, because `''` is falsy — so the intended "skip" branch is unreachable.
-  J-15 found and fixed one instance (the deployed-bookmark guard demanded a journey page on every baseline
-  run, reddening any journey whose parity spec did not exist yet). Grep for `&& '' ||` and any ternary whose
-  then-branch is empty/false/0; put the possibly-empty value on the `||` side.
-  *(seam: `.github/workflows/*.yml`)*
 - **[DEV-UP-FAIL-LOUD]** `alpenflight/ops/dev-up-full.sh` prints `==> Dev stack ready` even when every
   `docker compose` call failed — on this box the compose CLI plugin is absent, so the script reports success
   while bringing up nothing, and the next real-idp attempt fails far downstream with no hint of the cause.
