@@ -2,6 +2,8 @@ package ch.alpenflight.clubs.web;
 
 import ch.alpenflight.clubs.domain.ClubKeyAlreadyExistsException;
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayAlreadyScheduledException;
+import ch.alpenflight.clubs.domain.DiscoveryFlightDayNotFoundException;
 import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
 import ch.alpenflight.platform.web.ProblemResponses;
@@ -36,6 +38,15 @@ class ClubsExceptionHandler {
     private static final URI TYPE_INVALID_REFERENCE =
             URI.create("urn:alpenflight:problem:invalid-club-reference");
 
+    private static final URI TYPE_DISCOVERY_DAY_CONFLICT =
+            URI.create("urn:alpenflight:problem:discovery-flight-day-conflict");
+
+    private static final URI TYPE_DISCOVERY_DAY_NOT_FOUND =
+            URI.create("urn:alpenflight:problem:discovery-flight-day-not-found");
+
+    private static final String DISCOVERY_DAY_UNIQUE_CONSTRAINT =
+            "ux_discovery_flight_day_club_date";
+
     @ExceptionHandler(ClubNotFoundException.class)
     ResponseEntity<Void> handleNotFound(ClubNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -49,6 +60,21 @@ class ClubsExceptionHandler {
     @ExceptionHandler(ClubKeyAlreadyExistsException.class)
     ResponseEntity<ProblemDetail> handleClubKeyConflict(ClubKeyAlreadyExistsException e) {
         return ProblemResponses.problem(clubKeyConflict(e.getMessage()));
+    }
+
+    @ExceptionHandler(DiscoveryFlightDayNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleDiscoveryDayNotFound(DiscoveryFlightDayNotFoundException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        pd.setType(TYPE_DISCOVERY_DAY_NOT_FOUND);
+        pd.setTitle("Discovery-flight day not found");
+        pd.setDetail(e.getMessage());
+        return ProblemResponses.problem(pd);
+    }
+
+    @ExceptionHandler(DiscoveryFlightDayAlreadyScheduledException.class)
+    ResponseEntity<ProblemDetail> handleDiscoveryDayConflict(
+            DiscoveryFlightDayAlreadyScheduledException e) {
+        return ProblemResponses.problem(discoveryDayConflict(e.getMessage()));
     }
 
     /**
@@ -76,6 +102,12 @@ class ClubsExceptionHandler {
         // the reference through its repository the way countryId / clubStateId
         // are pre-checked; the FK is the only arbiter and its violation is a
         // caller error, not a 500.
+        // Race-loser for DiscoveryFlightDayService's findActiveByEventDate
+        // pre-check; the partial UNIQUE wins races and must not leak as a 500.
+        if (message.contains(DISCOVERY_DAY_UNIQUE_CONSTRAINT)) {
+            return ProblemResponses.problem(
+                    discoveryDayConflict("The club already offers a discovery-flight day on that date."));
+        }
         if (message.contains("fk_club_discovery_flight_type_id")) {
             return ProblemResponses.problem(invalidReference(
                     "discoveryFlightTypeId", "No flight type with that id exists in this club."));
@@ -106,6 +138,15 @@ class ClubsExceptionHandler {
         pd.setTitle("Invalid club reference");
         pd.setDetail(detail);
         pd.setProperty("field", field);
+        return pd;
+    }
+
+    private static ProblemDetail discoveryDayConflict(@Nullable String detail) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        pd.setType(TYPE_DISCOVERY_DAY_CONFLICT);
+        pd.setTitle("Discovery-flight day already offered");
+        pd.setDetail(detail);
+        pd.setProperty("field", "eventDate");
         return pd;
     }
 

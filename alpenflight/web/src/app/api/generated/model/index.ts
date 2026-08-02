@@ -68,6 +68,8 @@ export * from './denyJoinRequest';
 export * from './deploymentResponse';
 export * from './deploymentResponseLifecycleState';
 export * from './deploymentResponsePlan';
+export * from './discoveryFlightDayCreateRequest';
+export * from './discoveryFlightDayResponse';
 export * from './discoveryFlightRegistrationRequest';
 export * from './discoveryFlightRegistrationResponse';
 export * from './emailTemplateListItem';

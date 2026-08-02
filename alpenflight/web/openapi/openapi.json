@@ -38,6 +38,9 @@
     "name" : "EmailTemplates",
     "description" : "Per-club overrides of transactional-email defaults."
   }, {
+    "name" : "DiscoveryFlightDays",
+    "description" : "Club-admin CRUD for the club's published discovery-flight days."
+  }, {
     "name" : "flights",
     "description" : "Flight CRUD"
   }, {
@@ -2934,6 +2937,75 @@
         }
       }
     },
+    "/api/v1/discovery-flight-days" : {
+      "get" : {
+        "tags" : [ "DiscoveryFlightDays" ],
+        "summary" : "The caller's club's published discovery-flight days, ascending.",
+        "operationId" : "listDiscoveryFlightDays",
+        "responses" : {
+          "200" : {
+            "description" : "Days the club currently offers, past ones included.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/DiscoveryFlightDayResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "DiscoveryFlightDays" ],
+        "summary" : "Offer a new discovery-flight day for the caller's club.",
+        "operationId" : "publishDiscoveryFlightDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DiscoveryFlightDayCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Published; Location names the new day.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightDayResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "The day is missing or lies in the past.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightDayResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The club already offers that day.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DiscoveryFlightDayResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/deliverycreationtests" : {
       "get" : {
         "tags" : [ "DeliveryCreationTests" ],
@@ -5134,6 +5206,30 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/discovery-flight-days/{id}" : {
+      "delete" : {
+        "tags" : [ "DiscoveryFlightDays" ],
+        "summary" : "Withdraw a day; the date becomes available to publish again.",
+        "operationId" : "withdrawDiscoveryFlightDay",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Withdrawn."
+          },
+          "404" : {
+            "description" : "No live day with that id in the caller's club."
           }
         }
       }
@@ -8642,6 +8738,33 @@
           }
         },
         "required" : [ "flightTypeName" ]
+      },
+      "DiscoveryFlightDayCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to publish a new discovery-flight day for the caller's club.",
+        "properties" : {
+          "eventDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Calendar day to offer discovery flights on. Must not be in the past, and must not already be offered."
+          }
+        },
+        "required" : [ "eventDate" ]
+      },
+      "DiscoveryFlightDayResponse" : {
+        "type" : "object",
+        "description" : "A discovery-flight day the club currently offers.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "eventDate" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "eventDate", "id" ]
       },
       "RunTestResult" : {
         "type" : "object",
