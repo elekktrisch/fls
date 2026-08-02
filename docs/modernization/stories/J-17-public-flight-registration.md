@@ -52,6 +52,31 @@ The green run drives an **anonymous** browser (no login, no Bearer) against a se
 
 8. **Mobile-first (AC-DIR-1..4 from the S-098/S-099 2026-05-15b amendment).** Single-column at 360×640, ≥44×44px targets on `<md`, native input types, POST-only so no field value reaches the URL.
 
+## Tasks
+
+- [ ] **T-01** — Author `public-registration.spec.ts` structure, selectors and flow with thin assertions; scaffold the J-17 proof-gallery page + `proofVideo` journey tagging. *(standing slot — the operator's window exists from task 1)*
+- [ ] **T-02** — Scope the per-push gate: only J-17's own specs run real-idp; prior journeys drop to mock-IdP (full regression stays nightly + the §4 gate). *(standing slot)*
+- [ ] **T-03** — **[DEV-UP-FAIL-LOUD]** Fix Mailpit readiness in the fan-out bring-up + make every `dev-up-*.sh` step fail loudly instead of printing "Dev stack ready" over a failed compose. Restores the fan-out (red since `c479bb72`, 2026-07-23) and unblocks local real-idp. *(rider; blocks this journey's own done bar)*
+- [ ] **T-04** — **[GHA-TERNARY-AUDIT]** Grep the workflows for the `${{ cond && '' || x }}` empty-string-falsy trap; move possibly-empty values to the `||` side. *(rider)*
+- [ ] **T-05** — Map `send_trial_flight_registration_operator_email` / `send_passenger_flight_registration_operator_email` + the club discovery flight-type onto the `Club` aggregate; expose in `ClubDtos` + `ClubsController` with validation. *(seam: Club aggregate)*
+- [ ] **T-06** — `DiscoveryFlightDay` aggregate + `V57` migration + club-scoped repository (date, optional flight type, soft delete). *(seam: one new aggregate)*
+- [ ] **T-07** — Public club resolution: slug → club with `public_registration_enabled` check, `permitAll()` matchers in `SecurityConfig`, and the 404 / 403 error contract (neither writes a row). *(seam: platform/security + resolver)*
+- [ ] **T-08** — Anonymous abuse guard keyed on client IP × club slug (modelled on `JoinRequestSubmitGuard`, which keys on the Keycloak sub and cannot be reused as-is) + 429 with `Retry-After`. *(seam: submit guard + exception handler)*
+- [ ] **T-09** — Registration application service, shared registrant write: `Person.register` + `updateContact` + `joinClub` with `PersonRoleFlags.gliderTrainee()`, plus the optional invoice Person, inside a `Tenants.runAs` window. *(seam: registrations application service)*
+- [ ] **T-10** — Discovery reservation booking via the aggregate factory + repository (bypassing the member-booking exclusivity probe — see Notes), incl. the three reservation-skip cases and their organiser-email reasons. *(seam: reservation booking in the registration service)*
+- [ ] **T-11** — Registration application service, scenic branch: Person + PersonClub without the trainee flag, no reservation, no day selection. *(seam: same service, second entry point)*
+- [ ] **T-12** — Four email templates + dispatch inside `Tenants.runAs` (tenant-scoped override resolution): discovery candidate/organiser, scenic candidate/organiser. Binds the correct model for the scenic pair — legacy's interpolate a `Trial*` namespace and render blank. *(seam: templates/email + TemplatedMailService calls)*
+- [ ] **T-13** — Public controllers + request/response DTOs + `@Operation(operationId=…)`: discovery `POST` + available-days `GET`, scenic `POST`. Server-side validation of the fields legacy only guarded client-side. *(seam: two public controllers)*
+- [ ] **T-14** — CLUB producer-SELECT + mapper widening for the two operator-email columns + a real-producer round-trip IT. *(seam: MapperLegacyBindings CLUB binding)*
+- [ ] **T-15** — Club-admin edit page: operator-email fields + discovery-flight-day management panel. *(seam: web features/clubs/edit)*
+- [ ] **T-16** — Shared public-form shell + the registrant fieldset shared by both forms (no shared public layout exists today; each stub rolls its own chrome). *(seam: web features/public-registration shared pieces)*
+- [ ] **T-17** — `/discovery-flight/:clubSlug` page + store: day picker, conditional invoice block, success panel, missing-slug redirect. *(seam: one component-route + store)*
+- [ ] **T-18** — `/scenic-flight/:clubSlug` page + store (same shell, no day picker). *(seam: one component-route + store)*
+- [ ] **T-19** — Add both routes to the hardcoded `PUBLIC_ROUTES` list + the mobile-first assertions (360×640 single column, ≥44×44px targets, no PII in URL). *(seam: public-routes spec + viewport assertions)*
+- [ ] **T-20** — **[J-15-MAILPIT-REPORT]** Close the deferred jobs-console Mailpit assertion, riding this journey's Mailpit work. *(rider)*
+- [ ] **T-21** — **[CI-TROUBLESHOOTING-MARKER]** Fail-closed `.ci-troubleshooting` marker: `ci.yml` skips the heavy lane and `required` hard-fails while it exists. *(rider)*
+- [ ] **T-22** — Thicken the spec to full real assertions from the oracle (all ACs, both fidelities).
+
 ## Notes
 
 ### Routes: use the shipped AlpenFlight names, not the legacy paths
@@ -100,6 +125,31 @@ The roadmap listed discovery (J-17) and scenic (J-18) separately. They are two v
 - **Form-validation-parity P4** (debounced as-you-type pre-checks) applies directly to these many-field forms; server-on-submit stays the safety net.
 - **[SUITE-ISOLATION]** — non-migration spec, so it seeds its own club and data.
 - Per-touch: **[COMMENT-STRIP]** on files actually edited, production-code seeding in new ITs (ADR 0027 §3), named `operationId`s on the new endpoints.
+
+### Reservation overlap — the ship-time constraint the carve missed
+
+`AircraftReservationsService.createReservation` runs a **mandatory** GiST-backed conflict probe and throws 409 (`AircraftReservationsService.java:87`). Legacy books **one all-day reservation per candidate** on the same glider, so a discovery day with five candidates produces five deliberately-overlapping reservations — routed through the member-booking service, candidate #2 onward would be rejected and the registration would fail.
+
+Decision: discovery reservations are created through the aggregate factory + repository **inside the registration service**, bypassing the member-booking service's exclusivity probe. The probe exists for member self-service booking, where double-booking an aircraft is an error; an organiser block-booking a trainee slot is not that. Legacy semantics are preserved exactly (one reservation per candidate, pilot = the candidate). This is a deliberate, narrow bypass — `gap-hunter` should confirm it did not leak into any member-facing path.
+
+AlpenFlight's all-day representation is the half-open `[date 00:00, +1 day)` span, already chosen in J-5 over legacy's `AddTicks(-1)` artifact; equivalent, no action.
+
+### Oracle-pinned parity anchors (`legacy-oracle`, ship time 2026-08-02)
+
+Fixed values to reproduce exactly: reservation `End = SelectedDay.Date.AddDays(1).AddTicks(-1)`, `IsAllDayReservation = true`, `Remarks = "Schnupperflug-Kandidat"` (literal). Aircraft predicate is `AircraftOwnerClubId = club AND NrOfSeats = 2 AND AircraftTypeId = Glider(1)` with **no ORDER BY** — `FirstOrDefault` is DB-order-dependent, so the proof must seed exactly one matching glider to assert deterministically.
+
+`TrialFlight.AircraftReservation.FlightTypeId` is stored as a **JSON-quoted GUID string**, not a raw column; an undeserializable value is swallowed and the reservation is created with a null flight type (`RegistrationService.cs:201-212`). `TrialFlight.EventDates` is a JSON array of ISO datetimes; the legacy test fixture already seeds FGZO with `["2099-06-15T10:00:00","2099-08-25T10:00:00"]` (`_test-fixture.sql:564-582`).
+
+Legacy returns **HTTP 500 for every failure** — unknown club key, no active club user, and any internal exception all surface as one generic German message. J-17's 404/403/429 contract is a deliberate improvement, not a parity miss.
+
+Legacy DTO validation is far looser than its own HTML: only `ClubKey`/`Firstname`/`Lastname` are `[Required]` server-side, while address/zip/city and the whole invoice block are enforced client-side only. **J-17 validates server-side** — ADR 0022 directive 2 puts these rules on the aggregate. Recorded as an intentional divergence.
+
+### Divergences from legacy — deliberate, not parity misses
+
+1. **Passenger email templates are fixed, not ported.** The legacy passenger templates interpolate `$!TrialFlightRegistrationModel.*` while the token dictionary only carries `PassengerFlightRegistrationModel` (`RegistrationEmailBuildService.cs:211-213,271-273`), so Velocity's silent `$!` renders phone, email and remarks **blank in every passenger email ever sent**. Reachable, user-facing, and a copy-paste bug rather than intent — the port binds the correct model and the spec asserts those fields render populated.
+2. **Server-side validation** of the fields legacy only guards in the browser (see above).
+3. **Typed error contract** (404 / 403 / 429) replacing the blanket 500.
+4. Grammar fix in the homebase-missing organiser message (legacy: *"Keine Heimflugplatz"*).
 
 ### Assumptions made
 
