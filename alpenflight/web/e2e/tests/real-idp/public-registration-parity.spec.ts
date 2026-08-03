@@ -13,6 +13,7 @@ import {
   scenicFlightPath,
   testId,
 } from '../public-registration/_helpers/public-registration-form';
+import { enterClubSettingsViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { waitForMessage, waitForMessageWithSubject } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
@@ -143,7 +144,11 @@ test.describe('club-admin registration settings', () => {
       const operatorEmail = `organiser-${randomUUID().slice(0, 8)}@example.com`;
       const eventDate = discoveryDayDate();
 
-      await page.goto(`/clubs/${clubId}/edit`);
+      // Entered through the chrome, not by URL: the club catalog is closed to
+      // this role, so the Masterdata own-club entry is its only nav route in —
+      // and it has to resolve to the SAME club `/me` reports.
+      expect(await enterClubSettingsViaNav(page)).toBe(clubId);
+      await expect(page).toHaveURL(new RegExp(`/clubs/${clubId}/edit$`));
       await expect(page.getByTestId('clubs-load-error')).toBeHidden();
       await expect(page.locator('#clubName')).not.toHaveValue('');
       await expect(page.getByTestId('clubs-discovery-flight-type-select')).toBeVisible();

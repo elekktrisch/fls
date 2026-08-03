@@ -1,5 +1,10 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
+import {
+  CLUB_SETTINGS_NAV_TESTID,
+  enterClubSettingsViaNav,
+  openMasterdataGroup,
+} from '../_helpers/nav';
 
 /**
  * Clubs CRUD shape. Mocks the backend via `page.route` so the spec runs
@@ -270,6 +275,51 @@ function setupClubsBackend(clubs: MockClub[]) {
     await route.fallback();
   };
 }
+
+// ── nav entry (chrome-reachable contract) ──────────────────────────────────
+test('clubs: the Masterdata nav entry opens the caller’s OWN club settings (ENTER via nav)', async ({
+  page,
+}) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, days);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto('/start?lang=de');
+  const clubId = await enterClubSettingsViaNav(page);
+
+  // The entry links to the principal's own club, not to a catalog it may not read.
+  expect(clubId).toBe(seedClub.id);
+  await expect(page).toHaveURL(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-load-error')).toBeHidden();
+  await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+    seedClub.discoveryFlightOperatorEmail,
+  );
+  await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
+    seedClub.scenicFlightOperatorEmail,
+  );
+  await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+});
+
+// The mock principal holds BOTH roles, so the sysadmin catalog entry has to
+// survive the own-club entry landing next to it.
+test('clubs: the sysadmin catalog entry still reaches /clubs alongside the own-club entry', async ({
+  page,
+}) => {
+  await stubReferenceData(page);
+  await page.route('**/api/v1/clubs**', setupClubsBackend([{ ...seedClub }]));
+
+  await page.goto('/start?lang=de');
+  await page.getByTestId('af-nav-section-/clubs').click();
+
+  await expect(page).toHaveURL('/clubs');
+  await expect(page.getByTestId('clubs-table')).toBeVisible();
+
+  await openMasterdataGroup(page);
+  await expect(page.getByTestId(CLUB_SETTINGS_NAV_TESTID)).toBeVisible();
+});
 
 test('clubs: lists the seeded row at /clubs', async ({ page }) => {
   const clubs: MockClub[] = [{ ...seedClub }];

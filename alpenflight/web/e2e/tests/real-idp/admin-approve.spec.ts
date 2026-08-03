@@ -7,7 +7,7 @@ import {
 } from '@playwright/test';
 import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
-import { enterViaNav } from '../_helpers/nav';
+import { CLUB_SETTINGS_NAV_TESTID, enterViaNav, openMasterdataGroup } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { freshTestUser, type TestUser } from './_helpers/test-user';
 import { createUserWithAttributes, findUserByEmail, deleteUser } from './_helpers/keycloak-admin';
@@ -450,8 +450,14 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
       await page.goto(JOIN_REQUESTS_PATH);
       await expect(page).not.toHaveURL(new RegExp(`${JOIN_REQUESTS_PATH}$`));
       await expect(page.getByTestId(TESTIDS.page)).toHaveCount(0);
-      // A PILOT's nav has no Join-requests entry at all (admin-gated child).
+      // A PILOT's nav has no Join-requests entry at all (admin-gated child) —
+      // nor the own-club settings entry, which is admin-gated the same way.
+      await openMasterdataGroup(page);
       await expect(page.getByTestId(`af-nav-section-${JOIN_REQUESTS_PATH}`)).toHaveCount(0);
+      await expect(page.getByTestId(CLUB_SETTINGS_NAV_TESTID)).toHaveCount(0);
+      // The group itself IS open — the tenant-visible children prove it, so the
+      // two absences above are not a closed menu.
+      await expect(page.getByTestId('af-nav-section-/persons')).toBeVisible();
     } finally {
       await ctx.close();
     }

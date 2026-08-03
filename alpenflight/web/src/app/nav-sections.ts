@@ -35,9 +35,11 @@ export const SYS_ADMIN_SECTIONS: readonly NavItem[] = [
   { path: '/system/jobs', label: 'Jobs', icon: 'file-text' },
 ];
 
-export interface NavRoleFlags {
+export interface NavPrincipal {
   readonly isSystemAdmin: boolean;
   readonly isClubAdmin: boolean;
+  /** The caller's own club (`/me`'s `clubId`) — the only club it can read. */
+  readonly clubId?: string | null;
 }
 
 /** Live signals threaded onto specific nav entries (e.g. the join-request badge). */
@@ -59,9 +61,34 @@ function withJoinRequestsBadge(items: readonly NavItem[], badges: NavBadges): re
   );
 }
 
-function masterdataGroup(isClubAdmin: boolean, badges: NavBadges): NavItem {
-  const children = isClubAdmin
-    ? [...MASTERDATA_TENANT_ITEMS, ...withJoinRequestsBadge(MASTERDATA_CLUB_ADMIN_ITEMS, badges)]
+export const CLUB_SETTINGS_TEST_ID = 'af-nav-section-club-settings';
+
+/**
+ * The own-club settings entry. The club catalog (`/clubs`) is closed to a
+ * CLUB_ADMINISTRATOR, so its only chrome route to the club-edit screen is a
+ * direct link to its OWN club — hence the id in the path and the fixed testid.
+ * The id arrives with `/me`; until then there is nothing routable to link to.
+ */
+function clubSettingsItems(clubId: string | null | undefined): readonly NavItem[] {
+  return clubId
+    ? [
+        {
+          path: `/clubs/${clubId}/edit`,
+          label: 'Club settings',
+          icon: 'settings',
+          testId: CLUB_SETTINGS_TEST_ID,
+        },
+      ]
+    : [];
+}
+
+function masterdataGroup(principal: NavPrincipal, badges: NavBadges): NavItem {
+  const children = principal.isClubAdmin
+    ? [
+        ...MASTERDATA_TENANT_ITEMS,
+        ...clubSettingsItems(principal.clubId),
+        ...withJoinRequestsBadge(MASTERDATA_CLUB_ADMIN_ITEMS, badges),
+      ]
     : [...MASTERDATA_TENANT_ITEMS];
   return { label: 'Masterdata', icon: 'database', children };
 }
@@ -72,12 +99,15 @@ function masterdataGroup(isClubAdmin: boolean, badges: NavBadges): NavItem {
  * only; club-admins + regular users get the tenant sections (admins also see the
  * admin-gated Masterdata children); a dual-role principal gets the role union.
  */
-export function navSectionsFor(flags: NavRoleFlags, badges: NavBadges = {}): readonly NavItem[] {
-  if (flags.isSystemAdmin && !flags.isClubAdmin) {
+export function navSectionsFor(
+  principal: NavPrincipal,
+  badges: NavBadges = {},
+): readonly NavItem[] {
+  if (principal.isSystemAdmin && !principal.isClubAdmin) {
     return SYS_ADMIN_SECTIONS;
   }
-  const sections: NavItem[] = [...TENANT_TOP_SECTIONS, masterdataGroup(flags.isClubAdmin, badges)];
-  if (flags.isSystemAdmin) {
+  const sections: NavItem[] = [...TENANT_TOP_SECTIONS, masterdataGroup(principal, badges)];
+  if (principal.isSystemAdmin) {
     sections.push(...SYS_ADMIN_SECTIONS);
   }
   return sections;

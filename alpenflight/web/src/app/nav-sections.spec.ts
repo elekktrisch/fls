@@ -1,12 +1,15 @@
 import { signal } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 
-import { navSectionsFor } from './nav-sections';
+import { CLUB_SETTINGS_TEST_ID, navSectionsFor } from './nav-sections';
 
 interface Flags {
   isSystemAdmin: boolean;
   isClubAdmin: boolean;
+  clubId?: string | null;
 }
+
+const OWN_CLUB_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
 /** Top-level entries: a leaf carries `path`, a group carries `label`/`children`. */
 const topLabels = (flags: Flags) => navSectionsFor(flags).map((s) => s.path ?? `group:${s.label}`);
@@ -34,7 +37,7 @@ describe('navSectionsFor', () => {
   });
 
   it('regular user: top-level tenant + a Masterdata group with ONLY the 4 tenant items', () => {
-    const flags = { isSystemAdmin: false, isClubAdmin: false };
+    const flags = { isSystemAdmin: false, isClubAdmin: false, clubId: OWN_CLUB_ID };
     // Top-level: Flights, Reports, Reservations, Planning, then the Masterdata group.
     expect(topLabels(flags)).toEqual([
       '/flights',
@@ -56,15 +59,19 @@ describe('navSectionsFor', () => {
     expect(allPaths(flags)).not.toContain('/deliveries');
     expect(allPaths(flags)).not.toContain('/email-templates');
     expect(allPaths(flags)).not.toContain('/clubs');
+    // Its own club is a club-admin surface — a member with a club still has no
+    // entry to the club-edit screen.
+    expect(allPaths(flags)).not.toContain(`/clubs/${OWN_CLUB_ID}/edit`);
   });
 
-  it('club-admin: Masterdata group ALSO carries Join requests + Users + Accounting rules + Delivery creation tests + Deliveries + Email templates + Audit logs; NO Clubs', () => {
-    const flags = { isSystemAdmin: false, isClubAdmin: true };
+  it('club-admin: Masterdata group ALSO carries Club settings + Join requests + Users + Accounting rules + Delivery creation tests + Deliveries + Email templates + Audit logs; NO Clubs', () => {
+    const flags = { isSystemAdmin: false, isClubAdmin: true, clubId: OWN_CLUB_ID };
     expect(masterdataPaths(flags)).toEqual([
       '/aircraft',
       '/locations',
       '/persons',
       '/flight-types',
+      `/clubs/${OWN_CLUB_ID}/edit`,
       '/join-requests',
       '/users',
       '/accountingrules',
@@ -95,7 +102,7 @@ describe('navSectionsFor', () => {
   });
 
   it('dual-role (sysadmin + club-admin) sees the role UNION — top-level + full Masterdata + Clubs', () => {
-    const flags = { isSystemAdmin: true, isClubAdmin: true };
+    const flags = { isSystemAdmin: true, isClubAdmin: true, clubId: OWN_CLUB_ID };
     expect(topLabels(flags)).toEqual([
       '/flights',
       '/flightreports',
@@ -110,6 +117,7 @@ describe('navSectionsFor', () => {
       '/locations',
       '/persons',
       '/flight-types',
+      `/clubs/${OWN_CLUB_ID}/edit`,
       '/join-requests',
       '/users',
       '/accountingrules',
@@ -139,6 +147,42 @@ describe('navSectionsFor', () => {
       .find((s) => s.label === 'Masterdata')
       ?.children?.find((c) => c.path === '/join-requests');
     expect(md?.badge).toBeUndefined();
+  });
+
+  describe('own-club settings entry', () => {
+    const clubSettings = (flags: Flags) =>
+      navSectionsFor(flags)
+        .flatMap((s) => s.children ?? [s])
+        .filter((i) => i.testId === CLUB_SETTINGS_TEST_ID);
+
+    it('points a club-admin at its OWN club under a stable testid', () => {
+      const entries = clubSettings({
+        isSystemAdmin: false,
+        isClubAdmin: true,
+        clubId: OWN_CLUB_ID,
+      });
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.path).toBe(`/clubs/${OWN_CLUB_ID}/edit`);
+      expect(entries[0]?.label).toBe('Club settings');
+    });
+
+    it.each([
+      ['a plain member (pilot)', { isSystemAdmin: false, isClubAdmin: false }],
+      ['a sysadmin-only principal', { isSystemAdmin: true, isClubAdmin: false }],
+    ])('is hidden from %s', (_who, roles) => {
+      expect(clubSettings({ ...roles, clubId: OWN_CLUB_ID })).toEqual([]);
+    });
+
+    it('is omitted until /me resolves the club id — no unroutable link', () => {
+      expect(clubSettings({ isSystemAdmin: false, isClubAdmin: true, clubId: null })).toEqual([]);
+      expect(clubSettings({ isSystemAdmin: false, isClubAdmin: true })).toEqual([]);
+    });
+
+    it('leaves the sysadmin catalog entry intact for a dual-role principal', () => {
+      const flags = { isSystemAdmin: true, isClubAdmin: true, clubId: OWN_CLUB_ID };
+      expect(topLabels(flags)).toContain('/clubs');
+      expect(clubSettings(flags)).toHaveLength(1);
+    });
   });
 
   it('Flight types is the tail of the open tenant masterdata items (legacy nav parity, J-26 T-28)', () => {
