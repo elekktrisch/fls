@@ -40,11 +40,18 @@ export const testId = {
   throttled: 'public-registration-throttled',
   invoiceDiffers: 'public-registration-invoice-differs',
   invoiceFieldset: 'public-registration-invoice-fieldset',
+  contactError: 'public-registration-contact-error',
+  couponToCandidate: 'public-registration-coupon-candidate',
+  couponToInvoiceRecipient: 'public-registration-coupon-invoice-recipient',
   daySelect: 'discovery-day-select',
   dayOption: (isoDate: string): string => `discovery-day-option-${isoDate}`,
 } as const;
 
-/** Reactive-form control ids, label-associated through `<af-form-field>`. */
+/**
+ * Reactive-form control ids, label-associated through `<af-form-field>`. The
+ * set is exactly what `PublicRegistrantDetails` carries — legacy's form has no
+ * date of birth and the endpoint would drop one.
+ */
 export const fieldId = {
   firstName: '#firstName',
   lastName: '#lastName',
@@ -53,7 +60,8 @@ export const fieldId = {
   city: '#city',
   privateEmail: '#privateEmail',
   mobilePhone: '#mobilePhone',
-  dateOfBirth: '#dateOfBirth',
+  privatePhone: '#privatePhone',
+  businessPhone: '#businessPhone',
   remarks: '#remarks',
   invoiceFirstName: '#invoiceFirstName',
   invoiceLastName: '#invoiceLastName',
@@ -71,7 +79,6 @@ export interface Registrant {
   city: string;
   email: string;
   mobilePhone: string;
-  dateOfBirth: string;
   remarks: string;
 }
 
@@ -84,7 +91,6 @@ export function registrant(overrides: Partial<Registrant> = {}): Registrant {
     city: 'Dübendorf',
     email: 'nina.brunner@example.com',
     mobilePhone: '+41 79 555 21 12',
-    dateOfBirth: '1994-05-17',
     remarks: 'Erstflug, Geschenk',
     ...overrides,
   };
@@ -99,7 +105,6 @@ export async function fillRegistrant(page: Page, r: Registrant): Promise<void> {
   await page.locator(fieldId.city).fill(r.city);
   await page.locator(fieldId.privateEmail).fill(r.email);
   await page.locator(fieldId.mobilePhone).fill(r.mobilePhone);
-  await page.locator(fieldId.dateOfBirth).fill(r.dateOfBirth);
   await page.locator(fieldId.remarks).fill(r.remarks);
 }
 

@@ -319,6 +319,6 @@ test.describe('public registration — mobile-first', () => {
     // Native input types keep the mobile keyboard correct.
     await expect(page.locator(fieldId.privateEmail)).toHaveAttribute('type', 'email');
     await expect(page.locator(fieldId.mobilePhone)).toHaveAttribute('type', 'tel');
-    await expect(page.locator(fieldId.dateOfBirth)).toHaveAttribute('type', 'date');
+    await expect(page.locator(fieldId.zipCode)).toHaveAttribute('inputmode', 'numeric');
   });
 });
