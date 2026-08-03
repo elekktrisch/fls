@@ -17,6 +17,18 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
+
+- **[FORM-FIRST-PAINT-RED]** `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+  blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
+  gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
+  **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
+  the util (opt-in for the edit-form case if any screen genuinely wants eager reporting) rather than repeating the local
+  gate per form. Check the shipped create screens before assuming it's cosmetic. *(seam: `inline-validation.ts` + its 8 consumers)*
+- **[FIELDSET-LEGEND-SIZE]** `text-sm` loses against the UA stylesheet on `<legend>`, so fieldset legends render ~20px
+  instead of the intended size (both the T-16 "Contact" and T-17 "Pick a day" legends). Cosmetic and consistent.
+  *(seam: legend styling in the public form components)*
+
 ## Pending (filed by /do-ship J-17 T-15c, 2026-08-02)
 
 - **[MOCK-CLUB-ID-SHAPE]** `MOCK_CLUB_ID` in the web mock fixtures is a raw UUID while real club ids are
