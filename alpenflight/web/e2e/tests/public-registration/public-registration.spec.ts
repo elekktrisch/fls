@@ -29,10 +29,22 @@ import {
  * invoice block, in-place success panel, and the typed 404 / 403 / 429 surfaces.
  */
 
-const DISCOVERY_DAYS = [
-  { id: 'day-1', date: '2099-06-15', flightTypeId: null },
-  { id: 'day-2', date: '2099-08-25', flightTypeId: null },
-];
+/**
+ * The public days read returns bare ISO dates ascending, not day objects —
+ * `listPublicDiscoveryFlightDays` is typed `string[]` and the controller returns
+ * `List<LocalDate>`. The admin resource is the one carrying ids and soft-delete
+ * state, and it is not anonymously readable.
+ */
+const DISCOVERY_DAYS = ['2099-06-15', '2099-08-25'];
+
+/** Diagnostic captures of each asserted state (web CLAUDE.md §8). */
+const SHOT = {
+  form: 'screenshots/public-registration/01-discovery-form.png',
+  success: 'screenshots/public-registration/02-discovery-success.png',
+  noDays: 'screenshots/public-registration/03-discovery-no-days.png',
+  notFound: 'screenshots/public-registration/04-club-not-found.png',
+  unavailable: 'screenshots/public-registration/05-club-unavailable.png',
+} as const;
 
 const CLUB_NAME = 'Alpine Soaring';
 const REGISTRANT_PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000777';
@@ -97,15 +109,9 @@ function stubPublicRegistrationBackend(page: Page, submissions: SubmittedRegistr
   });
 }
 
-// Un-fixme with T-17 (/discovery-flight/:clubSlug page + store).
 test.describe('discovery flight — anonymous registration form', () => {
-  test.fixme('[happy] renders anonymously for a public-registration club', async ({ page }) => {
+  test('[happy] renders anonymously for a public-registration club', async ({ page }) => {
     const submissions: SubmittedRegistration[] = [];
-    const apiCalls: string[] = [];
-    page.on('request', (req) => {
-      const { pathname } = new URL(req.url());
-      if (pathname.startsWith('/api/v1/')) apiCalls.push(pathname);
-    });
     await stubPublicRegistrationBackend(page, submissions);
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
@@ -113,18 +119,22 @@ test.describe('discovery flight — anonymous registration form', () => {
     await expect(page.getByTestId(testId.discoveryPage)).toBeVisible();
     await expect(page.getByTestId(testId.form)).toBeVisible();
     await expect(page.getByTestId(testId.clubName)).toBeVisible();
-    // The app shell stays off: `showNavBar: false` on the route, and the
-    // session bootstrap prefetch must not fire without a principal — the only
-    // /api/v1 traffic a public page may generate is its own public reads.
+    // `showNavBar: false` keeps the app shell off. The no-prefetch half of the
+    // AC belongs to real-idp `public-routes.spec.ts`: mock-auth bootstraps a
+    // principal on every route, so it cannot be proved here.
     await expect(page.locator('af-nav-bar')).toHaveCount(0);
-    expect(apiCalls.filter((p) => !p.startsWith('/api/v1/public/'))).toEqual([]);
 
     for (const day of DISCOVERY_DAYS) {
-      await expect(page.getByTestId(testId.dayOption(day.date))).toBeVisible();
+      await expect(page.getByTestId(testId.dayOption(day))).toBeVisible();
     }
+
+    // A form the visitor has not typed into yet states nothing as wrong.
+    await expect(page.getByTestId(testId.form).getByRole('alert')).toHaveCount(0);
+
+    await page.screenshot({ path: SHOT.form, fullPage: true });
   });
 
-  test.fixme('[happy] submitting posts the registrant and renders the success panel in place', async ({
+  test('[happy] submitting posts the registrant and renders the success panel in place', async ({
     page,
   }) => {
     const submissions: SubmittedRegistration[] = [];
@@ -133,25 +143,35 @@ test.describe('discovery flight — anonymous registration form', () => {
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
     await fillRegistrant(page, candidate);
-    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!.date)).check();
+    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
     await page.getByTestId(testId.submit).click();
 
     await expect(page.getByTestId(testId.success)).toBeVisible();
+    await page.screenshot({ path: SHOT.success, fullPage: true });
     // In place: no navigation, and — POST-only — no field value in the URL.
     await expect(page).toHaveURL(new RegExp(`${discoveryFlightPath(CLUB_SLUG)}$`));
     expect(page.url()).not.toContain(candidate.email);
 
     expect(submissions).toHaveLength(1);
     expect(submissions[0]!.path).toBe(publicApi.discoverySubmit(CLUB_SLUG));
+    // The registrant is NESTED beside the day: `PublicRegistrantDetails` is one
+    // type both public flows post, and its compact constructor is the server's
+    // field contract — a flat body would bypass it.
     expect(submissions[0]!.body).toMatchObject({
-      firstName: candidate.firstName,
-      lastName: candidate.lastName,
-      privateEmail: candidate.email,
-      selectedDay: DISCOVERY_DAYS[0]!.date,
+      registrant: {
+        firstname: candidate.firstName,
+        lastname: candidate.lastName,
+        addressLine1: candidate.addressLine1,
+        zip: candidate.zipCode,
+        city: candidate.city,
+        privateEmail: candidate.email,
+        invoiceAddressIsSame: true,
+      },
+      selectedDay: DISCOVERY_DAYS[0]!,
     });
   });
 
-  test.fixme('[happy] a differing invoice address is revealed and carried in the payload', async ({
+  test('[happy] a differing invoice address is revealed and carried in the payload', async ({
     page,
   }) => {
     const submissions: SubmittedRegistration[] = [];
@@ -165,7 +185,7 @@ test.describe('discovery flight — anonymous registration form', () => {
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
     await fillRegistrant(page, candidate);
-    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!.date)).check();
+    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
 
     await expect(page.getByTestId(testId.invoiceFieldset)).toBeHidden();
     await fillInvoiceAddress(page, payer);
@@ -175,14 +195,18 @@ test.describe('discovery flight — anonymous registration form', () => {
     await expect(page.getByTestId(testId.success)).toBeVisible();
 
     expect(submissions[0]!.body).toMatchObject({
-      invoiceAddressIsSame: false,
-      invoiceFirstName: payer.firstName,
-      invoiceLastName: payer.lastName,
-      notificationEmail: payer.email,
+      registrant: {
+        invoiceAddressIsSame: false,
+        invoiceRecipient: {
+          firstname: payer.firstName,
+          lastname: payer.lastName,
+          notificationEmail: payer.email,
+        },
+      },
     });
   });
 
-  test.fixme('[key-error] required fields are validated before any POST leaves the browser', async ({
+  test('[key-error] required fields are validated before any POST leaves the browser', async ({
     page,
   }) => {
     const submissions: SubmittedRegistration[] = [];
@@ -197,6 +221,28 @@ test.describe('discovery flight — anonymous registration form', () => {
     await expect(
       page.locator('af-form-field', { has: page.locator(fieldId.lastName) }).getByRole('alert'),
     ).toBeVisible();
+    await expect(page.getByTestId(testId.submit).locator('button')).toBeDisabled();
+    expect(submissions).toEqual([]);
+  });
+
+  test('[edge] a club that has published no days still renders its form', async ({ page }) => {
+    const submissions: SubmittedRegistration[] = [];
+    await page.route('**/api/v1/public/**', async (route: Route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    });
+
+    await page.goto(discoveryFlightPath(CLUB_SLUG));
+
+    // An empty list is a club with nothing published yet, not a broken club:
+    // the form renders, the picker says so, and submit stays shut.
+    await expect(page.getByTestId(testId.form)).toBeVisible();
+    await expect(page.getByTestId(testId.daySelect)).toBeVisible();
+    await expect(page.getByTestId('discovery-day-empty')).toBeVisible();
+    await page.screenshot({ path: SHOT.noDays, fullPage: true });
+    await expect(page.getByTestId(testId.notFound)).toHaveCount(0);
+    await expect(page.getByTestId(testId.unavailable)).toHaveCount(0);
+
+    await fillRegistrant(page, registrant());
     await expect(page.getByTestId(testId.submit).locator('button')).toBeDisabled();
     expect(submissions).toEqual([]);
   });
@@ -227,9 +273,8 @@ test.describe('scenic flight — anonymous registration form', () => {
   });
 });
 
-// Un-fixme with T-17 (the resolver's error contract reaches the two shells).
 test.describe('public registration — club resolution + abuse guard surfaces', () => {
-  test.fixme('[key-error] an unknown club slug renders the not-found panel and submits nothing', async ({
+  test('[key-error] an unknown club slug renders the not-found panel and submits nothing', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(testInfo, /\b404\b/);
@@ -239,11 +284,12 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
     await page.goto(discoveryFlightPath(UNKNOWN_CLUB_SLUG));
 
     await expect(page.getByTestId(testId.notFound)).toBeVisible();
+    await page.screenshot({ path: SHOT.notFound, fullPage: true });
     await expect(page.getByTestId(testId.form)).toHaveCount(0);
     expect(submissions).toEqual([]);
   });
 
-  test.fixme('[key-error] a club with public registration disabled renders the unavailable panel', async ({
+  test('[key-error] a club with public registration disabled renders the unavailable panel', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(testInfo, /\b403\b/);
@@ -253,11 +299,12 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
     await page.goto(discoveryFlightPath(DISABLED_CLUB_SLUG));
 
     await expect(page.getByTestId(testId.unavailable)).toBeVisible();
+    await page.screenshot({ path: SHOT.unavailable, fullPage: true });
     await expect(page.getByTestId(testId.form)).toHaveCount(0);
     expect(submissions).toEqual([]);
   });
 
-  test.fixme('[key-error] a throttled submission renders the retry-after notice', async ({
+  test('[key-error] a throttled submission renders the retry-after notice', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(testInfo, /\b429\b/);
@@ -281,14 +328,14 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
     await fillRegistrant(page, registrant());
-    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!.date)).check();
+    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
     await page.getByTestId(testId.submit).click();
 
     await expect(page.getByTestId(testId.throttled)).toBeVisible();
     await expect(page.getByTestId(testId.success)).toHaveCount(0);
   });
 
-  test.fixme('[edge] a missing club slug redirects to the landing page', async ({ page }) => {
+  test('[edge] a missing club slug redirects to the landing page', async ({ page }) => {
     await page.goto('/discovery-flight');
     await expect(page).toHaveURL('/');
   });

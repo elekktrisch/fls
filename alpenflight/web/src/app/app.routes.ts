@@ -8,7 +8,7 @@ export const routes: Routes = [
   {
     path: 'discovery-flight',
     loadChildren: () =>
-      import('@features/discovery-flight/discovery-flight.routes').then(
+      import('@features/public-registration/public-registration.routes').then(
         (m) => m.DISCOVERY_FLIGHT_ROUTES,
       ),
   },

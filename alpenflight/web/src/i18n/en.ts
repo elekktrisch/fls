@@ -715,6 +715,15 @@ const en: Translations = {
   publicRegistration: {
     back: 'Back to the start page',
     contactHint: 'Enter at least a mobile number or an email address.',
+    day: {
+      legend: 'Pick a day',
+      none: 'No days are offered right now. Contact the club directly.',
+    },
+    discovery: {
+      intro: 'Pick a day and leave your contact details. The club confirms by email.',
+      successDay: 'Selected day: {{date}}',
+      title: 'Discovery flight — registration',
+    },
     errors: {
       failed: 'Registration not sent. Try again.',
       slow: 'Taking longer than usual. Check the connection.',

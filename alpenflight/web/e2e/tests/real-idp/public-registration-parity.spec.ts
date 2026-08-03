@@ -56,7 +56,7 @@ function discoveryDayDate(): string {
 }
 
 test.describe('public flight registration — anonymous front door', () => {
-  test('[happy] the discovery-flight entry is reachable anonymously under the real IdP', async ({
+  test('[edge] a club-less discovery-flight URL lands anonymously on the landing page', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
@@ -78,7 +78,10 @@ test.describe('public flight registration — anonymous front door', () => {
       // Anonymous: the live IdP is configured, so a guard regression on this
       // route would bounce the visitor to Keycloak before anything renders.
       expect(new URL(page.url()).host).not.toBe(KC_HOST);
-      await expect(page.locator('main').first()).toBeVisible();
+      // No club in the URL means no club to register with, so the visitor is
+      // returned to the front page (`TryFlightController.js:8-10`).
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.getByTestId('landing')).toBeVisible();
       // No app chrome and no authenticated prefetch on a public surface.
       await expect(page.locator('af-nav-bar')).toHaveCount(0);
       expect(apiCalls.filter((p) => !p.startsWith('/api/v1/public/'))).toEqual([]);
@@ -92,10 +95,10 @@ test.describe('public flight registration — anonymous front door', () => {
       await proofVideo(page, testInfo, {
         journey: 'J-17',
         caption:
-          'J-17 · anonymous front door · the public discovery-flight entry renders under the real ' +
-          'IdP with no Keycloak redirect, no app chrome and no authenticated prefetch — the ' +
-          'unauthenticated surface the registration form is built on',
-        acTag: 'happy',
+          'J-17 · anonymous front door · a discovery-flight URL carrying no club returns the ' +
+          'visitor to the landing page under the real IdP — no Keycloak redirect, no app chrome ' +
+          'and no authenticated prefetch on the unauthenticated surface',
+        acTag: 'edge',
       });
     }
   });

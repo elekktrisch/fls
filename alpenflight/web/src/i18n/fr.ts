@@ -723,6 +723,15 @@ const fr: Translations = {
   publicRegistration: {
     back: 'Retour à la page d’accueil',
     contactHint: 'Indiquer au moins un numéro de mobile ou une adresse e-mail.',
+    day: {
+      legend: 'Choisir un jour',
+      none: 'Aucun jour n’est proposé actuellement. Contacter le club directement.',
+    },
+    discovery: {
+      intro: 'Choisir un jour et indiquer les coordonnées. Le club confirme par e-mail.',
+      successDay: 'Jour choisi : {{date}}',
+      title: 'Vol de découverte — inscription',
+    },
     errors: {
       failed: 'Inscription non envoyée. Réessayer.',
       slow: 'Plus long que d’habitude. Vérifier la connexion.',

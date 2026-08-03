@@ -726,6 +726,15 @@ const de = {
   publicRegistration: {
     back: 'Zurück zur Startseite',
     contactHint: 'Mindestens Mobile-Nummer oder E-Mail-Adresse angeben.',
+    day: {
+      legend: 'Tag wählen',
+      none: 'Zurzeit sind keine Tage ausgeschrieben. Bitte den Verein direkt kontaktieren.',
+    },
+    discovery: {
+      intro: 'Tag wählen und Kontaktdaten angeben. Der Verein bestätigt per E-Mail.',
+      successDay: 'Gewählter Tag: {{date}}',
+      title: 'Schnupperflug — Anmeldung',
+    },
     errors: {
       failed: 'Anmeldung nicht gesendet. Bitte erneut versuchen.',
       slow: 'Dauert länger als üblich. Verbindung prüfen.',

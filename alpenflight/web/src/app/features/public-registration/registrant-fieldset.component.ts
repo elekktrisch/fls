@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, type Signal, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ReactiveFormsModule } from '@angular/forms';
+import { type AbstractControl, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { map, startWith } from 'rxjs';
+import { map, merge, startWith } from 'rxjs';
 
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfFieldErrorsComponent } from '@ui/molecules/af-field-errors';
@@ -12,27 +12,51 @@ import { liveFieldErrors } from '@shared/util/form';
 
 import { REGISTRANT_FORM, type RegistrantForm, displayName } from './registrant-form';
 
+/**
+ * A blank anonymous form must not open in red: `liveFieldErrors` reports a
+ * required field's error from first paint, which is right for a form the
+ * visitor has started and wrong for the one they just landed on. The message is
+ * held back until they have typed into — or left — the field the rule is about.
+ *
+ * Blur is half of that, and marking a control touched pushes no value or status
+ * change, so the gate reads `events` (which does carry `TouchedChangeEvent`)
+ * rather than the error stream alone.
+ */
+function engagedFieldErrors(
+  control: AbstractControl,
+  gates: readonly AbstractControl[] = [control],
+): Signal<ValidationErrors | null> {
+  const errors = liveFieldErrors(control);
+  const isEngaged = (): boolean => gates.some((g) => g.dirty || g.touched);
+  const engaged = toSignal(
+    merge(...gates.map((g) => g.events)).pipe(map(isEngaged), startWith(isEngaged())),
+    { requireSync: true },
+  );
+  return computed(() => (engaged() ? errors() : null));
+}
+
 function registrantFieldErrors(form: RegistrantForm) {
   const invoice = form.controls.invoice.controls;
   return {
-    firstname: liveFieldErrors(form.controls.firstname),
-    lastname: liveFieldErrors(form.controls.lastname),
-    addressLine1: liveFieldErrors(form.controls.addressLine1),
-    zipCode: liveFieldErrors(form.controls.zipCode),
-    city: liveFieldErrors(form.controls.city),
-    privateEmail: liveFieldErrors(form.controls.privateEmail),
-    mobilePhone: liveFieldErrors(form.controls.mobilePhone),
-    privatePhone: liveFieldErrors(form.controls.privatePhone),
-    businessPhone: liveFieldErrors(form.controls.businessPhone),
+    firstname: engagedFieldErrors(form.controls.firstname),
+    lastname: engagedFieldErrors(form.controls.lastname),
+    addressLine1: engagedFieldErrors(form.controls.addressLine1),
+    zipCode: engagedFieldErrors(form.controls.zipCode),
+    city: engagedFieldErrors(form.controls.city),
+    privateEmail: engagedFieldErrors(form.controls.privateEmail),
+    mobilePhone: engagedFieldErrors(form.controls.mobilePhone),
+    privatePhone: engagedFieldErrors(form.controls.privatePhone),
+    businessPhone: engagedFieldErrors(form.controls.businessPhone),
     // The mobile-or-email rule lives on the group, so its message is rendered
-    // once under the pair rather than duplicated onto both controls.
-    contact: liveFieldErrors(form),
-    invoiceFirstname: liveFieldErrors(invoice.firstname),
-    invoiceLastname: liveFieldErrors(invoice.lastname),
-    invoiceAddressLine1: liveFieldErrors(invoice.addressLine1),
-    invoiceZipCode: liveFieldErrors(invoice.zipCode),
-    invoiceCity: liveFieldErrors(invoice.city),
-    notificationEmail: liveFieldErrors(invoice.notificationEmail),
+    // once under the pair rather than duplicated onto both controls — and it
+    // waits on the pair, not on the first field the visitor happens to fill.
+    contact: engagedFieldErrors(form, [form.controls.mobilePhone, form.controls.privateEmail]),
+    invoiceFirstname: engagedFieldErrors(invoice.firstname),
+    invoiceLastname: engagedFieldErrors(invoice.lastname),
+    invoiceAddressLine1: engagedFieldErrors(invoice.addressLine1),
+    invoiceZipCode: engagedFieldErrors(invoice.zipCode),
+    invoiceCity: engagedFieldErrors(invoice.city),
+    notificationEmail: engagedFieldErrors(invoice.notificationEmail),
   };
 }
 

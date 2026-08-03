@@ -721,6 +721,15 @@ const it: Translations = {
   publicRegistration: {
     back: 'Torna alla pagina iniziale',
     contactHint: 'Indicare almeno un numero di cellulare o un indirizzo e-mail.',
+    day: {
+      legend: 'Scegliere un giorno',
+      none: 'Al momento non sono proposti giorni. Contattare direttamente il club.',
+    },
+    discovery: {
+      intro: 'Scegliere un giorno e indicare i contatti. Il club conferma per e-mail.',
+      successDay: 'Giorno scelto: {{date}}',
+      title: 'Volo di prova — iscrizione',
+    },
     errors: {
       failed: 'Iscrizione non inviata. Riprovare.',
       slow: 'Ci vuole più del solito. Verificare la connessione.',
