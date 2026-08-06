@@ -17,6 +17,16 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-17 gate, 2026-08-06)
+
+- **[ANON-WRITE-ATTRIBUTION]** J-17 shipped the app's first unauthenticated write endpoints **and** an abuse guard, but
+  `/system/logs` cannot tell an anonymous internet registration from a cron job: `system_actor=true`, both actor ids null,
+  and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
+  that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
+  on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
+  redaction, and whether it belongs in the audit table at all), which is why this is filed for the operator rather than
+  fixed in-journey. *(seam: audit actor columns + the anonymous write path)*
+
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
 - **[FORM-FIRST-PAINT-RED]** `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
