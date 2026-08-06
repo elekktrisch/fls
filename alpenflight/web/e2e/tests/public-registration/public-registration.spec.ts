@@ -271,6 +271,115 @@ test.describe('discovery flight — anonymous registration form', () => {
   });
 });
 
+/**
+ * The coupon choice is the only control whose key exists on the wire solely
+ * while the invoice address differs, and nothing below a browser establishes
+ * what the rendered radios post: the mapper unit test builds the form value
+ * directly and the server ITs post a hand-written body, so both sides can agree
+ * on a shape the form never produces — which is how an omitted key reached
+ * production and answered every real submit with a 400.
+ */
+test.describe('discovery flight — coupon recipient choice', () => {
+  const COUPON_CHOICE = [
+    {
+      recipient: 'the candidate',
+      select: testId.couponToCandidate,
+      deselect: testId.couponToInvoiceRecipient,
+      posted: false,
+    },
+    {
+      recipient: 'the invoice recipient',
+      select: testId.couponToInvoiceRecipient,
+      deselect: testId.couponToCandidate,
+      posted: true,
+    },
+  ] as const;
+
+  for (const choice of COUPON_CHOICE) {
+    test(`[happy] the coupon goes to ${choice.recipient} when that radio is selected`, async ({
+      page,
+    }) => {
+      const submissions: SubmittedRegistration[] = [];
+      await stubPublicRegistrationBackend(page, submissions);
+      const candidate = registrant();
+      const payer = registrant({
+        firstName: 'Beat',
+        lastName: 'Frei',
+        email: 'beat.frei@example.com',
+      });
+
+      await page.goto(discoveryFlightPath(CLUB_SLUG));
+      await fillRegistrant(page, candidate);
+      await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
+      await fillInvoiceAddress(page, payer);
+
+      // Legacy names both parties on the choice so the sender knows who gets
+      // what; a pair of unlabelled radios is not a decision anyone can make.
+      await expect(
+        page.locator('label', { has: page.getByTestId(testId.couponToCandidate) }),
+      ).toContainText(`${candidate.firstName} ${candidate.lastName}`);
+      await expect(
+        page.locator('label', { has: page.getByTestId(testId.couponToInvoiceRecipient) }),
+      ).toContainText(`${payer.firstName} ${payer.lastName}`);
+
+      // Through the other option first: the candidate radio matches the form's
+      // initial value, so landing on it by default would prove nothing about
+      // what a click does.
+      const deselected = page.getByTestId(choice.deselect);
+      const selected = page.getByTestId(choice.select);
+      await deselected.check();
+      await expect(deselected).toBeChecked();
+      await selected.check();
+      await expect(selected).toBeChecked();
+      await expect(deselected).not.toBeChecked();
+
+      await page.getByTestId(testId.submit).click();
+      await expect(page.getByTestId(testId.success)).toBeVisible();
+
+      expect(submissions).toHaveLength(1);
+      expect(submissions[0]!.body).toMatchObject({
+        registrant: {
+          invoiceAddressIsSame: false,
+          sendCouponToInvoiceAddress: choice.posted,
+          invoiceRecipient: { notificationEmail: payer.email },
+        },
+      });
+    });
+  }
+
+  test('[edge] no coupon choice renders — or travels — while the invoice address is the visitor own', async ({
+    page,
+  }) => {
+    const submissions: SubmittedRegistration[] = [];
+    await stubPublicRegistrationBackend(page, submissions);
+    const candidate = registrant();
+
+    await page.goto(discoveryFlightPath(CLUB_SLUG));
+    await fillRegistrant(page, candidate);
+    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
+
+    await expect(page.getByTestId(testId.couponToCandidate)).toHaveCount(0);
+    await expect(page.getByTestId(testId.couponToInvoiceRecipient)).toHaveCount(0);
+
+    // Chosen, then taken back: the key must not survive the toggle. The server
+    // reads one address for the whole registration here, and the primitive it
+    // once required is exactly the field a stale value would smuggle back in.
+    await fillInvoiceAddress(page, registrant({ firstName: 'Beat', lastName: 'Frei' }));
+    await page.getByTestId(testId.couponToInvoiceRecipient).check();
+    await page.getByTestId(testId.invoiceDiffers).uncheck();
+    await expect(page.getByTestId(testId.couponToInvoiceRecipient)).toHaveCount(0);
+
+    await page.getByTestId(testId.submit).click();
+    await expect(page.getByTestId(testId.success)).toBeVisible();
+
+    expect(submissions).toHaveLength(1);
+    const posted = submissions[0]!.body['registrant'] as Record<string, unknown>;
+    expect(posted['invoiceAddressIsSame']).toBe(true);
+    expect(posted).not.toHaveProperty('sendCouponToInvoiceAddress');
+    expect(posted).not.toHaveProperty('invoiceRecipient');
+  });
+});
+
 test.describe('scenic flight — anonymous registration form', () => {
   test('[happy] submits without a day picker and renders the success panel', async ({ page }) => {
     const submissions: SubmittedRegistration[] = [];

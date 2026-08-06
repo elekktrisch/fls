@@ -785,11 +785,8 @@ const fr: Translations = {
   },
   publicStub: {
     back: 'Retour à la page d’accueil',
-    body: 'La réservation publique est en préparation. En attendant, contactez directement votre club.',
     demo: 'Démo',
     demoBody: 'La démo interactive est en préparation. Revenez bientôt.',
-    discoveryFlight: 'Vol de découverte',
-    scenicFlight: 'Vol panoramique',
     title: 'Bientôt disponible',
   },
   signup: {

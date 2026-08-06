@@ -677,9 +677,19 @@ test.describe('registration recipients + organiser notification', () => {
       await page.goto(discoveryFlightPath(seeded.slug));
       await fillRegistrant(page, candidate);
       await fillInvoiceAddress(page, payer);
+      await page.getByTestId(testId.couponToInvoiceRecipient).check();
       await page.getByTestId(testId.dayOption(seeded.eventDate)).check();
 
       const response = await submitPublicForm(page, publicApi.discoverySubmit(seeded.slug));
+      // The choice as the real browser serialises it, against the real
+      // deserialiser: this key only exists on the invoice-differs shape, and
+      // the ITs post a hand-written body that cannot expose a form/DTO drift.
+      expect(
+        (response.request().postDataJSON() as { registrant: Record<string, unknown> }).registrant[
+          'sendCouponToInvoiceAddress'
+        ],
+        'the submitted payload carries the coupon recipient the visitor picked',
+      ).toBe(true);
       expect(response.status()).toBe(201);
       const registrantPerson = registrantPersonId(response);
 

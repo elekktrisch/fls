@@ -777,11 +777,8 @@ const en: Translations = {
   },
   publicStub: {
     back: 'Back to the landing page',
-    body: 'Public booking is on the way. In the meantime, contact your club directly.',
     demo: 'Demo',
     demoBody: 'The interactive demo is on the way. Check back soon.',
-    discoveryFlight: 'Discovery flight',
-    scenicFlight: 'Scenic flight',
     title: 'Coming soon',
   },
   signup: {
