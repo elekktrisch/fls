@@ -65,7 +65,7 @@ e2e/
         ├── login.spec.ts             happy + wrong-pw + logout/re-login + locale
         ├── google-redirect.spec.ts   unconditional accounts.google.com smoke
         ├── token-lifecycle.spec.ts   silent refresh + multi-tab + hard 401 + Bearer scoping
-        ├── public-routes.spec.ts     anonymous nav stays public, no /api/v1/* calls
+        ├── public-routes.spec.ts     anonymous nav stays public, no undeclared /api/v1 call
         └── _helpers/
             ├── keycloak-admin.ts     token cache + cleanup guard + realm/user mutation HOFs
             ├── mailpit-client.ts     poll + verify-link extraction

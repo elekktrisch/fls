@@ -1,5 +1,11 @@
 import { type Request } from '@playwright/test';
-import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import { test, expect, allowConsoleErrors, watchConsoleErrors } from '../_helpers/console-guard';
+import {
+  discoveryFlightPath,
+  publicApi,
+  scenicFlightPath,
+  testId,
+} from '../public-registration/_helpers/public-registration-form';
 import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
@@ -8,12 +14,14 @@ import { proofVideo } from './_helpers/proof-video';
  *
  * Each route flagged `data.publicAccess: true` in the SPA route tree
  * MUST render anonymously without (a) redirecting to Keycloak's authorize
- * endpoint, (b) triggering any `/api/v1/*` call — `session.store.ts`'s
- * `bootstrapPrefetch()` is gated on `isAuthenticated()`; a regression
- * there would surface here — and (c) showing the app-shell nav-bar, which
- * every one of these routes suppresses via `data.showNavBar: false`
- * (the structural close-out of the legacy `||` tautology, R12). The nav
- * appearing on a public route is exactly that regression.
+ * endpoint, (b) making any `/api/v1` call it has not DECLARED as an anonymous
+ * public read — `session.store.ts`'s `bootstrapPrefetch()` is gated on
+ * `isAuthenticated()`, and no route may declare a non-public path, so an
+ * authenticated prefetch is a regression on every entry — and (c) showing the
+ * app-shell nav-bar, which every one of these routes suppresses via
+ * `data.showNavBar: false` (the structural close-out of the legacy `||`
+ * tautology, R12). The nav appearing on a public route is exactly that
+ * regression.
  *
  * Hardcoded list, not runtime-derived: coupling the e2e build to the app
  * build would invert the dependency direction. When a new public route
@@ -31,36 +39,90 @@ const KC_HOST = 'localhost:8090';
 const SEED_USER = 'pilot1@example.com';
 const SEED_PASSWORD = 'pilot1-dev-2026!';
 
+interface PublicRoute {
+  readonly path: string;
+  /**
+   * A testid the route must render. The three checks below are all negative —
+   * without this they pass on a route that mounted nothing at all.
+   */
+  readonly renders?: string;
+  /**
+   * The EXACT `/api/v1/public/**` pathnames this route legitimately reads while
+   * anonymous. Declared per route and matched exactly, never as a suite-wide
+   * `/api/v1/public/` exemption: the default is none, so every other entry
+   * still fails on ANY `/api/v1` call, and no entry can declare a path outside
+   * the anonymous prefix. A declared read that stops firing fails too, so an
+   * exemption cannot outlive the call it was granted for.
+   */
+  readonly anonymousReads?: readonly string[];
+  /** Browser errors this route's own anonymous read legitimately produces. */
+  readonly expectedConsoleErrors?: RegExp;
+}
+
+/**
+ * The clean seed's only slugged club (`V5__clubs_walking_skeleton.sql:30`). Its
+ * `public_registration_enabled` is false, so both forms resolve it to the
+ * unavailable panel — which is beside the point here: what this spec pins is
+ * that the ROUTE is anonymously reachable and chrome-free. Whether the club
+ * behind the slug accepts registrations is `public-registration-parity.spec.ts`.
+ */
+const SEED_CLUB_SLUG = 'seed-club-1';
+
 // publicAccess: true routes from the SPA tree (excludes /dev/primitives,
 // which is opt-in tooling and not a production surface). `/auth/callback`
 // is included as a bare GET — the OIDC library only processes the
 // callback when it sees `?code=&state=`, so an anonymous bare visit
 // renders the static "Signing in…" placeholder without side effects.
-const PUBLIC_ROUTES = [
-  '/',
-  '/signup',
-  '/scenic-flight',
-  '/discovery-flight',
-  '/auth/callback',
-  '/auth/logout',
+//
+// The registration routes are listed in their SLUGGED form because that is the
+// form carrying `publicAccess: true`. Bare `/discovery-flight` and
+// `/scenic-flight` are `redirectTo` entries that land on `/` — already the first
+// entry here, so listing them would re-assert the landing page while reading as
+// coverage of the forms; the redirect itself is asserted in
+// `public-registration-parity.spec.ts`.
+const PUBLIC_ROUTES: readonly PublicRoute[] = [
+  { path: '/' },
+  { path: '/signup' },
+  {
+    path: scenicFlightPath(SEED_CLUB_SLUG),
+    renders: testId.scenicPage,
+    anonymousReads: [publicApi.club(SEED_CLUB_SLUG)],
+    expectedConsoleErrors: /\b403\b/,
+  },
+  {
+    path: discoveryFlightPath(SEED_CLUB_SLUG),
+    renders: testId.discoveryPage,
+    anonymousReads: [publicApi.club(SEED_CLUB_SLUG), publicApi.discoveryDays(SEED_CLUB_SLUG)],
+    expectedConsoleErrors: /\b403\b/,
+  },
+  { path: '/auth/callback' },
+  { path: '/auth/logout' },
 ];
 
 test.describe('public routes stay public — real-idp', () => {
-  for (const path of PUBLIC_ROUTES) {
-    test(`${path} renders without KC redirect or /api/v1/* calls`, async ({
+  for (const route of PUBLIC_ROUTES) {
+    test(`${route.path} renders without KC redirect or an authenticated prefetch`, async ({
       context,
     }, testInfo) => {
       const page = await context.newPage();
       watchConsoleErrors(page, testInfo);
+      if (route.expectedConsoleErrors) {
+        allowConsoleErrors(testInfo, route.expectedConsoleErrors);
+      }
       const apiCalls: string[] = [];
+      const bearerCalls: string[] = [];
       page.on('request', (req: Request) => {
         const u = new URL(req.url());
-        if (u.host === new URL(SPA_BASE_URL).host && u.pathname.startsWith('/api/v1/')) {
-          apiCalls.push(req.url());
+        if (u.host !== new URL(SPA_BASE_URL).host || !u.pathname.startsWith('/api/v1/')) {
+          return;
+        }
+        apiCalls.push(u.pathname);
+        if (req.headers()['authorization'] !== undefined) {
+          bearerCalls.push(u.pathname);
         }
       });
 
-      await page.goto(path);
+      await page.goto(route.path);
       await page.waitForLoadState('networkidle');
 
       // (a) No KC redirect. The SPA may have settled on the same path or
@@ -68,18 +130,41 @@ test.describe('public routes stay public — real-idp', () => {
       // the KC host.
       expect(new URL(page.url()).host).not.toBe(KC_HOST);
 
-      // (b) No /api/v1/* calls. Public routes don't have an authenticated
-      // session so the Bearer interceptor would have nothing to attach,
-      // but the gate that matters here is the prefetch suppression. Any
-      // /api/v1/* call from a public-route navigation is the regression.
-      expect(apiCalls, `unexpected /api/v1/* call from public route ${path}`).toEqual([]);
+      if (route.renders !== undefined) {
+        await expect(
+          page.getByTestId(route.renders),
+          `public route ${route.path} rendered nothing`,
+        ).toBeVisible();
+      }
+
+      // (b) No prefetch. The gate is `bootstrapPrefetch()` suppression, not
+      // silence: a route may read the anonymous `/api/v1/public/**` surface it
+      // declared above, and nothing else. Every session-scoped catalog is
+      // outside that prefix, so the prefetch regression fails here regardless
+      // of which route it fires on.
+      const declared = route.anonymousReads ?? [];
+      expect(
+        apiCalls.filter((p) => !declared.includes(p)),
+        `undeclared /api/v1 call from public route ${route.path}`,
+      ).toEqual([]);
+      for (const read of declared) {
+        expect(
+          apiCalls,
+          `declared anonymous read no longer fires on ${route.path} — stale exemption`,
+        ).toContain(read);
+      }
+      // No principal means nothing to attach: a Bearer on a public route is the
+      // same prefetch regression seen from the request side.
+      expect(bearerCalls, `public route ${route.path} attached an Authorization header`).toEqual(
+        [],
+      );
 
       // (c) App-shell nav-bar hidden. Every route here is `showNavBar: false`,
       // so `AppComponent`'s NavigationEnd handler keeps the chrome off. The
       // nav appearing is the R12 tautology regressing.
       await expect(
         page.locator('af-nav-bar'),
-        `nav-bar leaked onto public route ${path}`,
+        `nav-bar leaked onto public route ${route.path}`,
       ).toHaveCount(0);
     });
   }

@@ -1,4 +1,4 @@
-import { type Page, type Route } from '@playwright/test';
+import { type Locator, type Page, type Route } from '@playwright/test';
 import { allowConsoleErrors, expect, test } from '../_helpers/console-guard';
 import {
   CLUB_SLUG,
@@ -46,6 +46,7 @@ const SHOT = {
   unavailable: 'screenshots/public-registration/05-club-unavailable.png',
   scenicForm: 'screenshots/public-registration/06-scenic-form.png',
   scenicSuccess: 'screenshots/public-registration/07-scenic-success.png',
+  mobile: 'screenshots/public-registration/08-discovery-mobile-360x640.png',
 } as const;
 
 const CLUB_NAME = 'Alpine Soaring';
@@ -401,31 +402,149 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
   });
 });
 
-// Un-fixme with T-19 (mobile-first assertions, AC-DIR-1..4).
+/**
+ * Mobile-first (AC-DIR-1..4). The phone is the device a discovery-flight
+ * customer registers from, so the narrow portrait viewport is the primary
+ * layout, not a degraded one — and the tap-target floor is the gloves /
+ * dirty-hands rationale from the vision NFR, verified by bounding rect rather
+ * than axe-core (web CLAUDE.md §5).
+ */
 test.describe('public registration — mobile-first', () => {
-  test.fixme('[edge] single column at 360x640 with >=44x44 px controls', async ({ page }) => {
+  const MOBILE_PORTRAIT = { width: 360, height: 640 } as const;
+  const TOUCH_TARGET_PX = 44;
+
+  interface Box {
+    y: number;
+    width: number;
+    height: number;
+  }
+
+  test.use({ viewport: MOBILE_PORTRAIT });
+
+  /**
+   * Document-absolute rect. `boundingBox()` is viewport-relative, so any action
+   * that scrolls an element into view shifts every earlier field's `y` — which
+   * would make the stacking check below report on the scroll position instead of
+   * on the layout.
+   */
+  async function boxOf(locator: Locator): Promise<Box> {
+    return locator.evaluate((el: Element) => {
+      const rect = el.getBoundingClientRect();
+      return {
+        y: rect.y + window.scrollY,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+  }
+
+  test('[edge] the form is a single column of >=44px targets at 360x640', async ({ page }) => {
     const submissions: SubmittedRegistration[] = [];
     await stubPublicRegistrationBackend(page, submissions);
-    await page.setViewportSize({ width: 360, height: 640 });
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
     await expect(page.getByTestId(testId.form)).toBeVisible();
+    await page.getByTestId(testId.invoiceDiffers).check();
+    await expect(page.getByTestId(testId.invoiceFieldset)).toBeVisible();
+    await page.screenshot({ path: SHOT.mobile, fullPage: true });
 
-    // Single column: the first two fields stack rather than sit side by side.
-    const first = await page.locator(fieldId.firstName).boundingBox();
-    const last = await page.locator(fieldId.lastName).boundingBox();
-    expect(first).not.toBeNull();
-    expect(last).not.toBeNull();
-    expect(last!.y).toBeGreaterThanOrEqual(first!.y + first!.height);
+    // AC-DIR-1, single column: every field starts below the previous one's
+    // bottom edge — a two-up row at this width would overlap vertically.
+    const column = [
+      fieldId.firstName,
+      fieldId.lastName,
+      fieldId.addressLine1,
+      fieldId.zipCode,
+      fieldId.city,
+      fieldId.privateEmail,
+      fieldId.mobilePhone,
+      fieldId.invoiceFirstName,
+      fieldId.invoiceZipCode,
+      fieldId.notificationEmail,
+    ];
+    let previousBottom = 0;
+    for (const selector of column) {
+      const box = await boxOf(page.locator(selector));
+      expect(box.y, `${selector} shares a row with the field above it`).toBeGreaterThanOrEqual(
+        previousBottom,
+      );
+      previousBottom = box.y + box.height;
+    }
 
-    const submit = await page.getByTestId(testId.submit).boundingBox();
-    expect(submit).not.toBeNull();
-    expect(submit!.height).toBeGreaterThanOrEqual(44);
-    expect(submit!.width).toBeGreaterThanOrEqual(44);
+    // …and nothing pushes the page wider than the viewport, which is what turns
+    // a stacked column into a side-scrolling one on a real phone.
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(documentWidth).toBeLessThanOrEqual(MOBILE_PORTRAIT.width);
 
-    // Native input types keep the mobile keyboard correct.
+    // AC-DIR-2, touch targets. The tap surface of a radio/checkbox is its
+    // enclosing label, not the 20px box inside it, so that is what is measured.
+    const dayOption = page.locator('label', {
+      has: page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)),
+    });
+    const invoiceToggle = page.locator('label', {
+      has: page.getByTestId(testId.invoiceDiffers),
+    });
+    const targets = [
+      page.getByTestId(testId.submit),
+      dayOption,
+      invoiceToggle,
+      page.locator(fieldId.firstName),
+      page.locator(fieldId.notificationEmail),
+    ];
+    for (const target of targets) {
+      const box = await boxOf(target);
+      expect(box.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+      expect(box.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
+    }
+  });
+
+  test('[edge] the fields carry the native types the phone keyboard follows', async ({ page }) => {
+    const submissions: SubmittedRegistration[] = [];
+    await stubPublicRegistrationBackend(page, submissions);
+
+    await page.goto(discoveryFlightPath(CLUB_SLUG));
+    await expect(page.getByTestId(testId.form)).toBeVisible();
+    await page.getByTestId(testId.invoiceDiffers).check();
+
+    // AC-DIR-3: native types, not custom widgets — a `type="text"` email field
+    // hands the visitor an alphabetic keyboard for an address they must type
+    // exactly right, and the confirmation mail is what rides on it.
     await expect(page.locator(fieldId.privateEmail)).toHaveAttribute('type', 'email');
-    await expect(page.locator(fieldId.mobilePhone)).toHaveAttribute('type', 'tel');
+    await expect(page.locator(fieldId.privateEmail)).toHaveAttribute('inputmode', 'email');
+    await expect(page.locator(fieldId.notificationEmail)).toHaveAttribute('type', 'email');
+    for (const phone of [fieldId.mobilePhone, fieldId.privatePhone, fieldId.businessPhone]) {
+      await expect(page.locator(phone)).toHaveAttribute('type', 'tel');
+      await expect(page.locator(phone)).toHaveAttribute('inputmode', 'tel');
+    }
     await expect(page.locator(fieldId.zipCode)).toHaveAttribute('inputmode', 'numeric');
+    await expect(page.locator(fieldId.invoiceZipCode)).toHaveAttribute('inputmode', 'numeric');
+  });
+
+  test('[edge] submitting keeps every field value out of the URL', async ({ page }) => {
+    const submissions: SubmittedRegistration[] = [];
+    await stubPublicRegistrationBackend(page, submissions);
+    const candidate = registrant();
+
+    await page.goto(discoveryFlightPath(CLUB_SLUG));
+    // AC-DIR-4: the form element carries no `action`, so a submit the app
+    // failed to intercept would serialise the fields into the address bar.
+    await expect(page.getByTestId(testId.form)).not.toHaveAttribute('action');
+
+    await fillRegistrant(page, candidate);
+    await page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)).check();
+    await page.getByTestId(testId.submit).click();
+    await expect(page.getByTestId(testId.success)).toBeVisible();
+
+    expect(submissions).toHaveLength(1);
+    const url = new URL(page.url());
+    expect(url.pathname).toBe(discoveryFlightPath(CLUB_SLUG));
+    expect(url.search).toBe('');
+    expect(url.hash).toBe('');
+    // Value by value, not just the email: a GET fallback would carry the whole
+    // registrant, and the address bar is the one place this PII must never land.
+    const decoded = decodeURIComponent(page.url());
+    for (const value of Object.values(candidate)) {
+      expect(decoded, `${value} reached the URL`).not.toContain(value);
+    }
   });
 });
