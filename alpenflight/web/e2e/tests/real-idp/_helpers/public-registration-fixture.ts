@@ -26,6 +26,15 @@ import { ACTIVE_CLUB_STATE_ID, CH_COUNTRY_ID, captureSysadminBearer } from './tw
  * (`RegistrationService.cs:152-156`), so a club with two eligible gliders makes
  * "the reservation names THIS aircraft" a DB-order coin flip. The seed
  * registers one, and the club is fresh, so the assertion is deterministic.
+ *
+ * <h2>...or none at all</h2>
+ *
+ * {@link seedPublicRegistrationClubWithoutDoubleSeater} provisions the same club
+ * minus the aircraft. The reservation-skip AC needs a club that genuinely cannot
+ * be booked against — deleting or hiding the glider afterwards would leave the
+ * registration proving something about aircraft state rather than about a club
+ * that never had one. It keeps its homebase, so the organiser mail must name the
+ * missing double-seater and NOT the missing homebase.
  */
 
 const CLUB_ADMINISTRATOR_ROLE = 'CLUB_ADMINISTRATOR';
@@ -46,14 +55,22 @@ export interface PublicRegistrationClub {
   /** External `loc-<uuid>` — the club homebase the reservation is booked at. */
   homebaseId: string;
   homebaseName: string;
+  /** The single published discovery-flight day, `yyyy-MM-dd`. */
+  eventDate: string;
+  /** The club's own administrator — drives its club-admin screens in a browser. */
+  admin: TestUser;
+  /** `Bearer …` for the club's own administrator — reads the written rows back. */
+  adminAuthorization: string;
+  /** `Bearer …` for the seeded sysadmin, so a second seed skips its login. */
+  sysadminAuthorization: string;
+  dispose: () => Promise<void>;
+}
+
+/** The registrable club a discovery reservation can actually be booked at. */
+export interface PublicRegistrationClubWithDoubleSeater extends PublicRegistrationClub {
   /** External `ac-<uuid>` — the club's only eligible double-seater glider. */
   gliderId: string;
   gliderImmatriculation: string;
-  /** The single published discovery-flight day, `yyyy-MM-dd`. */
-  eventDate: string;
-  /** `Bearer …` for the club's own administrator — reads the written rows back. */
-  adminAuthorization: string;
-  dispose: () => Promise<void>;
 }
 
 function runId(): string {
@@ -205,9 +222,48 @@ interface ReferenceRow {
 export async function seedPublicRegistrationClub(
   browser: Browser,
   baseURL: string,
+  reuse: SeedReuse = {},
+): Promise<PublicRegistrationClubWithDoubleSeater> {
+  const { glider, ...club } = await seedClub(browser, baseURL, true, reuse);
+  if (!glider) {
+    throw new Error('the seeded club was asked for a double-seater and came back without one');
+  }
+  return { ...club, gliderId: glider.id, gliderImmatriculation: glider.immatriculation };
+}
+
+/**
+ * The same club with no aircraft at all — the reservation-skip subject. Returns
+ * the base shape, so a spec cannot reach for a glider id this club has not got.
+ */
+export async function seedPublicRegistrationClubWithoutDoubleSeater(
+  browser: Browser,
+  baseURL: string,
+  reuse: SeedReuse = {},
 ): Promise<PublicRegistrationClub> {
+  const { glider, ...club } = await seedClub(browser, baseURL, false, reuse);
+  if (glider) {
+    throw new Error(`the gliderless club registered ${glider.immatriculation} anyway`);
+  }
+  return club;
+}
+
+/** Bearers a prior seed already paid a browser login for. */
+export interface SeedReuse {
+  sysadminAuthorization?: string;
+}
+
+interface SeededClub extends PublicRegistrationClub {
+  glider: AircraftDetail | null;
+}
+
+async function seedClub(
+  browser: Browser,
+  baseURL: string,
+  doubleSeater: boolean,
+  reuse: SeedReuse,
+): Promise<SeededClub> {
   const tag = nonce();
-  const sysadmin = await captureSysadminBearer(browser, baseURL);
+  const sysadmin = reuse.sysadminAuthorization ?? (await captureSysadminBearer(browser, baseURL));
   const context = await browser.newContext({ baseURL });
   const api = context.request;
 
@@ -254,26 +310,9 @@ export async function seedPublicRegistrationClub(
       },
     );
 
-    const aircraftTypes = await readJson<ReferenceRow[]>(
-      api,
-      '/api/v1/aircraft-types',
-      adminAuthorization,
-    );
-    const gliderTypeId = aircraftTypes.find((type) => type.code === GLIDER_TYPE_CODE)?.id;
-    if (!gliderTypeId) {
-      throw new Error(`the aircraft-type catalog carries no ${GLIDER_TYPE_CODE} row`);
-    }
-    const immatriculation = `HB-J17${tag.slice(0, 5).toUpperCase()}`;
-    const glider = await createJson<AircraftDetail>(api, '/api/v1/aircraft', adminAuthorization, {
-      aircraftTypeId: gliderTypeId,
-      immatriculation,
-      nrOfSeats: DOUBLE_SEATER_SEATS,
-      homebaseId: homebase.id,
-      isTowingOrWinchRequired: false,
-      isTowingStartAllowed: false,
-      isWinchStartAllowed: false,
-      isTowingAircraft: false,
-    });
+    const glider = doubleSeater
+      ? await registerDoubleSeater(api, adminAuthorization, tag, homebase.id)
+      : null;
 
     const eventDate = discoveryDayDate();
     await createJson(api, '/api/v1/discovery-flight-days', adminAuthorization, { eventDate });
@@ -330,10 +369,11 @@ export async function seedPublicRegistrationClub(
       operatorEmail,
       homebaseId: homebase.id,
       homebaseName: homebase.locationName,
-      gliderId: glider.id,
-      gliderImmatriculation: glider.immatriculation,
+      glider,
       eventDate,
+      admin,
       adminAuthorization,
+      sysadminAuthorization: sysadmin,
       dispose: async () => {
         await deleteUser(kcUserId, admin.email);
       },
@@ -341,6 +381,33 @@ export async function seedPublicRegistrationClub(
   } finally {
     await context.close();
   }
+}
+
+async function registerDoubleSeater(
+  api: APIRequestContext,
+  adminAuthorization: string,
+  tag: string,
+  homebaseId: string,
+): Promise<AircraftDetail> {
+  const aircraftTypes = await readJson<ReferenceRow[]>(
+    api,
+    '/api/v1/aircraft-types',
+    adminAuthorization,
+  );
+  const gliderTypeId = aircraftTypes.find((type) => type.code === GLIDER_TYPE_CODE)?.id;
+  if (!gliderTypeId) {
+    throw new Error(`the aircraft-type catalog carries no ${GLIDER_TYPE_CODE} row`);
+  }
+  return createJson<AircraftDetail>(api, '/api/v1/aircraft', adminAuthorization, {
+    aircraftTypeId: gliderTypeId,
+    immatriculation: `HB-J17${tag.slice(0, 5).toUpperCase()}`,
+    nrOfSeats: DOUBLE_SEATER_SEATS,
+    homebaseId,
+    isTowingOrWinchRequired: false,
+    isTowingStartAllowed: false,
+    isWinchStartAllowed: false,
+    isTowingAircraft: false,
+  });
 }
 
 function assertSeeded(

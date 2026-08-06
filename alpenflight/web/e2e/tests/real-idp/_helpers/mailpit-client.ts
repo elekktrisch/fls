@@ -141,6 +141,55 @@ export async function waitForMessageWithSubject(
 }
 
 /**
+ * Poll Mailpit until a message to `toAddress` with the exact `subject` AND a
+ * body containing `needle` arrives.
+ *
+ * For a SHARED recipient that legitimately holds several mails of the SAME
+ * template in one run — a club's organiser-notification address, which receives
+ * one mail per public registration. {@link waitForMessageWithSubject} would
+ * return whichever arrived FIRST, so an assertion about this submission's
+ * content would silently be made about an earlier one. `needle` is the
+ * per-submission discriminator (a run-unique registrant address), which turns
+ * "the club was notified" into "the club was notified about THIS registration".
+ *
+ * Keeps the unexpected-template guard: any message to the address carrying a
+ * different subject fails loud rather than being skipped over.
+ */
+export async function waitForMessageWithBody(
+  toAddress: string,
+  subject: string,
+  needle: string,
+  options: WaitForMessageOptions = {},
+): Promise<MailpitMessageDetail> {
+  const timeoutMs = options.timeoutMs ?? 15_000;
+  const intervalMs = options.intervalMs ?? 500;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const matches = await searchByTo(toAddress);
+    const wrongSubject = matches.find((m) => m.Subject !== subject);
+    if (wrongSubject) {
+      throw new Error(
+        `mailpit: a message to:${toAddress} has subject "${wrongSubject.Subject}" — ` +
+          `expected only "${subject}". An unexpected template landed at the shared ` +
+          `address; do not paper over.`,
+      );
+    }
+    for (const summary of matches) {
+      const message = await fetchMessage(summary.ID);
+      if ((message.HTML ?? message.Text ?? '').includes(needle)) {
+        return message;
+      }
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    `mailpit: no message to:${toAddress} with subject "${subject}" mentioning "${needle}" ` +
+      `within ${timeoutMs}ms`,
+  );
+}
+
+/**
  * Extract the Keycloak verify-email action-token URL from a message body.
  * The href format is the contract — Keycloak's verify-email template
  * always renders `${ISSUER}/login-actions/action-token?key=…` regardless
