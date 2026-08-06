@@ -3,7 +3,7 @@ id: S-099
 rolled_up_into: J-17
 title: Passenger-flight registration port
 epic: E-12
-status: todo
+status: done
 depends_on: [S-097, S-025]
 acceptance:
   - Public form at `/passengerflight` (no auth).

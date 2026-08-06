@@ -18,7 +18,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-17 🔨 | Public flight-experience registration — discovery + scenic | E-12 | J-1, J-4, J-5, J-11, J-12a, J-16 | S-098, S-025, S-099 (**J-18 folded in** — see note) | CLUB widening (2 operator-email columns); the flow itself is greenfield — creates Person/PersonClub + a discovery-day reservation, migrates no Flight | `tryflight/` + `passengerflight/` → `/discovery-flight/:clubSlug`, `/scenic-flight/:clubSlug` |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
@@ -72,7 +71,6 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-17 (discovery + scenic, J-18 folded in):** Anonymous submit at `/discovery-flight/{clubSlug}` (creates a glider-trainee Person + PersonClub + an all-day double-seater reservation on a chosen published day) and `/scenic-flight/{clubSlug}` (Person + PersonClub, no reservation), each tenant-scoped by the slug in the URL; unknown slug → 404 and disabled club → 403, both writing nothing; abuse guard → 429; confirmation + organiser emails in Mailpit; nav-bar hidden; no PII in URL.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
