@@ -19,6 +19,15 @@ stragglers each ceremony so the file shrinks.
 
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
+- **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
+  `response.json()` on a body the SPA has already evicted by navigating on POST-success — the documented
+  trap on this project ([[project_spa_nav_evicts_post_response_body]]); read the created id from the `201`
+  `Location` header or a re-GET instead. Found by J-17's compose-free local real-idp run, where it reds
+  **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
+  establishing which, because a spec that passes on CI and fails locally erodes trust in both.
+  Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
+
+
 - **[ANON-WRITE-ATTRIBUTION]** J-17 shipped the app's first unauthenticated write endpoints **and** an abuse guard, but
   `/system/logs` cannot tell an anonymous internet registration from a cron job: `system_actor=true`, both actor ids null,
   and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
