@@ -17,9 +17,10 @@ import org.springframework.stereotype.Service;
  * names. The two-step shape is the S-025 mechanism and is load-bearing:
  *
  * <ol>
- *   <li>charge the attempt to its source address BEFORE anything else, so a
- *       probe that never resolves still costs the prober
- *       ({@link PublicRegistrationSubmitGuard});</li>
+ *   <li>charge the call to its source address BEFORE anything else, so a probe
+ *       that never resolves still costs the prober
+ *       ({@link PublicRegistrationAbuseGuard}) — the reads spend a separate,
+ *       reach-based budget from the submits;</li>
  *   <li>resolve + allowlist-check the slug OUTSIDE any tenant scope, so a
  *       rejected submission cannot touch tenant-scoped data;</li>
  *   <li>only then open a {@code Tenants.runAs} window for exactly the resolved
@@ -38,14 +39,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class PublicRegistrationIntake {
 
-    private final PublicRegistrationSubmitGuard guard;
+    private final PublicRegistrationAbuseGuard guard;
     private final PublicClubResolver resolver;
     private final PublicRegistrationTxWriter writer;
     private final PublicRegistrationMailer mailer;
     private final DiscoveryFlightDayRepository discoveryDays;
     private final Clock clock;
 
-    public PublicRegistrationIntake(PublicRegistrationSubmitGuard guard,
+    public PublicRegistrationIntake(PublicRegistrationAbuseGuard guard,
             PublicClubResolver resolver, PublicRegistrationTxWriter writer,
             PublicRegistrationMailer mailer, DiscoveryFlightDayRepository discoveryDays,
             Clock clock) {
@@ -62,15 +63,15 @@ public class PublicRegistrationIntake {
      * cannot be registered against. Opens no tenant window — resolution reads the
      * tenant root itself, and nothing tenant-scoped is involved.
      *
-     * <p>Unguarded, like {@link #bookableDiscoveryDays}: this is the first call
-     * every visit makes, so charging it to the submit window would let a club's
-     * open day behind one NAT spend the budget those visitors' submissions then
-     * need. It also adds no enumeration reach — the same slug oracle already
-     * exists on the days read and on both submits, and a club that enabled public
-     * registration published its existence deliberately. Blanket rate limiting of
-     * anonymous reads belongs at the edge, not in the per-club submit budget.
+     * <p>Charged to the read budget, not the submit one: this is the first call
+     * every visit makes, so sharing the submit window would let a club's open day
+     * behind one NAT spend the budget those visitors' submissions then need. The
+     * read budget counts distinct clubs, so that crowd spends one unit between
+     * them however often they load the page
+     * ({@link PublicRegistrationAbuseGuard}).
      */
-    public PublicClub publicClub(String clubSlug) {
+    public PublicClub publicClub(String clubSlug, String clientIp) {
+        guard.recordReadAndCheck(clientIp, clubSlug);
         return resolver.resolve(clubSlug);
     }
 
@@ -81,10 +82,12 @@ public class PublicRegistrationIntake {
      * ({@code RegistrationService.cs:39-52}). An unresolvable or closed club is
      * still 404 / 403, because that is a statement about the URL, not the days.
      *
-     * <p>Unguarded on purpose: charging the read to the submit window would let
-     * a visitor's own picker load spend the budget their submission then needs.
+     * <p>Charged to the same read budget as {@link #publicClub}, and against the
+     * same slug — the discovery form's two reads therefore cost one unit, not
+     * two.
      */
-    public List<LocalDate> bookableDiscoveryDays(String clubSlug) {
+    public List<LocalDate> bookableDiscoveryDays(String clubSlug, String clientIp) {
+        guard.recordReadAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
         return Tenants.runAs(club.clubId(), () ->
                 discoveryDays.findBookableFrom(LocalDate.now(clock)).stream()
@@ -103,7 +106,7 @@ public class PublicRegistrationIntake {
         if (selectedDay == null) {
             throw new PublicRegistrationInvalidException("selectedDay is required");
         }
-        guard.recordAndCheck(clientIp, clubSlug);
+        guard.recordSubmitAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
         DiscoveryRegistration written = Tenants.runAs(club.clubId(), () -> {
             requireBookableDay(selectedDay);
@@ -139,7 +142,7 @@ public class PublicRegistrationIntake {
      */
     public Accepted acceptScenic(String clubSlug, String clientIp,
             PublicRegistrantDetails registrant) {
-        guard.recordAndCheck(clientIp, clubSlug);
+        guard.recordSubmitAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
         RegisteredPersons registered = Tenants.runAs(club.clubId(), () -> {
             RegisteredPersons persons = writer.registerScenic(club, registrant);

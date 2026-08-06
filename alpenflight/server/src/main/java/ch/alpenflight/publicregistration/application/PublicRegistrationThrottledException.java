@@ -3,7 +3,8 @@ package ch.alpenflight.publicregistration.application;
 import java.time.Duration;
 
 /**
- * The anonymous submit was refused by {@link PublicRegistrationSubmitGuard}.
+ * An anonymous public-registration request — a submit or one of the reads the
+ * forms open with — was refused by {@link PublicRegistrationAbuseGuard}.
  * Carries the back-off the public form renders as a countdown; the
  * {@code PublicRegistrationExceptionHandler} maps it to 429 +
  * {@code Retry-After}. Free of Spring-web imports (ADR 0023).

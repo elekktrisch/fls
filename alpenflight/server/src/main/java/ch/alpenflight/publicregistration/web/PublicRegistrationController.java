@@ -57,10 +57,13 @@ class PublicRegistrationController {
     @ApiResponse(responseCode = "200", description = "The club's display name.")
     @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
     @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
+    @ApiResponse(responseCode = "429",
+            description = "Abuse guard tripped; retry after the Retry-After header.")
     @GetMapping(path = "/api/v1/public/clubs/{clubSlug}",
             produces = MediaType.APPLICATION_JSON_VALUE)
-    PublicClubResponse getPublicClub(@PathVariable String clubSlug) {
-        return new PublicClubResponse(intake.publicClub(clubSlug).clubName());
+    PublicClubResponse getPublicClub(@PathVariable String clubSlug, HttpServletRequest request) {
+        return new PublicClubResponse(
+                intake.publicClub(clubSlug, clientIps.resolve(request)).clubName());
     }
 
     @Operation(operationId = "listPublicDiscoveryFlightDays",
@@ -69,10 +72,13 @@ class PublicRegistrationController {
             description = "Bookable days ascending; empty when the club has published none.")
     @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
     @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
+    @ApiResponse(responseCode = "429",
+            description = "Abuse guard tripped; retry after the Retry-After header.")
     @GetMapping(path = "/api/v1/public/clubs/{clubSlug}/discovery-flight-days",
             produces = MediaType.APPLICATION_JSON_VALUE)
-    List<LocalDate> listPublicDiscoveryFlightDays(@PathVariable String clubSlug) {
-        return intake.bookableDiscoveryDays(clubSlug);
+    List<LocalDate> listPublicDiscoveryFlightDays(@PathVariable String clubSlug,
+            HttpServletRequest request) {
+        return intake.bookableDiscoveryDays(clubSlug, clientIps.resolve(request));
     }
 
     @Operation(operationId = "submitDiscoveryFlightRegistration",
