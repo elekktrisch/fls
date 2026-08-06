@@ -34,6 +34,9 @@ jobs:
   #      only PR): `filter.next` is false.
   #   2. THIS push / PR-sync's incremental diff is docs-only even though the PR
   #      cumulatively contains code: `incremental.docs_only` is true (J-2 T-11).
+  #
+  # A THIRD way stands the heavy lane down but deliberately does NOT leave the
+  # gate green: the `.ci-troubleshooting` marker (see the step of that name).
   # ---------------------------------------------------------------------------
   changes:
     name: detect changes
@@ -42,6 +45,10 @@ jobs:
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
+      # Troubleshooting mode — see the "Detect troubleshooting marker" step.
+      # Only the heavy lane consumes this; `required` re-reads the marker itself
+      # so its red is caused by the marker, not by a skipped dependency.
+      troubleshooting: ${{ steps.troubleshooting.outputs.active }}
       # J-5 T-14 — the journey-under-work's real-idp proof spec, derived off the
       # integration branch name (see the "Derive journey proof spec" step). The
       # per-push `alpenflight-proof` job runs ONLY this spec; `proof_is_baseline`
@@ -85,6 +92,33 @@ jobs:
         run: |
           python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
           python3 .github/scripts/gha-falsy-ternary-lint.py
+
+      # ---------------------------------------------------------------------
+      # Troubleshooting mode (fail-closed).
+      #
+      # Commit a `.ci-troubleshooting` file at the repo root to stand the heavy
+      # lane down, so repeated diagnosis can run as throwaway GitHub workflows
+      # in parallel with local coding instead of contending for a 2-core box.
+      # Delete the file to restore normal gating.
+      #
+      # While the marker exists the `required` gate hard-fails on the marker
+      # itself, so the PR is physically unable to go green and a forgotten
+      # re-enable cannot pass off an un-gated branch as a proven one. The file's
+      # content is free-form and is echoed into the failing gate's log — put the
+      # reason and the restore steps in it.
+      # ---------------------------------------------------------------------
+      - name: Detect troubleshooting marker
+        id: troubleshooting
+        run: |
+          set -euo pipefail
+          if [ -f .ci-troubleshooting ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+            echo "── .ci-troubleshooting present → heavy lane stands down, the required gate will FAIL ──"
+            cat .ci-troubleshooting
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "no .ci-troubleshooting marker → normal gating"
+          fi
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -438,7 +472,10 @@ jobs:
   next-build-server:
     name: alpenflight build (server + migration-tool)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -484,7 +521,10 @@ jobs:
   next-build-web:
     name: alpenflight build (web)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -584,7 +624,10 @@ jobs:
   next-auth-realm-shape:
     name: alpenflight auth realm shape
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:
@@ -646,7 +689,10 @@ jobs:
   alpenflight-proof:
     name: alpenflight proof (real-idp, clean-seed)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     # Serialize gh-pages writes across workflows so concurrent deploys from
@@ -1387,6 +1433,7 @@ jobs:
       always()
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -1723,6 +1770,7 @@ jobs:
       always()
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -2061,6 +2109,7 @@ jobs:
       github.event_name != 'push'
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     # A single shard (~41 tests / 4 workers) finishes in ~2-3 min; 6 min absorbs
     # a cold pnpm/playwright cache + ng-serve boot. The 5-min step cap on the run
@@ -2180,6 +2229,7 @@ jobs:
       && github.event_name != 'push'
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -2288,7 +2338,9 @@ jobs:
   # `alpenflight-profile-proof` `needs:` the (non-required) dashboard-proof for
   # runner serialisation only; on a docs-only push the whole heavy chain skips →
   # all three report `skipped` → the skipped-to-success path below keeps the gate
-  # green (the `success|skipped)` case).
+  # green (the `success|skipped)` case). That tolerance is exactly why
+  # troubleshooting mode gets its own hard-fail step instead of relying on the
+  # heavy lane's skips.
   # ---------------------------------------------------------------------------
   required:
     name: required
@@ -2297,6 +2349,32 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 3
     steps:
+      - uses: actions/checkout@v4
+
+      # Fail-closed on troubleshooting mode. This reads the marker off the
+      # checkout rather than trusting the `changes` output, so the gate is red
+      # BECAUSE the marker is committed — not merely because its dependencies
+      # skipped. The two look identical in the UI but differ in consequence: a
+      # skip-derived red goes green again the moment a job is added or rewired,
+      # whereas a marker-derived red survives any change to the job graph.
+      # Runs before the upstream-result check so the aggregator cannot report a
+      # pass while diagnosis is in progress.
+      - name: Refuse to pass while CI is in troubleshooting mode
+        env:
+          T_CHANGES: ${{ needs.changes.outputs.troubleshooting }}
+        run: |
+          set -euo pipefail
+          if [ ! -f .ci-troubleshooting ] && [ "${T_CHANGES:-}" != 'true' ]; then
+            echo "no .ci-troubleshooting marker — normal gating"
+            exit 0
+          fi
+          echo "::error title=CI is in troubleshooting mode::.ci-troubleshooting is committed, so the heavy lane stood down and this gate cannot pass. Delete the marker, fold every test the scratch workflows introduced back into ci.yml, then confirm the heavy lane runs job-level green."
+          if [ -f .ci-troubleshooting ]; then
+            echo "── .ci-troubleshooting ──"
+            cat .ci-troubleshooting
+          fi
+          exit 1
+
       - name: Check upstream job results
         env:
           R_CHANGES: ${{ needs.changes.result }}

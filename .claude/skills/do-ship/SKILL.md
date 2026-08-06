@@ -256,9 +256,11 @@ tell the operator the docs-head skips are expected rather than papering over the
 repeated heavy runs, push a temporary workflow running only the job under diagnosis, so it proceeds IN PARALLEL
 with local coding instead of monopolising a 2-core box (J-15: Gradle alongside Playwright → 13 phantom e2e
 failures + a 3× slowdown; the full backend `check` now wedges in test-JVM teardown). Fail-closed: the mode is a
-committed marker (`.ci-troubleshooting`) making `ci.yml` skip the heavy lane AND `required` hard-FAIL, so the PR
-cannot go green while it exists. Before handover: delete the marker, **fold every test the scratch runs
-introduced into the normal CI**, confirm the heavy lane then ran job-level green.
+committed marker (`.ci-troubleshooting`, repo root — free-form content, echoed into the failing gate's log)
+making `ci.yml` skip the heavy lane AND `required` hard-FAIL, so the PR cannot go green while it exists. The
+`required` job re-reads the marker file itself (`ci.yml`, "Refuse to pass while CI is in troubleshooting mode"),
+so its red survives any rewiring of the job graph. Before handover: delete the marker, **fold every test the
+scratch runs introduced into the normal CI**, confirm the heavy lane then ran job-level green.
 **Reconcile the PR's OWN checklist** — its **AC checklist** is a DIFFERENT list from the journey file's task
 checklist, and ticking one is not ticking the other (J-15 reported "all tasks done" on 13/13 ticked tasks while
 the PR still showed 7 unticked ACs; the operator caught it, the workflow didn't). Tick each AC the gate proved;

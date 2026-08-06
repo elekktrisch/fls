@@ -70,16 +70,6 @@ stragglers each ceremony so the file shrinks.
   so no other journey's gate inherits a surprise mail. Rides the next journey that touches the jobs console or
   the mail path. *(seam: `e2e/tests/real-idp/jobs-console-parity.spec.ts` + its seed)*
 
-## Pending (filed by /do-retro J-15/J-16/J-30 window, 2026-08-02)
-
-- **[CI-TROUBLESHOOTING-MARKER]** Implement the fail-closed troubleshooting switch the operator chose
-  (2026-08-02): a committed `.ci-troubleshooting` marker makes `ci.yml` skip the heavy lane so diagnosis can
-  run as temporary GitHub workflows IN PARALLEL with local coding (this box is 2 cores — J-15 lost two rounds
-  to Gradle-vs-Playwright contention), **and** makes `required` hard-FAIL with an explicit
-  "CI is in troubleshooting mode" message. Fail-closed is the whole point: the PR must be physically unable to
-  go green while the marker exists, so a forgotten re-enable cannot hand the operator a green-over-nothing PR.
-  `/do-ship` §4 documents the workflow half. *(seam: `.github/workflows/ci.yml` `required` job)*
-
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
 - **[LEGACY-J2-READINESS]** `e2e/tests/flights/flights-parity-J2.spec.ts` is `@quarantine-legacy`'d (grep-inverted
