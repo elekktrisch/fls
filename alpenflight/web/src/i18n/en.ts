@@ -757,6 +757,10 @@ const en: Translations = {
       body: 'Check the link or contact the club directly.',
       title: 'Club not found.',
     },
+    scenic: {
+      intro: 'Leave your contact details. The club emails to arrange a date.',
+      title: 'Scenic flight — registration',
+    },
     sections: {
       contact: 'Contact',
       invoice: 'Invoice address',

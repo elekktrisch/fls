@@ -23,3 +23,12 @@ export const DISCOVERY_FLIGHT_ROUTES: Routes = [
     data: { showNavBar: false, publicAccess: true },
   },
 ];
+
+export const SCENIC_FLIGHT_ROUTES: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: toLandingPage },
+  {
+    path: ':clubSlug',
+    loadComponent: () => import('./scenic-flight.page').then((m) => m.ScenicFlightPageComponent),
+    data: { showNavBar: false, publicAccess: true },
+  },
+];

@@ -768,6 +768,10 @@ const de = {
       body: 'Link prüfen oder den Verein direkt kontaktieren.',
       title: 'Verein nicht gefunden.',
     },
+    scenic: {
+      intro: 'Kontaktdaten angeben. Der Verein meldet sich per E-Mail für die Terminabsprache.',
+      title: 'Mitflug — Anmeldung',
+    },
     sections: {
       contact: 'Kontakt',
       invoice: 'Rechnungsadresse',

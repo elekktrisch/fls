@@ -1,4 +1,5 @@
-import { InjectionToken, type Provider, inject } from '@angular/core';
+import { InjectionToken, type Provider, type Signal, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   type AbstractControl,
@@ -8,6 +9,7 @@ import {
   type ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { map, startWith } from 'rxjs';
 
 import type { PublicRegistrantDetails } from '@api/generated/model';
 import { withOptionals } from '@shared/util/form';
@@ -143,6 +145,22 @@ export function provideRegistrantForm(): Provider {
     provide: REGISTRANT_FORM,
     useFactory: () => buildRegistrantForm(inject(FormBuilder).nonNullable),
   };
+}
+
+/**
+ * The form's invalidity as a signal, for the submit button both public pages
+ * gate on. Seeded from the current status because `statusChanges` only emits on
+ * the next change, so a form that is already invalid would otherwise read valid
+ * until the visitor touches it.
+ */
+export function registrantFormInvalid(form: RegistrantForm): Signal<boolean> {
+  return toSignal(
+    form.statusChanges.pipe(
+      startWith(form.status),
+      map(() => form.invalid),
+    ),
+    { requireSync: true },
+  );
 }
 
 /** "Nina Brunner" — the candidate / invoice-recipient labels of the coupon choice. */

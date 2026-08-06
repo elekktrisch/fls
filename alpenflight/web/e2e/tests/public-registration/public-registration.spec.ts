@@ -44,6 +44,8 @@ const SHOT = {
   noDays: 'screenshots/public-registration/03-discovery-no-days.png',
   notFound: 'screenshots/public-registration/04-club-not-found.png',
   unavailable: 'screenshots/public-registration/05-club-unavailable.png',
+  scenicForm: 'screenshots/public-registration/06-scenic-form.png',
+  scenicSuccess: 'screenshots/public-registration/07-scenic-success.png',
 } as const;
 
 const CLUB_NAME = 'Alpine Soaring';
@@ -248,28 +250,43 @@ test.describe('discovery flight — anonymous registration form', () => {
   });
 });
 
-// Un-fixme with T-18 (/scenic-flight/:clubSlug page + store).
 test.describe('scenic flight — anonymous registration form', () => {
-  test.fixme('[happy] submits without a day picker and renders the success panel', async ({
-    page,
-  }) => {
+  test('[happy] submits without a day picker and renders the success panel', async ({ page }) => {
     const submissions: SubmittedRegistration[] = [];
     await stubPublicRegistrationBackend(page, submissions);
     const passenger = registrant({ firstName: 'Livia', email: 'livia.keller@example.com' });
 
     await page.goto(scenicFlightPath(CLUB_SLUG));
     await expect(page.getByTestId(testId.scenicPage)).toBeVisible();
+    await expect(page.getByTestId(testId.form)).toBeVisible();
+    await expect(page.locator('af-nav-bar')).toHaveCount(0);
     // The scenic DTO is the discovery one minus the day: no picker may render,
     // or the two flows have silently converged.
     await expect(page.getByTestId(testId.daySelect)).toHaveCount(0);
+    await page.screenshot({ path: SHOT.scenicForm, fullPage: true });
 
     await fillRegistrant(page, passenger);
     await page.getByTestId(testId.submit).click();
 
     await expect(page.getByTestId(testId.success)).toBeVisible();
+    await page.screenshot({ path: SHOT.scenicSuccess, fullPage: true });
+    await expect(page).toHaveURL(new RegExp(`${scenicFlightPath(CLUB_SLUG)}$`));
+
     expect(submissions).toHaveLength(1);
     expect(submissions[0]!.path).toBe(publicApi.scenicSubmit(CLUB_SLUG));
+    // Exact, not a subset: the endpoint refuses an unknown property, so a day
+    // sent here would 400 rather than be ignored — and a 201 the flow never
+    // booked a slot for must not read as one that did.
+    expect(Object.keys(submissions[0]!.body)).toEqual(['registrant']);
     expect(submissions[0]!.body).not.toHaveProperty('selectedDay');
+    expect(submissions[0]!.body).toMatchObject({
+      registrant: {
+        firstname: passenger.firstName,
+        lastname: passenger.lastName,
+        privateEmail: passenger.email,
+        invoiceAddressIsSame: true,
+      },
+    });
   });
 });
 
@@ -337,6 +354,9 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
 
   test('[edge] a missing club slug redirects to the landing page', async ({ page }) => {
     await page.goto('/discovery-flight');
+    await expect(page).toHaveURL('/');
+
+    await page.goto('/scenic-flight');
     await expect(page).toHaveURL('/');
   });
 });

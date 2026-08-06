@@ -763,6 +763,10 @@ const it: Translations = {
       body: 'Verificare il link o contattare direttamente il club.',
       title: 'Club non trovato.',
     },
+    scenic: {
+      intro: 'Indicare i contatti. Il club scrive per e-mail per fissare una data.',
+      title: 'Volo panoramico — iscrizione',
+    },
     sections: {
       contact: 'Contatto',
       invoice: 'Indirizzo di fatturazione',

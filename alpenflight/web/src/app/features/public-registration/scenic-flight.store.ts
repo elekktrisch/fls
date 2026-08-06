@@ -6,8 +6,8 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import type {
-  DiscoveryFlightRegistrationResponse,
   PublicRegistrantDetails,
+  ScenicFlightRegistrationResponse,
 } from '@api/generated/model';
 import { PublicRegistrationService } from '@api/generated/public-registration/public-registration.service';
 
@@ -16,23 +16,23 @@ import {
   type ClubResolution,
   clubResolutionFor,
   publicFormState,
+  rejectsTheClub,
   submitFailureFor,
 } from './public-form-state';
 
-interface DiscoveryFlightState {
+interface ScenicFlightState {
   clubSlug: string;
-  days: readonly string[];
   resolution: ClubResolution;
   submitting: boolean;
-  registration: DiscoveryFlightRegistrationResponse | null;
+  registration: ScenicFlightRegistrationResponse | null;
   failure: PublicSubmitFailure | null;
   retryAfterSeconds: number;
 }
 
-const initial: DiscoveryFlightState = {
+/** Scenic publishes no days, so there is nothing to wait for before the form. */
+const initial: ScenicFlightState = {
   clubSlug: '',
-  days: [],
-  resolution: 'loading',
+  resolution: 'ready',
   submitting: false,
   registration: null,
   failure: null,
@@ -42,19 +42,30 @@ const initial: DiscoveryFlightState = {
 interface SubmitArgs {
   clubSlug: string;
   registrant: PublicRegistrantDetails;
-  selectedDay: string;
 }
 
 /**
- * The anonymous discovery-flight page's state. Feature-scoped (provided by the
+ * Scenic has no anonymous read to adjudicate the slug with, so the submit
+ * response is the first and only place it is judged: a 404 / 403 closes the form
+ * with the club-resolution panel instead of offering a retry the server would
+ * refuse again, while everything else leaves the form open.
+ */
+function scenicRejection(error: HttpErrorResponse): Partial<ScenicFlightState> {
+  return rejectsTheClub(error.status)
+    ? { resolution: clubResolutionFor(error.status) }
+    : submitFailureFor(error);
+}
+
+/**
+ * The anonymous scenic-flight page's state. Feature-scoped (provided by the
  * page, not `providedIn: 'root'`): its lifetime is one visit to one club's form.
  *
- * The published-days read doubles as the club lookup — it is the only anonymous
- * read of a club, and it carries the same 404 / 403 contract as the submit, so
- * a slug that cannot be registered against never renders a form.
+ * The wire body carries the registrant and nothing else — the endpoint refuses
+ * an unknown property, deliberately, so a day this flow never books cannot be
+ * silently dropped and read back as a booked slot.
  */
-export const DiscoveryFlightStore = signalStore(
-  withState<DiscoveryFlightState>(initial),
+export const ScenicFlightStore = signalStore(
+  withState<ScenicFlightState>(initial),
   withComputed((store) => ({
     formState: computed(() => publicFormState(store.resolution(), store.registration() !== null)),
     /**
@@ -68,13 +79,13 @@ export const DiscoveryFlightStore = signalStore(
     const submit = rxMethod<SubmitArgs>(
       pipe(
         tap(() => patchState(store, { submitting: true, failure: null, retryAfterSeconds: 0 })),
-        switchMap(({ clubSlug, registrant, selectedDay }) =>
-          api.submitDiscoveryFlightRegistration(clubSlug, { registrant, selectedDay }).pipe(
+        switchMap(({ clubSlug, registrant }) =>
+          api.submitScenicFlightRegistration(clubSlug, { registrant }).pipe(
             tapResponse({
-              next: (registration: DiscoveryFlightRegistrationResponse) =>
+              next: (registration: ScenicFlightRegistrationResponse) =>
                 patchState(store, { submitting: false, registration }),
               error: (e: HttpErrorResponse) =>
-                patchState(store, { submitting: false, ...submitFailureFor(e) }),
+                patchState(store, { submitting: false, ...scenicRejection(e) }),
             }),
           ),
         ),
@@ -82,26 +93,11 @@ export const DiscoveryFlightStore = signalStore(
     );
 
     return {
-      loadClub: rxMethod<string>(
-        pipe(
-          tap((clubSlug: string) =>
-            patchState(store, { ...initial, clubSlug, resolution: 'loading' }),
-          ),
-          switchMap((clubSlug: string) =>
-            api.listPublicDiscoveryFlightDays(clubSlug).pipe(
-              tapResponse({
-                // An empty list is a club that has published nothing yet, not a
-                // failure: the form still renders and the picker says so.
-                next: (days: string[]) => patchState(store, { days, resolution: 'ready' }),
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, { days: [], resolution: clubResolutionFor(e.status) }),
-              }),
-            ),
-          ),
-        ),
+      openClub: rxMethod<string>(
+        pipe(tap((clubSlug: string) => patchState(store, { ...initial, clubSlug }))),
       ),
-      submit(registrant: PublicRegistrantDetails, selectedDay: string): void {
-        submit({ clubSlug: store.clubSlug(), registrant, selectedDay });
+      submit(registrant: PublicRegistrantDetails): void {
+        submit({ clubSlug: store.clubSlug(), registrant });
       },
     };
   }),

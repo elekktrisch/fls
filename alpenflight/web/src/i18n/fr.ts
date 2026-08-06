@@ -765,6 +765,10 @@ const fr: Translations = {
       body: 'Vérifier le lien ou contacter le club directement.',
       title: 'Club introuvable.',
     },
+    scenic: {
+      intro: 'Indiquer les coordonnées. Le club écrit par e-mail pour fixer une date.',
+      title: 'Vol panoramique — inscription',
+    },
     sections: {
       contact: 'Contact',
       invoice: 'Adresse de facturation',

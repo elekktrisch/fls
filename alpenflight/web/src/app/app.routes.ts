@@ -15,7 +15,9 @@ export const routes: Routes = [
   {
     path: 'scenic-flight',
     loadChildren: () =>
-      import('@features/scenic-flight/scenic-flight.routes').then((m) => m.SCENIC_FLIGHT_ROUTES),
+      import('@features/public-registration/public-registration.routes').then(
+        (m) => m.SCENIC_FLIGHT_ROUTES,
+      ),
   },
   {
     path: 'demo',

@@ -1,15 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
-import { map, startWith } from 'rxjs';
+import { map } from 'rxjs';
 
 import { formatIsoDateDdMmYyyy } from '@shared/util/date';
 
 import { DiscoveryFlightStore } from './discovery-flight.store';
 import { PublicFormShellComponent } from './public-form-shell.component';
 import { RegistrantFieldsetComponent } from './registrant-fieldset.component';
-import { REGISTRANT_FORM, provideRegistrantForm, toRegistrantDetails } from './registrant-form';
+import {
+  REGISTRANT_FORM,
+  provideRegistrantForm,
+  registrantFormInvalid,
+  toRegistrantDetails,
+} from './registrant-form';
 
 /**
  * The anonymous discovery-flight (Schnupperflug) registration form for the club
@@ -84,13 +88,7 @@ export class DiscoveryFlightPageComponent {
 
   protected readonly selectedDay = signal<string | null>(null);
 
-  readonly #formInvalid = toSignal(
-    this.#form.statusChanges.pipe(
-      startWith(this.#form.status),
-      map(() => this.#form.invalid),
-    ),
-    { requireSync: true },
-  );
+  readonly #formInvalid = registrantFormInvalid(this.#form);
 
   protected readonly submitDisabled = computed(
     () => this.#formInvalid() || this.selectedDay() === null,
