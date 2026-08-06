@@ -2,7 +2,7 @@
 <pmd-cpd xmlns="https://pmd-code.org/schema/cpd-report"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          pmdVersion="7.7.0"
-         timestamp="2026-08-06T14:03:37.38368822Z"
+         timestamp="2026-08-06T14:53:32.278658864Z"
          version="1.0.0"
          xsi:schemaLocation="https://pmd-code.org/schema/cpd-report https://pmd.github.io/schema/cpd-report_1_0_0.xsd">
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/AlpenFlightApplication.java"
@@ -296,11 +296,13 @@
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/audit/web/package-info.java"
          totalNumberOfTokens="2"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/ClubDtos.java"
-         totalNumberOfTokens="370"/>
+         totalNumberOfTokens="407"/>
+   <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/ClubLocationLookup.java"
+         totalNumberOfTokens="55"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/ClubMapper.java"
-         totalNumberOfTokens="176"/>
+         totalNumberOfTokens="187"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/ClubsService.java"
-         totalNumberOfTokens="961"/>
+         totalNumberOfTokens="1039"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/DiscoveryFlightDayDtos.java"
          totalNumberOfTokens="88"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/DiscoveryFlightDayService.java"
@@ -308,7 +310,7 @@
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/application/package-info.java"
          totalNumberOfTokens="8"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/Club.java"
-         totalNumberOfTokens="1467"/>
+         totalNumberOfTokens="1511"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubKeyAlreadyExistsException.java"
          totalNumberOfTokens="21"/>
    <file path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/domain/ClubNotFoundException.java"
@@ -1472,18 +1474,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="21" tokens="206">
-      <file begintoken="123403"
+      <file begintoken="123629"
             column="38"
             endcolumn="14"
             endline="168"
-            endtoken="123608"
+            endtoken="123834"
             line="148"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
-      <file begintoken="123664"
+      <file begintoken="123890"
             column="38"
             endcolumn="14"
             endline="197"
-            endtoken="123869"
+            endtoken="124095"
             line="177"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
       <codefragment><![CDATA[    public record PersonCreateRequest(
@@ -1510,18 +1512,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="28" tokens="191">
-      <file begintoken="61356"
+      <file begintoken="61582"
             column="13"
             endcolumn="22"
             endline="197"
-            endtoken="61546"
+            endtoken="61772"
             line="170"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightDtos.java"/>
-      <file begintoken="61568"
+      <file begintoken="61794"
             column="13"
             endcolumn="22"
             endline="228"
-            endtoken="61758"
+            endtoken="61984"
             line="201"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightDtos.java"/>
       <codefragment><![CDATA[            @NotNull AircraftId aircraftId,
@@ -1555,18 +1557,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="31" tokens="177">
-      <file begintoken="62216"
+      <file begintoken="62442"
             column="72"
             endcolumn="11"
             endline="67"
-            endtoken="62392"
+            endtoken="62618"
             line="37"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
-      <file begintoken="62397"
+      <file begintoken="62623"
             column="72"
             endcolumn="11"
             endline="97"
-            endtoken="62573"
+            endtoken="62799"
             line="67"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
       <codefragment><![CDATA[    public FlightOperationalData toOperationalData(FlightCreateRequest req) {
@@ -1603,18 +1605,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="22" tokens="158">
-      <file begintoken="96252"
+      <file begintoken="96478"
             column="40"
             endcolumn="26"
             endline="96"
-            endtoken="96409"
+            endtoken="96635"
             line="75"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/application/LocationDtos.java"/>
-      <file begintoken="96415"
+      <file begintoken="96641"
             column="40"
             endcolumn="26"
             endline="118"
-            endtoken="96572"
+            endtoken="96798"
             line="97"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/application/LocationDtos.java"/>
       <codefragment><![CDATA[    public record LocationCreateRequest(
@@ -1642,18 +1644,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="9" tokens="141">
-      <file begintoken="125526"
+      <file begintoken="125752"
             column="82"
             endcolumn="54"
             endline="116"
-            endtoken="125666"
+            endtoken="125892"
             line="108"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
-      <file begintoken="125765"
+      <file begintoken="125991"
             column="53"
             endcolumn="54"
             endline="143"
-            endtoken="125905"
+            endtoken="126131"
             line="135"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
       <codefragment><![CDATA[        Person p = Person.register(req.firstname(), req.lastname(), req.midname());
@@ -1668,18 +1670,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="21" tokens="122">
-      <file begintoken="124589"
+      <file begintoken="124815"
             column="17"
             endcolumn="19"
             endline="85"
-            endtoken="124710"
+            endtoken="124936"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonMapper.java"/>
-      <file begintoken="128602"
+      <file begintoken="128828"
             column="17"
             endcolumn="19"
             endline="67"
-            endtoken="128723"
+            endtoken="128949"
             line="47"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfLicencesView.java"/>
       <codefragment><![CDATA[                p.hasMotorPilotLicence(),
@@ -1706,18 +1708,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="18" tokens="107">
-      <file begintoken="124481"
+      <file begintoken="124707"
             column="17"
             endcolumn="32"
             endline="64"
-            endtoken="124587"
+            endtoken="124813"
             line="47"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonMapper.java"/>
-      <file begintoken="128312"
+      <file begintoken="128538"
             column="17"
             endcolumn="32"
             endline="65"
-            endtoken="128418"
+            endtoken="128644"
             line="48"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactView.java"/>
       <codefragment><![CDATA[                p.getFirstname(),
@@ -1775,18 +1777,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="16" tokens="99">
-      <file begintoken="60761"
+      <file begintoken="60987"
             column="47"
             endcolumn="14"
             endline="95"
-            endtoken="60859"
+            endtoken="61085"
             line="80"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightDtos.java"/>
-      <file begintoken="60994"
+      <file begintoken="61220"
             column="43"
             endcolumn="14"
             endline="127"
-            endtoken="61092"
+            endtoken="61318"
             line="112"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightDtos.java"/>
       <codefragment><![CDATA[            @Nullable Instant blockEndDateTime,
@@ -1808,18 +1810,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="17" tokens="90">
-      <file begintoken="107234"
+      <file begintoken="107460"
             column="13"
             endcolumn="6"
             endline="101"
-            endtoken="107323"
+            endtoken="107549"
             line="85"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/application/BundleManifest.java"/>
-      <file begintoken="170551"
+      <file begintoken="170777"
             column="9"
             endcolumn="2"
             endline="36"
-            endtoken="170640"
+            endtoken="170866"
             line="20"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/provisioning/application/ClubSpec.java"/>
       <codefragment><![CDATA[            if (name == null || name.isBlank()) {
@@ -1842,18 +1844,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="21" tokens="86">
-      <file begintoken="105509"
+      <file begintoken="105735"
             column="24"
             endcolumn="40"
             endline="41"
-            endtoken="105594"
+            endtoken="105820"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonResponse.java"/>
-      <file begintoken="128213"
+      <file begintoken="128439"
             column="30"
             endcolumn="40"
             endline="44"
-            endtoken="128298"
+            endtoken="128524"
             line="24"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactView.java"/>
       <codefragment><![CDATA[record MePersonResponse(
@@ -1880,18 +1882,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="7" tokens="86">
-      <file begintoken="126258"
+      <file begintoken="126484"
             column="21"
             endcolumn="6"
             endline="242"
-            endtoken="126343"
+            endtoken="126569"
             line="236"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
-      <file begintoken="128336"
+      <file begintoken="128562"
             column="17"
             endcolumn="2"
             endline="67"
-            endtoken="128421"
+            endtoken="128647"
             line="52"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactView.java"/>
       <codefragment><![CDATA[                    p.getAddressLine1(), p.getAddressLine2(), p.getZip(), p.getCity(), p.getRegion(),
@@ -1934,18 +1936,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="83">
-      <file begintoken="62853"
+      <file begintoken="63079"
             column="38"
             endcolumn="57"
             endline="147"
-            endtoken="62935"
+            endtoken="63161"
             line="137"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
-      <file begintoken="63097"
+      <file begintoken="63323"
             column="32"
             endcolumn="57"
             endline="183"
-            endtoken="63179"
+            endtoken="63405"
             line="173"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
       <codefragment><![CDATA[                f.getBlockEndDateTime(),
@@ -1962,18 +1964,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="7" tokens="83">
-      <file begintoken="122525"
+      <file begintoken="122751"
             column="45"
             endcolumn="73"
             endline="53"
-            endtoken="122607"
+            endtoken="122833"
             line="47"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
-      <file begintoken="122797"
+      <file begintoken="123023"
             column="82"
             endcolumn="73"
             endline="79"
-            endtoken="122879"
+            endtoken="123105"
             line="73"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
       <codefragment><![CDATA[            @Nullable String memberStateName,
@@ -1986,18 +1988,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="14" tokens="83">
-      <file begintoken="124505"
+      <file begintoken="124731"
             column="17"
             endcolumn="32"
             endline="64"
-            endtoken="124587"
+            endtoken="124813"
             line="51"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonMapper.java"/>
-      <file begintoken="126258"
+      <file begintoken="126484"
             column="21"
             endcolumn="36"
             endline="240"
-            endtoken="126340"
+            endtoken="126566"
             line="236"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
       <codefragment><![CDATA[                p.getAddressLine1(),
@@ -2040,25 +2042,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="13" tokens="79">
-      <file begintoken="103466"
+      <file begintoken="103692"
             column="43"
             endcolumn="34"
             endline="40"
-            endtoken="103544"
+            endtoken="103770"
             line="28"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeNotificationPrefsExceptionHandler.java"/>
-      <file begintoken="104157"
+      <file begintoken="104383"
             column="32"
             endcolumn="34"
             endline="39"
-            endtoken="104235"
+            endtoken="104461"
             line="27"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonExceptionHandler.java"/>
-      <file begintoken="104848"
+      <file begintoken="105074"
             column="40"
             endcolumn="34"
             endline="39"
-            endtoken="104926"
+            endtoken="105152"
             line="27"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonLicencesExceptionHandler.java"/>
       <codefragment><![CDATA[class MeNotificationPrefsExceptionHandler {
@@ -2077,18 +2079,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="22" tokens="79">
-      <file begintoken="105008"
+      <file begintoken="105234"
             column="32"
             endcolumn="56"
             endline="36"
-            endtoken="105086"
+            endtoken="105312"
             line="15"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonLicencesResponse.java"/>
-      <file begintoken="128510"
+      <file begintoken="128736"
             column="31"
             endcolumn="56"
             endline="43"
-            endtoken="128588"
+            endtoken="128814"
             line="22"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfLicencesView.java"/>
       <codefragment><![CDATA[record MePersonLicencesResponse(
@@ -2145,18 +2147,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="16" tokens="76">
-      <file begintoken="85942"
+      <file begintoken="86168"
             column="42"
             endcolumn="61"
             endline="75"
-            endtoken="86017"
+            endtoken="86243"
             line="60"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypeDtos.java"/>
-      <file begintoken="86028"
+      <file begintoken="86254"
             column="42"
             endcolumn="61"
             endline="93"
-            endtoken="86103"
+            endtoken="86329"
             line="78"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypeDtos.java"/>
       <codefragment><![CDATA[    public record FlightTypeCreateRequest(
@@ -2185,11 +2187,11 @@
             endtoken="27301"
             line="191"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/application/AircraftAccess.java"/>
-      <file begintoken="179594"
+      <file begintoken="179820"
             column="20"
             endcolumn="6"
             endline="64"
-            endtoken="179666"
+            endtoken="179892"
             line="50"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UserAccess.java"/>
       <codefragment><![CDATA[    private @Nullable UUID resolveCallerClubId(Jwt jwt) {
@@ -2210,25 +2212,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="5" tokens="73">
-      <file begintoken="103979"
+      <file begintoken="104205"
             column="72"
             endcolumn="57"
             endline="99"
-            endtoken="104051"
+            endtoken="104277"
             line="95"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonController.java"/>
-      <file begintoken="125558"
+      <file begintoken="125784"
             column="24"
             endcolumn="57"
             endline="114"
-            endtoken="125630"
+            endtoken="125856"
             line="110"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
-      <file begintoken="125797"
+      <file begintoken="126023"
             column="24"
             endcolumn="57"
             endline="141"
-            endtoken="125869"
+            endtoken="126095"
             line="137"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
       <codefragment><![CDATA[        personsService.updateOwnContact(personId, new SelfContactUpdate(
@@ -2239,18 +2241,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="72">
-      <file begintoken="101420"
+      <file begintoken="101646"
             column="45"
             endcolumn="25"
             endline="143"
-            endtoken="101491"
+            endtoken="101717"
             line="133"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/application/MeService.java"/>
-      <file begintoken="151285"
+      <file begintoken="151511"
             column="67"
             endcolumn="25"
             endline="44"
-            endtoken="151356"
+            endtoken="151582"
             line="34"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/platform/security/ClubAwareJwtAuthenticationConverter.java"/>
       <codefragment><![CDATA[    private static List<String> extractRoles(Jwt jwt) {
@@ -2267,18 +2269,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="10" tokens="71">
-      <file begintoken="68290"
+      <file begintoken="68516"
             column="74"
             endcolumn="16"
             endline="176"
-            endtoken="68360"
+            endtoken="68586"
             line="167"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightsService.java"/>
-      <file begintoken="68747"
+      <file begintoken="68973"
             column="45"
             endcolumn="16"
             endline="273"
-            endtoken="68817"
+            endtoken="69043"
             line="265"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightsService.java"/>
       <codefragment><![CDATA[    public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req,
@@ -2326,18 +2328,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="16" tokens="70">
-      <file begintoken="105526"
+      <file begintoken="105752"
             column="9"
             endcolumn="11"
             endline="43"
-            endtoken="105595"
+            endtoken="105821"
             line="28"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonResponse.java"/>
-      <file begintoken="126177"
+      <file begintoken="126403"
             column="13"
             endcolumn="15"
             endline="234"
-            endtoken="126246"
+            endtoken="126472"
             line="219"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
       <codefragment><![CDATA[        @Nullable String addressLine1,
@@ -2359,18 +2361,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="15" tokens="70">
-      <file begintoken="126176"
+      <file begintoken="126402"
             column="35"
             endcolumn="44"
             endline="232"
-            endtoken="126245"
+            endtoken="126471"
             line="218"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
-      <file begintoken="128138"
+      <file begintoken="128364"
             column="32"
             endcolumn="40"
             endline="34"
-            endtoken="128207"
+            endtoken="128433"
             line="20"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactUpdate.java"/>
       <codefragment><![CDATA[    private record ContactSnapshot(
@@ -2391,18 +2393,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="7" tokens="70">
-      <file begintoken="180013"
+      <file begintoken="180239"
             column="13"
             endcolumn="41"
             endline="73"
-            endtoken="180082"
+            endtoken="180308"
             line="67"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UserDtos.java"/>
-      <file begintoken="180094"
+      <file begintoken="180320"
             column="13"
             endcolumn="41"
             endline="83"
-            endtoken="180163"
+            endtoken="180389"
             line="77"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UserDtos.java"/>
       <codefragment><![CDATA[            @NotBlank @Size(max = 100) String friendlyName,
@@ -2415,25 +2417,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="14" tokens="69">
-      <file begintoken="105526"
+      <file begintoken="105752"
             column="9"
             endcolumn="40"
             endline="41"
-            endtoken="105594"
+            endtoken="105820"
             line="28"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonResponse.java"/>
-      <file begintoken="128139"
+      <file begintoken="128365"
             column="9"
             endcolumn="40"
             endline="34"
-            endtoken="128207"
+            endtoken="128433"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactUpdate.java"/>
-      <file begintoken="128230"
+      <file begintoken="128456"
             column="9"
             endcolumn="40"
             endline="44"
-            endtoken="128298"
+            endtoken="128524"
             line="31"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactView.java"/>
       <codefragment><![CDATA[        @Nullable String addressLine1,
@@ -2453,18 +2455,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="15" tokens="67">
-      <file begintoken="161451"
+      <file begintoken="161677"
             column="39"
             endcolumn="19"
             endline="39"
-            endtoken="161517"
+            endtoken="161743"
             line="25"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/AccountingRuleFilterType.java"/>
-      <file begintoken="161607"
+      <file begintoken="161833"
             column="33"
             endcolumn="19"
             endline="35"
-            endtoken="161673"
+            endtoken="161899"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/AccountingUnitType.java"/>
       <codefragment><![CDATA[public class AccountingRuleFilterType {
@@ -2485,25 +2487,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="15" tokens="67">
-      <file begintoken="161767"
+      <file begintoken="161993"
             column="28"
             endcolumn="19"
             endline="36"
-            endtoken="161833"
+            endtoken="162059"
             line="22"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/AircraftState.java"/>
-      <file begintoken="161934"
+      <file begintoken="162160"
             column="27"
             endcolumn="19"
             endline="38"
-            endtoken="162000"
+            endtoken="162226"
             line="24"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/AircraftType.java"/>
-      <file begintoken="162869"
+      <file begintoken="163095"
             column="27"
             endcolumn="19"
             endline="33"
-            endtoken="162935"
+            endtoken="163161"
             line="19"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/domain/LocationType.java"/>
       <codefragment><![CDATA[public class AircraftState {
@@ -2524,18 +2526,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="67">
-      <file begintoken="181901"
+      <file begintoken="182127"
             column="42"
             endcolumn="33"
             endline="415"
-            endtoken="181967"
+            endtoken="182193"
             line="405"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="183859"
+      <file begintoken="184085"
             column="36"
             endcolumn="33"
             endline="768"
-            endtoken="183925"
+            endtoken="184151"
             line="758"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[    private UserResponse selfEditSnapshot(User u) {
@@ -2552,25 +2554,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="15" tokens="66">
-      <file begintoken="105520"
+      <file begintoken="105746"
             column="33"
             endcolumn="40"
             endline="39"
-            endtoken="105585"
+            endtoken="105811"
             line="25"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonResponse.java"/>
-      <file begintoken="122955"
+      <file begintoken="123181"
             column="37"
             endcolumn="44"
             endline="100"
-            endtoken="123020"
+            endtoken="123246"
             line="87"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
-      <file begintoken="128224"
+      <file begintoken="128450"
             column="33"
             endcolumn="40"
             endline="42"
-            endtoken="128289"
+            endtoken="128515"
             line="28"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactView.java"/>
       <codefragment><![CDATA[        @Nullable String midName,
@@ -2591,18 +2593,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="12" tokens="66">
-      <file begintoken="153905"
+      <file begintoken="154131"
             column="53"
             endcolumn="48"
             endline="112"
-            endtoken="153970"
+            endtoken="154196"
             line="101"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/platform/tenancy/UserPrincipalLookup.java"/>
-      <file begintoken="154108"
+      <file begintoken="154334"
             column="83"
             endcolumn="48"
             endline="155"
-            endtoken="154173"
+            endtoken="154399"
             line="144"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/platform/tenancy/UserPrincipalLookup.java"/>
       <codefragment><![CDATA[    public Optional<UUID> resolvePersonIdFor(Jwt jwt) {
@@ -2620,18 +2622,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="65">
-      <file begintoken="86556"
+      <file begintoken="86782"
             column="17"
             endcolumn="51"
             endline="89"
-            endtoken="86620"
+            endtoken="86846"
             line="79"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypesService.java"/>
-      <file begintoken="86774"
+      <file begintoken="87000"
             column="17"
             endcolumn="51"
             endline="122"
-            endtoken="86838"
+            endtoken="87064"
             line="112"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypesService.java"/>
       <codefragment><![CDATA[                req.isInstructorRequired(),
@@ -2648,18 +2650,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="13" tokens="65">
-      <file begintoken="164211"
+      <file begintoken="164437"
             column="51"
             endcolumn="26"
             endline="84"
-            endtoken="164275"
+            endtoken="164501"
             line="72"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/application/AircraftReservationDtos.java"/>
-      <file begintoken="164281"
+      <file begintoken="164507"
             column="51"
             endcolumn="26"
             endline="107"
-            endtoken="164345"
+            endtoken="164571"
             line="85"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/application/AircraftReservationDtos.java"/>
       <codefragment><![CDATA[    public record AircraftReservationCreateRequest(
@@ -2678,18 +2680,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="64">
-      <file begintoken="101444"
+      <file begintoken="101670"
             column="32"
             endcolumn="18"
             endline="145"
-            endtoken="101507"
+            endtoken="101733"
             line="135"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/application/MeService.java"/>
-      <file begintoken="182946"
+      <file begintoken="183172"
             column="54"
             endcolumn="18"
             endline="632"
-            endtoken="183009"
+            endtoken="183235"
             line="622"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[        if (realmAccess == null) {
@@ -2706,25 +2708,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="64">
-      <file begintoken="181904"
+      <file begintoken="182130"
             column="49"
             endcolumn="33"
             endline="415"
-            endtoken="181967"
+            endtoken="182193"
             line="405"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="182836"
+      <file begintoken="183062"
             column="64"
             endcolumn="33"
             endline="614"
-            endtoken="182899"
+            endtoken="183125"
             line="604"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
-      <file begintoken="183862"
+      <file begintoken="184088"
             column="43"
             endcolumn="33"
             endline="768"
-            endtoken="183925"
+            endtoken="184151"
             line="758"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/application/UsersService.java"/>
       <codefragment><![CDATA[    private UserResponse selfEditSnapshot(User u) {
@@ -2748,11 +2750,11 @@
             endtoken="37959"
             line="78"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/web/AircraftsExceptionHandler.java"/>
-      <file begintoken="134298"
+      <file begintoken="134524"
             column="69"
             endcolumn="2"
             endline="64"
-            endtoken="134360"
+            endtoken="134586"
             line="51"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/web/PersonsExceptionHandler.java"/>
       <codefragment><![CDATA[        pd.setTitle("Aircraft counter conflict");
@@ -2772,18 +2774,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="8" tokens="61">
-      <file begintoken="103467"
+      <file begintoken="103693"
             column="5"
             endcolumn="6"
             endline="37"
-            endtoken="103527"
+            endtoken="103753"
             line="30"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeNotificationPrefsExceptionHandler.java"/>
-      <file begintoken="189424"
+      <file begintoken="189650"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="189484"
+            endtoken="189710"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2797,18 +2799,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="8" tokens="61">
-      <file begintoken="104158"
+      <file begintoken="104384"
             column="5"
             endcolumn="6"
             endline="36"
-            endtoken="104218"
+            endtoken="104444"
             line="29"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonExceptionHandler.java"/>
-      <file begintoken="189424"
+      <file begintoken="189650"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="189484"
+            endtoken="189710"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2822,18 +2824,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="8" tokens="61">
-      <file begintoken="104849"
+      <file begintoken="105075"
             column="5"
             endcolumn="6"
             endline="36"
-            endtoken="104909"
+            endtoken="105135"
             line="29"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MePersonLicencesExceptionHandler.java"/>
-      <file begintoken="189424"
+      <file begintoken="189650"
             column="5"
             endcolumn="6"
             endline="72"
-            endtoken="189484"
+            endtoken="189710"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -2874,18 +2876,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="14" tokens="60">
-      <file begintoken="69530"
+      <file begintoken="69756"
             column="75"
             endcolumn="19"
             endline="103"
-            endtoken="69589"
+            endtoken="69815"
             line="90"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/Flight.java"/>
-      <file begintoken="75083"
+      <file begintoken="75309"
             column="56"
             endcolumn="19"
             endline="87"
-            endtoken="75142"
+            endtoken="75368"
             line="74"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/FlightReportRow.java"/>
       <codefragment><![CDATA[    @Column(name = "flight_aircraft_type_id", nullable = false, updatable = false)
@@ -2905,25 +2907,25 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="12" tokens="60">
-      <file begintoken="122961"
+      <file begintoken="123187"
             column="13"
             endcolumn="44"
             endline="100"
-            endtoken="123020"
+            endtoken="123246"
             line="89"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonDtos.java"/>
-      <file begintoken="126177"
+      <file begintoken="126403"
             column="13"
             endcolumn="44"
             endline="230"
-            endtoken="126236"
+            endtoken="126462"
             line="219"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java"/>
-      <file begintoken="128139"
+      <file begintoken="128365"
             column="9"
             endcolumn="40"
             endline="32"
-            endtoken="128198"
+            endtoken="128424"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/SelfContactUpdate.java"/>
       <codefragment><![CDATA[            @Nullable String addressLine1,
@@ -2941,18 +2943,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="6" tokens="60">
-      <file begintoken="160384"
+      <file begintoken="160610"
             column="51"
             endcolumn="29"
             endline="73"
-            endtoken="160443"
+            endtoken="160669"
             line="68"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/application/ReferenceDataDtos.java"/>
-      <file begintoken="160460"
+      <file begintoken="160686"
             column="45"
             endcolumn="29"
             endline="82"
-            endtoken="160519"
+            endtoken="160745"
             line="77"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/application/ReferenceDataDtos.java"/>
       <codefragment><![CDATA[    public record AccountingRuleFilterTypeResponse(
@@ -2971,11 +2973,11 @@
             endtoken="37804"
             line="56"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/web/AircraftsExceptionHandler.java"/>
-      <file begintoken="100868"
+      <file begintoken="101094"
             column="92"
             endcolumn="23"
             endline="83"
-            endtoken="100924"
+            endtoken="101150"
             line="67"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/web/LocationsExceptionHandler.java"/>
       <codefragment><![CDATA[    ResponseEntity<ProblemDetail> handleInvalidReference(InvalidAircraftReferenceException e) {
@@ -2991,18 +2993,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="12" tokens="57">
-      <file begintoken="96124"
+      <file begintoken="96350"
             column="81"
             endcolumn="45"
             endline="67"
-            endtoken="96180"
+            endtoken="96406"
             line="56"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/application/LocationDtos.java"/>
-      <file begintoken="98762"
+      <file begintoken="98988"
             column="40"
             endcolumn="67"
             endline="142"
-            endtoken="98818"
+            endtoken="99044"
             line="131"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/Location.java"/>
       <codefragment><![CDATA[            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocationTypeId locationTypeId,
@@ -3020,18 +3022,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="9" tokens="57">
-      <file begintoken="103466"
+      <file begintoken="103692"
             column="43"
             endcolumn="15"
             endline="36"
-            endtoken="103522"
+            endtoken="103748"
             line="28"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeNotificationPrefsExceptionHandler.java"/>
-      <file begintoken="106195"
+      <file begintoken="106421"
             column="33"
             endcolumn="15"
             endline="27"
-            endtoken="106251"
+            endtoken="106477"
             line="19"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeProfileExceptionHandler.java"/>
       <codefragment><![CDATA[class MeNotificationPrefsExceptionHandler {
@@ -3046,18 +3048,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="4" tokens="57">
-      <file begintoken="177253"
+      <file begintoken="177479"
             column="33"
             endcolumn="67"
             endline="714"
-            endtoken="177309"
+            endtoken="177535"
             line="711"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/showcase/ShowcaseSeeder.java"/>
-      <file begintoken="177662"
+      <file begintoken="177888"
             column="31"
             endcolumn="67"
             endline="759"
-            endtoken="177718"
+            endtoken="177944"
             line="756"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/showcase/ShowcaseSeeder.java"/>
       <codefragment><![CDATA[    private void insertFlightRow(FlightSpec spec, LocalDate today) {
@@ -3122,18 +3124,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="5" tokens="56">
-      <file begintoken="85738"
+      <file begintoken="85964"
             column="86"
             endcolumn="103"
             endline="44"
-            endtoken="85793"
+            endtoken="86019"
             line="40"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypeDtos.java"/>
-      <file begintoken="85873"
+      <file begintoken="86099"
             column="40"
             endcolumn="103"
             endline="57"
-            endtoken="85928"
+            endtoken="86154"
             line="53"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/application/FlightTypeDtos.java"/>
       <codefragment><![CDATA[            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isSoloFlight,
@@ -3144,18 +3146,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="7" tokens="56">
-      <file begintoken="106196"
+      <file begintoken="106422"
             column="5"
             endcolumn="15"
             endline="27"
-            endtoken="106251"
+            endtoken="106477"
             line="21"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/me/web/MeProfileExceptionHandler.java"/>
-      <file begintoken="189424"
+      <file begintoken="189650"
             column="5"
             endcolumn="15"
             endline="71"
-            endtoken="189479"
+            endtoken="189705"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/web/UsersExceptionHandler.java"/>
       <codefragment><![CDATA[    @ExceptionHandler(IllegalArgumentException.class)
@@ -3175,11 +3177,11 @@
             endtoken="2746"
             line="42"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/application/DeliveryCreationJob.java"/>
-      <file begintoken="59487"
+      <file begintoken="59713"
             column="5"
             endcolumn="41"
             endline="119"
-            endtoken="59541"
+            endtoken="59767"
             line="102"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/DailyReportJob.java"/>
       <codefragment><![CDATA[    }
@@ -3258,39 +3260,39 @@
             endtoken="40490"
             line="114"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/articles/web/ArticlesController.java"/>
-      <file begintoken="52727"
+      <file begintoken="52953"
             column="28"
             endcolumn="2"
             endline="104"
-            endtoken="52781"
+            endtoken="53007"
             line="94"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/clubs/web/DiscoveryFlightDaysController.java"/>
-      <file begintoken="89279"
+      <file begintoken="89505"
             column="37"
             endcolumn="2"
             endline="121"
-            endtoken="89333"
+            endtoken="89559"
             line="111"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flighttypes/web/FlightTypesController.java"/>
-      <file begintoken="100533"
+      <file begintoken="100759"
             column="35"
             endcolumn="2"
             endline="124"
-            endtoken="100587"
+            endtoken="100813"
             line="107"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/web/LocationsController.java"/>
-      <file begintoken="134037"
+      <file begintoken="134263"
             column="33"
             endcolumn="2"
             endline="163"
-            endtoken="134091"
+            endtoken="134317"
             line="153"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/web/PersonsController.java"/>
-      <file begintoken="170190"
+      <file begintoken="170416"
             column="34"
             endcolumn="2"
             endline="202"
-            endtoken="170244"
+            endtoken="170470"
             line="192"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/web/AircraftReservationsController.java"/>
       <codefragment><![CDATA[        service.delete(id, principalUserId(jwt));
@@ -3307,18 +3309,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="5" tokens="55">
-      <file begintoken="160384"
+      <file begintoken="160610"
             column="51"
             endcolumn="72"
             endline="72"
-            endtoken="160438"
+            endtoken="160664"
             line="68"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/application/ReferenceDataDtos.java"/>
-      <file begintoken="160536"
+      <file begintoken="160762"
             column="41"
             endcolumn="72"
             endline="90"
-            endtoken="160590"
+            endtoken="160816"
             line="86"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/referencedata/application/ReferenceDataDtos.java"/>
       <codefragment><![CDATA[    public record AccountingRuleFilterTypeResponse(
@@ -3329,18 +3331,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="13" tokens="55">
-      <file begintoken="172398"
+      <file begintoken="172624"
             column="46"
             endcolumn="16"
             endline="55"
-            endtoken="172452"
+            endtoken="172678"
             line="43"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/tenancy/provisioning/infra/KeycloakDeploymentDirectoryAdapter.java"/>
-      <file begintoken="185791"
+      <file begintoken="186017"
             column="31"
             endcolumn="16"
             endline="65"
-            endtoken="185845"
+            endtoken="186071"
             line="53"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java"/>
       <codefragment><![CDATA[    public KeycloakDeploymentDirectoryAdapter(KeycloakAdminTokenSupplier tokens,
@@ -3366,32 +3368,32 @@
             endtoken="37959"
             line="79"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/web/AircraftsExceptionHandler.java"/>
-      <file begintoken="85364"
+      <file begintoken="85590"
             column="57"
             endcolumn="2"
             endline="193"
-            endtoken="85416"
+            endtoken="85642"
             line="178"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/web/FlightsExceptionHandler.java"/>
-      <file begintoken="134308"
+      <file begintoken="134534"
             column="36"
             endcolumn="2"
             endline="64"
-            endtoken="134360"
+            endtoken="134586"
             line="52"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/web/PersonsExceptionHandler.java"/>
-      <file begintoken="142394"
+      <file begintoken="142620"
             column="52"
             endcolumn="2"
             endline="96"
-            endtoken="142446"
+            endtoken="142672"
             line="84"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/web/PlanningDaysExceptionHandler.java"/>
-      <file begintoken="170471"
+      <file begintoken="170697"
             column="62"
             endcolumn="2"
             endline="77"
-            endtoken="170523"
+            endtoken="170749"
             line="65"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/web/AircraftReservationsExceptionHandler.java"/>
       <codefragment><![CDATA[        pd.setDetail(e.getMessage());
@@ -3417,11 +3419,11 @@
             endtoken="33835"
             line="522"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/Aircraft.java"/>
-      <file begintoken="131348"
+      <file begintoken="131574"
             column="16"
             endcolumn="6"
             endline="680"
-            endtoken="131399"
+            endtoken="131625"
             line="672"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/Person.java"/>
       <codefragment><![CDATA[        return trimmed.isEmpty() ? null : trimmed;
@@ -3436,18 +3438,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="7" tokens="52">
-      <file begintoken="63005"
+      <file begintoken="63231"
             column="34"
             endcolumn="44"
             endline="165"
-            endtoken="63056"
+            endtoken="63282"
             line="159"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
-      <file begintoken="63193"
+      <file begintoken="63419"
             column="41"
             endcolumn="44"
             endline="192"
-            endtoken="63244"
+            endtoken="63470"
             line="186"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/application/FlightMapper.java"/>
       <codefragment><![CDATA[                f.getCouponNumber(),
@@ -3460,18 +3462,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="9" tokens="52">
-      <file begintoken="116408"
+      <file begintoken="116634"
             column="40"
             endcolumn="47"
             endline="53"
-            endtoken="116459"
+            endtoken="116685"
             line="45"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/application/PreTenantUserLookup.java"/>
-      <file begintoken="153902"
+      <file begintoken="154128"
             column="45"
             endcolumn="47"
             endline="109"
-            endtoken="153953"
+            endtoken="154179"
             line="101"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/platform/tenancy/UserPrincipalLookup.java"/>
       <codefragment><![CDATA[    public Optional<UUID> resolveUserId(Jwt jwt) {
@@ -3486,18 +3488,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="14" tokens="52">
-      <file begintoken="134753"
+      <file begintoken="134979"
             column="88"
             endcolumn="26"
             endline="163"
-            endtoken="134804"
+            endtoken="135030"
             line="150"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/application/PlanningDayDtos.java"/>
-      <file begintoken="164712"
+      <file begintoken="164938"
             column="98"
             endcolumn="26"
             endline="208"
-            endtoken="164763"
+            endtoken="164989"
             line="192"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/application/AircraftReservationDtos.java"/>
       <codefragment><![CDATA[            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PlanningDayDetail> items,
@@ -3524,11 +3526,11 @@
             endtoken="33565"
             line="479"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/Aircraft.java"/>
-      <file begintoken="131568"
+      <file begintoken="131794"
             column="9"
             endcolumn="10"
             endline="716"
-            endtoken="131617"
+            endtoken="131843"
             line="709"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/Person.java"/>
       <codefragment><![CDATA[        }
@@ -3550,11 +3552,11 @@
             endtoken="33790"
             line="513"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/domain/Aircraft.java"/>
-      <file begintoken="99477"
+      <file begintoken="99703"
             column="53"
             endcolumn="36"
             endline="287"
-            endtoken="99526"
+            endtoken="99752"
             line="275"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/locations/domain/Location.java"/>
       <codefragment><![CDATA[                    name + " decreased: " + prev + " -> " + next + " (must be monotonic non-decreasing)");
@@ -3573,18 +3575,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="10" tokens="50">
-      <file begintoken="69458"
+      <file begintoken="69684"
             column="5"
             endcolumn="12"
             endline="88"
-            endtoken="69507"
+            endtoken="69733"
             line="79"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/domain/Flight.java"/>
-      <file begintoken="166526"
+      <file begintoken="166752"
             column="5"
             endcolumn="12"
             endline="64"
-            endtoken="166575"
+            endtoken="166801"
             line="55"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservation.java"/>
       <codefragment><![CDATA[    @Id
@@ -3600,18 +3602,18 @@
 ]]></codefragment>
    </duplication>
    <duplication lines="11" tokens="50">
-      <file begintoken="138629"
+      <file begintoken="138855"
             column="5"
             endcolumn="19"
             endline="77"
-            endtoken="138678"
+            endtoken="138904"
             line="67"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDay.java"/>
-      <file begintoken="166519"
+      <file begintoken="166745"
             column="5"
             endcolumn="19"
             endline="63"
-            endtoken="166568"
+            endtoken="166794"
             line="53"
             path="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/reservations/domain/AircraftReservation.java"/>
       <codefragment><![CDATA[    private static final int MAX_INFO_LENGTH = 4000;
