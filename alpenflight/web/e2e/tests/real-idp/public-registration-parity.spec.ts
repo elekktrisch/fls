@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { type Request } from '@playwright/test';
+import { type APIResponse, type Page, type Request, type Response } from '@playwright/test';
 import { expect, test, watchConsoleErrors } from '../_helpers/console-guard';
 import {
-  CLUB_SLUG,
   DISABLED_CLUB_SLUG,
   UNKNOWN_CLUB_SLUG,
   discoveryFlightPath,
   fillInvoiceAddress,
   fillRegistrant,
+  publicApi,
   registrant,
   scenicFlightPath,
   testId,
@@ -17,6 +17,12 @@ import { enterClubSettingsViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { waitForMessage, waitForMessageWithSubject } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
+import {
+  discoveryDayDate,
+  registrantWireBody,
+  seedPublicRegistrationClub,
+  type PublicRegistrationClub,
+} from './_helpers/public-registration-fixture';
 import { freshTestUser } from './_helpers/test-user';
 
 /**
@@ -33,9 +39,6 @@ import { freshTestUser } from './_helpers/test-user';
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 const KC_HOST = 'localhost:8090';
 
-/** The seeded public-registration club this journey's proof registers against. */
-const PROOF_CLUB_SLUG = process.env['E2E_PUBLIC_CLUB_SLUG'] ?? CLUB_SLUG;
-
 /** Seeded club-administrator principal — reads the audit trail back. */
 const CLUB_ADMIN = {
   username: 'clubadmin1@example.com',
@@ -44,15 +47,96 @@ const CLUB_ADMIN = {
 
 const EXTERNAL_CLUB_ID = /^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** Legacy's literal reservation remark (`RegistrationService.cs:197`). */
+const CANDIDATE_REMARK = 'Schnupperflug-Kandidat';
+
+/** `PublicRegistrationMailer` subject constants. */
+const SUBJECT_DISCOVERY_CANDIDATE = 'Anmeldung Schnupperflug erhalten';
+const SUBJECT_SCENIC_CANDIDATE = 'Anmeldung Mitflug erhalten';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * A far-future date, distinct per run: a fixed one would already be published
- * on a retry and the duplicate-date 409 would read as a failure of the publish
- * path rather than of the fixture.
+ * The submit is answered only after both notification mails have gone out over
+ * SMTP inside the request, so it legitimately outruns the suite's 5s
+ * per-assertion cap.
  */
-function discoveryDayDate(): string {
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() + 400 + Math.floor(Math.random() * 300));
-  return day.toISOString().slice(0, 10);
+const SUBMIT_TIMEOUT_MS = 15_000;
+
+/** `GET /api/v1/persons/{id}` — the markers a registrant write must set. */
+interface PersonProjection {
+  id: string;
+  hasGliderTraineeLicence: boolean;
+  memberships: { clubId: string; isGliderTrainee: boolean }[];
+}
+
+/** `GET /api/v1/aircraft-reservations/*` list row. */
+interface ReservationRow {
+  id: string;
+  aircraftId: string;
+  start: string;
+  end: string;
+  isAllDay: boolean;
+  pilotPersonId: string;
+  locationId: string;
+  remarks: string | null;
+}
+
+/**
+ * The club both happy flows register against — created, configured, stocked and
+ * published through production HTTP only. Seeded HERE rather than in the shared
+ * clean seed: a registrable club carries a homebase, a bookable glider and an
+ * organiser address, so every other journey's gate would inherit a surprise
+ * registrant and an unexpected outbound mail.
+ */
+let seeded: PublicRegistrationClub;
+
+test.beforeAll(async ({ browser }, testInfo) => {
+  // Two real Keycloak logins (the sysadmin that may create a club, then the
+  // club's own administrator) plus the configuration round-trips run past the
+  // per-test budget this project sets for a single flow.
+  testInfo.setTimeout(180_000);
+  seeded = await seedPublicRegistrationClub(browser, testInfo.project.use.baseURL ?? SPA_BASE_URL);
+});
+
+test.afterAll(async () => {
+  await seeded?.dispose();
+});
+
+/** Read a tenant-scoped resource back as the seeded club's own administrator. */
+async function readAsClubAdmin<T>(page: Page, path: string): Promise<T> {
+  const res = await page.request.get(path, {
+    headers: { authorization: seeded.adminAuthorization },
+  });
+  expect(res.status(), `GET ${path} as the seeded club's administrator`).toBe(200);
+  return (await res.json()) as T;
+}
+
+/**
+ * The registrant's `Person` id, taken from the 201 `Location` header rather
+ * than the body: a POST response body is evicted the moment the SPA navigates,
+ * and the header is stable either way.
+ */
+function registrantPersonId(response: APIResponse | Response): string {
+  const location = response.headers()['location'];
+  const id = location?.match(/\/api\/v1\/persons\/(pn-[0-9a-f-]{36})$/)?.[1];
+  expect(id, `the 201 Location names the created registrant (got "${location}")`).toBeTruthy();
+  return id!;
+}
+
+function mailBody(message: { HTML?: string; Text: string }): string {
+  return message.HTML ?? message.Text ?? '';
+}
+
+/** `yyyy-MM-dd` → the `dd.MM.yyyy` the UI and the German mail templates render. */
+function ddMmYyyy(isoDate: string): string {
+  const [yyyy, mm, dd] = isoDate.split('-');
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+/** Future reservations of the seeded club, tenant-scoped to it by its own admin. */
+function futureReservations(page: Page): Promise<ReservationRow[]> {
+  return readAsClubAdmin<ReservationRow[]>(page, '/api/v1/aircraft-reservations/future');
 }
 
 test.describe('public flight registration — anonymous front door', () => {
@@ -200,9 +284,8 @@ test.describe('club-admin registration settings', () => {
   });
 });
 
-// Un-fixme with T-22 (thicken to the full oracle assertions, both fidelities).
 test.describe('discovery registration — real rows, real mail', () => {
-  test.fixme('[happy] an anonymous submission creates a glider-trainee registrant and books the day', async ({
+  test('[happy] an anonymous submission creates a glider-trainee registrant and books the day', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
@@ -212,15 +295,71 @@ test.describe('discovery registration — real rows, real mail', () => {
     const candidate = registrant({ email: freshTestUser().email });
 
     try {
-      await page.goto(discoveryFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(discoveryFlightPath(seeded.slug));
+      // Resolved anonymously from the slug: the club's real NAME, not the URL
+      // token the visitor arrived with.
+      await expect(page.getByTestId(testId.clubName)).toHaveText(seeded.clubName);
       await expect(page.getByTestId(testId.form)).toBeVisible();
-      await fillRegistrant(page, candidate);
-      await page.getByTestId(testId.daySelect).click();
-      await page.getByTestId(testId.submit).click();
 
+      await fillRegistrant(page, candidate);
+      // The club published exactly one day, so the picker offers exactly one.
+      await page.getByTestId(testId.dayOption(seeded.eventDate)).check();
+
+      const submitted = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === publicApi.discoverySubmit(seeded.slug),
+        { timeout: SUBMIT_TIMEOUT_MS },
+      );
+      await page.getByTestId(testId.submit).click();
+      const response = await submitted;
+      expect(response.status()).toBe(201);
+      const personId = registrantPersonId(response);
+
+      // The panel replaces the form in place — no navigation, so no field value
+      // ever reaches the URL.
       await expect(page.getByTestId(testId.success)).toBeVisible();
+      await expect(page.getByTestId('discovery-flight-success-day')).toContainText(
+        ddMmYyyy(seeded.eventDate),
+      );
+      await expect(page).toHaveURL(new RegExp(`${discoveryFlightPath(seeded.slug)}$`));
+      expect(page.url()).not.toContain(candidate.email);
+      // Captured on the state that RENDERS the result, before the deep asserts.
+      await page.screenshot({
+        path: `${testInfo.outputDir}/discovery-registration-success.png`,
+        fullPage: true,
+      });
+
       const confirmation = await waitForMessage(candidate.email);
-      expect(confirmation.Subject).not.toBe('');
+      expect(confirmation.Subject).toBe(SUBJECT_DISCOVERY_CANDIDATE);
+      const body = mailBody(confirmation);
+      expect(body).toContain(seeded.clubName);
+      expect(body).toContain(ddMmYyyy(seeded.eventDate));
+      // The booked homebase travels into the candidate's mail.
+      expect(body).toContain(seeded.homebaseName);
+
+      const person = await readAsClubAdmin<PersonProjection>(page, `/api/v1/persons/${personId}`);
+      expect(person.hasGliderTraineeLicence, 'the person-level glider-trainee marker').toBe(true);
+      const membership = person.memberships.find((m) => m.clubId === seeded.clubId);
+      expect(membership, 'a PersonClub in the club the URL named').toBeTruthy();
+      expect(membership!.isGliderTrainee, 'the club-level glider-trainee marker').toBe(true);
+
+      const onTheDay = await readAsClubAdmin<ReservationRow[]>(
+        page,
+        `/api/v1/aircraft-reservations/day/${seeded.eventDate}`,
+      );
+      const booked = onTheDay.filter((r) => r.pilotPersonId === personId);
+      expect(booked, 'exactly one slot blocked for the candidate').toHaveLength(1);
+      expect(booked[0]).toMatchObject({
+        aircraftId: seeded.gliderId,
+        locationId: seeded.homebaseId,
+        isAllDay: true,
+        remarks: CANDIDATE_REMARK,
+      });
+      // All-day is the half-open `[day 00:00, +1 day)` span (J-5).
+      const dayStart = Date.parse(`${seeded.eventDate}T00:00:00Z`);
+      expect(Date.parse(booked[0]!.start)).toBe(dayStart);
+      expect(Date.parse(booked[0]!.end)).toBe(dayStart + DAY_MS);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -243,7 +382,7 @@ test.describe('discovery registration — real rows, real mail', () => {
     const candidate = registrant({ email: freshTestUser().email });
 
     try {
-      await page.goto(discoveryFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(discoveryFlightPath(seeded.slug));
       await fillRegistrant(page, candidate);
       await page.getByTestId(testId.submit).click();
 
@@ -264,9 +403,8 @@ test.describe('discovery registration — real rows, real mail', () => {
   });
 });
 
-// Un-fixme with T-22.
 test.describe('scenic registration — no reservation, no day', () => {
-  test.fixme('[happy] an anonymous submission creates a non-trainee registrant and books nothing', async ({
+  test('[happy] an anonymous submission creates a non-trainee registrant and books nothing', async ({
     browser,
   }, testInfo) => {
     const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
@@ -276,17 +414,65 @@ test.describe('scenic registration — no reservation, no day', () => {
     const passenger = registrant({ email: freshTestUser().email });
 
     try {
-      await page.goto(scenicFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(scenicFlightPath(seeded.slug));
+      await expect(page.getByTestId(testId.clubName)).toHaveText(seeded.clubName);
+      await expect(page.getByTestId(testId.form)).toBeVisible();
+      // The scenic form selects no day — there is nothing to book against.
       await expect(page.getByTestId(testId.daySelect)).toHaveCount(0);
+
+      const before = await futureReservations(page);
+
       await fillRegistrant(page, passenger);
+      const submitted = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === publicApi.scenicSubmit(seeded.slug),
+        { timeout: SUBMIT_TIMEOUT_MS },
+      );
       await page.getByTestId(testId.submit).click();
+      const response = await submitted;
+      expect(response.status()).toBe(201);
+      const personId = registrantPersonId(response);
 
       await expect(page.getByTestId(testId.success)).toBeVisible();
+      await expect(page.getByTestId('discovery-flight-success-day')).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(`${scenicFlightPath(seeded.slug)}$`));
+      expect(page.url()).not.toContain(passenger.email);
+      await page.screenshot({
+        path: `${testInfo.outputDir}/scenic-registration-success.png`,
+        fullPage: true,
+      });
+
       const confirmation = await waitForMessage(passenger.email);
+      expect(confirmation.Subject).toBe(SUBJECT_SCENIC_CANDIDATE);
+      const body = mailBody(confirmation);
+      expect(body).toContain(seeded.clubName);
       // The legacy passenger templates interpolate the trial-flight namespace
       // and render these blank; the port binds the passenger model.
-      expect(confirmation.Text).toContain(passenger.mobilePhone);
-      expect(confirmation.Text).toContain(passenger.remarks);
+      expect(body).toContain(passenger.mobilePhone);
+      expect(body).toContain(passenger.remarks);
+
+      const person = await readAsClubAdmin<PersonProjection>(page, `/api/v1/persons/${personId}`);
+      expect(person.hasGliderTraineeLicence, 'the person-level marker').toBe(false);
+      const membership = person.memberships.find((m) => m.clubId === seeded.clubId);
+      expect(membership, 'a PersonClub in the club the URL named').toBeTruthy();
+      expect(membership!.isGliderTrainee, 'the club-level marker').toBe(false);
+
+      const after = await futureReservations(page);
+      expect(after.length, 'the scenic flow blocked no aircraft slot').toBe(before.length);
+      expect(after.map((r) => r.pilotPersonId)).not.toContain(personId);
+
+      // The zero is the FLOW's doing, not an unbookable club: the very same
+      // club fills a slot the moment a discovery submission arrives.
+      const discovery = await page.request.post(publicApi.discoverySubmit(seeded.slug), {
+        data: {
+          registrant: registrantWireBody({ privateEmail: freshTestUser().email }),
+          selectedDay: seeded.eventDate,
+        },
+      });
+      expect(discovery.status(), 'the seeded club is genuinely bookable').toBe(201);
+      const afterDiscovery = await futureReservations(page);
+      expect(afterDiscovery.length).toBe(after.length + 1);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -313,7 +499,7 @@ test.describe('registration recipients + organiser notification', () => {
     const payer = registrant({ firstName: 'Beat', lastName: 'Frei', email: freshTestUser().email });
 
     try {
-      await page.goto(discoveryFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(discoveryFlightPath(seeded.slug));
       await fillRegistrant(page, candidate);
       await fillInvoiceAddress(page, payer);
       await page.getByTestId(testId.submit).click();
@@ -344,7 +530,7 @@ test.describe('registration recipients + organiser notification', () => {
     const operatorEmail = freshTestUser().email;
 
     try {
-      await page.goto(discoveryFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(discoveryFlightPath(seeded.slug));
       await fillRegistrant(page, candidate);
       await page.getByTestId(testId.submit).click();
       await expect(page.getByTestId(testId.success)).toBeVisible();
@@ -384,7 +570,7 @@ test.describe('public registration — error contract + abuse guard', () => {
       expect((await page.request.get(`/api/v1/public/clubs/${DISABLED_CLUB_SLUG}`)).status()).toBe(
         403,
       );
-      const openClub = await page.request.get(`/api/v1/public/clubs/${PROOF_CLUB_SLUG}`);
+      const openClub = await page.request.get(`/api/v1/public/clubs/${seeded.slug}`);
       expect(openClub.status()).toBe(200);
       // The exposed field set is pinned server-side; assert it on the deployed
       // stack too, so a widening cannot reach an anonymous visitor unnoticed.
@@ -434,7 +620,7 @@ test.describe('public registration — error contract + abuse guard', () => {
     const candidate = registrant({ email: freshTestUser().email });
 
     try {
-      await page.goto(scenicFlightPath(PROOF_CLUB_SLUG));
+      await page.goto(scenicFlightPath(seeded.slug));
       await fillRegistrant(page, candidate);
       await page.getByTestId(testId.submit).click();
       await expect(page.getByTestId(testId.success)).toBeVisible();
@@ -471,7 +657,7 @@ test.describe('public registration — error contract + abuse guard', () => {
 
     try {
       const submit = () =>
-        page.request.post(`/api/v1/public/clubs/${PROOF_CLUB_SLUG}/scenic-flight-registrations`, {
+        page.request.post(`/api/v1/public/clubs/${seeded.slug}/scenic-flight-registrations`, {
           data: throttled,
         });
 
