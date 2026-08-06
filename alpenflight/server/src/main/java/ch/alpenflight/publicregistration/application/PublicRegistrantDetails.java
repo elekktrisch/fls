@@ -1,5 +1,7 @@
 package ch.alpenflight.publicregistration.application;
 
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -30,7 +32,17 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code sendCouponToInvoiceAddress} is likewise mail-only: it picks which
  * of the two people the club posts the voucher to, which only exists as a
- * choice while the invoice address differs.
+ * choice while the invoice address differs. Because the choice does not exist
+ * otherwise, the form posts no such key at all while the addresses match
+ * ({@code registrant-form.ts}, {@code toRegistrantDetails}) — and an absent
+ * creator property arrives as null, which
+ * {@code DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES} (a Jackson 3
+ * default) turns into a body-less 400 on a primitive. {@link Nulls#AS_EMPTY}
+ * makes the omission mean the legacy default instead, and is deliberately per
+ * field: relaxing the feature globally would hide the same trap on every other
+ * primitive in the application, where an absent key is a genuine error.
+ * {@link Nulls#SKIP} does not work here — it never reaches a record's primitive
+ * creator parameter.
  */
 public record PublicRegistrantDetails(
         String firstname,
@@ -45,7 +57,7 @@ public record PublicRegistrantDetails(
         @Nullable String privateEmail,
         @Nullable String remarks,
         boolean invoiceAddressIsSame,
-        boolean sendCouponToInvoiceAddress,
+        @JsonSetter(nulls = Nulls.AS_EMPTY) boolean sendCouponToInvoiceAddress,
         @Nullable InvoiceRecipient invoiceRecipient) {
 
     public PublicRegistrantDetails {

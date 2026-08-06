@@ -254,6 +254,30 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
         assertThat(registrants()).isZero();
     }
 
+    /**
+     * The coupon choice only exists while the invoice address differs, so every
+     * other submission leaves the key out entirely — which the rest of this
+     * class now posts. Here it is left out where the choice IS meaningful, the
+     * one shape a hand-rolled API client is most likely to send: an omitted key
+     * has to mean the legacy default rather than a body-less 400 from a
+     * primitive that cannot hold the absent value.
+     */
+    @Test
+    void an_omitted_coupon_choice_means_the_default_rather_than_a_rejection() {
+        Map<String, Object> registrant =
+                PublicSubmissions.registrantWithDifferingInvoiceAddress(true);
+        registrant.remove("sendCouponToInvoiceAddress");
+        Map<String, Object> body = Map.of("registrant", registrant,
+                "selectedDay", BOOKABLE_DAY.toString());
+
+        assertThat(rest.postForEntity(registrationPath(openSlug), body, Void.class).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+        assertThat(registrants()).isOne();
+        assertThat(invoiceRecipients())
+                .as("the differing invoice address still writes its own Person")
+                .isOne();
+    }
+
     @Test
     void a_submission_without_a_day_is_rejected() {
         assertThat(rest.postForEntity(registrationPath(openSlug),
@@ -298,10 +322,18 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
     }
 
     private long registrants() {
+        return clubMembersNamed(PublicSubmissions.LASTNAME);
+    }
+
+    private long invoiceRecipients() {
+        return clubMembersNamed(PublicSubmissions.INVOICE_LASTNAME);
+    }
+
+    private long clubMembersNamed(String lastname) {
         return count("SELECT count(*) FROM t_person p "
                 + "JOIN t_person_club pc ON pc.person_id = p.id "
                 + "WHERE p.lastname = ? AND pc.club_id = ?::uuid",
-                PublicSubmissions.LASTNAME, openClubId.toString());
+                lastname, openClubId.toString());
     }
 
     private List<Boolean> traineeMarkers() {

@@ -22,6 +22,8 @@ public final class PublicSubmissions {
 
     public static final String FIRSTNAME = "Rosa";
     public static final String LASTNAME = "Renggli";
+    public static final String INVOICE_FIRSTNAME = "Beat";
+    public static final String INVOICE_LASTNAME = "Bezahler";
 
     private PublicSubmissions() {}
 
@@ -37,6 +39,15 @@ public final class PublicSubmissions {
         return body;
     }
 
+    /**
+     * The registrant whose invoice address is their own — and therefore with no
+     * invoice block at all, neither {@code invoiceRecipient} nor
+     * {@code sendCouponToInvoiceAddress}. That is the payload the browser
+     * genuinely posts ({@code registrant-form.ts}, {@code toRegistrantDetails}
+     * drops the block once "same address" is ticked), so writing the coupon key
+     * here would exercise a shape no form sends and leave the one it does send
+     * untested.
+     */
     public static Map<String, Object> registrant() {
         Map<String, Object> registrant = new LinkedHashMap<>();
         registrant.put("firstname", FIRSTNAME);
@@ -47,7 +58,30 @@ public final class PublicSubmissions {
         registrant.put("mobilePhone", "079 555 66 77");
         registrant.put("privateEmail", "rosa.renggli@example.ch");
         registrant.put("invoiceAddressIsSame", true);
-        registrant.put("sendCouponToInvoiceAddress", false);
         return registrant;
+    }
+
+    /**
+     * The other shape the form posts: the invoice block is present, so the
+     * coupon choice exists and is sent.
+     */
+    public static Map<String, Object> registrantWithDifferingInvoiceAddress(
+            boolean sendCouponToInvoiceAddress) {
+        Map<String, Object> registrant = registrant();
+        registrant.put("invoiceAddressIsSame", false);
+        registrant.put("sendCouponToInvoiceAddress", sendCouponToInvoiceAddress);
+        registrant.put("invoiceRecipient", invoiceRecipient());
+        return registrant;
+    }
+
+    private static Map<String, Object> invoiceRecipient() {
+        Map<String, Object> invoice = new LinkedHashMap<>();
+        invoice.put("firstname", INVOICE_FIRSTNAME);
+        invoice.put("lastname", INVOICE_LASTNAME);
+        invoice.put("addressLine1", "Buchhaltungsweg 3");
+        invoice.put("zip", "6003");
+        invoice.put("city", "Luzern");
+        invoice.put("notificationEmail", "beat.bezahler@example.ch");
+        return invoice;
     }
 }
