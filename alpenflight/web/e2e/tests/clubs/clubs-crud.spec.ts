@@ -1,5 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
+import { selectAfOption } from '../_helpers/af-select';
 import {
   CLUB_SETTINGS_NAV_TESTID,
   enterClubSettingsViaNav,
@@ -32,6 +33,7 @@ interface MockClub {
   discoveryFlightOperatorEmail: string;
   scenicFlightOperatorEmail: string;
   discoveryFlightTypeId: string | null;
+  homebaseId: string | null;
 }
 
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
@@ -39,6 +41,8 @@ const DE_COUNTRY_ID = '019e2e15-2c00-743a-8000-00000000043a';
 const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 const DISCOVERY_FLIGHT_TYPE_ID = 'ft-019e30c3-2c00-7001-8000-0000000000f1';
 const TOW_FLIGHT_TYPE_ID = 'ft-019e30c3-2c00-7001-8000-0000000000f2';
+const HOMEBASE_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a1';
+const OUTLANDING_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a2';
 
 // The mock-auth principal's own club (`app.config.mock.ts` MOCK_CLUB_ID), so the
 // club-admin-only discovery-day panel is in scope when this row is edited.
@@ -53,6 +57,7 @@ const seedClub: MockClub = {
   discoveryFlightOperatorEmail: 'schnupper@seed.example',
   scenicFlightOperatorEmail: 'mitflug@seed.example',
   discoveryFlightTypeId: DISCOVERY_FLIGHT_TYPE_ID,
+  homebaseId: HOMEBASE_LOCATION_ID,
 };
 
 const otherClub: MockClub = {
@@ -66,6 +71,7 @@ const otherClub: MockClub = {
   discoveryFlightOperatorEmail: '',
   scenicFlightOperatorEmail: '',
   discoveryFlightTypeId: null,
+  homebaseId: null,
 };
 
 const mockFlightTypes = [
@@ -86,6 +92,26 @@ const mockFlightTypes = [
     isForTowFlights: true,
     isForMotorFlights: false,
     isFlightCostBalanceSelectable: false,
+  },
+];
+
+// Tenant-scoped server-side: the path carries no club id, so this is always the
+// CALLER's own club's list — which is why the picker is own-club only.
+const mockLocations = [
+  {
+    id: HOMEBASE_LOCATION_ID,
+    locationName: 'Birrfeld',
+    icaoCode: 'LSZF',
+    locationTypeCode: 'GLIDER_AIRFIELD',
+    isAirfield: true,
+    isFastEntryRecord: false,
+  },
+  {
+    id: OUTLANDING_LOCATION_ID,
+    locationName: 'Aussenlandefeld Nord',
+    locationTypeCode: 'OUTLANDING',
+    isAirfield: false,
+    isFastEntryRecord: false,
   },
 ];
 
@@ -122,6 +148,13 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(mockFlightTypes),
+    }),
+  );
+  await page.route('**/api/v1/locations', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockLocations),
     }),
   );
 }
@@ -254,6 +287,7 @@ function setupClubsBackend(clubs: MockClub[]) {
         discoveryFlightOperatorEmail: body.discoveryFlightOperatorEmail ?? '',
         scenicFlightOperatorEmail: body.scenicFlightOperatorEmail ?? '',
         discoveryFlightTypeId: body.discoveryFlightTypeId ?? null,
+        homebaseId: body.homebaseId ?? null,
       } as MockClub;
       await route.fulfill({
         status: 200,
@@ -545,6 +579,7 @@ test('clubs: saving an unrelated change preserves the registration fields', asyn
   await expect(page.getByTestId('clubs-discovery-flight-type-select')).toContainText(
     'Schnupperflug',
   );
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
 
   const putRequest = page.waitForRequest(
     (r) => r.method() === 'PUT' && new URL(r.url()).pathname === `/api/v1/clubs/${seedClub.id}`,
@@ -558,6 +593,7 @@ test('clubs: saving an unrelated change preserves the registration fields', asyn
     discoveryFlightOperatorEmail: 'schnupper@seed.example',
     scenicFlightOperatorEmail: 'mitflug@seed.example',
     discoveryFlightTypeId: DISCOVERY_FLIGHT_TYPE_ID,
+    homebaseId: HOMEBASE_LOCATION_ID,
   });
 
   await expect(page).toHaveURL('/clubs');
@@ -565,6 +601,34 @@ test('clubs: saving an unrelated change preserves the registration fields', asyn
   expect(clubs[0]?.discoveryFlightOperatorEmail).toBe('schnupper@seed.example');
   expect(clubs[0]?.scenicFlightOperatorEmail).toBe('mitflug@seed.example');
   expect(clubs[0]?.discoveryFlightTypeId).toBe(DISCOVERY_FLIGHT_TYPE_ID);
+  expect(clubs[0]?.homebaseId).toBe(HOMEBASE_LOCATION_ID);
+});
+
+// The homebase is the location a discovery-flight reservation is booked at, and
+// this screen is the only place it can be set.
+test('clubs: the homebase picker saves a club location and clears it again', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub, homebaseId: null }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('No homebase');
+
+  await selectAfOption(page, 'clubs-homebase-select', HOMEBASE_LOCATION_ID);
+  await page.getByTestId('clubs-save-button').click();
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.homebaseId).toBe(HOMEBASE_LOCATION_ID);
+
+  // Clearing is a legitimate state, not a validation failure: the club simply
+  // has no homebase and its discovery reservations are skipped.
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
+  await page.getByTestId('clubs-homebase-select').locator('nz-select').hover();
+  await page.getByTestId('clubs-homebase-select').locator('.ant-select-clear').click();
+  await page.getByTestId('clubs-save-button').click();
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.homebaseId).toBeNull();
 });
 
 test('clubs: a recipient list of several addresses round-trips', async ({ page }) => {
@@ -732,4 +796,10 @@ test('clubs: the discovery-day panel is absent when editing another club', async
   // The operator-email fields stay editable — they ride the club PUT, which a
   // sysadmin may issue for any club.
   await expect(page.getByTestId('clubs-discovery-operator-email')).toBeVisible();
+  // The location catalog is the CALLER's tenant's, so offering it here would let
+  // a sysadmin point another club's homebase at its own club's airfield — which
+  // the server refuses anyway.
+  await expect(page.getByTestId('clubs-homebase-select').locator('nz-select')).toHaveClass(
+    /ant-select-disabled/,
+  );
 });

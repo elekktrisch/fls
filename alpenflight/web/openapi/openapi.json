@@ -6895,6 +6895,12 @@
             "description" : "Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.",
             "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "homebaseId" : {
+            "type" : "string",
+            "description" : "The club's home airfield — must be one of the club's OWN Locations. Null clears it, which is a valid state: a club without a homebase still accepts discovery-flight registrations, only the reservation is skipped. The update is full-replace, so an omitted key clears the homebase too.",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
         "required" : [ "clubStateId", "countryId", "name", "slug" ]
@@ -6953,6 +6959,12 @@
             "description" : "Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.",
             "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "homebaseId" : {
+            "type" : "string",
+            "description" : "The club's home airfield — must be one of the club's OWN Locations. Null clears it, which is a valid state: a club without a homebase still accepts discovery-flight registrations, only the reservation is skipped. The update is full-replace, so an omitted key clears the homebase too.",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "joinCode" : {
             "type" : "string",

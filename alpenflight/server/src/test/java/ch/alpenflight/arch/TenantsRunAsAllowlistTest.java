@@ -32,6 +32,9 @@ import java.util.function.Supplier;
  *       — sums {@code @TenantId}-scoped flight counts one club at a time so
  *       the sysadmin dashboard tile spans all tenants; gated by a
  *       SYSTEM_ADMINISTRATOR surface authorisation.</li>
+ *   <li>{@code ch.alpenflight.clubs.application.ClubsService} — validates a
+ *       club's homebase against that club's own {@code @TenantId}-scoped
+ *       Locations, which is a different tenant from the editing principal's.</li>
  *   <li>{@code ch.alpenflight.platform.tenancy} — the carrier owner.</li>
  * </ul>
  *
@@ -100,7 +103,15 @@ class TenantsRunAsAllowlistTest {
             // reach runAs — and only the accepted submission opens a window, for
             // exactly that one club. The surface gate is Club.acceptsPublicRegistration
             // (the club's own opt-in), not a role.
-            "ch.alpenflight.publicregistration.application.PublicRegistrationIntake"
+            "ch.alpenflight.publicregistration.application.PublicRegistrationIntake",
+            // Club homebase validation (J-17): the homebase must be one of the
+            // EDITED club's own Locations, and Locations are @TenantId-scoped. The
+            // caller's own tenant is the wrong one for a SYSTEM_ADMINISTRATOR
+            // editing another club — it would accept the sysadmin club's Location
+            // and reject the edited club's — so the check runs under the edited
+            // club's scope. Read-only, one club, and the club id is the already
+            // role-gated path variable (@tenant.isOwnClub for a CLUB_ADMINISTRATOR).
+            "ch.alpenflight.clubs.application.ClubsService"
     );
 
     @ArchTest

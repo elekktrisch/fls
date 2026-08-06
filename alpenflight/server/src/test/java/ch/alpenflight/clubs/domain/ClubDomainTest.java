@@ -202,6 +202,43 @@ class ClubDomainTest {
     }
 
     @Test
+    void homebase_accepts_a_location_the_club_owns() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getHomebaseId()).isNull();
+
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+        assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
+    }
+
+    @Test
+    void homebase_rejects_a_location_the_club_does_not_own() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+
+        UUID foreignLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000b002");
+        assertThatThrownBy(() -> club.relocateHomebase(foreignLocation, ownLocation::equals))
+                .isInstanceOf(InvalidClubReferenceException.class)
+                .extracting(e -> ((InvalidClubReferenceException) e).getField())
+                .isEqualTo("homebaseId");
+        // A rejected write leaves the previous homebase intact.
+        assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
+    }
+
+    @Test
+    void homebase_clears_on_null_without_consulting_the_lookup() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+
+        club.relocateHomebase(null, id -> {
+            throw new AssertionError("clearing must not query for ownership");
+        });
+        assertThat(club.getHomebaseId()).isNull();
+    }
+
+    @Test
     void acceptsPublicRegistration_requires_the_optIn_flag() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.acceptsPublicRegistration()).isFalse();

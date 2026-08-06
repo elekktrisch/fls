@@ -17,6 +17,7 @@ const formValue: ClubEditFormValue = {
   discoveryFlightOperatorEmail: 'schnupper@seed.example',
   scenicFlightOperatorEmail: 'mitflug@seed.example',
   discoveryFlightTypeId: 'ft-019e30c3-2c00-7001-8000-0000000000f1',
+  homebaseId: 'loc-019e30c3-2c00-7001-8000-0000000000a1',
 };
 
 describe('buildClubUpdateRequest', () => {
@@ -33,12 +34,13 @@ describe('buildClubUpdateRequest', () => {
     );
   });
 
-  it('carries the two operator-email recipient lists and the discovery flight type', () => {
+  it('carries the two operator-email recipient lists, the discovery flight type and the homebase', () => {
     const req = buildClubUpdateRequest(formValue);
 
     expect(req.discoveryFlightOperatorEmail).toBe('schnupper@seed.example');
     expect(req.scenicFlightOperatorEmail).toBe('mitflug@seed.example');
     expect(req.discoveryFlightTypeId).toBe('ft-019e30c3-2c00-7001-8000-0000000000f1');
+    expect(req.homebaseId).toBe('loc-019e30c3-2c00-7001-8000-0000000000a1');
   });
 
   it('sends a blank recipient list as an empty string so the key stays on the wire', () => {
@@ -58,6 +60,13 @@ describe('buildClubUpdateRequest', () => {
 
     expect(req.discoveryFlightTypeId).toBeUndefined();
     expect(JSON.parse(JSON.stringify(req))).not.toHaveProperty('discoveryFlightTypeId');
+  });
+
+  it('omits a cleared homebase, which the full-replace PUT reads as "no homebase"', () => {
+    const req = buildClubUpdateRequest({ ...formValue, homebaseId: null });
+
+    expect(req.homebaseId).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(req))).not.toHaveProperty('homebaseId');
   });
 });
 

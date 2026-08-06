@@ -36,6 +36,20 @@ import { emailRecipientList, slugAvailable } from './clubs-edit.validators';
 
 const OPERATOR_EMAIL_MAX_LENGTH = 250;
 
+/**
+ * Keeps the club's stored id selectable even when the catalog is empty or does
+ * not contain it — an un-renderable value is dropped by the select and then
+ * CLEARED by the full-replace save.
+ */
+function withStoredValue(
+  options: AfSelectOption<string>[],
+  stored: string | undefined,
+): readonly AfSelectOption<string>[] {
+  return stored && !options.some((o) => o.value === stored)
+    ? [{ value: stored, label: stored }, ...options]
+    : options;
+}
+
 type ClubForm = FormGroup<{
   name: FormControl<string>;
   slug: FormControl<string>;
@@ -46,6 +60,7 @@ type ClubForm = FormGroup<{
   discoveryFlightOperatorEmail: FormControl<string>;
   scenicFlightOperatorEmail: FormControl<string>;
   discoveryFlightTypeId: FormControl<string | null>;
+  homebaseId: FormControl<string | null>;
 }>;
 
 @Component({
@@ -184,6 +199,22 @@ type ClubForm = FormGroup<{
               data-testid="clubs-scenic-operator-email"
             />
             <p class="text-xs text-slate-500">{{ operatorEmailHint }}</p>
+          </af-form-field>
+
+          <af-form-field label="Homebase" for="homebaseId">
+            <af-select
+              inputId="homebaseId"
+              formControlName="homebaseId"
+              placeholder="No homebase"
+              [allowClear]="true"
+              [showSearch]="true"
+              [options]="homebaseOptions()"
+              data-testid="clubs-homebase-select"
+            />
+            <p class="text-xs text-slate-500">
+              The club's home airfield. A discovery-flight reservation is booked here; without one
+              the registration still succeeds and the reservation is skipped.
+            </p>
           </af-form-field>
 
           <af-form-field label="Discovery flight type" for="discoveryFlightTypeId">
@@ -330,15 +361,19 @@ export class ClubsEditPage {
   // The club's stored flight type is always an option, even when the catalog is
   // empty or does not contain it — an un-renderable value would be dropped by
   // the select and then CLEARED by the full-replace save.
-  protected readonly flightTypeOptions = computed<readonly AfSelectOption<string>[]>(() => {
-    const options = this.store
-      .flightTypes()
-      .map((ft) => ({ value: ft.id, label: ft.flightTypeName }));
-    const stored = this.store.selectedClub()?.discoveryFlightTypeId;
-    return stored && !options.some((o) => o.value === stored)
-      ? [{ value: stored, label: stored }, ...options]
-      : options;
-  });
+  protected readonly flightTypeOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    withStoredValue(
+      this.store.flightTypes().map((ft) => ({ value: ft.id, label: ft.flightTypeName })),
+      this.store.selectedClub()?.discoveryFlightTypeId,
+    ),
+  );
+
+  protected readonly homebaseOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    withStoredValue(
+      this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),
+      this.store.selectedClub()?.homebaseId,
+    ),
+  );
 
   // S-007 — slug validator stack (sync + in-memory async-style) declared
   // alongside the rest of the form definition. The duplicate-check closure
@@ -367,6 +402,7 @@ export class ClubsEditPage {
       Validators.maxLength(OPERATOR_EMAIL_MAX_LENGTH),
     ]),
     discoveryFlightTypeId: this.fb.control<string | null>(null),
+    homebaseId: this.fb.control<string | null>(null),
   });
 
   protected readonly saveSubmitted = signal(false);
@@ -450,6 +486,7 @@ export class ClubsEditPage {
         discoveryFlightOperatorEmail: club.discoveryFlightOperatorEmail ?? '',
         scenicFlightOperatorEmail: club.scenicFlightOperatorEmail ?? '',
         discoveryFlightTypeId: club.discoveryFlightTypeId ?? null,
+        homebaseId: club.homebaseId ?? null,
       });
       this.form.controls.clubKey.disable({ emitEvent: false });
     });
@@ -458,16 +495,23 @@ export class ClubsEditPage {
       if (!this.managesOwnClub()) return;
       this.store.loadDiscoveryFlightDays();
       this.store.loadFlightTypes();
+      this.store.loadLocations();
     });
 
-    // Only the club's own admin can resolve a flight-type id to a name, so a
-    // cross-tenant editor keeps the stored value but cannot repoint it.
+    // Both catalogs are the CALLER's tenant's, so only the club's own admin can
+    // resolve either id to a name — a cross-tenant editor keeps the stored
+    // values but cannot repoint them at rows belonging to its own club.
     effect(() => {
-      const control = this.form.controls.discoveryFlightTypeId;
-      if (this.managesOwnClub()) {
-        control.enable({ emitEvent: false });
-      } else {
-        control.disable({ emitEvent: false });
+      const own = this.managesOwnClub();
+      for (const control of [
+        this.form.controls.discoveryFlightTypeId,
+        this.form.controls.homebaseId,
+      ]) {
+        if (own) {
+          control.enable({ emitEvent: false });
+        } else {
+          control.disable({ emitEvent: false });
+        }
       }
     });
 

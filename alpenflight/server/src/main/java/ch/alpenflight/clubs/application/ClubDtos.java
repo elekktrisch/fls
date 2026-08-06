@@ -4,6 +4,7 @@ import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.FlightTypeId;
+import ch.alpenflight.platform.id.LocationId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +33,12 @@ public final class ClubDtos {
             "Flight type stamped on the reservation a discovery-flight registration books; "
                     + "null books the reservation without one.";
 
+    private static final String HOMEBASE_DESCRIPTION =
+            "The club's home airfield — must be one of the club's OWN Locations. "
+                    + "Null clears it, which is a valid state: a club without a homebase still "
+                    + "accepts discovery-flight registrations, only the reservation is skipped. "
+                    + "The update is full-replace, so an omitted key clears the homebase too.";
+
     @Schema(description = "Club projection returned to API consumers.")
     public record ClubResponse(
             ClubId id,
@@ -51,6 +58,8 @@ public final class ClubDtos {
             @Nullable String scenicFlightOperatorEmail,
             @Schema(description = DISCOVERY_FLIGHT_TYPE_DESCRIPTION)
             @Nullable FlightTypeId discoveryFlightTypeId,
+            @Schema(description = HOMEBASE_DESCRIPTION)
+            @Nullable LocationId homebaseId,
             @Schema(description = "Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise.")
             @Nullable String joinCode) {}
 
@@ -78,5 +87,7 @@ public final class ClubDtos {
             @Schema(description = OPERATOR_EMAIL_DESCRIPTION + " Scenic-flight registrations.")
             @Size(max = 250) @Nullable String scenicFlightOperatorEmail,
             @Schema(description = DISCOVERY_FLIGHT_TYPE_DESCRIPTION)
-            @Nullable FlightTypeId discoveryFlightTypeId) {}
+            @Nullable FlightTypeId discoveryFlightTypeId,
+            @Schema(description = HOMEBASE_DESCRIPTION)
+            @Nullable LocationId homebaseId) {}
 }

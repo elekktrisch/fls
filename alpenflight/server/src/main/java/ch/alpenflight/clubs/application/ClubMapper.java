@@ -5,6 +5,7 @@ import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.FlightTypeId;
+import ch.alpenflight.platform.id.LocationId;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +43,7 @@ final class ClubMapper {
                 club.getDiscoveryFlightOperatorEmail(),
                 club.getScenicFlightOperatorEmail(),
                 FlightTypeId.ofNullable(club.getDiscoveryFlightTypeId()),
+                LocationId.ofNullable(club.getHomebaseId()),
                 joinCode);
     }
 }

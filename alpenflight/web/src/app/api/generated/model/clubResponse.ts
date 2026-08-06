@@ -33,6 +33,11 @@ export type ClubResponse = {
      * @pattern ^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
      */
   discoveryFlightTypeId?: string;
+  /**
+     * The club's home airfield — must be one of the club's OWN Locations. Null clears it, which is a valid state: a club without a homebase still accepts discovery-flight registrations, only the reservation is skipped. The update is full-replace, so an omitted key clears the homebase too.
+     * @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     */
+  homebaseId?: string;
   /** Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise. */
   joinCode?: string;
 };

@@ -212,6 +212,75 @@ class ClubsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateClub_roundTrips_the_homebase_and_clears_it_on_omission() {
+        String slug = "homebase-" + suffix();
+        String clubId = readJson(post("/api/v1/clubs",
+                createPayload("Homebase Club", slug, "HMB" + shortSuffix()))).get("id").asText();
+        String homebaseId = createLocation(clubId, "IT_CTL_Homebase");
+
+        Map<String, Object> payload = updatePayload("Homebase Club", slug, false);
+        payload.put("homebaseId", homebaseId);
+        assertThat(readJson(put("/api/v1/clubs/" + clubId, payload)).get("homebaseId").asText())
+                .isEqualTo(homebaseId);
+        assertThat(readJson(get("/api/v1/clubs/" + clubId)).get("homebaseId").asText())
+                .isEqualTo(homebaseId);
+
+        // Full-replace: the omitted key clears the homebase, which is a valid
+        // state — a club without one still accepts discovery registrations.
+        JsonNode afterClear = readJson(
+                put("/api/v1/clubs/" + clubId, updatePayload("Homebase Club", slug, false)));
+        assertThat(afterClear.hasNonNull("homebaseId")).isFalse();
+        assertThat(readJson(get("/api/v1/clubs/" + clubId)).hasNonNull("homebaseId")).isFalse();
+    }
+
+    @Test
+    void updateClub_clubAdmin_cannot_point_its_homebase_at_another_clubs_location() {
+        String slug = "ownhome-" + suffix();
+        String clubId = readJson(post("/api/v1/clubs",
+                createPayload("Own Home Club", slug, "OWN" + shortSuffix()))).get("id").asText();
+        String ownLocationId = createLocation(clubId, "IT_CTL_Own");
+
+        String neighbourSlug = "neighbour-" + suffix();
+        String neighbourId = readJson(post("/api/v1/clubs",
+                createPayload("Neighbour Club", neighbourSlug, "NBR" + shortSuffix())))
+                .get("id").asText();
+        String neighbourLocationId = createLocation(neighbourId, "IT_CTL_Neighbour");
+
+        String adminToken = clubAdminToken(clubId);
+        Map<String, Object> payload = updatePayload("Own Home Club", slug, false);
+        payload.put("homebaseId", ownLocationId);
+        assertThat(putAs(adminToken, "/api/v1/clubs/" + clubId, payload).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        payload.put("homebaseId", neighbourLocationId);
+        ResponseEntity<String> refused = putAs(adminToken, "/api/v1/clubs/" + clubId, payload);
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(refused.getBody()).contains("homebaseId");
+
+        // The refusal is not merely cosmetic: the stored value never moved.
+        assertThat(readJson(get("/api/v1/clubs/" + clubId)).get("homebaseId").asText())
+                .isEqualTo(ownLocationId);
+    }
+
+    @Test
+    void updateClub_sysadmin_cannot_point_a_clubs_homebase_at_its_own_clubs_location() {
+        // The sysadmin's own tenant is the seed club, so a homebase check run on
+        // the CALLER's tenant would accept this and store a cross-tenant FK.
+        String seedLocationId = createLocation(SEED_CLUB_PATH, "IT_CTL_SeedClubOwned");
+
+        String slug = "sysadminhome-" + suffix();
+        String clubId = readJson(post("/api/v1/clubs",
+                createPayload("Sysadmin Home Club", slug, "SAH" + shortSuffix()))).get("id").asText();
+
+        Map<String, Object> payload = updatePayload("Sysadmin Home Club", slug, false);
+        payload.put("homebaseId", seedLocationId);
+        ResponseEntity<String> refused = put("/api/v1/clubs/" + clubId, payload);
+
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(refused.getBody()).contains("homebaseId");
+    }
+
+    @Test
     void updateClub_unknownId_returns_404() {
         // Valid ClubId external form but no Club with that UUID exists.
         ClubId ghost = ClubId.of(new java.util.UUID(0L, 0L));
@@ -271,6 +340,48 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     // ----- helpers -----
 
+    /**
+     * Creates a Location inside {@code clubExternalId} through the production
+     * endpoint. Locations are {@code @TenantId}-scoped with no club id on the
+     * path, so the owning club is decided by the principal the request carries.
+     */
+    private String createLocation(String clubExternalId, String name) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("locationName", name + "_" + shortSuffix());
+        body.put("countryId", SEED_COUNTRY_ID);
+        body.put("locationTypeId", anyLocationTypeId());
+        body.put("isInboundRouteRequired", false);
+        body.put("isOutboundRouteRequired", false);
+        body.put("isFastEntryRecord", false);
+        ResponseEntity<String> created = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/locations"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken(clubExternalId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body),
+                String.class);
+        assertThat(created.getStatusCode()).as(created.getBody()).isEqualTo(HttpStatus.CREATED);
+        return readJson(created).get("id").asText();
+    }
+
+    private String anyLocationTypeId() {
+        return readJson(get("/api/v1/location-types")).get(0).get("id").asText();
+    }
+
+    private String clubAdminToken(String clubExternalId) {
+        return jwts.mint(c -> c
+                .claim("clubId", ClubId.parse(clubExternalId).value().toString())
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
+    }
+
+    private ResponseEntity<String> putAs(String token, String path, Map<String, Object> body) {
+        return rest.exchange(
+                RequestEntity.put(URI.create(path))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body),
+                String.class);
+    }
+
     private ResponseEntity<String> get(String path) {
         return rest.exchange(authed(
                         RequestEntity.get(URI.create(path))).build(),
@@ -304,6 +415,7 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     private static final String SEED_COUNTRY_ID = ClubsTestFixtures.SEED_COUNTRY_ID;
     private static final String SEED_CLUB_STATE_ID = ClubsTestFixtures.SEED_CLUB_STATE_ID;
+    private static final String SEED_CLUB_PATH = "clb-019e30c3-2c00-7001-8000-000000000001";
 
     private static Map<String, Object> createPayload(String name, String slug, String clubKey) {
         Map<String, Object> n = new LinkedHashMap<>();

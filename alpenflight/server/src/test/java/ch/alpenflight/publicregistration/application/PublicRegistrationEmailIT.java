@@ -332,16 +332,16 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     }
 
     private void giveClubAHomebase() {
-        UUID homebaseId = TenantTestContext.runAs(clubId, () -> {
+        TenantTestContext.runAs(clubId, () -> {
             Location home = locations.save(Location.create(
                     HOMEBASE, null, firstCountryId(), firstLocationTypeId(),
                     null, null, null, null, null, null, null, null, null, null, null,
                     false, false, false));
-            return Objects.requireNonNull(home.getId()).value();
+            Club club = clubs.findActiveById(clubId).orElseThrow();
+            club.relocateHomebase(Objects.requireNonNull(home.getId()).value(),
+                    id -> locations.findActiveById(id).isPresent());
+            clubs.save(club);
         });
-        // No aggregate write path for the homebase FK yet (Club.java:413).
-        jdbc.update("UPDATE t_club SET homebase_id = ?::uuid WHERE id = ?::uuid",
-                homebaseId.toString(), clubId.toString());
     }
 
     private void giveClubADoubleSeaterGlider() {

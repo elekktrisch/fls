@@ -24,12 +24,14 @@ import { concatMap, pipe, switchMap, tap } from 'rxjs';
 import { ClubsService } from '@api/generated/clubs/clubs.service';
 import { DiscoveryFlightDaysService } from '@api/generated/discovery-flight-days/discovery-flight-days.service';
 import { FlightTypesService } from '@api/generated/flight-types/flight-types.service';
+import { LocationsService } from '@api/generated/locations/locations.service';
 import type {
   ClubCreateRequest,
   ClubResponse,
   ClubUpdateRequest,
   DiscoveryFlightDayResponse,
   FlightTypeListItem,
+  LocationListItem,
 } from '@api/generated/model';
 
 import { SessionStore } from '@core/session/session.store';
@@ -57,6 +59,7 @@ interface ClubsExtraState {
   discoveryFlightDays: readonly DiscoveryFlightDayResponse[];
   discoveryDayError: string | null;
   flightTypes: readonly FlightTypeListItem[];
+  locations: readonly LocationListItem[];
 }
 
 const initialExtra: ClubsExtraState = {
@@ -69,6 +72,7 @@ const initialExtra: ClubsExtraState = {
   discoveryFlightDays: [],
   discoveryDayError: null,
   flightTypes: [],
+  locations: [],
 };
 
 function withId(c: ClubResponse): Club {
@@ -96,6 +100,7 @@ export const ClubsStore = signalStore(
       clubsApi = inject(ClubsService),
       daysApi = inject(DiscoveryFlightDaysService),
       flightTypesApi = inject(FlightTypesService),
+      locationsApi = inject(LocationsService),
       bus = inject(MUTATION_BUS),
     ) => ({
       select(id: string | null): void {
@@ -260,6 +265,18 @@ export const ClubsStore = signalStore(
           ),
         ),
       ),
+      loadLocations: rxMethod<void>(
+        pipe(
+          switchMap(() =>
+            locationsApi.listLocations().pipe(
+              tapResponse({
+                next: (items: LocationListItem[]) => patchState(store, { locations: items }),
+                error: () => patchState(store, { locations: [] }),
+              }),
+            ),
+          ),
+        ),
+      ),
     }),
   ),
   withHooks({
@@ -280,6 +297,7 @@ export const ClubsStore = signalStore(
             discoveryFlightDays: [],
             discoveryDayError: null,
             flightTypes: [],
+            locations: [],
           });
         }
       });

@@ -254,18 +254,17 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
     }
 
     private UUID giveClubAHomebase() {
-        UUID homebaseId = TenantTestContext.runAs(clubId, () -> {
+        return TenantTestContext.runAs(clubId, () -> {
             Location home = locations.save(Location.create(
                     "IT_DRB_Homebase", null, firstCountryId(), firstLocationTypeId(),
                     null, null, null, null, null, null, null, null, null, null, null,
                     false, false, false));
-            return Objects.requireNonNull(home.getId()).value();
+            UUID homebaseId = Objects.requireNonNull(home.getId()).value();
+            Club club = clubs.findActiveById(clubId).orElseThrow();
+            club.relocateHomebase(homebaseId, id -> locations.findActiveById(id).isPresent());
+            clubs.save(club);
+            return homebaseId;
         });
-        // No aggregate write path for the homebase FK yet (Club.java:413) — the
-        // column is populated by migration only, so the fixture writes it directly.
-        jdbc.update("UPDATE t_club SET homebase_id = ?::uuid WHERE id = ?::uuid",
-                homebaseId.toString(), clubId.toString());
-        return homebaseId;
     }
 
     private UUID giveClubADoubleSeaterGlider() {

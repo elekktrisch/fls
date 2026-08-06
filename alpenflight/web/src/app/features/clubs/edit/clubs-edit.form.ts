@@ -10,6 +10,7 @@ export interface ClubEditFormValue {
   readonly discoveryFlightOperatorEmail: string;
   readonly scenicFlightOperatorEmail: string;
   readonly discoveryFlightTypeId: string | null;
+  readonly homebaseId: string | null;
 }
 
 /**
@@ -28,6 +29,7 @@ export const CLUB_UPDATE_FIELDS = [
   'discoveryFlightOperatorEmail',
   'scenicFlightOperatorEmail',
   'discoveryFlightTypeId',
+  'homebaseId',
 ] as const satisfies readonly (keyof ClubUpdateRequest)[];
 
 type UncoveredUpdateField = Exclude<keyof ClubUpdateRequest, (typeof CLUB_UPDATE_FIELDS)[number]>;
@@ -50,6 +52,9 @@ export function buildClubUpdateRequest(v: ClubEditFormValue): ClubUpdateRequest 
     // An empty string would violate the `ft-<uuid>` pattern, so a cleared
     // flight type is expressed by omitting the key.
     ...(v.discoveryFlightTypeId === null ? {} : { discoveryFlightTypeId: v.discoveryFlightTypeId }),
+    // Same `loc-<uuid>` pattern constraint; the server reads the absent key as
+    // "no homebase", which is the state a club without one is meant to be in.
+    ...(v.homebaseId === null ? {} : { homebaseId: v.homebaseId }),
   };
 }
 
@@ -66,10 +71,11 @@ export function buildClubCreateRequest(v: ClubEditFormValue): ClubCreateRequest 
 }
 
 /**
- * The discovery-flight-day resource and the flight-type catalog are scoped to
- * the caller's own tenant and carry no club id, so both are only meaningful
- * while the club under edit is the principal's own — a sysadmin editing another
- * club would otherwise manage its own club's days under that club's heading.
+ * The discovery-flight-day resource and the flight-type / location catalogs are
+ * scoped to the caller's own tenant and carry no club id, so all three are only
+ * meaningful while the club under edit is the principal's own — a sysadmin
+ * editing another club would otherwise manage its own club's days under that
+ * club's heading and pick its own club's airfield as that club's homebase.
  */
 export function isOwnClub(clubId: string | null, sessionClubId: string | null): boolean {
   return clubId !== null && clubId === sessionClubId;

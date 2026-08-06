@@ -112,9 +112,9 @@ public class Club {
     private @Nullable UUID discoveryFlightTypeId;
 
     // Homebase Location FK (fk_club_homebase_id, ON DELETE SET NULL).
-    // Read-only on this aggregate today: surfaced through GET /api/v1/me
-    // (MeService → MeView.homebaseLocationId) so the SPA can scope LOCATION
-    // canned reports to the club's homebase. No write path exists yet.
+    // Surfaced through GET /api/v1/me (MeService → MeView.homebaseLocationId)
+    // so the SPA can scope LOCATION canned reports to it, and read by the
+    // discovery-flight reservation as the booking's location.
     @Column(name = "homebase_id")
     private @Nullable UUID homebaseId;
 
@@ -301,6 +301,29 @@ public class Club {
     /** Sets (or clears, with null) the flight type a discovery reservation is booked under. */
     public void setDiscoveryFlightType(@Nullable UUID flightTypeId) {
         this.discoveryFlightTypeId = flightTypeId;
+    }
+
+    /**
+     * Sets (or clears, with {@code null}) the club's homebase.
+     *
+     * <p>A homebase must be one of <em>this</em> club's own active Locations.
+     * Pointing it at another club's Location would be a cross-tenant reference,
+     * so ownership is part of the rule rather than a caller-side pre-check — the
+     * {@link #rotateJoinCode} shape: the aggregate owns the rule, the caller
+     * supplies the lookup it cannot perform itself.
+     *
+     * <p>{@code null} is a legitimate value and clears the homebase. A club
+     * without one still accepts discovery-flight registrations; only the
+     * reservation is skipped, with the reason reported to the organiser.
+     *
+     * @param locationId          the new homebase, or null to clear
+     * @param isOwnActiveLocation true iff the id is an active Location of THIS club
+     */
+    public void relocateHomebase(@Nullable UUID locationId, Predicate<UUID> isOwnActiveLocation) {
+        if (locationId != null && !isOwnActiveLocation.test(locationId)) {
+            throw new InvalidClubReferenceException("homebaseId");
+        }
+        this.homebaseId = locationId;
     }
 
     public void softDelete(Clock clock) {
