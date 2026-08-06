@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <!-- Machine-readable build stamp: the deployed-bookmark link-check compares it
      against the page IT published, so a stale CDN copy cannot pass as this run's. -->
-<meta name="proof-generated-at" content="2026-08-06T14:53:36.758Z">
+<meta name="proof-generated-at" content="2026-08-06T19:35:27.863Z">
 <title>AlpenFlight proof — J-17</title>
 <style>
 :root {
@@ -91,24 +91,56 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-17 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-17</span> <span class="status success">2 proofs</span> <span class="summary-counts">2 videos · 0 screenshots</span>
+      <span class="summary-jid">J-17</span> <span class="status success">10 proofs</span> <span class="summary-counts">10 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>246/merge</code> &middot; 2026-08-06T14:53:36.758Z
+      merged journeys' proof lives in their PRs. Generated on <code>246/merge</code> &middot; 2026-08-06T19:35:27.863Z
     </p>
   </header>
 
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3d916720a0d418abe2305381b61e7e88ded93ea7.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-fe06ec823da74cbcfa72a331aa0d592566109df7.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-17 · anonymous front door · a discovery-flight URL carrying no club returns the visitor to the landing page under the real IdP — no Keycloak redirect, no app chrome and no authenticated prefetch on the unauthenticated surface</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0edc1aff6822fd7e4c15a65fe024d3d9e35c5397.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-75ef71f312d21085d8d57ce045e281c1f064b7ac.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-17 · club-admin settings · a real CLUB_ADMINISTRATOR opens its own club, sets the discovery-flight organiser address and publishes a discovery day, and the values survive a reload — while the club catalog and every other club stay 403 for that principal</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-5422dad6335e8d0fdcd46987205b5246cfd08dd6.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-17 · discovery flight · an anonymous submission creates a glider-trainee person in the club, books the all-day double-seater reservation on the chosen day, and mails the candidate</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-c6cb1b66e82234402b61cbfd7c689f6325d9fc81.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-17 · reservation skip · a club with no club-owned double-seater glider still registers the candidate — no reservation is booked and the organiser mail states why</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-2aff6581a40781ffcfbd525afca1291da238d82c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-17 · scenic flight · an anonymous submission creates a non-trainee person in the club, books no reservation, and mails the passenger a confirmation whose phone and remarks render populated</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-72c925b9cb7223c47ceddb400d289f1dd8fdd8fb.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-17 · invoice address differs · a second invoice person is created without the trainee flag and the confirmation goes to the notification email instead of the private one</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-e7c0b181b4f506eef0cb3b5061b32efda5b560e6.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-17 · organiser notification · the club's configured discovery-flight operator address receives the registration notification carrying the reservation outcome</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-65c93620f7c66ddeb2ba37eff32a1434d16504e0.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-17 · club resolution · an unknown club slug is rejected 404 and a club with public registration disabled 403 — neither writes a person row</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-664ee9a91a95edf230702554f858aec90137ebfe.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-17 · anonymous audit · an accepted public registration writes an audit entry attributed to an anonymous actor in the target club, visible to that club's admin at /system/logs</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-3d7617d81f26d8cc5607ff7885f5efb76a107a21.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-17 · abuse guard · repeated anonymous submissions from one source are throttled with 429 + Retry-After, and the throttled attempt writes no person row</span></figcaption>
         </figure>
         </div>
 
