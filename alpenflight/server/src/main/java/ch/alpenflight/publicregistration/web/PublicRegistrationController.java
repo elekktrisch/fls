@@ -3,6 +3,7 @@ package ch.alpenflight.publicregistration.web;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationRequest;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.DiscoveryFlightRegistrationResponse;
+import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.PublicClubResponse;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.ScenicFlightRegistrationRequest;
 import ch.alpenflight.publicregistration.application.PublicRegistrationDtos.ScenicFlightRegistrationResponse;
 import ch.alpenflight.publicregistration.application.PublicRegistrationIntake;
@@ -49,6 +50,17 @@ class PublicRegistrationController {
     PublicRegistrationController(PublicRegistrationIntake intake, ClientIpResolver clientIps) {
         this.intake = intake;
         this.clientIps = clientIps;
+    }
+
+    @Operation(operationId = "getPublicClub",
+            summary = "The public identity of the club a registration URL names.")
+    @ApiResponse(responseCode = "200", description = "The club's display name.")
+    @ApiResponse(responseCode = "403", description = "The club has closed public registration.")
+    @ApiResponse(responseCode = "404", description = "No club is published at that slug.")
+    @GetMapping(path = "/api/v1/public/clubs/{clubSlug}",
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    PublicClubResponse getPublicClub(@PathVariable String clubSlug) {
+        return new PublicClubResponse(intake.publicClub(clubSlug).clubName());
     }
 
     @Operation(operationId = "listPublicDiscoveryFlightDays",

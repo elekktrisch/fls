@@ -1,12 +1,13 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type {
   DiscoveryFlightRegistrationRequest,
   DiscoveryFlightRegistrationResponse,
+  PublicClubResponse,
   PublicRegistrantDetails,
 } from '@api/generated/model';
 import { PublicRegistrationService } from '@api/generated/public-registration/public-registration.service';
@@ -16,7 +17,10 @@ import { DiscoveryFlightStore } from './discovery-flight.store';
 // @mocked: http — store unit test
 
 const CLUB_SLUG = 'alpine-soaring';
+const CLUB_NAME = 'Alpine Soaring';
 const DAYS = ['2099-06-15', '2099-08-25'];
+
+const club: PublicClubResponse = { clubName: CLUB_NAME };
 
 const registrant: PublicRegistrantDetails = {
   firstname: 'Nina',
@@ -30,11 +34,12 @@ const registrant: PublicRegistrantDetails = {
 
 const accepted: DiscoveryFlightRegistrationResponse = {
   registrantPersonId: 'pn-019e30c3-2c00-7001-8000-000000000777',
-  clubName: 'Alpine Soaring',
+  clubName: CLUB_NAME,
   selectedDay: DAYS[0]!,
 };
 
 interface ApiStubs {
+  getPublicClub: (clubSlug: string) => Observable<PublicClubResponse>;
   listPublicDiscoveryFlightDays: (clubSlug: string) => Observable<string[]>;
   submitDiscoveryFlightRegistration: (
     clubSlug: string,
@@ -44,6 +49,10 @@ interface ApiStubs {
 
 function serviceStub(stubs: Partial<ApiStubs>): PublicRegistrationService {
   const api = {
+    getPublicClub: ((clubSlug: string, options?: unknown) => {
+      void options;
+      return (stubs.getPublicClub ?? (() => of(club)))(clubSlug);
+    }) as PublicRegistrationService['getPublicClub'],
     listPublicDiscoveryFlightDays: ((clubSlug: string, options?: unknown) => {
       void options;
       return (stubs.listPublicDiscoveryFlightDays ?? (() => of(DAYS)))(clubSlug);
@@ -103,7 +112,7 @@ describe('DiscoveryFlightStore — club lookup', () => {
 
   it('maps 404 to not-found and 403 to unavailable', () => {
     const notFound = configure(
-      serviceStub({ listPublicDiscoveryFlightDays: () => throwError(() => httpError(404)) }),
+      serviceStub({ getPublicClub: () => throwError(() => httpError(404)) }),
     );
     notFound.loadClub('no-such-club');
     expect(notFound.formState()).toBe('not-found');
@@ -111,21 +120,39 @@ describe('DiscoveryFlightStore — club lookup', () => {
     TestBed.resetTestingModule();
 
     const closed = configure(
-      serviceStub({ listPublicDiscoveryFlightDays: () => throwError(() => httpError(403)) }),
+      serviceStub({ getPublicClub: () => throwError(() => httpError(403)) }),
     );
     closed.loadClub('registration-closed-club');
     expect(closed.formState()).toBe('unavailable');
     expect(closed.days()).toEqual([]);
   });
 
-  it('names the club by its slug until an accepted registration returns the real name', () => {
+  it('closes the form when either half of the lookup rejects the slug', () => {
+    const store = configure(
+      serviceStub({ listPublicDiscoveryFlightDays: () => throwError(() => httpError(403)) }),
+    );
+
+    store.loadClub('registration-closed-club');
+
+    expect(store.formState()).toBe('unavailable');
+  });
+
+  it('heads the form with the club name before the visitor submits anything', () => {
     const store = configure(serviceStub({}));
 
     store.loadClub(CLUB_SLUG);
-    expect(store.clubHeading()).toBe(CLUB_SLUG);
 
-    store.submit(registrant, DAYS[0]!);
-    expect(store.clubHeading()).toBe('Alpine Soaring');
+    expect(store.clubHeading()).toBe(CLUB_NAME);
+    expect(store.registration()).toBeNull();
+  });
+
+  it('falls back to the slug only while the club read is still in flight', () => {
+    const store = configure(serviceStub({ getPublicClub: () => NEVER }));
+
+    store.loadClub(CLUB_SLUG);
+
+    expect(store.clubHeading()).toBe(CLUB_SLUG);
+    expect(store.formState()).toBe('loading');
   });
 });
 

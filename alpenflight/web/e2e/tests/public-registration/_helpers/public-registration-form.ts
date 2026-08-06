@@ -20,6 +20,7 @@ export const scenicFlightPath = (slug: string): string => `/scenic-flight/${slug
  * individually-exempted paths.
  */
 export const publicApi = {
+  club: (slug: string): string => `/api/v1/public/clubs/${slug}`,
   discoveryDays: (slug: string): string => `/api/v1/public/clubs/${slug}/discovery-flight-days`,
   discoverySubmit: (slug: string): string =>
     `/api/v1/public/clubs/${slug}/discovery-flight-registrations`,

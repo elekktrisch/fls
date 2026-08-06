@@ -51,6 +51,12 @@ const SHOT = {
 const CLUB_NAME = 'Alpine Soaring';
 const REGISTRANT_PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000777';
 
+/**
+ * The anonymous club read carries the display name and nothing else — the
+ * server pins that field set, so a fixture with more in it would be fiction.
+ */
+const PUBLIC_CLUB = { clubName: CLUB_NAME };
+
 interface SubmittedRegistration {
   path: string;
   body: Record<string, unknown>;
@@ -66,15 +72,9 @@ function stubPublicRegistrationBackend(page: Page, submissions: SubmittedRegistr
     const req = route.request();
     const path = new URL(req.url()).pathname;
 
-    if (req.method() === 'GET' && path === publicApi.discoveryDays(CLUB_SLUG)) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(DISCOVERY_DAYS),
-      });
-      return;
-    }
-    if (path.includes(`/clubs/${UNKNOWN_CLUB_SLUG}/`)) {
+    // Prefix-matched, not `/clubs/<slug>/`: the club read has no trailing
+    // segment, and a slug the server rejects is rejected on every path under it.
+    if (path.startsWith(publicApi.club(UNKNOWN_CLUB_SLUG))) {
       await route.fulfill({
         status: 404,
         contentType: 'application/problem+json',
@@ -82,11 +82,27 @@ function stubPublicRegistrationBackend(page: Page, submissions: SubmittedRegistr
       });
       return;
     }
-    if (path.includes(`/clubs/${DISABLED_CLUB_SLUG}/`)) {
+    if (path.startsWith(publicApi.club(DISABLED_CLUB_SLUG))) {
       await route.fulfill({
         status: 403,
         contentType: 'application/problem+json',
         body: JSON.stringify({ title: 'Public registration is disabled for this club' }),
+      });
+      return;
+    }
+    if (req.method() === 'GET' && path === publicApi.club(CLUB_SLUG)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(PUBLIC_CLUB),
+      });
+      return;
+    }
+    if (req.method() === 'GET' && path === publicApi.discoveryDays(CLUB_SLUG)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(DISCOVERY_DAYS),
       });
       return;
     }
@@ -120,7 +136,9 @@ test.describe('discovery flight — anonymous registration form', () => {
 
     await expect(page.getByTestId(testId.discoveryPage)).toBeVisible();
     await expect(page.getByTestId(testId.form)).toBeVisible();
-    await expect(page.getByTestId(testId.clubName)).toBeVisible();
+    // The club's real name, not the URL slug — this is the product's public face
+    // and the visitor has submitted nothing yet.
+    await expect(page.getByTestId(testId.clubName)).toHaveText(CLUB_NAME);
     // `showNavBar: false` keeps the app shell off. The no-prefetch half of the
     // AC belongs to real-idp `public-routes.spec.ts`: mock-auth bootstraps a
     // principal on every route, so it cannot be proved here.
@@ -230,7 +248,9 @@ test.describe('discovery flight — anonymous registration form', () => {
   test('[edge] a club that has published no days still renders its form', async ({ page }) => {
     const submissions: SubmittedRegistration[] = [];
     await page.route('**/api/v1/public/**', async (route: Route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      const path = new URL(route.request().url()).pathname;
+      const body = path === publicApi.club(CLUB_SLUG) ? JSON.stringify(PUBLIC_CLUB) : '[]';
+      await route.fulfill({ status: 200, contentType: 'application/json', body });
     });
 
     await page.goto(discoveryFlightPath(CLUB_SLUG));
@@ -259,6 +279,7 @@ test.describe('scenic flight — anonymous registration form', () => {
     await page.goto(scenicFlightPath(CLUB_SLUG));
     await expect(page.getByTestId(testId.scenicPage)).toBeVisible();
     await expect(page.getByTestId(testId.form)).toBeVisible();
+    await expect(page.getByTestId(testId.clubName)).toHaveText(CLUB_NAME);
     await expect(page.locator('af-nav-bar')).toHaveCount(0);
     // The scenic DTO is the discovery one minus the day: no picker may render,
     // or the two flows have silently converged.
@@ -291,6 +312,11 @@ test.describe('scenic flight — anonymous registration form', () => {
 });
 
 test.describe('public registration — club resolution + abuse guard surfaces', () => {
+  /**
+   * Both flows adjudicate the slug on the anonymous club read, BEFORE any field
+   * renders — asserted by the absence of the form, so a visitor never fills one
+   * in only to be told on submit that the club is not available.
+   */
   test('[key-error] an unknown club slug renders the not-found panel and submits nothing', async ({
     page,
   }, testInfo) => {
@@ -302,6 +328,11 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
 
     await expect(page.getByTestId(testId.notFound)).toBeVisible();
     await page.screenshot({ path: SHOT.notFound, fullPage: true });
+    await expect(page.getByTestId(testId.form)).toHaveCount(0);
+
+    await page.goto(scenicFlightPath(UNKNOWN_CLUB_SLUG));
+
+    await expect(page.getByTestId(testId.notFound)).toBeVisible();
     await expect(page.getByTestId(testId.form)).toHaveCount(0);
     expect(submissions).toEqual([]);
   });
@@ -318,6 +349,11 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
     await expect(page.getByTestId(testId.unavailable)).toBeVisible();
     await page.screenshot({ path: SHOT.unavailable, fullPage: true });
     await expect(page.getByTestId(testId.form)).toHaveCount(0);
+
+    await page.goto(scenicFlightPath(DISABLED_CLUB_SLUG));
+
+    await expect(page.getByTestId(testId.unavailable)).toBeVisible();
+    await expect(page.getByTestId(testId.form)).toHaveCount(0);
     expect(submissions).toEqual([]);
   });
 
@@ -328,10 +364,14 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
     await page.route('**/api/v1/public/**', async (route: Route) => {
       const req = route.request();
       if (req.method() === 'GET') {
+        const path = new URL(req.url()).pathname;
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(DISCOVERY_DAYS),
+          body:
+            path === publicApi.club(CLUB_SLUG)
+              ? JSON.stringify(PUBLIC_CLUB)
+              : JSON.stringify(DISCOVERY_DAYS),
         });
         return;
       }

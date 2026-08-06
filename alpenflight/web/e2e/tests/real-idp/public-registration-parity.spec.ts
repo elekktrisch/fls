@@ -376,6 +376,20 @@ test.describe('public registration — error contract + abuse guard', () => {
     watchConsoleErrors(page, testInfo);
 
     try {
+      // The club read carries the same contract as the writes, and is what both
+      // forms adjudicate the slug on before rendering a field.
+      expect((await page.request.get(`/api/v1/public/clubs/${UNKNOWN_CLUB_SLUG}`)).status()).toBe(
+        404,
+      );
+      expect((await page.request.get(`/api/v1/public/clubs/${DISABLED_CLUB_SLUG}`)).status()).toBe(
+        403,
+      );
+      const openClub = await page.request.get(`/api/v1/public/clubs/${PROOF_CLUB_SLUG}`);
+      expect(openClub.status()).toBe(200);
+      // The exposed field set is pinned server-side; assert it on the deployed
+      // stack too, so a widening cannot reach an anonymous visitor unnoticed.
+      expect(Object.keys((await openClub.json()) as Record<string, unknown>)).toEqual(['clubName']);
+
       const unknown = await page.request.post(
         `/api/v1/public/clubs/${UNKNOWN_CLUB_SLUG}/discovery-flight-registrations`,
         { data: registrant() },
@@ -388,10 +402,16 @@ test.describe('public registration — error contract + abuse guard', () => {
       );
       expect(disabled.status()).toBe(403);
 
-      await page.goto(discoveryFlightPath(UNKNOWN_CLUB_SLUG));
-      await expect(page.getByTestId(testId.notFound)).toBeVisible();
-      await page.goto(discoveryFlightPath(DISABLED_CLUB_SLUG));
-      await expect(page.getByTestId(testId.unavailable)).toBeVisible();
+      // No form is offered on either flow: the visitor is told before typing.
+      for (const path of [discoveryFlightPath, scenicFlightPath]) {
+        await page.goto(path(UNKNOWN_CLUB_SLUG));
+        await expect(page.getByTestId(testId.notFound)).toBeVisible();
+        await expect(page.getByTestId(testId.form)).toHaveCount(0);
+
+        await page.goto(path(DISABLED_CLUB_SLUG));
+        await expect(page.getByTestId(testId.unavailable)).toBeVisible();
+        await expect(page.getByTestId(testId.form)).toHaveCount(0);
+      }
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

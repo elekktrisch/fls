@@ -3,10 +3,11 @@ import { computed, inject } from '@angular/core';
 import { tapResponse } from '@ngrx/operators';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { forkJoin, pipe, switchMap, tap } from 'rxjs';
 
 import type {
   DiscoveryFlightRegistrationResponse,
+  PublicClubResponse,
   PublicRegistrantDetails,
 } from '@api/generated/model';
 import { PublicRegistrationService } from '@api/generated/public-registration/public-registration.service';
@@ -14,13 +15,16 @@ import { PublicRegistrationService } from '@api/generated/public-registration/pu
 import type { PublicSubmitFailure } from './public-form-shell.component';
 import {
   type ClubResolution,
-  clubResolutionFor,
+  clubHeadingFor,
+  clubRead,
+  clubReadRejection,
   publicFormState,
   submitFailureFor,
 } from './public-form-state';
 
 interface DiscoveryFlightState {
   clubSlug: string;
+  clubName: string | null;
   days: readonly string[];
   resolution: ClubResolution;
   submitting: boolean;
@@ -31,6 +35,7 @@ interface DiscoveryFlightState {
 
 const initial: DiscoveryFlightState = {
   clubSlug: '',
+  clubName: null,
   days: [],
   resolution: 'loading',
   submitting: false,
@@ -49,20 +54,16 @@ interface SubmitArgs {
  * The anonymous discovery-flight page's state. Feature-scoped (provided by the
  * page, not `providedIn: 'root'`): its lifetime is one visit to one club's form.
  *
- * The published-days read doubles as the club lookup — it is the only anonymous
- * read of a club, and it carries the same 404 / 403 contract as the submit, so
- * a slug that cannot be registered against never renders a form.
+ * The club read and the published-days read are issued together and adjudicated
+ * as one: both carry the same 404 / 403 contract as the submit, so a slug that
+ * cannot be registered against never renders a form, and the one that can heads
+ * it with the club's real name rather than the URL slug.
  */
 export const DiscoveryFlightStore = signalStore(
   withState<DiscoveryFlightState>(initial),
   withComputed((store) => ({
     formState: computed(() => publicFormState(store.resolution(), store.registration() !== null)),
-    /**
-     * There is no anonymous read of a club's name — the slug is the only thing
-     * the visitor's URL identifies it by until the accepted registration comes
-     * back carrying the real name.
-     */
-    clubHeading: computed(() => store.registration()?.clubName ?? store.clubSlug()),
+    clubHeading: computed(() => clubHeadingFor(store.clubName(), store.clubSlug())),
   })),
   withMethods((store, api = inject(PublicRegistrationService)) => {
     const submit = rxMethod<SubmitArgs>(
@@ -88,13 +89,17 @@ export const DiscoveryFlightStore = signalStore(
             patchState(store, { ...initial, clubSlug, resolution: 'loading' }),
           ),
           switchMap((clubSlug: string) =>
-            api.listPublicDiscoveryFlightDays(clubSlug).pipe(
+            forkJoin({
+              club: api.getPublicClub(clubSlug),
+              days: api.listPublicDiscoveryFlightDays(clubSlug),
+            }).pipe(
               tapResponse({
-                // An empty list is a club that has published nothing yet, not a
-                // failure: the form still renders and the picker says so.
-                next: (days: string[]) => patchState(store, { days, resolution: 'ready' }),
+                // An empty day list is a club that has published nothing yet, not
+                // a failure: the form still renders and the picker says so.
+                next: ({ club, days }: { club: PublicClubResponse; days: string[] }) =>
+                  patchState(store, { days, ...clubRead(club) }),
                 error: (e: HttpErrorResponse) =>
-                  patchState(store, { days: [], resolution: clubResolutionFor(e.status) }),
+                  patchState(store, { days: [], ...clubReadRejection(e) }),
               }),
             ),
           ),

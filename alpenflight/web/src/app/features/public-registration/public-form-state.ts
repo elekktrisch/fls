@@ -1,5 +1,7 @@
 import type { HttpErrorResponse } from '@angular/common/http';
 
+import type { PublicClubResponse } from '@api/generated/model';
+
 import type { PublicFormState, PublicSubmitFailure } from './public-form-shell.component';
 
 /**
@@ -20,6 +22,32 @@ export type ClubResolution = 'loading' | 'ready' | 'not-found' | 'unavailable';
  */
 export function clubResolutionFor(status: number): ClubResolution {
   return status === 404 ? 'not-found' : 'unavailable';
+}
+
+/**
+ * What the anonymous club read turned into: the name to head the form with, or
+ * the reason there is no form to head. Both flows read the club before rendering
+ * anything, so a bad or disabled slug is answered before a visitor types.
+ */
+export interface ClubReadOutcome {
+  readonly clubName: string | null;
+  readonly resolution: ClubResolution;
+}
+
+export function clubRead(club: PublicClubResponse): ClubReadOutcome {
+  return { clubName: club.clubName ?? null, resolution: 'ready' };
+}
+
+export function clubReadRejection(error: HttpErrorResponse): ClubReadOutcome {
+  return { clubName: null, resolution: clubResolutionFor(error.status) };
+}
+
+/**
+ * The URL slug stands in for the club only while its name is still being read —
+ * a slug where a club name belongs is what this public screen must not settle on.
+ */
+export function clubHeadingFor(clubName: string | null, clubSlug: string): string {
+  return clubName ?? clubSlug;
 }
 
 /** A rejection that leaves the form open for another attempt. */

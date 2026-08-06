@@ -52,7 +52,7 @@ export class ScenicFlightPageComponent {
   protected readonly formInvalid = registrantFormInvalid(this.#form);
 
   constructor() {
-    this.store.openClub(this.#route.paramMap.pipe(map((params) => params.get('clubSlug') ?? '')));
+    this.store.loadClub(this.#route.paramMap.pipe(map((params) => params.get('clubSlug') ?? '')));
   }
 
   protected onSubmit(): void {

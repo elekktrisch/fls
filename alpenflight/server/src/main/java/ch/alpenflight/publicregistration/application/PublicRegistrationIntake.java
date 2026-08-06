@@ -58,6 +58,23 @@ public class PublicRegistrationIntake {
     }
 
     /**
+     * The club an anonymous registration URL names, or the 404 / 403 that says it
+     * cannot be registered against. Opens no tenant window — resolution reads the
+     * tenant root itself, and nothing tenant-scoped is involved.
+     *
+     * <p>Unguarded, like {@link #bookableDiscoveryDays}: this is the first call
+     * every visit makes, so charging it to the submit window would let a club's
+     * open day behind one NAT spend the budget those visitors' submissions then
+     * need. It also adds no enumeration reach — the same slug oracle already
+     * exists on the days read and on both submits, and a club that enabled public
+     * registration published its existence deliberately. Blanket rate limiting of
+     * anonymous reads belongs at the edge, not in the per-club submit budget.
+     */
+    public PublicClub publicClub(String clubSlug) {
+        return resolver.resolve(clubSlug);
+    }
+
+    /**
      * The days the club's picker may offer, ascending. A club that has published
      * none gets an empty list rather than an error — an empty picker is a valid
      * state of a club that has public registration open

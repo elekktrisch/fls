@@ -170,6 +170,7 @@ export * from './planningDaySearchFilter';
 export * from './planningDayUpdateRequest';
 export * from './planningDayValidateRequest';
 export * from './planningDayValidationResult';
+export * from './publicClubResponse';
 export * from './publicRegistrantDetails';
 export * from './recipient';
 export * from './reservationValidationResult';

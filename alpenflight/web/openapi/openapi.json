@@ -4259,6 +4259,53 @@
         }
       }
     },
+    "/api/v1/public/clubs/{clubSlug}" : {
+      "get" : {
+        "tags" : [ "public-registration" ],
+        "summary" : "The public identity of the club a registration URL names.",
+        "operationId" : "getPublicClub",
+        "parameters" : [ {
+          "name" : "clubSlug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The club's display name.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PublicClubResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "The club has closed public registration.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PublicClubResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No club is published at that slug.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PublicClubResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/public/clubs/{clubSlug}/discovery-flight-days" : {
       "get" : {
         "tags" : [ "public-registration" ],
@@ -9964,6 +10011,15 @@
           }
         },
         "required" : [ "enabled", "friendlyName", "id", "invitePending", "notificationEmail", "roles", "username" ]
+      },
+      "PublicClubResponse" : {
+        "type" : "object",
+        "description" : "The public identity of a club that accepts anonymous registration.",
+        "properties" : {
+          "clubName" : {
+            "type" : "string"
+          }
+        }
       },
       "PersonListItem" : {
         "type" : "object",

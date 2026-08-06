@@ -6,6 +6,7 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import type {
+  PublicClubResponse,
   PublicRegistrantDetails,
   ScenicFlightRegistrationResponse,
 } from '@api/generated/model';
@@ -14,6 +15,9 @@ import { PublicRegistrationService } from '@api/generated/public-registration/pu
 import type { PublicSubmitFailure } from './public-form-shell.component';
 import {
   type ClubResolution,
+  clubHeadingFor,
+  clubRead,
+  clubReadRejection,
   clubResolutionFor,
   publicFormState,
   rejectsTheClub,
@@ -22,6 +26,7 @@ import {
 
 interface ScenicFlightState {
   clubSlug: string;
+  clubName: string | null;
   resolution: ClubResolution;
   submitting: boolean;
   registration: ScenicFlightRegistrationResponse | null;
@@ -29,10 +34,10 @@ interface ScenicFlightState {
   retryAfterSeconds: number;
 }
 
-/** Scenic publishes no days, so there is nothing to wait for before the form. */
 const initial: ScenicFlightState = {
   clubSlug: '',
-  resolution: 'ready',
+  clubName: null,
+  resolution: 'loading',
   submitting: false,
   registration: null,
   failure: null,
@@ -45,10 +50,10 @@ interface SubmitArgs {
 }
 
 /**
- * Scenic has no anonymous read to adjudicate the slug with, so the submit
- * response is the first and only place it is judged: a 404 / 403 closes the form
- * with the club-resolution panel instead of offering a retry the server would
- * refuse again, while everything else leaves the form open.
+ * The club read already adjudicated the slug, but a club can close public
+ * registration while a visitor is filling the form in — so a 404 / 403 on submit
+ * still closes it with the club-resolution panel rather than offering a retry the
+ * server would refuse again. Everything else leaves the form open.
  */
 function scenicRejection(error: HttpErrorResponse): Partial<ScenicFlightState> {
   return rejectsTheClub(error.status)
@@ -68,12 +73,7 @@ export const ScenicFlightStore = signalStore(
   withState<ScenicFlightState>(initial),
   withComputed((store) => ({
     formState: computed(() => publicFormState(store.resolution(), store.registration() !== null)),
-    /**
-     * There is no anonymous read of a club's name — the slug is the only thing
-     * the visitor's URL identifies it by until the accepted registration comes
-     * back carrying the real name.
-     */
-    clubHeading: computed(() => store.registration()?.clubName ?? store.clubSlug()),
+    clubHeading: computed(() => clubHeadingFor(store.clubName(), store.clubSlug())),
   })),
   withMethods((store, api = inject(PublicRegistrationService)) => {
     const submit = rxMethod<SubmitArgs>(
@@ -93,8 +93,18 @@ export const ScenicFlightStore = signalStore(
     );
 
     return {
-      openClub: rxMethod<string>(
-        pipe(tap((clubSlug: string) => patchState(store, { ...initial, clubSlug }))),
+      loadClub: rxMethod<string>(
+        pipe(
+          tap((clubSlug: string) => patchState(store, { ...initial, clubSlug })),
+          switchMap((clubSlug: string) =>
+            api.getPublicClub(clubSlug).pipe(
+              tapResponse({
+                next: (club: PublicClubResponse) => patchState(store, clubRead(club)),
+                error: (e: HttpErrorResponse) => patchState(store, clubReadRejection(e)),
+              }),
+            ),
+          ),
+        ),
       ),
       submit(registrant: PublicRegistrantDetails): void {
         submit({ clubSlug: store.clubSlug(), registrant });

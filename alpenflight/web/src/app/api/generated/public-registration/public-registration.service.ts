@@ -28,6 +28,7 @@ import {
 import type {
   DiscoveryFlightRegistrationRequest,
   DiscoveryFlightRegistrationResponse,
+  PublicClubResponse,
   ScenicFlightRegistrationRequest,
   ScenicFlightRegistrationResponse
 } from '../model';
@@ -155,6 +156,39 @@ export class PublicRegistrationService {
     return this.http.post<TData>(
       `/api/v1/public/clubs/${clubSlug}/discovery-flight-registrations`,
       discoveryFlightRegistrationRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary The public identity of the club a registration URL names.
+ */
+ getPublicClub<TData = PublicClubResponse>(clubSlug: string, options?: HttpClientBodyOptions): Observable<TData>;
+ getPublicClub<TData = PublicClubResponse>(clubSlug: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getPublicClub<TData = PublicClubResponse>(clubSlug: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getPublicClub<TData = PublicClubResponse>(
+    clubSlug: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/public/clubs/${clubSlug}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

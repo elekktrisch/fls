@@ -1,10 +1,11 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  PublicClubResponse,
   PublicRegistrantDetails,
   ScenicFlightRegistrationRequest,
   ScenicFlightRegistrationResponse,
@@ -16,6 +17,9 @@ import { ScenicFlightStore } from './scenic-flight.store';
 // @mocked: http — store unit test
 
 const CLUB_SLUG = 'alpine-soaring';
+const CLUB_NAME = 'Alpine Soaring';
+
+const club: PublicClubResponse = { clubName: CLUB_NAME };
 
 const registrant: PublicRegistrantDetails = {
   firstname: 'Livia',
@@ -29,10 +33,11 @@ const registrant: PublicRegistrantDetails = {
 
 const accepted: ScenicFlightRegistrationResponse = {
   registrantPersonId: 'pn-019e30c3-2c00-7001-8000-000000000778',
-  clubName: 'Alpine Soaring',
+  clubName: CLUB_NAME,
 };
 
 interface ApiStubs {
+  getPublicClub: (clubSlug: string) => Observable<PublicClubResponse>;
   submitScenicFlightRegistration: (
     clubSlug: string,
     body: ScenicFlightRegistrationRequest,
@@ -43,6 +48,10 @@ function serviceStub(stubs: Partial<ApiStubs>, listDays = vi.fn()): PublicRegist
   const api = {
     listPublicDiscoveryFlightDays:
       listDays as PublicRegistrationService['listPublicDiscoveryFlightDays'],
+    getPublicClub: ((clubSlug: string, options?: unknown) => {
+      void options;
+      return (stubs.getPublicClub ?? (() => of(club)))(clubSlug);
+    }) as PublicRegistrationService['getPublicClub'],
     submitScenicFlightRegistration: ((
       clubSlug: string,
       body: ScenicFlightRegistrationRequest,
@@ -77,24 +86,43 @@ function httpError(status: number, headers?: Record<string, string>): HttpErrorR
 describe('ScenicFlightStore — opening the form', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  it('opens the form without reading anything: scenic has no day to publish', () => {
+  it('reads the club alone: scenic publishes no days, so it asks for none', () => {
     const listDays = vi.fn();
     const store = configure(serviceStub({}, listDays));
 
-    store.openClub(CLUB_SLUG);
+    store.loadClub(CLUB_SLUG);
 
     expect(store.formState()).toBe('ready');
+    expect(store.clubHeading()).toBe(CLUB_NAME);
     expect(listDays).not.toHaveBeenCalled();
   });
 
-  it('names the club by its slug until an accepted registration returns the real name', () => {
-    const store = configure(serviceStub({}));
+  it('adjudicates the slug before the form: 404 is not-found, 403 unavailable', () => {
+    const unknown = configure(
+      serviceStub({ getPublicClub: () => throwError(() => httpError(404)) }),
+    );
+    unknown.loadClub('no-such-club');
+    expect(unknown.formState()).toBe('not-found');
+    // Nothing was submitted to learn that — the read answered it.
+    expect(unknown.registration()).toBeNull();
 
-    store.openClub(CLUB_SLUG);
+    TestBed.resetTestingModule();
+
+    const closed = configure(
+      serviceStub({ getPublicClub: () => throwError(() => httpError(403)) }),
+    );
+    closed.loadClub('registration-closed-club');
+    expect(closed.formState()).toBe('unavailable');
+    expect(closed.registration()).toBeNull();
+  });
+
+  it('falls back to the slug only while the club read is still in flight', () => {
+    const store = configure(serviceStub({ getPublicClub: () => NEVER }));
+
+    store.loadClub(CLUB_SLUG);
+
     expect(store.clubHeading()).toBe(CLUB_SLUG);
-
-    store.submit(registrant);
-    expect(store.clubHeading()).toBe('Alpine Soaring');
+    expect(store.formState()).toBe('loading');
   });
 });
 
@@ -114,7 +142,7 @@ describe('ScenicFlightStore — submit', () => {
       }),
     );
 
-    store.openClub(CLUB_SLUG);
+    store.loadClub(CLUB_SLUG);
     store.submit(registrant);
 
     expect(sentSlug).toBe(CLUB_SLUG);
@@ -128,11 +156,11 @@ describe('ScenicFlightStore — submit', () => {
     expect(store.failure()).toBeNull();
   });
 
-  it('closes the form on the statuses that adjudicate the slug itself', () => {
+  it('closes a form the club stopped accepting while it was being filled in', () => {
     const unknown = configure(
       serviceStub({ submitScenicFlightRegistration: () => throwError(() => httpError(404)) }),
     );
-    unknown.openClub('no-such-club');
+    unknown.loadClub('no-such-club');
     unknown.submit(registrant);
     expect(unknown.formState()).toBe('not-found');
     // Not a retryable failure: re-submitting would be refused the same way.
@@ -143,7 +171,7 @@ describe('ScenicFlightStore — submit', () => {
     const closed = configure(
       serviceStub({ submitScenicFlightRegistration: () => throwError(() => httpError(403)) }),
     );
-    closed.openClub('registration-closed-club');
+    closed.loadClub('registration-closed-club');
     closed.submit(registrant);
     expect(closed.formState()).toBe('unavailable');
     expect(closed.failure()).toBeNull();
@@ -157,7 +185,7 @@ describe('ScenicFlightStore — submit', () => {
       }),
     );
 
-    store.openClub(CLUB_SLUG);
+    store.loadClub(CLUB_SLUG);
     store.submit(registrant);
 
     expect(store.failure()).toBe('throttled');
@@ -171,7 +199,7 @@ describe('ScenicFlightStore — submit', () => {
       serviceStub({ submitScenicFlightRegistration: () => throwError(() => httpError(500)) }),
     );
 
-    store.openClub(CLUB_SLUG);
+    store.loadClub(CLUB_SLUG);
     store.submit(registrant);
 
     expect(store.failure()).toBe('failed');

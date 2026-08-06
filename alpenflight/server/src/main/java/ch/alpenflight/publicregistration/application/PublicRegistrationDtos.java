@@ -22,6 +22,18 @@ public final class PublicRegistrationDtos {
 
     private PublicRegistrationDtos() {}
 
+    /**
+     * What an anonymous form may learn about the club its URL names. Opting into
+     * public registration publishes the club's NAME — a visitor has to be told
+     * whose form they are filling in — and nothing else: the aggregate behind it
+     * also carries the join code, the operator mail recipients, the club key, the
+     * homebase and the deployment id, none of which a prospective guest has any
+     * business reading. This one-field projection is what keeps a later widening
+     * of {@code Club} from reaching the anonymous surface by default.
+     */
+    @Schema(description = "The public identity of a club that accepts anonymous registration.")
+    public record PublicClubResponse(String clubName) {}
+
     @Schema(description = "A discovery-flight submission: who registers, and for which "
             + "published day.")
     public record DiscoveryFlightRegistrationRequest(
