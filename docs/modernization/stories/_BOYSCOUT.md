@@ -57,19 +57,6 @@ stragglers each ceremony so the file shrinks.
   the cell a username/display-name (or at minimum fall back to `actorKeycloakSub`) so an audit reader can tell
   who acted. *(seam: `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts:187`)*
 
-## Pending (filed by /do-ship J-15 gate, 2026-08-02)
-
-- **[J-15-MAILPIT-REPORT]** The J-15 AC "Run now → Daily Report → Mailpit email" is the one AC not proven as
-  written. The mail itself IS proven — `DailyReportJobIT` asserts the per-person report against the captured
-  outbox including the opt-out negative (two people on one flight, only the `receiveFlightReports` member is
-  mailed) — but the real-idp gate never drives it through Mailpit, so the console-triggered path is unasserted.
-  Closing it needs a **clean-seed floor**, which is why it was deferred rather than bodged: an opted-in pilot
-  (`PersonClub.receiveFlightReports = true`) with an unreported flight inside the job's 2-day window, seeded
-  through production code (ADR 0027 §3), then a `waitForMessageWithSubject('Flugrapport')` assertion in
-  `jobs-console-parity.spec.ts` after the Run-now click. Seed it in the spec rather than the shared clean seed
-  so no other journey's gate inherits a surprise mail. Rides the next journey that touches the jobs console or
-  the mail path. *(seam: `e2e/tests/real-idp/jobs-console-parity.spec.ts` + its seed)*
-
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
 - **[LEGACY-J2-READINESS]** `e2e/tests/flights/flights-parity-J2.spec.ts` is `@quarantine-legacy`'d (grep-inverted
