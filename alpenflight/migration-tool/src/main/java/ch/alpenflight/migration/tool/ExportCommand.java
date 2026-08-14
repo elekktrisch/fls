@@ -24,20 +24,6 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-/**
- * The standalone legacy-FLS export entry point (S-139). Reads a legacy MSSQL
- * instance read-only and emits an ALPF-encrypted migration bundle the server
- * decrypts byte-for-byte.
- *
- * <p>Entity selection is driven off {@link KnownMappers#all()} ∩
- * {@link MapperLegacyBindings#isRegistered}: the jar exports exactly the
- * entities the SELECT registry binds today (5 in the slice) and grows
- * automatically as S-187a extends the registry — no code change here.
- *
- * <p>The DB password is NEVER an argv option (process listing leak). It is
- * resolved, in order, from {@code --password-env}'s named env var, an
- * interactive console prompt, or stdin.
- */
 @Command(
         name = "alpenflight-export",
         mixinStandardHelpOptions = true,
@@ -94,7 +80,6 @@ public final class ExportCommand implements Callable<Integer> {
                             + "MapperLegacyBindings — nothing to export.");
         }
 
-        // Validate the public key BEFORE connecting (story AC).
         HandshakeFile handshake = null;
         if (!dryRun) {
             if (handshakeFile == null) {
@@ -156,7 +141,6 @@ public final class ExportCommand implements Callable<Integer> {
         }
     }
 
-    /** {@link KnownMappers} ∩ registered bindings, in registry order. */
     static List<EntityType> registeredEntities() {
         List<EntityType> entities = new ArrayList<>();
         for (Mapper mapper : KnownMappers.all()) {
@@ -187,7 +171,6 @@ public final class ExportCommand implements Callable<Integer> {
                 return entered;
             }
         }
-        // Non-interactive (piped) stdin fallback — read one line.
         try {
             BufferedReader stdin = new BufferedReader(
                     new InputStreamReader(System.in, StandardCharsets.UTF_8));
@@ -196,7 +179,6 @@ public final class ExportCommand implements Callable<Integer> {
                 return line.toCharArray();
             }
         } catch (IOException ignored) {
-            // fall through to the error below
         }
         throw new ExportException(ExitCode.USAGE,
                 "No DB password available: set $" + passwordEnv
