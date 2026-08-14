@@ -24,6 +24,9 @@ public final class AircraftMapper implements Mapper {
 
     private static final int SPOT_LINK_ECHO_LIMIT = 32;
 
+    private static final char FIRST_PRINTABLE_ASCII = 0x20;
+    private static final char ASCII_DELETE = 0x7f;
+
     static final String LEGACY_GUID = "legacy_guid";
     static final String MANAGING_CLUB_ID = "managing_club_id";
     static final String OWNER_CLUB_ID = "owner_club_id";
@@ -185,7 +188,7 @@ public final class AircraftMapper implements Mapper {
                     + ": Aircraft.spot_link must start with 'https://' — "
                     + "producer-side hygiene fell through, would otherwise trip "
                     + "ck_aircraft_spot_link_https mid-COPY. Got prefix: "
-                    + safeEchoFragment(spotLink));
+                    + loggableSpotLinkPrefix(spotLink));
         }
         int position = 1;
         target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
@@ -226,12 +229,15 @@ public final class AircraftMapper implements Mapper {
         target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
     }
 
-    private static String safeEchoFragment(String spotLink) {
+    private static String loggableSpotLinkPrefix(String spotLink) {
         int limit = Math.min(SPOT_LINK_ECHO_LIMIT, spotLink.length());
         StringBuilder builder = new StringBuilder(limit);
         for (int index = 0; index < limit; index++) {
             char character = spotLink.charAt(index);
-            builder.append(character < 0x20 || character == 0x7f ? '?' : character);
+            builder.append(
+                    character < FIRST_PRINTABLE_ASCII || character == ASCII_DELETE
+                            ? '?'
+                            : character);
         }
         return builder.toString();
     }

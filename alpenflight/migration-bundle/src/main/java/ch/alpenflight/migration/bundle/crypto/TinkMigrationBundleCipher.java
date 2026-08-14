@@ -33,6 +33,7 @@ public class TinkMigrationBundleCipher implements MigrationBundleCipher {
     private static final int AES_KEY_BYTES = 32;
     private static final int RSA_KEY_BITS = 4096;
     private static final int CIPHERTEXT_SEGMENT_BYTES = 4096;
+    private static final int UUID_BYTES = 16;
     private static final String RSA_OAEP_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
 
     static {
@@ -69,7 +70,7 @@ public class TinkMigrationBundleCipher implements MigrationBundleCipher {
     public InputStream newDecryptingStream(SecureBytes sessionKey, UUID uploadId, InputStream ciphertextBody) {
         try {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
-            return streamingAead.newDecryptingStream(ciphertextBody, uuidBytes(uploadId));
+            return streamingAead.newDecryptingStream(ciphertextBody, associatedDataFor(uploadId));
         } catch (GeneralSecurityException | IOException e) {
             throw new BundleCipherException(
                     BundleCipherException.Failure.AEAD_TAG_FAILED,
@@ -81,7 +82,7 @@ public class TinkMigrationBundleCipher implements MigrationBundleCipher {
     public OutputStream newEncryptingStream(SecureBytes sessionKey, UUID uploadId, OutputStream ciphertextSink) {
         try {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
-            return streamingAead.newEncryptingStream(ciphertextSink, uuidBytes(uploadId));
+            return streamingAead.newEncryptingStream(ciphertextSink, associatedDataFor(uploadId));
         } catch (GeneralSecurityException | IOException e) {
             throw new BundleCipherException(
                     BundleCipherException.Failure.INTERNAL,
@@ -133,10 +134,10 @@ public class TinkMigrationBundleCipher implements MigrationBundleCipher {
                 "SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT);
     }
 
-    private static byte[] uuidBytes(UUID id) {
-        ByteBuffer buf = ByteBuffer.allocate(16);
-        buf.putLong(id.getMostSignificantBits());
-        buf.putLong(id.getLeastSignificantBits());
+    private static byte[] associatedDataFor(UUID uploadId) {
+        ByteBuffer buf = ByteBuffer.allocate(UUID_BYTES);
+        buf.putLong(uploadId.getMostSignificantBits());
+        buf.putLong(uploadId.getLeastSignificantBits());
         return buf.array();
     }
 }

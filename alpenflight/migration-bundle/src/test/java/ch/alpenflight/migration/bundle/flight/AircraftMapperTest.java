@@ -101,7 +101,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void rejectsNonHttpsSpotLinkAtReadEntity() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.put(AircraftMapper.SPOT_LINK, "http://insecure.example/aircraft");
         assertThatThrownBy(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .hasMessageContaining(AircraftMapper.NOT_HTTPS_SPOT_LINK_ERROR)
@@ -110,7 +110,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void acceptsHttpsSpotLink() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.put(AircraftMapper.SPOT_LINK, "https://findmespot.com/abc");
         assertThatCode(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .doesNotThrowAnyException();
@@ -118,13 +118,13 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void acceptsNullSpotLink() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.putNull(AircraftMapper.SPOT_LINK);
         assertThatCode(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .doesNotThrowAnyException();
     }
 
-    private ObjectNode baseAircraftJson() {
+    private ObjectNode aircraftJsonWithEveryColumnPresent() {
         Faker faker = seededFaker();
         ObjectNode root = new ObjectMapper().createObjectNode();
         String uuid = randomUuidString(faker);

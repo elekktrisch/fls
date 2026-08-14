@@ -63,6 +63,8 @@ public final class AuditLogMapper implements Mapper {
 
     static final String LEGACY_ORPHAN_ACTOR_ID = "legacy_orphan_actor_id";
 
+    private static final int JSONB_SQL_TYPE = Types.OTHER;
+
     private static final String[] COLUMNS = {
             LEGACY_GUID, OCCURRED_AT,
             ACTOR_USER_ID, ACTOR_KEYCLOAK_SUB, TENANT_CLUB_ID,
@@ -136,8 +138,8 @@ public final class AuditLogMapper implements Mapper {
         target.setString(position++, source.get(TARGET_ENTITY_TYPE).asText());
         target.setObject(position++, Coercions.readUuidOrNull(source, TARGET_ENTITY_ID));
         target.setString(position++, Coercions.readStringOrNull(source, REQUEST_ID));
-        target.setNull(position++, Types.OTHER);
-        target.setNull(position++, Types.OTHER);
+        target.setNull(position++, JSONB_SQL_TYPE);
+        target.setNull(position++, JSONB_SQL_TYPE);
         target.setObject(position++, source.get(FAILED).asBoolean());
         target.setObject(position++, source.get(SYSTEM_ACTOR).asBoolean());
         Coercions.bindShortOrNull(target, position++, source, HTTP_STATUS);

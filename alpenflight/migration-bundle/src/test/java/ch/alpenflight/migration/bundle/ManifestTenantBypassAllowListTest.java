@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 class ManifestTenantBypassAllowListTest {
 
     @Test
-    void exposesExactlyTheElevenCrossTenantEntities() {
+    void pinsTheExactCrossTenantEntitySetSoAnyChangeIsADeliberateEdit() {
         assertThat(Manifest.tenantBypassAllowList()).containsExactlyInAnyOrder(
                 EntityType.USER,
                 EntityType.PERSON_CLUB,

@@ -25,7 +25,7 @@ class MapperBindingContractTest {
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
             EntityType.AUDIT_LOG);
 
-    private static final Pattern LEGACY_READ =
+    private static final Pattern LEGACY_CURSOR_READ_LITERAL =
             Pattern.compile("source\\.get\\w+\\(\"([^\"]+)\"");
 
     @Test
@@ -155,7 +155,7 @@ class MapperBindingContractTest {
     private static Set<String> legacyColumnsReadBy(Mapper mapper) {
         String source = readMapperSource(mapper.getClass());
         Set<String> columns = new LinkedHashSet<>();
-        Matcher matcher = LEGACY_READ.matcher(source);
+        Matcher matcher = LEGACY_CURSOR_READ_LITERAL.matcher(source);
         while (matcher.find()) {
             columns.add(matcher.group(1));
         }

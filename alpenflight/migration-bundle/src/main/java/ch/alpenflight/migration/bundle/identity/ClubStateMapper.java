@@ -23,11 +23,16 @@ public final class ClubStateMapper implements Mapper {
 
     private static final String[] COLUMNS = { LEGACY_GUID, CODE };
 
+    private static final int LEGACY_CLUB_STATE_SYSTEM = 0;
+    private static final int LEGACY_CLUB_STATE_ACTIVE = 1;
+    private static final int LEGACY_CLUB_STATE_PASSIVE = 2;
+    private static final int LEGACY_CLUB_STATE_INACTIVE = 3;
+
     private static final Map<Integer, String> LEGACY_ID_TO_V2_CODE = Map.of(
-            0, "ACTIVE",
-            1, "ACTIVE",
-            2, "CLOSED",
-            3, "SUSPENDED");
+            LEGACY_CLUB_STATE_SYSTEM, "ACTIVE",
+            LEGACY_CLUB_STATE_ACTIVE, "ACTIVE",
+            LEGACY_CLUB_STATE_PASSIVE, "CLOSED",
+            LEGACY_CLUB_STATE_INACTIVE, "SUSPENDED");
 
     public static String v2CodeForLegacyId(int legacyClubStateId) {
         return LEGACY_ID_TO_V2_CODE.get(legacyClubStateId);

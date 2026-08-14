@@ -56,7 +56,8 @@ class StartTypeMapperTest extends AbstractMapperContractTest<StartTypeMapper> {
         "4, EXTERNAL_START",
         "5, MOTOR",
     })
-    void mapsLegacyEnumIdToCanonicalV2Code(int legacyId, String expectedCode) throws Exception {
+    void mapsLegacyEnumIdToCanonicalV2CodeWithTowingByAircraftAsAerotowNotWinchLaunch(
+            int legacyId, String expectedCode) throws Exception {
         ResultSet source = mock(ResultSet.class);
         lenient().when(source.getInt(anyString())).thenReturn(legacyId);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

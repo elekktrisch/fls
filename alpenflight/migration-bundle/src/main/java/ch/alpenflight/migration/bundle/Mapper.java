@@ -12,8 +12,10 @@ public interface Mapper {
 
     EntityType entityType();
 
+    // RENAME: columns -> wireColumns
     String[] columns();
 
+    // RENAME: foreignKeys -> foreignKeyTargets
     List<EntityType> foreignKeys();
 
     default List<ReferenceLookup> referenceLookups() {

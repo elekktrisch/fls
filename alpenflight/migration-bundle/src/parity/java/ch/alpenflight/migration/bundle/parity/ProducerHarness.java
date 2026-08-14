@@ -43,13 +43,14 @@ public final class ProducerHarness {
         try (PreparedStatement ps = legacyConnection.prepareStatement(selectStatement);
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                emitOneRow(mapper, rs, sink);
+                emitOneRowAsItsOwnNdjsonLine(mapper, rs, sink);
             }
         }
         return sink.toByteArray();
     }
 
-    private static void emitOneRow(Mapper mapper, ResultSet rs, ByteArrayOutputStream sink)
+    private static void emitOneRowAsItsOwnNdjsonLine(
+            Mapper mapper, ResultSet rs, ByteArrayOutputStream sink)
             throws IOException, SQLException {
         try (JsonGenerator gen = JSON_FACTORY.createGenerator(sink)) {
             mapper.writeNdjson(rs, gen);

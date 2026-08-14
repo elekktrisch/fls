@@ -11,7 +11,14 @@ public record BundleHeader(byte version, byte[] wrappedSessionKey) {
 
     public static final int MAGIC_LENGTH = 4;
 
-    public static final int FIXED_PREFIX_BYTES = MAGIC_LENGTH + 1 + 2;
+    private static final int VERSION_FIELD_BYTES = 1;
+    private static final int WRAPPED_KEY_LEN_FIELD_BYTES = 2;
+
+    private static final int VERSION_OFFSET = MAGIC_LENGTH;
+    private static final int WRAPPED_KEY_LEN_OFFSET = VERSION_OFFSET + VERSION_FIELD_BYTES;
+
+    public static final int FIXED_PREFIX_BYTES =
+            MAGIC_LENGTH + VERSION_FIELD_BYTES + WRAPPED_KEY_LEN_FIELD_BYTES;
 
     public static final byte CURRENT_VERSION = 1;
 
@@ -35,13 +42,12 @@ public record BundleHeader(byte version, byte[] wrappedSessionKey) {
                                 + new String(buffer, 0, MAGIC_LENGTH, java.nio.charset.StandardCharsets.US_ASCII));
             }
         }
-        byte version = buffer[MAGIC_LENGTH];
+        byte version = buffer[VERSION_OFFSET];
         if (version != CURRENT_VERSION) {
             throw new MalformedHeaderException(
                     "Unsupported header version: " + version);
         }
-        int wrappedKeyLen = ((buffer[MAGIC_LENGTH + 1] & 0xFF) << 8)
-                | (buffer[MAGIC_LENGTH + 2] & 0xFF);
+        int wrappedKeyLen = bigEndianUint16At(buffer, WRAPPED_KEY_LEN_OFFSET);
         if (wrappedKeyLen <= 0 || wrappedKeyLen > MAX_WRAPPED_KEY_LEN) {
             throw new MalformedHeaderException(
                     "wrappedKeyLen out of range: " + wrappedKeyLen);
@@ -68,8 +74,11 @@ public record BundleHeader(byte version, byte[] wrappedSessionKey) {
                                 + new String(fixedPrefix, 0, MAGIC_LENGTH, java.nio.charset.StandardCharsets.US_ASCII));
             }
         }
-        return ((fixedPrefix[MAGIC_LENGTH + 1] & 0xFF) << 8)
-                | (fixedPrefix[MAGIC_LENGTH + 2] & 0xFF);
+        return bigEndianUint16At(fixedPrefix, WRAPPED_KEY_LEN_OFFSET);
+    }
+
+    private static int bigEndianUint16At(byte[] buffer, int offset) {
+        return ((buffer[offset] & 0xFF) << 8) | (buffer[offset + 1] & 0xFF);
     }
 
     public static final class MalformedHeaderException extends RuntimeException {

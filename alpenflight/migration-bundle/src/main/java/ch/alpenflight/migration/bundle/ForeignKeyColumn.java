@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle;
 
 import org.jspecify.annotations.Nullable;
 
+// RENAME: disambiguatorColumn -> referencerClubColumn
 public record ForeignKeyColumn(
         String column, EntityType target, @Nullable String disambiguatorColumn) {
 

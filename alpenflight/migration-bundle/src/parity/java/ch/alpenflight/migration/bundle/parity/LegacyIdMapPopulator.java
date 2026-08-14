@@ -80,6 +80,7 @@ public final class LegacyIdMapPopulator {
             String bundleLookupField) {
     }
 
+    // RENAME: byEntity -> newIdByLegacyGuidByEntity
     public record Maps(Map<EntityType, Map<UUID, UUID>> byEntity) {
 
         public Map<UUID, UUID> requireFor(EntityType target) {

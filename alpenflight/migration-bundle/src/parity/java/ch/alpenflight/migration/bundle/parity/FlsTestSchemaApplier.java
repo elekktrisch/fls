@@ -35,7 +35,7 @@ public final class FlsTestSchemaApplier {
         try (Stream<Path> entries = Files.list(alterDirectory)) {
             scripts = entries
                     .filter(path -> path.getFileName().toString().endsWith(".sql"))
-                    .sorted(scriptOrdering())
+                    .sorted(semverAwareScriptOrdering())
                     .toList();
         }
         ApplyCounts counts = new ApplyCounts();
@@ -72,22 +72,26 @@ public final class FlsTestSchemaApplier {
                 try {
                     statement.execute(trimmed);
                     counts.applied++;
-                } catch (SQLException ignored) {
+                } catch (SQLException toleratedLegacyDialectQuirk) {
                     counts.failed++;
                 }
             }
         }
     }
 
-    private static Comparator<Path> scriptOrdering() {
+    private static Comparator<Path> semverAwareScriptOrdering() {
         return Comparator
-                .comparing((Path path) -> !path.getFileName().toString().startsWith("2 "))
+                .comparing((Path path) -> !isDatabaseSettingsScript(path))
                 .thenComparing(path -> versionTuple(path.getFileName().toString()),
                         Comparator.comparing((int[] version) -> version[0])
                                 .thenComparing(version -> version[1])
                                 .thenComparing(version -> version[2])
                                 .thenComparing(version -> version[3]))
                 .thenComparing(path -> path.getFileName().toString());
+    }
+
+    private static boolean isDatabaseSettingsScript(Path script) {
+        return script.getFileName().toString().startsWith("2 ");
     }
 
     private static int[] versionTuple(String filename) {

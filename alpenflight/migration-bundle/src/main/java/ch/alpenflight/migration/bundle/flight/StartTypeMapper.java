@@ -32,6 +32,7 @@ public final class StartTypeMapper implements Mapper {
             4, "EXTERNAL_START",
             5, "MOTOR");
 
+    // RENAME: LEGACY_ENUM_IDS -> LEGACY_AIRCRAFT_START_TYPE_ENUM_IDS
     public static final List<Integer> LEGACY_ENUM_IDS = List.of(1, 2, 3, 4, 5);
 
     public static Map<UUID, UUID> legacyEnumIdToSeedPk() {

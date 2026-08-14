@@ -8,6 +8,7 @@ public record ProducerDropWarning(
         EntityType entityType,
         @Nullable UUID clubId,
         @Nullable UUID legacyGuid,
+        // RENAME: detail -> nonPiiDetail
         String detail) {
 
     public ProducerDropWarning {

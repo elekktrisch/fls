@@ -23,6 +23,10 @@ import org.junit.jupiter.api.Test;
 
 class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
+    private static final short LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final short LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW = 2;
+    private static final short LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR = 4;
+
     private final FlightMapper mapper = new FlightMapper();
 
     @Override
@@ -38,7 +42,9 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     @Override
     protected Map<String, Set<Number>> permittedSparseEnumValues() {
         return Map.of(FlightMapper.FLIGHT_AIRCRAFT_TYPE_ID,
-                Set.of((short) 1, (short) 2, (short) 4));
+                Set.of(LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR));
     }
 
     @Test
@@ -189,7 +195,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     void sparseEnumPositionBindsAsShortNotInteger() throws Exception {
         Map<String, Object> row = rowWithAirState(
                 seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
-        row.put("FlightAircraftType", 2);
+        row.put("FlightAircraftType", LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW);
         JsonNode emitted = invokeWriteNdjson(row);
         Map<Integer, Short> shortBinds = new TreeMap<>();
         PreparedStatement ps = mock(PreparedStatement.class);
@@ -214,7 +220,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
                 .as("flight_aircraft_type_id binds via setShort to preserve "
                         + "the SMALLINT type contract — Integer boxing would "
                         + "violate the allocation-discipline budget")
-                .containsEntry(sparseEnumPosition, (short) 2);
+                .containsEntry(sparseEnumPosition, LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW);
     }
 
     private Map<String, Object> rowWithAirState(Faker faker, int legacyAirStateId) {
@@ -243,7 +249,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
         row.put("NoLdgTimeInformation", false);
         row.put("AirStateId", legacyAirStateId);
         row.put("ProcessStateId", 30);
-        row.put("FlightAircraftType", 1);
+        row.put("FlightAircraftType", LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER);
         row.put("EngineStartOperatingCounterInSeconds", 0L);
         row.put("EngineEndOperatingCounterInSeconds", 7200L);
         row.put("Comment", "Routine training flight");

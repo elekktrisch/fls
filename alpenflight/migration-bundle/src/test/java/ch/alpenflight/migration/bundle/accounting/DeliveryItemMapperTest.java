@@ -57,7 +57,7 @@ class DeliveryItemMapperTest extends AbstractMapperContractTest<DeliveryItemMapp
     }
 
     @Test
-    void columnsDoNotIncludeRemovedTotalAmount() {
+    void columnsDoNotIncludeTotalAmountSinceItIsComputedOnReadNotStored() {
         assertThat(mapper.columns()).doesNotContain("total_amount");
     }
 

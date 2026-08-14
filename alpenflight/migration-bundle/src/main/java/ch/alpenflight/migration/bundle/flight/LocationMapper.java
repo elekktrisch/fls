@@ -89,11 +89,11 @@ public final class LocationMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         UUID legacyLocationId = UUID.fromString(source.getString("LocationId"));
-        UUID legacyClubId = UUID.fromString(source.getString("ClubId"));
+        UUID legacyFanOutPartnerClubId = UUID.fromString(source.getString("ClubId"));
         target.writeStringField(ID,
-                Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
+                Coercions.deriveFanOutId(legacyLocationId, legacyFanOutPartnerClubId).toString());
         target.writeStringField(LEGACY_GUID, legacyLocationId.toString());
-        target.writeStringField(CLUB_ID, legacyClubId.toString());
+        target.writeStringField(CLUB_ID, legacyFanOutPartnerClubId.toString());
         target.writeStringField(LOCATION_NAME, source.getString("LocationName"));
         Coercions.writeOptionalString(target, LOCATION_SHORT_NAME,
                 source.getString("LocationShortName"));

@@ -18,6 +18,7 @@ public final class InOutboundPointMapper implements Mapper {
     static final String ID = "id";
     static final String LEGACY_GUID = "legacy_guid";
     static final String LOCATION_ID = "location_id";
+    // RENAME: CLUB_ID -> RESOLVER_ONLY_CLUB_ID
     static final String CLUB_ID = "club_id";
     static final String POINT_NAME = "point_name";
     static final String DIRECTION = "direction";
@@ -63,12 +64,12 @@ public final class InOutboundPointMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         UUID legacyIopId = UUID.fromString(source.getString("InOutboundPointId"));
-        UUID legacyClubId = UUID.fromString(source.getString("ClubId"));
+        UUID legacyFanOutPartnerClubId = UUID.fromString(source.getString("ClubId"));
         target.writeStringField(ID,
-                Coercions.deriveFanOutId(legacyIopId, legacyClubId).toString());
+                Coercions.deriveFanOutId(legacyIopId, legacyFanOutPartnerClubId).toString());
         target.writeStringField(LEGACY_GUID, legacyIopId.toString());
         target.writeStringField(LOCATION_ID, source.getString("LocationId"));
-        target.writeStringField(CLUB_ID, legacyClubId.toString());
+        target.writeStringField(CLUB_ID, legacyFanOutPartnerClubId.toString());
         target.writeStringField(POINT_NAME, source.getString("InOutboundPointName"));
         target.writeNullField(POINT_TYPE);
         Coercions.writeOptionalString(target, DIRECTION,

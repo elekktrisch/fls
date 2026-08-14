@@ -15,6 +15,9 @@ public final class MapperLegacyBindings {
             String newSchemaInsert) {
     }
 
+    private static final String LEGACY_ASPNET_SYSTEM_USER_ID_NEVER_MIGRATED =
+            "13731EE2-C1D8-455C-8AD1-C39399893FFF";
+
     private static final Map<EntityType, Binding> BINDINGS = Map.ofEntries(
             entry(EntityType.COUNTRY, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
@@ -146,8 +149,8 @@ public final class MapperLegacyBindings {
                            CreatedOn, CreatedByUserId,
                            ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId
                     FROM Users
-                    WHERE UserId <> '13731EE2-C1D8-455C-8AD1-C39399893FFF'
-                    """,
+                    WHERE UserId <> '%s'
+                    """.formatted(LEGACY_ASPNET_SYSTEM_USER_ID_NEVER_MIGRATED),
                     "t_user",
                     """
                     INSERT INTO t_user (

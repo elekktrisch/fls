@@ -55,26 +55,28 @@ public final class AccountingRuleFilterMapper implements Mapper {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private static final BooleanPair[] BOOLEAN_PAIRS = {
-            new BooleanPair("UseRuleForAllAircraftsExceptListed",
+    private static final int JSONB_SQL_TYPE = Types.OTHER;
+
+    private static final InvertibleMatchListPredicate[] MATCH_LIST_PREDICATES = {
+            new InvertibleMatchListPredicate("UseRuleForAllAircraftsExceptListed",
                     "MatchedAircraftImmatriculations", "aircraftImmatriculations"),
-            new BooleanPair("UseRuleForAllStartTypesExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllStartTypesExceptListed",
                     "MatchedStartTypes", "startTypes"),
-            new BooleanPair("UseRuleForAllFlightTypesExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllFlightTypesExceptListed",
                     "MatchedFlightTypeCodes", "flightTypeCodes"),
-            new BooleanPair("UseRuleForAllStartLocationsExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllStartLocationsExceptListed",
                     "MatchedStartLocations", "startLocations"),
-            new BooleanPair("UseRuleForAllLdgLocationsExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllLdgLocationsExceptListed",
                     "MatchedLdgLocations", "ldgLocations"),
-            new BooleanPair("UseRuleForAllClubMemberNumbersExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllClubMemberNumbersExceptListed",
                     "MatchedClubMemberNumbers", "clubMemberNumbers"),
-            new BooleanPair("UseRuleForAllFlightCrewTypesExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllFlightCrewTypesExceptListed",
                     "MatchedFlightCrewTypes", "flightCrewTypes"),
-            new BooleanPair("UseRuleForAllAircraftsOnHomebaseExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllAircraftsOnHomebaseExceptListed",
                     "MatchedAircraftsHomebase", "aircraftHomebases"),
-            new BooleanPair("UseRuleForAllMemberStatesExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllMemberStatesExceptListed",
                     "MatchedMemberStates", "memberStates"),
-            new BooleanPair("UseRuleForAllPersonCategoriesExceptListed",
+            new InvertibleMatchListPredicate("UseRuleForAllPersonCategoriesExceptListed",
                     "MatchedPersonCategories", "personCategories")
     };
 
@@ -158,7 +160,7 @@ public final class AccountingRuleFilterMapper implements Mapper {
         target.setString(position++, Coercions.readStringOrNull(source, RECIPIENT_TARGET));
         try {
             target.setObject(position++,
-                    JSON.writeValueAsString(source.get(FILTER_CONFIG)), Types.OTHER);
+                    JSON.writeValueAsString(source.get(FILTER_CONFIG)), JSONB_SQL_TYPE);
         } catch (com.fasterxml.jackson.core.JsonProcessingException unreachable) {
             throw new SQLException(
                     "filter_config serialisation failed — JsonNode subtree is always serialisable",
@@ -192,26 +194,28 @@ public final class AccountingRuleFilterMapper implements Mapper {
 
         putOptionalString(config, "thresholdText", source.getString("ThresholdText"));
         putOptionalInt(config, "minFlightTimeInSecondsMatchingValue",
-                clampToIntRange(source.getObject(
+                clampLegacyBigintToIntRange(source.getObject(
                         "MinFlightTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "maxFlightTimeInSecondsMatchingValue",
-                clampToIntRange(source.getObject(
+                clampLegacyBigintToIntRange(source.getObject(
                         "MaxFlightTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "minEngineTimeInSecondsMatchingValue",
-                clampToIntRange(source.getObject(
+                clampLegacyBigintToIntRange(source.getObject(
                         "MinEngineTimeInSecondsMatchingValue", Long.class)));
         putOptionalInt(config, "maxEngineTimeInSecondsMatchingValue",
-                clampToIntRange(source.getObject(
+                clampLegacyBigintToIntRange(source.getObject(
                         "MaxEngineTimeInSecondsMatchingValue", Long.class)));
 
         putOptionalString(config, "deliveryLineText", source.getString("DeliveryLineText"));
         putOptionalString(config, "recipientName", source.getString("RecipientName"));
 
-        for (BooleanPair pair : BOOLEAN_PAIRS) {
-            com.fasterxml.jackson.databind.node.ObjectNode pairNode = config.putObject(pair.jsonKey);
-            pairNode.put("useAllExcept", source.getBoolean(pair.useAllExceptColumn));
-            com.fasterxml.jackson.databind.node.ArrayNode matched = pairNode.putArray("matched");
-            appendJsonArrayElements(matched, source.getString(pair.matchedColumn));
+        for (InvertibleMatchListPredicate predicate : MATCH_LIST_PREDICATES) {
+            com.fasterxml.jackson.databind.node.ObjectNode predicateNode =
+                    config.putObject(predicate.jsonKey);
+            predicateNode.put("useAllExcept", source.getBoolean(predicate.useAllExceptColumn));
+            com.fasterxml.jackson.databind.node.ArrayNode matched =
+                    predicateNode.putArray("matched");
+            appendJsonArrayElements(matched, source.getString(predicate.matchedColumn));
         }
 
         return config;
@@ -273,7 +277,7 @@ public final class AccountingRuleFilterMapper implements Mapper {
         }
     }
 
-    private static @Nullable Integer clampToIntRange(@Nullable Long value) {
+    private static @Nullable Integer clampLegacyBigintToIntRange(@Nullable Long value) {
         if (value == null) {
             return null;
         }
@@ -281,7 +285,7 @@ public final class AccountingRuleFilterMapper implements Mapper {
         return (int) clamped;
     }
 
-    private record BooleanPair(
+    private record InvertibleMatchListPredicate(
             String useAllExceptColumn,
             String matchedColumn,
             String jsonKey) { }

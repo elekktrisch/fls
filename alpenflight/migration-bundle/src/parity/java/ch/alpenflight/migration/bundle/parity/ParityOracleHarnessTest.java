@@ -21,6 +21,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,8 @@ import org.junit.jupiter.api.condition.EnabledIf;
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 @DisplayName("Parity oracle — Country / Language / ClubState + Club / User")
 class ParityOracleHarnessTest {
+
+    private static final @Nullable Integer FK_ORPHANS_NOT_MEASURED = null;
 
     private static final MssqlContainerLifecycle MSSQL = new MssqlContainerLifecycle();
     private static final PostgresContainerLifecycle POSTGRES = new PostgresContainerLifecycle();
@@ -128,7 +131,7 @@ class ParityOracleHarnessTest {
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
         Path summary = ParityReports.write(reportsDirectory, runIdentity, producerCounts,
-                ingestOutcome.rowCountByEntity(), diffOutcome, null);
+                ingestOutcome.rowCountByEntity(), diffOutcome, FK_ORPHANS_NOT_MEASURED);
 
         assertThat(summary).exists();
         String summaryContent = Files.readString(summary);

@@ -171,7 +171,7 @@ class MapperLegacyBindingsTest {
     }
 
     @Test
-    void personHasNoConsumerInsertOnlyWriteAccessIsValidated() {
+    void personConsumerInsertTargetsTPersonAndBindsNoClubIdBecausePersonIsCrossTenant() {
         String insert = MapperLegacyBindings.insertForConsumer(EntityType.PERSON);
         assertThat(insert)
                 .as("PERSON FULL_PORT consumer INSERT targets t_person")
@@ -684,7 +684,7 @@ class MapperLegacyBindingsTest {
     }
 
     @Test
-    void planningDayAssignmentSelectDenormalisesOperatingClubIdByJoiningPlanningDays() {
+    void planningDayAssignmentSelectDenormalisesOperatingClubIdAndRemapsOntoTheKeptFirstDay() {
         String select =
                 MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT);
         for (String legacyColumn : PLANNING_DAY_ASSIGNMENT_LEGACY_COLUMNS) {

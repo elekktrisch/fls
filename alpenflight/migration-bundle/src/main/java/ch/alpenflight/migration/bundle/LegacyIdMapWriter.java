@@ -14,6 +14,9 @@ public final class LegacyIdMapWriter implements AutoCloseable {
     private static final int TWO_COLUMN_FIELD_COUNT = 2;
     private static final int THREE_COLUMN_FIELD_COUNT = 3;
     private static final int UUID_LENGTH_BYTES = 16;
+    private static final int COPY_HEADER_FLAGS_NONE = 0;
+    private static final int COPY_HEADER_EXTENSION_LENGTH_NONE = 0;
+    private static final int COPY_TRAILER_END_OF_DATA_FIELD_COUNT = -1;
 
     private final DataOutputStream out;
     private boolean trailerWritten;
@@ -47,15 +50,15 @@ public final class LegacyIdMapWriter implements AutoCloseable {
         if (trailerWritten) {
             return;
         }
-        out.writeShort(-1);
+        out.writeShort(COPY_TRAILER_END_OF_DATA_FIELD_COUNT);
         out.flush();
         trailerWritten = true;
     }
 
     private void writeHeader() throws IOException {
         out.write(PGCOPY_SIGNATURE);
-        out.writeInt(0);
-        out.writeInt(0);
+        out.writeInt(COPY_HEADER_FLAGS_NONE);
+        out.writeInt(COPY_HEADER_EXTENSION_LENGTH_NONE);
     }
 
     private void writeUuidField(UUID uuid) throws IOException {

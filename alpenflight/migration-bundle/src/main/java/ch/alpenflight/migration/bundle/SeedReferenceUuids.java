@@ -8,14 +8,14 @@ import org.jspecify.annotations.Nullable;
 
 public final class SeedReferenceUuids {
 
-    private static final long TIMESTAMP_MS = 1778889600000L;
+    private static final long CANONICAL_UUID_TIMESTAMP_MS = 1778889600000L;
 
     private static final long COUNTRY_OFFSET = 1_000L;
     private static final long LANGUAGE_OFFSET = 2_000L;
     private static final long CLUB_STATE_OFFSET = 3_000L;
     private static final long START_TYPE_OFFSET = 4_000L;
 
-    private static final String[] COUNTRY_ISO2 = {
+    private static final String[] COUNTRY_ISO2_IN_V2_SEED_ORDER = {
             "AF", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG", "AR", "AM", "AW", "AU", "AT", "AZ",
             "BS", "BH", "BD", "BB", "BY", "BE", "BZ", "BJ", "BM", "BT", "BO", "BQ", "BA", "BW", "BV",
             "BR", "IO", "BN", "BG", "BF", "BI", "CV", "KH", "CM", "CA", "KY", "CF", "TD", "CL", "CN",
@@ -35,26 +35,26 @@ public final class SeedReferenceUuids {
             "VN", "VG", "VI", "WF", "EH", "YE", "ZM", "ZW"
     };
 
-    private static final String[] LANGUAGE_CODES =
+    private static final String[] LANGUAGE_CODES_IN_V2_SEED_ORDER =
             {"de", "fr", "it", "en", "rm", "de-CH", "fr-CH", "it-CH"};
 
-    private static final String[] CLUB_STATE_CODES = {"ACTIVE", "SUSPENDED", "CLOSED"};
+    private static final String[] CLUB_STATE_CODES_IN_V2_SEED_ORDER = {"ACTIVE", "SUSPENDED", "CLOSED"};
 
-    private static final String[] START_TYPE_CODES =
+    private static final String[] START_TYPE_CODES_IN_V2_SEED_ORDER =
             {"WINCH_LAUNCH", "AEROTOW", "SELF_START", "EXTERNAL_START", "MOTOR"};
 
     private static final Map<String, UUID> COUNTRY_BY_ISO2 =
-            indexByNaturalKey(COUNTRY_ISO2, COUNTRY_OFFSET);
+            indexByNaturalKey(COUNTRY_ISO2_IN_V2_SEED_ORDER, COUNTRY_OFFSET);
     private static final Map<String, UUID> CLUB_STATE_BY_CODE =
-            indexByNaturalKey(CLUB_STATE_CODES, CLUB_STATE_OFFSET);
+            indexByNaturalKey(CLUB_STATE_CODES_IN_V2_SEED_ORDER, CLUB_STATE_OFFSET);
     private static final Map<String, UUID> START_TYPE_BY_CODE =
-            indexByNaturalKey(START_TYPE_CODES, START_TYPE_OFFSET);
+            indexByNaturalKey(START_TYPE_CODES_IN_V2_SEED_ORDER, START_TYPE_OFFSET);
 
     private static final Map<String, UUID> LANGUAGE_BY_CODE =
-            indexByExactKey(LANGUAGE_CODES, LANGUAGE_OFFSET);
+            indexByExactKey(LANGUAGE_CODES_IN_V2_SEED_ORDER, LANGUAGE_OFFSET);
 
     private static final Map<String, UUID> LANGUAGE_BY_LOWER_CODE =
-            indexByLowerKey(LANGUAGE_CODES, LANGUAGE_OFFSET);
+            indexByLowerKey(LANGUAGE_CODES_IN_V2_SEED_ORDER, LANGUAGE_OFFSET);
 
     private SeedReferenceUuids() {
     }
@@ -115,12 +115,20 @@ public final class SeedReferenceUuids {
         return map;
     }
 
+    private static final long UUID_VERSION_7 = 0x7L;
+    private static final long UUID_VARIANT_RFC9562 = 0b10L;
+    private static final int TIMESTAMP_BITS = 48;
+    private static final int RAND_A_BITS = 12;
+    private static final int RAND_B_BITS = 62;
+    private static final int VERSION_PLUS_RAND_A_BITS = 16;
+
     static UUID uuidV7(long counter) {
-        long ts = TIMESTAMP_MS & ((1L << 48) - 1L);
-        long verAndRandA = (0x7L << 12) | (counter & 0xFFFL);
-        long varAndRandB = (0b10L << 62) | (counter & ((1L << 62) - 1L));
-        long high64 = (ts << 16) | verAndRandA;
-        long low64 = varAndRandB;
-        return new UUID(high64, low64);
+        long timestampPrefix = CANONICAL_UUID_TIMESTAMP_MS & ((1L << TIMESTAMP_BITS) - 1L);
+        long versionAndRandA =
+                (UUID_VERSION_7 << RAND_A_BITS) | (counter & ((1L << RAND_A_BITS) - 1L));
+        long variantAndRandB =
+                (UUID_VARIANT_RFC9562 << RAND_B_BITS) | (counter & ((1L << RAND_B_BITS) - 1L));
+        long high64 = (timestampPrefix << VERSION_PLUS_RAND_A_BITS) | versionAndRandA;
+        return new UUID(high64, variantAndRandB);
     }
 }

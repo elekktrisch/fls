@@ -24,8 +24,14 @@ public final class Coercions {
 
     private Coercions() { }
 
-    private static final UUID FAN_OUT_NAMESPACE =
+    private static final UUID PINNED_FAN_OUT_NAMESPACE =
             UUID.fromString("8f3b1c2a-5d47-5e9b-a1f0-6c2d4e8a7b30");
+
+    private static final int UUID_BYTES = 16;
+    private static final int UUID_VERSION_BYTE_INDEX = 6;
+    private static final int UUID_VARIANT_BYTE_INDEX = 8;
+    private static final int UUID_VERSION_5_HIGH_NIBBLE = 0x50;
+    private static final int UUID_VARIANT_RFC4122_HIGH_BITS = 0x80;
 
     public static UUID deriveFanOutId(UUID legacyGuid, UUID legacyClubId) {
         MessageDigest sha1;
@@ -34,16 +40,18 @@ public final class Coercions {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-1 unavailable", e);
         }
-        ByteBuffer input = ByteBuffer.allocate(16 + 16 + 16);
-        putUuid(input, FAN_OUT_NAMESPACE);
+        ByteBuffer input = ByteBuffer.allocate(3 * UUID_BYTES);
+        putUuid(input, PINNED_FAN_OUT_NAMESPACE);
         putUuid(input, legacyGuid);
         putUuid(input, legacyClubId);
         byte[] hash = sha1.digest(input.array());
 
-        hash[6] = (byte) ((hash[6] & 0x0F) | 0x50);
-        hash[8] = (byte) ((hash[8] & 0x3F) | 0x80);
+        hash[UUID_VERSION_BYTE_INDEX] =
+                (byte) ((hash[UUID_VERSION_BYTE_INDEX] & 0x0F) | UUID_VERSION_5_HIGH_NIBBLE);
+        hash[UUID_VARIANT_BYTE_INDEX] =
+                (byte) ((hash[UUID_VARIANT_BYTE_INDEX] & 0x3F) | UUID_VARIANT_RFC4122_HIGH_BITS);
 
-        ByteBuffer out = ByteBuffer.wrap(hash, 0, 16);
+        ByteBuffer out = ByteBuffer.wrap(hash, 0, UUID_BYTES);
         return new UUID(out.getLong(), out.getLong());
     }
 
@@ -106,19 +114,21 @@ public final class Coercions {
         }
     }
 
-    private static final String EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
+    private static final String LEGACY_NO_RELATION_SENTINEL_GUID =
+            "00000000-0000-0000-0000-000000000000";
 
+    // RENAME: writeOptionalGuidString -> writeOptionalGuidCollapsingNoRelationSentinelToNull
     public static void writeOptionalGuidString(
             JsonGenerator target, String fieldName, @Nullable String value)
             throws IOException {
-        if (value == null || EMPTY_GUID.equalsIgnoreCase(value)) {
+        if (value == null || LEGACY_NO_RELATION_SENTINEL_GUID.equalsIgnoreCase(value)) {
             target.writeNullField(fieldName);
         } else {
             target.writeStringField(fieldName, value);
         }
     }
 
-    private static final Pattern RECIPIENT_LIST_SEPARATOR = Pattern.compile("[,;\\s]+");
+    private static final Pattern LEGACY_RECIPIENT_LIST_SEPARATORS = Pattern.compile("[,;\\s]+");
 
     public static void writeOptionalRecipientList(
             JsonGenerator target, String fieldName, @Nullable String value)
@@ -131,7 +141,7 @@ public final class Coercions {
             target.writeStringField(fieldName, value);
             return;
         }
-        String canonical = RECIPIENT_LIST_SEPARATOR.splitAsStream(value)
+        String canonical = LEGACY_RECIPIENT_LIST_SEPARATORS.splitAsStream(value)
                 .filter(address -> !address.isEmpty())
                 .map(address -> address.toLowerCase(Locale.ROOT))
                 .collect(Collectors.joining(","));

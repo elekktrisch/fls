@@ -21,6 +21,8 @@ public final class FlightMapper implements Mapper {
 
     static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
 
+    private static final String LEGACY_FLIGHTS_OPERATING_CLUB_COLUMN = "OwnerId";
+
     static final String LEGACY_GUID = "legacy_guid";
     static final String OPERATING_CLUB_ID = "operating_club_id";
     static final String AIRCRAFT_ID = "aircraft_id";
@@ -144,7 +146,8 @@ public final class FlightMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         target.writeStringField(LEGACY_GUID, source.getString("FlightId"));
-        target.writeStringField(OPERATING_CLUB_ID, source.getString("OwnerId"));
+        target.writeStringField(OPERATING_CLUB_ID,
+                source.getString(LEGACY_FLIGHTS_OPERATING_CLUB_COLUMN));
         target.writeStringField(AIRCRAFT_ID, source.getString("AircraftId"));
         Coercions.writeOptionalDate(target, FLIGHT_DATE, source.getDate("FlightDate"));
         Coercions.writeOptionalTimestamp(target, START_DATE_TIME,
@@ -178,8 +181,8 @@ public final class FlightMapper implements Mapper {
                 source.getBoolean("NoStartTimeInformation"));
         target.writeBooleanField(NO_LDG_TIME_INFORMATION,
                 source.getBoolean("NoLdgTimeInformation"));
-        int legacyAirState = source.getInt("AirStateId");
-        Timestamp flightPlanOpenedOn = legacyAirState == LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN
+        int currentLegacyAirState = source.getInt("AirStateId");
+        Timestamp flightPlanOpenedOn = currentLegacyAirState == LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN
                 ? source.getTimestamp("ModifiedOn")
                 : null;
         Coercions.writeOptionalTimestamp(target, FLIGHT_PLAN_OPENED_ON, flightPlanOpenedOn);
@@ -219,10 +222,11 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalTimestamp(target, DELETED_ON, source.getTimestamp("DeletedOn"));
         Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
                 source.getString("DeletedByUserId"));
-        Timestamp lockedAt = source.getInt("ProcessStateId") >= LEGACY_PROCESS_STATE_LOCKED
-                ? source.getTimestamp("ModifiedOn")
-                : null;
-        Coercions.writeOptionalTimestamp(target, LOCKED_AT, lockedAt);
+        Timestamp legacyLockTimeProxy =
+                source.getInt("ProcessStateId") >= LEGACY_PROCESS_STATE_LOCKED
+                        ? source.getTimestamp("ModifiedOn")
+                        : null;
+        Coercions.writeOptionalTimestamp(target, LOCKED_AT, legacyLockTimeProxy);
         target.writeEndObject();
     }
 

@@ -44,6 +44,7 @@ public final class UserMapper implements Mapper {
     static final String DELETED_ON = "deleted_on";
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
+    // RENAME: FORBIDDEN_LEGACY_COLUMNS -> LEGACY_COLUMNS_FORBIDDEN_IN_PRODUCER_SELECT
     public static final Set<String> FORBIDDEN_LEGACY_COLUMNS = Set.of(
             "Password",
             "PasswordHash",

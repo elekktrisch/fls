@@ -15,6 +15,11 @@ import org.junit.jupiter.api.Test;
 class AccountingRuleFilterMapperTest
         extends AbstractMapperContractTest<AccountingRuleFilterMapper> {
 
+    private static final String ARTICLE_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_ARTICLE_TARGET =
+            "4001";
+    private static final String MEMBER_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_RECIPIENT_TARGET =
+            "1042";
+
     private final AccountingRuleFilterMapper mapper = new AccountingRuleFilterMapper();
 
     @Override
@@ -35,9 +40,9 @@ class AccountingRuleFilterMapperTest
         row.put("SortIndicator", 100);
         row.put("StopRuleEngineWhenRuleApplied", false);
         row.put("IsChargedToClubInternal", false);
-        row.put("ArticleTarget", "4001");
+        row.put("ArticleTarget", ARTICLE_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_ARTICLE_TARGET);
         row.put("DeliveryLineText", "Flight time charge");
-        row.put("RecipientTarget", "1042");
+        row.put("RecipientTarget", MEMBER_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_RECIPIENT_TARGET);
         row.put("RecipientName", "Club Treasurer");
 
         row.put("IsRuleForGliderFlights", true);
@@ -96,12 +101,12 @@ class AccountingRuleFilterMapperTest
     }
 
     @Test
-    void declaresOnlyClubAsForeignKey() {
+    void declaresOnlyClubAsForeignKeySinceFilterAndUnitTypeRideReferenceLookups() {
         assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
     }
 
     @Test
-    void resolvesFilterTypeAndUnitTypeViaReferenceLookups() {
+    void resolvesFilterTypeAndUnitTypeViaReferenceLookupsSoSyntheticUuidsCannotReachTheInsert() {
         assertThat(mapper.referenceLookups())
                 .extracting(
                         ch.alpenflight.migration.bundle.ReferenceLookup::column,
