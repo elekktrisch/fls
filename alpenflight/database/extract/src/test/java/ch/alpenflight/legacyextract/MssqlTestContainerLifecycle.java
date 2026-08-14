@@ -15,6 +15,9 @@ public final class MssqlTestContainerLifecycle {
     private static final String IMAGE = "mcr.microsoft.com/mssql/server:2022-latest";
     static final String SA_PASSWORD = "TestPa$$w0rd_2026";
     private static final int READINESS_TIMEOUT_SECONDS = 90;
+    private static final int READINESS_POLL_INTERVAL_MILLIS = 1500;
+    private static final int HOST_PORT_READ_ATTEMPTS = 10;
+    private static final int HOST_PORT_RETRY_DELAY_MILLIS = 500;
 
     private final String containerName = "alpenflight-extract-test-" + UUID.randomUUID().toString().substring(0, 8);
     private volatile int hostPort = -1;
@@ -81,10 +84,10 @@ public final class MssqlTestContainerLifecycle {
     }
 
     private int readHostPort() {
-        for (int attempt = 0; attempt < 10; attempt++) {
+        for (int attempt = 0; attempt < HOST_PORT_READ_ATTEMPTS; attempt++) {
             try {
-                String out = captureOutput("docker", "port", containerName, "1433/tcp");
-                for (String line : out.split("\\R")) {
+                String publishedPortLines = captureOutput("docker", "port", containerName, "1433/tcp");
+                for (String line : publishedPortLines.split("\\R")) {
                     String trimmed = line.trim();
                     if (trimmed.isEmpty()) continue;
                     if (trimmed.contains("[::]")) continue;
@@ -93,9 +96,9 @@ public final class MssqlTestContainerLifecycle {
                         return Integer.parseInt(trimmed.substring(colon + 1).trim());
                     }
                 }
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException | InterruptedException portNotPublishedYet) {
             }
-            sleepQuietly(500);
+            sleepQuietly(HOST_PORT_RETRY_DELAY_MILLIS);
         }
         throw new IllegalStateException("could not determine host port for " + containerName);
     }
@@ -106,20 +109,21 @@ public final class MssqlTestContainerLifecycle {
         Properties props = new Properties();
         props.setProperty("user", username());
         props.setProperty("password", password());
-        Throwable last = null;
+        Throwable lastConnectionFailure = null;
         while (System.currentTimeMillis() < deadline) {
             try (Connection c = DriverManager.getConnection(url, props)) {
                 c.createStatement().execute("SELECT 1");
                 return;
             } catch (SQLException e) {
-                last = e;
-                sleepQuietly(1500);
+                lastConnectionFailure = e;
+                sleepQuietly(READINESS_POLL_INTERVAL_MILLIS);
             }
         }
         stopQuietly();
         throw new IllegalStateException(
                 "SQL Server in container " + containerName + " not ready within "
-                        + READINESS_TIMEOUT_SECONDS + "s: " + (last != null ? last.getMessage() : "unknown"));
+                        + READINESS_TIMEOUT_SECONDS + "s: "
+                        + (lastConnectionFailure != null ? lastConnectionFailure.getMessage() : "unknown"));
     }
 
     private static void runOrThrow(String... cmd) {

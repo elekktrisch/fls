@@ -64,7 +64,7 @@ later backend gate depends on — the repair follows immediately.
 - [x] **T-02** — the repeal commit: do-ship + do-task SKILL.md, comment-strip SKILL.md (relax same-day + open-branch preconditions), `CONVENTIONS.md`, the eslint message, `.gitignore` (`.comment-strip/` + `backend.log`/`backend.pid`), retire `[COMMENT-STRIP]` from `_BOYSCOUT.md`, rewrite the memory
 - [x] **T-03** — batch `migration-tool` (180 comments / 16 files) — pilot: proves the judge→strip→gate loop end to end
 - [x] **T-03b** — manifest scoring: group consecutive `//` lines into ONE scored entry. The pilot proved a 10-line `//` block scores 1.5–5.9 per line while an equivalent `/** */` block scores 13, so the densest rationale in the batch (`BundleWriter.java:39`) landed at **1.7** — a judge reading ≥8-first would systematically skip exactly the comments worth keeping. Must land before `server-main` (787 files)
-- [ ] **T-04** — batch `database` (324 / 33)
+- [x] **T-04** — batch `database` (324 / 33)
 - [ ] **T-05** — batch `ops-shell` + `auth` (492 / 16)
 - [ ] **T-06** — batch `build-config` — the per-module `build.gradle.kts` / `settings.gradle.kts` under a module path are swept by that module's batch (T-03 already took migration-tool's 21); this batch is only what no module batch claims
 - [ ] **T-07** — batch `migration-bundle` (1,413 / 126)

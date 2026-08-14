@@ -31,11 +31,11 @@ public final class CliRunner {
 
     private static boolean isLoopback(String host) {
         if (host == null) return false;
-        String h = host.trim().toLowerCase();
-        return h.equals("localhost")
-                || h.equals("127.0.0.1")
-                || h.equals("::1")
-                || h.startsWith("127.")
-                || h.equals("0:0:0:0:0:0:0:1");
+        String normalizedHost = host.trim().toLowerCase();
+        return normalizedHost.equals("localhost")
+                || normalizedHost.equals("127.0.0.1")
+                || normalizedHost.equals("::1")
+                || normalizedHost.startsWith("127.")
+                || normalizedHost.equals("0:0:0:0:0:0:0:1");
     }
 }

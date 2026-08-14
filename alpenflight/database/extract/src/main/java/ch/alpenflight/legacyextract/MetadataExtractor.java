@@ -26,9 +26,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class MetadataExtractor {
 
-    private static final double DEFAULT_THROUGHPUT_MB_PER_SEC = 30.0;
-    private static final double DEFAULT_REINDEX_MB_PER_SEC = 50.0;
-    private static final long CUTOVER_BUDGET_SECONDS = 21_600L;
+    private static final double DEFAULT_BULK_MIGRATE_THROUGHPUT_MB_PER_SEC = 30.0;
+    private static final double DEFAULT_REINDEX_THROUGHPUT_MB_PER_SEC = 50.0;
+    private static final long CUTOVER_BUDGET_SECONDS = Duration.ofHours(6).toSeconds();
+    private static final int CUTOVER_WINDOW_TOP_TABLES_BY_STORAGE = 10;
+    private static final int COMPATIBILITY_LEVEL_INTRODUCING_APPROX_COUNT_DISTINCT = 150;
+    private static final int APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT = 5;
+    private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -190,7 +194,8 @@ public class MetadataExtractor {
         SqlGuard.assertAggregateSafe("sql/aggregate/column-cardinality.sql", enumSql);
         List<Map<String, Object>> indexedColumns = jdbc.queryForList(enumSql);
 
-        boolean hasApprox = compatibilityLevel() >= 150;
+        boolean supportsApproxCountDistinct =
+                compatibilityLevel() >= COMPATIBILITY_LEVEL_INTRODUCING_APPROX_COUNT_DISTINCT;
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : indexedColumns) {
@@ -199,16 +204,16 @@ public class MetadataExtractor {
             String column = (String) r.get("column_name");
             String aggSql;
             String method;
-            if (hasApprox) {
+            if (supportsApproxCountDistinct) {
                 aggSql = String.format(
                         "SELECT APPROX_COUNT_DISTINCT([%s]) AS approx_distinct FROM [%s].[%s]",
                         column, schema, table);
                 method = "APPROX_COUNT_DISTINCT";
             } else {
                 aggSql = String.format(
-                        "SELECT COUNT(DISTINCT [%s]) AS approx_distinct FROM [%s].[%s] TABLESAMPLE SYSTEM (5 PERCENT)",
-                        column, schema, table);
-                method = "COUNT_DISTINCT_TABLESAMPLE_5pct";
+                        "SELECT COUNT(DISTINCT [%s]) AS approx_distinct FROM [%s].[%s] TABLESAMPLE SYSTEM (%d PERCENT)",
+                        column, schema, table, APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT);
+                method = "COUNT_DISTINCT_TABLESAMPLE_" + APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT + "pct";
             }
             String guardId = "dynamic/column-cardinality/" + schema + "." + table + "." + column;
             SqlGuard.assertAggregateSafe(guardId, aggSql);
@@ -221,7 +226,7 @@ public class MetadataExtractor {
                 result.put("approx_distinct", row.get("approx_distinct"));
                 result.put("method", method);
                 out.add(result);
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException columnTypeRejectsCountDistinct) {
             }
         }
         return writeJson(config.outDir().resolve("column-cardinality.json"), out);
@@ -237,8 +242,8 @@ public class MetadataExtractor {
         long budget = CUTOVER_BUDGET_SECONDS;
 
         List<Map<String, Object>> top = new ArrayList<>();
-        int n = Math.min(stats.size(), 10);
-        for (int i = 0; i < n; i++) {
+        int topTableCount = Math.min(stats.size(), CUTOVER_WINDOW_TOP_TABLES_BY_STORAGE);
+        for (int i = 0; i < topTableCount; i++) {
             Map<String, Object> r = stats.get(i);
             double totalMb = toDouble(r.get("total_mb"));
             double migrate = totalMb / throughput;
@@ -297,7 +302,7 @@ public class MetadataExtractor {
 
     private static Path locateTenantRulesYaml() {
         Path cursor = Path.of(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve("alpenflight/database/tenant-rules.yaml");
             if (Files.exists(candidate)) {
                 return candidate;
@@ -314,7 +319,7 @@ public class MetadataExtractor {
         List<Map<String, Object>> rows;
         try {
             rows = jdbc.queryForList(sql);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException auditLogTablesAbsentFromThisDatabase) {
             return null;
         }
         if (rows.isEmpty()) {
@@ -378,11 +383,11 @@ public class MetadataExtractor {
     }
 
     private static double throughputMbPerSec() {
-        return parseDoubleProp("extract.throughput.mb-per-sec", DEFAULT_THROUGHPUT_MB_PER_SEC);
+        return parseDoubleProp("extract.throughput.mb-per-sec", DEFAULT_BULK_MIGRATE_THROUGHPUT_MB_PER_SEC);
     }
 
     private static double reindexThroughputMbPerSec() {
-        return parseDoubleProp("extract.reindex-throughput.mb-per-sec", DEFAULT_REINDEX_MB_PER_SEC);
+        return parseDoubleProp("extract.reindex-throughput.mb-per-sec", DEFAULT_REINDEX_THROUGHPUT_MB_PER_SEC);
     }
 
     private static double parseDoubleProp(String name, double fallback) {

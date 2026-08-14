@@ -14,7 +14,10 @@ import java.util.stream.Stream;
 
 public final class SqlGuard {
 
-    private static final List<String> APP_TABLES = List.of(
+    private static final int CHARACTERS_SCANNED_AFTER_SELECT_STAR_TO_FIND_ITS_FROM = 600;
+    private static final String FROM_KEYWORD = "FROM ";
+
+    private static final List<String> PII_BEARING_APP_TABLES = List.of(
             "Persons", "PersonClub", "Users", "AuditLogs", "AuditLogDetails",
             "Flights", "FlightCrew", "Deliveries", "DeliveryItems",
             "AccountingRuleFilters", "AircraftReservations", "PlanningDays",
@@ -66,9 +69,9 @@ public final class SqlGuard {
             for (Path file : resourceFiles) {
                 String content = Files.readString(file, StandardCharsets.UTF_8);
                 String resourceId = file.toString();
-                boolean isAggregate = file.toString().replace('\\', '/').contains("/sql/aggregate/");
+                boolean isAggregateCategorySql = file.toString().replace('\\', '/').contains("/sql/aggregate/");
                 try {
-                    if (isAggregate) {
+                    if (isAggregateCategorySql) {
                         assertAggregateSafe(resourceId, content);
                     } else {
                         assertSafe(resourceId, content);
@@ -113,13 +116,13 @@ public final class SqlGuard {
         var m = SELECT_STAR.matcher(sql);
         while (m.find()) {
             int idx = m.end();
-            String tail = sql.substring(idx, Math.min(sql.length(), idx + 600));
-            String upperTail = tail.toUpperCase();
-            int fromIdx = upperTail.indexOf("FROM ");
+            String afterSelectStar = sql.substring(
+                    idx, Math.min(sql.length(), idx + CHARACTERS_SCANNED_AFTER_SELECT_STAR_TO_FIND_ITS_FROM));
+            int fromIdx = afterSelectStar.toUpperCase().indexOf(FROM_KEYWORD);
             if (fromIdx < 0) {
                 throw violation(resourceId, "SELECT * with no FROM clause — name columns explicitly");
             }
-            String afterFrom = tail.substring(fromIdx + 5).stripLeading();
+            String afterFrom = afterSelectStar.substring(fromIdx + FROM_KEYWORD.length()).stripLeading();
             String firstToken = afterFrom.split("[\\s(),;]", 2)[0];
             String upperToken = firstToken.toUpperCase();
             boolean isSystem = upperToken.startsWith("INFORMATION_SCHEMA.")
@@ -140,7 +143,7 @@ public final class SqlGuard {
     }
 
     private static String findAppTableReference(String sql) {
-        for (String name : APP_TABLES) {
+        for (String name : PII_BEARING_APP_TABLES) {
             Pattern p = Pattern.compile(
                     "(?i)(\\bFROM|\\bJOIN)\\s+(\\[?dbo\\]?\\.)?\\[?" + Pattern.quote(name) + "\\]?\\b");
             if (p.matcher(sql).find()) {
@@ -151,22 +154,21 @@ public final class SqlGuard {
     }
 
     private static void rejectBareColumnsWithAggregate(String resourceId, String sql, String appTable) {
-        var sm = Pattern.compile("(?is)\\bSELECT\\s+(.*?)\\bFROM\\b").matcher(sql);
-        if (!sm.find()) return;
-        String selectList = sm.group(1);
+        var selectListMatcher = Pattern.compile("(?is)\\bSELECT\\s+(.*?)\\bFROM\\b").matcher(sql);
+        if (!selectListMatcher.find()) return;
+        String selectList = selectListMatcher.group(1);
 
-        String groupByCols = extractGroupByColumns(sql);
-        String[] exprs = splitTopLevelComma(selectList);
-        for (String expr : exprs) {
-            String e = expr.strip();
-            if (e.isEmpty()) continue;
-            if (AGGREGATE_FUNCS.matcher(e).find()) continue;
-            String last = e.split("\\s+AS\\s+", 2)[0].strip();
-            String[] dotParts = last.split("\\.");
-            String tail = dotParts[dotParts.length - 1].replaceAll("[\\[\\]]", "");
-            if (groupByCols.toUpperCase().contains(tail.toUpperCase())) continue;
+        String groupByColumns = extractGroupByColumns(sql);
+        for (String selectListEntry : splitTopLevelComma(selectList)) {
+            String expression = selectListEntry.strip();
+            if (expression.isEmpty()) continue;
+            if (AGGREGATE_FUNCS.matcher(expression).find()) continue;
+            String expressionBeforeAlias = expression.split("\\s+AS\\s+", 2)[0].strip();
+            String[] qualifierParts = expressionBeforeAlias.split("\\.");
+            String unqualifiedColumn = qualifierParts[qualifierParts.length - 1].replaceAll("[\\[\\]]", "");
+            if (groupByColumns.toUpperCase().contains(unqualifiedColumn.toUpperCase())) continue;
             throw violation(resourceId,
-                    "bare column '" + e + "' in SELECT list against app-table " + appTable
+                    "bare column '" + expression + "' in SELECT list against app-table " + appTable
                             + " — leaks row data; remove or aggregate");
         }
     }
@@ -176,20 +178,20 @@ public final class SqlGuard {
         return m.find() ? m.group(1) : "";
     }
 
-    private static String[] splitTopLevelComma(String s) {
+    private static String[] splitTopLevelComma(String expressionList) {
         List<String> parts = new ArrayList<>();
-        int depth = 0;
+        int parenthesisDepth = 0;
         int start = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')') depth--;
-            else if (c == ',' && depth == 0) {
-                parts.add(s.substring(start, i));
+        for (int i = 0; i < expressionList.length(); i++) {
+            char c = expressionList.charAt(i);
+            if (c == '(') parenthesisDepth++;
+            else if (c == ')') parenthesisDepth--;
+            else if (c == ',' && parenthesisDepth == 0) {
+                parts.add(expressionList.substring(start, i));
                 start = i + 1;
             }
         }
-        parts.add(s.substring(start));
+        parts.add(expressionList.substring(start));
         return parts.toArray(String[]::new);
     }
 

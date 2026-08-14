@@ -60,7 +60,7 @@ public final class TenantClassifier {
             TenantScope legacyScope;
             try {
                 legacyScope = computeLegacyScope(name, columnsPerTable, fkTargets, tenantScoped, override);
-            } catch (IllegalStateException ise) {
+            } catch (IllegalStateException noClassificationRuleMatched) {
                 unclassified.add(name);
                 continue;
             }
@@ -70,7 +70,7 @@ public final class TenantClassifier {
 
             String targetEntity = override != null && override.hasNonNull("target_entity")
                     ? override.get("target_entity").asText()
-                    : defaultTargetEntity(name);
+                    : singularizeLegacyTableName(name);
 
             String rationaleRef = override != null ? override.path("rationale_ref").asText(null) : null;
             String tenantColumn = targetScope == TenantScope.TENANT_SCOPED ? "club_id" : null;
@@ -140,14 +140,13 @@ public final class TenantClassifier {
             };
         }
 
-        Set<String> cols = columnsPerTable.get(name);
-        if (hasClubIdColumn(cols) || hasOwnerClubIdColumn(cols)) {
+        Set<String> columns = columnsPerTable.get(name);
+        if (hasClubIdColumn(columns) || hasOwnerClubIdColumn(columns)) {
             return TenantScope.TENANT_SCOPED;
         }
 
-        Set<String> targets = fkTargets.getOrDefault(name, Set.of());
-        for (String target : targets) {
-            if (tenantScoped.contains(target)) {
+        for (String fkTarget : fkTargets.getOrDefault(name, Set.of())) {
+            if (tenantScoped.contains(fkTarget)) {
                 return TenantScope.INDIRECT_TENANT;
             }
         }
@@ -162,13 +161,16 @@ public final class TenantClassifier {
         return scope == TenantScope.TENANT_SCOPED || scope == TenantScope.INDIRECT_TENANT;
     }
 
-    private static String defaultTargetEntity(String legacyTable) {
+    private static String singularizeLegacyTableName(String legacyTable) {
         if (legacyTable.endsWith("ies") && legacyTable.length() > 3) {
             return legacyTable.substring(0, legacyTable.length() - 3) + "y";
         }
         if (legacyTable.endsWith("es") && legacyTable.length() > 2) {
-            char last = legacyTable.charAt(legacyTable.length() - 3);
-            if (last == 's' || last == 'x' || last == 'z' || last == 'h') {
+            char characterPrecedingTheEsSuffix = legacyTable.charAt(legacyTable.length() - 3);
+            if (characterPrecedingTheEsSuffix == 's'
+                    || characterPrecedingTheEsSuffix == 'x'
+                    || characterPrecedingTheEsSuffix == 'z'
+                    || characterPrecedingTheEsSuffix == 'h') {
                 return legacyTable.substring(0, legacyTable.length() - 2);
             }
         }
@@ -195,23 +197,23 @@ public final class TenantClassifier {
     }
 
     private static Map<String, Set<String>> buildColumnIndex(JsonNode columnsJson) {
-        Map<String, Set<String>> idx = new LinkedHashMap<>();
-        for (JsonNode c : columnsJson) {
-            String table = c.get("table_name").asText();
-            String column = c.get("column_name").asText();
-            idx.computeIfAbsent(table, k -> new java.util.HashSet<>()).add(column);
+        Map<String, Set<String>> columnNamesPerTable = new LinkedHashMap<>();
+        for (JsonNode column : columnsJson) {
+            String table = column.get("table_name").asText();
+            String columnName = column.get("column_name").asText();
+            columnNamesPerTable.computeIfAbsent(table, k -> new java.util.HashSet<>()).add(columnName);
         }
-        return idx;
+        return columnNamesPerTable;
     }
 
     private static Map<String, Set<String>> buildFkTargetIndex(JsonNode fksJson) {
-        Map<String, Set<String>> idx = new LinkedHashMap<>();
+        Map<String, Set<String>> fkTargetsPerTable = new LinkedHashMap<>();
         for (JsonNode fk : fksJson) {
             String source = fk.get("table").asText();
             String target = fk.get("referenced_table").asText();
-            idx.computeIfAbsent(source, k -> new java.util.HashSet<>()).add(target);
+            fkTargetsPerTable.computeIfAbsent(source, k -> new java.util.HashSet<>()).add(target);
         }
-        return idx;
+        return fkTargetsPerTable;
     }
 
     private static String resolveIndirectPath(String table, JsonNode fksJson, Set<String> tenantScoped) {

@@ -30,7 +30,7 @@ class MetadataExtractorIntegrationTest {
         try {
             MSSQL.start();
             return true;
-        } catch (Throwable t) {
+        } catch (Throwable dockerUnreachable) {
             System.err.println("""
                     [alpenflight-extract] Skipping MetadataExtractorIntegrationTest — Docker unreachable.
 
@@ -45,7 +45,7 @@ class MetadataExtractorIntegrationTest {
 
                       The CI workflow runs Docker natively, so PRs are gated on real test runs
                       even when local dev skips.
-                    """.formatted(t.getMessage()));
+                    """.formatted(dockerUnreachable.getMessage()));
             return false;
         }
     }
@@ -71,7 +71,9 @@ class MetadataExtractorIntegrationTest {
     @Autowired MetadataExtractor extractor;
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Path ALPENFLIGHT_TEST_ROOT = locateFlsTestFixture();
+    private static final Path LEGACY_FLSTEST_FIXTURE_ROOT = locateFlsTestFixture();
+    private static final int MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ = 50;
+    private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
     @BeforeAll
     static void verifySqlClasspathIsSafe() {
@@ -86,10 +88,11 @@ class MetadataExtractorIntegrationTest {
 
     @BeforeAll
     static void seedFlsTestFixture(@Autowired DataSource ds) throws IOException {
-        LegacyExtractFixtureSeeder.SeedResult result = LegacyExtractFixtureSeeder.applyAll(ds, ALPENFLIGHT_TEST_ROOT);
+        LegacyExtractFixtureSeeder.SeedResult result =
+                LegacyExtractFixtureSeeder.applyAll(ds, LEGACY_FLSTEST_FIXTURE_ROOT);
         assertThat(result.batchesApplied())
                 .as("FLSTest fixture seed produced no successful batches")
-                .isGreaterThan(50);
+                .isGreaterThan(MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ);
     }
 
     @Test
@@ -120,8 +123,8 @@ class MetadataExtractorIntegrationTest {
         extractor.extractTo(new ExtractConfig(false, true, out));
         JsonNode tables = JSON.readTree(out.resolve("tables.json").toFile());
 
-        var names = nodeValues(tables, "table_name");
-        assertThat(names).contains(
+        var tableNames = nodeValues(tables, "table_name");
+        assertThat(tableNames).contains(
                 "Flights", "Persons", "Aircrafts", "Clubs", "PersonClub",
                 "FlightCrew",
                 "AuditLogs", "AuditLogDetails",
@@ -132,15 +135,15 @@ class MetadataExtractorIntegrationTest {
     @Test
     void columns_json_carries_flight_columns_with_types(@TempDir Path out) throws IOException {
         extractor.extractTo(new ExtractConfig(false, true, out));
-        JsonNode cols = JSON.readTree(out.resolve("columns.json").toFile());
+        JsonNode columns = JSON.readTree(out.resolve("columns.json").toFile());
 
         long flightColumnCount = 0;
         boolean hasFlightDate = false;
         boolean hasNoClubId = true;
-        for (JsonNode c : cols) {
-            if ("Flights".equals(c.get("table_name").asText())) {
+        for (JsonNode column : columns) {
+            if ("Flights".equals(column.get("table_name").asText())) {
                 flightColumnCount++;
-                String name = c.get("column_name").asText();
+                String name = column.get("column_name").asText();
                 if ("FlightDate".equalsIgnoreCase(name)) hasFlightDate = true;
                 if ("ClubId".equalsIgnoreCase(name)) hasNoClubId = false;
             }
@@ -207,16 +210,16 @@ class MetadataExtractorIntegrationTest {
     @Test
     void cutover_window_json_carries_top10_with_migrate_seconds(@TempDir Path out) throws IOException {
         extractor.extractTo(new ExtractConfig(true, true, out));
-        JsonNode cw = JSON.readTree(out.resolve("cutover-window.json").toFile());
+        JsonNode cutoverWindow = JSON.readTree(out.resolve("cutover-window.json").toFile());
 
-        assertThat(cw.get("throughput_mb_per_sec").asDouble())
+        assertThat(cutoverWindow.get("throughput_mb_per_sec").asDouble())
                 .as("default throughput constant is 30 MB/s per the refinement worked example")
                 .isEqualTo(30.0);
-        assertThat(cw.get("budget_seconds").asLong())
+        assertThat(cutoverWindow.get("budget_seconds").asLong())
                 .as("C6 sacred-cow cutover budget is 6 hours = 21600 s")
                 .isEqualTo(21_600L);
 
-        JsonNode top = cw.get("top_tables");
+        JsonNode top = cutoverWindow.get("top_tables");
         assertThat(top.isArray()).isTrue();
         assertThat(top.size())
                 .as("top_tables should be non-empty for the seeded fixture")
@@ -367,7 +370,7 @@ class MetadataExtractorIntegrationTest {
 
     private static Path locateRepoFile(String repoRelativePath) {
         Path cursor = Paths.get(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve(repoRelativePath);
             if (candidate.toFile().exists()) {
                 return candidate;
@@ -381,7 +384,7 @@ class MetadataExtractorIntegrationTest {
 
     private static Path locateFlsTestFixture() {
         Path cursor = Paths.get(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve("flsserver/database/FLSTest");
             if (candidate.toFile().isDirectory()) {
                 return candidate;
