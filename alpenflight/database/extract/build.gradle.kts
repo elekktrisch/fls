@@ -19,7 +19,6 @@ repositories {
 }
 
 dependencies {
-    // CLI-only — no web, no JPA. JDBC starter for SQL Server access.
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("com.microsoft.sqlserver:mssql-jdbc:12.10.0.jre11")
@@ -27,11 +26,6 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    // No Testcontainers — the bundled docker-java hardcodes Docker REST API
-    // 1.32 and our host daemon enforces a minimum of 1.44. The pragmatic
-    // fix is to drive the container lifecycle through `docker` CLI directly
-    // (the CLI auto-negotiates the latest version), which is what
-    // MssqlTestContainerLifecycle does. JUnit-only test infra.
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -47,7 +41,4 @@ tasks.withType<Test> {
         events("passed", "failed", "skipped")
         showStandardStreams = false
     }
-    // Container lifecycle is driven by docker CLI in
-    // MssqlTestContainerLifecycle; the test JVM doesn't need any docker env
-    // beyond inheriting DOCKER_HOST.
 }

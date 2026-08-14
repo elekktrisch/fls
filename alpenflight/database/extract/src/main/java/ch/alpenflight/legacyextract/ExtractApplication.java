@@ -8,20 +8,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
-/**
- * FLS legacy SQL Server metadata extractor — Spring Boot CLI entrypoint.
- *
- * <p><b>Source-of-truth precedence:</b> prod-applied DDL ({@code
- * INFORMATION_SCHEMA} + {@code sys.*}) is authoritative. {@code
- * flsserver/database/FLS/Updates/DBUpdate_v*.sql} reconstructs the same DDL
- * if you replay it. The EF migration tree at {@code
- * flsserver/src/FLS.Server.Data/Migrations/} is <b>frozen at 2015</b>
- * ({@code 201501222055041_InitialCreate}); EF and SQL disagree, the EF
- * mapping file scan emits drift records so consumers know which to trust.
- *
- * <p>Run from the module root: {@code ./gradlew bootRun --args="..."}. See
- * {@code README.md} for the full operator runbook.
- */
 @SpringBootApplication
 public class ExtractApplication {
 

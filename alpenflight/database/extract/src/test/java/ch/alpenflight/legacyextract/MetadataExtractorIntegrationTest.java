@@ -18,22 +18,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * End-to-end integration test. Starts SQL Server in a Docker container via
- * the {@code docker} CLI, seeds it with the actual FLSTest fixture from
- * {@code flsserver/database/FLSTest/}, runs the extractor, asserts the JSON
- * outputs contain real FLS tables.
- *
- * <p>Per the test philosophy for this stack: this is the only test class.
- * No mocking, no unit-test tier, no synthetic schema. The real legacy
- * fixture is the substrate — and incidentally the substrate the operator
- * uses when re-running the extractor locally.
- *
- * <p>Container lifecycle is driven by {@link MssqlTestContainerLifecycle}
- * rather than Testcontainers because the sandbox's Docker daemon enforces
- * Docker REST API ≥ 1.44, and Testcontainers 1.21.x's bundled docker-java
- * negotiates only 1.32. Driving via {@code docker} CLI bypasses that.
- */
 @SpringBootTest(properties = "extract.run-on-startup=false")
 @EnabledIf(value = "dockerAvailable",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
@@ -42,14 +26,6 @@ class MetadataExtractorIntegrationTest {
     private static final MssqlTestContainerLifecycle MSSQL = new MssqlTestContainerLifecycle();
     private static final boolean DOCKER_AVAILABLE = tryStartContainer();
 
-    /**
-     * Spring evaluates {@code @DynamicPropertySource} before {@code @BeforeAll},
-     * so the container must be live before the class is loaded. The static-init
-     * path attempts the start; if Docker isn't reachable (typical for
-     * Windows-without-Docker-Desktop, or any host without a docker daemon),
-     * the test class is disabled cleanly via {@code @EnabledIf} below rather
-     * than failing with {@code ExceptionInInitializerError}.
-     */
     private static boolean tryStartContainer() {
         try {
             MSSQL.start();
@@ -74,7 +50,6 @@ class MetadataExtractorIntegrationTest {
         }
     }
 
-    /** Predicate target for {@link EnabledIf}. */
     static boolean dockerAvailable() {
         return DOCKER_AVAILABLE;
     }
@@ -112,11 +87,6 @@ class MetadataExtractorIntegrationTest {
     @BeforeAll
     static void seedFlsTestFixture(@Autowired DataSource ds) throws IOException {
         LegacyExtractFixtureSeeder.SeedResult result = LegacyExtractFixtureSeeder.applyAll(ds, ALPENFLIGHT_TEST_ROOT);
-        // The fixture must produce *some* schema for the extraction to be
-        // meaningful. The exact number of failing batches isn't a strong
-        // invariant — legacy scripts contain server-state DDL that won't
-        // apply against a fresh container — but a complete-failure run means
-        // the fixture isn't being read at all.
         assertThat(result.batchesApplied())
                 .as("FLSTest fixture seed produced no successful batches")
                 .isGreaterThan(50);
@@ -139,7 +109,6 @@ class MetadataExtractorIntegrationTest {
         assertThat(out.resolve("identity-columns.json")).exists();
         assertThat(out.resolve("manifest.json")).exists();
 
-        // Aggregate-gated files MUST NOT appear when the flag is off.
         assertThat(out.resolve("row-counts.json")).doesNotExist();
         assertThat(out.resolve("storage-stats.json")).doesNotExist();
         assertThat(out.resolve("column-cardinality.json")).doesNotExist();
@@ -151,14 +120,7 @@ class MetadataExtractorIntegrationTest {
         extractor.extractTo(new ExtractConfig(false, true, out));
         JsonNode tables = JSON.readTree(out.resolve("tables.json").toFile());
 
-        // Hand-picked tables that are load-bearing for the modernization:
-        //   - Flights / Persons / Aircrafts / Clubs / PersonClubs — sacred-cow domain
-        //   - AuditLogs + AuditLogDetails — largest PII container
-        //   - AccountingRuleFilters — rules-engine config
-        //   - Deliveries / DeliveryItems — invoice flow terminal state
         var names = nodeValues(tables, "table_name");
-        // Legacy table names use singular for join tables (PersonClub,
-        // FlightCrew) but plural for entity tables (Flights, Persons).
         assertThat(names).contains(
                 "Flights", "Persons", "Aircrafts", "Clubs", "PersonClub",
                 "FlightCrew",
@@ -172,8 +134,6 @@ class MetadataExtractorIntegrationTest {
         extractor.extractTo(new ExtractConfig(false, true, out));
         JsonNode cols = JSON.readTree(out.resolve("columns.json").toFile());
 
-        // Spot-check Flights table — it's parity-critical and has no ClubId,
-        // which is the indirect-tenancy finding the JSON output surfaces.
         long flightColumnCount = 0;
         boolean hasFlightDate = false;
         boolean hasNoClubId = true;
@@ -204,7 +164,6 @@ class MetadataExtractorIntegrationTest {
         assertThat(fks.size())
                 .as("FLSTest fixture should produce many foreign keys")
                 .isGreaterThan(10);
-        // Every FK record carries the referenced table + the columns lists.
         JsonNode first = fks.get(0);
         assertThat(first.get("table").asText()).isNotBlank();
         assertThat(first.get("referenced_table").asText()).isNotBlank();
@@ -241,11 +200,7 @@ class MetadataExtractorIntegrationTest {
         assertThat(out.resolve("index-sizes.json")).exists();
         assertThat(out.resolve("index-usage.json")).exists();
         assertThat(out.resolve("column-cardinality.json")).exists();
-        // audit-log-sizing.json is conditional on AuditLogs+AuditLogDetails
-        // existing. FLSTest fixture has both → file should be produced.
         assertThat(out.resolve("audit-log-sizing.json")).exists();
-        // Cutover-window estimate — AC4. Top-10 by storage MB, with
-        // migrate_seconds + pct_of_budget per table.
         assertThat(out.resolve("cutover-window.json")).exists();
     }
 
@@ -279,7 +234,6 @@ class MetadataExtractorIntegrationTest {
                 .isLessThan(5.0);
     }
 
-    // ---- S-011 tenant-scope catalog tests ----
 
     @Test
     void tenant_classification_json_is_emitted(@TempDir Path out) {
@@ -302,7 +256,6 @@ class MetadataExtractorIntegrationTest {
         var classified = new java.util.HashSet<String>();
         classification.get("entities").forEach(n -> classified.add(n.get("legacy_table").asText()));
 
-        // Symmetric set-equality: every legacy table is classified, no orphan classification.
         assertThat(classified)
                 .as("every legacy table from tables.json must be classified — completeness verifier")
                 .containsAll(legacyTables);
@@ -338,12 +291,9 @@ class MetadataExtractorIntegrationTest {
         JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
 
         JsonNode flights = findClassification(classification, "Flights");
-        // Flights has no ClubId column in legacy → indirect tenant via Aircrafts.OwnerClubId.
-        // S-013 must denormalize club_id into the new flight table → target is TENANT_SCOPED.
         assertThat(flights.get("legacy_scope").asText()).isEqualTo("INDIRECT_TENANT");
         assertThat(flights.get("target_scope").asText()).isEqualTo("TENANT_SCOPED");
         assertThat(flights.get("target_entity").asText()).isEqualTo("Flight");
-        // The denormalization recommendation must be carried as a precondition for S-013.
         var preconditions = new java.util.ArrayList<String>();
         flights.get("preconditions").forEach(n -> preconditions.add(n.asText()));
         assertThat(preconditions)
@@ -428,12 +378,8 @@ class MetadataExtractorIntegrationTest {
         return Paths.get(repoRelativePath);
     }
 
-    // ---- helpers ----
 
     private static Path locateFlsTestFixture() {
-        // The test runs from the Gradle subproject (alpenflight/database/extract).
-        // The FLSTest fixture lives at flsserver/database/FLSTest from the
-        // repo root. Walk up until we find it; bail loudly if missing.
         Path cursor = Paths.get(".").toAbsolutePath().normalize();
         for (int i = 0; i < 6; i++) {
             Path candidate = cursor.resolve("flsserver/database/FLSTest");

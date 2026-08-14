@@ -11,22 +11,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/**
- * Ratchet tests for the FLS → AlpenFlight technical rebrand (S-128), extract-module
- * mirror of {@code ch.alpenflight.build.RebrandConventionsTest} in {@code alpenflight/server/}.
- * Asserts post-rename invariants for the legacy-extract Gradle subproject: no
- * surviving legacy {@code ch.fls} package declaration, no surviving
- * {@code [fls-extract]} log prefix, Gradle coordinates pinned to alpenflight.
- *
- * <p>Plain JUnit 5 + filesystem walk — no Spring, no Docker, runs in milliseconds
- * via {@code ./gradlew check}. Catches regression-of-the-rebrand as the
- * extract module's source tree grows.
- *
- * <p>Note: {@code FlsTest}-named helper methods in
- * {@code MetadataExtractorIntegrationTest} are NOT violations — they reference
- * the legacy {@code FLSTest} SQL Server database fixture (pinned by
- * {@code flsserver/database/FLSTest/}, owned by the legacy stack).
- */
 class RebrandConventionsTest {
 
     private static final String FORBIDDEN_PACKAGE_PREFIX = "package ch." + "fls";
@@ -137,11 +121,6 @@ class RebrandConventionsTest {
         return p.getFileName().toString().equals("RebrandConventionsTest.java");
     }
 
-    /**
-     * Locate the {@code alpenflight/database/extract/} module root by walking up from
-     * the working directory until a {@code build.gradle.kts} sibling to
-     * {@code src/} is found.
-     */
     private static Path locateModuleRoot() {
         Path cwd = Path.of("").toAbsolutePath();
         Path probe = cwd;

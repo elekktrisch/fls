@@ -13,30 +13,6 @@ import javax.sql.DataSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Test-only helper. Seeds a Testcontainers SQL Server with the FLSTest fixture
- * shipped under {@code flsserver/database/FLSTest/}. Used by the integration
- * test to extract metadata against the actual legacy schema, not a synthetic
- * stand-in.
- *
- * <p>Mechanics:
- * <ul>
- *   <li>Skip {@code 1 create/1 Create Database.sql} — it pins a Windows
- *       filesystem path. Instead the test runs against the container's
- *       default database (master) and applies all schema DDL there.
- *   <li>For each {@code 2 alter/*.sql} script, split on {@code ^GO\s*$}
- *       lines, then apply each batch via JDBC.
- *   <li>Strip {@code USE [master]} / {@code USE [FLSTest]} / {@code CREATE
- *       DATABASE} / {@code ALTER DATABASE [FLSTest]} batches — they
- *       reference a database name that doesn't exist in the test container
- *       and aren't structurally relevant for metadata extraction.
- *   <li>Tolerate per-batch failures gracefully: legacy SQL Server scripts
- *       contain a handful of dialect quirks (e.g. fulltext-conditional
- *       blocks) that are fine to skip. The seeder logs the offending batch
- *       and continues; an aggregate count of skips is returned for the
- *       caller to assert against.
- * </ul>
- */
 final class LegacyExtractFixtureSeeder {
 
     private static final Pattern GO_SEPARATOR = Pattern.compile("(?m)^\\s*GO\\s*$");
@@ -78,11 +54,6 @@ final class LegacyExtractFixtureSeeder {
                     jdbc.execute(trimmed);
                     applied++;
                 } catch (DataAccessException e) {
-                    // Legacy scripts contain dialect quirks (fulltext blocks,
-                    // EXECUTE AS USER references to logins we haven't created,
-                    // etc.). Skip + log; metadata extraction tolerates partial
-                    // schema since INFORMATION_SCHEMA queries are independent
-                    // per object.
                     failed++;
                 }
             }
@@ -90,15 +61,8 @@ final class LegacyExtractFixtureSeeder {
         return new SeedResult(scripts.size(), applied, skipped, failed);
     }
 
-    /**
-     * Apply scripts in semver-aware order. The default lexicographic ordering
-     * mis-sorts {@code DBUpdate_v1.10.0.sql} before {@code DBUpdate_v1.2.sql};
-     * we parse the version digits explicitly so the canonical install order
-     * matches what the legacy build did.
-     */
     private static Comparator<Path> scriptOrdering() {
         return Comparator
-                // "2 Alter Database.sql" goes first (DB-level settings)
                 .comparing((Path p) -> !p.getFileName().toString().startsWith("2 "))
                 .thenComparing(p -> versionTuple(p.getFileName().toString()),
                         Comparator.comparing((int[] v) -> v[0])
@@ -109,7 +73,6 @@ final class LegacyExtractFixtureSeeder {
     }
 
     private static int[] versionTuple(String filename) {
-        // DBUpdate_v1.9.20p1.sql -> [1, 9, 20, 1]
         var m = Pattern.compile("v(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:p(\\d+))?", Pattern.CASE_INSENSITIVE).matcher(filename);
         if (!m.find()) return new int[] {0, 0, 0, 0};
         return new int[] {
@@ -120,11 +83,6 @@ final class LegacyExtractFixtureSeeder {
         };
     }
 
-    /**
-     * Read a SQL script handling both UTF-8 and UTF-16 BOMs. Legacy FLSTest
-     * scripts exported from SSMS use UTF-16 LE; the older hand-written ones
-     * are plain UTF-8. Detect via BOM; fall back to UTF-8.
-     */
     private static String readScript(Path script) throws IOException {
         byte[] bytes = Files.readAllBytes(script);
         if (bytes.length >= 2 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xFE) {
