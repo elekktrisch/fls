@@ -17,6 +17,16 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-08c, 2026-08-14)
+
+- **[TAILWIND-LAYER-VS-NGZORRO-ADR]** The sweep deleted the only written explanation of why `!text-white`
+  is needed at `reservations-calendar.page.ts:148-156` — Tailwind's layered utilities lose to ng-zorro's
+  **unlayered** reset, a bug the operator reported and which was fixed **twice**. The rule now survives only
+  as an undocumented idiom across **13 call sites**; ADR 0024 §11 does not state it. Rationale belongs in
+  `docs/modernization/`, not in code, so the durable home is a one-line addition to **ADR 0024 §11** — but
+  `/do-ship` does not auto-edit ADRs, so this needs the operator. Left undocumented, it gets fixed a third
+  time. *(seam: ADR 0024 §11 + the 13 `!text-white` call sites)*
+
 ## Pending (filed by /do-ship J-31 T-08, 2026-08-14)
 
 - **[PROD-DENSITY-ATTR-MISSING]** `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
