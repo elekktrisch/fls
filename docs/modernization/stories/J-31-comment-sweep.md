@@ -75,7 +75,7 @@ later backend gate depends on — the repair follows immediately.
 - [ ] **T-12** — batch `migrations-sql` (1,946 / 58) — checksums change here
 - [ ] **T-13** — `flyway repair` the LAN Postgres; backend boots, `flyway validate` passes, whole server suite green against the repaired history
 - [ ] **T-14** — serial rename pass: collect every `RENAME:` marker, dedup, apply in ~20-groups, regenerate the OpenAPI snapshot + orval client in the SAME commit
-- [ ] **T-15** — wire `--check` into `ci.yml` (every push, no path filter) + a `preflight.sh` stage — LAST, so the gate lands green instead of sitting red for the whole journey
+- [ ] **T-15** — wire `--check` into `ci.yml` (every push, no path filter) + a `preflight.sh` stage — LAST, so the gate lands green instead of sitting red for the whole journey. ALSO correct the skill's batch table from what shipping it taught: `database`'s gate is a bare task in the standalone `alpenflight/database/extract` build (`rootProject.name = alpenflight-legacy-extract`), NOT `:extract:compileJava`; per-module `build.gradle.kts` belong to their module's batch, not batch 10; shard `web-e2e` on comment count (~200), not file count
 - [ ] **T-16** — re-tag the landing proof video `journey:J-31` in `public-routes.spec.ts`; verify the deployed preview bookmark renders it
 - [ ] **T-17** — §4 gate: local real-idp green, then the PR's own checks job-level green on the merge head
 
