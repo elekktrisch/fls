@@ -10,6 +10,7 @@ import {
   scoreComment,
   collectSourceFiles,
   inlineLiteralTokenStream,
+  mockedSeamDeclarations,
 } from './strip.mjs';
 
 function strip(source, extension) {
@@ -475,6 +476,64 @@ test('angular: an unterminated comment leaves the whole inline template untouche
   assert.equal(result.output, source);
   assert.equal(result.removed.length, 0);
   assert.match(result.reportedOnly[0].kind, /unterminated HTML comment/);
+});
+
+test('a @mocked: seam declaration survives the strip; prose beside it does not', () => {
+  const source = [
+    '// @mocked: http — guard unit test stubs the join-request probe',
+    '// the probe is stubbed because Keycloak is not booted here',
+    'const probe = of([]);',
+  ].join('\n');
+  const { comments } = scanComments(source, '.ts');
+  assert.equal(classifyComment(source, comments[0]), 'directive');
+  const result = strip(source, '.ts');
+  assert.equal(
+    result.output,
+    ['// @mocked: http — guard unit test stubs the join-request probe', 'const probe = of([]);'].join('\n'),
+  );
+});
+
+test('a prose block that buries an @mocked: seam is reported, never swallowed', () => {
+  const source = [
+    '/**',
+    ' * Drives the mock-auth screen end to end.',
+    ' * @mocked: http — mock-auth screen e2e',
+    ' */',
+    "test('list', async () => {});",
+  ].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, source);
+  assert.equal(result.removed.length, 0);
+  assert.equal(result.reportedOnly.length, 1);
+  assert.match(result.reportedOnly[0].kind, /@mocked: seam declaration/);
+  assert.deepEqual(mockedSeamDeclarations(source, '.ts'), [
+    { line: 3, seam: 'http', reason: 'mock-auth screen e2e' },
+  ]);
+});
+
+test('--check enumerates every @mocked: seam with its line, seam and reason', () => {
+  const source = [
+    "import { of } from 'rxjs';",
+    '',
+    '// @mocked: http — guard unit test stubs the join-request probe',
+    'const probe = of([]);',
+    '',
+    '/**',
+    ' * @mocked: keycloak-provision -- no realm is bootable on this box',
+    ' */',
+    'const realm = null;',
+    '',
+    '// @mocked: clock',
+    'const now = 0;',
+    '',
+    '// this spec has NO `@mocked:` seams — every seam is the real stack',
+    'const real = true;',
+  ].join('\n');
+  assert.deepEqual(mockedSeamDeclarations(source, '.ts'), [
+    { line: 3, seam: 'http', reason: 'guard unit test stubs the join-request probe' },
+    { line: 7, seam: 'keycloak-provision', reason: 'no realm is bootable on this box' },
+    { line: 11, seam: 'clock', reason: '' },
+  ]);
 });
 
 test('html: comments are removed', () => {

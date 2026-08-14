@@ -10,6 +10,8 @@ import type { EmailTemplateListItem, EmailTemplateSaveRequest } from '@api/gener
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { EmailTemplatesStore } from './email-templates.store';
 
+// @mocked: http — store unit test
+
 const fileDefault: EmailTemplateListItem = {
   templateKey: 'lostpassword',
   languageLocale: 'de',

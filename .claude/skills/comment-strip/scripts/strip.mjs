@@ -59,7 +59,12 @@ const TOOL_DIRECTIVE_PATTERNS = [
   /^\s*@formatter:(off|on)/,
   /^\s*shellcheck\s+(source|disable|shell|enable|external-sources)=/,
   /^\s*ext:/,
+  /^\s*@mocked:/,
 ];
+
+const MOCKED_SEAM_DECLARATION = /^\s*\*?\s*@mocked:\s*(.+)$/;
+const SEAM_AND_REASON_SEPARATOR = /\s+(?:—|–|--|-)\s+/;
+const MOCKED_SEAM_ON_A_LINE_OF_ITS_OWN = /^\s*\*?\s*@mocked:/m;
 
 const RENAME_MARKER_PATTERN = /^\s*RENAME:/;
 
@@ -764,7 +769,18 @@ function scanHtml(source) {
   return { comments, literals: [] };
 }
 
-export function scanComments(source, extension) {
+function reportRatherThanSwallowAnEmbeddedMockedSeam(source, comment) {
+  if (comment.reportOnly === true) return comment;
+  if (classifyComment(source, comment) !== 'prose') return comment;
+  if (!MOCKED_SEAM_ON_A_LINE_OF_ITS_OWN.test(comment.body)) return comment;
+  return {
+    ...comment,
+    reportOnly: true,
+    kind: 'prose comment carrying an @mocked: seam declaration (hoist the tag onto a comment of its own, then re-run)',
+  };
+}
+
+function scanByLanguage(source, extension) {
   const language = LANGUAGE_BY_EXTENSION.get(extension);
   if (language === 'clike') return scanCLike(source, extension);
   if (language === 'sql') return scanSql(source);
@@ -774,12 +790,42 @@ export function scanComments(source, extension) {
   return { comments: [], literals: [] };
 }
 
+export function scanComments(source, extension) {
+  const scanned = scanByLanguage(source, extension);
+  return {
+    ...scanned,
+    comments: scanned.comments.map((comment) => reportRatherThanSwallowAnEmbeddedMockedSeam(source, comment)),
+  };
+}
+
 export function classifyComment(source, comment) {
   const isShebang = comment.directive === true || (comment.start === 0 && source.startsWith('#!'));
   if (isShebang) return 'directive';
   if (RENAME_MARKER_PATTERN.test(comment.body)) return 'rename-marker';
   if (TOOL_DIRECTIVE_PATTERNS.some((pattern) => pattern.test(comment.body))) return 'directive';
   return 'prose';
+}
+
+export function mockedSeamDeclarations(source, extension) {
+  return mockedSeamsAmong(source, scanComments(source, extension).comments);
+}
+
+function mockedSeamsAmong(source, comments) {
+  const declarations = [];
+  for (const comment of comments) {
+    const commentStartLine = lineNumberAt(source, comment.start);
+    comment.body.split('\n').forEach((bodyLine, lineOffsetInComment) => {
+      const declaration = MOCKED_SEAM_DECLARATION.exec(bodyLine);
+      if (declaration === null) return;
+      const separator = SEAM_AND_REASON_SEPARATOR.exec(declaration[1]);
+      declarations.push({
+        line: commentStartLine + lineOffsetInComment,
+        seam: (separator === null ? declaration[1] : declaration[1].slice(0, separator.index)).trim(),
+        reason: separator === null ? '' : declaration[1].slice(separator.index + separator[0].length).trim(),
+      });
+    });
+  }
+  return declarations;
 }
 
 function lineNumberAt(source, index) {
@@ -968,12 +1014,23 @@ function parseArguments(argv) {
   return options;
 }
 
+function writeMockedSeamSection(mockedSeams) {
+  process.stdout.write(`comment-strip --check: mocked seams (${mockedSeams.length})\n`);
+  for (const seam of mockedSeams) {
+    process.stdout.write(`  ${seam.file}:${seam.line}  ${seam.seam} — ${seam.reason}\n`);
+  }
+}
+
 function runCheck(files) {
   const violations = [];
+  const mockedSeams = [];
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const relativePath = relative(process.cwd(), file);
     const { comments } = scanComments(source, extname(file));
+    for (const declaration of mockedSeamsAmong(source, comments)) {
+      mockedSeams.push({ file: relativePath, ...declaration });
+    }
     for (const comment of comments) {
       const classification = classifyComment(source, comment);
       if (classification === 'directive') continue;
@@ -990,6 +1047,7 @@ function runCheck(files) {
       });
     }
   }
+  writeMockedSeamSection(mockedSeams);
   if (violations.length === 0) {
     process.stdout.write(`comment-strip --check: clean (${files.length} files)\n`);
     return 0;

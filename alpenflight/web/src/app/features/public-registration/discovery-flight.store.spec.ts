@@ -14,6 +14,8 @@ import { PublicRegistrationService } from '@api/generated/public-registration/pu
 
 import { DiscoveryFlightStore } from './discovery-flight.store';
 
+// @mocked: http — store unit test
+
 const CLUB_SLUG = 'alpine-soaring';
 const CLUB_NAME = 'Alpine Soaring';
 const DAYS = ['2099-06-15', '2099-08-25'];

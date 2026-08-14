@@ -13,7 +13,7 @@ belongs in the source.
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 This skill ships behavior change in the codebase's readability, not a document.
 
-**Two comments survive, nothing else:**
+**Three comments survive, nothing else:**
 
 1. **Tool-parsed directives** — `eslint-disable*`, `@ts-ignore`, `@ts-expect-error`,
    `@ts-nocheck`, `prettier-ignore`, `noinspection`, `language=`, `@formatter:off/on`,
@@ -24,6 +24,14 @@ This skill ships behavior change in the codebase's readability, not a document.
    `@Column(name = "…")` is enforced by the machine, then rename the Java
    identifier freely. A comment saying "Proffix calls this X" is unenforced
    folklore. Keep `ext:` markers telegraphic; concision beats grammar.
+3. **`// @mocked: <seam> — <reason>`** — `/do-ship` §4 mock governance, which
+   `gap-hunter` greps to tell a declared mock from an undeclared one (an
+   undeclared mock is a red chain). It survives *because* it is enforced:
+   `--check` opens its report with a `mocked seams (N)` section listing every
+   tag's file, line, seam and reason, so the PR's "Mocked seams" list is
+   generated from the code. The tag must stand on a comment of its own; a prose
+   block that buries one is reported, never stripped, until the tag is hoisted
+   out.
 
 ## Preconditions — refuse or warn
 
@@ -157,6 +165,8 @@ rewrites ~1,800 files and renames across module boundaries.
 
 - files touched, comments removed, per-batch breakdown
 - surviving `// ext:` markers, each with its justification
+- the `mocked seams (N)` section from the final `--check` run, verbatim — that is
+  the PR's "Mocked seams" list
 - renames applied vs. proposed-and-skipped
 - **entries above the score threshold that no judge reviewed** — state the count
   explicitly; a silent cap reads as full coverage when it was not
