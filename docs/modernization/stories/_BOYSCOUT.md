@@ -17,6 +17,21 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
+
+- **[MANIFEST-TENANT-BYPASS-COUNT]** `ManifestTenantBypassAllowListTest.java:23` — the deleted comment named
+  **eleven** allow-listed tenant-bypass entries; the list actually holds **twelve**. Either the comment rotted
+  or an entry was added without the deliberation the allow-list exists to force. The open question is whether
+  **`AUDIT_LOG`** is a deliberate bypass. A tenant-bypass allow-list is exactly the kind of list where a
+  silently-grown entry is a tenancy leak, so this needs an answer, not a re-counted comment. *(seam: the
+  bypass allow-list + its test)*
+- **[MIGRATION-BUNDLE-DEAD-EDGES]** Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
+  `LEGACY_SYSTEM_USER_ID` is `public` with **zero references** (duplicate of the bindings GUID);
+  `migration-bundle/build.gradle.kts:51` carried an archunit-1.4.2-vs-Java-25 workaround whose rationale died
+  with its comment — the guard belongs in `ArchitectureTest` where it can fail loudly; and
+  `accounting/package-info.java` is now an **empty file** with no `@NullMarked`, unlike its sibling
+  `identity/package-info.java` — a nullness-annotation gap the comment was hiding. *(seam: those three files)*
+
 ## Pending (filed by /do-ship J-31 T-05b, 2026-08-14)
 
 - **[PHANTOM-PASSWORD-GUARD]** A comment deleted from `alpenflight/auth/scripts/normalize-realm-export.sh`
