@@ -17,6 +17,17 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-05b, 2026-08-14)
+
+- **[PHANTOM-PASSWORD-GUARD]** A comment deleted from `alpenflight/auth/scripts/normalize-realm-export.sh`
+  asserted that "CI grep rejects any password not in this allow-set". **No such guard exists** — the only
+  realm-password check is `check-realm-shape.sh:124`, which asserts the *policy shape*, not the allow-set.
+  The comment documented a safety property nobody implemented, which is exactly the folklore this sweep
+  exists to kill; T-05b's replacement name asserts only what is actually enforced. Decide: implement the
+  allow-set grep in CI, or accept that dev-realm passwords are unguarded and say so. A claimed guard on a
+  credential seam needs the proving test, not prose ([[feedback_safety_claim_needs_negative_test]]).
+  *(seam: `check-realm-shape.sh` + the realm-export password fields)*
+
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
 - **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
