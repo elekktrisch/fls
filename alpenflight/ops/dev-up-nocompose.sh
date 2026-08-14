@@ -14,6 +14,9 @@ KEYCLOAK_IMAGE="alpenflight-keycloak:local"
 MAILPIT_IMAGE="axllent/mailpit:v1.21"
 KC_READY_URL="http://localhost:9090/health/ready"
 MAILPIT_READY_URL="http://localhost:8025/api/v1/info"
+KEYCLOAK_READY_POLL_ATTEMPTS_FOR_A_MINUTES_LONG_H2_REALM_IMPORT=90
+# ext: DNS alias — must equal KEYCLOAK_SMTP_HOST in alpenflight/auth/.env.example
+MAILPIT_NETWORK_ALIAS="mailpit"
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
@@ -51,7 +54,7 @@ ensure_shared_network
 log "Starting Mailpit"
 recreate mailpit
 docker run -d --name mailpit \
-    --network "${ALPENFLIGHT_SHARED_NETWORK}" --network-alias mailpit \
+    --network "${ALPENFLIGHT_SHARED_NETWORK}" --network-alias "${MAILPIT_NETWORK_ALIAS}" \
     --restart unless-stopped \
     -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 \
     -e MP_MAX_MESSAGES=5000 \
@@ -60,9 +63,9 @@ docker run -d --name mailpit \
     "${MAILPIT_IMAGE}" >/dev/null
 wait_ready "Mailpit" "${MAILPIT_READY_URL}" '"Version"' mailpit 12
 
-KC_ENV_ARGS=(--env-file "${REPO_ROOT}/alpenflight/auth/.env.example")
+KC_ENV_FILES_COMMITTED_DEFAULTS_THEN_PER_LAPTOP_OVERRIDES=(--env-file "${REPO_ROOT}/alpenflight/auth/.env.example")
 [[ -f "${REPO_ROOT}/alpenflight/auth/.env" ]] \
-    && KC_ENV_ARGS+=(--env-file "${REPO_ROOT}/alpenflight/auth/.env")
+    && KC_ENV_FILES_COMMITTED_DEFAULTS_THEN_PER_LAPTOP_OVERRIDES+=(--env-file "${REPO_ROOT}/alpenflight/auth/.env")
 
 log "Starting Keycloak"
 recreate keycloak
@@ -70,7 +73,7 @@ docker run -d --name keycloak \
     --network "${ALPENFLIGHT_SHARED_NETWORK}" --network-alias keycloak \
     --restart unless-stopped \
     -p 127.0.0.1:8090:8080 -p 127.0.0.1:9090:9000 \
-    "${KC_ENV_ARGS[@]}" \
+    "${KC_ENV_FILES_COMMITTED_DEFAULTS_THEN_PER_LAPTOP_OVERRIDES[@]}" \
     -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
     -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
     -e KC_HOSTNAME=localhost \
@@ -79,7 +82,8 @@ docker run -d --name keycloak \
     -e KC_HEALTH_ENABLED=true \
     -e KC_LOG_LEVEL=INFO \
     "${KEYCLOAK_IMAGE}" start-dev --http-port=8080 --import-realm >/dev/null
-wait_ready "Keycloak" "${KC_READY_URL}" '"status": "UP"' keycloak 90
+wait_ready "Keycloak" "${KC_READY_URL}" '"status": "UP"' keycloak \
+    "${KEYCLOAK_READY_POLL_ATTEMPTS_FOR_A_MINUTES_LONG_H2_REALM_IMPORT}"
 
 log "Applying Flyway migrations against ${DATASOURCE_URL}"
 (cd alpenflight/server && ./gradlew flywayMigrate --no-daemon --console=plain --quiet)

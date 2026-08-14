@@ -6,7 +6,7 @@ THEME_NAME="${THEME_NAME:-alpenflight}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8090}"
 REALM="${REALM:-alpenflight}"
 WEB_CLIENT_ID="${WEB_CLIENT_ID:-alpenflight-web}"
-REDIRECT_URI="${REDIRECT_URI:-http%3A%2F%2Flocalhost%3A4200%2F}"
+REDIRECT_URI_URL_ENCODED="${REDIRECT_URI_URL_ENCODED:-http%3A%2F%2Flocalhost%3A4200%2F}"
 
 AUTH_BASE="${KEYCLOAK_URL%/}/realms/${REALM}/protocol/openid-connect/auth"
 
@@ -19,7 +19,7 @@ build_url() {
   local locale="${1:-}"
   local extra="${locale:+&ui_locales=${locale}&kc_locale=${locale}}"
   printf '%s?client_id=%s&response_type=code&scope=openid&redirect_uri=%s&state=smoke&nonce=smoke%s' \
-    "$AUTH_BASE" "$WEB_CLIENT_ID" "$REDIRECT_URI" "$extra"
+    "$AUTH_BASE" "$WEB_CLIENT_ID" "$REDIRECT_URI_URL_ENCODED" "$extra"
 }
 
 HTML=$(curl -sS -L "$(build_url)") \

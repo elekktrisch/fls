@@ -125,9 +125,10 @@ USER_ID=$(curl -fsS -G "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
 [[ -n "$USER_ID" && "$USER_ID" != "null" ]] || fail "could not locate created test user"
 
 cleanup() {
-  local tok; tok=$(admin_token) || return 0
+  local admin_token_reacquired_because_mailpit_polling_outlives_the_first_one
+  admin_token_reacquired_because_mailpit_polling_outlives_the_first_one=$(admin_token) || return 0
   curl -fsS -X DELETE "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}" \
-    -H "Authorization: Bearer ${tok}" >/dev/null 2>&1 || true
+    -H "Authorization: Bearer ${admin_token_reacquired_because_mailpit_polling_outlives_the_first_one}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 

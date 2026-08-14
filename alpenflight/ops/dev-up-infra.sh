@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 PROJECT="alpenflight-infra"
+MAILPIT_WAIT_TIMEOUT_SECONDS_ABSORBING_A_COLD_RUNNER_IMAGE_PULL=90
 
 # shellcheck source=lib/shared-network.sh
 source "${SCRIPT_DIR}/lib/shared-network.sh"
@@ -23,7 +24,7 @@ ensure_shared_network
 
 log "Bringing up Mailpit under project ${PROJECT}"
 compose_up_or_die "Mailpit" infra "${PROJECT}" "${COMPOSE_FILE}" \
-    up -d --wait --wait-timeout 90 mailpit
+    up -d --wait --wait-timeout "${MAILPIT_WAIT_TIMEOUT_SECONDS_ABSORBING_A_COLD_RUNNER_IMAGE_PULL}" mailpit
 
 printf '\033[1;32m==> Infra ready\033[0m\n'
 cat <<INFO

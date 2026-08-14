@@ -1,4 +1,5 @@
 
+# ext: docker network name — pinned by docker-compose.yml (external: true) and 6 .github/workflows
 ALPENFLIGHT_SHARED_NETWORK="alpenflight_shared"
 
 _assert_bridge_driver() {
