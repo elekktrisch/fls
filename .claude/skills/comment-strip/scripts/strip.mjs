@@ -52,6 +52,7 @@ const TOOL_DIRECTIVE_PATTERNS = [
   /^\s*noinspection\b/,
   /language\s*=/,
   /^\s*@formatter:(off|on)/,
+  /^\s*shellcheck\s+(source|disable|shell|enable|external-sources)=/,
   /^\s*ext:/,
 ];
 

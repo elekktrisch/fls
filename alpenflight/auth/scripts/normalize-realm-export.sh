@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/auth/scripts/normalize-realm-export.sh
-#
-# Merge partial-export + users + per-user role mappings into a single
-# deterministic realm-export.json. Strips volatile fields (timestamps,
-# private keys), injects dev-only passwords for seed users, sorts keys.
-#
-# Inputs: 3 JSON files (partial realm, users array, user→roles map).
-# Output: assembled realm export to stdout.
-#
-# Invoked by export-realm.sh; safe to call directly for diff debugging.
 
 set -euo pipefail
 

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Guards on the dev/CI bring-up scripts. Needs no Docker daemon: `docker` is
-# stubbed on PATH.
-#
-# Both guards exist because a bring-up that reports success over a dead stack
-# converts a missing service into a readiness-poll timeout minutes later, in a
-# different repo layer, with no mention of the service that never started.
 
 set -uo pipefail
 
@@ -19,8 +13,6 @@ fail() {
     failures=$((failures + 1))
 }
 
-# mode=up-fails: every probe the scripts make succeeds, only `compose ... up`
-# fails. mode=no-compose-plugin: `docker compose` is not a docker command.
 make_stub_dir() {
     local mode="$1" dir
     dir="$(mktemp -d)"
@@ -56,8 +48,6 @@ STUB
     printf '%s' "${dir}"
 }
 
-# Runs a bring-up script against a stubbed docker, into RUN_OUT / RUN_STATUS.
-# Not a command substitution: that would strand both in a subshell.
 RUN_OUT=""
 RUN_STATUS=0
 run_with_stub() {
@@ -119,7 +109,6 @@ assert_status_nonzero "dev-up-full (no compose plugin)" "${RUN_STATUS}"
 assert_absent "dev-up-full (no compose plugin)" "Dev stack ready" "${RUN_OUT}"
 assert_matches "dev-up-full (no compose plugin)" "docker compose.*(unavailable|plugin)" "${RUN_OUT}"
 
-# The success path must survive the fail-loud wrappers.
 run_with_stub all-succeed alpenflight/ops/dev-up-infra.sh
 if [[ "${RUN_STATUS}" -eq 0 ]]; then
     pass "dev-up-infra (healthy stack): exits 0"
@@ -130,9 +119,6 @@ assert_matches "dev-up-infra (healthy stack)" "Infra ready" "${RUN_OUT}"
 
 echo "== fan-out brings Mailpit up before the legacy e2e suite =="
 
-# e2e/global-setup.ts gates the WHOLE legacy suite on Mailpit, so a Mailpit
-# bring-up scheduled after the legacy specs times the suite out before any spec
-# runs.
 mailpit_line="$(grep -n 'dev-up-infra.sh' "${FANOUT_WORKFLOW}" | head -1 | cut -d: -f1)"
 legacy_pw_line="$(grep -n 'working-directory: e2e$' "${FANOUT_WORKFLOW}" | head -1 | cut -d: -f1)"
 

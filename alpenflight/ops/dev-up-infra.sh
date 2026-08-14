@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/ops/dev-up-infra.sh
-#
-# Brings up the alpenflight-infra compose project: the cross-project shared
-# `alpenflight_shared` network + Mailpit (SMTP sink reused by Keycloak in
-# alpenflight-dev AND by the legacy server in fls-e2e via host port 1025).
-#
-# Idempotent. Tear down:
-#
-#   docker compose -p alpenflight-infra down [-v]
-#
-# `alpenflight_shared` is `external: true` in docker-compose.yml — no compose
-# project owns its lifecycle. This script creates it idempotently via the
-# inspect-first helper in lib/shared-network.sh. Operators remove the network
-# manually when retiring the dev stack: `docker network rm alpenflight_shared`.
 
 set -euo pipefail
 
@@ -36,8 +22,6 @@ log "Ensuring shared network ${ALPENFLIGHT_SHARED_NETWORK}"
 ensure_shared_network
 
 log "Bringing up Mailpit under project ${PROJECT}"
-# 90s, not 30s: on a cold CI runner the image pull eats the wait budget before
-# the healthcheck has a chance to report.
 compose_up_or_die "Mailpit" infra "${PROJECT}" "${COMPOSE_FILE}" \
     up -d --wait --wait-timeout 90 mailpit
 

@@ -133,6 +133,26 @@ test('shell: the shebang survives and prose does not', () => {
   assert.equal(result.output, ['#!/usr/bin/env bash', 'set -euo pipefail'].join('\n'));
 });
 
+test('shell: shellcheck directives survive, prose beside them does not', () => {
+  const source = [
+    '# shellcheck source=lib/fail-loud.sh',
+    '# sourced so the bring-up dies at its own failure point',
+    'source lib/fail-loud.sh',
+    '# shellcheck disable=SC1090',
+    'source "${dynamic}"',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(
+    result.output,
+    [
+      '# shellcheck source=lib/fail-loud.sh',
+      'source lib/fail-loud.sh',
+      '# shellcheck disable=SC1090',
+      'source "${dynamic}"',
+    ].join('\n'),
+  );
+});
+
 test('shell: heredoc bodies are opaque', () => {
   const source = ['cat <<EOF', '# not a comment', 'body', 'EOF', '# a comment'].join('\n');
   const result = strip(source, '.sh');
