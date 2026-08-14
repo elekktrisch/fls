@@ -36,9 +36,8 @@ if [[ "${1:-}" == "compose" ]]; then
     exit 0
 fi
 if [[ "${1:-}" == "network" ]]; then
-    # `network inspect -f '{{.Driver}}'` must answer bridge or the scripts abort
-    # on driver drift instead of on the failure under test.
-    [[ "${2:-}" == "inspect" ]] && echo bridge
+    driver_the_bring_up_scripts_require=bridge
+    [[ "${2:-}" == "inspect" ]] && echo "${driver_the_bring_up_scripts_require}"
     exit 0
 fi
 exit 0
