@@ -17,6 +17,15 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-08, 2026-08-14)
+
+- **[PROD-DENSITY-ATTR-MISSING]** `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
+  `body[data-density='comfortable']` rules in `styles.css` are **inert in production** while they apply in dev —
+  the shipped app is denser than the one anyone reviews. Found because the comment describing the density
+  system outlived the attribute it described. *(seam: `index.prod.html` + the density rules in `styles.css`)*
+- **[DEAD-VIRTUAL-SCROLL-INPUT]** `af-data-table.component.ts:74` exposes a `virtualScroll` input with **zero
+  consumers** — either wire it or delete it. *(seam: that component's public inputs)*
+
 ## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
 
 - **[MANIFEST-TENANT-BYPASS-COUNT]** `ManifestTenantBypassAllowListTest.java:23` — the deleted comment named
