@@ -483,12 +483,19 @@ function attachedDeclarationAfter(source, endIndex) {
   return '';
 }
 
+const CHARACTERS_PER_LENGTH_POINT = 40;
+const MOST_A_COMMENT_EARNS_FOR_BEING_LONG = 6;
+const CAUSAL_VOCABULARY_WEIGHT = 4;
+const EXTERNAL_FACT_WEIGHT = 3;
+const OPAQUE_ATTACHED_IDENTIFIER_WEIGHT = 3;
+const BARE_LITERAL_WEIGHT_OUTRANKING_ANY_LENGTH = MOST_A_COMMENT_EARNS_FOR_BEING_LONG + 1;
+
 export function scoreComment(entry) {
-  let score = Math.min(entry.text.length / 40, 6);
-  if (HIGH_INFORMATION_VOCABULARY.test(entry.text)) score += 4;
-  if (EXTERNAL_FACT_PATTERN.test(entry.text)) score += 3;
-  if (GENERIC_IDENTIFIER_PATTERN.test(entry.attachedDeclaration)) score += 3;
-  if (BARE_LITERAL_PATTERN.test(entry.attachedDeclaration)) score += 2;
+  let score = Math.min(entry.text.length / CHARACTERS_PER_LENGTH_POINT, MOST_A_COMMENT_EARNS_FOR_BEING_LONG);
+  if (HIGH_INFORMATION_VOCABULARY.test(entry.text)) score += CAUSAL_VOCABULARY_WEIGHT;
+  if (EXTERNAL_FACT_PATTERN.test(entry.text)) score += EXTERNAL_FACT_WEIGHT;
+  if (GENERIC_IDENTIFIER_PATTERN.test(entry.attachedDeclaration)) score += OPAQUE_ATTACHED_IDENTIFIER_WEIGHT;
+  if (BARE_LITERAL_PATTERN.test(entry.attachedDeclaration)) score += BARE_LITERAL_WEIGHT_OUTRANKING_ANY_LENGTH;
   return Math.round(score * 10) / 10;
 }
 

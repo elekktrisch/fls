@@ -187,6 +187,22 @@ test('scoring ranks a causal comment on an opaque name above a narration comment
   assert.ok(causal >= 8, 'a causal comment on an opaque name should clear the review threshold');
 });
 
+test('a one-line reason for a bare literal outscores a longer comment that explains nothing', () => {
+  const bareLiteral = scoreComment({
+    text: 'Far beyond the 8 KB BufferedOutputStream + the 1000-row fetch window.',
+    attachedDeclaration: 'private static final int ROWS = 5000;',
+  });
+  assert.ok(
+    bareLiteral >= 8,
+    `a magic number's only explanation should clear the review threshold, scored ${bareLiteral}`,
+  );
+  const longNarration = scoreComment({
+    text: 'Builds the writer and then hands it to the caller so the caller can write rows to it one at a time.',
+    attachedDeclaration: 'public BundleWriter openWriter(Path destination) {',
+  });
+  assert.ok(bareLiteral > longNarration, `${bareLiteral} should exceed ${longNarration}`);
+});
+
 test('a contiguous line-comment block becomes one manifest entry scored on its combined text', () => {
   const source = [
     '// AUTO_CLOSE_TARGET disabled: streamOne creates a JsonGenerator PER ROW wrapping the SAME',
