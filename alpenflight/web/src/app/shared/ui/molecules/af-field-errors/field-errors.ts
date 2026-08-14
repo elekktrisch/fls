@@ -15,6 +15,7 @@ export function errorTranslationKey(key: string): string {
   return CANONICAL_KEYS[key] ?? `common.errors.${key}`;
 }
 
+// RENAME: errorsToKeys -> errorsToAbsoluteTranslationKeys
 export function errorsToKeys(errors: ValidationErrors | null | undefined): readonly string[] {
   if (!errors) return [];
   return Object.keys(errors).map(errorTranslationKey);

@@ -109,69 +109,70 @@ type MatchListControlMap = Pick<
   | 'matchMemberStates'
 >;
 
-const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
-  {
-    key: 'immatriculations',
-    control: 'matchAircraftImmatriculations',
-    field: 'aircraftImmatriculations',
-    labelKey: 'edit.matchLists.immatriculations',
-    optionSource: 'aircraftImmatriculations',
-  },
-  {
-    key: 'start-types',
-    control: 'matchStartTypes',
-    field: 'startTypes',
-    labelKey: 'edit.matchLists.startTypes',
-  },
-  {
-    key: 'flight-type-codes',
-    control: 'matchFlightTypeCodes',
-    field: 'flightTypeCodes',
-    labelKey: 'edit.matchLists.flightTypeCodes',
-    optionSource: 'flightTypeCodes',
-  },
-  {
-    key: 'start-locations',
-    control: 'matchStartLocations',
-    field: 'startLocations',
-    labelKey: 'edit.matchLists.startLocations',
-    optionSource: 'locations',
-  },
-  {
-    key: 'landing-locations',
-    control: 'matchLdgLocations',
-    field: 'ldgLocations',
-    labelKey: 'edit.matchLists.landingLocations',
-    optionSource: 'locations',
-  },
-  {
-    key: 'club-member-numbers',
-    control: 'matchClubMemberNumbers',
-    field: 'clubMemberNumbers',
-    labelKey: 'edit.matchLists.clubMemberNumbers',
-    optionSource: 'clubMemberNumbers',
-  },
-  {
-    key: 'flight-crew-types',
-    control: 'matchFlightCrewTypes',
-    field: 'flightCrewTypes',
-    labelKey: 'edit.matchLists.flightCrewTypes',
-    optionSource: 'flightCrewTypes',
-  },
-  {
-    key: 'aircraft-homebases',
-    control: 'matchAircraftHomebases',
-    field: 'aircraftHomebases',
-    labelKey: 'edit.matchLists.aircraftHomebases',
-    optionSource: 'locations',
-  },
-  {
-    key: 'member-states',
-    control: 'matchMemberStates',
-    field: 'memberStates',
-    labelKey: 'edit.matchLists.memberStates',
-  },
-];
+const MATCH_LIST_SPECS_WITHOUT_PERSON_CATEGORIES_UNRENDERED_IN_THE_LEGACY_FORM: readonly MatchListSpec[] =
+  [
+    {
+      key: 'immatriculations',
+      control: 'matchAircraftImmatriculations',
+      field: 'aircraftImmatriculations',
+      labelKey: 'edit.matchLists.immatriculations',
+      optionSource: 'aircraftImmatriculations',
+    },
+    {
+      key: 'start-types',
+      control: 'matchStartTypes',
+      field: 'startTypes',
+      labelKey: 'edit.matchLists.startTypes',
+    },
+    {
+      key: 'flight-type-codes',
+      control: 'matchFlightTypeCodes',
+      field: 'flightTypeCodes',
+      labelKey: 'edit.matchLists.flightTypeCodes',
+      optionSource: 'flightTypeCodes',
+    },
+    {
+      key: 'start-locations',
+      control: 'matchStartLocations',
+      field: 'startLocations',
+      labelKey: 'edit.matchLists.startLocations',
+      optionSource: 'locations',
+    },
+    {
+      key: 'landing-locations',
+      control: 'matchLdgLocations',
+      field: 'ldgLocations',
+      labelKey: 'edit.matchLists.landingLocations',
+      optionSource: 'locations',
+    },
+    {
+      key: 'club-member-numbers',
+      control: 'matchClubMemberNumbers',
+      field: 'clubMemberNumbers',
+      labelKey: 'edit.matchLists.clubMemberNumbers',
+      optionSource: 'clubMemberNumbers',
+    },
+    {
+      key: 'flight-crew-types',
+      control: 'matchFlightCrewTypes',
+      field: 'flightCrewTypes',
+      labelKey: 'edit.matchLists.flightCrewTypes',
+      optionSource: 'flightCrewTypes',
+    },
+    {
+      key: 'aircraft-homebases',
+      control: 'matchAircraftHomebases',
+      field: 'aircraftHomebases',
+      labelKey: 'edit.matchLists.aircraftHomebases',
+      optionSource: 'locations',
+    },
+    {
+      key: 'member-states',
+      control: 'matchMemberStates',
+      field: 'memberStates',
+      labelKey: 'edit.matchLists.memberStates',
+    },
+  ];
 
 @Component({
   selector: 'af-accounting-edit',
@@ -642,7 +643,8 @@ export class AccountingEditPage {
     extendMatchingFlightTypeCodesToGliderAndTowFlight: this.fb.nonNullable.control(false),
   });
 
-  protected readonly matchListSpecs = MATCH_LIST_SPECS;
+  protected readonly matchListSpecs =
+    MATCH_LIST_SPECS_WITHOUT_PERSON_CATEGORIES_UNRENDERED_IN_THE_LEGACY_FORM;
 
   protected readonly saveSubmitted = signal(false);
   protected readonly notFound = signal(false);

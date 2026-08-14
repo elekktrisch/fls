@@ -245,7 +245,7 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
                   htmlType="button"
                   [loading]="store.isExampleLoading()"
                   [disabled]="!flightControl().value"
-                  (clicked)="createTestDelivery()"
+                  (clicked)="previewExpectedItemsFromEngineWithoutPersisting()"
                   data-testid="dct-create-test-delivery"
                 >
                   {{ t('edit.createTestDelivery') }}
@@ -475,7 +475,7 @@ export class DeliveryCreationTestsEditPage {
     });
   }
 
-  protected createTestDelivery(): void {
+  protected previewExpectedItemsFromEngineWithoutPersisting(): void {
     const flightId = this.flightControl().value;
     if (!flightId) return;
     this.store.exampleForFlight(flightId);
