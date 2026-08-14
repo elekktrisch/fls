@@ -41,8 +41,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            "CallExpression[callee.property.name=/^bypassSecurityTrust/]",
+          selector: 'CallExpression[callee.property.name=/^bypassSecurityTrust/]',
           message:
             'DomSanitizer.bypassSecurityTrust* is forbidden — sanitize inputs at the source. Override only with a per-line eslint-disable, and get a reviewer to approve it on the PR.',
         },
@@ -121,8 +120,7 @@ export default tseslint.config(
           patterns: [
             {
               group: ['**/shared/ui/organisms/**'],
-              message:
-                'Molecules must not import organisms. See alpenflight/web/CLAUDE.md §1.',
+              message: 'Molecules must not import organisms. See alpenflight/web/CLAUDE.md §1.',
             },
             {
               regex: '^ng-zorro-antd$',
@@ -159,10 +157,10 @@ export default tseslint.config(
     },
   },
   {
-    // signup-pending is the S-134 sessionStorage stamp that gates one-shot
-    // funnel-event emission across the Keycloak round-trip. Auth-adjacent in
-    // the same sense as core/auth/post-login-redirect.ts — same risk profile.
-    files: ['src/app/features/signup/signup-pending.ts', 'src/app/features/signup/signup-pending.spec.ts'],
+    files: [
+      'src/app/features/signup/signup-pending.ts',
+      'src/app/features/signup/signup-pending.spec.ts',
+    ],
     rules: {
       'no-restricted-globals': 'off',
       'no-restricted-syntax': 'off',
@@ -187,17 +185,9 @@ export default tseslint.config(
   },
   {
     files: ['**/*.html'],
-    extends: [
-      ...angular.configs.templateRecommended,
-      ...angular.configs.templateAccessibility,
-    ],
+    extends: [...angular.configs.templateRecommended, ...angular.configs.templateAccessibility],
     rules: {
       '@angular-eslint/template/no-any': 'error',
-      // Note: the security plan listed `@angular-eslint/template/no-bypass-trust`
-      // but that rule does not exist in @angular-eslint v21. The TS-side
-      // `no-restricted-syntax` selector for `bypassSecurityTrust*` is the
-      // actual guard; templates can't directly reach DomSanitizer anyway
-      // (component binding is the only path).
     },
   },
 );

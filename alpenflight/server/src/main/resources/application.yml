@@ -4,84 +4,44 @@ spring:
   profiles:
     default: dev
   datasource:
-    # S-160 two-role split: the MAIN datasource is the runtime APP role
-    # (alpenflight_app) — broad DML but INSERT,SELECT-only on the audit table.
-    # Flyway (spring.flyway.* below) connects as the MIGRATOR role instead.
-    # Env-driven; application-dev.yml provides loopback defaults for local dev,
-    # application-prod.yml documents the production env-var contract.
     url: ${DATASOURCE_URL}
     username: ${DATASOURCE_USER}
     password: ${DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
   flyway:
-    # Every property pinned explicitly so future BOM bumps surface as
-    # visible config changes (per S-009 security plan).
     enabled: true
-    # S-160: boot-time Flyway runs as the MIGRATOR role (schema owner, full
-    # DDL+DML), NOT the app role. url is derived from the main datasource when
-    # unset (Spring: any one of url/user set → Flyway's own datasource; unset →
-    # datasource value). Setting user+password here overrides the app-role creds
-    # for the migrate connection only. ITs override all three via
-    # PostgresIntegrationTest's @DynamicPropertySource (highest precedence), so
-    # this split is inert under test (both roles resolve to the container user).
     url: ${MIGRATOR_DB_URL:${DATASOURCE_URL}}
     user: ${MIGRATOR_DB_USER:alpenflight}
     password: ${MIGRATOR_DB_PASSWORD:alpenflight}
     locations: classpath:db/migration
-    out-of-order: false           # strict ordering
+    out-of-order: false
     validate-on-migrate: true
-    baseline-on-migrate: false    # S-016 cutover overrides via its own profile
-    clean-disabled: true          # non-negotiable; protects against `flyway clean` on prod
+    baseline-on-migrate: false
+    clean-disabled: true
     schemas: public
     default-schema: public
     table: flyway_schema_history
     placeholders:
-      # S-137 V14 backfill: the operator Deployment owns every pre-existing
-      # Club. Prod must set ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB; the migration
-      # fails loud if unset. application-dev.yml + application-test.yml
-      # carry a sentinel default so local dev + CI tests don't need the env.
       alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB}
-      # S-160 V54: the password V54 assigns to the alpenflight_app login role.
-      # Sourced from APP_DB_PASSWORD; prod MUST set it to match the app role's
-      # DATASOURCE_PASSWORD. Loopback dev default in application-dev.yml. Never
-      # hardcode a real credential — the placeholder keeps it out of the SQL.
       app_role_password: ${APP_DB_PASSWORD:alpenflight_app}
   jpa:
-    # No JPA starter on the classpath yet — this is a no-op until S-012, but
-    # locks the invariant so Hibernate session boundaries are correct when JPA
-    # arrives. open-in-view=true is the OSIV footgun that hides N+1 in dev.
     open-in-view: false
   jackson:
     datatype:
       datetime:
-        # Jackson 3 moved WRITE_DATES_AS_TIMESTAMPS out of SerializationFeature
-        # into DateTimeFeature. ISO-8601 strings, not unix-millis.
         write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: true
     mapper:
-      # Strict matching at the DTO boundary: a field named `clubId` does NOT
-      # accept payload key `ClubId`. Catches API contract drift loudly.
       accept-case-insensitive-properties: false
     default-property-inclusion: non_null
     time-zone: UTC
   threads:
     virtual:
-      # JEP 491 (Java 25) eliminated `synchronized` pinning. Re-audit when
-      # S-018 ShedLock + S-022 @TenantId ThreadLocal propagation land.
       enabled: true
-  # J-6 T-10a (ADR 0013): email send-path. The base profile is the SAFE
-  # default — host/port point at a dev mailpit, but `alpenflight.mail.enabled`
-  # is FALSE so no message leaves the process unless a profile (dev/test) opts
-  # in. prod overrides host/port to a real relay env contract but keeps the
-  # enabled flag false until the relay-choice follow-up ships (ADR 0013
-  # deferred — never hardcode a real relay in the repo). The `alpenflight.mail.*`
-  # block (below `alpenflight:`) carries the app-side toggle + the from-address.
   mail:
     host: ${ALPENFLIGHT_MAIL_HOST:localhost}
     port: ${ALPENFLIGHT_MAIL_PORT:1025}
-    # Mailpit accepts any/no auth; a real relay sets these via env. Empty =
-    # unauthenticated SMTP (the dev/test mailpit posture).
     username: ${ALPENFLIGHT_MAIL_USERNAME:}
     password: ${ALPENFLIGHT_MAIL_PASSWORD:}
     properties:
@@ -94,70 +54,29 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # Split-port topology: JWKS discovery (Spring → Keycloak inside the
-          # compose network) and `iss` validation (against the host URL baked
-          # into every token) need different URLs. The programmatic JwtDecoder
-          # in JwtDecoderConfig consumes both; auto-config backs off when the
-          # bean is present. See alpenflight/auth/README.md §Gotcha for S-020. Both
-          # values env-overridable for the prod hosted-IdP swap.
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
-# Backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
-# Service-account scope set is pinned by alpenflight/auth/scripts/check-realm-
-# shape.sh: manage-groups + manage-realm + manage-users + query-users +
-# view-users (the deployment-provisioning adapter needs the first two on top
-# of the user-directory adapter's baseline).
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}
     realm: ${ALPENFLIGHT_KC_ADMIN_REALM:alpenflight}
     client-id: ${ALPENFLIGHT_KC_ADMIN_CLIENT_ID:alpenflight-backend-admin}
-    # Dev placeholder matches the committed realm-export; production overrides via env.
     client-secret: ${ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET:alpenflight-backend-admin-dev-secret}
     refresh-skew-seconds: ${ALPENFLIGHT_KC_ADMIN_REFRESH_SKEW_SECONDS:30}
 
-# S-027: default-deny audit serialization. Entries here whitelist fields that
-# may land verbatim in `mutation_audit_event.before_state` / `after_state`;
-# everything else is replaced by the `[redacted]` sentinel. `deny-all` is the
-# central kill-switch for known-PII entities — Person stays out of the trail
-# entirely until a GDPR/FADP-reviewed allow-list lands.
 audit:
   redaction:
     deny-all:
       - Person
-      # S-058 — Flight + FlightCrew carry PII-laden columns (comment,
-      # incidentComment, validationErrors, outbound/inboundRoute). Default-
-      # deny here defers the allow-list to a follow-up security-engineer
-      # story; the mutation_audit_event still records action + tenant +
-      # actor + entity id so the trail is observable for forensics.
       - Flight
       - FlightCrew
-      # ADR 0027 RM-2/RM-3 — the flight-report read-model row + crew child
-      # are DERIVED projections of Flight/FlightCrew/Person (denormalized
-      # pilot/crew names, comment, routes); the source aggregates above are
-      # already deny-all, and auditing the projection would re-leak the same
-      # PII through a second entity. Same default-deny decision.
       - FlightReportRow
       - FlightReportCrewEntry
-      # J-9b — a member's prepaid flight-time credit + its balance snapshots are
-      # per-person financial data (balance, discount, immat-list); default-deny
-      # the whole aggregate like Person until a reviewed allow-list lands.
       - PersonFlightTimeCredit
       - PersonFlightTimeCreditTransaction
     entities:
-      # Names below are the entity field names (what reflection sees), NOT
-      # the JSON-serialized property names — the redactor walks @Entity
-      # fields directly. Coverage is enforced by AuditRedactionCoverageTest;
-      # a new field that's neither here nor @AuditRedact-annotated fails CI.
       AccountingRuleFilter:
-        # J-8 / S-072. Per-club billing-rule config — no PII on the structural
-        # columns (filter type, name, sort, flags, the bare article/recipient
-        # target strings). The predicate bag `filterConfig` is NOT allow-listed:
-        # it can carry club-member numbers / recipient names / delivery-line text
-        # (V4 schema COMMENT pii_blob: true) and is @AuditRedact on the entity
-        # field, so it lands "[redacted]" in both the entity-mirror and the
-        # DTO-snapshot (AccountingRuleFilterDetail.filterConfig) audit paths.
         allow:
           - id
           - operatingClubId
@@ -174,11 +93,6 @@ audit:
           - deletedOn
           - deletedByUserId
       DeliveryCreationTest:
-        # J-9 / S-073. The rules-engine regression harness. The two delivery
-        # payloads (expectedDelivery / lastTestCreatedDelivery jsonb) can carry
-        # recipient names (V4 COMMENT pii_blob: true) and are @AuditRedact on the
-        # entity fields, so they land "[redacted]"; everything else is structural
-        # harness config / run-state, safe to log verbatim.
         allow:
           - id
           - operatingClubId
@@ -205,9 +119,6 @@ audit:
           - deletedOn
           - deletedByUserId
       DeliveryCreationTestItem:
-        # Aggregate-internal expected-line snapshot. Article/unit/quantity/price
-        # are billing structure, not member PII; item_text / additional_information
-        # are free text the operator types to describe the line (no member data).
         allow:
           - id
           - operatingClubId
@@ -220,14 +131,6 @@ audit:
           - unitTypeCode
           - discountInPercent
       Delivery:
-        # J-10 / S-078. The invoice draft. The nine frozen recipient_* columns are
-        # member PII (name + address per OR Art. 957a) — carried as the `recipient`
-        # @Embedded VO which is @AuditRedact on the entity field (lands "[redacted]",
-        # the AccountingRuleFilter.filterConfig precedent), so `recipient` is NOT
-        # allow-listed. recipientPersonId is a bare UUID FK (no name, like flightId);
-        # deliveryInformation / additionalInformation are operator free text (no
-        # member data, same as the harness item texts above). Everything else is
-        # structural billing state.
         allow:
           - id
           - operatingClubId
@@ -243,10 +146,6 @@ audit:
           - deletedOn
           - deletedByUserId
       DeliveryItem:
-        # Aggregate-internal invoice line. Article/unit/quantity/price are billing
-        # structure, not member PII; item_text / additional_information are free
-        # text describing the line (no member data) — same decision as the harness
-        # DeliveryCreationTestItem above.
         allow:
           - id
           - operatingClubId
@@ -260,9 +159,6 @@ audit:
           - discountInPercent
           - unitTypeCode
       Club:
-        # `name` matches the ClubResponse DTO field; `clubname` matches the
-        # Club entity field. Service-layer callers may pass either shape;
-        # both are safe to log.
         allow:
           - id
           - name
@@ -272,33 +168,17 @@ audit:
           - countryId
           - clubStateId
           - deploymentId
-          # RM-4: homebase Location FK (read-only mapping for /me) — an id,
-          # not PII; same class of field as countryId/clubStateId above.
           - homebaseId
           - publicRegistrationEnabled
-          # J-6 T-10b planning-notification config. `sendPlanningDayInfoMailTo`
-          # is the club's operations notification address (club config, not a
-          # member's personal address — legacy Club.SendPlanningDayInfoMailTo);
-          # the flag governs the ok-vs-cancel rule. Both are club settings, safe
-          # to log verbatim.
           - sendPlanningDayInfoMailTo
           - usePlanningDayWithoutReservations
-          # Public-display fields shown to a pilot on /join/pending (S-178) —
-          # club settings meant to be shown publicly, not member PII.
           - city
           - logoUrl
-          # Public flight-experience registration config. The two operator
-          # addresses are the club's organiser notification recipients (club
-          # config, same class as sendPlanningDayInfoMailTo above — not a
-          # member's personal address); the flight type is an id.
           - discoveryFlightOperatorEmail
           - scenicFlightOperatorEmail
           - discoveryFlightTypeId
           - deletedOn
       DiscoveryFlightDay:
-        # A club's published discovery-flight event day. Every field is club
-        # configuration shown to anonymous visitors on the public registration
-        # form — a date and two ids, no member data.
         allow:
           - id
           - clubId
@@ -306,14 +186,6 @@ audit:
           - deletedOn
           - deletedByUserId
       Deployment:
-        # S-137 lifecycle audit emission. The before/after snapshot is a
-        # LifecycleSnapshot record (lifecycleState only) — the policy is
-        # keyed by entityType="Deployment" and the redactor walks the
-        # snapshot's field names. The Deployment @Entity itself never
-        # serialises into an audit row directly; the @AuditRedact-annotated
-        # fields (name, ownerKeycloakSub, idempotencyKey, billingCustomerId,
-        # billingSubscriptionId) cover the AuditRedactionCoverageTest
-        # ArchUnit scan that walks the @Entity's fields.
         allow:
           - id
           - lifecycleState
@@ -323,11 +195,8 @@ audit:
           - modifiedOn
           - version
           - pendingTransitions
-          # S-138 — Phase B (Keycloak reconcile) state. Two values: PENDING
-          # / READY. Operationally informative, never PII.
           - keycloakState
       Location:
-        # Lists both DTO field names and entity field names — see Club above.
         allow:
           - id
           - clubId
@@ -364,9 +233,6 @@ audit:
           - direction
           - description
       InOutboundPointResponse:
-        # Nested under LocationDetail.inOutboundPoints. The redactor recurses
-        # into nested aggregates under the runtime type's simple name; this
-        # mirrors InOutboundPoint, minus the back-reference to Location.
         allow:
           - id
           - pointName
@@ -379,14 +245,6 @@ audit:
           - clubId
           - name
       PersonClub:
-        # Aggregate-internal child of the cross-tenant Person root. Member
-        # number is identity-bearing but not PII (legacy parity: club-issued
-        # ID, not a national identifier); role flags and notification prefs
-        # are operational booleans. The back-reference field `person` is
-        # intentionally omitted from the allow-list — Person is in deny-all,
-        # so even if the redactor recursed it would redact, but keeping
-        # `person` off the list defends against a future allow-list relax
-        # on Person.
         allow:
           - id
           - clubId
@@ -407,14 +265,6 @@ audit:
           - deletedOn
           - deletedByUserId
       PersonLicences:
-        # J-4 T-08 (AC4) — the `person.licences_updated` self-edit audit. This
-        # entity type is the SelfLicencesView snapshot, NOT the Person @Entity
-        # (which stays in deny-all). The Pilot tab is FADP-sensitive, so the
-        # journey requires a READABLE before/after diff for a sysadmin: the
-        # licence flags + licence number + start-permission flags emit verbatim.
-        # The medical-expiry dates ride verbatim too FOR NOW — the medical-field
-        # PII-redaction policy (which dates emitted vs hashed) is explicitly
-        # DEFERRED per S-182's open questions; revisit when that policy lands.
         allow:
           - hasMotorPilotLicence
           - hasTowPilotLicence
@@ -438,23 +288,11 @@ audit:
           - hasGliderWinchStartPermission
           - receiveOwnedAircraftStatisticReports
       PersonClubNotificationPrefs:
-        # J-4 T-10 — the notification-prefs self-edit audit (Notifications tab).
-        # This entity type is the lean SelfNotificationPrefsView snapshot (NOT
-        # the PersonClub @Entity). The three booleans are non-sensitive
-        # operational flags, so the before/after diff emits verbatim for a
-        # readable trail.
         allow:
           - receiveFlightReports
           - receiveAircraftReservationNotifications
           - receivePlanningDayRoleReminder
       User:
-        # S-052 — Email + friendlyName + phone are PII and omitted; the audit
-        # row carries them as `[redacted]`. The id-shaped + tenant-shaped
-        # columns ride verbatim so a forensic timeline reads cleanly. Soft-
-        # delete actor fields are allowed so DELETE rows show who flipped it.
-        # `active` / `enabled` are intentionally absent — they're not entity
-        # fields (active is derived from deletedOn at read-time; enabled is
-        # a Keycloak-side concept that only appears on UserResponse).
         allow:
           - id
           - clubId
@@ -464,10 +302,6 @@ audit:
           - deletedOn
           - deletedByUserId
       UserResponse:
-        # DTO mirror — same allow-list as User. The `roles` array is a wire
-        # primitive (enum strings) and is fine to log; `username` is a login
-        # identifier (not PII). `phoneNumber` + `remarks` intentionally
-        # absent — PII; ride as `[redacted]`.
         allow:
           - id
           - clubId
@@ -478,31 +312,19 @@ audit:
           - enabled
           - invitePending
       UserRoleAuditPayload:
-        # USER_ROLE_GRANTED / REVOKED / REJECT_GRANT payload. Tiny
-        # diagnostic record (typed; matches the record's simple class name).
-        # No PII.
         allow:
           - action
           - targetRole
       InvitedAuditPayload:
-        # S-181 user.invited payload. `branch` (new_kc_user / attached_existing)
-        # is a non-PII enum-string; `user` recurses into the UserResponse
-        # allow-list above, so its PII fields still ride as `[redacted]`.
         allow:
           - branch
           - user
       LookupAuditPayload:
-        # Lookup-audit payload (PersonsService.lookup → LOOKUP_HIT/MISS).
-        # Three forensic primitives, all non-PII: tenant uuid + byEmail flag
-        # + match count. Whitelist so the redactor doesn't scrub the
-        # diagnostic value out of the audit row.
         allow:
           - tenant
           - byEmail
           - matchCount
       Aircraft:
-        # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
-        # and entity field names. Service-layer callers may pass either.
         allow:
           - id
           - managingClubId
@@ -543,9 +365,6 @@ audit:
           - stateHistory
           - operatingCounters
       AircraftStateHistoryEntry:
-        # `noticedByPersonId` + `remarks` carry @AuditRedact on the field
-        # (PII-adjacent / free text); reflection redacts them regardless of
-        # this list. Keeping the rest explicit means coverage gaps surface.
         allow:
           - id
           - aircraft
@@ -555,11 +374,6 @@ audit:
           - deletedOn
           - deletedByUserId
       AircraftStateHistoryEntryResponse:
-        # Nested under AircraftDetail.currentState. PII-adjacent fields
-        # noticedByPersonId / remarks are NOT in the allow list — they
-        # default-deny to "[redacted]" on the recursed walk. (The entity
-        # mirror already has @AuditRedact on the same fields, which gates
-        # the entity-path too.)
         allow:
           - id
           - aircraftStateId
@@ -580,7 +394,6 @@ audit:
           - deletedOn
           - deletedByUserId
       AircraftOperatingCounterResponse:
-        # Nested under AircraftDetail.latestCounter.
         allow:
           - id
           - atDateTime
@@ -592,11 +405,6 @@ audit:
           - nextMaintenanceAtFlightOperatingCounterInSeconds
           - nextMaintenanceAtEngineOperatingCounterInSeconds
       AircraftReservation:
-        # Audit snapshot is the AircraftReservationDetail DTO. Person-id FKs are
-        # references (not raw PII — same posture as Aircraft.aircraftOwnerPersonId);
-        # the free-text `remarks`/`info` is deliberately NOT allowed so it
-        # default-denies to "[redacted]" on the audit walk. `isAllDay`/`allDay`
-        # cover the DTO + entity field-name variants.
         allow:
           - id
           - operatingClubId
@@ -615,9 +423,6 @@ audit:
           - deletedOn
           - deletedByUserId
       FlightType:
-        # No PII; per-club masterdata. Allow-list lists DTO field names + entity
-        # field names so both audit-paths (service-layer DTO snapshot, entity
-        # mirror) round-trip cleanly.
         allow:
           - id
           - operatingClubId
@@ -649,9 +454,6 @@ audit:
           - deletedOn
           - deletedByUserId
       FlightCostBalanceType:
-        # System-global reference (no tenant), code-driven, no PII. Admin-CRUD
-        # is deferred per S-053 but the allow-list lands now so a future
-        # admin route lands clean.
         allow:
           - id
           - code
@@ -666,10 +468,6 @@ audit:
           - isForTow
           - isForMotor
       FlightCostBalanceTypeResponse:
-        # DTO mirror of the FCBT entity above. Mirrors the
-        # AircraftOperatingCounterResponse / InOutboundPointResponse precedent
-        # of listing both entity + response DTO so the deferred admin route
-        # ships into a clean audit allow-list.
         allow:
           - id
           - code
@@ -679,12 +477,6 @@ audit:
           - isForTow
           - isForMotor
       MigrationUpload:
-        # S-140 — entity-path allow-list. privateKeyCiphertext is
-        # @AuditRedact on the field; the application-layer emitter passes
-        # a MigrationUploadAuditSnapshot snapshot, not the entity, so the
-        # entity walk only happens if a future code path mistakenly hands
-        # the entity to the redactor — in which case state/userId/expiresAt
-        # land and the ciphertext stays "[redacted]".
         allow:
           - id
           - userId
@@ -695,22 +487,12 @@ audit:
           - expiresAt
           - consumedAt
       MigrationUploadAuditSnapshot:
-        # S-140 — snapshot record emitted on
-        # MIGRATION_HANDSHAKE_ISSUED / SUPERSEDED / EXPIRED. Tiny by design;
-        # privateKeyCiphertextSummary is the byte-length placeholder
-        # (`<bytes:NNN>`), never the raw ciphertext.
         allow:
           - uploadId
           - state
           - expiresAt
           - privateKeyCiphertextSummary
       MigrationRun:
-        # S-141 — t_migration_run entity allow-list. error_detail + warnings
-        # are @AuditRedact on the field (may capture failing-row PII); the
-        # application-layer audit emitter uses MigrationIngestAuditSnapshot
-        # which doesn't carry either column. This entity-walk allow-list
-        # exists for defense-in-depth if a future code path hands the entity
-        # straight to the redactor.
         allow:
           - id
           - uploadId
@@ -722,9 +504,6 @@ audit:
           - deploymentId
           - errorCode
       MigrationIngestAuditSnapshot:
-        # S-141 — snapshot record emitted on MIGRATION_INGEST_STARTED /
-        # COMPLETED / FAILED. ids + ints + bounded enum codes only — never
-        # display names, never PII from the bundle.
         allow:
           - uploadId
           - deploymentId
@@ -732,12 +511,6 @@ audit:
           - errorCode
           - phase
       JoinRequest:
-        # S-178 — pilot self-serve join request. email + friendlyName carry the
-        # signed-up pilot's identity, and note + decisionReason are free text the
-        # pilot/admin types (FADP-sensitive); all four are @AuditRedact on the
-        # entity field, so they land "[redacted]" and are deliberately NOT allow-
-        # listed. Everything else is structural: bare ids, the FSM status, and the
-        # decision timestamps/actor — safe to log verbatim.
         allow:
           - id
           - keycloakSub
@@ -747,29 +520,12 @@ audit:
           - decidedOn
           - decidedByUserId
 
-# S-140 — Tink master keyset for migration-upload private-key wrapping.
-# Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64
-# of a Tink AES_256_GCM keyset JSON). Dev + test profiles seed a
-# deterministic keyset so local bootstrap + CI tests pass without
-# operator intervention.
 alpenflight:
-  # J-6 T-10a (ADR 0013): application-side mail toggle + sender identity. The
-  # `enabled` flag is the kill-switch the TemplatedMailService reads — false by
-  # default so a misconfigured prod (or any environment that forgot to opt in)
-  # never sends. dev/test flip it true (mailpit). The per-tenant/per-locale
-  # sender identity (noreply+{clubId}@…) is a deferred ADR-0013 follow-up; for
-  # now one static from-address.
   mail:
     enabled: ${ALPENFLIGHT_MAIL_ENABLED:false}
     from: ${ALPENFLIGHT_MAIL_FROM:noreply@alpenflight.ch}
-  # S-088: the OGN device database the aircraft sync reads. Overridden in tests
-  # and at the e2e gate to a recorded fixture so no run depends on a third party.
   ogn:
     ddb-url: ${ALPENFLIGHT_OGN_DDB_URL:http://ddb.glidernet.org/download?j=1}
-  # S-018 ShedLock: present, inert. Single-instance deployment means the
-  # scheduler needs no distributed lock; flipping this on is a deliberate
-  # multi-instance decision that also has to add @EnableSchedulerLock, which
-  # ShedLockNotActivatedTest currently forbids.
   scheduling:
     lock:
       enabled: false
@@ -777,16 +533,8 @@ alpenflight:
     master-keyset:
       source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}
       value: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET:}
-    # S-141b — wall-clock cap on a single bundle ingest. Sized so a 200 MB
-    # typical FLS database (~3 min ingest) has 5x headroom; a 2 GB worst
-    # case (~25 min CPU) is hard-capped and the client should split the
-    # bundle rather than request more. Operator may override per-VPS.
     bundle-timeout: PT15M
     ingest:
-      # Global concurrency gate — single-VPS heap cap. Production stays at
-      # 1; the IT profile overrides to 100 so the per-upload row-lock 409
-      # path (BUNDLE_INGEST_IN_PROGRESS) is testable without the global
-      # gate short-circuiting to 429.
       global-permits: 1
 
 server:
@@ -817,12 +565,6 @@ management:
         include: health,info
         exclude: env,heapdump,threaddump,loggers,configprops,beans,shutdown
   health:
-    # J-6 T-10a (ADR 0013): `spring.mail.host` activates Boot's mail health
-    # contributor, which opens a live SMTP connection on every /actuator/health
-    # poll. That flips health to 503 whenever the relay is unreachable (mailpit
-    # not up, or prod where mail is disabled) and is needless info-disclosure of
-    # the relay's reachability. The send-path's own `alpenflight.mail.enabled`
-    # kill-switch is the operability signal we want — not a health probe.
     mail:
       enabled: false
   endpoint:
@@ -831,14 +573,10 @@ management:
         enabled: true
       show-details: when_authorized
 
-# OpenAPI spec publication. Off by default — profiles flip it on (see
-# application-dev.yml + application-test.yml). prod stays off so a stray
-# SPRINGDOC_* env var cannot expose the API shape on a production install;
-# OpenApiOffByDefaultIT regression-locks the prod 404.
 springdoc:
   api-docs:
     enabled: false
-    version: openapi_3_1   # default is openapi_3_0; codegen wants 3.1
+    version: openapi_3_1
   swagger-ui:
     enabled: false
-  show-actuator: false     # keep /actuator/* out of the codegen surface
+  show-actuator: false
