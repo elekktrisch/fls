@@ -37,8 +37,6 @@ class MeControllerIT extends PostgresIntegrationTest {
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID LANG_DE_UUID =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
-    // Bern-Belp, a seed location owned by seed-club-1 (V34) — a valid
-    // homebase FK target for the homebase-on-/me test.
     private static final UUID HOMEBASE_LOCATION_UUID =
             UUID.fromString("019e30c3-2c00-7001-8000-00000000c001");
 
@@ -50,9 +48,6 @@ class MeControllerIT extends PostgresIntegrationTest {
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'me-it-%'");
         jdbc.update("DELETE FROM t_person WHERE firstname = 'MeIT'");
-        // Real-HTTP IT (no test-tx rollback): reset the shared seed club's
-        // homebase so the homebase test (which sets it) doesn't leak into
-        // the null-homebase assertions on other tests.
         jdbc.update("UPDATE t_club SET homebase_id = NULL WHERE id = ?::uuid",
                 CLUB_UUID.toString());
     }
@@ -114,10 +109,6 @@ class MeControllerIT extends PostgresIntegrationTest {
 
     @Test
     void me_filtersKeycloakBuiltinRoles_keepsOnlyAlpenFlightCatalog() {
-        // Keycloak ships realm-wide built-in roles (uma_authorization,
-        // offline_access, default-roles-*) that aren't part of AlpenFlight's
-        // role model. /me must strip them so SPA consumers couple only to
-        // the project's own role vocabulary (AppRole union).
         UUID kcSub = UUID.randomUUID();
         String token = jwts.mint(c -> c
                 .subject(kcSub.toString())
@@ -177,9 +168,6 @@ class MeControllerIT extends PostgresIntegrationTest {
 
     @Test
     void me_returnsClubHomebaseLocationId_whenClubHasHomebase() {
-        // J-7 T-09b: LOCATION canned reports scope to the club's homebase
-        // Location. The id rides /me as the `loc-<uuid>` external form so the
-        // SPA passes it straight into FlightReportSearchFilter.locationId.
         jdbc.update("UPDATE t_club SET homebase_id = ?::uuid WHERE id = ?::uuid",
                 HOMEBASE_LOCATION_UUID.toString(), CLUB_UUID.toString());
         UUID userId = UUID.randomUUID();
@@ -209,9 +197,6 @@ class MeControllerIT extends PostgresIntegrationTest {
 
     @Test
     void me_returnsNullsForSysadminSub_butEchoesJwtClaims() {
-        // Sysadmin (S-022) and federated baseline (S-134) tokens carry no
-        // `clubId` claim — the S-169 JIT filter skips them, and MeService
-        // falls back to JWT echoes for missing fields.
         UUID unknownSub = UUID.randomUUID();
         String token = jwts.mint(c -> c
                 .subject(unknownSub.toString())

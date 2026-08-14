@@ -21,14 +21,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Contract assertions that the four S-051 endpoint families exist. Drives
- * the implementation: until the module ships, every assertion fails with
- * a {@code 404 Not Found} (the route doesn't resolve), which is the right
- * reason for the red state. Full happy/edge/error coverage lives in
- * {@code PersonsControllerIT} + {@code PersonsTenantIsolationIT} +
- * {@code PersonsAuthorizationIT} once the slice is green.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)

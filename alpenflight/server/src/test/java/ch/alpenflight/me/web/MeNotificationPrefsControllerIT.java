@@ -26,20 +26,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code GET + PATCH /api/v1/me/club-membership/notification-prefs}
- * — the caller-scoped per-club notification-prefs self-edit (J-4 T-10, the
- * Notifications tab). The endpoints take NO {@code :id}: both the Person AND the
- * club are resolved from the JWT {@code sub} → the caller's {@code t_user} row →
- * its {@code person_id} / {@code club_id}, so the isolation test below is the
- * structural proof that a caller can only ever read / mutate their OWN membership
- * in their OWN current tenant.
- *
- * <p>Asserts the admin-only-untouched AC: a prefs PATCH leaves member_number /
- * member_state / role flags / is_active byte-identical. The audit test reads
- * {@code t_mutation_audit_event} the way a sysadmin would (entity type
- * {@code PersonClubNotificationPrefs}, readable before/after diff).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -86,7 +72,6 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
         UUID kcSub = UUID.randomUUID();
         UUID personId = seedPerson("Bessie", "Coleman");
         UUID pcId = seedMembership(personId, "NOTIF-9", false, false, false);
-        // Make the role flags + is_active non-default so "untouched" is meaningful.
         jdbc.update("UPDATE t_person_club SET is_glider_pilot = true, is_motor_pilot = true, "
                         + "is_active = true WHERE id = ?::uuid",
                 pcId.toString());
@@ -99,7 +84,6 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
                 "receivePlanningDayRoleReminder", false), token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // The three prefs persisted on the caller's own membership.
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT receive_flight_reports, receive_aircraft_reservation_notifications, "
                         + "receive_planning_day_role_reminder, member_number, is_glider_pilot, "
@@ -108,13 +92,11 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
         assertThat(row.get("receive_flight_reports")).isEqualTo(true);
         assertThat(row.get("receive_aircraft_reservation_notifications")).isEqualTo(true);
         assertThat(row.get("receive_planning_day_role_reminder")).isEqualTo(false);
-        // Admin-only membership identity fields are UNCHANGED.
         assertThat(row.get("member_number")).isEqualTo("NOTIF-9");
         assertThat(row.get("is_glider_pilot")).isEqualTo(true);
         assertThat(row.get("is_motor_pilot")).isEqualTo(true);
         assertThat(row.get("is_active")).isEqualTo(true);
 
-        // Re-GET reflects the persisted change.
         JsonNode body = parse(get(token).getBody());
         assertThat(body.get("receiveFlightReports").asBoolean()).isTrue();
         assertThat(body.get("receiveAircraftReservationNotifications").asBoolean()).isTrue();
@@ -133,9 +115,6 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
                 "receivePlanningDayRoleReminder", true), pilotToken(kcSub));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // A sysadmin reading t_mutation_audit_event sees an UPDATE row
-        // (entityType=PersonClubNotificationPrefs) whose before/after JSON carries
-        // the changed booleans verbatim (NOT [redacted]).
         Map<String, Object> auditRow = jdbc.queryForMap(
                 "SELECT action, target_entity_type, target_entity_id, "
                         + "before_state::text AS before_state, after_state::text AS after_state "
@@ -164,20 +143,17 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
         seedUser(subA, "menotif-it-self", personA);
         seedUser(subB, "menotif-it-other", personB);
 
-        // A PATCHes with A's token — no id in the URL, nothing of B's in the body.
         ResponseEntity<String> res = patch(Map.of(
                 "receiveFlightReports", true,
                 "receiveAircraftReservationNotifications", true,
                 "receivePlanningDayRoleReminder", true), pilotToken(subA));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // A's membership changed.
         assertThat(jdbc.queryForObject(
                 "SELECT receive_flight_reports FROM t_person_club WHERE id = ?::uuid",
                 Boolean.class, pcA.toString()))
                 .isTrue();
 
-        // B's membership is completely untouched — the caller could not reach it.
         Map<String, Object> rowB = jdbc.queryForMap(
                 "SELECT receive_flight_reports, receive_aircraft_reservation_notifications, "
                         + "receive_planning_day_role_reminder FROM t_person_club WHERE id = ?::uuid",
@@ -200,7 +176,6 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
     void getPrefs_callerWithPersonButNoMembership_returns409() {
         UUID kcSub = UUID.randomUUID();
         UUID personId = seedPerson("Lone", "Wolf");
-        // No t_person_club row for this person in CLUB_UUID.
         seedUser(kcSub, "menotif-it-nomembership", personId);
 
         ResponseEntity<String> res = get(pilotToken(kcSub));

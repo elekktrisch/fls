@@ -4,14 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * The dev box must never spin a local {@code alpenflight-pg-test-*} container:
- * tests run against the LAN Postgres via {@code ~/.bashrc} {@code DATASOURCE_*}
- * (external mode). Procedure rules for this haven't stuck — a worker kept
- * reaching for {@code ALPENFLIGHT_TEST_FORCE_DOCKER} locally — so the guard is
- * structural. This asserts the guard's DECISION over injected env, never by
- * launching a container.
- */
 class LocalPostgresContainerGuardTest {
 
     @Test

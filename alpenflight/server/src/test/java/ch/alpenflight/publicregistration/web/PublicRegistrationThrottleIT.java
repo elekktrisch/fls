@@ -29,19 +29,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The abuse guard as an anonymous caller experiences it: through the production
- * filter chain, with no token, on the real endpoints.
- *
- * <p>Each case drives its own source address, which is also what makes the
- * separation assertions meaningful — the requests genuinely arrive on one TCP
- * peer (loopback), so a source key that ignored the forwarded chain would
- * collapse every case into one bucket and the separation cases would fail.
- *
- * <p>The limits are restated here rather than imported: this is a security
- * control, so a change to either number should have to be made twice, in the
- * guard and in the test that pins the observable contract.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
@@ -83,8 +70,6 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
             assertThat(submitDiscovery(source, openSlug).getStatusCode())
                     .isEqualTo(HttpStatus.CREATED);
         }
-        // Measured after the accepted run, so the delta belongs to the refused
-        // attempt alone — the ten before it legitimately registered someone.
         long personsBefore = count("t_person");
         long membershipsBefore = count("t_person_club");
 
@@ -124,11 +109,6 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    /**
-     * The guard runs before the slug resolves, so probing a slug that does not
-     * exist is charged like any other attempt — otherwise enumerating clubs
-     * would be the one anonymous operation with no cost.
-     */
     @Test
     void probing_an_unknown_slug_is_charged_as_an_attempt() {
         String source = "203.0.113.15";

@@ -14,24 +14,11 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
-/**
- * Project-wide naming rules. Build-time guard that complements the runtime
- * {@code TableNamingConventionTest} — fails the build immediately if a new
- * {@code @Entity} class lands without an explicit {@code @Table(name =
- * "t_…")} annotation. Cheaper to fail in ArchUnit than to wait for a
- * Postgres-backed IT to surface the same problem.
- */
 @AnalyzeClasses(
         packages = "ch.alpenflight",
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class NamingRulesTest {
 
-    /**
-     * Every {@code @Entity} must declare an explicit {@code @Table(name =
-     * "t_…")}. Hibernate's implicit naming-strategy fall-through is
-     * forbidden — the SQL identifier should be greppable from the Java
-     * source.
-     */
     @ArchTest
     static final ArchRule entities_carry_t_prefixed_table_annotation =
             classes()

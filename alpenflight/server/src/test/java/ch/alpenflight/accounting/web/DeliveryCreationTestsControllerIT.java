@@ -39,17 +39,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the DeliveryCreationTest CRUD slice (T-14)
- * under a CLUB_ADMINISTRATOR principal. Seeds two clubs + a real Flight per club
- * via production factories ({@link TwoClubFixture} + {@code Aircraft.register} /
- * {@code Flight.createGlider} — the harness {@code flight_id} FK is real). Asserts
- * the REST surface end-to-end: list / get / create (201 + Location + round-trip) /
- * update (200) / delete (204 → 404), the cross-tenant {@code GET} → 404 (the
- * {@code @TenantId} isolation through the HTTP layer + feature exception handler),
- * an omit-optional-booleans create → 201 (the FAIL_ON_NULL_FOR_PRIMITIVES masking
- * guard), and an audit-row written on a mutation.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -114,10 +103,7 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         assertThat(detail.get("description").asText()).isEqualTo("daily tuning tool");
         assertThat(detail.get("mustNotCreateDeliveryForFlight").asBoolean()).isTrue();
         assertThat(detail.get("ignoreItemText").asBoolean()).isTrue();
-        // A brand-new harness has captured no expected set and never run.
         assertThat(detail.get("expectedDelivery").get("items").size()).isZero();
-        // Jackson omits a null property entirely, so accept both a missing node
-        // and an explicit JSON null for the never-run run-state.
         JsonNode runOn = detail.path("lastTestRunOn");
         assertThat(runOn.isMissingNode() || runOn.isNull()).isTrue();
     }
@@ -166,8 +152,6 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> created = post(BASE, payload(flightA, "Club A private"), adminA);
         String id = readJson(created).get("id").asText();
 
-        // Club B's admin cannot see club A's harness — the @TenantId
-        // discriminator makes it invisible → 404 (not 403).
         ResponseEntity<String> res = get(BASE + "/" + id, adminB);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -185,17 +169,12 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         Map<String, Object> body = new HashMap<>();
         body.put("flightId", FlightId.of(flightA).toExternal());
         body.put("testName", "No-flags harness");
-        // active + mustNotCreateDeliveryForFlight + the 9 ignore flags are all
-        // omitted — the SPA only sends the toggles the operator touches. Each is
-        // @Nullable Boolean, so an omitted flag deserialises rather than tripping
-        // Jackson's FAIL_ON_NULL_FOR_PRIMITIVES → 400.
         ResponseEntity<String> created = post(BASE, body, adminA);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
         String id = readJson(created).get("id").asText();
         ResponseEntity<String> got = get(BASE + "/" + id, adminA);
         JsonNode detail = readJson(got);
-        // active defaults to true (legacy default), the rest to false.
         assertThat(detail.get("active").asBoolean()).isTrue();
         assertThat(detail.get("mustNotCreateDeliveryForFlight").asBoolean()).isFalse();
         assertThat(detail.get("ignoreRecipientName").asBoolean()).isFalse();
@@ -217,7 +196,6 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         assertThat(rows.get(0).get("action")).isEqualTo("CREATE");
     }
 
-    // ----- payloads / seed -----
 
     private static Map<String, Object> payload(UUID flightId, String name) {
         Map<String, Object> body = new HashMap<>();

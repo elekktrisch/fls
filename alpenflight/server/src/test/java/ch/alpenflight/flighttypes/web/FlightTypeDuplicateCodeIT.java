@@ -31,17 +31,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-26 T-05 — duplicate {@code flightCode} surfaces as a clean 409 problem
- * detail with {@code field=flightCode} (previously a raw 500 from the
- * {@code ux_flight_type_club_code} partial UNIQUE, reproducing the legacy
- * bug). Covers create-duplicate and update-to-someone-else's-code; keeping
- * one's OWN code on update stays 200 (self-exclusion).
- *
- * <p>Seeds its club via the shared {@link TwoClubFixture} production-create
- * path (J-26 T-19) — the club ids are minted by JPA, so no club-id literal is
- * shared with any other IT class.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -92,12 +81,10 @@ class FlightTypeDuplicateCodeIT extends PostgresIntegrationTest {
         assertThat(b.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String idB = readJson(b).get("id").asText();
 
-        // Self-exclusion: re-saving B with its OWN code is not a conflict.
         Map<String, Object> keepOwn = updatePayload(nameB);
         keepOwn.put("flightCode", "C2");
         assertThat(put(idB, keepOwn).getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // Taking A's code is.
         Map<String, Object> takeOther = updatePayload(nameB);
         takeOther.put("flightCode", "C1");
         ResponseEntity<String> conflict = put(idB, takeOther);
@@ -108,7 +95,6 @@ class FlightTypeDuplicateCodeIT extends PostgresIntegrationTest {
                 .isEqualTo("urn:alpenflight:problem:flight-type-code-conflict");
     }
 
-    // ----- helpers -----
 
     private static Map<String, Object> payloadWithCode(String name, String code) {
         Map<String, Object> payload = createPayload(name);

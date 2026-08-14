@@ -32,12 +32,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-/**
- * Service-layer contract for state transitions. Verifies audit emission
- * shape, exception propagation, and tow-cascade behavior. The matrix
- * itself is exercised in {@code FlightTransitionMatrixTest} — this test
- * focuses on the application-level wiring.
- */
 class FlightStateTransitionServiceTest {
 
     private FlightRepository repo;
@@ -49,9 +43,6 @@ class FlightStateTransitionServiceTest {
         repo = Mockito.mock(FlightRepository.class);
         audit = Mockito.mock(AuditTrail.class);
         FlightInitialStateProvider initial = () -> FlightProcessState.NOT_PROCESSED.id();
-        // Fixed clock well after every fixture flight_date so the time-gate
-        // never spuriously blocks the matrix-focused cases here; the gate
-        // boundary itself is covered by FlightGatePolicyTest + the IT.
         Clock clock = Clock.fixed(
                 LocalDate.of(2026, 6, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
                 ZoneOffset.UTC);
@@ -111,10 +102,7 @@ class FlightStateTransitionServiceTest {
         Flight tow = towInState(FlightProcessState.LOCKED);
         setField(glider, "id", gliderId.value());
         setField(tow, "id", towId.value());
-        // Wire the tow link.
         setField(glider, "towFlightId", towId.value());
-        // Locked long ago so the bill time-gate (locked_at <= today-3d) is
-        // satisfied — the gate boundary is covered elsewhere.
         Instant longAgo = LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
         setField(glider, "lockedAt", longAgo);
         setField(tow, "lockedAt", longAgo);
@@ -128,7 +116,6 @@ class FlightStateTransitionServiceTest {
 
         assertThat(glider.getProcessState()).isEqualTo(FlightProcessState.DELIVERY_PREPARED);
         assertThat(tow.getProcessState()).isEqualTo(FlightProcessState.DELIVERY_PREPARED);
-        // One audit row per flight — operator can see both transitions.
         verify(audit, Mockito.times(2)).record(eq(AuditAction.STATE_TRANSITION), any());
     }
 

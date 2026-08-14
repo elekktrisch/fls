@@ -7,36 +7,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Shared base class for full-stack {@code @SpringBootTest} integration tests
- * that need a real Postgres database. Subclasses inherit:
- *
- * <ul>
- *   <li>{@code @SpringBootTest} (default web environment — subclasses that
- *       need {@code RANDOM_PORT} re-declare it; the override is harmless
- *       because Spring caches by full annotation hash).</li>
- *   <li>{@code @ActiveProfiles("test")} — picks up {@code application-test.yml}.</li>
- *   <li>{@code @EnabledIf} pointing at {@link SharedPostgresContainer#available()},
- *       so a contributor without Docker still passes {@code ./gradlew check}
- *       (tests skip rather than fail); CI fails loudly via the
- *       {@code SharedPostgresContainer.available()} contract.</li>
- *   <li>A {@link DynamicPropertySource} pointing Spring's datasource + Flyway
- *       at the JVM-singleton container.</li>
- *   <li>{@link TenantContextExtension} — picks up {@link WithTenant}
- *       annotations and stores the resolved tenant in
- *       {@link TenantTestContext}.</li>
- * </ul>
- *
- * <p><strong>Isolation rule (ADR 0021):</strong> this base class deliberately
- * does NOT add {@code @Transactional} per-test rollback. Tests own their data
- * by tenant key (tenant-scoped data) or stable randomized natural key
- * (cross-tenant data) and pre-clean at start. A test that needs a different
- * isolation strategy declares it explicitly.
- *
- * <p>Container, Flyway state, and Spring context all live for the JVM; the
- * Spring context cache reuses one boot across subclasses that share this
- * annotation set.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",

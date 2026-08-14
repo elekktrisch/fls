@@ -24,80 +24,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * J-2 T-08 — the SYNTHESIZED Flight + FlightCrew migration parity bundle builder,
- * launched from the real-idp Playwright spec
- * ({@code flight-migration-parity.spec.ts}) via the {@code seedFlightParityBundle}
- * Gradle {@code JavaExec} task.
- *
- * <p>Mirrors {@link AircraftParityBundleSeeder} (the J-1 template): a pure
- * byte-factory that, given the per-upload RSA public key (from the spec's REAL
- * {@code POST /migrations/handshake}) and the {@code uploadId}, emits the
- * encrypted bundle bytes to disk as base64. The spec then POSTs those bytes
- * through the REAL {@code POST /api/v1/migrations/{uploadId}/bundle} endpoint
- * (with a real verified-email Bearer), so the migration ingest + Keycloak
- * club-admin provisioning run LIVE against the dev stack.
- *
- * <p>The FLIGHT / FLIGHT_CREW NDJSON is byte-aligned with
- * {@link FlightMigrationRoundTripIT} (the authoritative round-trip proof) — every
- * field is shaped exactly as {@code FlightMapper.writeNdjson} /
- * {@code FlightCrewMapper.writeNdjson} emit it over the
- * {@code MapperLegacyBindings.FLIGHT} / {@code FLIGHT_CREW} producer SELECTs:
- * {@code legacy_guid} = the legacy {@code FlightId} (FLIGHT is non-fan-out
- * FULL_PORT → {@code legacy_guid} → {@code id}); {@code operating_club_id} = the
- * legacy {@code OwnerId} (T-07's producer-SELECT catch); reference-lookup columns
- * ({@code start_type_id}, {@code process_state_id},
- * {@code flight_cost_balance_type_id}, {@code flight_crew_type_id}) as the
- * synthetic {@code new UUID(0, legacyIntId)}; the empty-guid sentinel collapsed to
- * null on a non-towed flight.
- *
- * <p><strong>Two declared clubs</strong> — the primary owner (carries the glider
- * + paired tow + motor + DeliveryBooked flights) and a SECOND cross-tenant club
- * (carries one flight) so the spec's cross-tenant 404 assertion has a real
- * other-tenant subject in the SAME deployment. Each club has its own FK closure
- * (location replica, flight type, aircraft, pilot Person).
- *
- * <p><strong>Time-gate seed nuance</strong> (S-061, operator divergence). The
- * migrated {@code flight_date}s are computed RELATIVE TO {@code LocalDate.now(UTC)}
- * at seed time — NOT hardcoded calendar dates — because the real-idp proof backend
- * boots {@code TimeConfig} with {@code Clock.systemUTC()} (no fixed clock in the
- * {@code dev} profile the CI proof job runs), and {@code FlightsService} applies a
- * default {@code [today-90d, today]} list window when the client sends no from/to
- * (the flights store sends none by default). Hardcoded Dec-2025 dates fell OUTSIDE
- * that 90-day window at any CI run date past ~Mar-2026, so the migrated-render +
- * DeliveryBooked-read assertions silently fell off the list (J-2 T-16 gate blocker).
- * Relative offsets keep every migrated flight inside the 90-day window AT ANY RUN
- * DATE while still satisfying the gate semantics: the glider/tow pair sits
- * {@value #LOCKABLE_OFFSET_DAYS} days before now (≥2 days before, so the lock gate
- * {@code flight_date <= today-2d} ALLOWS a Valid→Locked transition); the
- * DeliveryBooked flight ports {@code process_state = DELIVERY_BOOKED(60)} so it is
- * read-only (edit/delete → 4xx) and carries {@code locked_at = ModifiedOn}
- * {@value #BILLABLE_LOCKED_OFFSET_DAYS} days before now (≥3 days before, so the bill
- * gate {@code locked_at <= today-3d} would ALLOW billing; mapper rule:
- * {@code ProcessStateId >= LOCKED(40)} → locked_at = ModifiedOn).
- *
- * <p>Tar order (pgcopy id-maps before the NDJSON that references them, per the
- * ingest resolver + the {@link FlightMigrationRoundTripIT} ordering):
- * {@code COUNTRY/CLUB_STATE/START_TYPE maps → CLUB → PERSON map+ndjson →
- * LOCATION ndjson+fanout-map → FLIGHT_TYPE ndjson+id-map → AIRCRAFT ndjson+id-map
- * → FLIGHT ndjson+id-map → FLIGHT_CREW ndjson}.
- *
- * <p>Args (positional): {@code <publicKeyPemPath> <uploadId> <freshnessToken>
- * <clubKey> <outputPath>}. {@code freshnessToken} stamps the rendered glider
- * flight's comment so the UI assertion proves data actually flowed end to end;
- * {@code clubKey} is the PRIMARY (owning) club's key — the cross-tenant club's key
- * is derived from it ({@code <clubKey>X}). Writes the base64-encoded encrypted
- * bundle to {@code outputPath} and prints a single JSON line to stdout:
- * {@code {"clubKey":"…","crossTenantClubKey":"…","freshnessToken":"…",
- * "bundlePath":"…"}} which the spec parses to correlate the ingest response's
- * {@code clubIds} back to the owning + cross-tenant clubs.
- */
 public final class FlightParityBundleSeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    // Real Flyway-seed reference PKs the reference-lookup resolver lands on
-    // (V2 / V3) — the same set FlightMigrationRoundTripIT pins.
     private static final UUID SEED_COUNTRY_CH =
             UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID SEED_CLUB_STATE_ACTIVE =
@@ -110,12 +40,8 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
-    // Legacy AircraftStartType.TowingByAircraft = 1 (towed by an aircraft —
-    // legacy needsTowplane ⇒ startType == 1). Maps to the V2 AEROTOW seed PK so
-    // the glider+tow PAIR seeds a real aerotow (J-2 T-40 parity fix: was 2,
-    // which is WinchLaunch — the swapped convention that mirrored the mapper bug).
-    private static final int LEGACY_START_TYPE_AEROTOW = 1;     // -> V2 AEROTOW seed PK
-    private static final int LEGACY_FCBT_PILOT_PAYS_ALL = 1;    // -> V3 seed PK
+    private static final int LEGACY_START_TYPE_AEROTOW = 1;
+    private static final int LEGACY_FCBT_PILOT_PAYS_ALL = 1;
 
     private static final int LEGACY_PROCESS_STATE_VALID = 30;
     private static final int LEGACY_PROCESS_STATE_LOCKED = 40;
@@ -128,26 +54,12 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW = 2;
     private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR = 4;
 
-    // Legacy AirState FlightPlanOpen(5) — the only air-state value whose
-    // timestamp survives V13 (S-060). Others collapse to null.
     private static final int LEGACY_AIR_STATE_NEW = 0;
     private static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
     private static final int LEGACY_AIR_STATE_LANDED = 20;
 
-    // Time-gate seed offsets are RELATIVE TO LocalDate.now() at seed time, NOT
-    // hardcoded calendar dates: the real-idp proof backend runs Clock.systemUTC()
-    // and FlightsService applies a default [today-90d, today] list window, so any
-    // fixed past date eventually falls out of the window and the migrated rows stop
-    // rendering (J-2 T-16). now-minus-offset keeps every migrated flight in-window
-    // at any run date AND still satisfies the lock/bill day-boundary gates.
-    //
-    // Lockable glider+tow: flight_date = now-5d (>= today-2d so the lock gate ALLOWS
-    // Valid->Locked; comfortably inside the 90-day window).
     private static final int LOCKABLE_OFFSET_DAYS = 5;
-    // Motor: flight_date = now-3d (Valid; in-window).
     private static final int MOTOR_OFFSET_DAYS = 3;
-    // DeliveryBooked: flight_date = now-10d, locked_at = now-5d (>= today-3d so the
-    // bill gate ALLOWS billing; both inside the 90-day window).
     private static final int DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS = 10;
     private static final int BILLABLE_LOCKED_OFFSET_DAYS = 5;
 
@@ -171,19 +83,13 @@ public final class FlightParityBundleSeeder {
 
         MigrationBundleCipher cipher = new TinkMigrationBundleCipher();
 
-        // The cross-tenant club shares this deployment but is DISTINCT from the
-        // owning club — its admin's single-flight GET of the owning club's flight
-        // must 404 (structural @TenantId scope, oracle #24).
         String crossTenantClubKey = clubKey + "X";
 
-        // Unique per run (the clubKey carries the spec's run id) so a replayed
-        // seed doesn't 409 on the slug/club-key unique index.
         UUID ownerClubId = UUID.randomUUID();
         UUID crossClubId = UUID.randomUUID();
         UUID legacyCountryId = UUID.randomUUID();
         UUID actorUserId = UUID.randomUUID();
 
-        // Owner-club closure.
         UUID ownerPilotId = UUID.randomUUID();
         UUID ownerCoPilotId = UUID.randomUUID();
         UUID ownerLocationId = UUID.randomUUID();
@@ -199,7 +105,6 @@ public final class FlightParityBundleSeeder {
         UUID gliderPilotCrewId = UUID.randomUUID();
         UUID gliderCoPilotCrewId = UUID.randomUUID();
 
-        // Cross-tenant-club closure (minimal — one flight, no crew/tow).
         UUID crossPilotId = UUID.randomUUID();
         UUID crossLocationId = UUID.randomUUID();
         UUID crossFlightTypeId = UUID.randomUUID();
@@ -238,8 +143,6 @@ public final class FlightParityBundleSeeder {
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
         tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        // START_TYPE SYSTEM_GLOBAL map: synthetic UUID(0, legacyId) -> real seed PK
-        // (resolved structurally by the ingest against the V2 seed natural key).
         tarEntries.put("legacy_id_map/START_TYPE.pgcopy",
                 pgcopyMap(new UUID(0L, LEGACY_START_TYPE_AEROTOW),
                         UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1")));
@@ -250,8 +153,6 @@ public final class FlightParityBundleSeeder {
                 clubNdjson(crossClubId, crossTenantClubKey,
                         "J2 Flight Parity Cross-Tenant Club Legacy", legacyCountryId)));
 
-        // Persons (cross-tenant, FULL_PORT identity — id preserved) + identity
-        // id-map so the FlightCrew person FKs resolve.
         tarEntries.put("legacy_id_map/PERSON.pgcopy", pgcopyMap3(
                 new MapRow(ownerPilotId, ownerPilotId),
                 new MapRow(ownerCoPilotId, ownerCoPilotId),
@@ -261,7 +162,6 @@ public final class FlightParityBundleSeeder {
                 personNdjson(ownerCoPilotId, legacyCountryId, "CoPilot", "Glider"),
                 personNdjson(crossPilotId, legacyCountryId, "Pilot", "Cross")));
 
-        // Locations (fan-out: one replica per club) + composite id-map.
         tarEntries.put("LOCATION.ndjson", concat(
                 locationNdjson(ownerLocationId, ownerClubId, legacyCountryId, "LSZH",
                         "Zurich", actorUserId),
@@ -271,7 +171,6 @@ public final class FlightParityBundleSeeder {
                 new FanOutMapRow(ownerLocationId, ownerClubId, ownerLocationReplicaId),
                 new FanOutMapRow(crossLocationId, crossClubId, crossLocationReplicaId)));
 
-        // FLIGHT_TYPE (FULL_PORT, non-fan-out): legacy_guid -> id.
         tarEntries.put("FLIGHT_TYPE.ndjson", concat(
                 flightTypeNdjson(ownerFlightTypeId, ownerClubId, "Schulung", actorUserId),
                 flightTypeNdjson(crossFlightTypeId, crossClubId, "Schulung", actorUserId)));
@@ -279,8 +178,6 @@ public final class FlightParityBundleSeeder {
                 new MapRow(ownerFlightTypeId, ownerFlightTypeId),
                 new MapRow(crossFlightTypeId, crossFlightTypeId)));
 
-        // Aircraft (glider / tow / motor for the owner, one for the cross club),
-        // all cross-tenant non-fan-out.
         tarEntries.put("AIRCRAFT.ndjson", concat(
                 aircraftNdjson(gliderAircraftId, ownerClubId, "HB-3000",
                         LEGACY_AIRCRAFT_TYPE_GLIDER, actorUserId),
@@ -296,11 +193,6 @@ public final class FlightParityBundleSeeder {
                 new MapRow(motorAircraftId, motorAircraftId),
                 new MapRow(crossAircraftId, crossAircraftId)));
 
-        // Resolve the relative time-gate dates against the seed-time wallclock
-        // (= the real-idp proof backend's Clock.systemUTC() "now"), so the migrated
-        // rows always land inside FlightsService's default [today-90d, today] list
-        // window AND on the correct side of the lock/bill day boundaries (J-2 T-16).
-        // UTC to match the backend's Clock.systemUTC() notion of "today" (no TZ skew).
         LocalDate seedNow = LocalDate.now(ZoneOffset.UTC);
         String lockableFlightDate = seedNow.minusDays(LOCKABLE_OFFSET_DAYS).toString();
         String motorFlightDate = seedNow.minusDays(MOTOR_OFFSET_DAYS).toString();
@@ -308,46 +200,32 @@ public final class FlightParityBundleSeeder {
                 seedNow.minusDays(DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS).toString();
         String billableLockedAt = seedNow.minusDays(BILLABLE_LOCKED_OFFSET_DAYS).toString();
 
-        // FLIGHT (non-fan-out): legacy_guid -> id. Tow first so its id-map row
-        // precedes the glider that references it (mirror the producer's order).
         tarEntries.put("FLIGHT.ndjson", concat(
-                // Tow flight: TOW type, no tow_flight_id, LANDED air-state, Valid;
-                // paired with the glider (shared flight_date / location).
                 flightNdjson(towFlightId, ownerClubId, towAircraftId, ownerLocationId,
-                        ownerFlightTypeId, /* towFlightId */ null,
+                        ownerFlightTypeId, null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        /* lockedAtDate */ null, "J2 tow " + freshnessToken),
-                // Glider flight: tow_flight_id -> the tow flight; FlightPlanOpen(5)
-                // air-state -> flight_plan_opened_on survives; Valid + a past
-                // flight_date so the lock gate ALLOWS Valid->Locked (lockable).
+                        null, "J2 tow " + freshnessToken),
                 flightNdjson(gliderFlightId, ownerClubId, gliderAircraftId, ownerLocationId,
                         ownerFlightTypeId, towFlightId.toString(),
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        /* lockedAtDate */ null, "J2 glider " + freshnessToken),
-                // Motor flight: not towed (empty-guid -> null at the producer),
-                // MOTOR(4) discriminator, Valid.
+                        null, "J2 glider " + freshnessToken),
                 flightNdjson(motorFlightId, ownerClubId, motorAircraftId, ownerLocationId,
-                        ownerFlightTypeId, /* towFlightId */ null,
+                        ownerFlightTypeId, null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, motorFlightDate,
-                        /* lockedAtDate */ null, "J2 motor " + freshnessToken),
-                // DeliveryBooked flight: terminal read-only state (edit/delete ->
-                // 4xx). Locked-or-beyond, so locked_at carries (billable window).
+                        null, "J2 motor " + freshnessToken),
                 flightNdjson(deliveryBookedFlightId, ownerClubId, gliderAircraftId,
-                        ownerLocationId, ownerFlightTypeId, /* towFlightId */ null,
+                        ownerLocationId, ownerFlightTypeId, null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_DELIVERY_BOOKED, deliveryBookedFlightDate,
                         billableLockedAt, "J2 delivery-booked " + freshnessToken),
-                // Cross-tenant flight: a DIFFERENT club's flight in the same
-                // deployment (the owning admin's GET of it must 404). Also relative
-                // (now-5d) so it stays in-window for the cross club's own list.
                 flightNdjson(crossFlightId, crossClubId, crossAircraftId, crossLocationId,
-                        crossFlightTypeId, /* towFlightId */ null,
+                        crossFlightTypeId, null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        /* lockedAtDate */ null, "J2 cross-tenant " + freshnessToken)));
+                        null, "J2 cross-tenant " + freshnessToken)));
         tarEntries.put("legacy_id_map/FLIGHT.pgcopy", pgcopyMap3(
                 new MapRow(towFlightId, towFlightId),
                 new MapRow(gliderFlightId, gliderFlightId),
@@ -355,7 +233,6 @@ public final class FlightParityBundleSeeder {
                 new MapRow(deliveryBookedFlightId, deliveryBookedFlightId),
                 new MapRow(crossFlightId, crossFlightId)));
 
-        // FlightCrew: the glider flight carries a pilot + co-pilot.
         tarEntries.put("FLIGHT_CREW.ndjson", concat(
                 flightCrewNdjson(gliderPilotCrewId, gliderFlightId, ownerPilotId,
                         LEGACY_CREW_TYPE_PILOT),
@@ -373,11 +250,9 @@ public final class FlightParityBundleSeeder {
         result.put("crossTenantClubKey", crossTenantClubKey);
         result.put("freshnessToken", freshnessToken);
         result.put("bundlePath", outputPath.toAbsolutePath().toString());
-        // Single machine-readable line on stdout for the spec to parse.
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /** NDJSON shaped EXACTLY as {@code FlightMapper.writeNdjson}. FLIGHT is non-fan-out. */
     private static byte[] flightNdjson(UUID legacyFlightId, UUID legacyClubId, UUID aircraftId,
                                        UUID locationId, UUID flightTypeId, String towFlightId,
                                        int flightAircraftType, int legacyAirStateId,
@@ -411,7 +286,6 @@ public final class FlightParityBundleSeeder {
         row.put("nr_of_ldgs_on_start_location", 1);
         row.put("no_start_time_information", false);
         row.put("no_ldg_time_information", false);
-        // The mapper translates legacy AirStateId==5 -> ModifiedOn; else null.
         if (legacyAirStateId == LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN) {
             row.put("flight_plan_opened_on", Instant.parse(flightDate + "T07:30:00Z").toString());
         } else {
@@ -433,9 +307,6 @@ public final class FlightParityBundleSeeder {
         row.putNull("flight_report_sent_on");
         row.put("created_on", Instant.parse(flightDate + "T06:00:00Z").toString());
         row.put("created_by_user_id", "00000000-0000-0000-0000-000000000000");
-        // ModifiedOn doubles as the legacy lock-time proxy: for a Locked-or-beyond
-        // flight the mapper sets locked_at = ModifiedOn. Use the billable date so
-        // the bill gate (locked_at <= today-3d) would allow billing.
         String modifiedOn = lockedAtDate != null
                 ? Instant.parse(lockedAtDate + "T12:00:00Z").toString()
                 : Instant.parse(flightDate + "T12:00:00Z").toString();
@@ -443,7 +314,6 @@ public final class FlightParityBundleSeeder {
         row.putNull("modified_by_user_id");
         row.putNull("deleted_on");
         row.putNull("deleted_by_user_id");
-        // The mapper sets locked_at = ModifiedOn for ProcessStateId >= 40, null otherwise.
         if (legacyProcessStateId >= LEGACY_PROCESS_STATE_LOCKED) {
             row.put("locked_at", modifiedOn);
         } else {
@@ -452,7 +322,6 @@ public final class FlightParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code FlightCrewMapper.writeNdjson}. */
     private static byte[] flightCrewNdjson(UUID legacyCrewId, UUID legacyFlightId,
                                            UUID personId, int legacyCrewType)
             throws IOException {
@@ -508,8 +377,6 @@ public final class FlightParityBundleSeeder {
         row.put("legacy_guid", legacyAircraftId.toString());
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
-        // AircraftType is the airframe type (not the flight discriminator); any
-        // glider seed PK resolves — only the FK target matters here.
         row.put("aircraft_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
         row.put("manufacturer_name", "Schleicher");

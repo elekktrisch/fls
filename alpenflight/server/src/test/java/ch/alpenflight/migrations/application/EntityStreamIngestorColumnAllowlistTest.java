@@ -15,20 +15,10 @@ import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * S-141b column-name allow-list. The {@link EntityStreamIngestor}
- * constructor runs the gate against every registered {@link Mapper}'s
- * column list — the production wiring fails Spring boot on any column
- * outside {@code [A-Za-z0-9_]+}. Defense-in-depth against a future mapper
- * PR (or a tampered classpath) injecting through the INSERT-string builder.
- */
 class EntityStreamIngestorColumnAllowlistTest {
 
     @Test
     void known_mappers_all_pass_the_column_allowlist() {
-        // Boot-time invariant: the shipped registry never violates the
-        // allow-list. If this test regresses, Spring boot itself would also
-        // refuse to start in production — caught here at unit speed.
         assertThat(new EntityStreamIngestor(KnownMappers.all())).isNotNull();
     }
 
@@ -57,7 +47,6 @@ class EntityStreamIngestorColumnAllowlistTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
-    /** Test-only mapper that returns whatever column list the test supplies. */
     private static final class FixedColumnsMapper implements Mapper {
 
         private final String[] columns;
@@ -68,7 +57,6 @@ class EntityStreamIngestorColumnAllowlistTest {
 
         @Override
         public EntityType entityType() {
-            // Pick any entity — the constructor only iterates columns.
             return EntityType.COUNTRY;
         }
 

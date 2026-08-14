@@ -36,19 +36,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * ITs for {@link FlightReportRebuildService} (J-7 RM-2, ADR 0027 §2): the
- * batch repair seam for flights that bypass {@code FlightRepository.save}
- * (migration ingest JDBC, SQL dev seeds, showcase base inserts). Seeding goes
- * through production code (ADR 0027 §3 — aggregate factories + repositories
- * under {@link TenantTestContext#runAs}); the BYPASS itself is then simulated
- * deliberately — rows deleted via the row repository, a flight soft-deleted
- * via raw JDBC — because "data changed without the projector noticing" is
- * exactly the condition the rebuild exists to repair.
- */
 class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
 
-    /** {@code t_start_type} WINCH_LAUNCH / AEROTOW ids (V2 seed, fixed canonical UUIDs). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
     private static final UUID AEROTOW =
@@ -103,8 +92,6 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
             flights.save(glider);
         });
 
-        // Simulate the bypass: the rows vanish (as if the flights had arrived
-        // without ever passing repository.save).
         TenantTestContext.runAs(clubA, () -> {
             rows.delete(rows.findByFlightId(gliderId).orElseThrow());
             rows.delete(rows.findByFlightId(towId).orElseThrow());
@@ -122,13 +109,11 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
         assertThat(gliderRow.getFlightCode()).isEqualTo("STR");
         assertThat(gliderRow.getDurationSeconds()).isEqualTo(10800L);
         assertThat(gliderRow.getCrew()).hasSize(1);
-        // Tow block restored from the live link, both directions.
         assertThat(gliderRow.getTowFlightId()).isEqualTo(towId);
         assertThat(gliderRow.getTowPilotName()).isEqualTo("Schlepp Sina");
         assertThat(gliderRow.getTowFlightCode()).isEqualTo("TOW");
         assertThat(rowOf(clubA, towId).getTowedGliderFlightId()).isEqualTo(gliderId);
 
-        // Idempotent: a second run repairs nothing and changes nothing.
         FlightReportRebuildService.RebuildResult second = rebuild.rebuildForClub(clubA);
         assertThat(second.liveFlights()).isEqualTo(2);
         assertThat(second.orphanRowsDeleted()).isZero();
@@ -150,9 +135,6 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
                 loc, loc, flightType, WINCH_LAUNCH, List.of());
         assertThat(countRowsFor(flightId)).isEqualTo(1);
 
-        // Simulate the bypass under repair: the flight dies WITHOUT the
-        // projector noticing (raw JDBC, not the production soft-delete path —
-        // that one projects synchronously and is covered by the RM-1 ITs).
         jdbc.update("UPDATE t_flight SET deleted_on = now() WHERE id = ?::uuid",
                 flightId.toString());
 
@@ -177,32 +159,22 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
                 Instant.parse("2026-05-16T08:00:00Z"), Instant.parse("2026-05-16T09:00:00Z"),
                 locB, locB, typeB, WINCH_LAUNCH, List.of());
 
-        // Both clubs lose their rows to the simulated bypass.
         TenantTestContext.runAs(clubA, () ->
                 rows.delete(rows.findByFlightId(flightA).orElseThrow()));
         TenantTestContext.runAs(clubB, () ->
                 rows.delete(rows.findByFlightId(flightB).orElseThrow()));
 
-        // Rebuilding club A restores ONLY club A.
         rebuild.rebuildForClub(clubA);
         assertThat(countRowsFor(flightA)).isEqualTo(1);
         assertThat(countRowsFor(flightB)).isZero();
 
         rebuild.rebuildForClub(clubB);
         assertThat(countRowsFor(flightB)).isEqualTo(1);
-        // The restored rows carry their own club's discriminator (read-only
-        // JDBC assert of the stamped column — not a seeding write).
         assertThat(jdbc.queryForObject(
                 "SELECT operating_club_id FROM t_flight_report_row WHERE flight_id = ?::uuid",
                 UUID.class, flightB.toString())).isEqualTo(clubB);
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + repositories
-    // under TenantTestContext.runAs (ADR 0027 §3); read-only JDBC only for
-    // reference-data id lookups + row-count asserts; raw JDBC writes only to
-    // SIMULATE the bypass under test (see class javadoc).
 
     private FlightReportRow rowOf(UUID clubId, UUID flightId) {
         return TenantTestContext.runAs(clubId, () -> rows.findByFlightId(flightId)

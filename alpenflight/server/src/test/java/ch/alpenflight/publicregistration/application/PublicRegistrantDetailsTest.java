@@ -9,13 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * The field contract legacy enforced only in the browser. Legacy's DTO marked
- * just club key / firstname / lastname {@code [Required]}, so an API caller
- * could post a registration with no address and no contact channel; per
- * ADR 0022 directive 2 these are invariants of the command, and each one is
- * proved to actually reject rather than being documented prose.
- */
 class PublicRegistrantDetailsTest {
 
     @ParameterizedTest
@@ -52,11 +45,6 @@ class PublicRegistrantDetailsTest {
                 .hasMessageContaining("notificationEmail");
     }
 
-    /**
-     * A form that hid the invoice block may still post whatever was typed into
-     * it; the flag is the switch, so the block is dropped rather than turned
-     * into a second Person nobody asked for.
-     */
     @Test
     void an_invoice_block_posted_alongside_sameAddress_is_dropped() {
         PublicRegistrantDetails details = registrant("079 555 66 77", null, true,
@@ -66,11 +54,6 @@ class PublicRegistrantDetailsTest {
         assertThat(details.invoiceRecipient()).isNull();
     }
 
-    /**
-     * The voucher choice only exists while there are two people to choose
-     * between, so "same address" drops it the way it drops the invoice block —
-     * legacy instead re-tests the pair at every read site.
-     */
     @Test
     void the_coupon_choice_is_dropped_alongside_the_invoice_block() {
         PublicRegistrantDetails same = new PublicRegistrantDetails(

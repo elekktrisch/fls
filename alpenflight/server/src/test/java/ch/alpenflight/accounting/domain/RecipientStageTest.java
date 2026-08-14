@@ -18,7 +18,6 @@ class RecipientStageTest {
     private static final List<MatchableCrew> ONE_PILOT =
             List.of(MatchableCrew.of("PILOT", "1234", null, List.of()));
 
-    /** A glider-scoped recipient filter that matches any glider flight with crew. */
     private static FilterConfig gliderRule() {
         FilterConfig base = FilterConfig.empty();
         return new FilterConfig(
@@ -36,9 +35,6 @@ class RecipientStageTest {
         return MatchableFlight.builder(FlightAircraftType.GLIDER).crew(ONE_PILOT).build();
     }
 
-    // Recipient filters all carry stopRuleEngineWhenApplied=true, so the FIRST
-    // matching filter in (sort_indicator, id) order wins — the lower-sort filter
-    // stops the engine before the higher-sort one is even evaluated.
     @Test
     void firstMatchingRecipientFilterWinsAndStops() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -55,8 +51,6 @@ class RecipientStageTest {
         assertThat(acc.getMatchedFilterIds()).containsExactly(firstId);
     }
 
-    // DeliveryRecipientRule throws when the matched recipient filter has a null
-    // RecipientTarget — legacy cannot create a delivery without a recipient.
     @Test
     void matchedRecipientFilterWithNullTargetThrows() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -66,8 +60,6 @@ class RecipientStageTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    // With NO recipient filter matching, the two appended fallbacks run; they do
-    // NOT stop, so among themselves the LAST applying wins.
     @Test
     void fallbackRulesResolveRecipientWhenNoRecipientFilterMatches() {
         var costsPaidByPerson = MatchableFlight.builder(FlightAircraftType.GLIDER)

@@ -10,11 +10,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/**
- * Pins the load-bearing security row in the S-052 threat model:
- * SYSTEM_ADMINISTRATOR is ungrantable from the {@code /api/v1/users}
- * surface. Drives the {@code USER_ROLE_GRANT_REJECTED} audit emission.
- */
 class RoleAssignmentPolicyTest {
 
     private final RoleAssignmentPolicy policy = new RoleAssignmentPolicy();
@@ -55,9 +50,6 @@ class RoleAssignmentPolicyTest {
 
     @Test
     void sysadmin_explicitly_denied_on_this_surface() {
-        // Per the S-052 architectural rule: SYSTEM_ADMINISTRATOR is not in the
-        // CLUB_ADMIN cabin. Even with the sysadmin role, the policy refuses —
-        // sysadmin should never reach /api/v1/users in the first place.
         Jwt sysadmin = jwtWithRoles("SYSTEM_ADMINISTRATOR");
         assertThat(policy.isGrantable(sysadmin, Set.of(Role.PILOT))).isFalse();
     }

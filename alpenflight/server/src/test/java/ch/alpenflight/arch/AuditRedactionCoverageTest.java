@@ -21,30 +21,8 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * S-027 coverage guard. Every {@code @Entity} that the audit serializer
- * can encounter must have an explicit redaction decision for every field:
- *
- * <ul>
- *   <li>Listed in the entity's allow-list in {@code audit.redaction.entities.<Name>.allow}, OR</li>
- *   <li>The entity itself is in {@code audit.redaction.deny-all} (all fields redacted), OR</li>
- *   <li>The field carries the {@link AuditRedact} annotation.</li>
- * </ul>
- *
- * <p>A new entity field added without one of those three decisions
- * (deliberate "this is safe to log" or "this is PII") fails the build.
- * The PII default-deny serializer would still emit {@code "[redacted]"}
- * at runtime, but the lapse hides the question of intent — the test
- * forces the conversation in the same PR.
- *
- * <p>The {@code mutation_audit_event} entity itself is exempt: it is the
- * audit ledger and is never serialised into another audit row. Reference-
- * data entities (cross-tenant catalog) are also exempt — they hold no
- * tenant data so cannot leak PII through tenant-scoped audit rows.
- */
 class AuditRedactionCoverageTest {
 
-    /** Packages whose {@code @Entity}s are tenant-scoped and serialise into audit rows. */
     private static final Set<String> AUDITED_PACKAGE_ROOTS = Set.of(
             "ch.alpenflight.accounting.domain",
             "ch.alpenflight.aircraft.domain",
@@ -58,7 +36,6 @@ class AuditRedactionCoverageTest {
             "ch.alpenflight.persons.domain"
     );
 
-    /** Entity classes excluded because they're not subject to audit serialisation. */
     private static final Set<Class<?>> EXEMPT = Set.of(
             MutationAuditEvent.class
     );
@@ -134,8 +111,6 @@ class AuditRedactionCoverageTest {
     }
 
     private static String simpleName(Class<?> cls) {
-        // Logical entity name — defaults to the simple class name unless overridden
-        // by @Entity(name=...). The redaction policy keys on the logical name.
         Entity e = cls.getAnnotation(Entity.class);
         if (e != null && !e.name().isEmpty()) {
             return e.name();

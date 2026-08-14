@@ -55,9 +55,6 @@ class ArticleDomainTest {
 
     @Test
     void renumber_mutatesNumber() {
-        // article_number is mutable post-create — delivery_item.article_number
-        // is a frozen snapshot (Swiss OR Art. 957a) so renaming never
-        // corrupts historical invoices.
         Article a = Article.register("A-400", "Original", null, null, true);
         a.renumber("A-401");
         assertThat(a.getArticleNumber()).isEqualTo("A-401");
@@ -92,9 +89,6 @@ class ArticleDomainTest {
         assertThatThrownBy(a::deactivate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("soft-deleted");
-        // Every mutator goes through the same gate — pin each, otherwise a
-        // future repository helper that re-loads a soft-deleted row could
-        // silently mutate it.
         assertThatThrownBy(() -> a.rename("New name"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("soft-deleted");

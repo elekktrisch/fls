@@ -33,17 +33,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * S-141b AC3 — per-upload row-lock 409 surfaces as
- * {@code BUNDLE_INGEST_IN_PROGRESS}. A helper thread holds a
- * {@code PESSIMISTIC_WRITE} lock on the upload row through a
- * {@link TransactionTemplate}; the controller's
- * {@code lockUpload(timeout=0)} surfaces the contention immediately as
- * 409 (not 429 from the global gate — those are semantically distinct).
- *
- * <p>Tagged {@code slow} so the inner-loop {@code ./gradlew test} can
- * skip the lock-contention budget; CI runs everything.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -119,21 +108,12 @@ class MigrationBundleConcurrencyIT extends PostgresIntegrationTest {
                 cipher, uploadId, publicKeyDer, "Concurrency IT",
                 clubDeclaration("Aero Club Conc IT"));
 
-        // A helper thread takes a PESSIMISTIC_WRITE lock on the upload row
-        // and holds it until releaseLock fires. The controller's
-        // lockUpload(timeout=0) under POST will fail immediately on the
-        // contended row → BundleIngestException(BUNDLE_INGEST_IN_PROGRESS).
         CountDownLatch lockAcquired = new CountDownLatch(1);
         CountDownLatch releaseLock = new CountDownLatch(1);
 
         Thread lockHolder = new Thread(() -> {
             TransactionTemplate template = new TransactionTemplate(txManager);
             template.execute(status -> {
-                // Native SQL with explicit FOR UPDATE — same pessimistic
-                // row lock the orchestrator's lockUpload takes via JPA's
-                // PESSIMISTIC_WRITE hint, without the JPQL the project's
-                // bare-table-name linter (FixtureTableNamingConventionTest)
-                // does not understand.
                 jdbc.queryForMap(
                         "SELECT id FROM t_migration_upload WHERE id = ?::uuid FOR UPDATE",
                         uploadId.toString());
@@ -162,8 +142,6 @@ class MigrationBundleConcurrencyIT extends PostgresIntegrationTest {
                             + "BUNDLE_INGEST_IN_PROGRESS, not 429 DATABASE_CAPACITY_EXCEEDED")
                     .isEqualTo("BUNDLE_INGEST_IN_PROGRESS");
 
-            // Exactly zero Deployment rows for this caller — the failed
-            // POST rolled back inside runInsideTransaction.
             Integer deploymentCount = jdbc.queryForObject(
                     "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
                     Integer.class, userSub.toString());

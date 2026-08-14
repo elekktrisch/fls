@@ -33,13 +33,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code PATCH /api/v1/flights/{id}/process-state}.
- * Verifies the legality matrix surfaces as 409, unknown-state as 400,
- * cross-tenant as 404, happy-path as 200. The OPERATOR trigger is the
- * only one exposed via this endpoint — system triggers are invoked from
- * background jobs (deferred stories).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -58,8 +51,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
 
-    // Distinct minted clubs per IT so we don't collide with FlightsControllerIT /
-    // FlightsTenantIsolationIT when JUnit runs them in the same JVM.
     private UUID clubUuid;
     private UUID otherClubUuid;
     private String adminToken;
@@ -67,8 +58,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Seed both clubs via the existing fixture (handles aircraft + child
-        // cleanup + the complex club FK chain).
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, "patchit", "PAIT");
         fixture.seed();
@@ -145,7 +134,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void cross_tenant_flight_returns_404() {
-        // Seed a flight under otherClubUuid and try to PATCH it with our token.
         UUID otherAircraft = seedAircraftFor(jdbc, otherClubUuid);
         UUID otherFlightId = UUID.randomUUID();
         jdbc.update("""
@@ -169,17 +157,11 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Creates a flight via the public POST then forces it into the target
-     * state via JDBC (the public surface only stamps NOT_PROCESSED on
-     * create — system-driven transitions live in deferred stories).
-     */
     private String createFlightInState(UUID processStateId) {
         ResponseEntity<String> postRes = post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"));
         assertThat(postRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String idExternal = readJson(postRes).get("id").asText();
-        // Strip "fl-" prefix.
         UUID flightUuid = UUID.fromString(idExternal.substring(3));
         if (!NOT_PROCESSED.equals(processStateId)) {
             jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",

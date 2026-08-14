@@ -10,21 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Verifies V14 migration outcomes against the shared Postgres testcontainer:
- *
- * <ul>
- *   <li>Sandbox Deployment seeded at {@link Deployment#SANDBOX_ID}.</li>
- *   <li>Operator Deployment seeded at {@link Deployment#OPERATOR_ID}; owner_sub
- *       comes from the {@code alpenflight.operator.keycloak_sub} placeholder.</li>
- *   <li>V5 seed Club ({@code 019e30c3-2c00-7001-8000-000000000001})
- *       backfilled to the operator Deployment.</li>
- *   <li>Partial UNIQUE {@code ux_deployment_owner_active} present in
- *       {@code pg_indexes} with the expected predicate.</li>
- *   <li>Performance indexes {@code ix_deployment_lifecycle} +
- *       {@code ix_club_deployment_id} present.</li>
- * </ul>
- */
 class DeploymentMigrationIT extends PostgresIntegrationTest {
 
     @Autowired

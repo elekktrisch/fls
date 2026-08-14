@@ -23,16 +23,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Pins the {@code @TransactionalEventListener(AFTER_COMMIT)} +
- * {@code @Transactional(REQUIRES_NEW)} design.
- *
- * <p>Drives a test-only endpoint that publishes a success audit event
- * inside its {@code @Transactional} method and then throws. AFTER_COMMIT
- * is conditioned on the tx committing — so the success row must NOT land.
- * The {@link RequestAuditFilter} sees the 500 and emits one synthetic
- * {@code failed=true} row through its own REQUIRES_NEW listener path.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -64,9 +54,6 @@ class AuditRollbackSemanticsIT extends PostgresIntegrationTest {
                 String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
 
-        // The success path published a MutationAuditRequested event inside the
-        // rolled-back tx → AFTER_COMMIT listener never fires → no row for that
-        // target lands.
         long successRows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_mutation_audit_event "
                         + "WHERE target_entity_id = ?::uuid AND failed = false",
@@ -75,8 +62,6 @@ class AuditRollbackSemanticsIT extends PostgresIntegrationTest {
                 .as("Success row must NOT land — AFTER_COMMIT only fires on commit")
                 .isZero();
 
-        // The filter's synthetic-failure path emits ONE row in its own
-        // REQUIRES_NEW transaction, independent of the rolled-back outer tx.
         List<Map<String, Object>> failedRows = jdbc.queryForList(
                 "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true",

@@ -30,20 +30,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * S-176 SSE transport IT. Drives {@code GET /api/v1/me/events} over a real
- * port with the JDK {@link HttpClient} reading the stream line-by-line
- * ({@link HttpResponse.BodyHandlers#ofLines()}) — {@code TestRestTemplate}
- * buffers the whole body and can't observe an open stream incrementally.
- *
- * <p>Heartbeat interval is squashed to 300ms via {@link TestPropertySource}
- * so the heartbeat assertion doesn't wait the 25s production cadence.
- *
- * <p>Three assertions (the layer cap): (a) authed open → 200 +
- * {@code text/event-stream} + a published event is received with its name +
- * JSON payload; (b) a heartbeat comment arrives on an idle stream; (c) no
- * token → 401, no stream.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @Import(JwtTestFixture.class)
 @TestPropertySource(properties = "alpenflight.sse.heartbeat-interval-ms=300")
@@ -77,9 +63,6 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
                     .as("SSE content type")
                     .startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
 
-            // The server only holds the emitter once register() has run on the
-            // request thread; re-publish each poll until the connection is live
-            // so we don't race the subscription, then assert receipt.
             waitUntil(() -> {
                 eventBus.publish(sub, "flight.created", Map.of("flightId", "f-1"));
                 return reader.lines().stream()
@@ -104,7 +87,6 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
         StreamReader reader = openStream(token);
         try {
             assertThat(reader.statusCode()).isEqualTo(200);
-            // Heartbeat squashed to 300ms; an SSE comment line starts with ':'.
             waitUntil(() -> reader.lines().stream().anyMatch(l -> l.startsWith(":")));
             assertThat(reader.lines())
                     .as("heartbeat comment on an idle stream")
@@ -156,10 +138,6 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
         return new StreamReader(res);
     }
 
-    /**
-     * Drains an open SSE response on a background thread into a thread-safe
-     * line buffer the assertions poll.
-     */
     private static final class StreamReader {
         private final HttpResponse<Stream<String>> response;
         private final List<String> received = new CopyOnWriteArrayList<>();
@@ -171,7 +149,6 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
                 try {
                     response.body().forEach(received::add);
                 } catch (RuntimeException e) {
-                    // stream cancelled / closed — expected at teardown
                 }
             }, "sse-it-pump");
             this.pump.setDaemon(true);

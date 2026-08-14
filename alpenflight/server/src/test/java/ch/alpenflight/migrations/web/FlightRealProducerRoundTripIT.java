@@ -54,22 +54,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-2 T-07 — real-producer round-trip gate for FLIGHT + FLIGHT_CREW, mirroring
- * {@link AircraftRealProducerRoundTripIT}. Unlike
- * {@link FlightMigrationRoundTripIT}, which hand-orders the tar entries, this IT
- * assembles the FULL_PORT slice through the <strong>real
- * {@link BundleWriter#assembleTarGz}</strong> and ingests its actual output —
- * the gap-hunter guard against authored-but-wrong-order. The thing under test:
- * {@code assembleTarGz} must drain each FULL_PORT entity's
- * {@code legacy_id_map/<entity>.pgcopy} BEFORE the NDJSON that resolves against
- * it, so the tow self-FK ({@code legacy_id_map_flight}) and the FlightCrew
- * person + flight FKs all resolve.
- *
- * <p>The SYSTEM_GLOBAL maps (COUNTRY / CLUB_STATE / START_TYPE) the ingest also
- * requires are spliced in right after {@code manifest.json}, leaving the real
- * producer's FULL_PORT-pgcopy-then-NDJSON relative order untouched.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -87,8 +71,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
-    // Legacy AircraftStartType.TowingByAircraft = 1 (aerotow); maps to V2 AEROTOW.
-    // J-2 T-40 parity fix: was 2 (WinchLaunch) under the swapped convention.
     private static final int LEGACY_START_TYPE_AEROTOW = 1;
     private static final UUID SEED_START_TYPE_AEROTOW =
             UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1");
@@ -131,10 +113,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "FRP-" + tag;
         testClubSlug = "frp-" + tag;
-        // ux_aircraft_immatriculation is regulator-GLOBALLY-unique. Own a
-        // per-run immat namespace (the V36 fixture-namespace convention) so a
-        // showcase-seeded HB-TOW1 surviving in the shared single-fork
-        // Postgres container cannot 23505 this ingest.
         gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
         towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
         jdbc.update("""
@@ -218,8 +196,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         entityPolicies.put(EntityType.FLIGHT, fullPortPolicy());
         entityPolicies.put(EntityType.FLIGHT_CREW, fullPortPolicy());
 
-        // NDJSON temp files shaped EXACTLY as the production mappers emit, fed
-        // into the REAL BundleWriter so it computes the pgcopy maps + tar order.
         EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
                 clubNdjson(legacyClubId, key, "FRP Club Legacy", "Addr"), 1);
         EntityStreamResult personStream = ndjsonStream(EntityType.PERSON,
@@ -232,11 +208,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 concat(
                         aircraftNdjson(legacyGliderAircraftId, legacyClubId, gliderImmat, false),
                         aircraftNdjson(legacyTowAircraftId, legacyClubId, towImmat, true)), 2);
-        // J-2 T-41: the GLIDER is emitted BEFORE its tow — the real-bundle order
-        // that 500'd on fk_flight_tow_flight_id (sqlstate=23503) before the
-        // S-141 two-pass. A single-pass INSERT binds tow_flight_id while the tow
-        // row does not yet exist → FK violation. The two-pass INSERTs both with
-        // NULL, then UPDATEs the link once every flight exists.
         EntityStreamResult flightStream = ndjsonStream(EntityType.FLIGHT, concat(
                 flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
                         legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(), 1,
@@ -258,7 +229,7 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("flight-real-producer-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        BundleWriter writer = new BundleWriter( null, workDir, false);
         writer.assembleTarGz(manifestBytes,
                 List.of(clubStream, personStream, locationStream, flightTypeStream,
                         aircraftStream, flightStream, crewStream),
@@ -289,8 +260,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
         UUID newClub = clubIdsByKey(deploymentId).get(key);
 
-        // The glider survived the real producer ordering with every FK resolved,
-        // including the tow self-FK that needs legacy_id_map_flight drained first.
         Map<String, Object> glider = jdbc.queryForMap(
                 "SELECT operating_club_id, aircraft_id, start_location_id, tow_flight_id, "
                         + "process_state_id, locked_at FROM t_flight WHERE id = ?::uuid",
@@ -308,9 +277,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                         + "(glider emitted BEFORE its tow — the S-141 two-pass UPDATE "
                         + "links them after both rows exist)")
                 .isEqualTo(legacyTowFlightId);
-        // The LINK is real, not just id-equality by luck: the migrated tow row
-        // exists and is a TOW-type flight (flight_aircraft_type_id=2), so the
-        // glider's tow_flight_id points at an actual migrated tow.
         Map<String, Object> linkedTow = jdbc.queryForMap(
                 "SELECT id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
                 glider.get("tow_flight_id").toString());
@@ -326,7 +292,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .as("locked_at set for the migrated Locked flight through the real producer")
                 .isNotNull();
 
-        // The crew child attached to the migrated glider with resolved FKs.
         Map<String, Object> crew = jdbc.queryForMap(
                 "SELECT person_id, flight_crew_type_id FROM t_flight_crew "
                         + "WHERE flight_id = ?::uuid", legacyGliderFlightId.toString());
@@ -338,7 +303,6 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(SEED_CREW_TYPE_PILOT);
     }
 
-    // ---- NDJSON builders (shaped as the production mappers emit) -----------
 
     private byte[] flightNdjson(UUID legacyFlightId, UUID legacyClubId, UUID aircraftId,
                                 UUID locationId, UUID flightTypeId, String towFlightId,

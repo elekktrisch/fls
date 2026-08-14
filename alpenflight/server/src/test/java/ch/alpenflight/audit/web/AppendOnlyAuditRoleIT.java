@@ -17,24 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-160 append-only proof: the runtime {@code alpenflight_app} DB role V54
- * provisions may INSERT and SELECT {@code t_mutation_audit_event} but can never
- * UPDATE or DELETE it — so an app-credential compromise cannot tamper with or
- * erase audit history (S-027 threat-row (d)).
- *
- * <p>The negative assertion is on SQLState {@code 42501}
- * (insufficient_privilege), not the message text, which is locale/version-
- * sensitive. The row is seeded via the migrator/owner connection (which retains
- * full CRUD) so the test is self-contained and immune to seed-data drift; its
- * NOT-NULL columns only (NULL tenant/actor FKs) keep it decoupled from any
- * tenant fixture.
- *
- * <p>Runs FOR REAL in CI's Testcontainer, where V54 creates the app role. In
- * external-PG mode (a shared LAN cluster that may not have provisioned the
- * second cluster-global role) it fails-loud-skips, citing S-160 — never a
- * silent pass.
- */
 class AppendOnlyAuditRoleIT extends PostgresIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(AppendOnlyAuditRoleIT.class);
@@ -55,10 +37,6 @@ class AppendOnlyAuditRoleIT extends PostgresIntegrationTest {
         }
     }
 
-    /**
-     * Insert a self-contained audit row as the migrator/owner (full CRUD, no
-     * REVOKE applies): only NOT-NULL columns, NULL tenant/actor FKs.
-     */
     private UUID seedAuditRowAsOwner() {
         UUID id = UUID.randomUUID();
         migratorJdbc.update(

@@ -25,26 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence-level proof of the J-6 planning-day repository (T-03), driven
- * through the real {@code @TenantId} discriminator via {@link Tenants#runAs}:
- *
- * <ul>
- *   <li>paged future-days returns tenant-scoped rows in {@code planning_date}
- *       order, past days + the other club's days excluded;</li>
- *   <li>a duplicate {@code (club, date, location)} save surfaces the catchable
- *       {@link PlanningDayConflictException} (not a raw constraint-violation
- *       500), and a soft-deleted day frees the tuple;</li>
- *   <li>the per-day {@code countReservationsForDay} joins
- *       {@code t_aircraft_reservation} by club + {@code date(reservation_start)}
- *       + location;</li>
- *   <li>a cross-tenant {@code findActiveById} returns empty.</li>
- * </ul>
- *
- * <p>Each test owns its data: {@code @BeforeEach} clears the test clubs'
- * planning + reservation rows (RESTRICT FKs to Location/Aircraft), then re-seeds
- * two clubs + a location per club.
- */
 class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_PLN_";
@@ -70,9 +50,6 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        // The fixture mints the two clubs and clears all their tenant-scoped
-        // children (planning days + reservations FK to location/aircraft with
-        // RESTRICT) in one global child→parent pass before re-minting.
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         fixture.seed();
@@ -85,14 +62,12 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
     @Test
     void future_page_returns_tenant_scoped_rows_in_date_order_excluding_past_and_other_club() {
         Tenants.runAs(clubA, () -> {
-            // Insert out of order; future page must sort by planning_date asc.
             planningDays.save(PlanningDay.create(clubA, DAY_3, locationA, "third"));
             planningDays.save(PlanningDay.create(clubA, DAY_1, locationA, "first"));
             planningDays.save(PlanningDay.create(clubA, DAY_2, locationA, "second"));
             planningDays.save(PlanningDay.create(clubA, YESTERDAY, locationA, "past"));
             return null;
         });
-        // Other club's future day — must NOT appear in A's page.
         Tenants.runAs(clubB,
                 () -> planningDays.save(PlanningDay.create(clubB, DAY_1, locationB, "club-b")));
 
@@ -131,14 +106,11 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
             return null;
         });
 
-        // Soft-deleting the first frees the (club,date,location) tuple — the
-        // ux_pln_club_date_loc index is partial (WHERE deleted_on IS NULL, V4).
         Tenants.runAs(clubA, () -> {
             PlanningDay existing = planningDays.findActiveById(firstId).orElseThrow();
             existing.softDelete(null, java.time.Clock.systemUTC());
             planningDays.save(existing);
             planningDays.flush();
-            // Same tuple now inserts cleanly.
             PlanningDay reinserted = planningDays.save(
                     PlanningDay.create(clubA, DAY_1, locationA, "reinserted"));
             assertThat(reinserted.getId()).isNotNull();
@@ -150,13 +122,10 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
     void per_day_reservation_count_joins_by_club_date_and_location() {
         UUID aircraftA = seedAircraft(clubA);
         UUID pilot = seedPerson();
-        // Two reservations on DAY_1 at locationA, one on DAY_1 at locationB,
-        // one on DAY_2 at locationA — all under clubA.
         seedReservation(clubA, aircraftA, pilot, locationA, DAY_1, 8);
         seedReservation(clubA, aircraftA, pilot, locationA, DAY_1, 12);
         seedReservation(clubA, aircraftA, pilot, locationB, DAY_1, 8);
         seedReservation(clubA, aircraftA, pilot, locationA, DAY_2, 8);
-        // Other club's reservation on DAY_1 at locationA — must not be counted.
         UUID aircraftB = seedAircraft(clubB);
         seedReservation(clubB, aircraftB, pilot, locationB, DAY_1, 8);
 
@@ -170,7 +139,6 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                     .isZero();
             return null;
         });
-        // clubB sees only its own reservation, not clubA's.
         Tenants.runAs(clubB, () -> {
             assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
                     .as("clubB has no reservation at locationA")
@@ -179,32 +147,11 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
         });
     }
 
-    /**
-     * J-26 T-16b — midnight-boundary proof of the UTC day window backing
-     * {@code countReservationsForDay}. The retired native probe truncated with
-     * {@code date(reservation_start)}, which applies the Postgres SESSION
-     * TimeZone; the replacement {@code countActiveOnDayAtLocation} compares the
-     * {@code timestamptz} start against the UTC instant window {@code [date 00:00
-     * UTC, date+1 00:00 UTC)}. Because both operands are instants (no
-     * tz-dependent {@code ::date} cast), the bucketing is independent of the
-     * runner's JVM tz and the DB session tz — and {@code hibernate.jdbc.time_zone}
-     * is NOT pinned to UTC in any profile, so this case is the only thing proving
-     * the boundary doesn't drift on a non-UTC CI runner.
-     *
-     * <p>Two reservations straddle the {@code DAY_1 → DAY_2} midnight: one at
-     * {@code DAY_1 23:30:00Z} (belongs to DAY_1 in UTC) and one at {@code DAY_2
-     * 00:30:00Z} (belongs to DAY_2). The DAY_1 count must include ONLY the 23:30Z
-     * row, and the DAY_2 count ONLY the 00:30Z row — neither leaking across the
-     * boundary. Seeded through the production save path (ADR 0027): an
-     * {@code Instant} binds to {@code timestamptz} as a true instant, so the seed
-     * itself carries no JVM-default-tz ambiguity.
-     */
     @Test
     void per_day_reservation_count_buckets_midnight_boundary_by_utc_window() {
         UUID aircraftA = seedAircraft(clubA);
         UUID pilot = seedPerson();
 
-        // 23:30Z on DAY_1 → DAY_1 bucket; 00:30Z on DAY_2 → DAY_2 bucket.
         Instant lateOnDay1 = DAY_1.atStartOfDay(java.time.ZoneOffset.UTC)
                 .plusHours(23).plusMinutes(30).toInstant();
         Instant earlyOnDay2 = DAY_2.atStartOfDay(java.time.ZoneOffset.UTC)
@@ -291,13 +238,6 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                 java.sql.Timestamp.from(start), java.sql.Timestamp.from(end));
     }
 
-    /**
-     * Seeds a 2-hour timed reservation starting at exactly {@code start} through
-     * the production save path (ADR 0027) under the row's operating club, so the
-     * {@code Instant} binds to {@code timestamptz} as a true instant — no
-     * {@code java.sql.Timestamp}/JVM-default-tz round-trip. Used by the
-     * midnight-boundary case where the stored instant must be exact.
-     */
     private void seedTimedReservation(UUID aircraftId, UUID pilotId, UUID locationId,
                                       Instant start) {
         Instant end = start.plus(2, ChronoUnit.HOURS);

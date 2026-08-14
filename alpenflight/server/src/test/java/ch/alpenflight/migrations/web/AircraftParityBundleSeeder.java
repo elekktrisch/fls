@@ -21,59 +21,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * J-1 T-07 — the SYNTHESIZED Aircraft migration parity bundle builder, launched
- * from the real-idp Playwright spec ({@code aircraft-migration-parity.spec.ts})
- * via the {@code seedAircraftParityBundle} Gradle {@code JavaExec} task.
- *
- * <p>Mirrors {@link FanOutParityBundleSeeder} (the J-0c template): a pure
- * byte-factory that, given the per-upload RSA public key (from the spec's REAL
- * {@code POST /migrations/handshake}) and the {@code uploadId}, emits the
- * encrypted bundle bytes to disk as base64. The spec then POSTs those bytes
- * through the REAL {@code POST /api/v1/migrations/{uploadId}/bundle} endpoint
- * (with a real verified-email Bearer), so the migration ingest + Keycloak
- * club-admin provisioning run LIVE against the dev stack.
- *
- * <p>The bundle shape is byte-aligned with {@link AircraftMigrationRoundTripIT}
- * (the authoritative AIRCRAFT round-trip proof): one declared CLUB, its owner
- * Person, a homebase Location (the fan-out LOCATION the Aircraft rides through),
- * one AIRCRAFT (non-fan-out — {@code legacy_guid} → {@code id}) with its
- * resolved {@code aircraft_type_id} / {@code aircraft_owner_person_id} /
- * {@code homebase_id} / counter-unit-type FKs, plus its two aggregate-internal
- * children (state-history + operating-counter). The immatriculation is the
- * spec-supplied random {@code <immat>} freshness token so the UI assertion
- * proves data actually flowed end to end.
- *
- * <p>Tar order (pgcopy id-maps before the NDJSON that references them, per the
- * ingest resolver's expectations):
- * {@code COUNTRY/CLUB_STATE maps → CLUB → PERSON map+ndjson → LOCATION
- * ndjson+fanout-map → AIRCRAFT ndjson+id-map → AIRCRAFT_AIRCRAFT_STATE ndjson →
- * AIRCRAFT_OPERATING_COUNTER ndjson}.
- *
- * <p>Args (positional): {@code <publicKeyPemPath> <uploadId> <immatriculation>
- * <clubKey> <outputPath>}. Writes the base64-encoded encrypted bundle to
- * {@code outputPath} and prints a single JSON line to stdout:
- * {@code {"clubKey":"…","immatriculation":"…","bundlePath":"…"}} which the spec
- * parses to correlate the ingest response's {@code clubIds} back to the
- * owning club.
- */
 public final class AircraftParityBundleSeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    // Real Flyway-seed reference PKs the reference-lookup resolver lands on
-    // (V2 / V3 / V22 / V25) — the same set AircraftMigrationRoundTripIT pins.
     private static final UUID SEED_COUNTRY_CH =
             UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID SEED_CLUB_STATE_ACTIVE =
             UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8");
-    private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;       // GLIDER (V3)
-    private static final int LEGACY_AIRCRAFT_STATE_OK = 1;          // OK (V3)
-    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;        // GRASS_RUNWAY (V3)
-    private static final int LEGACY_UNIT_FEET = 2;                  // FEET (V22 backfill)
-    private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2; // HOURS_DECIMAL (V25)
-    // The CLUB_STATE legacy synthetic id the CLUB NDJSON references; mapped to
-    // the real seed PK via the CLUB_STATE.pgcopy id-map below.
+    private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final int LEGACY_AIRCRAFT_STATE_OK = 1;
+    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
+    private static final int LEGACY_UNIT_FEET = 2;
+    private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2;
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
     private AircraftParityBundleSeeder() { }
@@ -96,9 +56,6 @@ public final class AircraftParityBundleSeeder {
 
         MigrationBundleCipher cipher = new TinkMigrationBundleCipher();
 
-        // Unique per run (the clubKey carries the spec's run id) so a replayed
-        // seed doesn't 409 on the slug/club-key unique index — the declared
-        // club is always DISTINCT from the Flyway seed clubs.
         UUID legacyClubId = UUID.randomUUID();
         UUID legacyCountryId = UUID.randomUUID();
         UUID legacyPersonId = UUID.randomUUID();
@@ -122,9 +79,6 @@ public final class AircraftParityBundleSeeder {
                 EntityType.COUNTRY, systemGlobalPolicy(),
                 EntityType.CLUB_STATE, systemGlobalPolicy());
 
-        // The homebase Location's fanned-out replica id in this club — the
-        // composite (legacy_guid, club_id) the AIRCRAFT homebase FK resolves
-        // against (disambiguated by AIRCRAFT.managing_club_id, T-05b).
         UUID homebaseReplicaId =
                 Coercions.deriveFanOutId(legacyHomebaseLocationId, legacyClubId);
 
@@ -136,22 +90,15 @@ public final class AircraftParityBundleSeeder {
         tarEntries.put("CLUB.ndjson",
                 clubNdjson(legacyClubId, clubKey, "J1 Aircraft Parity Club Legacy",
                         legacyCountryId));
-        // Owner Person (cross-tenant, FULL_PORT identity — id preserved) + its
-        // identity id-map so the aircraft_owner_person_id FK resolves.
         tarEntries.put("legacy_id_map/PERSON.pgcopy",
                 pgcopyMap(legacyPersonId, legacyPersonId));
         tarEntries.put("PERSON.ndjson",
                 personNdjson(legacyPersonId, legacyCountryId, "Owner", "Aircraft"));
-        // The homebase Location (fan-out: one row for this club) + the composite
-        // (legacy_guid, club_id, new_uuid) id-map the aircraft homebase FK
-        // resolves against — ordered BEFORE AIRCRAFT.ndjson.
         tarEntries.put("LOCATION.ndjson",
                 locationNdjson(legacyHomebaseLocationId, legacyClubId, legacyCountryId,
                         "LSZH", actorUserId));
         tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(legacyHomebaseLocationId, legacyClubId, homebaseReplicaId)));
-        // AIRCRAFT (non-fan-out): legacy_guid -> id. Its identity id-map so the
-        // children's aircraft_id FK resolves to the migrated aircraft.
         tarEntries.put("AIRCRAFT.ndjson", aircraftNdjson(
                 legacyAircraftId, legacyClubId, legacyPersonId, legacyHomebaseLocationId,
                 immatriculation, actorUserId));
@@ -173,19 +120,15 @@ public final class AircraftParityBundleSeeder {
         result.put("clubKey", clubKey);
         result.put("immatriculation", immatriculation);
         result.put("bundlePath", outputPath.toAbsolutePath().toString());
-        // Single machine-readable line on stdout for the spec to parse.
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /** NDJSON shaped as {@code AircraftMapper.writeNdjson}. AIRCRAFT is non-fan-out. */
     private static byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId,
                                          UUID ownerPersonId, UUID homebaseLocationId,
                                          String immatriculation, UUID actorUserId)
             throws IOException {
         ObjectNode row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
-        // managing_club_id + owner_club_id both carry the legacy club guid
-        // (J-1 parity: source is legacy AircraftOwnerClubId).
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
         row.put("aircraft_type_id",
@@ -224,7 +167,6 @@ public final class AircraftParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code AircraftAircraftStateMapper.writeNdjson}. */
     private static byte[] aircraftStateNdjson(UUID legacyAircraftId, String remarks,
                                               UUID actorUserId) throws IOException {
         ObjectNode row = JSON.createObjectNode();
@@ -246,7 +188,6 @@ public final class AircraftParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code AircraftOperatingCounterMapper.writeNdjson}. Non-fan-out. */
     private static byte[] operatingCounterNdjson(UUID legacyCounterId, UUID legacyAircraftId,
                                                  long flightSeconds, UUID actorUserId)
             throws IOException {
@@ -272,7 +213,6 @@ public final class AircraftParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code LocationMapper.writeNdjson} (fan-out homebase source). */
     private static byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
                                          UUID countryId, String icao, UUID actorUserId)
             throws IOException {

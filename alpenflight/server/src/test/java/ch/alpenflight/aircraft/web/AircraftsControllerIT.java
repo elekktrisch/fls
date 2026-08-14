@@ -33,18 +33,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the Aircraft CRUD slice. Asserts
- * the REST surface, soft-delete semantics, immatriculation uniqueness,
- * and state-history aggregate invariants under a CLUB_ADMINISTRATOR
- * principal of seed-club-1 (the tenant whose aircraft this IT exercises).
- *
- * <p>Tenant-isolation properties (Hibernate {@code @TenantId} filtering,
- * NO_TENANT fail-closed, regulator-global immatriculation uniqueness) live
- * in {@link AircraftsTenantIsolationIT}; role-gate authz matrix
- * (FLIGHT_OPERATOR for state/counter, transferOwnership-by-CLUB_ADMIN,
- * cross-tenant 404 contract) lives in {@link AircraftsAuthorizationIT}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -75,10 +63,8 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void listAircraft_includesModelManufacturerAndSeats_forLegacyListParity() {
-        // T-13: legacy aircrafts-table.html shows Aircraft Model + Manufacturer
-        // Name + Nr of Seats; the list projection must carry them too.
         String imm = uniqueImmatriculation();
-        post("/api/v1/aircraft", createPayload(imm)); // Schleicher / ASK-21 / 2 seats
+        post("/api/v1/aircraft", createPayload(imm));
 
         ResponseEntity<String> res = get("/api/v1/aircraft");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -113,8 +99,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     void registerAircraft_lowercaseImmatriculation_isUppercased() {
         String imm = "hb-x999";
         ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm));
-        // Bean-Validation pattern is case-insensitive (parity with legacy's
-        // .ToUpper() normalize-on-read); VO uppercases at the domain boundary.
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(readJson(res).get("immatriculation").asText()).isEqualTo("HB-X999");
     }
@@ -217,7 +201,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
         assertThat(body.isArray()).isTrue();
-        // Slim projection — no comment, no FLARM, no homebase
         if (body.size() > 0) {
             JsonNode first = body.get(0);
             assertThat(first.has("immatriculation")).isTrue();
@@ -230,9 +213,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void picker_carriesNrOfSeats_drivingConditionalSecondCrew() {
-        // T-18: the picker projection must carry nrOfSeats so the reservation
-        // form's conditional Second-Crew rule (required when nrOfSeats > 1) can
-        // evaluate client-side. createPayload registers a 2-seat aircraft.
         String imm = uniqueImmatriculation();
         post("/api/v1/aircraft", createPayload(imm));
 
@@ -299,8 +279,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
             }
         }
         assertThat(openCount).as("exactly one open state").isEqualTo(1);
-        // The previously-open period must close at the new period's validFrom,
-        // so the two periods are temporally contiguous (no gap, no overlap).
         assertThat(closedEntry).as("exactly one closed state").isNotNull();
         assertThat(closedEntry.get("validTo").asText())
                 .as("closed state's validTo equals the new state's validFrom")
@@ -309,10 +287,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void registerAircraft_sameImmatriculation_sameTenant_returns_409() {
-        // Same-tenant immatriculation collision — the partial unique index
-        // ux_aircraft_immatriculation covers `WHERE deleted_on IS NULL`.
-        // Cross-tenant global uniqueness is covered by
-        // AircraftsTenantIsolationIT.immatriculation_uniqueness_is_global_across_tenants.
         String imm = uniqueImmatriculation();
         ResponseEntity<String> first = post("/api/v1/aircraft", createPayload(imm));
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -323,8 +297,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void listAircraft_typeGlider_includesGliderWithMotor() {
-        // Legacy AircraftService.cs:303-304: Glider slice = Type ∈ {Glider,
-        // GliderWithMotor}. The server-side filter preserves this membership.
         String gliderImm = uniqueImmatriculation();
         post("/api/v1/aircraft", createPayload(gliderImm));
 
@@ -348,9 +320,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void listAircraft_typeMotor_excludesGliderWithMotor() {
-        // Legacy AircraftService.cs:96: AircraftTypeId >= MotorGlider (i.e.
-        // legacy_int_id >= 4). GLIDER_WITH_MOTOR (legacy_int_id = 2) is
-        // intentionally excluded from the MOTOR slice.
         Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation());
         gwmPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR);
         post("/api/v1/aircraft", gwmPayload);
@@ -442,7 +411,6 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         assertThat(body.size()).isGreaterThanOrEqualTo(7);
     }
 
-    // ----- helpers -----
 
     private ResponseEntity<String> get(String path) {
         return rest.exchange(

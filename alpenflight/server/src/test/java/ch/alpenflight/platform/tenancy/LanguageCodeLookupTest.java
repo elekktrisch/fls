@@ -12,17 +12,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Pins the {@code unknown / missing → en} fallback and the per-JVM cache
- * contract on the locale-to-language lookup. Full-stack assertion (the
- * resolved {@code language_id} lands on the JIT-materialised row) lives
- * in {@code UsersJitFirstLoginIT}.
- *
- * <p>Collaborates with the {@link LanguageRepository} JPA port (ADR 0027 —
- * the JdbcTemplate dependency was retired at J-26 T-14). The lookup always
- * presents the repository a lowercased code, so these mocks stub on the
- * lowercase key.
- */
 class LanguageCodeLookupTest {
 
     private static final UUID DE_ID = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
@@ -42,9 +31,6 @@ class LanguageCodeLookupTest {
         when(languages.findIdByCodeIgnoreCase("xx")).thenReturn(Optional.empty());
 
         assertThat(lookup.resolve("xx")).isEqualTo(LanguageCodeLookup.FALLBACK_EN_ID);
-        // Second call still queries — unknown locales are not cached so a
-        // late-arriving seed (operator dev path) can take effect without a
-        // JVM restart.
         assertThat(lookup.resolve("xx")).isEqualTo(LanguageCodeLookup.FALLBACK_EN_ID);
         verify(languages, times(2)).findIdByCodeIgnoreCase("xx");
     }

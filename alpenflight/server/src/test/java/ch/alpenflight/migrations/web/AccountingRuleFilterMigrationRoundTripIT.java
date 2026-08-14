@@ -40,47 +40,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-8 T-10 — the AccountingRuleFilter migrate round-trip proof: a legacy→
- * export→ingest round-trip against the REAL server ingest pipeline, so the
- * {@link ch.alpenflight.migrations.application.ReferenceLookupResolver} runs live
- * (the T-09 finding — without {@code referenceLookups()} the
- * {@code filter_type_id} synthetic UUID reaches the INSERT verbatim and
- * FK-violates {@code fk_arf_filter_type_id} for EVERY type). Mirrors
- * {@link PlanningDayMigrationRoundTripIT}.
- *
- * <p>The mapper + schema were authored at the V4 baseline but had NO
- * {@code MapperLegacyBindings} producer entry, so the producer SELECT + real
- * round-trip had never run ({@code verify_infra_is_run_not_just_authored} /
- * {@code project_synth_bundle_doesnt_validate_producer_select}). T-10 wires the
- * binding; this IT proves it end-to-end.
- *
- * <p>ACCOUNTING_RULE_FILTER is <strong>fan-out NO</strong> (per-club config;
- * legacy_guid preserved verbatim as the destination {@code id}), tenant-scoped on
- * {@code operating_club_id}. The NDJSON is shaped exactly as the mapper emits
- * over its bound producer SELECT.
- *
- * <p>Asserts the load-bearing migration invariants:
- * <ul>
- *   <li><strong>Reference FK resolution.</strong> {@code filter_type_id}
- *       resolves through {@code referenceLookups()} against the V4/V42-seeded
- *       {@code t_accounting_rule_filter_type.legacy_int_id} — including a type-5
- *       (DO_NOT_INVOICE) row that V42 seeded; {@code accounting_unit_type_id}
- *       resolves against {@code t_accounting_unit_type}.</li>
- *   <li><strong>Target scalars + descriptive text.</strong> {@code article_target}
- *       / {@code recipient_target} carry the bare scalars; the descriptive
- *       {@code deliveryLineText} / {@code recipientName} round-trip in
- *       {@code filter_config} (the AC "reload round-trips every field").</li>
- *   <li><strong>Match-lists parse as JSON, not comma.</strong> A migrated
- *       {@code filter_config} match-list carries the distinct elements of a JSON
- *       array, never a single corrupted comma-joined element.</li>
- *   <li><strong>Collision lands without 23505.</strong> Two rows in ONE club with
- *       DISTINCT (producer-renumbered) {@code sort_indicator} both INSERT — no
- *       {@code ux_arf_club_sort_partial} violation.</li>
- *   <li><strong>Tenant isolation.</strong> Every filter carries the owning club's
- *       {@code operating_club_id}; the other club has none.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -96,14 +55,13 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
-    // Real Flyway-seed reference PKs the ref-lookup resolver must land on.
-    private static final int LEGACY_FILTER_TYPE_FLIGHT_TIME = 30;       // V4
-    private static final int LEGACY_FILTER_TYPE_DO_NOT_INVOICE = 5;     // V42 (T-09)
+    private static final int LEGACY_FILTER_TYPE_FLIGHT_TIME = 30;
+    private static final int LEGACY_FILTER_TYPE_DO_NOT_INVOICE = 5;
     private static final UUID SEED_FILTER_TYPE_FLIGHT_TIME =
             UUID.fromString("019e2e15-2c00-7652-8000-000000004652");
     private static final UUID SEED_FILTER_TYPE_DO_NOT_INVOICE =
             UUID.fromString("019e2e15-2c00-7658-8000-000000004658");
-    private static final int LEGACY_UNIT_TYPE_MINUTES = 10;             // V4
+    private static final int LEGACY_UNIT_TYPE_MINUTES = 10;
     private static final UUID SEED_UNIT_TYPE_MINUTES =
             UUID.fromString("019e2e15-2c00-7a38-8000-000000004a38");
 
@@ -155,9 +113,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
         jdbc.update("DELETE FROM t_user WHERE club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
-        // Club provisioning seeds per-club reference rows (flight types, member
-        // states) referencing the club — delete them before the club, else the
-        // club DELETE FK-violates.
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
         jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
@@ -186,13 +141,8 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
                 legacyClubIdB, "Arf Club B", testClubSlug + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // Two filters in club A with DISTINCT (already producer-renumbered)
-        // sort_indicators 1 and 2 — both must INSERT without colliding on
-        // ux_arf_club_sort_partial (the renumber the producer SELECT applies upstream).
         UUID legacyFlightTimeFilterId = UUID.randomUUID();
-        // A type-5 DO_NOT_INVOICE filter — V42 seeded the type so the ref lookup resolves.
         UUID legacyDoNotInvoiceFilterId = UUID.randomUUID();
-        // One filter in club B — tenant isolation.
         UUID legacyClubBFilterId = UUID.randomUUID();
 
         Map<EntityType, EntityPolicy> entityPolicies = Map.of(
@@ -210,18 +160,13 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
                 clubNdjson(legacyClubIdA, keyA, "Arf Club A Legacy"),
                 clubNdjson(legacyClubIdB, keyB, "Arf Club B Legacy")));
         tarEntries.put("ACCOUNTING_RULE_FILTER.ndjson", concat(concat(
-                // A FLIGHT_TIME (30) filter with an article target + minutes unit + a
-                // JSON-array match-list — sort_indicator 1.
                 accountingRuleFilterNdjson(legacyFlightTimeFilterId, legacyClubIdA,
                         LEGACY_FILTER_TYPE_FLIGHT_TIME, LEGACY_UNIT_TYPE_MINUTES, 1,
                         "Flight time charge", "4001",
                         null, null, List.of("HB-3170", "HB-1234")),
-                // A DO_NOT_INVOICE (5) filter — the V42 seed makes the ref lookup
-                // resolve; sort_indicator 2 in the SAME club (no 23505).
                 accountingRuleFilterNdjson(legacyDoNotInvoiceFilterId, legacyClubIdA,
                         LEGACY_FILTER_TYPE_DO_NOT_INVOICE, null, 2,
                         null, null, null, null, List.of())),
-                // Club B's filter — tenant isolation.
                 accountingRuleFilterNdjson(legacyClubBFilterId, legacyClubIdB,
                         LEGACY_FILTER_TYPE_FLIGHT_TIME, null, 1,
                         null, null, "1042", "Club Treasurer", List.of())));
@@ -241,8 +186,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID newClubA = clubIdByKey.get(keyA);
         UUID newClubB = clubIdByKey.get(keyB);
 
-        // The FLIGHT_TIME filter: ref types resolved, article target scalar landed,
-        // deliveryLineText round-tripped in filter_config, match-list JSON-parsed.
         Map<String, Object> flightTime = jdbc.queryForMap(
                 "SELECT operating_club_id, filter_type_id, accounting_unit_type_id, "
                         + "article_target, recipient_target, sort_indicator, "
@@ -275,8 +218,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
                 .extracting(JsonNode::asText)
                 .containsExactly("HB-3170", "HB-1234");
 
-        // The type-5 DO_NOT_INVOICE filter: the V42-seeded type resolves, and it lands
-        // in the SAME club at sort_indicator 2 — proving no 23505 on the partial UNIQUE.
         Map<String, Object> doNotInvoice = jdbc.queryForMap(
                 "SELECT filter_type_id, sort_indicator FROM t_accounting_rule_filter "
                         + "WHERE id = ?::uuid", legacyDoNotInvoiceFilterId.toString());
@@ -289,7 +230,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "ux_arf_club_sort_partial 23505")
                 .isEqualTo(2);
 
-        // Club B's filter: recipient target scalar + recipientName round-trip.
         Map<String, Object> clubBFilter = jdbc.queryForMap(
                 "SELECT operating_club_id, recipient_target, filter_config "
                         + "FROM t_accounting_rule_filter WHERE id = ?::uuid",
@@ -304,7 +244,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("recipientName round-trips in filter_config")
                 .isEqualTo("Club Treasurer");
 
-        // Tenant isolation: club A has exactly its 2 filters; club B exactly 1.
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM t_accounting_rule_filter WHERE operating_club_id = ?::uuid",
                 Integer.class, newClubA.toString()))
@@ -355,7 +294,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped exactly as {@code AccountingRuleFilterMapper.writeNdjson}. */
     private byte[] accountingRuleFilterNdjson(UUID legacyId, UUID legacyClubId,
             int filterTypeInt, Integer unitTypeInt, int sortIndicator,
             String deliveryLineText, String articleNumber,
@@ -364,7 +302,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyId.toString());
         row.put("operating_club_id", legacyClubId.toString());
-        // Synthetic new UUID(0, legacyIntId) — resolved ingest-side by referenceLookups().
         row.put("filter_type_id", Coercions.legacyIntIdToUuidString(filterTypeInt));
         if (unitTypeInt == null) {
             row.putNull("accounting_unit_type_id");
@@ -377,8 +314,6 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         row.put("sort_indicator", sortIndicator);
         row.put("stop_rule_engine_when_applied", false);
         row.put("is_charged_to_club_internal", false);
-        // article_target / recipient_target are the bare scalars (JSON_VALUE-extracted
-        // by the producer SELECT); descriptive text rides filter_config.
         if (articleNumber == null) {
             row.putNull("article_target");
         } else {

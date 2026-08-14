@@ -15,20 +15,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Unit-level shape contract for the audit emission path:
- *
- * <ul>
- *   <li>{@code (none) → TRIAL} produces a {@link AuditedTarget} with
- *       literal {@code null} {@code before} — pinned for downstream
- *       consumers.</li>
- *   <li>Mid-lifecycle transitions carry both before + after
- *       {@link LifecycleSnapshot}s.</li>
- *   <li>Action is always {@link AuditAction#STATE_TRANSITION}; entity
- *       type is always {@code "Deployment"}; entityId is the event's
- *       deployment id.</li>
- * </ul>
- */
 class LifecycleTransitionAuditListenerTest {
 
     private final RecordingAuditTrail recorded = new RecordingAuditTrail();
@@ -78,9 +64,6 @@ class LifecycleTransitionAuditListenerTest {
                                  AuditedTarget target,
                                  int httpStatus,
                                  @Nullable String failureReason) {
-            // Unused — lifecycle transitions emit success rows only via
-            // the domain-event path. The synthetic-failure filter (S-027)
-            // owns the recordFailed seam.
         }
     }
 }

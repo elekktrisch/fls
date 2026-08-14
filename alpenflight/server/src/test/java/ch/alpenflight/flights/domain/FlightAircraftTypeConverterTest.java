@@ -7,12 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * Sparse-enum converter for the discriminator: GLIDER=1, TOW=2, MOTOR=4.
- * Value 3 is deliberately skipped (legacy {@code GliderWithMotor} lives on
- * Aircraft, NOT Flight); reading 3 (or any other unknown legacy id) from
- * the DB must throw — silently accepting it would shift the bug surface.
- */
 class FlightAircraftTypeConverterTest {
 
     private final FlightAircraftTypeConverter c = new FlightAircraftTypeConverter();

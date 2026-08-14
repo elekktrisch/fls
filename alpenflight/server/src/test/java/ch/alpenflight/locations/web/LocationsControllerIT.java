@@ -28,16 +28,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the Locations CRUD slice. Asserts the
- * REST surface, soft-delete filtering, ICAO uniqueness, and ICAO-format
- * validation under a CLUB_ADMINISTRATOR principal of seed-club-1 (per S-159:
- * SYSTEM_ADMINISTRATOR has no rights on tenant-scoped surfaces).
- *
- * <p>Per-test isolation relies on time-stamped ICAO codes + location names —
- * V3 seeds no Location rows, so the test set is the only data in
- * {@code location} for the duration of the JVM.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -256,7 +246,6 @@ class LocationsControllerIT extends PostgresIntegrationTest {
                 .isLessThan(idxB);
     }
 
-    // ----- helpers -----
 
     private ResponseEntity<String> get(String path) {
         return rest.exchange(authed(
@@ -328,11 +317,6 @@ class LocationsControllerIT extends PostgresIntegrationTest {
 
     private static final AtomicInteger ICAO_COUNTER = new AtomicInteger(0);
 
-    /**
-     * Unique ICAO matching {@code ^[A-Z]{2}[0-9]{2}$} (legacy short form for
-     * private airfields). Per-process counter ensures distinct values across
-     * the full JVM-shared test container lifetime.
-     */
     static String uniqueIcao() {
         int n = ICAO_COUNTER.incrementAndGet();
         char c1 = (char) ('A' + ((n / 100) % 26));

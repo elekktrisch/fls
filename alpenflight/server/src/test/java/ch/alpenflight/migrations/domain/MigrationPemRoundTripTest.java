@@ -22,7 +22,6 @@ class MigrationPemRoundTripTest {
         gen.initialize(RSA_KEY_BITS);
         KeyPair pair = gen.generateKeyPair();
 
-        // Modulus exposes the strength contract.
         assertThat(((RSAPublicKey) pair.getPublic()).getModulus().bitLength())
                 .isEqualTo(RSA_KEY_BITS);
 
@@ -30,7 +29,6 @@ class MigrationPemRoundTripTest {
         assertThat(pem).startsWith("-----BEGIN PUBLIC KEY-----\n");
         assertThat(pem).endsWith("\n-----END PUBLIC KEY-----\n");
 
-        // Standard PEM-decode: strip headers + newlines, base64-decode the rest.
         String base64Body = pem
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")

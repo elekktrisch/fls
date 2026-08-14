@@ -10,29 +10,14 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Test-only reflective hydrator for the READ-ONLY {@link Delivery} aggregate +
- * its {@link DeliveryItem} children (the read iteration maps the V4 columns +
- * getters; the write factory is deferred). Per ADR 0027 §4 the read iteration
- * adds no production setter/factory just for seeding — tests populate via
- * reflection here. Never
- * sets {@code operatingClubId}: Hibernate's {@code @TenantId} resolver fills it
- * on INSERT (so a hydrated row saved under the wrong tenant context fails
- * fail-closed, the S-024 contract).
- */
 public final class DeliveryTestHydrator {
 
     private DeliveryTestHydrator() {}
 
-    /** A transient Delivery with field defaults (PREPARED, empty recipient, batch 0, no items). */
     public static Delivery bare() {
         return newInstance(Delivery.class);
     }
 
-    /**
-     * A transient Delivery populated for a read IT. {@code operatingClubId} is
-     * deliberately NOT set — the resolver fills it on save.
-     */
     public static Delivery delivery(DeliveryProcessState state,
                                     @Nullable String deliveryNumber,
                                     long batchId,
@@ -47,17 +32,11 @@ public final class DeliveryTestHydrator {
         return delivery;
     }
 
-    /** Sets the linked {@code flightId} on a transient Delivery and returns it (fluent). */
     public static Delivery withFlight(Delivery delivery, UUID flightId) {
         set(delivery, "flightId", flightId);
         return delivery;
     }
 
-    /**
-     * A transient DeliveryItem child. {@code operatingClubId} IS set here (the
-     * denormalized child stamp the parent's graph carries — DeliveryCreationTestItem
-     * precedent), since the child is not a {@code @TenantId} resolver participant.
-     */
     public static DeliveryItem item(UUID operatingClubId,
                                     int position,
                                     UUID articleId,

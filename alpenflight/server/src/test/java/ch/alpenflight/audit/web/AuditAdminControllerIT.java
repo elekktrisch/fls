@@ -28,20 +28,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Drives {@code GET /api/v1/admin/audit-events} — the read surface S-056's
- * admin UI consumes.
- *
- * <ul>
- *   <li>CLUB_ADMINISTRATOR + SYSTEM_ADMINISTRATOR can both list, scoped
- *       to their JWT-claimed tenant via Hibernate's {@code @TenantId}
- *       filter on the entity.</li>
- *   <li>FLIGHT_OPERATOR + unauthenticated callers are gated by the role
- *       predicate on the controller.</li>
- *   <li>Filtering by {@code action} / {@code targetEntityType} works
- *       additively.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -68,7 +54,6 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
     @Test
     void list_returns_committed_audit_rows_under_caller_tenant() throws Exception {
-        // Seed: one CREATE event via the Clubs slice.
         ResponseEntity<String> created = post("/api/v1/clubs",
                 createPayload("AdminListed", "admin-listed-" + suffix(), "ALS" + shortSuffix()),
                 sysadminToken);
@@ -150,8 +135,6 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
     @Test
     void list_denies_plain_pilot() {
-        // A plain PILOT holds a tenant context but no admin authority; the
-        // @PreAuthorize role gate rebukes it before any tenant-scoped read.
         String token = jwts.mint(c -> c
                 .claim("clubId", SYSADMIN_TENANT.toString())
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
@@ -178,18 +161,10 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
             + "that cross-tenant access requires the explicit unscoped context "
             + "(otherwise 403, even for SYSADMIN).")
     void cross_tenant_admin_read_blocked() {
-        // Placeholder per S-027 Test plan. Implementation when S-023 lands:
-        //   1. Mint sysadmin token claiming tenant A.
-        //   2. Run a Tenants.runAs(B, ...) write to plant audit rows on B.
-        //   3. GET /api/v1/admin/audit-events with sysadmin token + an
-        //      explicit "tenant=B" query parameter.
-        //   4. Expect 403 unless an UnscopedTenantContext.runAs(...) frame
-        //      is active on the controller side.
     }
 
     @Test
     void list_allows_club_administrator() throws Exception {
-        // Plant a Club + its audit row using the sysadmin so the seed-club tenant has data.
         post("/api/v1/clubs",
                 createPayload("ClubAdminList", "club-admin-list-" + suffix(), "CAL" + shortSuffix()),
                 sysadminToken);
@@ -207,14 +182,6 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("items").isArray()).isTrue();
     }
 
-    /**
-     * Append an audit row directly under {@link #SYSADMIN_TENANT}. The
-     * AFTER_COMMIT listener only writes one {@code targetEntityType} per
-     * mutating endpoint, so a documented direct INSERT (the append-only table
-     * permits INSERT — see {@code AppendOnlyAuditRoleIT}) is how this IT stages
-     * two DIFFERENT entity types in one tenant. Runs as the migrator/owner
-     * connection, so no elevated role is needed in external-PG mode.
-     */
     private UUID insertAuditRow(String targetEntityType) {
         UUID targetId = UUID.randomUUID();
         jdbc.update(

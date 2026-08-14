@@ -25,20 +25,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Admin endpoint contract:
- *
- * <ul>
- *   <li>SYSTEM_ADMINISTRATOR + legal transition → 200 + updated body.</li>
- *   <li>SYSTEM_ADMINISTRATOR + illegal transition → 409 with structured body.</li>
- *   <li>SYSTEM_ADMINISTRATOR + sandbox target id → 409 {@code sandbox_immutable}.</li>
- *   <li>CLUB_ADMINISTRATOR → 403.</li>
- *   <li>Unknown id → 404 (don't leak existence).</li>
- * </ul>
- *
- * <p>Tested with the production filter chain — synthesised RSA-signed JWTs
- * via {@link JwtTestFixture} go through {@code JwtDecoderConfig}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)

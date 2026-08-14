@@ -26,33 +26,6 @@ import org.springframework.data.repository.support.Repositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.context.support.GenericWebApplicationContext;
 
-/**
- * The S-024 catalog-driven leakage sweep. For every {@code @TenantId}-bearing
- * entity discovered on the classpath:
- *
- * <ol>
- *   <li><strong>Negative.</strong> Insert under tenant A; under tenant B,
- *       both {@code findAll} and {@code findById} return empty.</li>
- *   <li><strong>Positive baseline.</strong> Same insert, read under A,
- *       row is visible — guards "test passes because everything is empty."</li>
- *   <li><strong>Fail-closed read.</strong> Under the {@code NO_TENANT}
- *       sentinel, {@code findAll} returns empty.</li>
- *   <li><strong>Fail-closed write.</strong> Under the sentinel, save fails
- *       at the {@code fk_<table>_club_id} FK (no nil-UUID row in club).
- *       Without this, a resolver that mistakenly returns {@code null}
- *       (rather than the sentinel) would silently un-filter writes.</li>
- * </ol>
- *
- * <p>Each operation runs through the entity's Spring Data
- * {@link JpaRepository}, which opens its own transaction. This is the
- * idiomatic shape — and it matches how production calls hit the resolver
- * (one tenant resolve per session), so the sweep tests what production
- * actually does.
- *
- * <p>Per-test cleanup deletes all tenant-scoped rows under the two seed
- * clubs (driven by the same catalog the sweep iterates), then re-seeds.
- * Per ADR 0021 — pre-clean by stable key, no {@code @AfterEach}.
- */
 class LeakageSweepIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_SWP_";
@@ -144,16 +117,9 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         Function<SweepFixtureContext, E> builder = builderFor(entityClass);
         String tableName = TenantScopedEntityCatalog.resolveTableName(entityClass);
         String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);
-        // FK constraint names keep their legacy shape (no `t_` prefix) per
-        // ADR 0025 — strip the table prefix to reconstruct the actual name.
         String legacyTableStem = tableName.startsWith("t_") ? tableName.substring(2) : tableName;
         String expectedFkName = "fk_" + legacyTableStem + "_" + tenantCol;
 
-        // Pin to the FK breach specifically — not "any DataIntegrityViolation".
-        // If a future regression made the resolver return null instead of the
-        // sentinel, Hibernate could trip a different constraint (NOT NULL on
-        // club_id, a CHECK, a trigger). Asserting the FK name keeps the test
-        // load-bearing for the specific resolver-drift threat row (d).
         assertThatThrownBy(() -> TenantTestContext.runUnscoped(() ->
                 repo.save(builder.apply(ctx))))
                 .as("Save under NO_TENANT on %s must fail at %s", entityClass.getSimpleName(),
@@ -200,7 +166,6 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         }
     }
 
-    /** Same as {@link #idOf} but typed as {@code Object → Object} for assertj's {@code extracting}. */
     private static Object idOfQuiet(Object entity) {
         return idOf(entity);
     }

@@ -18,19 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-0 T-02a — structural FLIGHT-group reference-FK resolve. Proves the ingest
- * pipeline rewrites a {@link LocationMapper}-declared reference-lookup column
- * (the synthetic {@code new UUID(0, legacyIntId)} encoding) to the real V2/V3
- * Flyway-seed PK before the row is bound for INSERT, and fails closed on an
- * unknown {@code legacy_int_id} rather than letting the verbatim synthetic UUID
- * FK-violate against the seed PK.
- *
- * <p>Runs the resolver directly against a real Flyway-migrated Postgres (the
- * seed tables + their {@code ux_*_legacy_int_id} indexes must exist), the layer
- * the resolver actually operates at — cheaper than the full HTTP bundle IT,
- * which {@code MigrationBundleParityRoundTripIT} already owns for the wider path.
- */
 @Tag("slow")
 class ReferenceLookupResolverIT extends PostgresIntegrationTest {
 
@@ -43,9 +30,6 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
     void rewrites_synthetic_lookup_uuids_to_real_seed_pks() throws Exception {
         LocationMapper mapper = new LocationMapper();
 
-        // Legacy LocationTypeId 2 = GRASS_RUNWAY; ElevationUnitType 1 = Meter;
-        // RunwayLengthUnitType 2 = Feet — three distinct seed tables, distinct
-        // legacy ints, so a "resolved the wrong table" bug can't hide.
         ObjectNode row = JSON.createObjectNode();
         row.put(locationTypeColumn(), Coercions.legacyIntIdToUuidString(2));
         row.put(elevationColumn(), Coercions.legacyIntIdToUuidString(1));
@@ -69,7 +53,6 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
         assertThat(UUID.fromString(row.get(runwayLengthColumn()).asText()))
                 .as("runway_length_unit_type_id must resolve to t_length_unit_type.id")
                 .isEqualTo(expectedRunwayLength);
-        // Sanity: none of them is the verbatim synthetic UUID any more.
         assertThat(expectedLocationType).isNotEqualTo(new UUID(0L, 2L));
     }
 
@@ -94,7 +77,6 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
     void unknown_legacy_int_id_fails_closed() throws Exception {
         LocationMapper mapper = new LocationMapper();
         ObjectNode row = JSON.createObjectNode();
-        // 9999 is not a seeded t_location_type.legacy_int_id.
         row.put(locationTypeColumn(), Coercions.legacyIntIdToUuidString(9999));
 
         try (Connection connection = dataSource.getConnection();

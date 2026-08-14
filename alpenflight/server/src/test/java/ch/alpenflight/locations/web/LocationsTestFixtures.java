@@ -1,6 +1,5 @@
 package ch.alpenflight.locations.web;
 
-/** Canonical seed UUIDs the Locations ITs round-trip through DTOs. */
 final class LocationsTestFixtures {
 
     static final String SEED_COUNTRY_ID = "019e2e15-2c00-74be-8000-0000000004be";

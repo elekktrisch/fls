@@ -30,24 +30,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof for the S-061 time-gate wired into
- * {@link FlightStateTransitionService}. A {@link Clock#fixed} bean anchors
- * "now" to 2026-01-01 (the e2e fixture anchor) so the calendar gate is
- * deterministic.
- *
- * <p>The gate is a DELIBERATE divergence from legacy (J-2 parity decision,
- * operator 2026-06-03): lock on {@code flight_date <= today-2d}, bill on
- * {@code locked_at <= today-3d}. The HTTP {@code PATCH /process-state}
- * surface only exposes the OPERATOR trigger (which cannot drive
- * Valid→Locked or Locked→DeliveryPrepared per the matrix), so this IT
- * drives the service directly with the system triggers — the same path the
- * lock / delivery-prep jobs (J-15 / J-10) will use.
- */
 @Import(FlightTimeGateIT.FixedClockConfig.class)
 class FlightTimeGateIT extends PostgresIntegrationTest {
 
-    /** Anchors "now" to 2026-01-01T12:00Z. */
     @TestConfiguration
     static class FixedClockConfig {
         @Bean
@@ -82,16 +67,11 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
 
     @Test
     void too_recent_flight_cannot_lock() {
-        // today = 2026-01-01, gate = today-2d = 2025-12-30. A flight flown
-        // 2025-12-31 (one day too recent) is rejected at the lock gate.
-        // The minted club id is runtime, so the tenant context is set via
-        // runAs here rather than the class-level @WithTenant literal.
         FlightId id = seedValidFlight(LocalDate.of(2025, 12, 31));
         TenantTestContext.runAs(club, () -> {
             assertThatThrownBy(() ->
                     stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB))
                     .isInstanceOf(FlightGateNotReachedException.class);
-            // State unchanged in the DB.
             assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.VALID.id());
             assertThat(lockedAtOf(id.value())).isNull();
         });
@@ -99,12 +79,10 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
 
     @Test
     void past_threshold_flight_locks_and_stamps_locked_at() {
-        // flight_date == today-2d (2025-12-30) is on the boundary → allowed.
         FlightId id = seedValidFlight(LocalDate.of(2025, 12, 30));
         TenantTestContext.runAs(club, () ->
                 stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB));
         assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.LOCKED.id());
-        // locked_at stamped from the fixed clock (2026-01-01T12:00Z).
         Instant lockedAt = lockedAtOf(id.value());
         assertThat(lockedAt).isEqualTo(Instant.parse("2026-01-01T12:00:00Z"));
     }

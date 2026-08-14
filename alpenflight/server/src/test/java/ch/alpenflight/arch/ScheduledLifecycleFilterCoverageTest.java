@@ -14,29 +14,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
 
-/**
- * S-137 design-time guardrail. Every {@code @Scheduled} method MUST carry
- * either:
- *
- * <ul>
- *   <li>{@link LifecycleStateFilter} with a non-empty state set — the
- *       tenant-scoped per-(Deployment, Club) iteration, OR</li>
- *   <li>{@link UnscopedScheduledJob} — the explicit "this job runs once
- *       per tick, unscoped, across the whole database" marker for
- *       pre-tenant data (S-140 hourly handshake-TTL sweep is the first
- *       such job).</li>
- * </ul>
- *
- * <p>Missing annotations → build break (cross-Deployment leakage risk —
- * a new job would silently iterate every state including {@code SANDBOX}
- * stranger data + {@code DELETING} cascade-in-flight). Empty
- * {@code @LifecycleStateFilter} → build break (the aspect's fail-closed
- * behavior would silently skip the job forever, masking the missing
- * decision).
- *
- * <p>Cross-cutting ops jobs that genuinely span every state declare each
- * state explicitly — the verbosity is the point.
- */
 class ScheduledLifecycleFilterCoverageTest {
 
     private final JavaClasses classes = new ClassFileImporter()

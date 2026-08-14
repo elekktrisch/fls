@@ -10,19 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 
-/**
- * Proves the J-6 T-10a (ADR 0013) email send-path end-to-end against the REAL
- * Spring-autoconfigured Thymeleaf engine: {@code templates/email/smoke.html}
- * renders with a model and the rendered {@link MailMessage} reaches the
- * {@link MailSender} port — asserted against the {@link CapturedMailSender}
- * {@code @Primary} fake, so no live SMTP / mailpit is needed.
- *
- * <p>Boots the full app context (Docker-gated via {@link PostgresIntegrationTest},
- * skips cleanly when Docker is absent) so the wiring this proves —
- * {@code spring.mail.host} ⇒ {@code JavaMailSender}, thymeleaf auto-config ⇒
- * {@code TemplateEngine}, the {@code platform.mail} beans — is the production
- * wiring T-10c will build on, not a hand-assembled lookalike.
- */
 @Import(CapturedMailSender.Config.class)
 class TemplatedMailServiceIT extends PostgresIntegrationTest {
 

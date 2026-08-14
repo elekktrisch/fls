@@ -42,17 +42,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/**
- * Admin-invite robustness against a pre-existing Keycloak user (S-181). Drives
- * {@link UsersService#invite} directly under a real tenant context, with a
- * stateful {@link UserDirectoryPort} mock whose recorded {@code clubId}
- * attribute is the realm source-of-truth the bind path mutates.
- *
- * <p>Covers the three branches — no-KC-user (create), unattached-existing
- * (bind), attached-elsewhere (409) — plus the security-critical compensation:
- * a post-attribute-write failure must clear the stranded {@code clubId}
- * attribute (the tenant-leak the join-request half-join defence also closes).
- */
 @Import(CapturedMailSender.Config.class)
 class UsersInviteRobustnessIT extends PostgresIntegrationTest {
 
@@ -103,7 +92,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         assertThat(created.clubId()).isEqualTo(clubA);
         verify(directory).createUser(any());
         verify(directory).sendExecuteActions(any(), anyList(), any());
-        // No welcome-attached email on the create path.
         assertThat(outbox.sent()).isEmpty();
         assertThat(rowClub("uir-new")).isEqualTo(clubA);
     }
@@ -118,15 +106,12 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
                 service.invite(invite("uir-bind", "google@example.com"), clubAdminJwt()));
 
         assertThat(bound.clubId()).isEqualTo(clubA);
-        // Bind, not create.
         verify(directory, never()).createUser(any());
         assertThat(directoryClubIdAttr.get(existingSub)).isEqualTo(clubA);
-        // t_user carries the existing KC sub.
         UUID rowSub = jdbc.queryForObject(
                 "SELECT keycloak_sub FROM t_user WHERE username = 'uir-bind' AND deleted_on IS NULL",
                 UUID.class);
         assertThat(rowSub).isEqualTo(existingSub);
-        // No password-reset email; a welcome-attached email instead, localised (de).
         verify(directory, never()).sendExecuteActions(any(), anyList(), any());
         assertThat(outbox.sent()).hasSize(1);
         String html = outbox.sent().get(0).htmlBody();
@@ -160,15 +145,11 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(clubA, () ->
                 service.invite(invite("uir-audit", "audit@example.com"), clubAdminJwt()));
 
-        // The audit row is keyed on the payload type (not "User"), so the
-        // InvitedAuditPayload allow-block is reachable and `branch` rides verbatim.
         String afterState = jdbc.queryForObject(
                 "SELECT after_state::text FROM t_mutation_audit_event "
                         + "WHERE target_entity_type = 'InvitedAuditPayload' "
                         + "ORDER BY occurred_at DESC LIMIT 1",
                 String.class);
-        // Postgres jsonb re-serialises with a space after each colon, so match
-        // on the value rather than a brittle no-space key:value literal.
         assertThat(afterState)
                 .as("the branch discriminator must ride verbatim, not as a redacted sentinel")
                 .contains("\"attached_existing\"")
@@ -178,8 +159,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void mixedCaseEmail_ofUnattachedExistingKcUser_binds_not500() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
-        // Keycloak stores email lowercased; the invite must normalise for the
-        // lookup or the mixed-case email misses the KC user and falls to create.
         when(directory.findUserByEmail("mixed@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
 
@@ -194,9 +173,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void corruptedClubIdAttribute_treatedAsAttached_rejectedWith409_notBound() {
         UUID corruptedSub = UuidCreator.getTimeOrderedEpoch();
-        // A present-but-unparseable clubId attribute fails closed at the wire to
-        // the corrupted sentinel — the invite must treat it as attached (409),
-        // never bind a possibly-relocated identity into a new tenant.
         when(directory.findUserByEmail("corrupt@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(
                         corruptedSub, DirectoryUser.CORRUPTED_CLUB_ID, "en")));
@@ -216,10 +192,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
         when(directory.findUserByEmail("fail@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
-        // Force a failure AFTER the clubId attribute write — the bind grants roles
-        // after the t_user save, so a grant throw rolls the t_user tx back. The
-        // stranded clubId attribute (which the realm would project into the user's
-        // next JWT and grant tenant access with no t_user) must be compensated.
         doThrow(new UserDirectoryException("simulated KC grant failure"))
                 .when(directory).grantRealmRoles(any(), anyList());
 
@@ -233,7 +205,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         assertThat(rowCount("uir-strand")).isZero();
     }
 
-    // ---- helpers ----
 
     private UserInviteRequest invite(String username, String email) {
         return new UserInviteRequest(username, "Test Member", email, null, null,

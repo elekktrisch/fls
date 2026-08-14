@@ -39,11 +39,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/**
- * Pins the two-phase invite orchestrator's compensating-delete + role-grant
- * rejection paths. WireMock for the full e2e shape lives in the IT layer;
- * this Mockito unit test fixes the contract.
- */
 class UsersServiceInviteTest {
 
     private static final UUID CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
@@ -75,8 +70,6 @@ class UsersServiceInviteTest {
                 null, null, LANG, null, Set.of(Role.PILOT));
     }
 
-    /** Persist-side test stand-in: stamps a UUID on the User so service code
-     * can read it back as if Hibernate had just generated it. */
     private static User savedUser() {
         User u = User.register(CLUB, KC_SUB, "jane.doe", "Jane Doe",
                 "jane@example.com", LANG, null);

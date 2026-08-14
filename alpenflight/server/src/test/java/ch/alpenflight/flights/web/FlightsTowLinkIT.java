@@ -37,12 +37,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration tests for the Glider↔Tow link (S-063). Covers the depth
- * around {@code towFlightId} the smaller ITs don't reach: partial-PUT
- * preservation, explicit-null unlink, re-link orphaning, double-link
- * rejection, cross-tenant tow invisibility, and cascade-with-admin.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -84,7 +78,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         String towId = createFlight("TOW");
         link(gliderId, towId);
 
-        // Omit towFlightId entirely on the PUT. Absence means preserve, not unlink.
         Map<String, Object> body = updateBody();
         body.put("comment", "edited the crew note");
         ResponseEntity<String> put = put("/api/v1/flights/" + gliderId, body, tokenA);
@@ -98,14 +91,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     @Test
     void link_put_reasserting_existing_crew_does_not_collide_on_unique_index() {
-        // J-2 T-21 regression: the paired glider↔tow save POSTs the glider WITH
-        // crew, POSTs the tow, then PUTs the glider to set towFlightId — and that
-        // link PUT carries the SAME crew (snapshotToUpdateRequest re-echoes it).
-        // The old replaceCrew did crew.clear() + re-add, so Hibernate ordered the
-        // re-INSERT of the identical (flight_id, person_id, flight_crew_type_id)
-        // before the orphan DELETE in one flush, tripping the partial-unique
-        // ux_flight_crew_unique (SQLState 23505 → 400 "Invalid reference"). The
-        // in-place reconcile keeps the unchanged row, so the link must 200.
         String personId = "pn-" + seedPersonInClub(jdbc, clubA);
         Map<String, Object> gliderPayload = payload("GLIDER", aircraftA, "2026-05-01");
         gliderPayload.put("crew", singletonCrew(crewItem(personId, SEED_FLIGHT_CREW_TYPE_PIC)));
@@ -113,7 +98,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
                 .get("id").asText();
         String towId = createFlight("TOW");
 
-        // Link PUT re-asserting the same PILOT crew row — must succeed.
         Map<String, Object> body = updateBody();
         body.put("crew", singletonCrew(crewItem(personId, SEED_FLIGHT_CREW_TYPE_PIC)));
         body.put("towFlightId", towId);
@@ -131,9 +115,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     @Test
     void put_with_unlinkTowFlight_true_unlinks() {
-        // Per the partial-PUT contract, plain absence of `towFlightId` means
-        // "preserve" — explicit detach without delete uses the new
-        // `unlinkTowFlight` boolean.
         String gliderId = createFlight("GLIDER");
         String towId = createFlight("TOW");
         link(gliderId, towId);
@@ -160,8 +141,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
         JsonNode detail = readJson(get("/api/v1/flights/" + gliderId, tokenA));
         assertThat(detail.get("towFlightId").asText()).isEqualTo(tow2);
-        // Old tow row remains intact — re-link does NOT auto-cleanup the
-        // previous tow (legacy parity; orphan sweep is a future story).
         assertThat(get("/api/v1/flights/" + tow1, tokenA).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
@@ -182,7 +161,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
                         + "would otherwise silently orphan the link from glider2.")
                 .isEqualTo(HttpStatus.BAD_REQUEST);
 
-        // glider2 unchanged; glider1's link intact.
         JsonNode g2 = readJson(get("/api/v1/flights/" + glider2, tokenA));
         assertThat(hasTowLink(g2)).isFalse();
         JsonNode g1 = readJson(get("/api/v1/flights/" + glider1, tokenA));
@@ -191,9 +169,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     @Test
     void put_linking_cross_tenant_tow_is_invisible_and_rejected() {
-        // Tow belongs to Club B. Club A's PUT can't see it — @TenantId hides
-        // the row, so the lookup fails and the link is rejected. Mirrors the
-        // IDOR-as-404 contract on read paths.
         String tokenB = mintAdminToken(clubB);
         String aircraftB = "ac-" + seedAircraftFor(jdbc, clubB);
         String towB = readJson(post("/api/v1/flights",
@@ -211,9 +186,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     @Test
     void delete_cascades_when_glider_in_excluded_state_and_caller_is_admin() {
-        // EXCLUDED_FROM_DELIVERY_PROCESS is admin-locked. assertMutationAllowed
-        // gates on the caller's role; club-admin passes through, the cascade
-        // fires, both rows are soft-deleted.
         String gliderId = createFlight("GLIDER");
         String towId = createFlight("TOW");
         link(gliderId, towId);
@@ -225,7 +197,6 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         ResponseEntity<String> del = delete("/api/v1/flights/" + gliderId, tokenA);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // Both rows soft-deleted.
         assertThat(get("/api/v1/flights/" + gliderId, tokenA).getStatusCode())
                 .isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(get("/api/v1/flights/" + towId, tokenA).getStatusCode())

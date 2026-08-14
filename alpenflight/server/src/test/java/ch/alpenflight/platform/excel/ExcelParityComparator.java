@@ -15,50 +15,12 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-/**
- * Reusable cell-by-cell XLSX parity comparator (J-7 T-08, story S-096) — the
- * "feature-equivalent" (C16) check for synchronous Excel exports. Reads two
- * {@code .xlsx} workbooks and produces a {@link Diff} of every cell that differs
- * on a <em>parity-load-bearing</em> dimension.
- *
- * <p><b>STRICT on</b> (a mismatch is a parity failure):
- * <ul>
- *   <li>sheet names + set of populated cell addresses (a cell present in one and
- *       absent in the other is a mismatch);</li>
- *   <li>cell <b>type</b> (string / numeric / boolean / blank / formula);</li>
- *   <li>cell <b>value</b> (string content; numeric value to a tight epsilon;
- *       boolean; formula text);</li>
- *   <li>the cell <b>number-format string</b> (e.g. {@code HH:MM}, {@code [H]:MM},
- *       {@code dd.mm.yyyy HH:MM:ss}) — per the S-096 + journey parity note
- *       "asserts the cell number-format string AND the value, not rendered text".</li>
- * </ul>
- *
- * <p><b>TOLERANT of</b> (cosmetic — never reported): font name / size / bold,
- * fill / background color, borders, exact column width, row height, cell
- * alignment, and any other style attribute that is not the number-format string.
- * The comparator only ever reads a cell's type, value, and data-format string —
- * it never touches the rest of the {@code CellStyle}, so cosmetic drift is
- * structurally invisible to it.
- *
- * <p>Scope at J-7: built reusable but exercised against the <b>FlightReports</b>
- * export only. {@code DeliveryMailExport} + {@code AircraftStatisticReport} parity
- * fixtures attach at J-10 (the harness is reused, not rebuilt) — see
- * {@code excel-parity/README.md}.
- *
- * <p>The {@link Diff#describe()} output lists each mismatching cell as
- * {@code Sheet!A1: <reason> expected=<…> actual=<…>} so a CI failure is
- * diagnosable without opening the two workbooks by hand.
- *
- * <p>Stateless utility; not tied to Spring (plain JUnit/AssertJ usable).
- */
 public final class ExcelParityComparator {
 
-    /** Numeric equality tolerance — Excel stores numbers as IEEE-754 doubles. */
     private static final double NUMERIC_EPSILON = 1e-9;
 
     private ExcelParityComparator() {}
 
-    /** Compares two workbook files and returns the cell-level diff. */
     public static Diff compareFiles(Path expected, Path actual) throws IOException {
         try (InputStream eIn = Files.newInputStream(expected);
                 InputStream aIn = Files.newInputStream(actual);
@@ -68,7 +30,6 @@ public final class ExcelParityComparator {
         }
     }
 
-    /** Compares an expected workbook file against actual workbook bytes (in-memory). */
     public static Diff compare(Path expected, byte[] actualBytes) throws IOException {
         try (InputStream eIn = Files.newInputStream(expected);
                 Workbook eWb = new XSSFWorkbook(eIn);
@@ -77,7 +38,6 @@ public final class ExcelParityComparator {
         }
     }
 
-    /** Compares two already-open workbooks. Does not close them. */
     public static Diff compare(Workbook expected, Workbook actual) {
         List<String> mismatches = new ArrayList<>();
 
@@ -136,7 +96,6 @@ public final class ExcelParityComparator {
             return;
         }
 
-        // Type strictness.
         CellType eType = expected.getCellType();
         CellType aType = actual.getCellType();
         if (eType != aType) {
@@ -144,7 +103,6 @@ public final class ExcelParityComparator {
             return;
         }
 
-        // Value strictness (per type).
         switch (eType) {
             case STRING -> {
                 if (!expected.getStringCellValue().equals(actual.getStringCellValue())) {
@@ -171,10 +129,9 @@ public final class ExcelParityComparator {
                             + "' actual='" + actual.getCellFormula() + "'");
                 }
             }
-            default -> { /* BLANK / ERROR: type already matched, nothing more to compare */ }
+            default -> { }
         }
 
-        // Number-format string strictness (parity-load-bearing — NOT the rendered text).
         String eFmt = formatString(expected);
         String aFmt = formatString(actual);
         if (!eFmt.equals(aFmt)) {
@@ -182,7 +139,6 @@ public final class ExcelParityComparator {
         }
     }
 
-    /** The cell's data-format string, normalized (POI returns "General" for unstyled). */
     private static String formatString(Cell cell) {
         String fmt = cell.getCellStyle().getDataFormatString();
         return fmt == null ? "General" : fmt;
@@ -193,8 +149,6 @@ public final class ExcelParityComparator {
             return false;
         }
         if (cell.getCellType() == CellType.BLANK) {
-            // A BLANK cell that carries a non-default number format still counts as
-            // styled-but-empty; treat truly-default blanks as absent.
             return !"General".equals(formatString(cell));
         }
         if (cell.getCellType() == CellType.STRING) {
@@ -226,17 +180,12 @@ public final class ExcelParityComparator {
         };
     }
 
-    /**
-     * The result of a comparison. {@link #isEqual()} ⇒ cell-parity-equal (no
-     * value/type/format mismatches; cosmetic differences are not collected at all).
-     */
     public record Diff(List<String> mismatches) {
 
         public boolean isEqual() {
             return mismatches.isEmpty();
         }
 
-        /** A readable, multi-line description of every mismatching cell. */
         public String describe() {
             if (mismatches.isEmpty()) {
                 return "Workbooks are cell-parity-equal (values, types, number-formats).";

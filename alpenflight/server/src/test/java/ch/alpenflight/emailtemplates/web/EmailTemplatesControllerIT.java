@@ -27,17 +27,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the email-template override slice. Pins:
- *
- * <ul>
- *   <li>union read — file defaults ∪ own-club overrides, override wins;</li>
- *   <li>clone-on-customize — insert then update-in-place (same identity);</li>
- *   <li>reset — delete the override → file default re-surfaces;</li>
- *   <li>authz — non-admin write is 403;</li>
- *   <li>tenancy — a club admin sees only own-club overrides, never another club's.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -74,7 +63,6 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         JsonNode beforeList = readJson(get("/api/v1/email-templates", admin));
         JsonNode defaultEntry = entryFor(beforeList, FILE_DEFAULT_KEY, LOCALE);
         assertThat(defaultEntry.get("source").asText()).isEqualTo("FILE_DEFAULT");
-        // File defaults carry no stored subject — absent or JSON-null on the wire.
         assertThat(isAbsentOrNull(defaultEntry.get("subject"))).isTrue();
         assertThat(defaultEntry.get("body").asText()).contains("Flugbetriebstag");
 
@@ -88,7 +76,6 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         assertThat(overrideEntry.get("source").asText()).isEqualTo("CLUB_OVERRIDE");
         assertThat(overrideEntry.get("subject").asText()).isEqualTo("Custom subject");
         assertThat(overrideEntry.get("body").asText()).isEqualTo("<p>Custom body</p>");
-        // The override suppresses the file default — one entry, not two, for the key+locale.
         assertThat(countEntries(afterList, FILE_DEFAULT_KEY, LOCALE)).isEqualTo(1);
     }
 
@@ -144,11 +131,9 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         JsonNode listA = readJson(get("/api/v1/email-templates", adminA));
         JsonNode entryA = entryFor(listA, FILE_DEFAULT_KEY, LOCALE);
-        // A never sees B's override — the file default still shows for A.
         assertThat(entryA.get("source").asText()).isEqualTo("FILE_DEFAULT");
     }
 
-    // ----- helpers -----
 
     private static boolean isAbsentOrNull(@Nullable JsonNode node) {
         return node == null || node.isNull();

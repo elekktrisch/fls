@@ -17,20 +17,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the licence-expiry notification job (S-085) against the
- * captured outbox: one mail per expiring licence, none for a licence outside the
- * 60-day window, and none for a holder without an address.
- */
 @Import(CapturedMailSender.Config.class)
 class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
-    /** Inside the {@code today + 60} window. */
     private static final LocalDate SOON = TODAY.plusDays(30);
 
-    /** Outside it — the narrowing assertion's negative seed. */
     private static final LocalDate FAR_OFF = TODAY.plusDays(120);
 
     @Autowired JdbcTemplate jdbc;
@@ -51,7 +44,6 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_mailsOncePerExpiringLicence_andSkipsWhatIsNotDue() {
-        // Two licences inside the window → two mails; one far-off licence → none.
         seedPerson(holderMail, SOON, SOON, FAR_OFF);
         seedPerson(farOffMail, null, null, FAR_OFF);
         seedPerson(null, SOON, null, null);
@@ -84,16 +76,11 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
         assertThat(mail.htmlBody()).contains("Class 1 Medical");
     }
 
-    // ---------------------------------------------------------------- helpers
 
     private long mailsTo(String email) {
         return outbox.sent().stream().filter(m -> m.to().contains(email)).count();
     }
 
-    /**
-     * A person carrying up to three expiry dates. {@code email} null leaves the
-     * person without any address, which is the skip case.
-     */
     private UUID seedPerson(String email, LocalDate class1, LocalDate lapl, LocalDate partM) {
         Person person = Person.register("Lizenz", "Halter-" + UUID.randomUUID(), null);
         if (email != null) {

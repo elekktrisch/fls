@@ -31,13 +31,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Exercises the Clubs CRUD slice through HTTP and asserts that each
- * successful mutation lands exactly one {@code mutation_audit_event} row
- * with the right action + actor + snapshot semantics. Failed-mutation
- * coverage (the synthetic-failure path) lives in
- * {@link AuditFailedRequestIT}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -87,13 +80,6 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
     @Test
     void tenantless_sysadmin_post_emits_event_with_null_tenant_club_id() {
-        // A real SYSTEM_ADMINISTRATOR carries NO clubId claim (sysadmins lack a
-        // tenant context). Club creation is itself the cross-tenant system event
-        // V9 reserves the nullable tenant_club_id column for. The AFTER_COMMIT
-        // audit listener must store NULL — not the NO_TENANT nil-UUID, which has
-        // no t_club parent and would violate fk_mutation_audit_event_tenant_club_id
-        // (turning the 201 into a 500 in TransactionSynchronization.afterCompletion).
-        // Regression guard for J-2 T-17 (first-live real-idp gate).
         String tenantlessSysadminToken = jwts.mint(c -> c
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
 
@@ -192,7 +178,6 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         ResponseEntity<String> res = get("/api/v1/clubs");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // List is a GET, so neither service emit nor synthetic failure should fire.
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT * FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 SYSADMIN_TENANT.toString());
@@ -228,9 +213,6 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
     @Test
     void audit_row_captures_actor_keycloak_sub_from_federated_non_uuid_sub() {
-        // Google's numeric IDs / Auth0 custom subs are non-UUID strings.
-        // The audit trail records them verbatim and still classifies the
-        // row as a human actor (system_actor=false).
         String federatedSub = "google-oauth2|108426310582738501";
         String federatedToken = jwts.mint(c -> c
                 .subject(federatedSub)
@@ -273,8 +255,6 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         assertThat(firstTargetRows)
                 .as("No success row for the first club — the first POST committed before truncate")
                 .isEmpty();
-        // The synthetic failure row for the dup POST has target_entity_id = null,
-        // so query by tenant + failed=true + action=CREATE.
         List<Map<String, Object>> failedRows = jdbc.queryForList(
                 "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true AND action = 'CREATE'",
@@ -282,12 +262,10 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         assertThat(failedRows)
                 .as("409 conflict should produce one synthetic failure row")
                 .hasSize(1);
-        // pg JDBC maps SMALLINT to Integer in queryForList default mapping
         assertThat(failedRows.get(0).get("http_status")).isEqualTo(409);
         assertThat(failedRows.get(0).get("target_entity_type")).isEqualTo("Club");
     }
 
-    // ----- helpers -----
 
     private ResponseEntity<String> get(String path) {
         return rest.exchange(authed(RequestEntity.get(URI.create(path))).build(), String.class);

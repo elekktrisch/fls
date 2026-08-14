@@ -29,16 +29,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The IDOR contract: a CLUB_ADMINISTRATOR who tries to read a Person whose
- * only PersonClub is in another tenant receives 404, never 403. 403 leaks
- * existence — the Person whose only home is club B should be opaque to
- * club A's admins.
- *
- * <p>Counterpart to {@code LocationsAuthorizationIT}'s
- * {@code club_admin_cross_tenant_sees_404_not_403}; closes the security-plan
- * §"404 vs 403" row.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -74,10 +64,6 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
 
     @Test
     void cross_tenant_get_returns_404_not_403() {
-        // Seed a Person whose only PersonClub is under CLUB_B via JDBC; the
-        // PersonsService path can't do this directly because @TenantId scopes
-        // the join through PersonClub, and we want to construct the precise
-        // "Person exists, but not in caller's tenant" state.
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000aaaa");
         UUID personClubId = UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb");
         jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
@@ -86,9 +72,6 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 personClubId.toString(), personId.toString(), clubB.toString());
 
-        // CLUB_A admin asks for the Person. The service finds it by PK
-        // (cross-tenant) but `hasActiveMembershipInCurrentTenant` returns
-        // false; service throws PersonNotFoundException → handler → 404.
         ResponseEntity<String> res = get("/api/v1/persons/pn-" + personId);
         assertThat(res.getStatusCode())
                 .as("404 not 403: existence of cross-tenant Persons must stay opaque to other tenants")
@@ -97,8 +80,6 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
 
     @Test
     void list_excludes_persons_not_in_callers_tenant() {
-        // One Person attached to CLUB_A, one Person attached to CLUB_B.
-        // CLUB_A admin listing /persons must see only the CLUB_A row.
         UUID personA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a01a");
         UUID pcA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a02a");
         jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",

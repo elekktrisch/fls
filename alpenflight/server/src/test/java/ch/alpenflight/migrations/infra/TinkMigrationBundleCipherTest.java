@@ -23,11 +23,6 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit-level round-trip for the streaming bundle cipher. Generates an
- * RSA-4096 keypair + a random 32-byte session key in-process; verifies
- * encrypt → decrypt yields the original bytes.
- */
 class TinkMigrationBundleCipherTest {
 
     private static MigrationBundleCipher cipher;
@@ -71,12 +66,6 @@ class TinkMigrationBundleCipherTest {
         assertThat(((RSAPublicKey) rsaKeyPair.getPublic()).getModulus().bitLength()).isEqualTo(4096);
     }
 
-    /**
-     * Reproduces the IT pipeline (Tink decrypting stream → gzip → tar)
-     * without the servlet / DB boilerplate. If this passes but the IT
-     * still fails the bug is in the controller/service plumbing; if this
-     * fails the bug is in the cipher / streaming compatibility.
-     */
     @Test
     void decrypt_then_gzip_then_tar_round_trip() throws Exception {
         UUID uploadId = UUID.randomUUID();

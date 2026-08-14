@@ -36,20 +36,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Write-model ↔ read-model sync ITs for the flight-report read-model
- * (J-7 RM-1, ADR 0027 §2): every mutation goes through the PRODUCTION write
- * path (aggregate factories + {@link FlightRepository#save} under
- * {@link TenantTestContext#runAs} — ADR 0027 §3), and the assertions read the
- * projected {@link FlightReportRow} back through its tenant-scoped
- * repository. Covers create-with-decorations, time updates, crew
- * replacement (pilot + second-crew priority), tow link / unlink repair of
- * BOTH rows, soft-delete removal incl. counterpart repair, and tenant
- * isolation of the projected rows.
- */
 class FlightReportProjectionIT extends PostgresIntegrationTest {
 
-    /** {@code t_start_type} WINCH_LAUNCH / AEROTOW ids (V2 seed, fixed canonical UUIDs). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
     private static final UUID AEROTOW =
@@ -176,8 +164,6 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
 
         FlightReportRow row = rowOf(flightId);
         assertThat(row.getPilotName()).isEqualTo("Neu Nina");
-        // Second-crew priority: FlightInstructor (legacy_int_id 3) beats
-        // Passenger (4) — the oracle's order-by-legacy_int_id pick.
         assertThat(row.getSecondCrewName()).isEqualTo("Lehrer Ida");
         assertThat(row.getCrew()).hasSize(3);
     }
@@ -220,13 +206,10 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
         assertThat(gliderRow.getTowStartLocationName()).isEqualTo("Schlepphome");
         assertThat(gliderRow.getTowedGliderFlightId()).isNull();
 
-        // Reverse id on the tow's own row.
         FlightReportRow towRow = rowOf(towId);
         assertThat(towRow.getTowedGliderFlightId()).isEqualTo(gliderId);
         assertThat(towRow.getTowFlightId()).isNull();
 
-        // Unlink repairs BOTH rows — the tow side is only reachable through
-        // the read-model's reverse columns (the aggregate forgot the link).
         TenantTestContext.runAs(clubA, () -> {
             Flight glider = flights.findByIdWithCrew(FlightId.of(gliderId)).orElseThrow();
             glider.unlinkTow();
@@ -264,7 +247,6 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
             flights.save(glider);
         });
 
-        // The deleted glider's row is gone; the tow row's back-ref is repaired.
         TenantTestContext.runAs(clubA, () ->
                 assertThat(rows.findByFlightId(gliderId)).isEmpty());
         assertThat(rowOf(towId).getTowedGliderFlightId()).isNull();
@@ -281,14 +263,11 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
                 loc, loc, flightType, WINCH_LAUNCH,
                 List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
 
-        // Visible under the operating club, invisible under another tenant.
         TenantTestContext.runAs(clubA, () ->
                 assertThat(rows.findByFlightId(flightId)).isPresent());
         TenantTestContext.runAs(clubB, () ->
                 assertThat(rows.findByFlightId(flightId)).isEmpty());
 
-        // The persisted rows carry the flight's operating club (read-only
-        // JDBC assert of the stamped discriminator — not a seeding write).
         assertThat(jdbc.queryForObject(
                 "SELECT operating_club_id FROM t_flight_report_row WHERE flight_id = ?::uuid",
                 UUID.class, flightId.toString())).isEqualTo(clubA);
@@ -297,11 +276,6 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
                 UUID.class, flightId.toString())).isEqualTo(clubA);
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + repositories
-    // under TenantTestContext.runAs (ADR 0027 §3); read-only JDBC only for
-    // reference-data id lookups + the stamped-discriminator assert.
 
     private FlightReportRow rowOf(UUID flightId) {
         return TenantTestContext.runAs(clubA, () -> rows.findByFlightId(flightId)

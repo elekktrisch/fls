@@ -27,16 +27,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the Article CRUD slice under a
- * CLUB_ADMINISTRATOR principal of seed-club-1. Asserts the REST surface,
- * soft-delete + recreate-same-number, includeInactive filter, and
- * per-tenant number uniqueness.
- *
- * <p>Tenant isolation lives in {@link ArticlesTenantIsolationIT}; role
- * authz matrix (404-not-403, sysadmin denial) lives in
- * {@link ArticlesAuthorizationIT}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -96,8 +86,6 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void updateArticle_renames_andRenumbers() {
-        // article_number is mutable post-create — snapshot column on
-        // delivery_item makes renames invoice-safe.
         String original = uniqueNumber();
         ResponseEntity<String> created = post("/api/v1/articles", createPayload(original));
         String id = readJson(created).get("id").asText();
@@ -112,8 +100,6 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void softDelete_thenRecreateSameNumber_succeeds() {
-        // Partial-UNIQUE filters soft-deleted rows out of the uniqueness
-        // scope — operator can retire A-100 and re-issue the number later.
         String number = uniqueNumber();
         ResponseEntity<String> created = post("/api/v1/articles", createPayload(number));
         String id = readJson(created).get("id").asText();
@@ -145,8 +131,6 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void listArticles_excludesSoftDeleted_evenWithIncludeInactiveFlag() {
-        // includeInactive surfaces is_active=false rows; it must NEVER
-        // surface soft-deleted rows.
         String number = uniqueNumber();
         ResponseEntity<String> created = post("/api/v1/articles", createPayload(number));
         String id = readJson(created).get("id").asText();
@@ -174,16 +158,12 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void registerArticle_missingIsActive_returns_400() {
-        // Legacy [Required]: a payload that omits `isActive` is a 400, not a
-        // silent inactive-by-default insert. Pins the boxed-Boolean + @NotNull
-        // shape of ArticleCreateRequest.
         Map<String, Object> body = createPayload(uniqueNumber());
         body.remove("isActive");
         ResponseEntity<String> res = post("/api/v1/articles", body);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // ----- helpers -----
 
     private static List<String> toNumbers(JsonNode array) {
         return java.util.stream.StreamSupport.stream(array.spliterator(), false)

@@ -9,32 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 
-/**
- * Shared assertion helpers for migration-shape tests (those that introspect
- * {@code information_schema} + {@code pg_catalog} against the live Postgres
- * test container).
- *
- * <p>Owns the absence-check pre-conditions: tests that assert "table X does
- * NOT have column Y" or "table X has exactly N rows of shape Z" must first
- * confirm the table exists, otherwise the absence check trivially passes
- * when the migration is missing — a silent false-pass.
- *
- * <p>Schema-introspection helpers ({@code checkConstraintDefs},
- * {@code indexDefs}, {@code columnComment}, {@code assertFkDeleteRule},
- * {@code assertColumnNotNull}, {@code assertColumnNullable}) live here so
- * each migration story's test class doesn't re-implement them inline. New
- * helpers added when ≥ 2 migration tests need them.
- */
 public final class MigrationAssertions {
 
     private MigrationAssertions() {}
 
-    /**
-     * Asserts that {@code public.<tableName>} exists in the Postgres schema.
-     * Used as a precondition before absence-check assertions so an
-     * accidentally-empty migration doesn't silently pass tests asserting
-     * "table X must NOT have column Y."
-     */
     public static void assertTableExists(Connection conn, String tableName) throws SQLException {
         try (var stmt = conn.prepareStatement(
                 "SELECT 1 FROM information_schema.tables "
@@ -48,7 +26,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /** All CHECK-constraint definitions on {@code public.<table>} as raw `pg_get_constraintdef` strings. */
     public static List<String> checkConstraintDefs(DataSource ds, String table) throws SQLException {
         try (Connection conn = ds.getConnection();
                 var stmt = conn.prepareStatement(
@@ -63,7 +40,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /** All index-definition DDL strings on {@code public.<table>} via {@code pg_indexes.indexdef}. */
     public static List<String> indexDefs(DataSource ds, String table) throws SQLException {
         try (Connection conn = ds.getConnection();
                 var stmt = conn.prepareStatement(
@@ -77,7 +53,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /** {@code COMMENT ON COLUMN public.<table>.<column>} via {@code col_description}, or {@code null} if absent. */
     public static String columnComment(DataSource ds, String table, String column) throws SQLException {
         try (Connection conn = ds.getConnection();
                 var stmt = conn.prepareStatement(
@@ -93,7 +68,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /** Asserts {@code <table>.<column>} exists, has {@code data_type}, and is NOT NULL. */
     public static void assertColumnNotNull(Connection conn, String table, String column, String dataType)
             throws SQLException {
         try (var stmt = conn.prepareStatement(
@@ -111,7 +85,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /** Asserts {@code <table>.<column>} exists, has {@code data_type}, and IS nullable. */
     public static void assertColumnNullable(Connection conn, String table, String column, String dataType)
             throws SQLException {
         try (var stmt = conn.prepareStatement(
@@ -129,14 +102,6 @@ public final class MigrationAssertions {
         }
     }
 
-    /**
-     * Asserts that {@code public.<table>.<column>} carries a FK whose {@code ON DELETE}
-     * rule matches {@code expectedRule} (one of: {@code NO ACTION}, {@code RESTRICT},
-     * {@code CASCADE}, {@code SET NULL}, {@code SET DEFAULT}). Uses {@code pg_constraint}
-     * (not {@code information_schema}) because {@code information_schema}'s referential-
-     * constraint joins are brittle across Postgres versions when position-in-unique-
-     * constraint behaviour differs.
-     */
     public static void assertFkDeleteRule(DataSource ds, String table, String column, String expectedRule)
             throws SQLException {
         try (Connection conn = ds.getConnection();

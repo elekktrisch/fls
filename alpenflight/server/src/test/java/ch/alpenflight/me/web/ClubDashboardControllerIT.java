@@ -32,27 +32,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code GET /api/v1/me/club-dashboard} (J-3 T-08) — the
- * club-admin dashboard tile counts. Proves the four contracts the dashboard
- * variant (T-09) depends on, against isolated per-IT data (NOT the showcase
- * seed), keeping the count semantics identical: today by {@code flight_date};
- * pending = {@code NotProcessed} + {@code Invalid}.
- *
- * <ul>
- *   <li><b>today-count</b> counts only flights flown today, caller's club;</li>
- *   <li><b>pending</b> = NotProcessed + Invalid only (Valid / others excluded);</li>
- *   <li><b>tenant isolation</b> — a second club's flights never leak in;</li>
- *   <li><b>authz</b> — CLUB_ADMINISTRATOR required (a pilot is rejected 403).</li>
- * </ul>
- *
- * <p>Flights are created through the public POST (stamps NotProcessed + the
- * chosen flight_date) then forced into a target process state by a direct
- * by-PK JDBC update — the same seeding pattern as {@code
- * FlightProcessStatePatchIT} (the public surface only stamps NotProcessed on
- * create; system transitions live in deferred stories). "Today" is the server
- * clock's today, so the today-dated rows are created with {@link LocalDate#now()}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -63,9 +42,6 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     private static final UUID INVALID = UUID.fromString("019e2e15-2c00-7a99-8000-000000003a99");
     private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
 
-    // Server resolves "today" in UTC (FlightGatePolicy.ZONE / LocalDate.now(clock)
-    // on a UTC clock), so the today-dated rows must use the same zone — using the
-    // box's default zone could diverge from the server's UTC today near midnight.
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
     private static final LocalDate PAST = TODAY.minusDays(30);
 
@@ -76,7 +52,6 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
 
-    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
     private UUID clubA;
     private UUID clubB;
     private String aircraftAExternal;
@@ -97,16 +72,12 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
         String adminA = adminToken(clubA);
         String aircraftB = "ac-" + seedAircraft(clubB);
 
-        // Club A: 3 flights today (2 NotProcessed + 1 Valid) → today = 3.
-        createFlight(adminA, aircraftAExternal, TODAY, null);           // today, NotProcessed
-        createFlight(adminA, aircraftAExternal, TODAY, null);           // today, NotProcessed
-        createFlight(adminA, aircraftAExternal, TODAY, VALID);          // today, Valid
-        // Club A: past-dated rows exercising the pending set boundary.
-        createFlight(adminA, aircraftAExternal, PAST, INVALID);        // past, Invalid  → pending
-        createFlight(adminA, aircraftAExternal, PAST, VALID);          // past, Valid    → NOT pending
-        // pending (NotProcessed + Invalid) = 2 + 1 = 3; Valid rows excluded.
+        createFlight(adminA, aircraftAExternal, TODAY, null);
+        createFlight(adminA, aircraftAExternal, TODAY, null);
+        createFlight(adminA, aircraftAExternal, TODAY, VALID);
+        createFlight(adminA, aircraftAExternal, PAST, INVALID);
+        createFlight(adminA, aircraftAExternal, PAST, VALID);
 
-        // Club B noise: a flight today + a NotProcessed — must NOT leak into A's counts.
         String adminB = adminToken(clubB);
         createFlight(adminB, aircraftB, TODAY, null);
         createFlight(adminB, aircraftB, PAST, INVALID);
@@ -122,7 +93,6 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
 
     @Test
     void counts_are_tenant_isolated_clubB_sees_only_its_own() {
-        // Club A has flights; Club B has exactly one (today, NotProcessed).
         String adminA = adminToken(clubA);
         createFlight(adminA, aircraftAExternal, TODAY, null);
         createFlight(adminA, aircraftAExternal, TODAY, null);
@@ -155,10 +125,6 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
-    /**
-     * Creates a flight via the public POST (NotProcessed) on the given date,
-     * then forces {@code targetState} via a by-PK JDBC update when non-null.
-     */
     private void createFlight(String token, String aircraftExternal, LocalDate date,
                               UUID targetState) {
         Map<String, Object> body = new LinkedHashMap<>();

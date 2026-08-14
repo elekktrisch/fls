@@ -28,7 +28,6 @@ class MigrationUploadStateMachineTest {
         assertThat(upload.getCreatedAt()).isEqualTo(CLOCK.instant());
         assertThat(upload.getExpiresAt()).isEqualTo(CLOCK.instant().plusSeconds(24 * 3600));
         assertThat(upload.getPrivateKeyCiphertextLength()).isEqualTo(WRAPPED.length);
-        // Defensive copy: mutating the input array doesn't change the entity.
         WRAPPED[0] = 99;
         assertThat(upload.getPrivateKeyCiphertext()).startsWith((byte) 1);
     }

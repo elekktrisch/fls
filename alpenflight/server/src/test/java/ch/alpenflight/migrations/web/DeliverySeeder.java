@@ -9,34 +9,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-/**
- * DB-fixture seeder for the clean-seed half of the real-idp deliveries parity
- * spec. The Delivery write side is deferred — there is no create REST surface
- * this iteration — so the read screen's clean-seed input is materialized directly
- * against the live dev Postgres, exactly as the engine-persist path will write it
- * later. The read endpoint + the {@code @TenantId} scope + the cross-tenant 404
- * still run fully real off these rows.
- *
- * <p>Writes, in one transaction, under {@code operatingClubId}:
- * <ol>
- *   <li>an active {@code t_article} the line items reference (the
- *       {@code delivery_item.article_id} FK is RESTRICT — a real article must
- *       exist), idempotent on (club, number),</li>
- *   <li>a {@code t_delivery} in process-state 10 (Prepared) with the nine frozen
- *       OR Art. 957a recipient fields + the linked flight,</li>
- *   <li>three {@code t_delivery_item} rows (two flight-time tiers + a landing
- *       tax) — engine-shaped output.</li>
- * </ol>
- *
- * <p>Args (positional):
- * {@code <operatingClubId> <flightId> <recipientLastName> <batchId>}, OR the
- * cleanup form {@code delete <deliveryId>} which removes the delivery + its
- * items (the read-only iteration has no delete REST surface, so a retry's
- * pre-clean rides the same seam). {@code flightId} is the RAW uuid (strip the
- * {@code fl-} external prefix). Connects via {@code DATASOURCE_URL/USER/PASSWORD}.
- * Prints one JSON line on stdout: {@code {"deliveryId":"…","articleNumber":"…"}}
- * for the spec's assertions + post-run cleanup.
- */
 public final class DeliverySeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -68,10 +40,6 @@ public final class DeliverySeeder {
 
         UUID deliveryId = UUID.randomUUID();
         UUID articleId = UUID.randomUUID();
-        // The seeded delivery is Prepared (process-state 10) → delivery_number is
-        // null until booked, so the list renders the recipient/batch/state
-        // without a number. The view's load-bearing data is the line items + the
-        // frozen recipient + the flight link, all asserted below.
         String articleNumber = "DLV-SEED-" + Long.toString(batchId, 36);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
@@ -139,7 +107,6 @@ public final class DeliverySeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /** Remove a seeded delivery + its items (retry pre-clean / afterAll cleanup). */
     private static void deleteDelivery(UUID deliveryId) throws Exception {
         String url = envOrDefault("DATASOURCE_URL", "jdbc:postgresql://localhost:5432/alpenflight");
         String user = envOrDefault("DATASOURCE_USER", "alpenflight");
@@ -163,11 +130,6 @@ public final class DeliverySeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /**
-     * Insert the article the line items reference, or resolve the existing one on
-     * (club, number) — a re-run reuses the row rather than colliding on the
-     * identity-bearing index.
-     */
     private static UUID upsertArticle(Connection conn, UUID articleId, UUID clubId,
                                       String articleNumber, OffsetDateTime now) throws Exception {
         try (PreparedStatement ps = conn.prepareStatement(

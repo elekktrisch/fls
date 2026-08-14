@@ -4,10 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Canonical seed UUIDs the Aircraft ITs round-trip through DTOs, plus
- * unique-immatriculation helpers for per-test isolation.
- */
 final class AircraftsTestFixtures {
 
     static final String SEED_AIRCRAFT_TYPE_GLIDER = "019e2e15-2c00-7af9-8000-000000002af9";
@@ -21,23 +17,12 @@ final class AircraftsTestFixtures {
 
     private AircraftsTestFixtures() {}
 
-    /**
-     * Unique immatriculation in {@code HB-A###} form (HB country prefix + per-process
-     * counter), well below the 15-char cap.
-     */
     static String uniqueImmatriculation() {
         int n = IMMAT_COUNTER.incrementAndGet();
         char letter = (char) ('A' + ((n / 1000) % 26));
         return "HB-" + letter + String.format("%03d", n % 1000);
     }
 
-    /**
-     * Builds an {@code AircraftCreateRequest} payload as JSON-shaped map.
-     * Aircraft is cross-tenant (S-058 reverts S-159): {@code managing_club_id}
-     * is set by the service from the JWT resolver — neither callers nor the
-     * DTO carry it. {@code owner_club_id} defaults to the managing club at
-     * the service layer; change via the transfer-ownership endpoint.
-     */
     static Map<String, Object> createPayload(String immatriculation) {
         Map<String, Object> n = new LinkedHashMap<>();
         n.put("aircraftTypeId", SEED_AIRCRAFT_TYPE_GLIDER);

@@ -37,8 +37,6 @@ class OpenApiIT {
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        // S-160 split points base spring.flyway.* at the MIGRATOR role; override
-        // to the container so boot-time Flyway connects with the container creds.
         r.add("spring.flyway.url", pg::jdbcUrl);
         r.add("spring.flyway.user", pg::username);
         r.add("spring.flyway.password", pg::password);
@@ -83,11 +81,6 @@ class OpenApiIT {
 
     @Test
     void specDeclaresBearerAuthAsGlobalSecurityRequirement() throws Exception {
-        // OpenAPI 3 semantics: a top-level `security` block applies to every
-        // operation unless an operation overrides it with its own `security:
-        // []`. Per-operation duplication is unnecessary noise — springdoc
-        // emits the requirement once globally. The generated TS client +
-        // Swagger UI propagate the bearer challenge automatically.
         JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
         JsonNode security = spec.path("security");
         assertThat(security.isArray()).as("top-level security requirement must be present").isTrue();

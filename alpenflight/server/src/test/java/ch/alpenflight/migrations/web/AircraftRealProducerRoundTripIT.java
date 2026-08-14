@@ -53,22 +53,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-1 T-05 — real-producer round-trip gate for AIRCRAFT, mirroring
- * {@link LocationRealProducerRoundTripIT}. Unlike
- * {@link AircraftMigrationRoundTripIT}, which hand-orders the tar entries via
- * {@code MigrationBundleTestFactory.buildBundleWithEntries}, this IT assembles
- * the FULL_PORT slice through the <strong>real {@link BundleWriter#assembleTarGz}</strong>
- * and ingests its actual output through the real server ingest pipeline — the
- * gap-hunter guard against authored-but-wrong-order (pgcopy id-maps must precede
- * the NDJSON that resolves against them, so the AIRCRAFT-children FK resolve and
- * the homebase fan-out resolve both succeed).
- *
- * <p>The SYSTEM_GLOBAL maps (COUNTRY / CLUB_STATE) the ingest also requires are
- * spliced in right after {@code manifest.json} (the producer's tar does not emit
- * them today), leaving the real producer's FULL_PORT-pgcopy-then-NDJSON relative
- * order — the thing under test — untouched.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -90,7 +74,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7ee0-8000-000000002ee0");
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
-    // Counter-unit-type reference FK (V25 backfill): legacy 2 -> HOURS_DECIMAL.
     private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2;
     private static final UUID SEED_COUNTER_UNIT_HOURS_DECIMAL =
             UUID.fromString("019e2e15-2c00-7b58-8000-000000001b58");
@@ -200,9 +183,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
                 EntityType.AIRCRAFT_AIRCRAFT_STATE, fullPortPolicy(),
                 EntityType.AIRCRAFT_OPERATING_COUNTER, fullPortPolicy());
 
-        // NDJSON temp files shaped EXACTLY as the production mappers emit, fed
-        // into the REAL BundleWriter so it computes the pgcopy maps + tar entry
-        // order itself.
         EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
                 clubNdjson(legacyClubId, key, "ARP Club Legacy", "Addr"), 1);
         EntityStreamResult personStream = ndjsonStream(EntityType.PERSON,
@@ -227,7 +207,7 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("aircraft-real-producer-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        BundleWriter writer = new BundleWriter( null, workDir, false);
         writer.assembleTarGz(manifestBytes,
                 List.of(clubStream, personStream, locationStream, aircraftStream,
                         stateStream, counterStream),
@@ -255,7 +235,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
         UUID newClub = clubIdsByKey(deploymentId).get(key);
 
-        // The AIRCRAFT survived the real producer ordering with every FK resolved.
         Map<String, Object> aircraft = jdbc.queryForMap(
                 "SELECT id, managing_club_id, aircraft_type_id, aircraft_owner_person_id, "
                         + "homebase_id, immatriculation, flight_operating_counter_unit_type_id "
@@ -280,7 +259,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
                         + "t_counter_unit_type HOURS_DECIMAL PK through the real producer")
                 .isEqualTo(SEED_COUNTER_UNIT_HOURS_DECIMAL);
 
-        // The children attached to the migrated aircraft with resolved values.
         Map<String, Object> stateRow = jdbc.queryForMap(
                 "SELECT aircraft_state_id FROM t_aircraft_aircraft_state WHERE aircraft_id = ?::uuid",
                 legacyAircraftId.toString());
@@ -317,8 +295,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         row.putNull("mtom");
         row.put("nr_of_seats", 2);
         row.put("aircraft_owner_person_id", ownerPersonId.toString());
-        // Counter unit-type reference FK exercised through the real producer →
-        // resolves to the real HOURS_DECIMAL seed PK (V25 backfill).
         row.put("flight_operating_counter_unit_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_COUNTER_UNIT_DECIMAL_HOURS));
         row.putNull("engine_operating_counter_unit_type_id");

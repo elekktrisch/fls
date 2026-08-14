@@ -26,23 +26,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Hibernate-Statistics-driven N+1 guard. Confirms:
- *
- * <ul>
- *   <li>{@code GET /api/v1/locations} issues exactly 1 SQL query regardless
- *       of how many Locations exist (no per-row IOP fetch on the list path).</li>
- *   <li>{@code GET /api/v1/locations/{id}} issues exactly 1 SQL query —
- *       proving the {@link org.springframework.data.jpa.repository.EntityGraph}
- *       on {@code findActiveByIdWithPoints} pulls the {@code inOutboundPoints}
- *       collection in the same round-trip as the parent row.</li>
- * </ul>
- *
- * <p>{@code spring.jpa.properties.hibernate.generate_statistics=true} is
- * pinned in {@code application-test.yml} so every RANDOM_PORT IT shares a
- * single cached Spring context — this class used to declare it via
- * {@code @TestPropertySource}, forking a separate context (~15 s boot).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -65,7 +48,6 @@ class LocationsN1GuardIT extends PostgresIntegrationTest {
 
     @Test
     void listLocations_issuesExactlyOneSqlStatement() throws Exception {
-        // Seed three Locations with IOPs to make N+1 visible if it lurks.
         for (int i = 0; i < 3; i++) {
             Map<String, Object> payload = LocationsControllerIT.createPayload(
                     "N1 list " + LocationsControllerIT.suffix(),

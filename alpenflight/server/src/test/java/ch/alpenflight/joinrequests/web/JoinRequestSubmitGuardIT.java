@@ -40,13 +40,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack abuse-guard test for the join-request submit path (S-178, T-07).
- * A {@link MutableClock} drives the brute-force window + the 24h deny cooldown
- * so the test advances time deterministically instead of sleeping. The clock is
- * the one the guard AND the deny path share, so a denial's {@code decided_on}
- * and the cooldown check stay coherent.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -54,7 +47,6 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Settable wall clock so the test can fast-forward past the window / cooldown. */
     @TestConfiguration
     static class MutableClockConfig {
         @Bean
@@ -115,13 +107,11 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
         seedUser(adminSubA, clubA, "admin-g");
     }
 
-    // ---- brute-force rate limit: 5 / 15 min per sub ----
 
     @Test
     void sixthAttemptInWindow_is_429_withRetryAfter() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String token = pilotToken(sub);
-        // 5 unknown-code attempts still count toward the per-sub window.
         for (int i = 0; i < 5; i++) {
             assertThat(submit(token, "NOPE" + i + "AB", null).getStatusCode())
                     .isEqualTo(HttpStatus.NOT_FOUND);
@@ -143,7 +133,6 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
         assertThat(submit(token, "NOPE5XYZ", null).getStatusCode())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
 
-        // Advance past the 15-min window — the earliest attempt ages out.
         clock.advance(Duration.ofMinutes(16));
 
         assertThat(submit(token, "NOPE6XYZ", null).getStatusCode())
@@ -151,7 +140,6 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ---- deny cooldown: 24h per (sub, club) ----
 
     @Test
     void deniedPair_reSubmitWithin24h_is_429() {
@@ -180,8 +168,6 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         denyAFreshRequest(sub);
 
-        // Admin rotates the club's code via the real endpoint — a different
-        // discovery key, same club.
         ResponseEntity<String> rotated = post(adminToken(clubA, adminSubA),
                 "/api/v1/clubs/clb-" + clubA + "/join-code/rotate", null);
         assertThat(rotated.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -195,7 +181,6 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    // ---- withdraw starts NO cooldown ----
 
     @Test
     void withdraw_allowsImmediateReSubmit() {
@@ -204,12 +189,10 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
         assertThat(post(pilotToken(sub), "/api/v1/join-requests/" + id + "/withdraw", null)
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // No clock advance — a withdraw starts no cooldown, re-submit is immediate.
         assertThat(submit(pilotToken(sub), codeA, null).getStatusCode())
                 .isEqualTo(HttpStatus.CREATED);
     }
 
-    // ---- helpers ----
 
     private void denyAFreshRequest(UUID sub) {
         String id = readJson(submit(pilotToken(sub), codeA, null)).get("id").asText();

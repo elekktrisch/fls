@@ -4,20 +4,6 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * The submissions the ITs post to the anonymous registration surface, as the
- * JSON a browser sends rather than as the server's own request records — a
- * rename or a restructured payload has to break these tests, not silently
- * follow them.
- *
- * <p>Both bodies carry the same registrant, which is the contract under test:
- * the scenic form is the discovery form minus the day selection.
- *
- * <p>Shared test support rather than a helper inside the publicregistration
- * package: the surface is also driven from outside it (the audit projection
- * needs an anonymous write), and a second copy of the payload would let the
- * two drift.
- */
 public final class PublicSubmissions {
 
     public static final String FIRSTNAME = "Rosa";
@@ -39,15 +25,6 @@ public final class PublicSubmissions {
         return body;
     }
 
-    /**
-     * The registrant whose invoice address is their own — and therefore with no
-     * invoice block at all, neither {@code invoiceRecipient} nor
-     * {@code sendCouponToInvoiceAddress}. That is the payload the browser
-     * genuinely posts ({@code registrant-form.ts}, {@code toRegistrantDetails}
-     * drops the block once "same address" is ticked), so writing the coupon key
-     * here would exercise a shape no form sends and leave the one it does send
-     * untested.
-     */
     public static Map<String, Object> registrant() {
         Map<String, Object> registrant = new LinkedHashMap<>();
         registrant.put("firstname", FIRSTNAME);
@@ -61,10 +38,6 @@ public final class PublicSubmissions {
         return registrant;
     }
 
-    /**
-     * The other shape the form posts: the invoice block is present, so the
-     * coupon choice exists and is sent.
-     */
     public static Map<String, Object> registrantWithDifferingInvoiceAddress(
             boolean sendCouponToInvoiceAddress) {
         Map<String, Object> registrant = registrant();

@@ -25,22 +25,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the Clubs CRUD slice. Asserts the
- * API surface, the {@code @PreAuthorize} happy-path under a sysadmin
- * principal, and the soft-delete filtering invariant.
- *
- * <p>Imports {@link JwtTestFixture} so the production filter chain runs
- * against synthesised RSA-signed tokens — every request carries a
- * {@code Bearer <sysadmin-jwt>} header so the role-gate predicate
- * {@code hasRole('SYSTEM_ADMINISTRATOR')} on the Clubs methods passes.
- * Role-matrix evidence (clubadmin / flight-operator + own-club / other-club
- * SpEL gates) lives in {@code ClubsAuthorizationTest}; this IT covers the
- * happy-path behavior of the underlying service + persistence stack.
- *
- * <p>Per-test isolation relies on time-stamped unique slugs / clubKeys —
- * the V5 seed row stays untouched.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -125,9 +109,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void createClub_duplicateClubKey_returns_409_labeled_on_clubKey_field() {
-        // J-26 T-07: only ux_club_key can trip here (slugs are unique per
-        // call) — before the DIVE discrimination this was mislabeled as a
-        // bare slug 409 with no field diagnostic.
         String clubKey = "K" + shortSuffix();
         ResponseEntity<String> first = post("/api/v1/clubs",
                 createPayload("Key Owner", "key-a-" + suffix(), clubKey));
@@ -173,8 +154,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         assertThat(updated.get("scenicFlightOperatorEmail").asText())
                 .isEqualTo("mitflug@club.example");
 
-        // Blank clears the opt-in rather than failing — an unset organiser
-        // address must never block a registration.
         Map<String, Object> cleared = updatePayload("Operator Club", slug, true);
         cleared.put("discoveryFlightOperatorEmail", "");
         JsonNode afterClear = readJson(put("/api/v1/clubs/" + id, cleared));
@@ -225,8 +204,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         assertThat(readJson(get("/api/v1/clubs/" + clubId)).get("homebaseId").asText())
                 .isEqualTo(homebaseId);
 
-        // Full-replace: the omitted key clears the homebase, which is a valid
-        // state — a club without one still accepts discovery registrations.
         JsonNode afterClear = readJson(
                 put("/api/v1/clubs/" + clubId, updatePayload("Homebase Club", slug, false)));
         assertThat(afterClear.hasNonNull("homebaseId")).isFalse();
@@ -257,15 +234,12 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(refused.getBody()).contains("homebaseId");
 
-        // The refusal is not merely cosmetic: the stored value never moved.
         assertThat(readJson(get("/api/v1/clubs/" + clubId)).get("homebaseId").asText())
                 .isEqualTo(ownLocationId);
     }
 
     @Test
     void updateClub_sysadmin_cannot_point_a_clubs_homebase_at_its_own_clubs_location() {
-        // The sysadmin's own tenant is the seed club, so a homebase check run on
-        // the CALLER's tenant would accept this and store a cross-tenant FK.
         String seedLocationId = createLocation(SEED_CLUB_PATH, "IT_CTL_SeedClubOwned");
 
         String slug = "sysadminhome-" + suffix();
@@ -282,7 +256,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void updateClub_unknownId_returns_404() {
-        // Valid ClubId external form but no Club with that UUID exists.
         ClubId ghost = ClubId.of(new java.util.UUID(0L, 0L));
         ResponseEntity<String> res = put(
                 "/api/v1/clubs/" + ghost,
@@ -292,7 +265,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void getClub_malformed_id_returns_400() {
-        // Not a clb--prefixed ClubId external form → conversion failure.
         ResponseEntity<String> res = get("/api/v1/clubs/00000000-0000-0000-0000-000000000000");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -324,7 +296,6 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                         RequestEntity.delete(URI.create("/api/v1/clubs/" + externalId))).build(),
                 Void.class);
 
-        // Row must still exist in the DB with deleted_on stamped — soft, not hard.
         Integer rowCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_club WHERE id = ?::uuid AND deleted_on IS NOT NULL",
                 Integer.class, rawId.toString());
@@ -332,19 +303,12 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                 .as("Soft-delete must leave the row in place with deleted_on stamped")
                 .isEqualTo(1);
 
-        // List endpoint excludes soft-deleted rows.
         ResponseEntity<String> list = get("/api/v1/clubs");
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(list.getBody()).doesNotContain(slug);
     }
 
-    // ----- helpers -----
 
-    /**
-     * Creates a Location inside {@code clubExternalId} through the production
-     * endpoint. Locations are {@code @TenantId}-scoped with no club id on the
-     * path, so the owning club is decided by the principal the request carries.
-     */
     private String createLocation(String clubExternalId, String name) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("locationName", name + "_" + shortSuffix());

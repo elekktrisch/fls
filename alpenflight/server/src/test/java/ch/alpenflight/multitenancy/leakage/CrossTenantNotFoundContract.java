@@ -26,27 +26,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Abstract MockMvc / TestRestTemplate base future tenant-scoped controllers
- * extend to inherit the IDOR-gate witness. Concrete subclasses:
- *
- * <ul>
- *   <li>Implement {@link #pathToReadById(String)} for their {@code GET /…/{id}}
- *       endpoint.</li>
- *   <li>Implement {@link #createUnderTenant(UUID)} returning the new row's
- *       external id (string-form, ready to slot into the path).</li>
- *   <li>Optionally override {@link #roleClaim()} when the path needs more
- *       than a vanilla authenticated user (the default supplies the broadest
- *       role; the controller's own authz tests cover the role matrix).</li>
- * </ul>
- *
- * <p>Per ADR 0008 the leakage surface is a 404 — never a 403 — because a row
- * the caller cannot reach must look identical to a row that does not exist.
- * A 403 would leak existence.
- *
- * <p>The base is package-private so only the leakage package can extend it,
- * keeping the IDOR-gate surface concentrated.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -62,10 +41,6 @@ abstract class CrossTenantNotFoundContract extends PostgresIntegrationTest {
     @Autowired protected CountryRepository countries;
     @Autowired protected ClubStateRepository clubStates;
 
-    /**
-     * Minted two-club ids; subclass-shared. Captured after the production-create
-     * fixture seeds (J-26 T-19) — no longer pinned constants.
-     */
     protected UUID clubA;
     protected UUID clubB;
 
@@ -79,32 +54,16 @@ abstract class CrossTenantNotFoundContract extends PostgresIntegrationTest {
         TenantTestContext.clear();
     }
 
-    /**
-     * Builds the path string for {@code GET /…/{externalId}}; e.g.
-     * {@code "/api/v1/locations/" + externalId}.
-     */
     protected abstract String pathToReadById(String externalId);
 
-    /**
-     * Persists a tenant-scoped row under {@code clubId}; returns its
-     * external-form id (the form the path variable accepts).
-     */
     protected abstract String createUnderTenant(UUID clubId);
 
-    /**
-     * Returns the role to mint into the caller's token. Default
-     * {@code CLUB_ADMINISTRATOR} satisfies the broad write surface while
-     * staying single-realm — subclasses override for narrower roles.
-     */
     protected String roleClaim() {
         return "CLUB_ADMINISTRATOR";
     }
 
     @Test
     void controller_get_with_other_tenant_id_returns_404() {
-        // clubA creates a row; clubB's authenticated user fetches its
-        // external id and must receive 404 (not 403 — existence is not
-        // leaked).
         String foreignId = createUnderTenant(clubA);
         String tokenAsB = jwts.mint(c -> c
                 .claim("clubId", clubB.toString())

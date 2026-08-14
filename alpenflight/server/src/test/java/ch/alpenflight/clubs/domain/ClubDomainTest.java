@@ -67,7 +67,6 @@ class ClubDomainTest {
     @Test
     void planningDayOk_rule_sends_ok_when_day_has_a_reservation_regardless_of_flag() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
-        // flag false (default) — a reservation still means the day takes place.
         assertThat(club.planningDayMailsAsOkWhenNoReservation()).isFalse();
         assertThat(club.shouldSendPlanningDayOk(true)).isTrue();
     }
@@ -103,7 +102,6 @@ class ClubDomainTest {
     @Test
     void rotateJoinCode_redraws_until_a_globally_unique_code_is_found() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
-        // First two candidates collide with existing clubs; the third is free.
         Deque<String> candidates = new ArrayDeque<>(java.util.List.of("TAKEN111", "TAKEN222", "FREE3456"));
         JoinCodeGenerator generator = candidates::pop;
 
@@ -222,7 +220,6 @@ class ClubDomainTest {
                 .isInstanceOf(InvalidClubReferenceException.class)
                 .extracting(e -> ((InvalidClubReferenceException) e).getField())
                 .isEqualTo("homebaseId");
-        // A rejected write leaves the previous homebase intact.
         assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
     }
 

@@ -8,11 +8,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-/**
- * Push / restore / nesting semantics of {@link Tenants#runAs}. Pure JUnit —
- * no Spring, no DB. The resolver-level contract (Hibernate sees the
- * override) is covered by {@code TenantsRunAsIT}.
- */
 class TenantsTest {
 
     private static final UUID CLUB_A = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
@@ -33,7 +28,7 @@ class TenantsTest {
     @Test
     void runAs_restores_prior_absence_after_body() {
         assertThat(TenantContextCarrier.current()).isEmpty();
-        Tenants.runAs(CLUB_A, () -> { /* no-op */ });
+        Tenants.runAs(CLUB_A, () -> { });
         assertThat(TenantContextCarrier.current())
                 .as("carrier returns to empty when there was no prior value")
                 .isEmpty();
@@ -67,18 +62,15 @@ class TenantsTest {
 
     @Test
     void runAs_rejects_null_clubId() {
-        assertThatThrownBy(() -> Tenants.runAs(null, () -> { /* no-op */ }))
+        assertThatThrownBy(() -> Tenants.runAs(null, () -> { }))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("clubId");
     }
 
     @Test
     void runAs_rejects_NO_TENANT_sentinel() {
-        // The nil-UUID is the resolver's "no tenant" marker; runAs must rebuke
-        // it loud rather than silently degrade to empty-reads + FK-violation-
-        // on-write at the bottom of the stack.
         assertThatThrownBy(() ->
-                Tenants.runAs(ClubTenantIdentifierResolver.NO_TENANT, () -> { /* no-op */ }))
+                Tenants.runAs(ClubTenantIdentifierResolver.NO_TENANT, () -> { }))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("NO_TENANT");
     }

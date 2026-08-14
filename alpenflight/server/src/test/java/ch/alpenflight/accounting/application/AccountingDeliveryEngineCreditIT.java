@@ -41,13 +41,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Proves the credit-discount branch fires through the no-persist dry-run path and
- * that the path mutates NOTHING: a billed pilot's {@link PersonFlightTimeCredit}
- * discounts the FlightTime line, re-running yields identical output, and no
- * {@code PersonFlightTimeCreditTransaction} row is written
- * ({@code DeliveryService.cs:405-408} AsNoTracking parity).
- */
 class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
 
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
@@ -96,12 +89,6 @@ class AccountingDeliveryEngineCreditIT extends PostgresIntegrationTest {
                 .isEqualTo(DISCOUNT_PERCENT);
     }
 
-    // The credit applies to the BILLED recipient; the recipient must first be
-    // resolved (a recipient filter, or the PILOT_PAYS_ALL / NO_INSTRUCTOR_FEE
-    // cost-balance fallback to the PIC). A flight with no cost-balance type leaves
-    // the recipient unresolved, so creditsForBilledPerson loads nothing and the
-    // line is billed uncredited even though a matching credit exists — the gap the
-    // e2e seed hit. Pins the recipient->credit linkage so it can't regress silently.
     @Test
     void noBilledRecipient_emitsUncreditedLine() {
         Scenario s = seedCoveredFlight("HB-NOREC", 5_400L, null);

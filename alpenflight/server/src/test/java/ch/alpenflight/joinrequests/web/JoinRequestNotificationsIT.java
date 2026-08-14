@@ -48,25 +48,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-/**
- * Notifications slice (S-178, T-08): each committed join-request transition
- * sends the matching transactional email AND publishes a
- * {@code join-request.status-changed} SSE event to the right principal.
- *
- * <ul>
- *   <li>submit → {@code admin-new-request} mail to the club admins + SSE to each
- *       admin sub (their pending list gained a row);</li>
- *   <li>approve → {@code pilot-approved} mail + SSE to the pilot sub;</li>
- *   <li>deny → {@code pilot-denied} mail + SSE to the pilot sub;</li>
- *   <li>withdraw → {@code pilot-withdrawn} mail + SSE to the pilot sub.</li>
- * </ul>
- *
- * <p>Mail is asserted via the {@link CapturedMailSender} outbox; the SSE publish
- * via a mocked {@link MePrincipalEventBus} (the in-memory transport no-ops with
- * no open stream, so the publish CALL is the deterministic assertion — the live
- * stream end-to-end is the journey's real-idp gate). The notification listeners
- * run AFTER_COMMIT on a separate thread, so SSE verifies use a short timeout.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, CapturedMailSender.Config.class})
@@ -85,9 +66,6 @@ class JoinRequestNotificationsIT extends PostgresIntegrationTest {
     @Autowired CapturedMailSender outbox;
     @Autowired EmailTemplateRepository overrides;
     @MockitoBean UserDirectoryPort directory;
-    // Spy (not mock) the bus so the concrete InMemoryMePrincipalEventBus the
-    // events controller injects by type keeps its runtime type; the publish
-    // call is verifiable without an open stream (no-op when no stream is live).
     @MockitoSpyBean MePrincipalEventBus bus;
 
     private UUID clubA;
@@ -105,8 +83,6 @@ class JoinRequestNotificationsIT extends PostgresIntegrationTest {
         seedUser(adminSubA, clubA, "admin-a", "admin-a@example.com");
         outbox.clear();
         jdbc.update("DELETE FROM t_email_template WHERE club_id = ?::uuid", clubA.toString());
-        // The admin set is the directory's CLUB_ADMINISTRATOR holders intersected
-        // with the club's local rows; stub the directory to surface admin A.
         when(directory.findUsersByRoleName("CLUB_ADMINISTRATOR"))
                 .thenReturn(List.of(new UserDirectoryRow(adminSubA, "admin-a", "admin-a@example.com",
                         true, null, null)));
@@ -182,7 +158,6 @@ class JoinRequestNotificationsIT extends PostgresIntegrationTest {
                 .doesNotContain("Pilotin / Pilot");
     }
 
-    // ---- helpers ----
 
     private String filePending(UUID pilotSub) {
         ResponseEntity<String> res = submit(pilotToken(pilotSub), codeA, "let me in");

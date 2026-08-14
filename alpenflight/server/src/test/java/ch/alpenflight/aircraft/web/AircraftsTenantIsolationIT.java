@@ -20,18 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Cross-layer cross-tenant behaviour for the Aircraft aggregate (S-058
- * reverts S-159's tenant-scoping). Reads are unscoped — any tenant context
- * lists rows from every club so the Flight aircraft picker can surface
- * other clubs' aircraft for the charter case. Writes are restricted to the
- * managing-club at the HTTP layer (see {@code AircraftsAuthorizationIT})
- * via the {@code AircraftAccess} SpEL bean.
- *
- * <p>Service-layer registration still demands a tenant context (it sources
- * the managing_club_id from the resolver). The no-tenant fallback path
- * exists for system-admin / cutover via {@code Tenants.runAs}.
- */
 class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_ATI_";
@@ -57,14 +45,11 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void list_returns_aircraft_from_every_club() {
-        // The minted club id is runtime, so tenant A is entered via runAs here
-        // rather than a method-level @WithTenant literal.
         TenantTestContext.runAs(clubA, () -> {
             AircraftDetail aRow = aircrafts.registerAircraft(payload(uniqueImmat()));
             AircraftDetail bRow = TenantTestContext.runAs(clubB,
                     () -> aircrafts.registerAircraft(payload(uniqueImmat())));
 
-            // Cross-tenant catalog: Club A's list includes Club B's row.
             assertThat(aircrafts.listAircraft(null))
                     .extracting(li -> li.id().toString())
                     .contains(aRow.id().toString(), bRow.id().toString());
@@ -95,9 +80,6 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void register_without_tenant_context_throws_illegalState() {
-        // Service refuses to register without a resolved manager — the
-        // controller's @PreAuthorize ensures this path isn't reached from
-        // an authenticated HTTP request, but the service still fails closed.
         assertThatThrownBy(() -> aircrafts.registerAircraft(payload(uniqueImmat())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tenant context");

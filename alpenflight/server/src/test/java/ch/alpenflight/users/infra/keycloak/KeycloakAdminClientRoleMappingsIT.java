@@ -26,34 +26,6 @@ import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * J-26 T-30c — {@link KeycloakAdminClient#getRealmRoleMappings} must tolerate a
- * Keycloak {@code 404} for a {@code sub} that has no KC identity.
- *
- * <p><strong>Root cause this guards.</strong> {@code GET /api/v1/users}
- * ({@code listInCurrentTenant}) reads the realm role-mappings of EVERY active
- * {@code t_user} row in the caller's club, one KC call per row. A local row
- * whose {@code keycloak_sub} is absent from the realm (a seed / bulk-import
- * row, or a KC user later deleted) makes KC answer {@code 404}. Before this
- * fix the adapter mapped that {@code 404} to a {@link UserDirectoryException}
- * (HTTP 502) — and when the KC admin client could not even reach Keycloak the
- * connection error surfaced as a {@code 400 urn:alpenflight:problem:bad-request}
- * ("Invalid request") — so a SINGLE orphaned row blew up the whole list. The
- * real-idp nightly hit exactly this (clubadmin1's club carries seeded
- * clubadmin2/3/4 + bulk rows whose subs aren't in the freshly-built realm).
- *
- * <p>The fix makes a missing KC identity equivalent to "no realm roles" — the
- * row renders with an empty role set instead of failing the list — mirroring
- * {@code findUsersByRoleName}'s existing {@code 404 → empty} handling. Any
- * other upstream status still throws (502), so a genuine KC outage is not
- * silently swallowed.
- *
- * <p>Drives the REAL adapter (its own internal {@link org.springframework.web.client.RestClient}
- * + bearer interceptor) against a JDK {@link HttpServer} stub so the HTTP
- * status path is exercised end-to-end — the pure-deser sibling test
- * ({@code KeycloakAdminWireDtoDeserializationTest}) cannot, it never makes a
- * request.
- */
 class KeycloakAdminClientRoleMappingsIT {
 
     private static final UUID ORPHAN_SUB =
@@ -66,9 +38,7 @@ class KeycloakAdminClientRoleMappingsIT {
     private volatile int roleMappingsStatus;
     private volatile String roleMappingsBody;
     private volatile String usersListBody;
-    /** The KC representation the single-user GET returns — per-test programmable. */
     private volatile String bindUserGetBody;
-    /** Captured body of the last PUT /users/{BIND_SUB}. */
     private volatile String lastBindPutBody;
 
     @BeforeEach
@@ -77,9 +47,6 @@ class KeycloakAdminClientRoleMappingsIT {
                 new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         port = server.getAddress().getPort();
 
-        // Default single-user GET: a disabled invitee with pending requiredActions
-        // and a locale, but no clubId yet — the bind WRITE source. Tests that need
-        // a present clubId (the clear/compensation path) override this.
         bindUserGetBody = """
                 {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
                  "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
@@ -88,7 +55,6 @@ class KeycloakAdminClientRoleMappingsIT {
                  "attributes":{"locale":["en"]}}
                 """;
 
-        // Service-account token endpoint — the supplier fetches a bearer once.
         server.createContext("/realms/test-realm/protocol/openid-connect/token", ex -> {
             byte[] out = "{\"access_token\":\"stub-token\",\"expires_in\":300}"
                     .getBytes(StandardCharsets.UTF_8);
@@ -99,7 +65,6 @@ class KeycloakAdminClientRoleMappingsIT {
             }
         });
 
-        // role-mappings/realm — status + body are per-test programmable.
         server.createContext("/admin/realms/test-realm/users/" + ORPHAN_SUB + "/role-mappings/realm",
                 ex -> {
                     byte[] out = roleMappingsBody.getBytes(StandardCharsets.UTF_8);
@@ -110,8 +75,6 @@ class KeycloakAdminClientRoleMappingsIT {
                     }
                 });
 
-        // Single-user GET (read-merge-write source) + PUT (capture body). Bound
-        // BEFORE the broader /users context so it wins the longest-prefix match.
         server.createContext("/admin/realms/test-realm/users/" + BIND_SUB, ex -> {
             if ("PUT".equals(ex.getRequestMethod())) {
                 lastBindPutBody = new String(
@@ -120,8 +83,6 @@ class KeycloakAdminClientRoleMappingsIT {
                 ex.close();
                 return;
             }
-            // GET: the current KC representation the merge reads back — carries
-            // the fields that must survive a clubId-attribute write.
             byte[] out = bindUserGetBody.getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().add("Content-Type", "application/json");
             ex.sendResponseHeaders(200, out.length);
@@ -130,7 +91,6 @@ class KeycloakAdminClientRoleMappingsIT {
             }
         });
 
-        // users (email-lookup) — body is per-test programmable.
         server.createContext("/admin/realms/test-realm/users", ex -> {
             byte[] out = usersListBody.getBytes(StandardCharsets.UTF_8);
             ex.getResponseHeaders().add("Content-Type", "application/json");
@@ -159,12 +119,6 @@ class KeycloakAdminClientRoleMappingsIT {
         return new KeycloakAdminClient(tokens, props, mapper);
     }
 
-    /**
-     * Mirrors the two load-bearing deserialization flags the production
-     * (auto-configured) {@code tools.jackson} ObjectMapper runs with per
-     * application.yml — the same prod-like mapper the sibling
-     * {@code KeycloakAdminWireDtoDeserializationTest} builds.
-     */
     private static ObjectMapper prodLikeMapper() {
         return JsonMapper.builder()
                 .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
@@ -183,9 +137,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void missingKeycloakIdentity_404_yieldsEmptyRoleSet() {
-        // A t_user row whose keycloak_sub is absent from the realm: KC answers
-        // 404. The list endpoint must keep rendering — the orphaned row simply
-        // has no roles, not a 502/400 for the whole list.
         roleMappingsStatus = 404;
         roleMappingsBody =
                 "{\"error\":\"User not found\",\"errorMessage\":\"User does not exist\"}";
@@ -199,7 +150,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void otherUpstreamStatus_500_stillThrowsUserDirectoryException() {
-        // A genuine KC outage must NOT be swallowed — only 404 is benign.
         roleMappingsStatus = 500;
         roleMappingsBody = "{\"error\":\"server_error\"}";
 
@@ -225,7 +175,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void emailLookup_absentClubIdAttribute_mapsToUnattached() {
-        // No clubId attribute → genuinely unattached → null → the legit bind case.
         usersListBody = """
                 [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"locale":["en"]}}]
                 """;
@@ -239,10 +188,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void emailLookup_garbageClubIdAttribute_failsClosedToAttached() {
-        // A present-but-unparseable clubId attribute is an anomaly, never proof
-        // of being unattached: the wire mapping must fail CLOSED to a non-null
-        // sentinel so the invite treats it as attached (→ 409), never relocating
-        // a possibly-attached identity into a new tenant.
         usersListBody = """
                 [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"clubId":["not-a-uuid"]}}]
                 """;
@@ -256,10 +201,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void writeClubIdAttribute_resendsEveryMutableField_soTheBindCantDowngradeTheUser() {
-        // The bind WRITE path. KC's attribute-only PUT clears email/firstName/
-        // lastName, so identity must be re-sent; enabled + requiredActions are
-        // re-sent too so a bind can never re-enable a disabled invitee or drop a
-        // pending VERIFY_EMAIL/UPDATE_PASSWORD (a credential-posture downgrade).
         UUID clubId = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
         client().writeClubIdAttribute(BIND_SUB, clubId);
@@ -278,11 +219,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void clearClubIdAttribute_presentClubId_dropsOnlyClubId_keepsIdentityAndPosture() {
-        // The T-07 compensation path (clearClubIdAttribute after a failed bind).
-        // The GET carries a present clubId so the clear actually PUTs; that PUT
-        // must drop ONLY clubId while re-sending identity + enabled +
-        // requiredActions + locale — otherwise the compensation would vanish the
-        // user or downgrade its credential posture.
         bindUserGetBody = """
                 {"id":"46d526dc-4981-4ccf-aa5f-b0a3fcda5b39",
                  "username":"e2e-bind@example.com","email":"e2e-bind@example.com",
@@ -307,9 +243,6 @@ class KeycloakAdminClientRoleMappingsIT {
 
     @Test
     void clearClubIdAttribute_absentClubId_isANoOpWithNoPut() {
-        // The default stub GET carries only locale (no clubId), so the clear
-        // short-circuits before any PUT — an absent attribute is nothing to
-        // drop, and the identity is never touched.
         lastBindPutBody = null;
 
         client().clearClubIdAttribute(BIND_SUB);
@@ -319,12 +252,6 @@ class KeycloakAdminClientRoleMappingsIT {
                 .isNull();
     }
 
-    /**
-     * Every clubId read-merge-write PUT body must re-send the user's identity
-     * and credential posture verbatim from the GET, so an attribute edit can
-     * never null an identity field, re-enable a disabled user, or drop a
-     * pending required action.
-     */
     private static void assertIdentityAndPostureSurvive(JsonNode put) {
         assertThat(put.path("username").asText())
                 .as("the PUT must re-send username or KC nulls it")

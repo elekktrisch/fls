@@ -15,14 +15,6 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
-/**
- * One unit test per {@link ExcelExportSupport} helper (S-094 AC). Each writes a
- * cell with the helper, serializes the streaming workbook to bytes, reads it
- * back as a plain {@link XSSFWorkbook}, and asserts the cell value AND the
- * number-format string — the format string is the parity-load-bearing contract
- * (the harness asserts format + value, not rendered text). Plain unit tests:
- * no Postgres / Spring.
- */
 class ExcelExportSupportTest {
 
     @Test
@@ -74,7 +66,7 @@ class ExcelExportSupportTest {
         Cell[] back = roundTripRow(support -> {
             Sheet sheet = support.workbook().createSheet("Flights");
             Row row = support.dataRow(sheet, 0);
-            support.intCell(row, 0, 1L); // IsSoloFlight 0/1, StartType, AirState…
+            support.intCell(row, 0, 1L);
         }, 0, 1);
 
         assertThat(back[0].getNumericCellValue()).isEqualTo(1.0d);
@@ -108,7 +100,7 @@ class ExcelExportSupportTest {
 
     @Test
     void durationCell_usesElapsedHoursFormat_andFractionOfDayValue() throws IOException {
-        long seconds = 3 * 3600 + 30 * 60; // 3h30m
+        long seconds = 3 * 3600 + 30 * 60;
         Cell[] back = roundTripRow(support -> {
             Sheet sheet = support.workbook().createSheet("Flights");
             Row row = support.dataRow(sheet, 0);
@@ -156,7 +148,6 @@ class ExcelExportSupportTest {
         });
         Row row = read.getSheet("Flights").getRow(0);
 
-        // Same format string ⇒ same cached style (guards the 64k-style cap).
         assertThat(row.getCell(0).getCellStyle().getIndex())
                 .isEqualTo(row.getCell(1).getCellStyle().getIndex());
         read.close();
@@ -173,19 +164,16 @@ class ExcelExportSupportTest {
 
         support.autoSize(sheet, 2);
 
-        // Both columns got a positive width; the wider content sizes wider.
         assertThat(sheet.getColumnWidth(0)).isPositive();
         assertThat(sheet.getColumnWidth(0)).isGreaterThan(sheet.getColumnWidth(1));
         dispose(support);
     }
 
-    // --- helpers -----------------------------------------------------------
 
     private interface SheetWriter {
         void write(ExcelExportSupport support);
     }
 
-    /** Writes via the helper, serializes, and reads the workbook back as XSSF. */
     private static XSSFWorkbook roundTrip(SheetWriter writer) throws IOException {
         ExcelExportSupport support = ExcelExportSupport.streamingWorkbook();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -198,7 +186,6 @@ class ExcelExportSupportTest {
         return new XSSFWorkbook(new ByteArrayInputStream(out.toByteArray()));
     }
 
-    /** Round-trips, then returns the first {@code count} cells of {@code rowIndex} on sheet "Flights". */
     private static Cell[] roundTripRow(SheetWriter writer, int rowIndex, int count) throws IOException {
         try (XSSFWorkbook read = roundTrip(writer)) {
             Row row = read.getSheet("Flights").getRow(rowIndex);
@@ -215,7 +202,6 @@ class ExcelExportSupportTest {
         try {
             support.workbook().close();
         } catch (IOException ignored) {
-            // best-effort cleanup of the SXSSF temp files in tests
         }
     }
 }

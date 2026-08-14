@@ -10,11 +10,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Aggregate-level invariants on {@link Flight}. Per ADR 0022 directive 2,
- * the V3 migration stripped 14 CHECK constraints — the aggregate now
- * carries them. This test is the regression witness.
- */
 class FlightDomainTest {
 
     private static final UUID AIRCRAFT_A = UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1");
@@ -68,10 +63,6 @@ class FlightDomainTest {
         Flight glider = Flight.createGlider(AIRCRAFT_A, PROCESS_STATE_NEW, ops());
         UUID id = UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb");
         setField(glider, "id", id);
-        // Re-tag as TOW for the self-link check to fire — the aggregate
-        // checks `tow.type == TOW` before the self-link guard. We rebuild
-        // a tow-flavoured Flight that shares the same id to exercise the
-        // self-pair rule.
         Flight twin = Flight.createTow(AIRCRAFT_A, PROCESS_STATE_NEW, ops());
         setField(twin, "id", id);
         assertThatThrownBy(() -> glider.linkTow(twin))

@@ -40,20 +40,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * How an anonymous write reads in the {@code /system/logs} viewer, asserted
- * through the projection the viewer actually consumes —
- * {@code GET /api/v1/admin/audit-events} →
- * {@link ch.alpenflight.audit.application.AuditEventDtos.AuditEventRow}.
- *
- * <p>That projection carries {@code systemActor} and no {@code actorKind}; the
- * viewer's actor cell is {@code row.systemActor ? '<system>' : row.actorUserId}
- * ({@code audit-logs-list.page.ts}). So the flag under test is
- * {@code system_actor}, and the assertion is only meaningful against a
- * counter-example: a club-admin mutation is staged in the SAME tenant so both
- * rows come back in one page and a projection that flagged everything (or
- * nothing) as a system actor fails.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -133,12 +119,6 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
                 .isNotNull();
     }
 
-    /**
-     * Guards the choice of discriminator: {@code actor_kind} reads the same on
-     * both rows, which is why the projection omits it. Writing {@code SYSTEM}
-     * without also carrying it into {@code AuditEventRow} + the viewer would
-     * leave the classification invisible — this turns that into a red test.
-     */
     @Test
     void actor_kind_does_not_separate_the_two_rows() {
         submitAnonymously();

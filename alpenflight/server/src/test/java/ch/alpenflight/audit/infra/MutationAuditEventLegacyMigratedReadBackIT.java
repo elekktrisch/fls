@@ -9,21 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Reads back a LEGACY_MIGRATED {@code t_mutation_audit_event} row written
- * by S-186's {@code AuditLogMapper}. The migrated rows land with
- * {@code tenant_club_id IS NULL} (cross-tenant system-event semantics per
- * the operator-grilled refinement decision) — so {@code @TenantId} filter
- * resolves them only through S-023's {@code UnscopedTenantContext}, which
- * isn't shipped yet. This test verifies the persistence layer directly via
- * {@link JdbcTemplate}, asserting the V18 schema additions accept the
- * mapper's bind shape end-to-end.
- *
- * <p>Once S-023 lands and {@code UnscopedTenantContext.runAs(...)} can
- * surface NULL-tenant rows, this test (or a sibling) will additionally
- * cover the {@code MutationAuditEventRepository.findById} round-trip
- * under the unscoped context.
- */
 class MutationAuditEventLegacyMigratedReadBackIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;

@@ -12,13 +12,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-/**
- * Proves the {@link MeasuredJobAspect} instrumentation platform end-to-end:
- * a completing job persists a {@code COMPLETED} {@link JobRun} with timing,
- * a throwing job persists a {@code FAILED} run without propagating the throw
- * (scheduler survives — J-15 AC-edge #8), and each run records into the
- * {@code fls_job_duration_seconds} timer.
- */
 @Import(MeasuredJobAspectIT.TestJobConfig.class)
 class MeasuredJobAspectIT extends PostgresIntegrationTest {
 

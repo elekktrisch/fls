@@ -18,14 +18,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/**
- * Static-asset tests over {@code src/main/resources/db/migration/} —
- * no DB needed, runs in every build, ~milliseconds.
- *
- * <p>Catches the contract-shape mistakes that would otherwise surface only at
- * production deploy: stray files, wrong naming, plain-text credentials in
- * migrations, missing baseline.
- */
 class MigrationFolderConventionsTest {
 
     private static final Pattern MIGRATION_FILENAME =
@@ -146,20 +138,6 @@ class MigrationFolderConventionsTest {
         }
     }
 
-    /**
-     * ADR 0022 directive 2 — business logic lives on aggregates, not the schema.
-     * CHECK constraints encoding state-machine values, numeric ranges,
-     * required-when-state-X guards, and operational sanity caps belong in the
-     * domain layer (value-object constructors + aggregate methods).
-     *
-     * <p>This test scans every migration's SQL for {@code CHECK (...)} clauses
-     * and fails on any that aren't paired with an explicit retain marker:
-     * a {@code COMMENT ON CONSTRAINT ck_name ON table IS '%ADR 0022 retained%'}
-     * statement somewhere in the same file. Anonymous CHECK clauses are
-     * always violations — retention requires a name to allow-list.
-     *
-     * <p>No filename grandfather; V1+ all play by the same rule.
-     */
     @Test
     void no_business_logic_check_constraints_in_migrations() throws IOException {
         Pattern checkClause = Pattern.compile("\\bCHECK\\s*\\(", Pattern.CASE_INSENSITIVE);
@@ -185,7 +163,6 @@ class MigrationFolderConventionsTest {
                 if (retained.contains(nc.group(1).toLowerCase(java.util.Locale.ROOT))) {
                     int checkStart = stripped.indexOf("CHECK", nc.start());
                     if (checkStart < 0) {
-                        // Case-insensitive scan — fall back to lowercase index.
                         checkStart = stripped.toLowerCase(java.util.Locale.ROOT).indexOf("check", nc.start());
                     }
                     allowedCheckStarts.add(checkStart);
@@ -210,9 +187,6 @@ class MigrationFolderConventionsTest {
 
     @Test
     void no_business_logic_check_constraints_test_catches_synthetic_violation() {
-        // Sanity gate against regex bitrot: a fabricated migration containing
-        // an unguarded CHECK literal must be flagged. Inlines the assertion
-        // because the sibling test scans the real migration tree.
         Pattern checkClause = Pattern.compile("\\bCHECK\\s*\\(", Pattern.CASE_INSENSITIVE);
         String synthetic = "ALTER TABLE foo ADD CONSTRAINT ck_bar CHECK (x > 0);";
         String stripped = synthetic.replaceAll("(?m)--[^\\n]*", "");
@@ -221,12 +195,6 @@ class MigrationFolderConventionsTest {
                 .isTrue();
     }
 
-    /**
-     * The role-provisioning patterns V54 (S-160) is the security-reviewed
-     * exception for: it splits the migrator role from the append-only app role.
-     * The data-INSERT / DROP-SCHEMA / TRUNCATE / gen_random_uuid bans stay in
-     * force even for V54 — only the role/grant/password surface is waived.
-     */
     private static final Set<String> ROLE_PROVISIONING_PATTERNS = Set.of(
             "PASSWORD\\s*'",
             "\\bGRANT\\s",
@@ -246,10 +214,6 @@ class MigrationFolderConventionsTest {
         var violations = new ArrayList<String>();
         for (Path m : migrations) {
             String content = Files.readString(m, StandardCharsets.UTF_8);
-            // Strip SQL `-- single-line` comments before pattern matching.
-            // Comments are documentation, not executed code; a forbidden literal
-            // discussed in a comment ("never use `DEFAULT gen_random_uuid()`")
-            // is exactly the kind of guidance we want, not a violation.
             String stripped = content.replaceAll("(?m)--[^\\n]*", "");
             String filename = m.getFileName().toString();
             for (Pattern p : forbidden) {
@@ -311,11 +275,6 @@ class MigrationFolderConventionsTest {
         return patterns;
     }
 
-    /**
-     * URL → URI → Path handles Windows correctly. {@code Paths.get(url.getPath())}
-     * chokes on the leading slash in {@code /C:/Users/...} because {@code Paths.get}
-     * parses string-side and sees the {@code :} at index 3 as illegal.
-     */
     private static Path urlToPath(URL url) throws IOException {
         try {
             return Paths.get(url.toURI());

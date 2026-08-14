@@ -32,19 +32,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Cross-tenant properties for the Flight aggregate. Counterparts to the
- * sibling per-aggregate isolation ITs.
- *
- * <ul>
- *   <li>{@code @TenantId} on {@code operating_club_id} hides another
- *       tenant's flight on {@code GET /flights/{id}} — 404, not 403.</li>
- *   <li>Cross-tenant Aircraft references are intentionally allowed —
- *       Club B's Flight may reference Club A's tow plane (S-058 reversion
- *       of S-159). The list-isolation assertion below pins both shapes
- *       in one test.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -66,8 +53,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seedTwoClubs() {
-        // Aircraft is cross-tenant since S-058 (reverts S-159); TwoClubFixture
-        // wipes aircraft rows under the seed clubs explicitly before delete-clubs.
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         fixture.seed();
@@ -84,7 +69,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         ResponseEntity<String> created = post("/api/v1/flights", body, clubAToken);
         String flightId = readJson(created).get("id").asText();
 
-        // Caller in Club B: 404 (the row is invisible under B's @TenantId scope).
         String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = get("/api/v1/flights/" + flightId, clubBToken);
         assertThat(res.getStatusCode())
@@ -94,20 +78,12 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void updateFlight_acrossTenant_returns_404() {
-        // Oracle #24: legacy FlightService update loads by id with NO ClubId
-        // filter, so a foreign caller could edit another club's flight by
-        // guessing the id. The new stack scopes structurally via @TenantId —
-        // Club B's PUT against Club A's flight id finds no row → 404 (the
-        // write never reaches the aggregate), NOT a silent cross-tenant edit.
         UUID aircraftA = seedAircraftFor(jdbc, clubA);
         String clubAToken = mintToken(clubA);
         ResponseEntity<String> created = post("/api/v1/flights",
                 body("GLIDER", "ac-" + aircraftA), clubAToken);
         String flightId = readJson(created).get("id").asText();
 
-        // Club B targets A's flight id with B's own (valid) aircraft in the
-        // body so the 404 can only come from the tenant-scoped row lookup,
-        // not from a body-validation or FK failure.
         UUID aircraftB = seedAircraftFor(jdbc, clubB);
         String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = put("/api/v1/flights/" + flightId,
@@ -116,7 +92,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
                 .as("Cross-tenant PUT surfaces as 404, NOT 403 or a silent edit (oracle #24)")
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
-        // The owning club's flight is untouched (no cross-tenant write landed).
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE id = ?::uuid AND operating_club_id = ?::uuid",
                 Integer.class, rawId(flightId), clubA.toString());
@@ -125,9 +100,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void deleteFlight_acrossTenant_returns_404() {
-        // Oracle #24: legacy delete loads by id with NO ClubId filter. The new
-        // stack scopes structurally — Club B's DELETE against Club A's flight
-        // id finds no row → 404, and A's row stays alive (not soft-deleted).
         UUID aircraftA = seedAircraftFor(jdbc, clubA);
         String clubAToken = mintToken(clubA);
         ResponseEntity<String> created = post("/api/v1/flights",
@@ -140,7 +112,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
                 .as("Cross-tenant DELETE surfaces as 404, NOT 403 or a silent delete (oracle #24)")
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
-        // A's flight is still present and NOT soft-deleted.
         Integer liveCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE id = ?::uuid"
                         + " AND operating_club_id = ?::uuid AND deleted_on IS NULL",
@@ -152,10 +123,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void createFlight_referencing_other_tenants_aircraft_succeeds() {
-        // S-058 (reverts S-159): the charter case is first-class. Club B
-        // creating a Flight against Club A's aircraft must persist —
-        // Aircraft is cross-tenant; only the Flight's operating_club_id
-        // carries the @TenantId discriminator.
         UUID aircraftA = seedAircraftFor(jdbc, clubA);
         String clubBToken = mintToken(clubB);
         Map<String, Object> body = body("GLIDER", "ac-" + aircraftA);
@@ -183,13 +150,11 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         String idA = readJson(aCreated).get("id").asText();
         String idB = readJson(bCreated).get("id").asText();
 
-        // A's list contains A's row, not B's.
         JsonNode aList = readJson(get(
                 "/api/v1/flights?from=2026-05-01&to=2026-05-31&limit=200", clubAToken))
                 .get("items");
         assertThat(extractIds(aList)).contains(idA).doesNotContain(idB);
 
-        // B's list contains B's row, not A's.
         JsonNode bList = readJson(get(
                 "/api/v1/flights?from=2026-05-01&to=2026-05-31&limit=200", clubBToken))
                 .get("items");
@@ -225,7 +190,6 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         return body;
     }
 
-    /** Strips the {@code fl-} external-id prefix for a raw {@code ::uuid} SQL bind. */
     private static String rawId(String externalFlightId) {
         return externalFlightId.startsWith("fl-")
                 ? externalFlightId.substring("fl-".length())

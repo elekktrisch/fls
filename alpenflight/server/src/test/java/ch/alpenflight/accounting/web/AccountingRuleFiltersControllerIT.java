@@ -25,18 +25,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the AccountingRuleFilter CRUD slice
- * (T-06) under a CLUB_ADMINISTRATOR principal of seed-club-1. Asserts the REST
- * surface end-to-end: list / get / create (201 + Location) / update (200) /
- * delete (204), the cross-tenant {@code GET} → 404 (the {@code @TenantId}
- * isolation answered through the HTTP layer + the feature exception handler),
- * and the 400 for an invalid payload (blank name → bean-validation reject).
- *
- * <p>Application-layer concerns (target-by-type assignment, audit-row write,
- * cross-tenant update/delete → NotFound) are proven in
- * {@code AccountingRuleFiltersServiceIT}; this IT is the web seam only.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -46,13 +34,8 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
     private static final String BASE = "/api/v1/accounting-rule-filters";
 
     private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
-    // A distinct club id for the cross-tenant read test. No real club row is
-    // needed: a cross-tenant GET is a read, so the @TenantId filter simply
-    // makes seed-club-1's row invisible → 404 (no FK is exercised).
     private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-0000000000ff";
 
-    // V4-seeded global filter-type ids (reference data, not tenant-scoped).
-    // legacy_int_id 30 = FLIGHT_TIME → article target; 10 = RECIPIENT.
     private static final String FILTER_TYPE_FLIGHT_TIME = "019e2e15-2c00-7652-8000-000000004652";
     private static final int LEGACY_FLIGHT_TIME = 30;
 
@@ -67,8 +50,6 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
     void mintTokensAndClean() {
         clubAdminToken = adminTokenFor(CLUB_ID);
         otherClubAdminToken = adminTokenFor(OTHER_CLUB_ID);
-        // Keep seed-club-1's accounting slot empty so each test starts from a
-        // known surface (V4 seeds reference data only, no rule-filter rows).
         jdbc.update("DELETE FROM t_accounting_rule_filter WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
@@ -88,10 +69,7 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         JsonNode body = readJson(created);
         String id = body.get("id").asText();
         assertThat(body.get("ruleFilterName").asText()).isEqualTo("Landing fee rule");
-        // Article type (30 ∉ {5,10}) → article target set, recipient cleared.
         assertThat(body.get("articleTarget").asText()).isEqualTo("ART-100");
-        // recipientTarget is null for an article-type filter; Jackson may omit a
-        // null property entirely, so accept both the missing node and a JSON null.
         JsonNode recipient = body.path("recipientTarget");
         assertThat(recipient.isMissingNode() || recipient.isNull()).isTrue();
 
@@ -149,8 +127,6 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> created = post(BASE, articlePayload("Club 1 private"), clubAdminToken);
         String id = readJson(created).get("id").asText();
 
-        // The other club's admin cannot see seed-club-1's filter — the
-        // @TenantId discriminator makes it invisible → 404 (not 403).
         ResponseEntity<String> res = get(BASE + "/" + id, otherClubAdminToken);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -163,17 +139,6 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * Regression for the §4-gate 400-on-every-create bug: the SPA edit form
-     * omits {@code chargedToClubInternal} for any non-recipient (≠ type-10)
-     * filter, so the wire body has no such key. The write DTO's optional
-     * booleans are {@code @Nullable Boolean} (coerced to their legacy defaults in
-     * the service) precisely so an omitted flag deserialises rather than tripping
-     * Jackson's {@code FAIL_ON_NULL_FOR_PRIMITIVES} → 400. The earlier tests
-     * masked this by always sending all three booleans; this one omits them and
-     * asserts a 201 + the persisted defaults ({@code active}=true, the other two
-     * false).
-     */
     @Test
     void create_omittingOptionalBooleans_returns_201_with_legacy_defaults() {
         Map<String, Object> body = articlePayload("No-flags rule");
@@ -188,13 +153,11 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> got = get(BASE + "/" + id, clubAdminToken);
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode detail = readJson(got);
-        // active defaults to true (legacy default), the others to false.
         assertThat(detail.get("active").asBoolean()).isTrue();
         assertThat(detail.get("stopRuleEngineWhenApplied").asBoolean()).isFalse();
         assertThat(detail.get("chargedToClubInternal").asBoolean()).isFalse();
     }
 
-    // ----- payloads -----
 
     private static Map<String, Object> articlePayload(String name) {
         Map<String, Object> body = new HashMap<>();
@@ -213,8 +176,6 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
 
     private static Map<String, Object> filterConfig() {
         Map<String, Object> cfg = new HashMap<>();
-        // All 9 boolean flags must be present — the app keeps Jackson's
-        // FAIL_ON_NULL_FOR_PRIMITIVES default, so an absent primitive is a 400.
         cfg.put("isRuleForGliderFlights", true);
         cfg.put("isRuleForTowingFlights", false);
         cfg.put("isRuleForMotorFlights", false);
@@ -224,13 +185,9 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         cfg.put("includeFlightTypeName", false);
         cfg.put("extendMatchingFlightTypeCodesToGliderAndTowFlight", false);
         cfg.put("includeThresholdText", false);
-        // Nullable scalars + the 10 match-list pairs may be omitted — they
-        // deserialise to null / empty {useAllExcept:true, matched:[]} via the
-        // FilterConfig record's compact constructor.
         return cfg;
     }
 
-    // ----- HTTP helpers -----
 
     private String adminTokenFor(String clubId) {
         return jwts.mint(c -> c

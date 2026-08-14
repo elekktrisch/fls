@@ -17,15 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Proves the send-time resolver chain prefers a club's DB override over the
- * S-082 Thymeleaf file default, and that the preference is tenant-scoped.
- *
- * <p>Renders through the production {@link TemplatedMailService} send path — the
- * same logical template name the senders pass ({@code planningday-ok}) — so the
- * override applies without a redeploy. The model satisfies the file default's
- * expressions; an override body is plain HTML, so the override case needs none.
- */
 class EmailTemplateDbResolverIT extends PostgresIntegrationTest {
 
     private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");

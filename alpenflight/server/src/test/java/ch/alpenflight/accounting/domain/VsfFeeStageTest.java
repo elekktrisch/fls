@@ -39,9 +39,6 @@ class VsfFeeStageTest {
         return new RuleFilterInput(UUID.randomUUID(), null, "VSF", AccountingUnitType.LDGS, config);
     }
 
-    // VsfFeeOnStartLocation matches the flight's START location (LSZK) against the
-    // filter's ldg-location set even though the flight landed elsewhere (LSZF), and
-    // bills nrOfLdgsOnStartLocation (3); it is forced off when that count is <= 0.
     @Test
     void onStartLocationBillsStartLocationLandingsAndIsForcedOffWhenNone() {
         RuleFilterInput filter = vsfFeeFilter(new MatchList(false, List.of("LSZK")));

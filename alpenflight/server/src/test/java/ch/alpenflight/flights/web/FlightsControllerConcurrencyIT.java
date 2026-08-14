@@ -29,14 +29,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Concurrency-contract integration tests for the Flight slice.
- *
- * <p>Covers what {@link FlightsControllerIT} doesn't: the 412 ProblemDetail
- * body shape (`expected` / `actual` / `serverVersion` properties), DELETE
- * If-Match symmetry, the two-client race window, and the 409-vs-412
- * distinction when a delete hits a {@code DELIVERY_BOOKED} terminal state.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -89,7 +81,6 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 .isEqualTo("urn:alpenflight:problem:flight-version-mismatch");
         assertThat(body.get("expected").asLong()).isEqualTo(stale);
         assertThat(body.get("serverVersion").asLong()).isEqualTo(current);
-        // `actual` was dropped in favour of the wire-stable `serverVersion`.
         assertThat(body.has("actual")).isFalse();
     }
 
@@ -122,7 +113,6 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 String.class);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
-        // Row must still be present — stale precondition aborted the delete.
         assertThat(get("/api/v1/flights/" + id).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -155,7 +145,6 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                         .build(),
                 String.class);
 
-        // FlightStateGateException.TERMINAL → 409, distinct from the 412 path.
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         JsonNode body = readJson(res);
         assertThat(body.get("state").asText()).isEqualTo("DELIVERY_BOOKED");
@@ -163,9 +152,6 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
 
     @Test
     void delete_cascade_rollsBack_whenTowIsTerminal() {
-        // Glider is fine to delete; tow is DELIVERY_BOOKED. Cascade must
-        // honour the gate on the tow, throwing — which rolls back the
-        // glider delete too thanks to the class-level @Transactional.
         String gliderId = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         String towId = readJson(post("/api/v1/flights",
@@ -191,17 +177,12 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 String.class);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
-        // Neither row was soft-deleted — transaction rolled back.
         assertThat(get("/api/v1/flights/" + gliderId).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(get("/api/v1/flights/" + towId).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
     void put_secondClient_returns412_afterFirstClientPuts() {
-        // Two clients load the same flight; first PUT succeeds and bumps
-        // version; second PUT with the now-stale version returns 412.
-        // Each PUT must mutate at least one field so Hibernate's dirty-check
-        // produces an UPDATE (no-op saves don't bump @Version).
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         long sharedVersion = readJson(get("/api/v1/flights/" + id)).get("version").asLong();

@@ -46,16 +46,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP proof of the read-only Delivery surface under a
- * CLUB_ADMINISTRATOR principal. Seeds two clubs ({@link TwoClubFixture}) + their
- * read-only deliveries (hydrated reflectively, then saved so the {@code @TenantId}
- * resolver stamps the tenant — ADR 0027 §4). Asserts the paged list returns the
- * club's deliveries in legacy order, the view-by-id returns the full detail
- * (line items + frozen recipient + flight link), and the cross-tenant view → 404
- * (the {@code @TenantId} isolation through the HTTP layer + feature exception
- * handler).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -93,7 +83,6 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
     void page_returns_club_deliveries_sorted_batch_desc_recipient_asc() {
         saveDelivery(clubA, 30L, recipientNamed("Zulu"), null, List.of());
         saveDelivery(clubA, 40L, recipientNamed("Mike"), null, List.of());
-        // Club B's delivery is invisible to club A's page (tenant-scoped).
         saveDelivery(clubB, 99L, recipientNamed("Other"), null, List.of());
 
         ResponseEntity<String> res = post(BASE + "/page/0/100", adminA);
@@ -103,7 +92,6 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("totalRows").asLong()).isEqualTo(2);
         JsonNode items = body.get("items");
         assertThat(items.size()).isEqualTo(2);
-        // batch 40 (Mike) sorts before batch 30 (Zulu).
         assertThat(items.get(0).get("batchId").asLong()).isEqualTo(40L);
         assertThat(items.get(0).get("recipientName").asText()).isEqualTo("Mike First");
         assertThat(items.get(1).get("batchId").asLong()).isEqualTo(30L);
@@ -148,13 +136,10 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
     void crossTenant_get_returns_404() {
         UUID bRow = saveDelivery(clubB, 5L, recipientNamed("Bravo"), null, List.of());
 
-        // Club A's admin cannot see club B's delivery — the @TenantId
-        // discriminator makes it invisible → 404 (not 403).
         ResponseEntity<String> res = get(BASE + "/" + bRow, adminA);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ----- seed / helpers -----
 
     private UUID saveDelivery(UUID clubId, long batchId, DeliveryRecipient recipient,
                               UUID flightId, List<DeliveryItem> items) {

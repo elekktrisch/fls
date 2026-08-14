@@ -11,13 +11,6 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
-/**
- * Proves the {@link ExcelParityComparator} is STRICT on parity-load-bearing
- * dimensions (value, type, number-format) and TOLERANT of cosmetic style — i.e. the
- * harness fails for the right reasons and not the wrong ones. Without this, a green
- * {@code FlightReportExcelParityIT} could be a false positive from an over-lenient
- * comparator.
- */
 class ExcelParityComparatorTest {
 
     @Test
@@ -71,8 +64,7 @@ class ExcelParityComparatorTest {
     void cosmeticStyleDifference_isTolerated() throws Exception {
         try (XSSFWorkbook a = wb();
                 XSSFWorkbook b = wb()) {
-            cell(a, 0, 0).setCellValue("Flights"); // plain
-            // bold, big font, colored fill, wide column — all cosmetic.
+            cell(a, 0, 0).setCellValue("Flights");
             Cell styled = cell(b, 0, 0);
             styled.setCellValue("Flights");
             Font font = b.createFont();
@@ -94,7 +86,7 @@ class ExcelParityComparatorTest {
         try (XSSFWorkbook a = wb();
                 XSSFWorkbook b = wb()) {
             cell(a, 0, 0).setCellValue("x");
-            b.getSheetAt(0).createRow(0); // empty row, no cell
+            b.getSheetAt(0).createRow(0);
             ExcelParityComparator.Diff diff = ExcelParityComparator.compare(a, b);
             assertThat(diff.isEqual()).isFalse();
             assertThat(diff.describe()).contains("present in only one");
@@ -113,7 +105,6 @@ class ExcelParityComparatorTest {
         }
     }
 
-    // --- helpers -------------------------------------------------------------
 
     private static XSSFWorkbook wb() {
         XSSFWorkbook wb = new XSSFWorkbook();

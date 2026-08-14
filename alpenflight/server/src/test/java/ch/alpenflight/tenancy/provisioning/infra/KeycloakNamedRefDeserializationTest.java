@@ -12,32 +12,8 @@ import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Guards the {@link KeycloakNamedRef} projection against REAL Keycloak
- * response shapes when deserialised by a mapper configured exactly like the
- * production one (J-0c T-18).
- *
- * <p>Why this exists: the adapter is handed Spring Boot's auto-configured
- * {@code ObjectMapper}, which runs with
- * {@code spring.jackson.deserialization.fail-on-unknown-properties: true} and
- * {@code spring.jackson.mapper.accept-case-insensitive-properties: false}
- * (see {@code application.yml}). Keycloak's real responses are far richer than
- * the {@code {id, name}} projection: a {@code RoleRepresentation} from
- * {@code GET /admin/realms/{realm}/roles/{name}} carries {@code composite},
- * {@code clientRole}, {@code containerId}, {@code attributes}; a
- * {@code UserRepresentation} (and {@code GroupRepresentation}) carry many more.
- *
- * <p>The first real-chain run (run 26799888533) blew up exactly here:
- * {@code provisionClubAdminIdentity} → {@code findRealmRoleIdByName} →
- * {@code readNamed} threw {@code UnrecognizedPropertyException} on
- * {@code composite}, which the adapter mislabels "malformed JSON object from
- * directory". Pinning {@code @JsonIgnoreProperties(ignoreUnknown = true)} on
- * the projection makes it independent of the global strict wire policy. These
- * tests fail (UnrecognizedPropertyException) without that annotation.
- */
 class KeycloakNamedRefDeserializationTest {
 
-    /** Mirrors application.yml's two load-bearing deserialization flags. */
     private static final ObjectMapper PROD_LIKE_MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .disable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
@@ -47,8 +23,6 @@ class KeycloakNamedRefDeserializationTest {
 
     @Test
     void parsesRealKeycloakRoleRepresentationObject() {
-        // Verbatim shape of GET /admin/realms/alpenflight/roles/CLUB_ADMINISTRATOR
-        // in Keycloak 26 — the body that broke run 26799888533.
         String body = """
                 {
                   "id": "7d3f9c2a-1111-2222-3333-444455556666",
@@ -69,8 +43,6 @@ class KeycloakNamedRefDeserializationTest {
 
     @Test
     void parsesRealKeycloakUserListWithRichFields() {
-        // GET /admin/realms/{realm}/users?username=...&exact=true returns an
-        // ARRAY of verbose UserRepresentation objects (findUserIdByUsername).
         String body = """
                 [
                   {
@@ -101,9 +73,6 @@ class KeycloakNamedRefDeserializationTest {
 
     @Test
     void parsesRealKeycloakGroupAndRoleMappingLists() {
-        // GET /users/{id}/groups and /users/{id}/role-mappings/realm both
-        // return arrays of verbose representations (addUserToGroupIfAbsent,
-        // assignRoleIfAbsent).
         String groups = """
                 [
                   {

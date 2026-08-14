@@ -22,14 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The seed service's read must reconstruct the current balance OUTSIDE any
- * caller-held transaction: the e2e re-GETs a granted credit on a fresh request,
- * so {@code find} owns its own read transaction. {@link CreditView#of} touches
- * the lazy {@code transactions} collection — without a session that throws
- * {@code LazyInitializationException} (a 500 to the caller), so {@code find}
- * must keep a session open for the balance projection.
- */
 class PersonFlightTimeCreditSeedServiceIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_PFTCS_";

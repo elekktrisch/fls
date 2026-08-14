@@ -16,16 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 
-/**
- * Renders the three J-6 T-10b planning-notification templates against the REAL
- * Spring-autoconfigured Thymeleaf engine (the T-10a {@link TemplatedMailService}
- * send-path) with representative models, then asserts the captured outbox carries
- * the expected subject + body tokens (date, location, person name, crew, sender).
- *
- * <p>One IT covers all three templates — a per-template render test would be
- * overkill (J-6 T-10b test budget). Uses the {@link CapturedMailSender}
- * {@code @Primary} fake, so no live SMTP / mailpit is needed.
- */
 @Import(CapturedMailSender.Config.class)
 class PlanningEmailTemplatesIT extends PostgresIntegrationTest {
 

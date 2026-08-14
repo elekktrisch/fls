@@ -16,30 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The PersonFlightTimeCreditTransaction producer current-balance proof.
- *
- * <p>The engine reads only the single {@code IsCurrent} balance per credit, and
- * V46's partial UNIQUE {@code (credit_id) WHERE is_current} forbids two current
- * rows per credit. Real legacy {@code PersonFlightTimeCreditTransactions} carries
- * no such constraint, so a credit may have 0 or ≥2 {@code IsCurrent} rows — the
- * 2nd would 23505 on {@code ux_pftc_transaction_current} at ingest (the §4 fanout
- * blocker). The bound producer SELECT keeps ONLY {@code IsCurrent} rows and
- * dedupe-keep-firsts per credit (most-recent {@code BalanceDateTime} survives) so
- * exactly one current transaction reaches the bundle / the ingest.
- *
- * <p>It also nulls {@code BalancedDeliveryId} when the linked Delivery is not in
- * the migrated set (Delivery migration deferred to J-10b — no Delivery is migrated
- * today), so the orphan FK never violates
- * {@code fk_pftc_transaction_balanced_delivery_id}.
- *
- * <p>This IT runs the REAL bound producer SELECT
- * ({@link MapperLegacyBindings#selectForProducer}) against legacy-shaped staging
- * tables and asserts the invariants — locking the dedupe + orphan-null at build
- * (minutes), not at the ~20-min fanout. {@code ROW_NUMBER() OVER} is dialect-
- * portable (live legacy MSSQL T-SQL and this Postgres container evaluate it
- * identically).
- */
 @Tag("slow")
 class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
 
@@ -47,28 +23,17 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
 
     private final UUID personId = UUID.randomUUID();
 
-    // A credit carrying TWO IsCurrent transactions — only the most-recent
-    // BalanceDateTime survives the keep-first dedupe.
     private final UUID multiCurrentCreditId = UUID.randomUUID();
     private final UUID currentNewerTxId = UUID.randomUUID();
     private final UUID currentOlderTxId = UUID.randomUUID();
-    // A non-current transaction on that same credit — must be filtered out
-    // (only the IsCurrent balance migrates).
     private final UUID historicalTxId = UUID.randomUUID();
 
-    // A credit whose current transaction's BalancedDeliveryId points at an
-    // UNMIGRATED Delivery — must round-trip with balanced_delivery_id NULL.
     private final UUID orphanDeliveryCreditId = UUID.randomUUID();
     private final UUID orphanTxId = UUID.randomUUID();
     private final UUID unmigratedDeliveryId = UUID.randomUUID();
 
     @BeforeEach
     void seedLegacyShapedStagingTables() {
-        // Legacy-shaped staging tables standing in for the MSSQL tables the
-        // producer SELECT reads. Unquoted mixed-case identifiers fold to
-        // lowercase in Postgres, matching the unquoted names in the bound SELECT.
-        // BIT IsCurrent is stubbed as a 0/1 SMALLINT — the SELECT's WHERE
-        // IsCurrent = 1 reads it identically on both dialects.
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS PersonFlightTimeCreditTransactions (
                     PersonFlightTimeCreditTransactionId  UUID PRIMARY KEY,
@@ -88,9 +53,6 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
                     DeletedByUserId                      UUID
                 )
                 """);
-        // The Deliveries staging table is intentionally EMPTY — no Delivery is
-        // migrated (J-10b deferred), so every BalancedDeliveryId is an orphan the
-        // LEFT JOIN must null.
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS Deliveries (
                     DeliveryId UUID PRIMARY KEY
@@ -120,16 +82,13 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
         insertCredit(multiCurrentCreditId);
         insertCredit(orphanDeliveryCreditId);
 
-        // TWO IsCurrent transactions on one credit: the newer BalanceDateTime wins.
         insertTx(currentNewerTxId, multiCurrentCreditId, null,
                 Timestamp.valueOf("2024-03-01 10:00:00"), 1, 7200L);
         insertTx(currentOlderTxId, multiCurrentCreditId, null,
                 Timestamp.valueOf("2023-01-01 09:00:00"), 1, 3600L);
-        // A non-current transaction on the same credit — filtered by WHERE IsCurrent = 1.
         insertTx(historicalTxId, multiCurrentCreditId, null,
                 Timestamp.valueOf("2022-01-01 08:00:00"), 0, 1800L);
 
-        // A current transaction pointing at an unmigrated Delivery.
         insertTx(orphanTxId, orphanDeliveryCreditId, unmigratedDeliveryId,
                 Timestamp.valueOf("2024-05-01 12:00:00"), 1, 5400L);
     }
@@ -187,9 +146,6 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
 
     @Test
     void creditProducerSelectCarriesThePersonIdForCrossTenantResolution() {
-        // The credit's person_id resolves cross-tenant at ingest (PERSON on the
-        // TENANT_BYPASS allow-list, fully migrated by J-4); the producer must emit
-        // it verbatim for the FK rewriter to resolve. Assert it survives the SELECT.
         String select = MapperLegacyBindings.selectForProducer(
                 EntityType.PERSON_FLIGHT_TIME_CREDIT);
 
@@ -207,13 +163,6 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
 
     @Test
     void personClubProducerSelectCarriesPersonClubAndNullsMemberState() {
-        // The credit-load pivot JOINs Person -> PersonClubs.club_id = currentTenant, so
-        // a migrated credit reaches the engine ONLY if its owning Person's membership
-        // also migrates. PERSON_CLUB had a mapper but no producer binding, so it never
-        // exported and the pivot found nothing over migrated data. This runs the bound
-        // PERSON_CLUB producer SELECT against the legacy-shaped table and asserts the
-        // membership carries person_id + club_id (its tenant anchor) and nulls
-        // member_state_id (MEMBER_STATE unmigrated — else it 23503s at ingest).
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS PersonClub (
                     PersonId                                UUID NOT NULL,

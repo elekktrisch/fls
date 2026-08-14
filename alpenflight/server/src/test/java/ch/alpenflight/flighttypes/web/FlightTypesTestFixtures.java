@@ -4,12 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Per-process unique-name helpers + canonical payload shapes for the
- * FlightType ITs. Name uniqueness is per-tenant (V11 partial UNIQUE), so the
- * suffix only needs to dodge per-process collisions across @Test methods —
- * the @BeforeEach tenant pre-clean does the cross-class cleanup.
- */
 final class FlightTypesTestFixtures {
 
     private static final AtomicInteger NAME_COUNTER = new AtomicInteger(0);
@@ -20,7 +14,6 @@ final class FlightTypesTestFixtures {
         return "IT_FT_" + NAME_COUNTER.incrementAndGet();
     }
 
-    /** Glider-only FlightType payload — instructor-required, 2 seats min. */
     static Map<String, Object> createPayload(String name) {
         Map<String, Object> n = new LinkedHashMap<>();
         n.put("flightTypeName", name);

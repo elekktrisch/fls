@@ -55,9 +55,6 @@ class LandingTaxStageTest {
         return RuleFilterInput.of(UUID.randomUUID(), null, config);
     }
 
-    // Suppression interplay: a matching NoLandingTax(20) filter with
-    // NoLandingTaxForGlider sets the accumulator's glider flag, which then forces
-    // the LandingTax(60) line off for a glider flight -> no item emitted.
     @Test
     void noLandingTaxForGliderSuppressesLandingTaxForGliderFlight() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -70,14 +67,8 @@ class LandingTaxStageTest {
         assertThat(acc.deliveryItems()).isEmpty();
     }
 
-    // LandingTaxOnStartLocation matches the flight's START location (LSZK) against
-    // the filter's ldg-location set even though the flight LANDED elsewhere (LSZF),
-    // and bills nrOfLdgsOnStartLocation (3), not nrOfLdgs; and is forced off when
-    // there are no landings on the start location.
     @Test
     void onStartLocationBillsStartLocationLandingsAndIsForcedOffWhenNone() {
-        // Include-list on the START location: a plain LandingTax would not match
-        // (flight landed at LSZF), only the start-substituted pass does.
         RuleFilterInput filter = landingTaxFilter(new MatchList(false, List.of("LSZK")));
 
         var billed = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());

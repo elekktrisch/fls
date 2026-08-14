@@ -32,26 +32,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code GET /api/v1/me/system-dashboard} (J-3 T-10) — the
- * sysadmin dashboard variant's cross-tenant tile counts (consumed by T-11).
- *
- * <p>Deliberately the OPPOSITE of {@code ClubDashboardControllerIT}: the
- * totals must span ALL clubs, never the caller's tenant. The shared
- * Testcontainers DB already carries rows from sibling ITs, so the assertions
- * are <strong>floor-based</strong> (per the T-03c isolation lesson): seed a
- * known two-club delta and assert the totals are at least that — and, for the
- * cross-tenant proof, strictly larger than club A's own slice alone.
- *
- * <ul>
- *   <li><b>cross-tenant</b> — a club-A sysadmin's totals include club B's
- *       flights/users (the count is not scoped to the caller's tenant);</li>
- *   <li><b>authz</b> — SYSTEM_ADMINISTRATOR required (a club-admin / pilot is
- *       rejected 403);</li>
- *   <li><b>tenant-less principal</b> — a sysadmin JWT with NO {@code clubId}
- *       claim (the real shape per the J-2 audit work) can still call it.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -69,7 +49,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
 
-    // Distinct from the other flight ITs so a shared JVM run doesn't collide.
     private UUID clubA;
     private UUID clubB;
     private String aircraftAExternal;
@@ -89,9 +68,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     @Test
     void totals_span_all_clubs_not_scoped_to_caller() {
-        // Club A: 2 flights; Club B: 3 flights. A tenant-scoped count from
-        // club A's perspective would see only 2 — the sysadmin total must
-        // include club B's 3 as well.
         String adminA = adminToken(clubA);
         createFlight(adminA, aircraftAExternal);
         createFlight(adminA, aircraftAExternal);
@@ -101,7 +77,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         createFlight(adminB, aircraftBExternal);
         createFlight(adminB, aircraftBExternal);
 
-        // A user in each club (cross-tenant — no @TenantId on User).
         seedUser(clubA, "sdash-a");
         seedUser(clubB, "sdash-b1");
         seedUser(clubB, "sdash-b2");
@@ -114,8 +89,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("totalUsers").asLong())
                 .as("at least the three seeded users, spanning both clubs")
                 .isGreaterThanOrEqualTo(3L);
-        // The cross-tenant proof: 5 flights live across A (2) + B (3). A
-        // count scoped to club A would report 2; the total must include B's.
         assertThat(body.get("totalFlights").asLong())
                 .as("spans both clubs (A's 2 + B's 3), not just the caller's slice")
                 .isGreaterThanOrEqualTo(5L);
@@ -138,8 +111,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     @Test
     void tenant_less_sysadmin_principal_can_call_it() {
-        // A real SYSTEM_ADMINISTRATOR carries NO clubId claim (sysadmins are
-        // tenant-less per the J-2 audit work). The endpoint must still serve.
         ResponseEntity<String> res = rawGet(sysadminToken());
         assertThat(res.getStatusCode())
                 .as("a tenant-less sysadmin principal is served, not rejected")
@@ -150,7 +121,6 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         assertThat(body.has("totalFlights")).isTrue();
     }
 
-    /** Tenant-less sysadmin token — no {@code clubId} claim. */
     private String sysadminToken() {
         return jwts.mint(c -> c
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));

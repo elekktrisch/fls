@@ -32,22 +32,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-/**
- * The club-admin discovery-flight-day surface as an admin drives it, paired
- * with the anonymous picker the days feed: a published day has to reach BOTH
- * lists and a withdrawn one has to leave both, or the two surfaces disagree
- * about what the club offers.
- *
- * <p>Every cross-tenant case is seeded adversarially — club B publishes real
- * days while club A's admin reads and writes — so a missing {@code @TenantId}
- * scope fails here instead of passing over an empty neighbour. The withdrawal
- * case additionally asserts that B's day is still there afterwards: a 404 alone
- * would also be returned by a delete that succeeded and then reported badly.
- *
- * <p>The re-publish case is the one a naive full UNIQUE breaks: withdrawal is a
- * soft delete, and V58's partial index excludes withdrawn rows, so the date
- * must be offerable again.
- */
 @AutoConfigureMockMvc
 class DiscoveryFlightDayAdminIT extends PostgresIntegrationTest {
 
@@ -201,7 +185,6 @@ class DiscoveryFlightDayAdminIT extends PostgresIntegrationTest {
         assertThat(adminDays(clubA)).containsExactly(DAY);
     }
 
-    // ----- helpers -----
 
     private UUID publish(UUID clubId, LocalDate eventDate) throws Exception {
         String body = mvc.perform(post(ADMIN_PATH)

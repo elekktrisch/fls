@@ -43,32 +43,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-141b AC4 — plaintext-leak runtime smoke. Plants a 32-byte marker in
- * the bundle's manifest ({@code deploymentName}) — the marker rides
- * through the in-process gzip → tar → JSON pipeline before landing in
- * the {@code t_deployment.name} column via the provisioning service.
- *
- * <p>The IT asserts the marker does NOT appear in:
- * <ul>
- *   <li>{@code java.io.tmpdir} subtree — no app-level disk write
- *       (structurally enforced by {@code MigrationIngestNoDiskSinkTest},
- *       runtime-verified here against a future logging accident).</li>
- *   <li>{@code /var/tmp} subtree — same posture for the second canonical
- *       tmp location.</li>
- *   <li>The Logback ListAppender attached to the root logger — covers
- *       every log event the ingest pipeline emits while the bundle is
- *       in-flight.</li>
- * </ul>
- *
- * <p><strong>PGDATA grep deferral.</strong> The AC also called for a
- * container-side {@code grep $PGDATA} excluding {@code pg_wal/}; this IT
- * skips that step because a clean Postgres install legitimately holds the
- * marker in {@code base/} heap files (the destination column) and the
- * heap-vs-non-heap exclusion list is fragile across pg minor versions.
- * The structural no-disk-sink ArchUnit rule covers the in-app code path;
- * Postgres-internal disk storage of committed values is by design.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -156,10 +130,6 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
                 UUID.randomUUID(), "Aero Club Leak IT", testClubSlug, testClubKey, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
-        // The marker rides into deploymentName — encrypted on the wire,
-        // decrypted in-memory, parsed by the hardened Jackson mapper, then
-        // bound as a JDBC parameter into t_deployment.name. Anywhere outside
-        // that committed-row path is a leak.
         byte[] bundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, marker, club);
 
@@ -175,15 +145,12 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
                         res.getBody())
                 .isEqualTo(HttpStatus.OK);
 
-        // Confirm the marker DID land in t_deployment.name — the leak check
-        // is only meaningful if the marker actually flowed end-to-end.
         Integer deploymentHits = jdbc.queryForObject(
                 "SELECT count(*) FROM t_deployment WHERE name = ?", Integer.class, marker);
         assertThat(deploymentHits)
                 .as("marker must reach t_deployment.name for the smoke to be meaningful")
                 .isEqualTo(1);
 
-        // Log assertion — the single highest-risk leak channel.
         List<String> leakedLogLines = new ArrayList<>();
         for (ILoggingEvent event : logCapture.list) {
             String formatted = event.getFormattedMessage();
@@ -197,10 +164,6 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
                         + "would surface the bundle's plaintext into log storage")
                 .isEmpty();
 
-        // tmpdir + /var/tmp walk — defense in depth against an unforeseen
-        // disk-sink path the ArchUnit rule did not anticipate. Times out
-        // gracefully if either directory is huge; the cap keeps the IT
-        // bounded on a CI runner with a busy tmpfs.
         assertMarkerNotInTree(Paths.get(System.getProperty("java.io.tmpdir")), marker);
         assertMarkerNotInTree(Paths.get("/var/tmp"), marker);
     }
@@ -211,7 +174,7 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
         }
         byte[] markerBytes = marker.getBytes(StandardCharsets.UTF_8);
         List<Path> hits = new ArrayList<>();
-        long deadline = System.nanoTime() + 5_000_000_000L; // 5-second wall cap
+        long deadline = System.nanoTime() + 5_000_000_000L;
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
@@ -228,7 +191,6 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
                         hits.add(file);
                     }
                 } catch (IOException ignored) {
-                    // Permission denied / vanished file — ignore.
                 }
                 return FileVisitResult.CONTINUE;
             }

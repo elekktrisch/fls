@@ -37,10 +37,6 @@ class DeliveryItemPipelineTest {
                 .crew(ONE_PILOT);
     }
 
-    // Each emitting filter is scoped to glider flights (the aircraft-kind facet is
-    // the one condition an "otherwise matches everything" filter must still set —
-    // an all-false-kind config matches no flight) and carries its own article so
-    // the lines stay distinct + their order is visible.
     private static RuleFilterInput lineFilter(String article, AccountingUnitType unit) {
         return new RuleFilterInput(UUID.randomUUID(), null, article, unit, kindScoped(true, false));
     }
@@ -73,8 +69,6 @@ class DeliveryItemPipelineTest {
     void emitsLinesInLegacyStageOrder() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        // One matching filter of every emitting type (min=0 windows bill the whole
-        // remainder in one pass so each loop emits exactly one line).
         PIPELINE.run(acc, glider().build(), allOneEach(), 1800, 1200, null);
 
         assertThat(acc.deliveryItems())
@@ -89,10 +83,6 @@ class DeliveryItemPipelineTest {
     void towLinesAppendBeforeGliderFuelStartLandingVsfSharingTheAccumulator() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        // The tow shares the SAME filter buckets — its TOW-kind filters carry their
-        // own articles so they don't coalesce with the glider's lines; only the
-        // glider matches the GLIDER-kind FlightTime/Instructor filters and only the
-        // tow matches the TOW-kind ones.
         RuleFilters filters = new RuleFilters(
                 List.of(),
                 List.of(gliderKind("FT_G"), towKind("FT_T")),
@@ -106,10 +96,6 @@ class DeliveryItemPipelineTest {
         PIPELINE.run(acc, glider().instructorDisplayName("Hans").build(), filters, 1800, 0,
                 new TowInput(tow().instructorDisplayName("Fritz").build(), 600, 0));
 
-        // glider FlightTime + glider Instructor, THEN the entire tow pipeline
-        // (tow FlightTime + tow Instructor), THEN the glider's Fuel/StartTax/Landing
-        // — the tow lines slot in BEFORE the glider's remaining lines, continuing the
-        // shared accumulator's position numbering.
         assertThat(acc.deliveryItems())
                 .extracting(DeliveryItemDetails::articleNumber)
                 .containsExactly("FT_G", "INSTR_G", "FT_T", "INSTR_T", "FUEL_G", "START_G", "LDG_G");
@@ -122,9 +108,6 @@ class DeliveryItemPipelineTest {
     void towRecursionIsOneLevelOnly() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        // The recursive call passes tow=null, so a TOW-kind filter that matches the
-        // tow flight emits its line exactly ONCE — the tow is never re-recursed into
-        // (the legacy "the tow has no tow" guarantee, here structural not data-driven).
         RuleFilters filters = buckets(
                 List.of(towKind("FT_T")),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
@@ -137,12 +120,6 @@ class DeliveryItemPipelineTest {
                 .containsExactly("FT_T");
     }
 
-    // One credit whose immat CSV lists both flights matches the glider AND the tow
-    // pass, so each draws on the same credit and the consumption must SUM — under
-    // overwrite the second pass would silently erase the first (the legacy
-    // under-consume bug, RuleBasedDeliveryDetails#recordCreditConsumption). The two
-    // passes carry DISTINCT articles because a same-article second pass coalesces
-    // into the existing line and skips the credit branch (FlightTimeStage#apply).
     @Test
     void gliderAndTowSharingOneCreditSumBothPassesOntoIt() throws Exception {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -164,9 +141,6 @@ class DeliveryItemPipelineTest {
                 });
     }
 
-    // A SEC-unit, min=0 FlightTime filter scoped to one aircraft kind, so the credit
-    // covers the whole active duration each pass and the recorded consumption equals
-    // each flight's full duration (1800 glider + 600 tow).
     private static RuleFilterInput creditTier(String article, boolean glider, boolean towing) {
         FilterConfig base = FilterConfig.empty();
         FilterConfig config = new FilterConfig(
@@ -192,14 +166,12 @@ class DeliveryItemPipelineTest {
         return credit;
     }
 
-    // A FlightTime/Instructor filter scoped to GLIDER flights only.
     private static RuleFilterInput gliderKind(String article) {
         return new RuleFilterInput(
                 UUID.randomUUID(), null, article, AccountingUnitType.MIN,
                 kindScoped(true, false));
     }
 
-    // A FlightTime/Instructor filter scoped to TOWING flights only.
     private static RuleFilterInput towKind(String article) {
         return new RuleFilterInput(
                 UUID.randomUUID(), null, article, AccountingUnitType.MIN,

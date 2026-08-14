@@ -38,11 +38,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-141 happy-path walking-skeleton integration test. Round-trips a
- * minimal encrypted bundle (manifest only, 1 Club, no NDJSON entries)
- * through the full pipeline and verifies the DB + audit + funnel state.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -71,11 +66,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     void seedUser() {
         userSub = UUID.randomUUID();
         userId = UUID.randomUUID();
-        // Per-test unique Club key + slug — t_club.club_key + t_club.slug
-        // are globally UNIQUE. Two MigrationBundleIngestIT methods running
-        // back-to-back in the same JVM would collide on a hardcoded literal.
-        // Club.key cap is 10 chars; use the leading 5 hex chars of userSub
-        // to keep `IT-<5hex>` inside the cap.
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "IT-" + tag;
         testClubSlug = "aero-it-" + tag;
@@ -92,10 +82,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 .subject(userSub.toString())
                 .claim("email_verified", true));
 
-        // Mockable Keycloak boundary — no real realm in this IT. The
-        // provision-on-migrate slice (J-0c T-02) calls
-        // provisionClubAdminIdentity per migrated Club; return a synthetic
-        // sub so the ingest pipeline completes without an upstream realm.
         Mockito.reset(directory);
         when(directory.provisionClubAdminIdentity(
                 any(UUID.class), anyString(), anyString(), anyString(), anyString()))
@@ -108,9 +94,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        // The provisioning side created a Deployment + Club + per-Club
-        // reference data (t_flight_type, t_member_state). Tear those down
-        // before the Club so the FKs don't block.
         String clubsByOwner =
                 "SELECT id FROM t_club WHERE deployment_id IN "
                         + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
@@ -126,12 +109,10 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
 
     @Test
     void happy_path_round_trips_a_walking_skeleton_bundle() throws Exception {
-        // 1. Mint a handshake row via the S-140 endpoint.
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
-        // 2. Build an encrypted bundle: manifest declares 1 Club, no NDJSON entries.
         UUID legacyClubId = UUID.randomUUID();
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
                 legacyClubId, "Aero Club IT", testClubSlug,
@@ -139,7 +120,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         byte[] bundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Aero Club IT Deployment", club);
 
-        // 3. POST the bundle.
         ResponseEntity<String> res = rest.exchange(
                 RequestEntity.post(URI.create("/api/v1/migrations/" + uploadId + "/bundle"))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + verifiedToken)
@@ -147,7 +127,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                         .body(bundle),
                 String.class);
 
-        // 4. Response carries the new Deployment + Club.
         assertThat(res.getStatusCode())
                 .as("Bundle ingest returned non-200; body=%s", res.getBody())
                 .isEqualTo(HttpStatus.OK);
@@ -157,7 +136,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
         assertThat(body.get("clubIds").size()).isEqualTo(1);
 
-        // 5. Upload row transitioned CONSUMED + private key wiped.
         Map<String, Object> upload = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext, consumed_at FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
@@ -165,7 +143,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         assertThat(upload.get("private_key_ciphertext")).isNull();
         assertThat(upload.get("consumed_at")).isNotNull();
 
-        // 6. Run row reached COMPLETED.
         Map<String, Object> run = jdbc.queryForMap(
                 "SELECT state, deployment_id, error_code FROM t_migration_run WHERE upload_id = ?::uuid",
                 uploadId.toString());
@@ -173,7 +150,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         assertThat(UUID.fromString(run.get("deployment_id").toString())).isEqualTo(deploymentId);
         assertThat(run.get("error_code")).isNull();
 
-        // 7. Deployment + Club rows landed.
         Map<String, Object> deployment = jdbc.queryForMap(
                 "SELECT name, lifecycle_state, owner_keycloak_sub FROM t_deployment WHERE id = ?::uuid",
                 deploymentId.toString());
@@ -185,7 +161,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 Integer.class, deploymentId.toString());
         assertThat(clubCount).isEqualTo(1);
 
-        // 8. Two ingest-audit rows: STARTED (inside txn) + COMPLETED (post-commit).
         Integer auditCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid "
                         + "AND action IN ('MIGRATION_INGEST_STARTED', 'MIGRATION_INGEST_COMPLETED')",
@@ -195,12 +170,10 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
 
     @Test
     void two_club_bundle_provisions_a_keycloak_club_admin_identity_per_club() throws Exception {
-        // 1. Handshake.
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
-        // 2. Two-Club bundle (the J-0c fan-out shape — two migrated clubs).
         String tagA = "a" + testClubSlug.substring(testClubSlug.length() - 4);
         String tagB = "b" + testClubSlug.substring(testClubSlug.length() - 4);
         BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
@@ -212,7 +185,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         byte[] bundle = MigrationBundleTestFactory.buildMultiClubSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Two Club Deployment", List.of(clubA, clubB));
 
-        // 3. Ingest.
         ResponseEntity<String> res = rest.exchange(
                 RequestEntity.post(URI.create("/api/v1/migrations/" + uploadId + "/bundle"))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + verifiedToken)
@@ -228,12 +200,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         UUID provisionedClubA = UUID.fromString(body.get("clubIds").get(0).asText());
         UUID provisionedClubB = UUID.fromString(body.get("clubIds").get(1).asText());
 
-        // 4. One Keycloak club-admin identity per PROVISIONED Club, keyed
-        // off the provisioned (not legacy) club UUID — so a real login
-        // carrying that clubId claim lands in the right tenant. The
-        // firstName/lastName are non-blank (J-1 T-06) so the migrated admin
-        // clears Keycloak's VERIFY_PROFILE on first login without the
-        // (removed) e2e name fixup.
         verify(directory, times(2)).provisionClubAdminIdentity(
                 any(UUID.class), anyString(), anyString(), anyString(), anyString());
         verify(directory).provisionClubAdminIdentity(
@@ -285,7 +251,6 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         JsonNode body = JSON.readTree(res.getBody());
         assertThat(body.get("errorCode").asText()).isEqualTo("BUNDLE_FORBIDDEN");
 
-        // Cleanup
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id = ?::uuid", uploadId.toString());
         jdbc.update("DELETE FROM t_mutation_audit_event WHERE actor_keycloak_sub = ?", otherUserSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", otherUserId.toString());

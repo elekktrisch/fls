@@ -40,34 +40,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-0 T-02 — the {@code Location} migrate-link proof: a legacy→export→ingest
- * round-trip exercised against the REAL server ingest pipeline (so T-02a's
- * {@link ch.alpenflight.migrations.application.ReferenceLookupResolver} and the
- * fan-out keying both run live, not the parity-set {@code ConsumerHarness}
- * stand-in, which never invokes the reference-lookup resolver).
- *
- * <p>The Location NDJSON is shaped EXACTLY as {@code LocationMapper.writeNdjson}
- * emits it over the {@code MapperLegacyBindings.LOCATION} producer SELECT
- * (T-02c): {@code legacy_guid} = the legacy {@code LocationId}, {@code club_id}
- * = the fan-out partner Club, the three lookup FKs as the synthetic
- * {@code new UUID(0, legacyIntId)} encoding. The child InOutboundPoint NDJSON
- * mirrors {@code InOutboundPointMapper.writeNdjson}.
- *
- * <p>Asserts the three load-bearing migration invariants J-0 exists to prove:
- * <ul>
- *   <li><strong>(a) Fan-out.</strong> One shared legacy Location referenced by
- *       N clubs lands as N {@code t_location} rows, one per club, distinct ids,
- *       keyed {@code (legacy_guid, club_id)}.</li>
- *   <li><strong>(b) Reference-FK resolve (T-02a).</strong> Each row's
- *       {@code location_type_id} / {@code elevation_unit_type_id} /
- *       {@code runway_length_unit_type_id} equals the REAL V3/V22 seed PK, not
- *       the synthetic {@code 00000000-…} UUID.</li>
- *   <li><strong>(c) Child nesting (T-02b).</strong> InOutboundPoint rows land
- *       attached to the correct fanned-out parent Location, inheriting
- *       tenancy.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -81,11 +53,10 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
-    // Real Flyway-seed PKs the reference-lookup resolver must land on.
-    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;     // GRASS_RUNWAY (V3)
+    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final UUID SEED_LOCATION_TYPE_GRASS =
             UUID.fromString("019e2e15-2c00-72c9-8000-0000000032c9");
-    private static final int LEGACY_UNIT_FEET = 2;               // FEET (V22 backfill)
+    private static final int LEGACY_UNIT_FEET = 2;
     private static final UUID SEED_ELEVATION_UNIT_FEET =
             UUID.fromString("019e2e15-2c00-7771-8000-000000001771");
     private static final UUID SEED_LENGTH_UNIT_FEET =
@@ -115,9 +86,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "LOC-" + tag;
         testClubSlug = "loc-" + tag;
-        // The migration principal must resolve to a real t_user (JIT first-login
-        // filter, S-169); seed one under the canonical dev-seed club, same as
-        // MigrationBundleParityRoundTripIT.
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -147,9 +115,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        // Provisioning seeds per-club masterdata (t_flight_type.operating_club_id,
-        // t_member_state.club_id); tear those down before the Club delete so their
-        // FKs don't block it (mirrors MigrationBundleParityRoundTripIT.cleanup).
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
         jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
@@ -177,9 +142,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                 legacyClubIdB, "Loc Club B", testClubSlug + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // The shared legacy Location (referenced by BOTH clubs) + one child IOP
-        // per fan-out club (each child carries its OWN legacy club_id so the
-        // composite (legacy_guid, club_id) FK lookup can pick the right replica).
         UUID sharedLocationId = UUID.randomUUID();
         UUID childIopIdA = UUID.randomUUID();
         UUID childIopIdB = UUID.randomUUID();
@@ -199,29 +161,14 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("CLUB.ndjson", concat(
                 clubNdjson(legacyClubIdA, keyA, "Loc Club A Legacy", "Addr A"),
                 clubNdjson(legacyClubIdB, keyB, "Loc Club B Legacy", "Addr B")));
-        // Fan-out: the SAME legacy Location, one NDJSON row per referencing Club
-        // — legacy_guid identical, club_id distinct (exactly what the LOCATION
-        // producer SELECT emits when Clubs.HomebaseId references it from 2 clubs).
         tarEntries.put("LOCATION.ndjson", concat(
                 locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, "LSZH"),
                 locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, "LSZH")));
-        // Composite (legacy_guid, club_id, new_uuid) id-map for the fanned-out
-        // LOCATION — ordered BEFORE INOUTBOUND_POINT.ndjson so the temp table
-        // legacy_id_map_location is populated when the child's club-aware FK
-        // resolve runs (one row per fanned-out replica, keyed on the LEGACY
-        // club id; new_uuid = the same derived replica id the NDJSON carries).
-        // Without it the composite lookup fails closed and the child FK resolve
-        // throws BUNDLE_CROSS_TENANT_FK_LEAK.
         tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(sharedLocationId, legacyClubIdA,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdA)),
                 new FanOutMapRow(sharedLocationId, legacyClubIdB,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdB))));
-        // Fan-out: one child waypoint per referencing Club. Each child carries
-        // its OWN legacy club_id (= the producer fans the child out too, one row
-        // per (legacy IOP, legacy club)) so the club-aware FK resolution keys the
-        // composite (location_id=legacy LocationId, club_id=child's own club)
-        // lookup onto the parent replica in the SAME club — not an arbitrary one.
         tarEntries.put("INOUTBOUND_POINT.ndjson", concat(
                 inoutboundPointNdjson(childIopIdA, sharedLocationId, legacyClubIdA),
                 inoutboundPointNdjson(childIopIdB, sharedLocationId, legacyClubIdB)));
@@ -241,7 +188,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID newClubA = clubIdByKey.get(keyA);
         UUID newClubB = clubIdByKey.get(keyB);
 
-        // (a) Fan-out — the shared legacy Location produced one row per club.
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, club_id, location_type_id, elevation_unit_type_id, "
                         + "runway_length_unit_type_id FROM t_location "
@@ -258,7 +204,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "(legacy_guid, club_id) -> new_id)")
                 .isEqualTo(2L);
 
-        // (b) Reference-FK resolve (T-02a) — synthetic UUID rewritten to the real seed PK.
         for (Map<String, Object> r : rows) {
             assertThat(UUID.fromString(r.get("location_type_id").toString()))
                     .as("location_type_id must resolve to the real V3 seed PK, not the synthetic")
@@ -271,8 +216,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                     .isEqualTo(SEED_LENGTH_UNIT_FEET);
         }
 
-        // The fanned-out replica id in each club (club-aware FK resolution must
-        // pick THESE, keyed (legacy_guid, club_id) — not an arbitrary replica).
         Map<String, UUID> replicaIdByClub = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) {
             replicaIdByClub.put(r.get("club_id").toString(),
@@ -281,10 +224,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID replicaInClubA = replicaIdByClub.get(newClubA.toString());
         UUID replicaInClubB = replicaIdByClub.get(newClubB.toString());
 
-        // (c) Child nesting (T-02b) + club-aware FK resolution (key-behavior).
-        // Each fanned-out child resolves to the parent replica in ITS OWN club:
-        // the club-A child → club A's replica id, the club-B child → club B's —
-        // NOT "one of" the replicas (the shared legacy GUID does not disambiguate).
         List<Map<String, Object>> iops = jdbc.queryForList(
                 "SELECT iop.id, iop.location_id, loc.club_id "
                         + "FROM t_inoutbound_point iop "
@@ -350,19 +289,9 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /**
-     * NDJSON shaped exactly as {@code LocationMapper.writeNdjson}: legacy_guid =
-     * the legacy LocationId (identical across fan-out replicas), club_id = the
-     * fan-out partner Club, the three lookup FKs as the synthetic
-     * {@code new UUID(0, legacyIntId)} encoding the resolver decodes.
-     */
     private byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
                                   UUID countryId, String icao) throws IOException {
         var row = JSON.createObjectNode();
-        // Fan-out: the wire carries BOTH the derived per-replica id AND the
-        // shared legacy_guid as separate destination columns (the de-alias).
-        // The id is derived with the SAME helper the producer uses, keyed on
-        // the LEGACY club id, so it matches the composite id-map row below.
         row.put("id", Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
         row.put("legacy_guid", legacyLocationId.toString());
         row.put("club_id", legacyClubId.toString());
@@ -397,22 +326,9 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /**
-     * NDJSON shaped exactly as {@code InOutboundPointMapper.writeNdjson} after the
-     * J-0b fan-out: the child carries its OWN legacy {@code club_id} on the wire
-     * (the producer fans the child out, one row per (legacy IOP, legacy club)) so
-     * the composite {@code (location_id, club_id)} FK lookup can disambiguate which
-     * fanned-out parent replica this child belongs to — the shared legacy
-     * {@code location_id} GUID alone cannot.
-     */
     private byte[] inoutboundPointNdjson(UUID legacyIopId, UUID legacyLocationId,
                                          UUID legacyClubId) throws IOException {
         var row = JSON.createObjectNode();
-        // Fan-out child: distinct derived id per replica (else the 2 replicas
-        // PK-collide on t_inoutbound_point.id), keyed on the child's OWN legacy
-        // club — same helper the producer uses. legacy_guid stays the shared
-        // legacy IOP id; club_id is the resolver-only wire field (= the child's
-        // own legacy club) T-07 keys the composite (location_id, club_id) lookup on.
         row.put("id", Coercions.deriveFanOutId(legacyIopId, legacyClubId).toString());
         row.put("legacy_guid", legacyIopId.toString());
         row.put("location_id", legacyLocationId.toString());
@@ -460,16 +376,8 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return sink.toByteArray();
     }
 
-    /** One composite (legacy_guid, club_id, new_uuid) id-map row for a fan-out entity. */
     private record FanOutMapRow(UUID legacyGuid, UUID legacyClubId, UUID newUuid) { }
 
-    /**
-     * 3-column sibling of {@link #pgcopyMap}: emits the composite
-     * {@code (legacy_guid, club_id, new_uuid)} id-map a fan-out entity
-     * ({@link EntityType#fansOut()}) needs so the ingest-side composite
-     * {@code legacy_id_map_<entity>} temp table is populated and the
-     * club-aware FK resolve can pick the right replica.
-     */
     private static byte[] pgcopyMapFanOut(FanOutMapRow... mapRows) throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {

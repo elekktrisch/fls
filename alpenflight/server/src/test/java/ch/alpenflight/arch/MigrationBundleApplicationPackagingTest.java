@@ -7,16 +7,6 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
-/**
- * S-141b structural isolation. The orchestrator's helpers —
- * {@code BundleStreamReader} + {@code EntityStreamIngestor} — are
- * deliberately package-private so a future cron / batch / web layer
- * cannot wire them past the orchestrator's principal-owns-upload check.
- * If a future change ever needs cross-package access, the operator
- * should bring the call through {@code MigrationBundleIngestService} or
- * introduce a new public façade in {@code application/} — never make
- * these two classes public.
- */
 @AnalyzeClasses(
         packages = "ch.alpenflight.migrations.application",
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})

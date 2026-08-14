@@ -24,11 +24,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Full-stack HTTP integration test for the LocationType reference-data read
- * surface. Exercises the seeded V3 data (6 location-type rows) through the
- * production {@code SecurityFilterChain} via {@link JwtTestFixture}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)

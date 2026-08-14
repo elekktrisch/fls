@@ -55,15 +55,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the J-7 T-05 flight-reports page endpoint
- * ({@code POST /api/v1/flightreports/page/{start}/{size}}). Proves the web-layer
- * wire contract: a happy page query returns items + summaries; tenant isolation
- * (a club-A caller filtering by a club-B location never sees club-B rows — the
- * J-7 tenancy-hole correction); and a PILOT-role caller can read (the J-3
- * PILOT-403 authz lesson). The grouping/formula parity is proven at the
- * service layer ({@code FlightReportQueryServiceIT}); this stays at the wire.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -71,7 +62,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** {@code t_start_type} WINCH_LAUNCH id (V2 seed) → legacy AircraftStartType.WinchLaunch int 2. */
     private static final UUID WINCH_LAUNCH_START_TYPE =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
 
@@ -90,14 +80,10 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
     private UUID clubA;
     private UUID clubB;
 
-    /** Club each seeded flight lives under — lets {@link #seedCrew} re-load it via the tenant-scoped repository. */
     private final Map<UUID, UUID> flightClubs = new HashMap<>();
 
     @BeforeEach
     void cleanAndSeedClubs() {
-        // Shared Testcontainers DB — TwoClubFixture pre-cleans this IT's tenant
-        // rows from prior runs (ADR 0021 pre-clean, FK-ordered) and re-inserts
-        // the two clubs.
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, "IT_FRC_", "IT_FRC");
         fixture.seed();
@@ -119,7 +105,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
 
         String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
-        // Person-filtered → the summary person-branch populates.
         Map<String, Object> body = Map.of("searchFilter", Map.of(
                 "flightDateFrom", "2026-05-01",
                 "flightDateTo", "2026-05-31",
@@ -137,7 +122,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
         JsonNode summaries = page.get("summaries");
         assertThat(summaries.isArray()).isTrue();
-        // Person branch: at least Pilot (Glider) + Total.
         assertThat(summaries.size()).isGreaterThanOrEqualTo(2);
         assertThat(summary(summaries, "Total").get("totalFlights").asInt()).isEqualTo(1);
     }
@@ -152,10 +136,8 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
-        // Club A flight at locationA.
         seedFlight(clubA, aircraftA, LocalDate.of(2026, 5, 15), start, ldg,
                 locationA, locationA, ftA);
-        // Club B flight that ALSO references locationA (cross-club filter target).
         seedFlight(clubB, aircraftB, LocalDate.of(2026, 5, 15), start, ldg,
                 locationA, locationA, ftB);
 
@@ -168,7 +150,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode page = readJson(res);
-        // Only club A's flight — the legacy tenancy hole would have leaked B's.
         assertThat(page.get("totalRows").asLong()).isEqualTo(1);
         assertThat(page.get("items")).hasSize(1);
     }
@@ -183,7 +164,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         seedFlight(clubA, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
                 location, location, flightType);
 
-        // A low-privilege PILOT principal (the J-3 PILOT-403 lesson) must read.
         String token = mintToken(clubA, "PILOT");
         ResponseEntity<String> res = post("/api/v1/flightreports/page/0/100",
                 Map.of(), token);
@@ -199,8 +179,7 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         UUID pilot = seedPerson("Tester", "Anna");
 
         Instant start = Instant.parse("2026-05-15T08:05:00Z");
-        Instant ldg = Instant.parse("2026-05-15T09:35:00Z"); // 1h30m duration
-        // WINCH_LAUNCH start type → legacy AircraftStartType.WinchLaunch int 2 (the StartType-int parity contract).
+        Instant ldg = Instant.parse("2026-05-15T09:35:00Z");
         UUID flight = seedFlightWithStartType(clubA, aircraft, LocalDate.of(2026, 5, 15),
                 start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE);
         seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
@@ -227,48 +206,34 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
             Sheet sheet = wb.getSheet("Flights");
             assertThat(sheet).as("sheet named Flights").isNotNull();
 
-            // Metadata: A1 = "Flights", A3 = "Excel Erstellt:", C3 timestamp format.
             assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Flights");
             assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("Excel Erstellt:");
             Cell c3 = sheet.getRow(2).getCell(2);
             assertThat(c3.getCellStyle().getDataFormatString()).isEqualTo("dd.mm.yyyy HH:MM:ss");
 
-            // Header = row 5 (index 4); preserved typo + skipped col 17.
             Row header = sheet.getRow(4);
             assertThat(header.getCell(0).getStringCellValue()).isEqualTo("Flight ID");
             assertThat(header.getCell(9).getStringCellValue()).isEqualTo("StartTime UTC");
-            assertThat(header.getCell(10).getStringCellValue()).isEqualTo("LdgTime UCT"); // typo preserved
+            assertThat(header.getCell(10).getStringCellValue()).isEqualTo("LdgTime UCT");
             assertThat(header.getCell(12).getStringCellValue()).isEqualTo("IsSoloFlight");
             assertThat(header.getCell(13).getStringCellValue()).isEqualTo("StartType");
-            // Column 17 (index 16) intentionally blank.
             Cell skipped = header.getCell(16);
             assertThat(skipped == null || skipped.getStringCellValue().isEmpty())
                     .as("column 17 header is blank").isTrue();
             assertThat(header.getCell(17).getStringCellValue()).isEqualTo("FlightComment");
 
-            // Data row = row 6 (index 5): key cells + number formats.
             Row data = sheet.getRow(5);
-            assertThat(data.getCell(2).getStringCellValue()).startsWith("HB-"); // Immatriculation
-            assertThat(data.getCell(3).getStringCellValue()).isEqualTo("Tester Anna"); // PilotName
-            assertThat(data.getCell(9).getCellStyle().getDataFormatString()).isEqualTo("HH:MM"); // StartTime
-            assertThat(data.getCell(10).getCellStyle().getDataFormatString()).isEqualTo("HH:MM"); // LdgTime
-            assertThat(data.getCell(11).getCellStyle().getDataFormatString()).isEqualTo("[H]:MM"); // Duration
-            assertThat((int) data.getCell(12).getNumericCellValue()).isEqualTo(0); // IsSoloFlight 0
-            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(2); // StartType WINCH=2 (legacy AircraftStartType.WinchLaunch)
+            assertThat(data.getCell(2).getStringCellValue()).startsWith("HB-");
+            assertThat(data.getCell(3).getStringCellValue()).isEqualTo("Tester Anna");
+            assertThat(data.getCell(9).getCellStyle().getDataFormatString()).isEqualTo("HH:MM");
+            assertThat(data.getCell(10).getCellStyle().getDataFormatString()).isEqualTo("HH:MM");
+            assertThat(data.getCell(11).getCellStyle().getDataFormatString()).isEqualTo("[H]:MM");
+            assertThat((int) data.getCell(12).getNumericCellValue()).isEqualTo(0);
+            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(2);
         }
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + their
-    // repositories (J-7 review rider: no JDBC writes in tests). Tenant-scoped
-    // saves run under TenantTestContext.runAs so Hibernate's @TenantId
-    // resolver stamps the club, exactly as in production. Read-only JDBC
-    // remains for reference-data id lookups, matching the testsupport sweep
-    // factories. No reflection needed: every seeded attribute is reachable
-    // through a production factory or method.
 
-    /** {@code t_flight_crew_type} PilotOrStudent id (legacy fixed seed). */
     private static final UUID FlightCrewTypeIds_PILOT =
             ch.alpenflight.flights.domain.FlightCrewTypeIds.PILOT_OR_STUDENT;
 
@@ -291,8 +256,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         UUID acType = jdbc.queryForObject("SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
         String immatriculation = "HB-"
                 + UUID.randomUUID().toString().substring(0, 6).toUpperCase(Locale.ROOT);
-        // Aircraft is cross-tenant (managing_club_id is an explicit factory arg,
-        // no @TenantId) — no tenant scope needed for the save.
         Aircraft aircraft = Aircraft.register(managingClubId, managingClubId, acType,
                 immatriculation, null, null, null, null, null, null, null, null, null, 2,
                 null, null, null, null, null, false, false, false, false, null, null);
@@ -319,7 +282,6 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
     }
 
     private UUID seedPerson(String lastname, String firstname) {
-        // Person is cross-tenant (sacred cow) — saved outside any tenant scope.
         return persons.save(Person.register(firstname, lastname, null)).getId().value();
     }
 

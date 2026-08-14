@@ -11,7 +11,6 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
-/** Unit tests for the {@link JoinRequest} lifecycle FSM (ADR 0022 §2). */
 class JoinRequestStateMachineTest {
 
     private static final Instant SUBMIT_AT = Instant.parse("2026-06-23T10:00:00Z");

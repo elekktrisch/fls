@@ -9,64 +9,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
-/**
- * DB-fixture seeder for the clean-seed half of the deliveries WRITE-side parity
- * spec. The spec mints the engine-consumable inputs (masterdata, flights, the
- * pilot's {@link ch.alpenflight.accounting.domain.PersonFlightTimeCredit}) over
- * the real REST APIs, then drives the create / book / delete write paths through
- * the real chain. The few input STATES no REST surface can set are materialized
- * here against the live dev Postgres, exactly as those rows look in production:
- *
- * <ul>
- *   <li>a flight flipped to {@code Locked} ({@link
- *       ch.alpenflight.flights.domain.FlightProcessState#LOCKED}) and back-dated
- *       so {@code created_on <= today - 4d} clears the create eligibility window —
- *       the create REST surface only consumes such flights, it cannot produce
- *       one;</li>
- *   <li>a {@code tow_flight_id} link between a glider and its tow flight (the
- *       glider+tow shared-credit discriminator — both passes draw on one credit,
- *       which the create path must SUM, not under-consume);</li>
- *   <li>a minimal deterministic active {@code FlightTime} AccountingRuleFilter
- *       (glider-scoped, {@code min=0} bills the whole duration as one line) — a
- *       KNOWN filter producing exactly one predictable item, never the club's
- *       production rules;</li>
- *   <li>a pre-built {@code Prepared} Delivery + items + article on a flight (the
- *       create path makes only ONE delivery per flight, so the {@code >1-delivery}
- *       delete-guard fixture is seeded directly);</li>
- *   <li>a Delivery under a DIFFERENT club (the cross-tenant write probe).</li>
- * </ul>
- *
- * <p>The write endpoints + the {@code @TenantId} scope + the credit reversal still
- * run fully real off these rows — the seed is fixture STATE, not a mocked seam.
- *
- * <p>Subcommands (positional args; {@code flightId} is the RAW uuid — strip the
- * {@code fl-} external prefix). Connects via {@code DATASOURCE_URL/USER/PASSWORD}.
- * Each prints one JSON result line on stdout for the spec's assertions + cleanup:
- *
- * <pre>
- *   lock-and-age &lt;flightId&gt; [agedDays]
- *       Flip the flight to Locked + set created_on = now - agedDays (default 4).
- *       =&gt; {"flightId":"…","processState":"LOCKED"}
- *
- *   link-tow &lt;gliderFlightId&gt; &lt;towFlightId&gt;
- *       Set the glider's tow_flight_id (the shared-credit discriminator).
- *       =&gt; {"gliderFlightId":"…","towFlightId":"…"}
- *
- *   rule-filter &lt;clubId&gt; &lt;articleNumber&gt;
- *       Seed a minimal deterministic active FlightTime filter emitting one line on
- *       articleNumber. Idempotent on (club, name). =&gt; {"filterId":"…"}
- *
- *   delivery &lt;clubId&gt; &lt;flightId|-&gt; &lt;recipientLastName&gt; &lt;batchId&gt;
- *       Seed one Prepared Delivery (+3 items +article) under the club, optionally
- *       linked to a flight ({@code -} = unlinked). =&gt; {"deliveryId":"…","articleNumber":"…"}
- *
- *   delete-delivery &lt;deliveryId&gt;
- *       Remove a seeded Delivery + its items (retry pre-clean / afterAll cleanup).
- *
- *   delete-filter &lt;filterId&gt;
- *       Remove a seeded rule filter.
- * </pre>
- */
 public final class DeliveryWriteFixtureSeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -116,7 +58,6 @@ public final class DeliveryWriteFixtureSeeder {
         System.exit(2);
     }
 
-    /** Flip the flight to Locked + back-date created_on past the eligibility cutoff. */
     private static void lockAndAge(UUID flightId, int agedDays) throws Exception {
         OffsetDateTime aged = OffsetDateTime.now(ZoneOffset.UTC).minusDays(agedDays);
         try (Connection conn = connect()) {
@@ -136,12 +77,6 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /**
-     * Set the flight to {@code DeliveryPrepared} — the fixture state a pre-seeded
-     * Prepared delivery's flight must carry so the booking write (Prepared→Booked)
-     * is a legal transition (the booking + booked-terminal cases that seed the
-     * delivery directly rather than via the engine create).
-     */
     private static void prepareFlight(UUID flightId) throws Exception {
         try (Connection conn = connect()) {
             try (PreparedStatement ps = conn.prepareStatement(
@@ -159,12 +94,6 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /**
-     * Reset a spec-created flight back to {@code VALID} + clear its tow link — the
-     * afterAll cleanup, so a spec-created flight never lingers in a Locked/Prepared
-     * state where the next tenant-wide create batch would re-process it (a linked
-     * Locked pair would double-prep → illegal transition).
-     */
     private static void resetFlight(UUID flightId) throws Exception {
         try (Connection conn = connect()) {
             try (PreparedStatement ps = conn.prepareStatement(
@@ -182,7 +111,6 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /** Link the glider flight to its tow (the glider+tow shared-credit discriminator). */
     private static void linkTow(UUID gliderFlightId, UUID towFlightId) throws Exception {
         try (Connection conn = connect()) {
             try (PreparedStatement ps = conn.prepareStatement(
@@ -200,28 +128,13 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    /**
-     * Seed a minimal deterministic active FlightTime filter — glider-scoped, no
-     * threshold, emitting one line on {@code articleNumber}. A KNOWN filter the
-     * create path's engine resolves to exactly one predictable DeliveryItem.
-     * Idempotent on (club, rule-filter name): a re-run reuses the row.
-     */
     private static void ruleFilter(UUID clubId, String articleNumber) throws Exception {
         String filterName = "Delivery write fixture FlightTime " + articleNumber;
         UUID filterId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        // The article number is the rule's article_target column (a bare string, no
-        // FK); deliveryLineText is the only target-text that travels in filter_config.
-        // filter_config carries ONLY FilterConfig component names — an unknown key
-        // (e.g. articleNumber) fails the engine's FAIL_ON_UNKNOWN_PROPERTIES read.
-        // isRuleForGliderFlights + an empty FlightTime threshold (min absent ⇒ 0)
-        // bills the whole active duration as one line on the article target.
         String filterConfig = "{\"isRuleForGliderFlights\":true,\"deliveryLineText\":\"Flight time\"}";
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
-            // The engine resolves the rule's article_target to a live Article; an
-            // unresolvable number is a DeliveryPreparationError on the create path,
-            // so the fixture article must exist alongside the filter.
             upsertArticle(conn, clubId, articleNumber, now);
             UUID resolved = resolveFilterId(conn, clubId, filterName);
             if (resolved == null) {
@@ -252,11 +165,6 @@ public final class DeliveryWriteFixtureSeeder {
         }
     }
 
-    /**
-     * Seed one Prepared Delivery (+3 engine-shaped items +article) under the club,
-     * optionally linked to a flight. Two such on one flight is the {@code >1-delivery}
-     * delete-guard fixture; one under another club is the cross-tenant probe.
-     */
     private static void delivery(UUID clubId, UUID flightId, String recipientLastName, long batchId)
             throws Exception {
         UUID deliveryId = UUID.randomUUID();
@@ -375,7 +283,6 @@ public final class DeliveryWriteFixtureSeeder {
         }
     }
 
-    // ux_arf_club_sort_partial forbids two live filters on the same (club, sort).
     private static int nextSortIndicator(Connection conn, UUID clubId) throws Exception {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT COALESCE(MAX(sort_indicator), -1) + 1 FROM t_accounting_rule_filter "

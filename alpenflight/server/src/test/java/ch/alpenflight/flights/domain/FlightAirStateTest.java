@@ -14,15 +14,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * Table-driven oracle for {@link Flight#airState()}. The table is the parity
- * oracle, hand-transcribed from legacy {@code Flight.cs:175-206} with row-
- * level line citations.
- *
- * <p>Sacred-cow rule: air-state is computed, never stored — every row exercises
- * the pure function over (ldgDateTime, startDateTime, noLdgTimeInformation,
- * noStartTimeInformation, flightPlanOpenedOn).
- */
 class FlightAirStateTest {
 
     private static final UUID AIRCRAFT = UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1");
@@ -34,7 +25,6 @@ class FlightAirStateTest {
 
     static Stream<Arguments> airStateTable() {
         return Stream.of(
-                // ldg set wins over every flag — Flight.cs:177-180.
                 Arguments.of("landed_plain",
                         T_LDG, T_START, false, false, null, FlightAirState.LANDED),
                 Arguments.of("landed_redundant_no_start_info",
@@ -45,25 +35,18 @@ class FlightAirStateTest {
                         T_LDG, T_START, false, false, T_PLAN, FlightAirState.LANDED),
                 Arguments.of("landed_without_start_asymmetric",
                         T_LDG, null, false, false, null, FlightAirState.LANDED),
-                // noLdg + start set — Flight.cs:182-188.
                 Arguments.of("might_be_landed_or_in_air",
                         null, T_START, true, false, null, FlightAirState.MIGHT_BE_LANDED_OR_IN_AIR),
-                // start set, no ldg, no noLdg — Flight.cs:190-193.
                 Arguments.of("started_plain",
                         null, T_START, false, false, null, FlightAirState.STARTED),
                 Arguments.of("started_redundant_no_start_info",
                         null, T_START, false, true, null, FlightAirState.STARTED),
-                // noStartTimeInformation, no start, no ldg — Flight.cs:195-198.
                 Arguments.of("might_be_started",
                         null, null, false, true, null, FlightAirState.MIGHT_BE_STARTED),
-                // flightPlanOpenedOn replaces legacy AirStateId == FlightPlanOpen — Flight.cs:200-203.
                 Arguments.of("flight_plan_open",
                         null, null, false, false, T_PLAN, FlightAirState.FLIGHT_PLAN_OPEN),
-                // Floor — Flight.cs:205.
                 Arguments.of("new_all_null",
                         null, null, false, false, null, FlightAirState.NEW),
-                // Fall-through: noLdg without startDateTime does NOT yield
-                // MIGHT_BE_LANDED_OR_IN_AIR; legacy guard at Flight.cs:184.
                 Arguments.of("no_ldg_info_without_start_falls_through",
                         null, null, true, false, null, FlightAirState.NEW),
                 Arguments.of("no_ldg_info_without_start_plan_open",
@@ -89,10 +72,6 @@ class FlightAirStateTest {
 
     @Test
     void flightPlanClosed_never_emitted_by_compute() throws Exception {
-        // Sweep every input combination over (ldgDateTime, startDateTime,
-        // noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
-        // legacy Flight.cs:175-206 never returns FLIGHT_PLAN_CLOSED — it is
-        // reachable only through process-state driven downstream operations.
         Instant[] tsValues = { null, T_LDG };
         Instant[] startValues = { null, T_START };
         Instant[] planValues = { null, T_PLAN };
@@ -119,7 +98,6 @@ class FlightAirStateTest {
 
     @Test
     void airState_enum_carries_legacy_codes() {
-        // Sanity: enum order + legacy codes match FlightAirState.cs (0,5,8,10,15,20,25).
         assertThat(Arrays.stream(FlightAirState.values()).map(FlightAirState::legacyCode))
                 .containsExactly((short) 0, (short) 5, (short) 8, (short) 10,
                         (short) 15, (short) 20, (short) 25);

@@ -26,14 +26,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code GET + PATCH /api/v1/me/person} — the caller-scoped
- * Person-contact self-edit (J-4 T-06 PATCH, T-18 GET). The endpoints take NO
- * {@code :id}: the Person being read / edited is resolved from the JWT
- * {@code sub} → the caller's {@code t_user} row → its {@code person_id}, so the
- * isolation tests below are the structural proof that a caller can only ever
- * read / mutate their own Person.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -59,7 +51,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
     void getPerson_returnsCallersOwnContactAndReadonlyNames() {
         UUID kcSub = UUID.randomUUID();
         UUID personId = seedPerson("Ada", "Lovelace", "M");
-        // Seed contact / address values directly on the row.
         jdbc.update("UPDATE t_person SET address_line1 = '12 Analytical Ave', zip = '8000', "
                         + "city = 'Zurich', region = 'ZH', private_phone = '+41 44 111 22 33', "
                         + "business_phone = '+41 44 999 88 77', email_private = 'ada@example.com', "
@@ -71,7 +62,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode body = parse(res.getBody());
-        // Editable contact / address fields are populated.
         assertThat(body.get("addressLine1").asText()).isEqualTo("12 Analytical Ave");
         assertThat(body.get("zip").asText()).isEqualTo("8000");
         assertThat(body.get("city").asText()).isEqualTo("Zurich");
@@ -81,7 +71,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("emailPrivate").asText()).isEqualTo("ada@example.com");
         assertThat(body.get("preferMailToBusinessMail").asBoolean()).isTrue();
         assertThat(body.get("birthday").asText()).isEqualTo("1815-12-10");
-        // Read-only name fields are present for display.
         assertThat(body.get("firstName").asText()).isEqualTo("Ada");
         assertThat(body.get("lastName").asText()).isEqualTo("Lovelace");
         assertThat(body.get("midName").asText()).isEqualTo("M");
@@ -89,9 +78,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
 
     @Test
     void getPerson_resolvesCallerFromJwt_neverReadsAnotherPrincipalsPerson() {
-        // Two principals, each with their own linked Person. The GET has no :id —
-        // the Person read is resolved from the caller's JWT sub via their user
-        // row, so principal A reads A's contact, never B's.
         UUID subA = UUID.randomUUID();
         UUID subB = UUID.randomUUID();
         UUID personA = seedPerson("Ada", "Lovelace", null);
@@ -102,7 +88,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         seedUser(subB, "meperson-it-get-other", personB);
 
         JsonNode body = parse(get("/api/v1/me/person", pilotToken(subA)).getBody());
-        // A reads A's own contact — B's is unreachable through this surface.
         assertThat(body.get("firstName").asText()).isEqualTo("Ada");
         assertThat(body.get("city").asText()).isEqualTo("A-City");
     }
@@ -136,7 +121,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // Contact fields persisted on the caller's own Person row.
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT firstname, lastname, midname, address_line1, zip, city, region, "
                         + "private_phone, business_phone, email_private, email_business, "
@@ -148,12 +132,10 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         assertThat(row.get("region")).isEqualTo("ZH");
         assertThat(row.get("private_phone")).isEqualTo("+41 44 111 22 33");
         assertThat(row.get("business_phone")).isEqualTo("+41 44 999 88 77");
-        // Email is normalised to lower-case by the Person aggregate.
         assertThat(row.get("email_private")).isEqualTo("ada.private@example.com");
         assertThat(row.get("email_business")).isEqualTo("ada.biz@example.com");
         assertThat(row.get("prefer_mail_to_business_mail")).isEqualTo(true);
 
-        // Name fields are admin-only and must survive the self-edit untouched.
         assertThat(row.get("firstname")).isEqualTo("Ada");
         assertThat(row.get("lastname")).isEqualTo("Lovelace");
         assertThat(row.get("midname")).isEqualTo("M");
@@ -161,9 +143,6 @@ class MePersonControllerIT extends PostgresIntegrationTest {
 
     @Test
     void patchPerson_resolvesCallerFromJwt_neverTouchesAnotherPrincipalsPerson() {
-        // Two principals, each with their own linked Person. The endpoint has
-        // no :id — the Person to edit is resolved from principal A's JWT sub
-        // via their user row. Principal B's Person must be untouched.
         UUID subA = UUID.randomUUID();
         UUID subB = UUID.randomUUID();
         UUID personA = seedPerson("Ada", "Lovelace", null);
@@ -171,17 +150,14 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         seedUser(subA, "meperson-it-self", personA);
         seedUser(subB, "meperson-it-other", personB);
 
-        // A PATCHes with A's token — no id in the URL, nothing of B's in the body.
         ResponseEntity<String> res = patch("/api/v1/me/person", Map.of(
                 "city", "A-City"), pilotToken(subA));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // A's Person changed.
         assertThat(jdbc.queryForObject(
                 "SELECT city FROM t_person WHERE id = ?::uuid", String.class, personA.toString()))
                 .isEqualTo("A-City");
 
-        // B's Person is completely untouched — the caller could not reach it.
         Map<String, Object> rowB = jdbc.queryForMap(
                 "SELECT firstname, city FROM t_person WHERE id = ?::uuid", personB.toString());
         assertThat(rowB.get("firstname")).isEqualTo("Grace");
@@ -190,22 +166,17 @@ class MePersonControllerIT extends PostgresIntegrationTest {
 
     @Test
     void patchPerson_callerWithNoLinkedPerson_returns409_notServerError() {
-        // A user row with person_id null (e.g. a sysadmin / unlinked principal).
         UUID kcSub = UUID.randomUUID();
         seedUser(kcSub, "meperson-it-noperson", null);
 
         ResponseEntity<String> res = patch("/api/v1/me/person", Map.of(
                 "city", "Nowhere"), pilotToken(kcSub));
 
-        // Clean 409 — not a 500.
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     private UUID seedPerson(String firstname, String lastname, String midname) {
         UUID personId = UUID.randomUUID();
-        // company_name carries the teardown marker so cleanFixtures can purge
-        // without colliding with the firstname/lastname/midname the assertions
-        // read back literally.
         jdbc.update("INSERT INTO t_person (id, firstname, lastname, midname, company_name) "
                         + "VALUES (?::uuid, ?, ?, ?, 'MePersonIT')",
                 personId.toString(), firstname, lastname, midname);

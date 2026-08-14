@@ -34,21 +34,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-/**
- * S-141b AC5 — bundle ingest interrupts when the wall-clock cap fires.
- * Spies on {@link DeploymentProvisioningService} so the worker sleeps
- * past the {@code alpenflight.migration.bundle-timeout} threshold; the
- * servlet thread's {@code Future.get(timeout)} throws TimeoutException,
- * the orchestrator cancels the worker, and the controller surfaces
- * 408 {@code BUNDLE_TIMEOUT}.
- *
- * <p>Property override drops the timeout to 2 seconds so a synthetic
- * 30-second sleep reliably triggers the cap on any CI runner.
- *
- * <p>Tagged {@code slow} — the IT spends 2-3 seconds waiting for the
- * timeout to fire. CI runs everything; the inner-loop {@code test} task
- * skips it via {@code -PexcludeSlow=true} when present.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -120,10 +105,6 @@ class MigrationBundleTimeoutIT extends PostgresIntegrationTest {
 
     @Test
     void bundle_timeout_interrupts_in_flight_worker_and_records_failure() throws Exception {
-        // Make provisioning hang 30 seconds — far past the 2-second timeout.
-        // The Future.get(2s) on the servlet thread raises TimeoutException;
-        // the orchestrator cancels the worker (interrupt propagates into
-        // Thread.sleep → InterruptedException → provisioning returns).
         doAnswer(inv -> {
             try {
                 Thread.sleep(30_000);
@@ -164,20 +145,15 @@ class MigrationBundleTimeoutIT extends PostgresIntegrationTest {
                         + "— if elapsed is >10s the interrupt did not stop the worker")
                 .isLessThan(10_000L);
 
-        // No Deployment provisioned — the txn rolled back when the worker
-        // returned with an InterruptedException.
         Integer deploymentCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
                 Integer.class, userSub.toString());
         assertThat(deploymentCount).isZero();
 
-        // Upload row flipped to FAILED by recordFailure with BUNDLE_TIMEOUT.
         Map<String, Object> upload = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
         assertThat(upload.get("state")).isEqualTo("FAILED");
-        // Private key wiped by the existing try-with-resources SecureBytes
-        // — even on timeout the cleanup invariant holds.
         assertThat(upload.get("private_key_ciphertext")).isNull();
     }
 

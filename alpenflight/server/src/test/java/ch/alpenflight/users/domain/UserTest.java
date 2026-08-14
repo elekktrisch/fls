@@ -52,7 +52,6 @@ class UserTest {
         assertThat(u.getNotificationEmail()).isEqualTo("new@example.com");
         assertThat(u.getPhoneNumber()).isEqualTo("+41 79 000 00 00");
         assertThat(u.getRemarks()).isEqualTo("vip");
-        // Identity-binding fields unchanged.
         assertThat(u.getUsername()).isEqualTo("clubadmin1");
         assertThat(u.getKeycloakSub()).isEqualTo(SUB);
         assertThat(u.getClubId()).isEqualTo(CLUB);
@@ -68,7 +67,6 @@ class UserTest {
         Instant firstDeletedOn = u.getDeletedOn();
         assertThat(firstDeletedOn).isEqualTo(Instant.parse("2026-05-26T10:00:00Z"));
         assertThat(u.isActive()).isFalse();
-        // Second call must not overwrite the deletedOn stamp.
         Clock later = Clock.fixed(Instant.parse("2026-05-26T11:00:00Z"), ZoneOffset.UTC);
         u.softDelete(UUID.randomUUID(), later);
         assertThat(u.getDeletedOn()).isEqualTo(firstDeletedOn);

@@ -34,12 +34,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the Flight CRUD slice. AC4
- * smoke (create one of each FlightAircraftType), basic GET / PUT /
- * soft-delete, keyset pagination. Tenant isolation lives in
- * {@link FlightsTenantIsolationIT}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -62,8 +56,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
         cleanFlightRowsFor(jdbc, CLUB_UUID);
-        // Pre-clean aircraft rows the previous test seeded under this club —
-        // immatriculation is regulator-globally-unique, so leftovers collide.
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid AND "
                 + "immatriculation LIKE 'HB-FT%'", CLUB_ID);
         UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
@@ -154,10 +146,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void crossTenant_personId_in_crew_resolves_for_currentTenant_create() {
-        // Seed a foreign tenant + a Person whose only PersonClub membership
-        // is in that other tenant. The sacred-cow ride-through (Person has
-        // no @TenantId per S-051) must let this Person resolve as a crew
-        // member on a Flight in the caller's tenant.
         UUID foreignClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c2");
         UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
         UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
@@ -217,10 +205,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void list_default_window_returns_recent_flights_only() {
-        // Default window is last 90 days. Flight stamped at an old date
-        // should NOT appear when no `from` is provided. The window is
-        // computed against the controller's clock — seed an aircraft and
-        // flight at `today` so the test stays stable.
         LocalDate today = LocalDate.now();
         Map<String, Object> recent = createPayload(
                 "GLIDER", aircraftIdExternal, today.toString());
@@ -236,8 +220,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void getFlight_returns_airState_as_string_enum_name() {
-        // S-060 — air state is computed (never stored) and surfaces on the
-        // wire as the enum name. A fresh flight with no timestamps lands at NEW.
         ResponseEntity<String> created = post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"));
         String id = readJson(created).get("id").asText();
@@ -265,9 +247,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void create_with_unknown_aircraft_returns_400() {
-        // Aircraft is cross-tenant (S-058 reverts S-159); we no longer pre-check
-        // existence at the service layer. An unknown aircraftId trips the DB FK
-        // constraint, surfaced as a 400 by the advice.
         Map<String, Object> body = createPayload(
                 "GLIDER", "ac-019e30c3-2c00-7001-8000-0000000000ee", "2026-05-01");
         ResponseEntity<String> res = post("/api/v1/flights", body);
@@ -277,7 +256,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     @Test
     void update_rejectsDeliveryBookedFlight_with_409() {
         String id = createGliderInState(
-                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+                "019e2e15-2c00-7a9e-8000-000000003a9e");
         ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -288,7 +267,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("FLIGHT_OPERATOR"))));
         String id = createGliderInState(
-                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+                "019e2e15-2c00-7a9b-8000-000000003a9b");
         ResponseEntity<String> res = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -301,7 +280,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     @Test
     void update_allowsLockedFlight_for_clubAdministrator_with_200() {
         String id = createGliderInState(
-                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+                "019e2e15-2c00-7a9b-8000-000000003a9b");
         ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -309,7 +288,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     @Test
     void delete_rejectsDeliveryBookedFlight_with_409() {
         String id = createGliderInState(
-                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+                "019e2e15-2c00-7a9e-8000-000000003a9e");
         ResponseEntity<String> res = delete("/api/v1/flights/" + id);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -360,8 +339,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void lastContext_returns_most_recent_flight_context() {
-        // Seed two flights on the same (aircraft, date); the second is "most
-        // recent" by UUIDv7-time-ordered id.
         Map<String, Object> p1 = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
         p1.put("outboundRoute", "EARLIER");
         post("/api/v1/flights", p1);
@@ -374,7 +351,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
         assertThat(body.get("outboundRoute").asText()).isEqualTo("LATER");
-        // Times are deliberately NOT returned.
         assertThat(body.has("startDateTime")).isFalse();
         assertThat(body.has("ldgDateTime")).isFalse();
     }
@@ -388,9 +364,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void lastContext_returns_404_for_cross_tenant_aircraft() {
-        // AC-DIR-1 case (c): an aircraftId that another tenant uses must not
-        // leak any flight context to the caller — @TenantId on Flight makes
-        // the row invisible, even though Aircraft is cross-tenant by ADR 0008.
         UUID otherClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c9");
         UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
         UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
@@ -429,7 +402,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     void update_withStaleIfMatch_returns_412() {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
-        // A version > 0 cannot match a freshly-created row's version 0.
         ResponseEntity<String> res = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -442,8 +414,6 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void delete_cascadesTowFlightInSameTransaction() {
-        // Seed a glider and a tow flight, link them via PUT, then DELETE glider.
-        // The linked tow row must also be soft-deleted.
         String gliderId = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         String towId = readJson(post("/api/v1/flights",
@@ -455,16 +425,10 @@ class FlightsControllerIT extends PostgresIntegrationTest {
 
         ResponseEntity<String> del = delete("/api/v1/flights/" + gliderId);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        // Both rows soft-deleted: GET returns 404 for each.
         assertThat(get("/api/v1/flights/" + gliderId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(get("/api/v1/flights/" + towId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Creates a fresh glider flight via the public POST then forces it into
-     * the target process state via JDBC — public surface only stamps
-     * NOT_PROCESSED on create.
-     */
     private String createGliderInState(String processStateId) {
         String idExternal = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();

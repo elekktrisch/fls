@@ -26,7 +26,6 @@ class EngineTimeStageTest {
                 .build();
     }
 
-    /** A motor-scoped engine-time filter for one tier, billed in minutes. */
     private static RuleFilterInput tier(
             String article, @Nullable Integer min, @Nullable Integer max) {
         FilterConfig base = FilterConfig.empty();
@@ -42,10 +41,6 @@ class EngineTimeStageTest {
         return new RuleFilterInput(UUID.randomUUID(), null, article, AccountingUnitType.MIN, config);
     }
 
-    // Two tiers on 1500s of engine time: the upper tier (min=600/max=MAX) bills
-    // 1500-600=900s, resets active->600; in the SAME pass the lower tier
-    // (min=0/max=600) then matches the now-600s remainder and bills all 600s,
-    // resetting active->0. Order is the apply order: upper tier first.
     @Test
     void tieredBillingEmitsOneItemPerTierInApplyOrder() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -67,8 +62,6 @@ class EngineTimeStageTest {
         assertThat(acc.getActiveEngineTimeInSeconds()).isZero();
     }
 
-    // Zero/null engine counters -> the orchestrator's delta is 0 -> the loop's
-    // guard is false on entry, so no tier runs and no item is emitted.
     @Test
     void zeroEngineTimeEmitsNoItems() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -78,10 +71,6 @@ class EngineTimeStageTest {
         assertThat(acc.deliveryItems()).isEmpty();
     }
 
-    // Tier gap: the only tier covers (600, 1200]. A 1500s engine time's first 300s
-    // (active in (1200, 1500]) match no tier, so the loop breaks on the first
-    // pass with active=1500 still > 0 and NO item — the legacy silent unbilled
-    // remainder (warn-only), reproduced bit-exact.
     @Test
     void tierGapLeavesRemainderSilentlyUnbilled() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());

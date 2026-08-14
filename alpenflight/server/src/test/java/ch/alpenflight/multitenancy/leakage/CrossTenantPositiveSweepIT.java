@@ -24,20 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Sacred-cow regression guard. For every {@code kind: cross-tenant} entry in
- * {@code tenant-rules.yaml} that names a {@code target_entity} present on
- * the classpath, insert as tenant A and read by PK as tenant B — expect the
- * row to be visible. This is NOT a leak; cross-tenant access is the
- * contract for Person / Aircraft / PersonClub (sacred cows from
- * {@code current-state §5}).
- *
- * <p>Today's set is empty (Person + Aircraft + AircraftAircraftState +
- * AircraftOperatingCounter + PersonClub + PersonFlightTimeCredit are not yet
- * ported). The {@code allowZeroInvocations} flag accommodates the empty set
- * today; once an entity lands, this test gains a per-entity row builder +
- * PK round-trip.
- */
 class CrossTenantPositiveSweepIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_CTP_";
@@ -81,9 +67,6 @@ class CrossTenantPositiveSweepIT extends PostgresIntegrationTest {
     @MethodSource("crossTenantEntitiesOnClasspath")
     @DisplayName("cross-tenant findById returns other club's row (sacred cow)")
     void cross_tenant_findById_returns_other_clubs_row(String targetEntity) {
-        // The harness is parameterized but today's set is empty; once a
-        // cross-tenant entity lands on the classpath (Person, Aircraft, …),
-        // this test body grows a per-entity row-builder + PK round-trip.
         assertThat(targetEntity)
                 .as("cross-tenant entity %s requires a registered row-builder + read-by-PK assertion",
                         targetEntity)
@@ -100,7 +83,6 @@ class CrossTenantPositiveSweepIT extends PostgresIntegrationTest {
                 Class.forName(pkg + simpleName);
                 return true;
             } catch (ClassNotFoundException ignored) {
-                // not in this package — try the next.
             }
         }
         return false;

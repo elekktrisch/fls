@@ -17,17 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Cross-layer contract: {@link Tenants#runAs} drives Hibernate's
- * {@code @TenantId} discriminator the same way the JWT path does. A SYSTEM_
- * ADMIN holding a JWT for club A can write into club B inside a
- * {@code Tenants.runAs(B, ...)} block; reads after restore see club A's
- * rows again.
- *
- * <p>Uses {@link MemberState} (the canonical {@code @TenantId} example) as
- * the proof surface — keeps the test out of the Locations module so the
- * tenancy contract is module-agnostic.
- */
 class TenantsRunAsIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_TRA_";
@@ -51,9 +40,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
         clubB = fixture.clubB();
     }
 
-    // The minted club ids are runtime, so the outer "JWT-driven" tenant context
-    // (formerly @WithTenant(CLUB_A_LITERAL)) is established per-test via
-    // TenantTestContext.runAs(clubA, ...) — same carrier, same precedence.
 
     @Test
     void runAs_writes_through_to_target_club() {
@@ -73,7 +59,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(clubA, () -> {
             memberStates.save(new MemberState("A-only status"));
             Tenants.runAs(clubB, () -> memberStates.save(new MemberState("B-only status")));
-            // After the runAs block, the outer JWT-driven tenant context is back.
             assertThat(memberStates.findAll())
                     .extracting(MemberState::getName)
                     .as("only A's rows visible after the runAs block returns")
@@ -94,8 +79,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @Test
     void runAs_works_without_outer_tenant_context() {
-        // No outer tenant set — outer carrier is empty. runAs should still
-        // elevate for the duration of the body, then return to "no tenant".
         Tenants.runAs(clubA, () -> memberStates.save(new MemberState("solo")));
         assertThat(memberStates.findAll())
                 .as("after the runAs block the carrier is empty again — outer reads see NO_TENANT")
@@ -104,9 +87,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @Test
     void runAs_with_nil_uuid_is_rejected_at_entry_point() {
-        // The platform helper rebukes the NO_TENANT sentinel loud rather than
-        // letting it silently degrade to "reads return empty / writes hit FK".
-        // Catches "forgot to derive clubId from a path variable" at the seam.
         TenantTestContext.runAs(clubA, () -> {
             UUID nil = new UUID(0L, 0L);
             assertThatThrownBy(() ->
@@ -118,9 +98,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @Test
     void runAs_supplier_returns_body_value_under_target_tenant() {
-        // Light functional-shape proof; the JpaRepository round-trip lives in
-        // runAs_writes_through_to_target_club. Here we just want the supplier
-        // form to compose cleanly with the existing repository.
         TenantTestContext.runAs(clubA, () -> {
             Long countUnderB = Tenants.runAs(clubB, () -> {
                 memberStates.save(new MemberState("counted-1"));
@@ -133,9 +110,6 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @Test
     void test_context_runAs_and_platform_runAs_share_a_carrier() {
-        // Belt-and-braces: TenantTestContext.runAs and Tenants.runAs both
-        // push to TenantContextCarrier. They must not double-stack or
-        // produce inconsistent state.
         TenantTestContext.runAs(clubA, () -> {
             TenantTestContext.runAs(clubB, () ->
                     Tenants.runAs(clubB, () -> memberStates.save(new MemberState("dual-wrapper"))));

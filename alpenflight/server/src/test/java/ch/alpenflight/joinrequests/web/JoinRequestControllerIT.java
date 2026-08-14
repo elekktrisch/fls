@@ -32,22 +32,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the join-request submit/read slice
- * (S-178, T-05). Drives the production filter chain with synthesised tokens:
- *
- * <ul>
- *   <li>A tenant-less PILOT principal (no {@code clubId} claim, no {@code t_user})
- *       submits / reads-me / withdraws — the "no tenant context at submit"
- *       window the resolver returns {@code NO_TENANT} for.</li>
- *   <li>A CLUB_ADMINISTRATOR principal with a {@code clubId} claim reads the
- *       tenant-scoped pending list.</li>
- * </ul>
- *
- * <p>Two production-minted clubs (A + B) via {@link TwoClubFixture}; their join
- * codes are read straight off the saved aggregates so the submit resolves a
- * real code.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -81,7 +65,6 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         codeB = clubs.findActiveById(clubB).map(Club::getJoinCode).orElseThrow();
     }
 
-    // ---- submit ----
 
     @Test
     void submit_validCode_returns_201_with_pending_request() {
@@ -124,7 +107,6 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.CONFLICT);
     }
 
-    // ---- withdraw ----
 
     @Test
     void withdraw_ownSub_returns_200_withdrawn() {
@@ -146,7 +128,6 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ---- GET /me/join-request ----
 
     @Test
     void me_returns_204_when_none() {
@@ -173,15 +154,12 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         String token = pilotToken(sub);
         submit(token, codeA, "hi");
         JsonNode body = readJson(get(token, "/api/v1/me/join-request"));
-        // The tenant-less /join/pending screen reads the club's public display
-        // off the request the pilot owns — no cross-tenant club endpoint.
         assertThat(body.get("clubName").asText())
                 .isEqualTo(clubs.findActiveById(clubA).orElseThrow().getClubname());
         assertThat(body.get("city").asText()).isEqualTo("Zurich");
         assertThat(body.get("logoUrl").asText()).isEqualTo("https://example.com/clubA-logo.png");
     }
 
-    // ---- GET /join-requests?status=pending (admin) ----
 
     @Test
     void adminPendingList_isTenantScoped_and_excludes_other_clubs() {
@@ -206,7 +184,6 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ---- helpers ----
 
     private String pilotToken(UUID sub) {
         return jwts.mint(c -> c

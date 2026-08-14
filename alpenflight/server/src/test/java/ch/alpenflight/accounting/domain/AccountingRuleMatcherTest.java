@@ -14,8 +14,6 @@ class AccountingRuleMatcherTest {
 
     private static final AccountingRuleMatcher MATCHER = new AccountingRuleMatcher();
 
-    // Legacy forces-false a crewless flight on every rule, so flights exercising
-    // a non-crew facet still carry a benign crew member.
     private static final List<MatchableCrew> ONE_PILOT =
             List.of(MatchableCrew.of("PILOT", "1234", null, List.of()));
 
@@ -26,7 +24,6 @@ class AccountingRuleMatcherTest {
                 .build();
     }
 
-    /** A rule that scopes to glider flights and imposes no other condition. */
     private static FilterConfig gliderRuleWithImmatList(MatchList immats) {
         FilterConfig base = FilterConfig.empty();
         return new FilterConfig(
@@ -47,8 +44,6 @@ class AccountingRuleMatcherTest {
     @Nested
     class UseAllExceptMatrix {
 
-        // The four quadrants of useAllExcept x empty/non-empty for the
-        // aircraft-immatriculation facet (the same matrix applies to every facet).
 
         @Test
         void includeListNonEmptyMatchesOnlyListedValues() {
@@ -205,8 +200,6 @@ class AccountingRuleMatcherTest {
             assertThat(MATCHER.matches(flight, rule)).isTrue();
         }
 
-        // Legacy PersonClubs.First(ClubId==...) THROWS when a crew person has no
-        // PersonClub for the delivery's club — reproduced as a domain exception.
         @Test
         void crewPersonWithoutClubMembershipSurfacesAsException() {
             FilterConfig rule = memberNumberRule(new MatchList(false, List.of("1234")));

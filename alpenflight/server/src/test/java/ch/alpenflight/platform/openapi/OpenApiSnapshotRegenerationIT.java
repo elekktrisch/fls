@@ -18,18 +18,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * Opt-in helper that writes the current live OpenAPI spec back to
- * {@code alpenflight/web/openapi/openapi.json}. Disabled by default; enable
- * by passing {@code -Dalpenflight.openapi.refresh=true} when running
- * {@code ./gradlew test} after a controller-shape change.
- *
- * <p>Exists because {@code generateOpenApiSnapshot} drives
- * {@code OpenApiSnapshotMain} against the {@code dev} profile and requires a
- * reachable Postgres on {@code localhost:5432} to bootstrap JPA — not always
- * available in sandboxed runs. This IT re-uses the same shared testcontainer
- * the normal suite uses.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles("test")
@@ -44,8 +32,6 @@ class OpenApiSnapshotRegenerationIT {
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        // S-160 split points base spring.flyway.* at the MIGRATOR role; override
-        // to the container so boot-time Flyway connects with the container creds.
         r.add("spring.flyway.url", pg::jdbcUrl);
         r.add("spring.flyway.user", pg::username);
         r.add("spring.flyway.password", pg::password);

@@ -21,49 +21,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-/**
- * Compatibility gate between bundle mappers and the live Postgres schema —
- * the defence-in-depth promised by S-183's Security plan: every mapper's
- * column list must be a subset of the destination table's columns, and
- * every non-nullable non-defaulted column the FULL_PORT destination
- * requires must be carried by the mapper.
- *
- * <p>Lives in {@code alpenflight/server/} (S-183 pin) so the schema oracle
- * is the live Flyway-migrated database — Hibernate Metadata would only
- * describe Java-mapped tables, and the V2 → V19 schema is broader than the
- * JPA-entity surface. Postgres {@code information_schema.columns} is the
- * source of truth.
- *
- * <p>Parametrised over {@link KnownMappers#all()} (28 mappers). One
- * structural failure batches all per-mapper diagnostics so a reviewer sees
- * every drift at once rather than chasing them one at a time.
- *
- * <p><strong>Wire-format alias.</strong> The mapper's wire-format column
- * {@code legacy_guid} carries the legacy GUID value that becomes the
- * destination row's {@code id} per ADR 0019 (legacy GUID preservation). The
- * subset check treats {@code legacy_guid} as an alias for {@code id} —
- * checking the literal string against the destination would always fail
- * even though the binding is correct.
- *
- * <p><strong>SYSTEM_GLOBAL mappers.</strong> Reference-table mappers
- * (COUNTRY, LANGUAGE, CLUB_STATE, START_TYPE) carry only the (legacy_guid,
- * lookup_key) bundle pair — V2 seed owns the destination rows. They are
- * exempted from the non-nullable-coverage rule; the subset rule still
- * applies (the lookup_key column must exist in the destination).
- *
- * <p><strong>Per-table skip set</strong> (S-187 Design notes):
- * <ul>
- *   <li>{@code legacy_int_id} — shadow column added by S-185 for INT-PK
- *       reference tables; populated by V2 seed, no producer-side counterpart.</li>
- *   <li>{@code operating_club_id} — {@code @TenantId} discriminator
- *       auto-populated by the application layer (ADR 0008).</li>
- *   <li>{@code keycloak_sub} on {@code t_user} — single-writer per ADR 0007;
- *       mapper binds NULL structurally.</li>
- *   <li>{@code legacy_orphan_actor_id} / {@code legacy_actor_user_id} /
- *       {@code actor_kind} on {@code t_audit_log} — V18-only columns
- *       synthesised by the audit-log mapper.</li>
- * </ul>
- */
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class MapperVsSchemaCompatibilityTest {
@@ -81,12 +38,6 @@ class MapperVsSchemaCompatibilityTest {
             "legacy_int_id",
             "operating_club_id");
 
-    /**
-     * Per-{@link EntityType} destination-table overrides. Used only when the
-     * {@code t_<lower-snake>} convention does not hold. AUDIT_LOG lives on
-     * {@code t_mutation_audit_event} per ADR 0027 — the legacy-side naming
-     * stayed canonical.
-     */
     private static final Map<EntityType, String> DESTINATION_TABLE_OVERRIDE = Map.of(
             EntityType.AUDIT_LOG, "t_mutation_audit_event");
 
@@ -97,12 +48,6 @@ class MapperVsSchemaCompatibilityTest {
                     "legacy_actor_user_id",
                     "actor_kind"));
 
-    /**
-     * Mappers that carry no {@code legacy_guid} column on the wire — the PK
-     * is application-generated at ingest time (S-141 mints a UUID v7 per
-     * row). The destination's {@code id} column is therefore not covered by
-     * {@code columns()} and the non-nullable-coverage rule must skip it.
-     */
     private static final Set<EntityType> APPLICATION_GENERATED_PK = Set.of(
             EntityType.PERSON_CLUB,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
@@ -149,9 +94,6 @@ class MapperVsSchemaCompatibilityTest {
     private static Set<String> mapperColumnsResolved(Mapper mapper) {
         Set<String> resolved = new LinkedHashSet<>();
         for (String column : Arrays.asList(mapper.columns())) {
-            // legacy_guid is the wire-format name for the destination PK
-            // (per ADR 0019 GUID preservation). Translate so the
-            // structural subset check sees the destination column name.
             resolved.add(LEGACY_GUID_WIRE_COLUMN.equals(column)
                     ? DESTINATION_PK_COLUMN : column);
         }
@@ -217,11 +159,6 @@ class MapperVsSchemaCompatibilityTest {
         return PER_TABLE_SKIP.getOrDefault(tableName, Set.of());
     }
 
-    /**
-     * Convention from the Flyway migration set: {@code t_<lower-snake>} for
-     * every domain table, modulo per-entity overrides for the cases where
-     * the legacy / new naming diverges (AUDIT_LOG → t_mutation_audit_event).
-     */
     private static String destinationTableName(EntityType entity) {
         String override = DESTINATION_TABLE_OVERRIDE.get(entity);
         return override != null ? override : "t_" + entity.temporaryTableSuffix();
@@ -254,17 +191,11 @@ class MapperVsSchemaCompatibilityTest {
 
     private static Connection openConnection() throws SQLException {
         var pg = SharedPostgresContainer.INSTANCE;
-        // The SharedPostgresContainer does NOT auto-run Flyway —
-        // @SpringBootTest classes drive it. Run Flyway here directly so
-        // the test can stay non-Spring (no application context boot).
         ensureSchemaMigrated(pg.jdbcUrl(), pg.username(), pg.password());
         return DriverManager.getConnection(pg.jdbcUrl(), pg.username(), pg.password());
     }
 
     private static void ensureSchemaMigrated(String jdbcUrl, String user, String password) {
-        // Idempotent: Flyway sees an existing flyway_schema_history and
-        // is a no-op once V1..VN are recorded. First-call invocation
-        // drives the initial migrate.
         org.flywaydb.core.Flyway.configure()
                 .dataSource(jdbcUrl, user, password)
                 .locations("filesystem:src/main/resources/db/migration")

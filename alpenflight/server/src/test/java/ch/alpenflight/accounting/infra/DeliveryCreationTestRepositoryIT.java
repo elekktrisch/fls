@@ -30,16 +30,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence proof of the {@link DeliveryCreationTest} aggregate + its
- * tenant-scoped, soft-delete-filtered finders, driven through the real
- * {@code @TenantId} discriminator via {@link TenantTestContext#runAs}.
- *
- * <p>Seeding is ADR-0027-clean: the two clubs come from {@link TwoClubFixture}
- * (minted ids) and every Flight / harness row is created via its production
- * factory + repository save — no raw-JDBC seed of an aggregate-under-test (the
- * only JDBC is resolving the V3-seeded aircraft-type FK).
- */
 class DeliveryCreationTestRepositoryIT extends PostgresIntegrationTest {
 
     @Autowired private DeliveryCreationTestRepository tests;
@@ -98,10 +88,6 @@ class DeliveryCreationTestRepositoryIT extends PostgresIntegrationTest {
             assertThat(reloaded.isMustNotCreateDeliveryForFlight()).isFalse();
             assertThat(reloaded.getOperatingClubId()).isEqualTo(clubA);
 
-            // jsonb expected_delivery round-trips the full comparable graph
-            // (field-by-field, not whole-record equals: BigDecimal scale can
-            // shift across the Jackson FormatMapper, so the quantity is compared
-            // by value).
             DeliveryDetailsSnapshot snapshot = reloaded.getExpectedDelivery();
             assertThat(snapshot.deliveryInformation()).isEqualTo("delivery info");
             assertThat(snapshot.additionalInformation()).isEqualTo("additional info");
@@ -121,10 +107,8 @@ class DeliveryCreationTestRepositoryIT extends PostgresIntegrationTest {
                     });
             assertThat(reloaded.getExpectedMatchedFilterIds()).containsExactly(matched);
 
-            // The nine ignore flags round-trip individually.
             assertThat(reloaded.getIgnoreFlags()).isEqualTo(flags);
 
-            // The relational item children mirror the snapshot lines.
             assertThat(reloaded.getItems())
                     .singleElement()
                     .satisfies(item -> {

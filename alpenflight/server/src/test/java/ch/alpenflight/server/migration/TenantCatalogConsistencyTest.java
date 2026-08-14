@@ -17,14 +17,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Asserts the live schema produced by the baseline migrations (V2 + V3)
- * matches the tenant-scope catalog's classification: tenant-scoped tables
- * carry a {@code club_id} / {@code operating_club_id} NOT NULL, cross-tenant
- * tables don't, reference tables don't. Pure-YAML assertions over
- * {@code alpenflight/database/tenant-rules.yaml} live in
- * {@link TenantCatalogYamlTest} (plain JUnit; no Docker dep).
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
@@ -48,10 +40,6 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void every_s013_tenant_scoped_table_has_operating_club_id_uuid_not_null() throws Exception {
-        // S-013 tenant-scoped tables carry `operating_club_id` (renamed from
-        // legacy `ClubId` / `OwnerClubId` per the new-schema convention).
-        // flight_crew is aggregate-internal to flight and inherits via FK (no
-        // own operating_club_id column).
         List<String> tables = List.of("t_flight", "t_flight_type", "t_article");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : tables) {
@@ -73,8 +61,6 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void every_s013_reference_table_has_no_operating_club_id() throws Exception {
-        // S-049b removed `location` from this list: now tenant-scoped.
-        // `location_type` stays reference data (categorical code).
         List<String> refs = List.of(
                 "t_aircraft_type", "t_aircraft_state", "t_location_type",
                 "t_flight_crew_type", "t_flight_process_state",
@@ -97,12 +83,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * S-049b reclassification: location flipped CROSS_TENANT → TENANT_SCOPED.
-     * Same physical airport may exist in multiple clubs (once per club);
-     * Hibernate's {@code @TenantId} discriminator on {@code club_id} appends
-     * the per-tenant predicate on every JPA query.
-     */
     @Test
     void location_has_club_id_uuid_not_null() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -122,11 +102,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * S-049b: per-club ICAO uniqueness — the same ICAO across two clubs must
-     * coexist, but a duplicate within one club's catalog is rejected. Tested
-     * structurally by the partial UNIQUE on (club_id, icao_code).
-     */
     @Test
     void location_icao_is_unique_per_club_not_globally() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -145,11 +120,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * S-049b: InOutboundPoint inherits tenancy through its parent Location's
-     * FK chain. The IOP row itself does NOT carry club_id — same pattern as
-     * flight_crew under flight.
-     */
     @Test
     void inoutbound_point_has_no_own_club_id() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -165,12 +135,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * Aircraft is cross-tenant (S-058 reverts S-159). {@code owner_club_id}
-     * stays as ownership metadata, independent of the manager — it's
-     * nullable and may differ from the managing club (external-org /
-     * private-person cases).
-     */
     @Test
     void aircraft_owner_club_id_is_nullable_ownership_metadata() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -186,13 +150,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * Aircraft.managing_club_id is the operational-manager gate field
-     * (S-058 reverts S-159's {@code @TenantId} role but keeps the column
-     * as plain metadata). NOT NULL UUID, FK to club — required even for
-     * external-owner aircraft (the managing club is the entity that runs
-     * the row's lifecycle).
-     */
     @Test
     void aircraft_managing_club_id_is_required_metadata_not_null() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -232,10 +189,6 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void cross_tenant_tables_have_no_club_id() throws Exception {
-        // Person is the cross-tenant cluster. Test guards against a future
-        // implementer accidentally adding club_id to Person; precondition is
-        // that the person table exists at all (otherwise the absence-check
-        // would trivially pass when the migration is missing).
         try (Connection conn = dataSource.getConnection()) {
             assertTableExists(conn, "t_person");
             try (ResultSet rs = conn.createStatement().executeQuery(
@@ -251,8 +204,6 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void reference_tables_have_no_club_id() throws Exception {
-        // `role` was dropped at S-052 (Keycloak owns realm roles); not in
-        // this catalogue anymore.
         List<String> refs = List.of(
                 "t_country", "t_language", "t_start_type",
                 "t_length_unit_type", "t_elevation_unit_type", "t_counter_unit_type",
@@ -274,12 +225,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /**
-     * S-014 tenant-scoped tables — the 5 aggregate roots, 3 internal entities
-     * (denormalized operating_club_id), and 2 per-club reclassified ref tables
-     * (aircraft_reservation_type + planning_day_assignment_type). All carry
-     * operating_club_id uuid NOT NULL.
-     */
     @Test
     void every_s014_tenant_scoped_table_has_operating_club_id_uuid_not_null() throws Exception {
         List<String> tables = List.of(
@@ -306,7 +251,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /** S-014 system-global reference tables — accounting_rule_filter_type + accounting_unit_type. */
     @Test
     void every_s014_system_global_reference_table_has_no_operating_club_id() throws Exception {
         List<String> refs = List.of("t_accounting_rule_filter_type", "t_accounting_unit_type");
@@ -328,7 +272,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /** Reclassification: AircraftReservationTypes was reference at S-011; S-014 promotes to per-club. */
     @Test
     void aircraft_reservation_type_reclassified_to_tenant_scoped() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -348,7 +291,6 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /** Reclassification: PlanningDayAssignmentTypes was reference at S-011; S-014 promotes to per-club. */
     @Test
     void planning_day_assignment_type_reclassified_to_tenant_scoped() throws Exception {
         try (Connection conn = dataSource.getConnection()) {

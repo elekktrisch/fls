@@ -220,7 +220,6 @@ class AircraftDomainTest {
         a.softDelete(actor, java.time.Clock.systemUTC());
         assertThat(a.isDeleted()).isTrue();
         a.softDelete(UUID.randomUUID(), java.time.Clock.systemUTC());
-        // re-soft-delete is a no-op; first actor wins
     }
 
     @Test

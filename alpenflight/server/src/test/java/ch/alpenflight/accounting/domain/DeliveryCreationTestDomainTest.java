@@ -41,7 +41,6 @@ class DeliveryCreationTestDomainTest {
                 CLUB, FLIGHT, "  Tiered FlightTime  ", "  desc  ", true, false,
                 new IgnoreFlags(true, false, false, false, false, false, false, false, true));
 
-        // Header invariants + trimming.
         assertThat(test.getTestName()).isEqualTo("Tiered FlightTime");
         assertThat(test.getDescription()).isEqualTo("desc");
         assertThat(test.getIgnoreFlags().recipientName()).isTrue();
@@ -50,7 +49,6 @@ class DeliveryCreationTestDomainTest {
         assertThat(test.getExpectedDelivery()).isEqualTo(DeliveryDetailsSnapshot.empty());
         assertThat(test.getItems()).isEmpty();
 
-        // Dry-run capture rebuilds the relational item set + records matched ids.
         DeliveryItemDetails line = new DeliveryItemDetails(
                 1, "ART-30", "first 30min", null, new BigDecimal("0.5000"), 0, "Min");
         DeliveryDetailsSnapshot expected = new DeliveryDetailsSnapshot(
@@ -66,11 +64,9 @@ class DeliveryCreationTestDomainTest {
                     assertThat(item.getArticleNumber()).isEqualTo("ART-30");
                     assertThat(item.getQuantity()).isEqualByComparingTo("0.5000");
                     assertThat(item.getUnitTypeCode()).isEqualTo("Min");
-                    // Child carries the parent's denormalized tenant stamp.
                     assertThat(item.getOperatingClubId()).isEqualTo(CLUB);
                 });
 
-        // Run-state transition (legacy LastTest*).
         Instant runOn = Instant.now(FIXED_CLOCK);
         DeliveryDetailsSnapshot created = new DeliveryDetailsSnapshot(List.of(), null, null, null);
         test.recordRun(false, "items differ at position 1", created, List.of(matched), runOn);
@@ -91,7 +87,6 @@ class DeliveryCreationTestDomainTest {
                 FLIGHT, "   ", null, false, true, IgnoreFlags.none()))
                 .isInstanceOf(InvalidDeliveryCreationTestException.class);
 
-        // Guard fires before assignment — nothing changed.
         assertThat(test.getTestName()).isEqualTo("Keep me");
         assertThat(test.isActive()).isTrue();
         assertThat(test.isMustNotCreateDeliveryForFlight()).isFalse();

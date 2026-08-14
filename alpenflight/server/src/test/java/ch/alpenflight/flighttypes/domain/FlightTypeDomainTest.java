@@ -42,11 +42,6 @@ class FlightTypeDomainTest {
 
     @Test
     void register_minSeatsZero_rejects() {
-        // Legacy treated 0 and null identically; the new stack rejects 0 at
-        // both the DTO boundary (FlightTypeCreateRequest.@Min(1)) AND the
-        // aggregate (assignMinSeats). This test pins the aggregate-side
-        // half so a future DTO refactor can't silently re-introduce the
-        // legacy ambiguity.
         assertThatThrownBy(() -> FlightType.register("Foo", null,
                 false, false, false, false, false,
                 true, false, false,
@@ -63,8 +58,6 @@ class FlightTypeDomainTest {
                 true, false, false,
                 false, false, false,
                 null);
-        // instructor true→false + observer false→true: both directions of the
-        // replacement, without tripping the instructor×observer exclusion.
         ft.updateFlags(false, true, true, true, true, true, true, true, true, true, true);
         assertThat(ft.isInstructorRequired()).isFalse();
         assertThat(ft.isObserverPilotOrInstructorRequired()).isTrue();
@@ -81,10 +74,6 @@ class FlightTypeDomainTest {
 
     @Test
     void register_instructorAndObserverBothRequired_rejects() {
-        // Legacy CK_FlightTypes_InstructorRequiredXORObserverPilotRequired
-        // (DBUpdate_v1.9.25) allows (0,0)/(0,1)/(1,0) and forbids (1,1) — the
-        // aggregate carries the rule per ADR 0022 directive 2; the single-flag
-        // combinations are pinned by the other register/updateFlags tests.
         assertThatThrownBy(() -> FlightType.register("Beides", null,
                 true, true, false, false, false,
                 true, false, false,
@@ -104,7 +93,6 @@ class FlightTypeDomainTest {
         assertThatThrownBy(() -> ft.updateFlags(
                 true, true, true, true, true, true, true, true, true, true, true))
                 .isInstanceOf(InstructorObserverExclusionException.class);
-        // The guard fires before any assignment — no half-applied flag set.
         assertThat(ft.isInstructorRequired()).isTrue();
         assertThat(ft.isObserverPilotOrInstructorRequired()).isFalse();
         assertThat(ft.isCheckFlight()).isFalse();
@@ -119,7 +107,6 @@ class FlightTypeDomainTest {
                 null);
         ft.softDelete(null, FIXED_CLOCK);
         assertThat(ft.isDeleted()).isTrue();
-        // Second softDelete is a no-op — the deletedOn stamp is preserved.
         ft.softDelete(null, FIXED_CLOCK);
         assertThat(ft.isDeleted()).isTrue();
     }

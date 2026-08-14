@@ -43,20 +43,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/**
- * Cross-system approve/deny integration test (S-178, T-06). The Keycloak adapter
- * is mocked ({@link UserDirectoryPort}) so the test can assert the {@code clubId}
- * attribute write happened and can inject a directory failure to prove the
- * partial-failure (half-join) defence.
- *
- * <p>Approve, per the contract, is one transaction that: writes the KC
- * {@code clubId} attribute, creates a {@code t_user}, auto-creates (or links) a
- * Person + PersonClub with default roles, applies {@code roles[]}, moves the
- * aggregate PENDING → APPROVED, and audits. The ordering puts the idempotent KC
- * attribute write FIRST so a rolled-back DB transaction strands nothing
- * load-bearing (a clubId attribute with no t_user is inert; the request stays
- * PENDING and re-approve re-runs).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -87,8 +73,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         codeA = clubs.findActiveById(clubA).map(Club::getJoinCode).orElseThrow();
         adminSubA = UuidCreator.getTimeOrderedEpoch();
         seedUser(adminSubA, clubA, "admin-a");
-        // KC role-resolution stubs — the directory is mocked, so a grant must
-        // resolve realm-role refs by name.
         when(directory.findRealmRolesByName(any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
             java.util.Set<String> names = (java.util.Set<String>) inv.getArgument(0);
@@ -96,7 +80,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         });
     }
 
-    // ---- approve happy (auto-Person) ----
 
     @Test
     void approve_happy_writesKcAttr_createsUser_autoPerson_andApproves() {
@@ -112,13 +95,11 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         verify(directory).writeClubIdAttribute(sub, clubA);
         verify(directory).grantRealmRoles(eq(sub), anyList());
 
-        // t_user created for the sub, in club A.
         UUID userClub = jdbc.queryForObject(
                 "SELECT club_id FROM t_user WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL",
                 UUID.class, sub.toString());
         assertThat(userClub).isEqualTo(clubA);
 
-        // Auto-Person + PersonClub created in club A and bound to the user.
         UUID personId = jdbc.queryForObject(
                 "SELECT person_id FROM t_user WHERE keycloak_sub = ?::uuid", UUID.class, sub.toString());
         assertThat(personId).isNotNull();
@@ -128,13 +109,11 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
                 Integer.class, personId.toString(), clubA.toString());
         assertThat(pcCount).isEqualTo(1);
 
-        // Aggregate row: decided_on + decided_by_user_id stamped.
         UUID decidedBy = jdbc.queryForObject(
                 "SELECT decided_by_user_id FROM t_join_request WHERE id = ?::uuid", UUID.class, reqId);
         assertThat(decidedBy).isNotNull();
     }
 
-    // ---- approve with personId (link) ----
 
     @Test
     void approve_withPersonId_linksExistingPerson() {
@@ -161,13 +140,11 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
                 List.of("PILOT"), personInB);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        // No t_user materialized — the cross-tenant link aborted the transaction.
         Integer users = jdbc.queryForObject(
                 "SELECT count(*) FROM t_user WHERE keycloak_sub = ?::uuid", Integer.class, sub.toString());
         assertThat(users).isZero();
     }
 
-    // ---- re-approve idempotency ----
 
     @Test
     void reApprove_alreadyApproved_is_409_noDoubleJoin() {
@@ -180,23 +157,18 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
                 List.of("PILOT"), null);
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
-        // Exactly one t_user — no double-join.
         Integer users = jdbc.queryForObject(
                 "SELECT count(*) FROM t_user WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL",
                 Integer.class, sub.toString());
         assertThat(users).isEqualTo(1);
     }
 
-    // ---- the integration-risk test: DB failure after KC write strands no half-join ----
 
     @Test
     void approve_dbFailsAfterKcWrite_leavesNoHalfJoin_andRequestStaysPending() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
 
-        // Force the in-transaction KC role grant to throw AFTER the idempotent
-        // attribute write — the DB transaction must roll back, stranding no
-        // t_user / Person and leaving the request PENDING (re-approvable).
         doThrow(new UserDirectoryException("simulated KC grant failure"))
                 .when(directory).grantRealmRoles(any(), anyList());
 
@@ -213,7 +185,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         assertThat(status).as("request stays PENDING — re-approvable").isEqualTo("PENDING");
     }
 
-    // ---- deny ----
 
     @Test
     void deny_withReason_movesToDenied() {
@@ -225,14 +196,12 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         assertThat(readJson(res).get("status").asText()).isEqualTo("DENIED");
         assertThat(readJson(res).get("decisionReason").asText()).isEqualTo("not this year");
 
-        // No t_user / no KC attribute write on deny.
         Integer users = jdbc.queryForObject(
                 "SELECT count(*) FROM t_user WHERE keycloak_sub = ?::uuid", Integer.class, sub.toString());
         assertThat(users).isZero();
         verify(directory, never()).writeClubIdAttribute(eq(sub), any());
     }
 
-    // ---- authz ----
 
     @Test
     void approve_nonAdmin_is_403() {
@@ -248,8 +217,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
 
-        // A CLUB_ADMINISTRATOR may not grant SYSTEM_ADMINISTRATOR — the escalation
-        // gate rejects it before any external write, so the request stays pending.
         ResponseEntity<String> res = approve(adminToken(clubA, adminSubA), reqId,
                 List.of("SYSTEM_ADMINISTRATOR"), null);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -267,7 +234,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
     void approve_crossTenantRequest_is_404() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
-        // Admin of club B cannot see / approve club A's request.
         UUID adminSubB = UuidCreator.getTimeOrderedEpoch();
         seedUser(adminSubB, clubB, "admin-b");
         ResponseEntity<String> res = approve(adminToken(clubB, adminSubB), reqId,
@@ -275,7 +241,6 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ---- helpers ----
 
     private String filePending(UUID sub, String code) {
         ResponseEntity<String> res = submit(pilotToken(sub), code, "let me in");

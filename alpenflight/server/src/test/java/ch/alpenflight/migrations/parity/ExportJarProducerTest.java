@@ -10,11 +10,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Drives {@link ExportJarProducer} with {@code /bin/sh} stub commands so the
- * spawn / capture / failure-mapping wiring is verified without the MSSQL
- * container or the real jar (those land in the Docker-gated e2e IT).
- */
 class ExportJarProducerTest {
 
     private final ExportJarProducer producer = new ExportJarProducer(Duration.ofSeconds(10));
@@ -37,7 +32,6 @@ class ExportJarProducerTest {
     @Test
     void producePassesThePasswordViaEnvironmentNotArgv(@TempDir Path dir) throws Exception {
         Path output = dir.resolve("out.enc");
-        // The stub writes whatever it received in the env var — proving delivery.
         List<String> command = List.of(
                 "sh", "-c", "printf '%s' \"$ALPF_DB_PASSWORD\" > \"" + output + "\"");
 

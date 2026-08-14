@@ -50,18 +50,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the harness engine endpoints (T-15): the
- * dry-run {@code GET /example/{flightId}} (run the engine, return the would-be
- * delivery, no persistence) and the run-test {@code POST /{id}/run} (engine vs
- * the stored expected set → pass/fail + the field-by-field diff). Seeds two clubs
- * + a glider flight (FlightTime tier + LandingTax filters → a deterministic
- * two-item delivery) via production factories, then drives the endpoints under a
- * CLUB_ADMINISTRATOR. Asserts: dry-run returns the engine's items without writing
- * the harness's run-state; run-test SUCCESS when the captured expected matches;
- * run-test FAILURE with the diff message when a quantity diverges; cross-tenant
- * run → 404 ({@code @TenantId} isolation through the HTTP layer).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -122,7 +110,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         assertThat(articleNumbers(items)).containsExactly("ART-FT", "ART-LT");
         assertThat(body.get("matchedFilterIds").size()).isEqualTo(2);
 
-        // The dry-run created NO harness, so nothing was persisted by it.
         Long harnessCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_delivery_creation_test WHERE operating_club_id = ?::uuid",
                 Long.class, clubA.toString());
@@ -141,7 +128,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         assertThat(body.get("lastTestCreatedDelivery").get("items").size()).isEqualTo(2);
         assertThat(body.get("lastTestMatchedFilterIds").size()).isEqualTo(2);
 
-        // The run-state was persisted on the harness.
         ResponseEntity<String> got = get(BASE + "/" + id, adminA);
         assertThat(readJson(got).get("lastTestSuccessful").asBoolean()).isTrue();
     }
@@ -149,7 +135,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
     @Test
     void runTest_fails_with_diff_message_when_expected_quantity_differs() {
         String id = createHarnessCapturingExpected();
-        // Tamper the FlightTime expected item so the engine output diverges.
         bumpFirstExpectedItemQuantity(id);
 
         ResponseEntity<String> run = post(BASE + "/" + id + "/run", null, adminA);
@@ -174,9 +159,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
 
         String id = createHarnessCapturingExpected();
 
-        // The write-request expected set + matched ids round-tripped through the
-        // production create path (not a raw UPDATE) — the round-trip impossible
-        // before captureExpected had a caller.
         JsonNode reloaded = readJson(get(BASE + "/" + id, adminA));
         assertThat(reloaded.get("expectedDelivery").get("items").size()).isEqualTo(2);
         assertThat(articleNumbers(reloaded.get("expectedDelivery").get("items")))
@@ -184,7 +166,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         assertThat(reloaded.get("expectedMatchedFilterIds").size())
                 .isEqualTo(example.get("matchedFilterIds").size());
 
-        // The relational item children were rebuilt from the captured snapshot.
         Long itemCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_delivery_creation_test_item "
                         + "WHERE delivery_creation_test_id = ?::uuid",
@@ -207,13 +188,7 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         assertThat(reloaded.get("expectedMatchedFilterIds").size()).isZero();
     }
 
-    // ----- harness authoring (dry-run fills expected, like the SPA edit form) -----
 
-    /**
-     * Authors a harness the way the SPA does: dry-run the engine, then save with
-     * the captured {@code expectedDelivery} + matched ids in the write request so
-     * the service's {@code captureExpected} persists the expected set.
-     */
     private String createHarnessCapturingExpected() {
         JsonNode example = readJson(get(BASE + "/example/" + FlightId.of(flightA).toExternal(), adminA));
 
@@ -274,7 +249,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         return body;
     }
 
-    // ----- seeding (production-create paths) -----
 
     private void seedLineFilters(UUID clubId) {
         TenantTestContext.runAs(clubId, () -> {
@@ -359,7 +333,6 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         });
     }
 
-    // ----- http -----
 
     private String adminTokenFor(UUID clubId) {
         return jwts.mint(c -> c

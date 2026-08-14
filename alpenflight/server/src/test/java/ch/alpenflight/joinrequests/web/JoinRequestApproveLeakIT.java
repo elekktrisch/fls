@@ -42,33 +42,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/**
- * Pins the half-failed-approve tenant-leak defence (T-13, the gap-hunter blocker).
- *
- * <p>The blocker: approve writes the Keycloak {@code clubId} user-attribute before
- * the DB commit. The realm's {@code clubId-mapper} projects that attribute into the
- * pilot's next JWT {@code clubId} claim, which {@code ClubTenantIdentifierResolver}
- * + the JIT user-materialization filter trust with NO {@code t_user} corroboration.
- * So if the DB transaction rolls back AFTER the attribute write and the attribute
- * outlives the rolled-back approve, the pilot's next token silently grants tenant
- * access and JIT materializes a {@code t_user} — while the request stays PENDING
- * (re-approve 409s, stuck half-joined). The defence must ensure a half-fail strands
- * NOTHING in the directory.
- *
- * <p>This IT models the realm projection as a function of the directory's recorded
- * {@code clubId}-attribute state for a sub: the directory mock is stateful, and the
- * pilot's "next token" is minted FROM that recorded state (claim present iff the
- * attribute is present). So:
- *
- * <ul>
- *   <li>a half-fail that leaves the attribute stranded ⇒ the projected token carries
- *       the {@code clubId} claim ⇒ JIT materializes a {@code t_user} on the next
- *       authenticated request ⇒ tenant access leaks (the RED the fix closes);</li>
- *   <li>a half-fail that strands nothing ⇒ the projected token carries no claim ⇒
- *       the pilot is tenant-less, no {@code t_user} materializes, and the request
- *       stays PENDING and re-approvable.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -84,7 +57,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
     @Autowired ClubStateRepository clubStates;
     @MockitoBean UserDirectoryPort directory;
 
-    /** Recorded {@code clubId} attribute per sub — the realm's source of truth the mapper projects. */
     private final Map<UUID, UUID> directoryClubIdAttr = new ConcurrentHashMap<>();
 
     private UUID clubA;
@@ -102,9 +74,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         seedUser(adminSubA, clubA, "admin-a");
         directoryClubIdAttr.clear();
         reset(directory);
-        // Stateful directory mock: writes/clears mutate the recorded attribute the
-        // realm projection reads, so the pilot's "next token" reflects what KC would
-        // actually carry after the approve attempt.
         when(directory.findRealmRolesByName(any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
             java.util.Set<String> names = (java.util.Set<String>) inv.getArgument(0);
@@ -125,8 +94,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
 
-        // Force the in-transaction KC role grant to throw AFTER the attribute write,
-        // so the DB transaction rolls back — the half-fail the blocker simulates.
         doThrow(new UserDirectoryException("simulated KC grant failure"))
                 .when(directory).grantRealmRoles(any(), anyList());
         ResponseEntity<String> failed = approve(adminToken(clubA, adminSubA), reqId,
@@ -134,15 +101,9 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         assertThat(failed.getStatusCode().is5xxServerError())
                 .as("KC failure mid-transaction rolls everything back").isTrue();
 
-        // The leak is the stranded attribute: after a rolled-back approve the realm
-        // must project NO clubId claim, so the directory must hold no clubId for the
-        // sub. (RED on the pre-fix code, which never compensates the write.)
         assertThat(directoryClubIdAttr.get(sub))
                 .as("a rolled-back approve must strand no clubId attribute").isNull();
 
-        // Re-present the token the realm WOULD now project (claim-derived from the
-        // recorded attribute state) and hit an authenticated endpoint. Tenant-less:
-        // no clubId claim ⇒ JIT materializes no t_user ⇒ no tenant access.
         ResponseEntity<String> meAsProjected =
                 get(projectedPilotToken(sub), "/api/v1/me/join-request");
         assertThat(meAsProjected.getStatusCode().is2xxSuccessful())
@@ -152,9 +113,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
                 Integer.class, sub.toString());
         assertThat(materialized).as("no t_user materializes for the half-joined pilot").isZero();
 
-        // The clubId claim, if it had leaked, would resolve the tenant to club A and
-        // surface club A's pending rows. Drive the tenant-scoped admin list with the
-        // projected token: tenant-less ⇒ it cannot read club A's request.
         ResponseEntity<String> pendingAsProjected =
                 get(projectedAdminToken(sub), "/api/v1/join-requests?status=pending");
         assertThat(pendingAsProjected.getStatusCode().is2xxSuccessful()
@@ -162,8 +120,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
                 : true)
                 .as("tenant-less projected principal reads no club-A pending rows").isTrue();
 
-        // The request is still actionable — it never left PENDING, so a real approve
-        // (grant restored) lands the pilot in-club. Stuck-half-joined is impossible.
         reset(directory);
         rewireDirectory();
         ResponseEntity<String> realApprove = approve(adminToken(clubA, adminSubA), reqId,
@@ -176,7 +132,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         assertThat(userClub).as("the recovered approve lands the pilot in club A").isEqualTo(clubA);
     }
 
-    // ---- helpers ----
 
     private void rewireDirectory() {
         when(directory.findRealmRolesByName(any())).thenAnswer(inv -> {
@@ -200,7 +155,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         return readJson(res).get("id").asText();
     }
 
-    /** A tenant-less pilot token (no clubId claim) — the pre-approval window. */
     private String pilotToken(UUID sub) {
         return jwts.mint(c -> c
                 .subject(sub.toString())
@@ -211,12 +165,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
     }
 
-    /**
-     * The token the realm would project for the pilot AFTER the approve attempt: the
-     * {@code clubId} claim is present iff the directory recorded a {@code clubId}
-     * attribute for the sub. Full JIT identity claims so the only lever on whether a
-     * {@code t_user} materializes is the (un)stranded {@code clubId} claim.
-     */
     private String projectedPilotToken(UUID sub) {
         UUID attr = directoryClubIdAttr.get(sub);
         return jwts.mint(c -> {
@@ -231,7 +179,6 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         });
     }
 
-    /** The projected token with a CLUB_ADMINISTRATOR role band, to probe the tenant-scoped list. */
     private String projectedAdminToken(UUID sub) {
         UUID attr = directoryClubIdAttr.get(sub);
         return jwts.mint(c -> {
