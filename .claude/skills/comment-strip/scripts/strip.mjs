@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { extname, join, relative, resolve, basename } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { extname, join, relative, resolve, basename, sep } from 'node:path';
 
 export const LANGUAGE_BY_EXTENSION = new Map([
   ['.java', 'clike'],
@@ -26,10 +26,17 @@ const EXTENSIONS_WITH_TEMPLATE_LITERALS = new Set(['.ts', '.mts', '.js', '.mjs',
 const EXTENSIONS_WITHOUT_LINE_COMMENTS = new Set(['.css']);
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
-  'node_modules', 'build', 'target', '.gradle', '.git', 'dist', '.angular',
-  'coverage', 'test-results', 'playwright-report', 'flsserver', 'flsweb',
+  'node_modules', '.gradle', '.git', '.angular', 'flsserver', 'flsweb',
   '.comment-strip', 'generated',
 ]);
+
+const EXCLUDED_DIRECTORY_NAME_PREFIXES = ['node_modules'];
+
+const BUILD_OUTPUT_DIRECTORY_NAMES = new Set([
+  'build', 'target', 'dist', 'coverage', 'test-results', 'playwright-report',
+]);
+
+const SOURCE_ROOT_DIRECTORY_NAME = 'src';
 
 const EXCLUDED_FILE_NAMES = new Set(['gradlew', 'gradlew.bat']);
 
@@ -457,6 +464,11 @@ function expandRemovalToWholeLines(source, comment) {
   if (beforeIsBlank && afterIsBlank) {
     return { start: lineStart, end: Math.min(lineEnd + 1, source.length) };
   }
+  if (beforeIsBlank) {
+    let end = comment.end;
+    while (end < lineEnd && /[ \t]/.test(source[end])) end += 1;
+    return { start: comment.start, end };
+  }
   let start = comment.start;
   while (start > lineStart && /[ \t]/.test(source[start - 1])) start -= 1;
   return { start, end: comment.end };
@@ -493,15 +505,37 @@ export function stripSource(source, extension) {
   return { output, removed, literalsUnchanged, remaining: verification.comments };
 }
 
-function collectSourceFiles(startPaths) {
+function isExcludedDirectory(path) {
+  const name = basename(path);
+  if (EXCLUDED_DIRECTORY_NAMES.has(name)) return true;
+  if (EXCLUDED_DIRECTORY_NAME_PREFIXES.some((prefix) => name.startsWith(prefix))) return true;
+  const liesUnderASourceRoot = path.split(sep).slice(0, -1).includes(SOURCE_ROOT_DIRECTORY_NAME);
+  return BUILD_OUTPUT_DIRECTORY_NAMES.has(name) && !liesUnderASourceRoot;
+}
+
+function resolveOrSkip(path) {
+  try {
+    return { stats: statSync(path), canonicalPath: realpathSync(path) };
+  } catch {
+    return null;
+  }
+}
+
+export function collectSourceFiles(startPaths) {
   const collected = [];
+  const alreadyWalkedDirectories = new Set();
   const walk = (path) => {
-    const stats = statSync(path);
+    const resolved = resolveOrSkip(path);
+    if (resolved === null) return;
+    const { stats, canonicalPath } = resolved;
     if (stats.isDirectory()) {
-      if (EXCLUDED_DIRECTORY_NAMES.has(basename(path))) return;
+      if (isExcludedDirectory(path)) return;
+      if (alreadyWalkedDirectories.has(canonicalPath)) return;
+      alreadyWalkedDirectories.add(canonicalPath);
       for (const entry of readdirSync(path)) walk(join(path, entry));
       return;
     }
+    if (!stats.isFile()) return;
     if (EXCLUDED_FILE_NAMES.has(basename(path))) return;
     if (!LANGUAGE_BY_EXTENSION.has(extname(path))) return;
     collected.push(path);

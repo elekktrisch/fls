@@ -1,11 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stripSource, scanComments, classifyComment, scoreComment } from './strip.mjs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { stripSource, scanComments, classifyComment, scoreComment, collectSourceFiles } from './strip.mjs';
 
 function strip(source, extension) {
   const result = stripSource(source, extension);
   assert.equal(result.literalsUnchanged, true, 'string literals must survive untouched');
   return result;
+}
+
+function withTemporaryTree(build) {
+  const root = mkdtempSync(join(tmpdir(), 'comment-strip-'));
+  try {
+    build(root);
+    return collectSourceFiles([root]).map((file) => basename(file));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test('java: a URL inside a string literal is not a comment', () => {
@@ -46,6 +59,12 @@ test('java: trailing comment keeps the code and drops the trailing whitespace', 
   const source = 'int retries = 5; // three was not enough\n';
   const result = strip(source, '.java');
   assert.equal(result.output, 'int retries = 5;\n');
+});
+
+test('java: a leading parameter-name comment goes without taking the indentation with it', () => {
+  const source = ['void f() {', '    invite(', '        name,', '        /*enabled=*/ true);', '}'].join('\n');
+  const result = strip(source, '.java');
+  assert.equal(result.output, ['void f() {', '    invite(', '        name,', '        true);', '}'].join('\n'));
 });
 
 test('typescript: a regex literal containing a slash is not a comment', () => {
@@ -179,4 +198,43 @@ test('the final newline is preserved when the last line is a comment', () => {
   const source = 'const a = 1;\n// trailing note\n';
   const result = strip(source, '.ts');
   assert.equal(result.output, 'const a = 1;\n');
+});
+
+test('the walk completes past a dangling symlink instead of throwing', () => {
+  const collected = withTemporaryTree((root) => {
+    writeFileSync(join(root, 'reachable.ts'), 'const a = 1;\n');
+    symlinkSync(join(root, 'target-that-does-not-exist'), join(root, 'dangling-link'));
+    symlinkSync('/absent-elsewhere/node_modules', join(root, 'dangling-directory-link'));
+  });
+  assert.deepEqual(collected, ['reachable.ts']);
+});
+
+test('the walk terminates on a symlink cycle and visits each file once', () => {
+  const collected = withTemporaryTree((root) => {
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src', 'once.ts'), 'const a = 1;\n');
+    symlinkSync(root, join(root, 'src', 'loop-back-to-root'));
+  });
+  assert.deepEqual(collected, ['once.ts']);
+});
+
+test('the walk skips build output but not a source package that happens to be named build', () => {
+  const collected = withTemporaryTree((root) => {
+    mkdirSync(join(root, 'build'), { recursive: true });
+    writeFileSync(join(root, 'build', 'Generated.java'), 'class Generated {}\n');
+    mkdirSync(join(root, 'src', 'test', 'java', 'ch', 'alpenflight', 'build'), { recursive: true });
+    writeFileSync(join(root, 'src', 'test', 'java', 'ch', 'alpenflight', 'build', 'ToolchainTest.java'), 'class ToolchainTest {}\n');
+  });
+  assert.deepEqual(collected, ['ToolchainTest.java']);
+});
+
+test('the walk skips dependency trees whatever suffix their directory name carries', () => {
+  const collected = withTemporaryTree((root) => {
+    writeFileSync(join(root, 'app.ts'), 'const a = 1;\n');
+    for (const dependencyDirectory of ['node_modules', 'node_modules.windows', 'node_modules_sandbox']) {
+      mkdirSync(join(root, dependencyDirectory));
+      writeFileSync(join(root, dependencyDirectory, 'vendor.ts'), 'const b = 2;\n');
+    }
+  });
+  assert.deepEqual(collected, ['app.ts']);
 });
