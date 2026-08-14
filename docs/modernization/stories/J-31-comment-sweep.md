@@ -33,7 +33,7 @@ adr_refs: [0022]
 Every comment a human wrote for a human comes out of `alpenflight/` and `e2e/`, and
 where a comment carried real understanding that understanding moves into the **name**.
 History stays in git; rationale stays in `docs/modernization/`. The measured surface is
-**21,001 comments across 1,792 files**.
+**21,031 comments across 1,799 files** (`strip.mjs --check alpenflight e2e`, T-01).
 
 The journey changes no behavior, so its user-facing proof is the thinnest already-built
 screen — the public landing at `/` — re-proven green. Same logic as Journey-0: no feature
@@ -61,7 +61,7 @@ Batches run smallest-first so the pipeline is shaken out on 16 files, not 787.
 later backend gate depends on — the repair follows immediately.
 
 - [x] **T-01** — `strip.mjs`: survive the dangling `node_modules_sandbox` symlink; regression case in `strip.test.mjs`; shake down `--check` + `--manifest` on a real sample
-- [ ] **T-02** — the repeal commit: do-ship + do-task SKILL.md, comment-strip SKILL.md (relax same-day + open-branch preconditions), `CONVENTIONS.md`, the eslint message, `.gitignore` (`.comment-strip/` + `backend.log`/`backend.pid`), retire `[COMMENT-STRIP]` from `_BOYSCOUT.md`, rewrite the memory
+- [x] **T-02** — the repeal commit: do-ship + do-task SKILL.md, comment-strip SKILL.md (relax same-day + open-branch preconditions), `CONVENTIONS.md`, the eslint message, `.gitignore` (`.comment-strip/` + `backend.log`/`backend.pid`), retire `[COMMENT-STRIP]` from `_BOYSCOUT.md`, rewrite the memory
 - [ ] **T-03** — batch `migration-tool` (180 comments / 16 files) — pilot: proves the judge→strip→gate loop end to end
 - [ ] **T-04** — batch `database` (324 / 33)
 - [ ] **T-05** — batch `ops-shell` + `auth` (492 / 16)
@@ -86,7 +86,7 @@ proof. Recorded as a decision, not a drift. Whether the 60/40 marker in `do-plan
 reverts after this journey is `/do-retro`'s call.
 
 **Scope is comment-strip only** (operator, 2026-08-14). No rider burndown rides along — a
-1,792-file diff conflicts unresolvably with every open branch, so the merge window is the
+1,799-file diff conflicts unresolvably with every open branch, so the merge window is the
 risk to minimize. Other riders keep draining on feature journeys.
 
 **Same-day merge: RELAXED** (operator, 2026-08-14). The skill's precondition assumes a team whose
@@ -95,7 +95,7 @@ flight, so the sweep takes the time it needs. T-02 relaxes the precondition in t
 rather than ignoring it here.
 
 **Gate wiring runs LAST (T-15), not in the repeal commit.** The skill puts `--check` in step 1 so
-policy can't decay. Landing it first would red CI on 21,001 violations for the journey's entire
+policy can't decay. Landing it first would red CI on 21,031 violations for the journey's entire
 length, hiding every real red behind an expected one. The POLICY repeal still lands first (T-02) —
 that's the half that stops a worker writing fresh comments — and the gate lands when it can land
 green. Deviation is deliberate; the skill's reasoning holds for a busier repo.

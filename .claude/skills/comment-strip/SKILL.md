@@ -28,12 +28,15 @@ This skill ships behavior change in the codebase's readability, not a document.
 ## Preconditions — refuse or warn
 
 - **Refuse** if the working tree is dirty.
-- **Warn and confirm** if other journey branches are open. This sweep touches
-  ~1,650 files, so every open branch will conflict on rebase, and the conflicts
-  are unresolvable by tooling — both sides changed the same lines.
-- Cut a dedicated branch off `main`: `chore/comment-strip`.
-- Tell the operator to **merge it the same day**. A comment-sweep PR left open
-  for a week rots against every commit that lands.
+- **State the merge-window cost, then let the operator set it.** This sweep touches
+  ~1,800 files: any branch open across it conflicts on rebase and the conflicts are
+  unresolvable by tooling (both sides changed the same lines), and the sweep branch
+  itself rots against whatever lands on `main` meanwhile. So name the open branches and
+  the cost of the window, and let the operator judge how long the sweep may run — a
+  same-day merge is the answer when others are shipping in parallel, not a rule. With
+  two people on the repo and nothing else in flight, taking the time it needs is fine.
+- Cut a dedicated branch off `main`: `chore/comment-strip` — or run it as a journey on
+  `integration/J-NNN`, which is what buys the sweep a real gate and a proof video.
 
 ## Step 1 — repeal the policy, then sweep
 
@@ -51,8 +54,9 @@ clean tree and the sweep is paid for twice.
 | memory `feedback_self_explanatory_no_history_comments` | rewrite: the rule is now *no comments*, not *why-only* |
 | `.gitignore` | add `.comment-strip/` |
 
-Also wire the detector in the same commit: add a stage to
-`alpenflight/web/scripts/preflight.sh` and to CI running
+The detector that keeps the policy from decaying is a stage in
+`alpenflight/web/scripts/preflight.sh` and a CI step on every push (no path filter —
+a path-skipped guard reads green having run nothing):
 
 ```
 node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
@@ -60,6 +64,14 @@ node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
 
 `--check` exits non-zero on any prose comment **and on any leftover `RENAME:`
 marker**. Policy text decays; a gate does not.
+
+**Wire the gate when it can land green — after the last batch, not with the repeal.**
+The repeal commit is what stops a worker writing fresh comments into the tree; the gate
+is what stops the policy decaying later, and it can only do that from green. Landed with
+the repeal it reds every push for the sweep's whole length (~21,000 violations on day
+one), and a permanently-red required check hides every real red behind the expected one.
+So: repeal first, sweep, then land `--check` as the last commit before the gate run. Only
+when the sweep finishes in one sitting can the two share a commit.
 
 ## Step 2 — sweep, batch by batch
 
@@ -139,7 +151,7 @@ Only after **all** batches are done.
 
 Run the full gate once: `pnpm preflight` (gradle suite + web + gallery + e2e).
 Then open the PR and **stop**. Never run this unattended — it repeals a policy,
-rewrites ~1,650 files and renames across module boundaries.
+rewrites ~1,800 files and renames across module boundaries.
 
 **Report:**
 

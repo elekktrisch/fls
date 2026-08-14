@@ -17,13 +17,6 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
-## Pending (filed by /do-retro J-17 window, 2026-08-14)
-
-- **[BACKEND-RUNTIME-ARTIFACTS-UNIGNORED]** `alpenflight/server/backend.log` and `backend.pid` are written by the
-  local real-idp bring-up (and `ci.yml` writes the pid), but neither is in a `.gitignore` — they sit untracked in
-  every working tree, so a `git add -A` commits a PID file and a server log. One `.gitignore` line.
-  *(seam: `alpenflight/.gitignore`)*
-
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
 - **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
@@ -120,11 +113,6 @@ stragglers each ceremony so the file shrinks.
   to cut the workflow YAML (~4.5k→~2k) — the only still-pending half (the mock-suite sharding, real-idp shard,
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
-- **[COMMENT-STRIP] Self-explanatory code, why-only comments** — the pre-existing cross-journey narration carried
-  in `MapperLegacyBindings.java` and the real-idp `_helpers/fan-out-parity-fixture.ts` (its own burndown slot —
-  too big for a per-touch fold). The do-* skills enforce why-only going forward.
-  *(seam: those two files + per-touch elsewhere)*
-  [[feedback_self_explanatory_no_history_comments]]
 - **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
   task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
   + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +

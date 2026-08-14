@@ -44,7 +44,7 @@ export default tseslint.config(
           selector:
             "CallExpression[callee.property.name=/^bypassSecurityTrust/]",
           message:
-            'DomSanitizer.bypassSecurityTrust* is forbidden — sanitize inputs at the source. Override only with a per-line eslint-disable + reviewer approval comment.',
+            'DomSanitizer.bypassSecurityTrust* is forbidden — sanitize inputs at the source. Override only with a per-line eslint-disable, and get a reviewer to approve it on the PR.',
         },
         {
           selector:

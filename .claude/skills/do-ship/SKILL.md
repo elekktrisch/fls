@@ -310,10 +310,13 @@ call, recorded in ADR 0026 if it's an intentional divergence.)
 - Green bar = the real full-chain run; declared+signed mocks only, undeclared mock = red.
 - Schema structural, business rules on aggregates (ADR 0022 §2). Tasks commit to `integration/J-NNN`;
   the **manager pushes**; never merge red; one PR per journey. Prune before done; cite file:line/PR#/J-ID.
-- **Self-explanatory code, why-only comments.** No what/narration/history/task-attribution comments
-  in code, specs, or YAML (no `T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"); a rare short
-  *why* only when genuinely non-derivable, preferred as a named symbol / test name / ADR ref. History
-  belongs in the commit message + git, never in code or the journey body.
+- **No comments — put the understanding in the name.** Not "why-only": zero human-written prose in
+  code, specs, or YAML. A comment you want to write is a symbol, test, or constant that needs a
+  longer name, or an ADR/`docs/modernization/` entry. Long names are fine. The only survivors are
+  tool-parsed directives (`eslint-disable*`, `@ts-ignore`/`@ts-expect-error`, `prettier-ignore`,
+  `noinspection`, `language=`, `@formatter:off/on`, shebangs) and `// ext:` markers at a boundary an
+  outside party owns *where no machine-enforced pin exists* — prefer `@JsonProperty`/`@Column`.
+  History belongs in the commit message + git, never in code or the journey body. See `/comment-strip`.
 - Does **not** merge PRs, auto-edit ADRs, or delete issues.
 
 ## When done
