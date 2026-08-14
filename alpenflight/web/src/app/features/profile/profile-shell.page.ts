@@ -46,7 +46,6 @@ import { ProfilePilotTab } from './profile-pilot.tab';
           }
 
           <nz-tabs [(nzSelectedIndex)]="selectedIndex">
-            <!-- Account: always enabled (targets the t_user row). T-05 fills it. -->
             <nz-tab [nzTitle]="accountTitle">
               <ng-template #accountTitle>
                 <span data-testid="profile-tab-account">{{ t('tabs.account') }}</span>
@@ -56,7 +55,6 @@ import { ProfilePilotTab } from './profile-pilot.tab';
               </section>
             </nz-tab>
 
-            <!-- Personal / Pilot / Notifications: disabled until a Person is linked. -->
             <nz-tab [nzTitle]="personalTitle" [nzDisabled]="!hasPerson()">
               <ng-template #personalTitle>
                 <span data-testid="profile-tab-personal">{{ t('tabs.personal') }}</span>

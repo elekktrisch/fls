@@ -151,7 +151,6 @@ type AircraftForm = FormGroup<{
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Section 1: Master data -->
             <section class="flex flex-col gap-2" data-testid="aircraft-section-masterdata">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -229,7 +228,6 @@ type AircraftForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 2: Operational data -->
             <section class="flex flex-col gap-2" data-testid="aircraft-section-operational">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -301,7 +299,6 @@ type AircraftForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 3: Technical data -->
             <section class="flex flex-col gap-2" data-testid="aircraft-section-technical">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"

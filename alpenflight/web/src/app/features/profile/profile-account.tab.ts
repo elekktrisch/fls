@@ -49,7 +49,6 @@ type AccountForm = FormGroup<{
         data-testid="profile-account-form"
         class="max-w-2xl flex flex-col gap-3"
       >
-        <!-- Read-only identity fields (admin / Keycloak owned). -->
         <af-form-field [label]="t('username')" for="ProfileUsername">
           <af-input
             inputId="ProfileUsername"
@@ -71,7 +70,6 @@ type AccountForm = FormGroup<{
           />
         </af-form-field>
 
-        <!-- Editable self-fields. -->
         <af-form-field
           [label]="t('friendlyName')"
           for="ProfileFriendlyName"

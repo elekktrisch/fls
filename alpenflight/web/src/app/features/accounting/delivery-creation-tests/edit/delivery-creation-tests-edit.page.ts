@@ -236,8 +236,6 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
               </div>
             </section>
 
-            <!-- Dry-run: "Create test delivery" runs the engine WITHOUT persisting
-                 and fills the expected DeliveryItem set (the saved expectation). -->
             <section class="flex flex-col gap-2" data-testid="dct-expected-section">
               <div class="flex items-center justify-between border-b border-slate-200 pb-1">
                 <h2 class="text-xs font-medium text-slate-600 uppercase tracking-wide">
@@ -303,8 +301,6 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
             </div>
           </form>
 
-          <!-- Run verdict + matched-rule links. The per-item cell diff (T-18)
-               mounts into this area below the verdict on a Failure. -->
           @if (store.runResult(); as run) {
             <section
               class="mt-6 flex flex-col gap-2 border border-slate-200 p-4"
@@ -322,10 +318,6 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
                   >{{ run.lastTestResultMessage }}</pre
                 >
               }
-              <!-- Cell-level diff: on a Failure, the engine output differed from
-                   the stored expectation — show which item fields diverged, with
-                   the engine's (actual) value flagged red. The operator's daily
-                   rule-tuning read. -->
               @if (!run.lastTestSuccessful && runDiff().length > 0) {
                 <div class="flex flex-col gap-2" data-testid="dct-diff">
                   <span class="text-xs font-medium text-slate-600 uppercase tracking-wide">

@@ -34,8 +34,6 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
                   </button>
                 }
               </header>
-              <!-- Cross-tenant tiles fed by GET /api/v1/me/system-dashboard +
-                   the tenant-enter control (T-11). -->
               <af-start-sysadmin />
             </div>
           </af-page>
@@ -56,15 +54,11 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
                   </button>
                 }
               </header>
-              <!-- Tiles fed by GET /api/v1/me/club-dashboard, live-updated on a
-                   flight.created SSE push (T-09). -->
               <af-start-clubadmin />
             </div>
           </af-page>
         }
         @default {
-          <!-- Pilot variant = the shipped S-165 dashboard, rendered unchanged
-               inside its container. The shell wraps; it does not rewrite. -->
           <div data-testid="start-variant-pilot">
             <af-start />
           </div>

@@ -11,12 +11,6 @@ import { errorsToKeys } from './field-errors';
   imports: [TranslocoDirective],
   host: { class: 'block' },
   template: `
-    <!--
-      Unscoped \`*transloco\` (no \`read:\`) — the mapped keys are absolute
-      (\`common.errors.*\`, see field-errors.ts), and rendering through the
-      directive keeps reRenderOnLangChange working (J-26 T-08: the raw i18n
-      key used to render verbatim).
-    -->
     <ng-container *transloco="let t">
       @for (key of keys(); track key) {
         <span class="block text-sm text-red-600" role="alert">{{ t(key) }}</span>

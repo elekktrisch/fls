@@ -95,7 +95,6 @@ type PlanningForm = FormGroup<{
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Section 1: Day -->
             <section class="flex flex-col gap-2" data-testid="planning-section-day">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -118,15 +117,6 @@ type PlanningForm = FormGroup<{
                     />
                   </af-form-field>
 
-                  <!--
-                    Async (date, location) uniqueness pre-check (T-07): the STORE
-                    calls the T-05 validate endpoint (debounced) when planningDate
-                    + locationId are set; its result surfaces inline here on the
-                    date field — the SAME J-6 ux_pln_club_date_loc uniqueness the
-                    save-path 409 enforces, shown earlier WITHOUT a save round-trip.
-                    The required-field message above uses the shared debounced
-                    liveFieldErrors; this is the async leg.
-                  -->
                   @if (store.uniquenessValidating()) {
                     <span
                       class="block text-sm text-slate-500"
@@ -163,7 +153,6 @@ type PlanningForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 2: Crew -->
             <section class="flex flex-col gap-2" data-testid="planning-section-crew">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -201,7 +190,6 @@ type PlanningForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 3: Notes -->
             <section class="flex flex-col gap-2" data-testid="planning-section-notes">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -222,14 +210,6 @@ type PlanningForm = FormGroup<{
               <af-button htmlType="button" (clicked)="router.navigateByUrl('/planning')">
                 {{ isView() ? t('back') : t('cancel') }}
               </af-button>
-              <!--
-                Read-only to edit affordance (T-09, operator #11). In VIEW mode
-                an editor (canMutate) gets an Edit button that navigates to the
-                same day's /edit route; mode=edit flips isView() false so the
-                form re-enables cleanly (the disable effect runs on the route
-                change) and Save returns. Navigation (not a local mode signal)
-                keeps isView()/canMutate() driven by the single route source.
-              -->
               @if (isView() && canMutate() && editLink() !== null) {
                 <af-button
                   type="primary"
@@ -253,10 +233,6 @@ type PlanningForm = FormGroup<{
             </div>
           </form>
 
-          <!--
-            Per-day reservations (J-5 read-side join) — keyed on date + location
-            (T-08c), shown the moment both are picked, no save required.
-          -->
           @if (showReservations()) {
             <section
               class="flex flex-col gap-2 mt-8 pt-4 border-t border-slate-200"

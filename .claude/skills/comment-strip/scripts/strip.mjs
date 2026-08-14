@@ -25,6 +25,11 @@ const EXTENSIONS_WITH_TEXT_BLOCKS = new Set(['.java', '.kt', '.kts']);
 const EXTENSIONS_WITH_TEMPLATE_LITERALS = new Set(['.ts', '.mts', '.js', '.mjs', '.cjs', '.kt', '.kts']);
 const EXTENSIONS_WITHOUT_LINE_COMMENTS = new Set(['.css']);
 
+const EMBEDDED_LANGUAGE_BY_ANGULAR_INLINE_PROPERTY = new Map([
+  ['template', 'html'],
+  ['styles', 'css'],
+]);
+
 const EXCLUDED_DIRECTORY_NAMES = new Set([
   'node_modules', '.gradle', '.git', '.angular', 'flsserver', 'flsweb',
   '.comment-strip', 'generated',
@@ -143,22 +148,34 @@ function consumeRegexLiteral(source, startIndex) {
   return startIndex;
 }
 
-function consumeTemplateLiteral(source, startIndex) {
+function scanTemplateLiteral(source, startIndex) {
   let index = startIndex + 1;
+  let staticChunkStart = index;
+  const staticChunks = [];
   while (index < source.length) {
     const character = source[index];
     if (character === '\\') {
       index += 2;
       continue;
     }
-    if (character === '`') return index + 1;
+    if (character === '`') {
+      staticChunks.push({ start: staticChunkStart, end: index });
+      return { end: index + 1, staticChunks };
+    }
     if (character === '$' && source[index + 1] === '{') {
+      staticChunks.push({ start: staticChunkStart, end: index });
       index = consumeInterpolationBlock(source, index + 2);
+      staticChunkStart = index;
       continue;
     }
     index += 1;
   }
-  return source.length;
+  staticChunks.push({ start: staticChunkStart, end: source.length });
+  return { end: source.length, staticChunks };
+}
+
+function consumeTemplateLiteral(source, startIndex) {
+  return scanTemplateLiteral(source, startIndex).end;
 }
 
 function consumeInterpolationBlock(source, startIndex) {
@@ -180,6 +197,74 @@ function consumeInterpolationBlock(source, startIndex) {
   return index;
 }
 
+function embeddedCommentsIn(text, embeddedLanguage) {
+  if (embeddedLanguage === 'css') {
+    return scanCLike(text, '.css').comments.map((comment) =>
+      text.slice(comment.end - 2, comment.end) === '*/'
+        ? comment
+        : { ...comment, reportOnly: true, kind: 'unterminated comment in an inline styles literal' },
+    );
+  }
+  return scanHtml(text).comments;
+}
+
+function commentsInsideAnInlineLiteral(source, staticChunks, embeddedLanguage) {
+  const collected = [];
+  for (const chunk of staticChunks) {
+    const text = source.slice(chunk.start, chunk.end);
+    for (const comment of embeddedCommentsIn(text, embeddedLanguage)) {
+      collected.push({ ...comment, start: comment.start + chunk.start, end: comment.end + chunk.start });
+    }
+  }
+  return collected;
+}
+
+export function inlineLiteralTokenStream(literalText, embeddedLanguage) {
+  const { staticChunks } = scanTemplateLiteral(literalText, 0);
+  const strippable = commentsInsideAnInlineLiteral(literalText, staticChunks, embeddedLanguage).filter(
+    (comment) => comment.reportOnly !== true,
+  );
+  let withoutComments = '';
+  let cursor = 0;
+  for (const comment of strippable) {
+    withoutComments += literalText.slice(cursor, comment.start);
+    cursor = comment.end;
+  }
+  withoutComments += literalText.slice(cursor);
+  return withoutComments.split(/\s+/).filter((token) => token !== '').join(' ');
+}
+
+function angularInlineLiteralTracker() {
+  let property = null;
+  let stage = 'none';
+  return {
+    sawWord(word) {
+      const isAnInlineLiteralProperty = EMBEDDED_LANGUAGE_BY_ANGULAR_INLINE_PROPERTY.has(word);
+      property = isAnInlineLiteralProperty ? word : null;
+      stage = isAnInlineLiteralProperty ? 'name' : 'none';
+    },
+    sawPunctuation(character) {
+      if (property === null) return;
+      if (character === ':' && stage === 'name') stage = 'value';
+      else if (character === '[' && stage === 'value') stage = 'array';
+      else if (character === ',' && stage === 'array') return;
+      else {
+        property = null;
+        stage = 'none';
+      }
+    },
+    languageOfTheLiteralStartingHere() {
+      if (property === null || (stage !== 'value' && stage !== 'array')) return null;
+      return EMBEDDED_LANGUAGE_BY_ANGULAR_INLINE_PROPERTY.get(property);
+    },
+    sawLiteral() {
+      if (stage === 'array') return;
+      property = null;
+      stage = 'none';
+    },
+  };
+}
+
 function regexLiteralCanStartAfter(lastCodeCharacter, lastWord) {
   if (lastCodeCharacter === '') return true;
   if (KEYWORDS_ALLOWING_A_FOLLOWING_REGEX_LITERAL.has(lastWord)) return true;
@@ -193,6 +278,7 @@ function scanCLike(source, extension) {
   const regexLiteralsAllowed = EXTENSIONS_WITH_REGEX_LITERALS.has(extension);
   const textBlocksAllowed = EXTENSIONS_WITH_TEXT_BLOCKS.has(extension);
   const templateLiteralsAllowed = EXTENSIONS_WITH_TEMPLATE_LITERALS.has(extension);
+  const angularInlineLiteral = angularInlineLiteralTracker();
   let index = 0;
   let lastCodeCharacter = '';
   let lastWord = '';
@@ -229,8 +315,17 @@ function scanCLike(source, extension) {
       continue;
     }
     if (templateLiteralsAllowed && character === '`') {
-      const end = consumeTemplateLiteral(source, index);
-      literals.push(source.slice(index, end));
+      const embeddedLanguage = angularInlineLiteral.languageOfTheLiteralStartingHere();
+      const { end, staticChunks } = scanTemplateLiteral(source, index);
+      if (embeddedLanguage === null) {
+        literals.push(source.slice(index, end));
+      } else {
+        for (const comment of commentsInsideAnInlineLiteral(source, staticChunks, embeddedLanguage)) {
+          comments.push(comment);
+        }
+        literals.push(inlineLiteralTokenStream(source.slice(index, end), embeddedLanguage));
+      }
+      angularInlineLiteral.sawLiteral();
       index = end;
       lastCodeCharacter = '`';
       continue;
@@ -250,12 +345,14 @@ function scanCLike(source, extension) {
       while (end < source.length && /[A-Za-z0-9_$]/.test(source[end])) end += 1;
       lastWord = source.slice(index, end);
       lastCodeCharacter = source[end - 1];
+      angularInlineLiteral.sawWord(lastWord);
       index = end;
       continue;
     }
     if (!/\s/.test(character)) {
       lastCodeCharacter = character;
       lastWord = '';
+      angularInlineLiteral.sawPunctuation(character);
     }
     index += 1;
   }
@@ -650,8 +747,18 @@ function scanHtml(source) {
     const opening = source.indexOf('<!--', index);
     if (opening === -1) break;
     const closing = source.indexOf('-->', opening + 4);
-    const end = closing === -1 ? source.length : closing + 3;
-    comments.push({ start: opening, end, body: source.slice(opening + 4, Math.max(opening + 4, end - 3)) });
+    if (closing === -1) {
+      comments.push({
+        start: opening,
+        end: source.length,
+        body: source.slice(opening + 4),
+        reportOnly: true,
+        kind: 'unterminated HTML comment (no --> bounds it, so removing it would swallow markup)',
+      });
+      break;
+    }
+    const end = closing + 3;
+    comments.push({ start: opening, end, body: source.slice(opening + 4, end - 3) });
     index = end;
   }
   return { comments, literals: [] };
@@ -865,12 +972,13 @@ function runCheck(files) {
   const violations = [];
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
+    const relativePath = relative(process.cwd(), file);
     const { comments } = scanComments(source, extname(file));
     for (const comment of comments) {
       const classification = classifyComment(source, comment);
       if (classification === 'directive') continue;
       violations.push({
-        file: relative(process.cwd(), file),
+        file: relativePath,
         line: lineNumberAt(source, comment.start),
         kind:
           classification === 'rename-marker'

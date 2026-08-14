@@ -176,13 +176,6 @@ type FlightTypeForm = FormGroup<{
                 />
                 <span>Motor flights</span>
               </label>
-              <!--
-                isForAircraftReservationType: column shipped (S-068
-                AircraftReservation depends on it); not surfaced in the form
-                until that story's consumer needs it. DTO field still
-                round-trips (defaults to false on create / preserved on
-                update) so the wire shape stays stable.
-              -->
             </div>
           </section>
 

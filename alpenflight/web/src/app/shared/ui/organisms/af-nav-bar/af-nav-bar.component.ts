@@ -54,7 +54,6 @@ export interface UserSummary {
       role="banner"
       class="sticky top-0 z-50 flex items-center gap-3 h-14 px-4 bg-white border-b border-slate-200 md:gap-6 md:px-6 lg:px-8 xl:px-12"
     >
-      <!-- Below-md hamburger -->
       @if (!isWide()) {
         <button
           type="button"
@@ -67,7 +66,6 @@ export interface UserSummary {
         </button>
       }
 
-      <!-- Brand -->
       <a
         [routerLink]="brandHref()"
         class="inline-flex items-center gap-2 flex-none text-slate-900 no-underline font-medium"
@@ -76,14 +74,10 @@ export interface UserSummary {
         <af-wordmark [label]="title()" />
       </a>
 
-      <!-- Section tabs (above md only) -->
       @if (isWide()) {
         <nav class="flex items-stretch gap-1 h-full ml-2" aria-label="Primary">
           @for (item of items(); track item.label) {
             @if (item.children; as children) {
-              <!-- Group: a "Label ▾" trigger opening an nz-dropdown of children.
-                   The trigger shows ACTIVE (brand-500) when ANY child route is
-                   active (groupActive(), a computed over the children + url). -->
               <button
                 type="button"
                 class="inline-flex items-center gap-1 px-3.5 text-[15px] text-slate-600 bg-transparent border-0 border-b-2 border-transparent -mb-px cursor-pointer hover:text-slate-900"
@@ -152,7 +146,6 @@ export interface UserSummary {
 
       <span class="flex-1"></span>
 
-      <!-- User menu (right) -->
       @if (user(); as u) {
         <button
           type="button"
@@ -223,7 +216,6 @@ export interface UserSummary {
       }
     </header>
 
-    <!-- Mobile drawer (sections only; user menu stays in the bar) -->
     <nz-drawer
       [nzVisible]="drawerOpen()"
       nzPlacement="left"
@@ -233,19 +225,12 @@ export interface UserSummary {
       (nzOnClose)="closeDrawer()"
     >
       <ng-container *nzDrawerContent>
-        <!-- Drawer nav renders its section testids ONLY below md. The desktop
-             header nav (above) renders the same af-nav-section-[path] testids;
-             gating the drawer on !isWide() keeps each testid a SINGLE match per
-             viewport (else af-nav-section-/clubs resolves to 2 elements and
-             strict-mode locators violate). -->
         @if (!isWide()) {
           <nav aria-label="Primary mobile">
             <ul class="list-none m-0 p-0 flex flex-col gap-1">
               @for (item of items(); track item.label) {
                 <li>
                   @if (item.children; as children) {
-                    <!-- Group: an expandable block; the parent label toggles the
-                       nested child list (parent is a label, not a route). -->
                     <button
                       type="button"
                       class="flex items-center gap-2.5 w-full py-3 px-2 text-slate-900 bg-transparent border-0 border-l-[3px] border-transparent cursor-pointer text-left"
@@ -320,9 +305,6 @@ export interface UserSummary {
       </ng-container>
     </nz-drawer>
 
-    <!-- Count pill: a positive live count binds (zero is falsy → no stray pill
-         on an empty queue). The host (leaf / dropdown child / rolled-up group
-         trigger) supplies the NavItem carrying the badge signal + its testid. -->
     <ng-template #badgePill let-item>
       @if (item.badge(); as count) {
         <span

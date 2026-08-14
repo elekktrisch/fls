@@ -93,7 +93,6 @@ const WEEKDAYS: readonly {
           class="flex flex-col gap-6"
           novalidate
         >
-          <!-- Section 1: Range -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-range">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -144,7 +143,6 @@ const WEEKDAYS: readonly {
             </af-form-field>
           </section>
 
-          <!-- Section 2: Weekdays -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-weekdays">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -168,7 +166,6 @@ const WEEKDAYS: readonly {
             </div>
           </section>
 
-          <!-- Section 3: Notes -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-notes">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"

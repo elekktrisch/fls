@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { stripSource, scanComments, classifyComment, scoreComment, collectSourceFiles } from './strip.mjs';
+import {
+  stripSource,
+  scanComments,
+  classifyComment,
+  scoreComment,
+  collectSourceFiles,
+  inlineLiteralTokenStream,
+} from './strip.mjs';
 
 function strip(source, extension) {
   const result = stripSource(source, extension);
@@ -324,6 +331,150 @@ test('yaml: comments go, quoted hashes and block scalars stay', () => {
     result.output,
     ['flyway:', '  clean-disabled: true', '  token: "abc#def"', '  script: |', '    # this is data, not a comment', '    echo hi', '  next: 1'].join('\n'),
   );
+});
+
+test('angular: comments inside an inline template go and the markup around them is untouched', () => {
+  const source = [
+    '@Component({',
+    "  selector: 'af-nav-bar',",
+    '  template: `',
+    '    <header>',
+    '      <!-- Below-md hamburger -->',
+    '      @if (!isWide()) {',
+    '        <button [attr.aria-label]="\'Open navigation\'" data-testid="af-nav-burger">',
+    '          {{ title() }}',
+    '        </button>',
+    '      }',
+    '      @for (item of items(); track item.path) {',
+    '        <a [routerLink]="item.path">{{ item.label }}</a> <!-- one anchor per item -->',
+    '      }',
+    '    </header>',
+    '  `,',
+    '})',
+    'export class AfNavBarComponent {}',
+  ].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(
+    result.output,
+    [
+      '@Component({',
+      "  selector: 'af-nav-bar',",
+      '  template: `',
+      '    <header>',
+      '      @if (!isWide()) {',
+      '        <button [attr.aria-label]="\'Open navigation\'" data-testid="af-nav-burger">',
+      '          {{ title() }}',
+      '        </button>',
+      '      }',
+      '      @for (item of items(); track item.path) {',
+      '        <a [routerLink]="item.path">{{ item.label }}</a>',
+      '      }',
+      '    </header>',
+      '  `,',
+      '})',
+      'export class AfNavBarComponent {}',
+    ].join('\n'),
+  );
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['Below-md hamburger', 'one anchor per item'],
+  );
+});
+
+test('angular: inline-template comments are visible to a scan of the whole file', () => {
+  const source = ['@Component({ template: `<div><!-- invisible before T-08b --></div>` })', 'class A {}'].join('\n');
+  const { comments } = scanComments(source, '.ts');
+  assert.equal(comments.length, 1);
+  assert.equal(classifyComment(source, comments[0]), 'prose');
+});
+
+test('angular: a comment inside an inline styles array is lexed as CSS, not as a line comment', () => {
+  const source = [
+    '@Component({',
+    '  styles: [',
+    '    `',
+    '      /* Maintenance hatch — reference gradient, not expressible as a Tailwind utility. */',
+    '      .af-maintenance-band {',
+    "        background: url('https://cdn.example/x.png');",
+    '      }',
+    '    `,',
+    '  ],',
+    '})',
+    'export class ReservationsCalendarPage {}',
+  ].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(
+    result.output,
+    [
+      '@Component({',
+      '  styles: [',
+      '    `',
+      '      .af-maintenance-band {',
+      "        background: url('https://cdn.example/x.png');",
+      '      }',
+      '    `,',
+      '  ],',
+      '})',
+      'export class ReservationsCalendarPage {}',
+    ].join('\n'),
+  );
+  assert.equal(result.removed.length, 1);
+  assert.match(result.removed[0].text, /Maintenance hatch/);
+});
+
+test('a template literal that is not an Angular inline template stays opaque', () => {
+  const source = ['const page = `<!-- machine-readable build stamp -->`;', '// prose'].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, 'const page = `<!-- machine-readable build stamp -->`;\n');
+});
+
+test('angular: an interpolation inside an inline template is opaque, the markup around it is not', () => {
+  const source = ['@Component({', '  template: `<div>${wrap(`<!-- inner -->`)}</div><!-- outer -->`,', '})'].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(
+    result.output,
+    ['@Component({', '  template: `<div>${wrap(`<!-- inner -->`)}</div>`,', '})'].join('\n'),
+  );
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['outer'],
+  );
+});
+
+test('the inline-template invariant asserts the non-comment token stream, not the raw literal', () => {
+  const withComment = ['`', '  <!-- gone -->', '  <a [routerLink]="\'/x\'">{{ label }}</a>', '`'].join('\n');
+  const stripped = ['`', '  <a [routerLink]="\'/x\'">{{ label }}</a>', '`'].join('\n');
+  assert.equal(inlineLiteralTokenStream(withComment, 'html'), inlineLiteralTokenStream(stripped, 'html'));
+  const reflowed = '` <a [routerLink]="\'/x\'">{{ label }}</a> `';
+  assert.equal(inlineLiteralTokenStream(withComment, 'html'), inlineLiteralTokenStream(reflowed, 'html'));
+  for (const damaged of [
+    ['`', '  <a [routerLink]="\'/x\'">{{ }}</a>', '`'].join('\n'),
+    ['`', '  <a routerLink="/x">{{ label }}</a>', '`'].join('\n'),
+    ['`', '  <a [routerLink]="\'/x\'">{{ label }}</a><b></b>', '`'].join('\n'),
+  ]) {
+    assert.notEqual(
+      inlineLiteralTokenStream(withComment, 'html'),
+      inlineLiteralTokenStream(damaged, 'html'),
+      `losing or gaining a token must break the invariant: ${damaged}`,
+    );
+  }
+});
+
+test('html: an unterminated comment is reported, never removed', () => {
+  const source = ['<div>', '<!-- opened but never closed', '<span>kept</span>'].join('\n');
+  const result = strip(source, '.html');
+  assert.equal(result.output, source);
+  assert.equal(result.removed.length, 0);
+  assert.equal(result.reportedOnly.length, 1);
+  assert.match(result.reportedOnly[0].kind, /unterminated HTML comment/);
+});
+
+test('angular: an unterminated comment leaves the whole inline template untouched', () => {
+  const source = ['@Component({', '  template: `', '    <!-- opened but never closed', '    <p>kept</p>', '  `,', '})'].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, source);
+  assert.equal(result.removed.length, 0);
+  assert.match(result.reportedOnly[0].kind, /unterminated HTML comment/);
 });
 
 test('html: comments are removed', () => {

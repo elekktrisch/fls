@@ -190,8 +190,6 @@ import { PlanningStore } from '../planning.store';
           </table>
         </div>
 
-        <!-- Delete confirm — terse inline dialog (ADR 0024 §11; CDK overlay is the
-             organism pattern but a simple guarded confirm suffices here). -->
         @if (pendingDelete(); as pd) {
           <div
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40"

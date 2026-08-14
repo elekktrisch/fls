@@ -85,11 +85,8 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
           }
         </af-page-header>
 
-        <!-- Week navigation + day-picker + day/week toggle -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-1">
-            <!-- Pager step follows the active view (T-08 #3): day view steps ±1
-                 day (prev/next-day testids), week view steps ±7 (prev/next-week). -->
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center border border-slate-300 bg-white text-slate-600 cursor-pointer hover:bg-slate-50"
@@ -135,7 +132,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
             >
               <af-icon name="chevron-right" [size]="16" />
             </button>
-            <!-- View-aware period label (T-08 #3): DD.MM.YYYY day / start–end week. -->
             <span
               class="tabular ml-3 text-sm font-medium text-slate-700"
               data-testid="reservations-period-label"
@@ -145,15 +141,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
 
           <div class="flex border border-slate-300" data-testid="reservations-view-toggle">
             @for (v of views; track v) {
-              <!-- Selected = design fg-bg + bg-text (screens-reservations.jsx:106-110):
-                   surface-fg (slate-900) ground + white text, a legible active
-                   state, not an inverted "blacked-out" block (J-6b T-08 #2).
-                   The text color utility is IMPORTANT deliberately (J-6b T-17):
-                   ng-zorro's stylesheet is imported UNLAYERED (styles.css:2), so
-                   its global button color reset beats Tailwind's LAYERED text
-                   utilities and left the selected button dark-on-dark (the
-                   operator's #2 bug T-08 missed). The important utility wins the
-                   cascade over the unlayered antd reset, restoring legible text. -->
               <button
                 type="button"
                 class="border-0 px-3.5 py-1.5 text-xs font-medium capitalize cursor-pointer not-first:border-l not-first:border-slate-300"
@@ -184,7 +171,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
         />
 
         @if (view() === 'day') {
-          <!-- ─── Day view: aircraft × hour grid ─── -->
           <div class="overflow-x-auto border border-slate-200" data-testid="reservations-day-grid">
             <div class="min-w-[720px]">
               <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
@@ -195,7 +181,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                 </span>
               </div>
 
-              <!-- hour header -->
               <div
                 class="grid border-b border-slate-200 bg-slate-50"
                 [style.grid-template-columns]="'140px repeat(' + dayHours.length + ', 1fr)'"
@@ -229,7 +214,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                     </span>
                   </div>
                   <div class="relative">
-                    <!-- hour grid lines -->
                     <div
                       class="pointer-events-none absolute inset-0 grid"
                       [style.grid-template-columns]="'repeat(' + dayHours.length + ', 1fr)'"
@@ -239,7 +223,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                       }
                     </div>
                     @for (block of placedBlocks(lane); track block.reservation.id) {
-                      <!-- rounded-[2px]: ADR 0024 max-tolerated radius exception. -->
                       <button
                         type="button"
                         class="absolute top-1 bottom-1 flex flex-col justify-center gap-px overflow-hidden rounded-[2px] border-0 border-l-[3px] px-2 text-left text-xs cursor-pointer"
@@ -274,7 +257,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
             </div>
           </div>
         } @else {
-          <!-- ─── Week view: aircraft × day matrix ─── -->
           <div class="overflow-x-auto border border-slate-200" data-testid="reservations-week-grid">
             <div class="min-w-[720px]">
               <div
@@ -343,8 +325,6 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
   `,
   styles: [
     `
-      /* Maintenance hatch — reference repeating-linear-gradient; not expressible
-         as a Tailwind utility (ADR 0024 §11 documented exception). */
       .af-maintenance-band {
         background: repeating-linear-gradient(
           135deg,

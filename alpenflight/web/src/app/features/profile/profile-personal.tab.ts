@@ -60,7 +60,6 @@ type PersonalForm = FormGroup<{
         data-testid="profile-personal-form"
         class="max-w-2xl flex flex-col gap-3"
       >
-        <!-- Read-only name fields (admin-owned rename). -->
         <af-form-field [label]="t('firstName')" for="PersonalFirstName">
           <af-input
             inputId="PersonalFirstName"
@@ -82,7 +81,6 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <!-- Editable address fields. -->
         <af-form-field [label]="t('address')" for="PersonalAddress" [errors]="addressLine1Errors()">
           <af-input
             inputId="PersonalAddress"
@@ -142,7 +140,6 @@ type PersonalForm = FormGroup<{
           />
         </af-form-field>
 
-        <!-- Editable contact fields. -->
         <af-form-field
           [label]="t('phonePrivate')"
           for="PersonalPhonePrivate"

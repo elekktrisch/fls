@@ -226,7 +226,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Core fields (always shown) -->
             <section class="flex flex-col gap-2" data-testid="accounting-rules-section-core">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -322,7 +321,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </div>
             </section>
 
-            <!-- article-target (legacyId ∉ {5,10}) -->
             @if (showArticleTarget()) {
               <section
                 class="flex flex-col gap-2"
@@ -371,7 +369,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- recipient-target (legacyId == 10) -->
             @if (showRecipientTarget()) {
               <section
                 class="flex flex-col gap-2"
@@ -413,7 +410,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- aircraft-filter (legacyId == 30) -->
             @if (showAircraftFilter()) {
               <section
                 class="flex flex-col gap-2"
@@ -489,7 +485,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- no-landing-tax (legacyId == 20) -->
             @if (showNoLandingTax()) {
               <section
                 class="flex flex-col gap-2"
@@ -532,13 +527,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!--
-              Match-list predicate sub-component (T-13): the nine visible
-              {useAllExcept, matched[]} lists (personCategories is dead in the
-              legacy form — migrated, no control). One parameterised
-              MatchListControlComponent instantiated per spec, each bound to its
-              own form control so the slice round-trips through filterConfig.
-            -->
             <section class="flex flex-col gap-3" data-testid="accounting-rules-section-match-lists">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"

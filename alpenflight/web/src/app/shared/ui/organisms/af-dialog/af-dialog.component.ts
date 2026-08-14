@@ -28,11 +28,6 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
               {{ message() }}
             </p>
           }
-          <!--
-            Optional projected body. Hosts that need richer content than the
-            single message line (S-062h's per-field conflict diff) project it
-            here; the confirm/dismiss footer below is reused as-is.
-          -->
           <div class="empty:hidden mb-4">
             <ng-content />
           </div>

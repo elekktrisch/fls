@@ -61,7 +61,6 @@ function formatTime(iso?: string): string {
         </af-button>
       </af-page-header>
 
-      <!-- Filter-criteria panel — the active filter the report ran with. -->
       <section
         class="mb-6 border border-slate-200 bg-white p-4"
         data-testid="report-filter-criteria"
@@ -117,7 +116,6 @@ function formatTime(iso?: string): string {
           <p class="m-0">No flights match this report.</p>
         </div>
       } @else {
-        <!-- Summary table — group / starts / ldgs / flights / duration. -->
         <div class="mb-6 border border-slate-200 bg-white overflow-x-auto">
           <table class="w-full text-sm border-collapse" data-testid="report-summary-table">
             <thead>
@@ -148,7 +146,6 @@ function formatTime(iso?: string): string {
           </table>
         </div>
 
-        <!-- Flights data table — J-2 logbook column idiom. -->
         <div class="border border-slate-200 bg-white overflow-x-auto">
           <table class="w-full text-sm border-collapse" data-testid="report-flights-table">
             <thead>
@@ -187,7 +184,6 @@ function formatTime(iso?: string): string {
                   <td class="px-3 py-2 text-slate-500">{{ fl.flightComment }}</td>
                 </tr>
                 @if (fl.towFlight; as tow) {
-                  <!-- Nested aerotow block — the tow data alongside its glider. -->
                   <tr
                     class="text-xs text-slate-600 bg-slate-50"
                     [attr.data-testid]="'report-flights-tow-row'"

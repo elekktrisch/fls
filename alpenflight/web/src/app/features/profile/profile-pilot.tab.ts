@@ -63,7 +63,6 @@ type PilotForm = FormGroup<{
         data-testid="profile-pilot-form"
         class="max-w-2xl flex flex-col gap-6"
       >
-        <!-- Licences ------------------------------------------------------- -->
         <fieldset class="flex flex-col gap-2">
           <legend class="mb-2 text-sm font-medium text-slate-900">{{ t('licencesGroup') }}</legend>
 
@@ -171,7 +170,6 @@ type PilotForm = FormGroup<{
           </af-form-field>
         </fieldset>
 
-        <!-- Medical + licence expiries ------------------------------------- -->
         <fieldset class="flex flex-col gap-3">
           <legend class="mb-2 text-sm font-medium text-slate-900">{{ t('medicalGroup') }}</legend>
 
@@ -236,7 +234,6 @@ type PilotForm = FormGroup<{
           </af-form-field>
         </fieldset>
 
-        <!-- Permissions + reports ------------------------------------------ -->
         <fieldset class="flex flex-col gap-2">
           <legend class="mb-2 text-sm font-medium text-slate-900">
             {{ t('permissionsGroup') }}

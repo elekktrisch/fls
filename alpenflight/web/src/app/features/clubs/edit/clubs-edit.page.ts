@@ -268,7 +268,6 @@ type ClubForm = FormGroup<{
                 data-testid="clubs-discovery-day-input"
               />
             </af-form-field>
-            <!-- Matches the form-field's own bottom margin so both baselines line up. -->
             <af-button
               class="mb-4"
               type="primary"

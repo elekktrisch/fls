@@ -98,7 +98,6 @@ type ReservationForm = FormGroup<{
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Section 1: Reservation details -->
             <section class="flex flex-col gap-2" data-testid="reservation-section-details">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -181,7 +180,6 @@ type ReservationForm = FormGroup<{
               </af-form-field>
             </section>
 
-            <!-- Section 2: Timeframe -->
             <section class="flex flex-col gap-2" data-testid="reservation-section-timeframe">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -241,14 +239,6 @@ type ReservationForm = FormGroup<{
                 <span>{{ t('allDay') }}</span>
               </label>
 
-              <!--
-                Async overlap pre-check (T-06): the STORE calls the T-04
-                validate endpoint (debounced) when aircraft + start + end +
-                all-day are set; its result surfaces inline here on the slot —
-                the SAME J-5 overlap the save-path 409 enforces, shown earlier
-                WITHOUT a save round-trip. The required-field messages above use
-                the shared debounced liveFieldErrors; this is the async leg.
-              -->
               @if (store.overlapValidating()) {
                 <span
                   class="block text-sm text-slate-500"
@@ -269,7 +259,6 @@ type ReservationForm = FormGroup<{
               }
             </section>
 
-            <!-- Section 3: Notes -->
             <section class="flex flex-col gap-2" data-testid="reservation-section-notes">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"

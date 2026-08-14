@@ -56,7 +56,6 @@ type CustomBuilderForm = FormGroup<{
         class="flex flex-col gap-6 border border-slate-200 bg-white p-4"
         novalidate
       >
-        <!-- FlightDate range -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <af-form-field
             label="Date from"
@@ -81,7 +80,6 @@ type CustomBuilderForm = FormGroup<{
           </af-form-field>
         </div>
 
-        <!-- Flight-type toggles -->
         <fieldset class="flex flex-wrap gap-6 m-0 p-0 border-0">
           <legend class="text-sm font-medium text-slate-700 mb-2 p-0">Flight types</legend>
           <label class="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -98,7 +96,6 @@ type CustomBuilderForm = FormGroup<{
           </label>
         </fieldset>
 
-        <!-- Conditional selector: location (category=location) or person (category=person) -->
         @if (category() === 'location') {
           <af-form-field label="Location" for="CustomLocation">
             <af-select

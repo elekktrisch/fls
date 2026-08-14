@@ -57,8 +57,6 @@ const CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID: Record<string, string> = {
           <p class="text-slate-500" data-testid="start-today">{{ formattedToday() }}</p>
         </header>
 
-        <!-- min-[900px] is the AC's exact breakpoint; matches legacy
-             screens-home.jsx:249-261. Not a custom Tailwind token. -->
         <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-2 mb-8">
           @if (store.showLastFlight()) {
             <a
@@ -70,9 +68,6 @@ const CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID: Record<string, string> = {
                 <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
                 <span class="text-sm tabular text-slate-500">{{ formattedLastFlightDate() }}</span>
               </header>
-              <!-- max-content keeps the label column auto-sized so longer
-                   localized labels (FR "Type de vol", IT "Tipo di volo")
-                   don't squeeze the value column on narrow viewports. -->
               <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm text-slate-700">
                 <dt class="text-slate-500">{{ t('lastFlight.aircraft') }}</dt>
                 <dd class="tabular">{{ aircraftImmat() }}</dd>
@@ -108,10 +103,6 @@ const CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID: Record<string, string> = {
               <p class="text-red-600">{{ t('lastFlight.error') }}</p>
             </div>
           }
-          <!-- Pre-attempt / first-paint: render no card at all (per ADR 0024
-               "spinner only after 300ms" — a single-line title card with no
-               body content reads as a layout glitch). The reservations
-               placeholder keeps the row's grid shape stable. -->
 
           <div
             class="border border-slate-200 p-5 space-y-2"
