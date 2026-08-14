@@ -342,7 +342,7 @@ export class PlanningEditPage {
   });
   protected readonly locationErrors = liveFieldErrors(this.form.controls.locationId);
 
-  private readonly liveFormKey = toSignal(
+  private readonly liveDateAndLocationKey = toSignal(
     this.form.valueChanges.pipe(
       map(() => this.form.getRawValue()),
       map((v) => ({ date: v.planningDate, locationId: v.locationId })),
@@ -351,15 +351,15 @@ export class PlanningEditPage {
     ),
     { initialValue: { date: '', locationId: '' } },
   );
-  protected readonly formKey = computed(() => {
-    const live = this.liveFormKey();
+  protected readonly dateAndLocationKey = computed(() => {
+    const live = this.liveDateAndLocationKey();
     if (live.date !== '' && live.locationId !== '') return live;
     const detail = this.store.selectedDetail();
     if (detail) return { date: detail.planningDate, locationId: detail.locationId };
     return live;
   });
   protected readonly showReservations = computed(() => {
-    const { date, locationId } = this.formKey();
+    const { date, locationId } = this.dateAndLocationKey();
     return date !== '' && locationId !== '';
   });
 
@@ -397,7 +397,7 @@ export class PlanningEditPage {
     });
 
     effect(() => {
-      const { date, locationId } = this.formKey();
+      const { date, locationId } = this.dateAndLocationKey();
       if (date === '' || locationId === '') {
         this.store.clearDayReservations();
         return;
@@ -406,7 +406,7 @@ export class PlanningEditPage {
     });
 
     effect(() => {
-      const { date, locationId } = this.formKey();
+      const { date, locationId } = this.dateAndLocationKey();
       const probe = uniquenessProbe(date, locationId, this.planningId());
       if (!probe) {
         this.store.clearUniquenessValidation();

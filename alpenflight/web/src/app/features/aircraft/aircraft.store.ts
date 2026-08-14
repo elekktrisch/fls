@@ -79,11 +79,11 @@ function withDetailId(d: AircraftDetail): AircraftDetailLoaded {
 }
 
 function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
+  const joinedColumnsPendingReload = { aircraftTypeCode: '', hasEngine: false };
   const item: AircraftItem = {
     id: d.id,
     aircraftTypeId: d.aircraftTypeId,
-    aircraftTypeCode: '',
-    hasEngine: false,
+    ...joinedColumnsPendingReload,
     immatriculation: d.immatriculation,
     isTowingAircraft: d.isTowingAircraft,
   };

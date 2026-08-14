@@ -1,4 +1,3 @@
-
 export interface BlockPlacement {
   leftPct: number;
   widthPct: number;
@@ -48,7 +47,11 @@ export function placeBlock(
   const rawWidth = ((endMs - startMs) / windowMs) * 100;
 
   const leftPct = clamp(rawLeft, 0, 100);
-  const minWidth = 0.5;
-  const widthPct = clamp(Math.max(rawWidth, minWidth), minWidth, 100 - leftPct);
+  const minStillVisibleWidthPct = 0.5;
+  const widthPct = clamp(
+    Math.max(rawWidth, minStillVisibleWidthPct),
+    minStillVisibleWidthPct,
+    100 - leftPct,
+  );
   return { leftPct, widthPct };
 }

@@ -19,6 +19,7 @@ import { ReferenceDataStore } from '../reference-data/reference-data.store';
 
 import { MeService } from './me.service';
 
+// ext: Keycloak realm_access.roles values
 export type AppRole =
   | 'SYSTEM_ADMINISTRATOR'
   | 'CLUB_ADMINISTRATOR'

@@ -90,6 +90,8 @@ const initialExtra: ReservationsExtraState = {
   overlapResult: null,
 };
 
+const keepRowsUnlabelledOnPickerFailure = () => undefined;
+
 function withRowId(r: AircraftReservationListItem): ReservationItem {
   if (!r.id) {
     throw new Error('AircraftReservationListItem without id — server contract violation');
@@ -180,8 +182,7 @@ export const ReservationsStore = signalStore(
                     pilotNameById: buildPilotNameMap(persons),
                     locationNameById: buildLocationNameMap(locations),
                   }),
-                error: () => {
-                },
+                error: keepRowsUnlabelledOnPickerFailure,
               }),
             ),
           ),
@@ -212,8 +213,7 @@ export const ReservationsStore = signalStore(
                 tapResponse({
                   next: (result: ReservationValidationResult) =>
                     patchState(store, { overlapResult: result, overlapValidating: false }),
-                  error: () =>
-                    patchState(store, { overlapResult: null, overlapValidating: false }),
+                  error: () => patchState(store, { overlapResult: null, overlapValidating: false }),
                 }),
               ),
             ),

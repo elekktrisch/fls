@@ -11,7 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { SystemDashboardStore } from './system-dashboard.store';
 
-
 function meStub(totals: () => Observable<SystemDashboardResponse>): MeService {
   return {
     get2: ((options?: unknown) => {

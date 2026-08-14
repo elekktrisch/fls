@@ -96,7 +96,7 @@ export interface UserSummary {
                 [attr.data-testid]="'af-nav-group-' + slug(item.label)"
               >
                 {{ item.label }}
-                @if (groupBadge(item); as badged) {
+                @if (firstBadgedChild(item); as badged) {
                   <ng-container
                     *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
                   ></ng-container>
@@ -259,7 +259,7 @@ export interface UserSummary {
                         <af-icon [name]="item.icon" [size]="18" />
                       }
                       <span class="flex-1">{{ item.label }}</span>
-                      @if (groupBadge(item); as badged) {
+                      @if (firstBadgedChild(item); as badged) {
                         <ng-container
                           *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
                         ></ng-container>
@@ -360,7 +360,7 @@ export class AfNavBarComponent {
     { initialValue: this.#router.url },
   );
 
-  protected groupBadge(item: NavItem): NavItem | null {
+  protected firstBadgedChild(item: NavItem): NavItem | null {
     return item.children?.find((c) => c.badge) ?? null;
   }
 

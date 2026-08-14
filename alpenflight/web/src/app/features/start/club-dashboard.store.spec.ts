@@ -13,7 +13,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { ClubDashboardStore } from './club-dashboard.store';
 
-
 function meStub(counts: () => Observable<ClubDashboardResponse>): MeService {
   return {
     get3: ((options?: unknown) => {

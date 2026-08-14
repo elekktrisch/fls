@@ -43,6 +43,8 @@ import { ReferenceDataStore } from '../../../core/reference-data/reference-data.
 import { SessionStore } from '../../../core/session/session.store';
 import { AircraftStore } from '../aircraft.store';
 
+const TIME_COUNTER_UNIT_CODE_PREFIX = 'HOURS_';
+
 const IMMAT_PATTERN = /^[A-Z0-9-]{2,15}$/;
 const FLARM_PATTERN = /^[A-Fa-f0-9]{6}$/;
 const COMP_SIGN_PATTERN = /^[A-Za-z0-9]{1,5}$/;
@@ -69,7 +71,7 @@ type AircraftForm = FormGroup<{
   nrOfSeats: FormControl<number | null>;
   daecIndex: FormControl<number | null>;
   homebaseId: FormControl<string>;
-  flightOperatingCounterUnitTypeId: FormControl<string>;
+  flightOperatingCounterUnitTypeIdEchoedFromDetail: FormControl<string>;
   engineOperatingCounterUnitTypeId: FormControl<string>;
   spotLink: FormControl<string>;
   isTowingOrWinchRequired: FormControl<boolean>;
@@ -381,7 +383,7 @@ type AircraftForm = FormGroup<{
                       inputId="EngineCounterUnitTypeId"
                       formControlName="engineOperatingCounterUnitTypeId"
                       placeholder="Select unit"
-                      [options]="counterUnitTypeOptions()"
+                      [options]="timeCounterUnitOptions()"
                       data-testid="aircraft-engine-counter-unit-select"
                     />
                   </af-form-field>
@@ -440,11 +442,11 @@ export class AircraftEditPage {
     ...this.locations.entities().map((l) => ({ value: l.id, label: l.locationName })),
   ]);
 
-  protected readonly counterUnitTypeOptions = computed<readonly AfSelectOption<string>[]>(() => [
+  protected readonly timeCounterUnitOptions = computed<readonly AfSelectOption<string>[]>(() => [
     { value: '', label: '— Not set —' },
     ...this.referenceData
       .counterUnitTypes()
-      .filter((u) => u.code.startsWith('HOURS_'))
+      .filter((u) => u.code.startsWith(TIME_COUNTER_UNIT_CODE_PREFIX))
       .map((u) => ({
         value: u.id,
         label: u.shortName ? `${u.name} (${u.shortName})` : u.name,
@@ -507,7 +509,7 @@ export class AircraftEditPage {
     nrOfSeats: this.fb.control<number | null>(null, [Validators.min(0)]),
     daecIndex: this.fb.control<number | null>(null),
     homebaseId: this.fb.nonNullable.control(''),
-    flightOperatingCounterUnitTypeId: this.fb.nonNullable.control(''),
+    flightOperatingCounterUnitTypeIdEchoedFromDetail: this.fb.nonNullable.control(''),
     engineOperatingCounterUnitTypeId: this.fb.nonNullable.control(''),
     spotLink: this.fb.nonNullable.control('', [Validators.maxLength(250), httpsOrEmpty()]),
     isTowingOrWinchRequired: this.fb.nonNullable.control(false),
@@ -696,7 +698,7 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   nrOfSeats: number | null;
   daecIndex: number | null;
   homebaseId: string;
-  flightOperatingCounterUnitTypeId: string;
+  flightOperatingCounterUnitTypeIdEchoedFromDetail: string;
   engineOperatingCounterUnitTypeId: string;
   spotLink: string;
   isTowingOrWinchRequired: boolean;
@@ -720,7 +722,7 @@ function detailToFormValue(d: AircraftDetail): Partial<{
     nrOfSeats: d.nrOfSeats ?? null,
     daecIndex: d.daecIndex ?? null,
     homebaseId: d.homebaseId ?? '',
-    flightOperatingCounterUnitTypeId: d.flightOperatingCounterUnitTypeId ?? '',
+    flightOperatingCounterUnitTypeIdEchoedFromDetail: d.flightOperatingCounterUnitTypeId ?? '',
     engineOperatingCounterUnitTypeId: d.engineOperatingCounterUnitTypeId ?? '',
     spotLink: d.spotLink ?? '',
     isTowingOrWinchRequired: d.isTowingOrWinchRequired,
@@ -773,6 +775,6 @@ function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   const v = form.getRawValue();
   return withOptionals(aircraftRequestBase(v), {
     ...aircraftSharedOptionals(v),
-    flightOperatingCounterUnitTypeId: v.flightOperatingCounterUnitTypeId,
+    flightOperatingCounterUnitTypeId: v.flightOperatingCounterUnitTypeIdEchoedFromDetail,
   }) as AircraftUpdateRequest;
 }

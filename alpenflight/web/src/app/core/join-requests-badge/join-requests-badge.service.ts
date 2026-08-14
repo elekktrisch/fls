@@ -10,6 +10,7 @@ import { SessionStore } from '../session/session.store';
 
 import { decrement, isPendingSubmit } from './join-requests-badge.logic';
 
+// ext: server SSE `event:` name
 const JOIN_REQUEST_STATUS_CHANGED = 'join-request.status-changed';
 
 @Injectable({ providedIn: 'root' })

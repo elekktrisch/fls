@@ -35,6 +35,8 @@ export type FlightTypeDetailLoaded = FlightTypeDetail & { id: string };
 
 export type SaveErrorKind = 'name-duplicate' | 'code-duplicate' | 'forbidden' | 'other';
 
+const NEVER_EMPTY_SAVE_ERROR = 'Save failed. Please retry.';
+
 interface FlightTypesExtraState {
   selectedId: string | null;
   selectedDetail: FlightTypeDetailLoaded | null;
@@ -248,5 +250,5 @@ function errorPatch(
       saveErrorKind: 'other',
     };
   }
-  return { saveError: e.message || 'Save failed. Please retry.', saveErrorKind: 'other' };
+  return { saveError: e.message || NEVER_EMPTY_SAVE_ERROR, saveErrorKind: 'other' };
 }

@@ -15,6 +15,7 @@ export function isPendingSubmit(data: string): boolean {
   return parseStatus(data) === 'PENDING';
 }
 
+// RENAME: decrement -> decrementClampedAtZero
 export function decrement(count: number): number {
   return count > 0 ? count - 1 : 0;
 }

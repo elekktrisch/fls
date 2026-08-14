@@ -1,5 +1,6 @@
 import type { AppLocale } from './locale.service';
 
+// RENAME: LANGUAGE_BY_LOCALE -> SEEDED_LANGUAGE_ID_BY_LOCALE
 export const LANGUAGE_BY_LOCALE: Readonly<Record<AppLocale, string>> = {
   de: '019e2e15-2c00-77d0-8000-0000000007d0',
   fr: '019e2e15-2c00-77d1-8000-0000000007d1',

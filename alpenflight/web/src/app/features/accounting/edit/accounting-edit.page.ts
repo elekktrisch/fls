@@ -45,7 +45,7 @@ const LEGACY_RECIPIENT = 10;
 const LEGACY_NO_LANDING_TAX = 20;
 const LEGACY_AIRCRAFT_FILTER = 30;
 
-const MAX_DURATION_SECONDS = 2147483647;
+const LEGACY_UNLIMITED_DURATION_SECONDS = 2147483647;
 
 type AccountingForm = FormGroup<{
   filterTypeLegacyId: FormControl<string>;
@@ -830,7 +830,7 @@ export class AccountingEditPage {
     if (isAircraftFilter && !v.flightDurationUnlimited) {
       filterConfig.minFlightTimeInSecondsMatchingValue = v.minFlightTimeInSeconds ?? 0;
       filterConfig.maxFlightTimeInSecondsMatchingValue =
-        v.maxFlightTimeInSeconds ?? MAX_DURATION_SECONDS;
+        v.maxFlightTimeInSeconds ?? LEGACY_UNLIMITED_DURATION_SECONDS;
     }
     if (isArticle && v.deliveryLineText.trim() !== '') {
       filterConfig.deliveryLineText = v.deliveryLineText.trim();
@@ -962,7 +962,9 @@ function detailToFormValue(
   const c = d.filterConfig;
   const min = c.minFlightTimeInSecondsMatchingValue;
   const max = c.maxFlightTimeInSecondsMatchingValue;
-  const unlimited = !((min ?? 0) > 0 || (max ?? MAX_DURATION_SECONDS) < MAX_DURATION_SECONDS);
+  const unlimited = !(
+    (min ?? 0) > 0 || (max ?? LEGACY_UNLIMITED_DURATION_SECONDS) < LEGACY_UNLIMITED_DURATION_SECONDS
+  );
   return {
     filterTypeLegacyId: legacyId === null ? '' : String(legacyId),
     ruleFilterName: d.ruleFilterName,

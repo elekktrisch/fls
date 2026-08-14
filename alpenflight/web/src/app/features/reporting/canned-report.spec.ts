@@ -10,48 +10,60 @@ import {
   PERSON_CANNED_TYPES,
 } from './canned-report';
 
-const TODAY = new Date(2026, 5, 9);
+const TODAY_2026_06_09 = new Date(2026, 5, 9);
 
 describe('cannedDateRange — parity with legacy FlightReportsController.js date math', () => {
   it('today → from = to = today', () => {
-    expect(cannedDateRange('today', TODAY)).toEqual({ from: '2026-06-09', to: '2026-06-09' });
+    expect(cannedDateRange('today', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-09',
+      to: '2026-06-09',
+    });
   });
 
   it('yesterday → from = to = today−1', () => {
-    expect(cannedDateRange('yesterday', TODAY)).toEqual({ from: '2026-06-08', to: '2026-06-08' });
+    expect(cannedDateRange('yesterday', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-08',
+      to: '2026-06-08',
+    });
   });
 
   it('last-7-days → today−7 … today (INTENDED 8 inclusive days)', () => {
-    expect(cannedDateRange('last-7-days', TODAY)).toEqual({ from: '2026-06-02', to: '2026-06-09' });
+    expect(cannedDateRange('last-7-days', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-02',
+      to: '2026-06-09',
+    });
   });
 
   it('last-30-days → today−30 … today', () => {
-    expect(cannedDateRange('last-30-days', TODAY)).toEqual({
+    expect(cannedDateRange('last-30-days', TODAY_2026_06_09)).toEqual({
       from: '2026-05-10',
       to: '2026-06-09',
     });
   });
 
   it('last-12-months → today−12 months … today', () => {
-    expect(cannedDateRange('last-12-months', TODAY)).toEqual({
+    expect(cannedDateRange('last-12-months', TODAY_2026_06_09)).toEqual({
       from: '2025-06-09',
       to: '2026-06-09',
     });
   });
 
   it('last-24-months → today−24 months … today', () => {
-    expect(cannedDateRange('last-24-months', TODAY)).toEqual({
+    expect(cannedDateRange('last-24-months', TODAY_2026_06_09)).toEqual({
       from: '2024-06-09',
       to: '2026-06-09',
     });
   });
 
   it('this-year → Jan 1 of current year … today', () => {
-    expect(cannedDateRange('this-year', TODAY)).toEqual({ from: '2026-01-01', to: '2026-06-09' });
+    expect(cannedDateRange('this-year', TODAY_2026_06_09)).toEqual({
+      from: '2026-01-01',
+      to: '2026-06-09',
+    });
   });
 
   it('previous-year → last Jan 1 … last Dec 31', () => {
-    expect(cannedDateRange('previous-year', TODAY)).toEqual({
+    expect(cannedDateRange('previous-year', TODAY_2026_06_09)).toEqual({
       from: '2025-01-01',
       to: '2025-12-31',
     });
@@ -67,7 +79,7 @@ describe('cannedDateRange — parity with legacy FlightReportsController.js date
 
 describe('cannedReportSpec', () => {
   it('combines the derived range with the journey-note default flags (glider+motor on, tow off)', () => {
-    const spec = cannedReportSpec('my-flights-last-30-days', TODAY);
+    const spec = cannedReportSpec('my-flights-last-30-days', TODAY_2026_06_09);
     expect(spec).toEqual({
       from: '2026-05-10',
       to: '2026-06-09',

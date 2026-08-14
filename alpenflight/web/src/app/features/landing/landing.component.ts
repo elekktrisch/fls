@@ -11,7 +11,7 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
 import { emitFunnelEvent } from '../signup/funnel-telemetry';
 
-const SPLASH_DEFAULT_SVG = 'splash.jpg';
+const DEFAULT_SPLASH_IMAGE = 'splash.jpg';
 
 @Component({
   selector: 'af-landing',
@@ -171,11 +171,12 @@ export class LandingComponent {
   readonly #localeService = inject(LocaleService);
 
   readonly splashUrl = input<string | null>(null);
-  protected readonly effectiveSplashUrl = computed(() => this.splashUrl() ?? SPLASH_DEFAULT_SVG);
+  protected readonly effectiveSplashUrl = computed(() => this.splashUrl() ?? DEFAULT_SPLASH_IMAGE);
   protected readonly year = new Date().getFullYear();
 
   protected signIn(): void {
     this.#oidc.authorize(undefined, {
+      // ext: OIDC ui_locales param (Keycloak login UI language)
       customParams: { ui_locales: this.#localeService.current() },
     });
   }

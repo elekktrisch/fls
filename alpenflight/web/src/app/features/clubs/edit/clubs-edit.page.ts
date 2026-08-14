@@ -36,7 +36,7 @@ import { emailRecipientList, slugAvailable } from './clubs-edit.validators';
 
 const OPERATOR_EMAIL_MAX_LENGTH = 250;
 
-function withStoredValue(
+function keepStoredValueSelectable(
   options: AfSelectOption<string>[],
   stored: string | undefined,
 ): readonly AfSelectOption<string>[] {
@@ -345,14 +345,14 @@ export class ClubsEditPage {
   );
 
   protected readonly flightTypeOptions = computed<readonly AfSelectOption<string>[]>(() =>
-    withStoredValue(
+    keepStoredValueSelectable(
       this.store.flightTypes().map((ft) => ({ value: ft.id, label: ft.flightTypeName })),
       this.store.selectedClub()?.discoveryFlightTypeId,
     ),
   );
 
   protected readonly homebaseOptions = computed<readonly AfSelectOption<string>[]>(() =>
-    withStoredValue(
+    keepStoredValueSelectable(
       this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),
       this.store.selectedClub()?.homebaseId,
     ),

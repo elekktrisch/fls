@@ -1,6 +1,6 @@
-
 export const ME_EVENTS_URL = '/api/v1/me/events';
 
+// ext: server SSE `event:` names
 export type MeEventKind = 'flight.created';
 
 export interface MeEvent {

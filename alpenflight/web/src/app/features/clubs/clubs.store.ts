@@ -267,7 +267,8 @@ export const ClubsStore = signalStore(
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
       const session = inject(SessionStore);
-      if (session.isSystemAdmin() || session.isFlightOperator()) {
+      const mayReadCrossTenantCatalog = session.isSystemAdmin() || session.isFlightOperator();
+      if (mayReadCrossTenantCatalog) {
         store.loadAll();
       }
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {

@@ -12,7 +12,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { AccountStore } from './account.store';
 
-
 const ME_BASE: MeResponse = {
   id: 'u-1',
   personId: 'pn-1',

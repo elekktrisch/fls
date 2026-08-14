@@ -16,7 +16,6 @@ import type {
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { PersonsStore } from './persons.store';
 
-
 const PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000a01';
 
 const seedMembership: PersonClubResponse = {

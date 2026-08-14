@@ -11,7 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { PilotStore } from './pilot.store';
 
-
 const LICENCES_BASE: MePersonLicencesResponse = {
   hasGliderPilotLicence: true,
   hasTowPilotLicence: false,

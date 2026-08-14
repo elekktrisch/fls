@@ -56,6 +56,8 @@ const EMPTY_FILTER: FlightClientFilter = {
 
 const DEFAULT_LIMIT = 50;
 
+const IF_MATCH_ANY_VERSION = '*';
+
 interface FlightDetailSlice {
   current: FlightDetail | null;
   currentTow: FlightDetail | null;
@@ -210,10 +212,7 @@ export const FlightStore = signalStore(
         const glider = await firstValueFrom(flightsApi.get(id));
         let tow: FlightDetail | null = null;
         if (glider.towFlightId) {
-          try {
-            tow = await firstValueFrom(flightsApi.get(glider.towFlightId));
-          } catch {
-          }
+          tow = await firstValueFrom(flightsApi.get(glider.towFlightId)).catch(() => null);
         }
         patchState(store, {
           current: glider,
@@ -266,16 +265,14 @@ export const FlightStore = signalStore(
       try {
         tow = await firstValueFrom(flightsApi.create(requests.tow));
       } catch (e) {
-        try {
-          await firstValueFrom(flightsApi._delete(glider.id));
-        } catch {
-        }
+        const rollbackCreatedGlider = firstValueFrom(flightsApi._delete(glider.id));
+        await rollbackCreatedGlider.catch(() => undefined);
         patchState(store, { saveError: (e as HttpErrorResponse).message });
         throw e;
       }
-      const linkBody = snapshotToUpdateRequest(snapshot, 'glider', tow.id);
+      const linkTowToGliderBody = snapshotToUpdateRequest(snapshot, 'glider', tow.id);
       await firstValueFrom(
-        flightsApi.update(glider.id, linkBody, {
+        flightsApi.update(glider.id, linkTowToGliderBody, {
           headers: { 'If-Match': String(glider.version) },
         }),
       );
@@ -354,7 +351,7 @@ export const FlightStore = signalStore(
       patchState(store, { saveConflict: null, reloadConflict: false });
     }
 
-    async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
+    async function deleteOne(id: string, ifMatch: string = IF_MATCH_ANY_VERSION): Promise<void> {
       await firstValueFrom(
         flightsApi._delete(id, {
           headers: { 'If-Match': ifMatch },

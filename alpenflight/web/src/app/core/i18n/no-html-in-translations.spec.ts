@@ -3,7 +3,6 @@ import enBundle from '../../../i18n/en';
 import frBundle from '../../../i18n/fr';
 import itBundle from '../../../i18n/it';
 
-
 interface Tree {
   [k: string]: string | Tree;
 }

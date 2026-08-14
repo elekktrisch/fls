@@ -14,7 +14,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { NotificationsStore } from './notifications.store';
 
-
 const PREFS_BASE: MeNotificationPrefsResponse = {
   receiveFlightReports: true,
   receiveAircraftReservationNotifications: false,

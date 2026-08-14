@@ -14,7 +14,6 @@ import { PublicRegistrationService } from '@api/generated/public-registration/pu
 
 import { ScenicFlightStore } from './scenic-flight.store';
 
-
 const CLUB_SLUG = 'alpine-soaring';
 const CLUB_NAME = 'Alpine Soaring';
 

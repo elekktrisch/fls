@@ -1,4 +1,3 @@
-
 const KEY = 'alpenflight.post-login-redirect';
 
 export const DEFAULT_POST_LOGIN_ROUTE = '/start';

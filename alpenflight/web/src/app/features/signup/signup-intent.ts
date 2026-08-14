@@ -1,4 +1,3 @@
-
 export type SignupIntent = 'join' | 'migrate';
 
 export const POST_SIGNUP_DEFAULT_PATH = '/join';

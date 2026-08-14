@@ -30,6 +30,8 @@ import {
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
+const HH_MM_LENGTH = 5;
+
 const FCT = {
   PILOT: FLIGHT_CREW_TYPE_PILOT,
   CO_PILOT: FLIGHT_CREW_TYPE_CO_PILOT,
@@ -328,9 +330,9 @@ function blankCrew(): CrewSnapshot {
 
 function timeOfIso(iso: string | undefined): string | null {
   if (!iso) return null;
-  const t = iso.indexOf('T');
-  if (t < 0) return null;
-  return iso.slice(t + 1, t + 6);
+  const timeSeparator = iso.indexOf('T');
+  if (timeSeparator < 0) return null;
+  return iso.slice(timeSeparator + 1, timeSeparator + 1 + HH_MM_LENGTH);
 }
 
 function isoOfDateAndTime(date: string | null, time: string | null): string | undefined {
@@ -458,7 +460,7 @@ function subFormToUpdate(c: CrewSnapshot, flightDate: string | null): FlightUpda
     throw new Error('subFormToUpdate: aircraft is required');
   }
   const created = subFormToCreate(c, flightDate, null, 'glider');
-  const { flightAircraftType: _drop, ...rest } = created;
-  void _drop;
-  return rest;
+  const { flightAircraftType: _createOnlyDiscriminator, ...updatableFields } = created;
+  void _createOnlyDiscriminator;
+  return updatableFields;
 }

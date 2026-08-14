@@ -341,24 +341,24 @@ export class ProfilePersonalTab {
     const req: MePersonUpdateRequest = {
       preferMailToBusinessMail: v.preferMailToBusinessMail,
     };
-    setIfPresent(req, 'addressLine1', v.addressLine1);
-    setIfPresent(req, 'addressLine2', v.addressLine2);
-    setIfPresent(req, 'zip', v.zip);
-    setIfPresent(req, 'city', v.city);
-    setIfPresent(req, 'region', v.region);
-    setIfPresent(req, 'countryId', v.countryId);
-    setIfPresent(req, 'privatePhone', v.privatePhone);
-    setIfPresent(req, 'mobilePhone', v.mobilePhone);
-    setIfPresent(req, 'businessPhone', v.businessPhone);
-    setIfPresent(req, 'faxNumber', v.faxNumber);
-    setIfPresent(req, 'emailPrivate', v.emailPrivate);
-    setIfPresent(req, 'emailBusiness', v.emailBusiness);
-    setIfPresent(req, 'birthday', v.birthday);
+    setIfNonBlank(req, 'addressLine1', v.addressLine1);
+    setIfNonBlank(req, 'addressLine2', v.addressLine2);
+    setIfNonBlank(req, 'zip', v.zip);
+    setIfNonBlank(req, 'city', v.city);
+    setIfNonBlank(req, 'region', v.region);
+    setIfNonBlank(req, 'countryId', v.countryId);
+    setIfNonBlank(req, 'privatePhone', v.privatePhone);
+    setIfNonBlank(req, 'mobilePhone', v.mobilePhone);
+    setIfNonBlank(req, 'businessPhone', v.businessPhone);
+    setIfNonBlank(req, 'faxNumber', v.faxNumber);
+    setIfNonBlank(req, 'emailPrivate', v.emailPrivate);
+    setIfNonBlank(req, 'emailBusiness', v.emailBusiness);
+    setIfNonBlank(req, 'birthday', v.birthday);
     this.store.save(req);
   }
 }
 
-function setIfPresent(
+function setIfNonBlank(
   req: MePersonUpdateRequest,
   key: keyof MePersonUpdateRequest,
   value: string,

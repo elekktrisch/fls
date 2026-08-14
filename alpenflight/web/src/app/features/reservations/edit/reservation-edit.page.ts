@@ -407,7 +407,7 @@ export class ReservationEditPage {
       } else {
         for (const c of controls) c.enable({ emitEvent: false });
       }
-      this.form.updateValueAndValidity();
+      this.republishFormStatusAfterSilentControlToggle();
     });
 
     effect(() => {
@@ -462,7 +462,7 @@ export class ReservationEditPage {
     if (!this.canMutate()) return;
     if (this.form.status !== 'VALID' || this.saveSubmitted()) {
       this.form.markAllAsTouched();
-      surfaceFieldErrors(this.form);
+      reemitValuesToRefreshLiveFieldErrors(this.form);
       return;
     }
     this.saveSubmitted.set(true);
@@ -478,14 +478,22 @@ export class ReservationEditPage {
     const target = sanitizeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
     void this.router.navigateByUrl(target);
   }
+
+  private republishFormStatusAfterSilentControlToggle(): void {
+    this.form.updateValueAndValidity();
+  }
 }
+
+// eslint-disable-next-line no-control-regex
+const OPEN_REDIRECT_BYPASS_CHARS = /[\\\u0000-\u001f\u007f-\u009f]/;
 
 export function sanitizeReturnUrl(raw: string | null | undefined): string {
   const fallback = '/reservations';
   if (raw === null || raw === undefined || raw === '') return fallback;
-  if (!raw.startsWith('/') || raw.startsWith('//')) return fallback;
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\u0000-\u001f\u007f-\u009f]/.test(raw)) return fallback;
+  const isRootedPath = raw.startsWith('/');
+  const isProtocolRelativeUrl = raw.startsWith('//');
+  if (!isRootedPath || isProtocolRelativeUrl) return fallback;
+  if (OPEN_REDIRECT_BYPASS_CHARS.test(raw)) return fallback;
   return raw;
 }
 
@@ -576,7 +584,7 @@ export function saveDisabledFor(
   return formStatus !== 'VALID' || saveSubmitted || hasOverlap;
 }
 
-function surfaceFieldErrors(form: ReservationForm): void {
+function reemitValuesToRefreshLiveFieldErrors(form: ReservationForm): void {
   for (const ctl of Object.values<AbstractControl>(form.controls)) {
     if (ctl.enabled) ctl.setValue(ctl.value);
   }

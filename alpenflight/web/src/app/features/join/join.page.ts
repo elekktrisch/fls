@@ -126,10 +126,10 @@ export class JoinPageComponent implements OnDestroy {
   readonly #now = signal(Date.now());
   #timer: ReturnType<typeof setInterval> | null = null;
 
-  readonly #window = signal<RateLimitWindow | null>(null);
+  readonly #rateLimitWindow = signal<RateLimitWindow | null>(null);
 
   protected readonly countdown = computed(() => {
-    const w = this.#window();
+    const w = this.#rateLimitWindow();
     return w ? countdownRemaining(w, this.#now()) : 0;
   });
 
@@ -142,7 +142,10 @@ export class JoinPageComponent implements OnDestroy {
     effect(() => {
       const err = this.store.submitError();
       if (err?.kind === 'rate-limited' && err.retryAfterSeconds) {
-        this.#window.set({ startedAtMs: Date.now(), retryAfterSeconds: err.retryAfterSeconds });
+        this.#rateLimitWindow.set({
+          startedAtMs: Date.now(),
+          retryAfterSeconds: err.retryAfterSeconds,
+        });
         this.#now.set(Date.now());
         this.#startTimer();
       }

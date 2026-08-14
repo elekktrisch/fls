@@ -188,6 +188,9 @@ export const AccountingStore = signalStore(
         patchState(store, (state) => ({
           matchListOptions: { ...state.matchListOptions, ...patch },
         }));
+      const prefetchMemberStatesWithoutSuggestionTokens = (): void => {
+        memberStatesApi.listMemberStates().subscribe({ error: () => undefined });
+      };
       const loadMatchListReferences = rxMethod<void>(
         pipe(
           tap(() => {
@@ -220,7 +223,7 @@ export const AccountingStore = signalStore(
                 }),
               error: () => patchOptions({ flightCrewTypes: [] }),
             });
-            memberStatesApi.listMemberStates().subscribe({ error: () => undefined });
+            prefetchMemberStatesWithoutSuggestionTokens();
           }),
         ),
       );

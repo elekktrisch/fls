@@ -327,7 +327,6 @@ describe('UsersStore', () => {
 });
 
 describe('mergeManagedRoles (role-diff formula)', () => {
-
   it('returns checked boxes when no out-of-band roles exist', () => {
     expect(mergeManagedRoles(['PILOT'], ['CLUB_ADMINISTRATOR', 'PILOT']).sort()).toEqual(
       ['CLUB_ADMINISTRATOR', 'PILOT'].sort(),

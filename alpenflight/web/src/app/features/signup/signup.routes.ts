@@ -7,4 +7,3 @@ export const SIGNUP_ROUTES: Routes = [
     data: { showNavBar: false, publicAccess: true },
   },
 ];
-

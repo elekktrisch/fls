@@ -75,27 +75,31 @@ function withDetailId(d: PersonResponse): PersonDetailLoaded {
 }
 
 function listItemFromDetail(d: PersonDetailLoaded): PersonItem {
-  const pc = d.memberships?.[0];
+  const callerTenantMembership = d.memberships?.[0];
   const item: PersonItem = {
     id: d.id,
     firstname: d.firstname,
     lastname: d.lastname,
-    isActive: pc ? pc.isActive : false,
-    isMotorPilot: pc ? pc.isMotorPilot : false,
-    isTowPilot: pc ? pc.isTowPilot : false,
-    isGliderInstructor: pc ? pc.isGliderInstructor : false,
-    isGliderPilot: pc ? pc.isGliderPilot : false,
-    isGliderTrainee: pc ? pc.isGliderTrainee : false,
-    isWinchOperator: pc ? pc.isWinchOperator : false,
-    isMotorInstructor: pc ? pc.isMotorInstructor : false,
+    isActive: callerTenantMembership ? callerTenantMembership.isActive : false,
+    isMotorPilot: callerTenantMembership ? callerTenantMembership.isMotorPilot : false,
+    isTowPilot: callerTenantMembership ? callerTenantMembership.isTowPilot : false,
+    isGliderInstructor: callerTenantMembership ? callerTenantMembership.isGliderInstructor : false,
+    isGliderPilot: callerTenantMembership ? callerTenantMembership.isGliderPilot : false,
+    isGliderTrainee: callerTenantMembership ? callerTenantMembership.isGliderTrainee : false,
+    isWinchOperator: callerTenantMembership ? callerTenantMembership.isWinchOperator : false,
+    isMotorInstructor: callerTenantMembership ? callerTenantMembership.isMotorInstructor : false,
   };
   if (d.emailPrivate) item.email = d.emailPrivate;
   if (d.mobilePhone) item.mobilePhone = d.mobilePhone;
   if (d.city) item.city = d.city;
   if (d.zip) item.zip = d.zip;
-  if (pc?.memberNumber) item.memberNumber = pc.memberNumber;
-  if (pc?.memberStateId) item.memberStateId = pc.memberStateId;
-  if (pc?.memberStateName) item.memberStateName = pc.memberStateName;
+  if (callerTenantMembership?.memberNumber) item.memberNumber = callerTenantMembership.memberNumber;
+  if (callerTenantMembership?.memberStateId) {
+    item.memberStateId = callerTenantMembership.memberStateId;
+  }
+  if (callerTenantMembership?.memberStateName) {
+    item.memberStateName = callerTenantMembership.memberStateName;
+  }
   return item;
 }
 

@@ -14,7 +14,6 @@ import { map, startWith } from 'rxjs';
 import type { PublicRegistrantDetails } from '@api/generated/model';
 import { withOptionals } from '@shared/util/form';
 
-
 const MAX_NAME = 100;
 const MAX_ADDRESS = 200;
 const MAX_ZIP = 10;

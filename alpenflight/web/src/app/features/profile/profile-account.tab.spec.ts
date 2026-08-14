@@ -6,7 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { AccountStore } from './account.store';
 import { ProfileAccountTab } from './profile-account.tab';
 
-
 type AccountFormShape = FormGroup<{
   friendlyName: FormControl<string>;
   notificationEmail: FormControl<string>;

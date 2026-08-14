@@ -1,4 +1,3 @@
-
 export interface FunnelEvent {
   event_id: string;
   actor_id?: string;

@@ -1,6 +1,5 @@
 import type { HttpErrorResponse } from '@angular/common/http';
 
-
 export interface ApiErrorBody {
   readonly key?: string;
   readonly message?: string;

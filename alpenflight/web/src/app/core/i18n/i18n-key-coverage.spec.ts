@@ -3,7 +3,6 @@ import { join, relative } from 'node:path';
 
 import de from '../../../i18n/de';
 
-
 const PROJECT_SRC = join(process.cwd(), 'src');
 
 const T_DIRECTIVE = /\bt\(\s*['"]([^'"\\]+)['"]/g;

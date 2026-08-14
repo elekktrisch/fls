@@ -9,7 +9,6 @@ import {
   type RegistrantForm,
 } from './registrant-form';
 
-
 const fb = new FormBuilder().nonNullable;
 
 function filledForm(): RegistrantForm {

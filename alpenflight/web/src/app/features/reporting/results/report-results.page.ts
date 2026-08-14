@@ -306,19 +306,20 @@ export class ReportResultsPage {
     if (!request || this.exporting()) return;
     this.exporting.set(true);
     try {
-      const { blob, filename } = await this.store.exportExcel(request);
-      const url = URL.createObjectURL(blob);
-      try {
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-      } finally {
-        URL.revokeObjectURL(url);
+      const download = await this.store.exportExcel(request).catch(() => null);
+      if (download !== null) {
+        const url = URL.createObjectURL(download.blob);
+        try {
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = download.filename;
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       }
-    } catch {
     } finally {
       this.exporting.set(false);
     }

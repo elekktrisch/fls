@@ -1,4 +1,3 @@
-
 import { Injectable } from '@angular/core';
 
 const STORAGE_KEY = 'af.recently-used.v1';
@@ -14,7 +13,7 @@ export class RecentlyUsedService {
     const bucket = (this.#entries[primitiveKey] ??= {});
     bucket[String(id)] = now;
     this.#evictIfNeeded(bucket);
-    this.#write();
+    this.#writeBestEffort();
   }
 
   recent(primitiveKey: string, windowDays = 7, now: number = Date.now()): readonly string[] {
@@ -51,11 +50,12 @@ export class RecentlyUsedService {
     }
   }
 
-  #write(): void {
+  #writeBestEffort(): void {
     if (!this.#hasStorage()) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#entries));
     } catch {
+      return;
     }
   }
 

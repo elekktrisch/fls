@@ -1,6 +1,7 @@
-
 export interface CalendarDay {
+  // RENAME: iso -> localMidnightIso
   iso: string;
+  // RENAME: key -> dayKey
   key: string;
   dayOfMonth: number;
   weekdayShort: string;
@@ -20,6 +21,7 @@ export interface CalendarReservation {
 }
 
 export const DAY_HOURS_START = 8;
+// RENAME: DAY_HOURS_END -> DAY_HOURS_END_INCLUSIVE
 export const DAY_HOURS_END = 19;
 const DAY_WINDOW_HOURS = DAY_HOURS_END - DAY_HOURS_START + 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -32,8 +34,8 @@ export function startOfDay(instant: string | number | Date): Date {
 
 export function startOfWeek(instant: string | number | Date): Date {
   const d = startOfDay(instant);
-  const dow = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - dow);
+  const mondayBasedDayOfWeek = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - mondayBasedDayOfWeek);
   return d;
 }
 

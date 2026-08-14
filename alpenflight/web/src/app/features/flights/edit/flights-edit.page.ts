@@ -102,11 +102,6 @@ interface StepDescriptor {
     <af-page>
       <af-page-header [title]="title()">
         <af-button data-testid="flight-cancel" (clicked)="onCancel()">Cancel</af-button>
-        <!--
-          Inline header save only on >=lg; the sticky-bar Save on the last
-          step takes over on <lg (the next/back button area). Two distinct
-          slots, not duplicated.
-        -->
         <div class="hidden lg:contents">
           <af-button
             type="primary"
@@ -335,7 +330,6 @@ interface StepDescriptor {
                   >Next</af-button
                 >
               } @else {
-                <!-- Sticky-bar save only on <lg; on >=lg the header action carries it. -->
                 <div class="lg:hidden">
                   <af-button
                     data-testid="flight-submit-sticky"
@@ -353,11 +347,6 @@ interface StepDescriptor {
           @if (errorMessage()) {
             <p class="text-red-600" data-testid="flight-error">{{ errorMessage() }}</p>
           }
-          <!--
-            409 = state/policy conflict (time-gate reject, DeliveryBooked edit,
-            optimistic-lock race). Non-blocking toast with a reload action —
-            NEVER the inline diff (that's the 412 data-conflict path below).
-          -->
           @if (reloadConflict()) {
             <div
               *transloco="let t; read: 'flight.reload'"
@@ -383,7 +372,6 @@ interface StepDescriptor {
         (dismiss)="dirtyConfirmOpen.set(false)"
       />
 
-      <!-- 412 = data conflict → inline per-field keep-mine/keep-theirs diff. -->
       <af-flight-conflict-prompt
         [conflict]="conflict()"
         (resolved)="onConflictResolved($event)"
@@ -402,12 +390,12 @@ export class FlightsEditPage {
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
 
-  private readonly formChange = toSignal(
+  private readonly formValueOrStatusTick = toSignal(
     merge(this.form.valueChanges, this.form.statusChanges).pipe(map(() => Symbol())),
     { initialValue: Symbol() },
   );
   protected readonly canSave = computed(() => {
-    this.formChange();
+    this.formValueOrStatusTick();
     return isFlightSaveable(this.form);
   });
 

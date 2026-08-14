@@ -191,8 +191,10 @@ export class ReportCustomBuilderPage {
       return;
     }
     const filter = formToFilter(this.form.getRawValue(), this.category());
-    const encoded = encodeCustomFilter(filter);
-    void this.router.navigateByUrl(`/flightreports/custom/${this.category()}/${encoded}/apply`);
+    const percentEncodedFilter = encodeCustomFilter(filter);
+    void this.router.navigateByUrl(
+      `/flightreports/custom/${this.category()}/${percentEncodedFilter}/apply`,
+    );
   }
 }
 

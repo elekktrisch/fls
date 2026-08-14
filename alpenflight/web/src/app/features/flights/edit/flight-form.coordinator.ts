@@ -89,7 +89,6 @@ export class FlightFormCoordinator {
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((solo) => this.onSoloToggle(solo));
 
-
     this.form.controls.canUpdateRecord.valueChanges
       .pipe(
         startWith(this.form.controls.canUpdateRecord.value),
@@ -105,7 +104,6 @@ export class FlightFormCoordinator {
         }
       });
   }
-
 
   private onStartTypeChange(next: string | null): void {
     this.form.controls.glider.updateValueAndValidity();

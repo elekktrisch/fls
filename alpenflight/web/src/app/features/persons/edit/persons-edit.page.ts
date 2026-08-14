@@ -322,16 +322,16 @@ export class PersonsEditPage {
         return;
       }
       const req = personUpdateRequest(v);
-      const membership = this.membershipRequest(v);
+      const membership = this.fullReplaceMembershipRequest(v);
       this.store.update(membership ? { id, req, membership } : { id, req });
     }
   }
 
-  private membershipRequest(
+  private fullReplaceMembershipRequest(
     v: ReturnType<PersonForm['getRawValue']>,
   ): PersonClubRequest | undefined {
-    const pc = this.store.selectedPerson()?.memberships?.[0];
-    if (!pc) {
+    const loaded = this.store.selectedPerson()?.memberships?.[0];
+    if (!loaded) {
       return undefined;
     }
     return withOptionals(
@@ -339,39 +339,38 @@ export class PersonsEditPage {
         isMotorPilot: v.isMotorPilot,
         isGliderPilot: v.isGliderPilot,
         isTowPilot: v.isTowPilot,
-        isGliderInstructor: pc.isGliderInstructor,
-        isGliderTrainee: pc.isGliderTrainee,
-        isPassenger: pc.isPassenger,
-        isWinchOperator: pc.isWinchOperator,
-        isMotorInstructor: pc.isMotorInstructor,
-        receiveFlightReports: pc.receiveFlightReports,
-        receiveAircraftReservationNotifications: pc.receiveAircraftReservationNotifications,
-        receivePlanningDayRoleReminder: pc.receivePlanningDayRoleReminder,
-        isActive: pc.isActive,
+        isGliderInstructor: loaded.isGliderInstructor,
+        isGliderTrainee: loaded.isGliderTrainee,
+        isPassenger: loaded.isPassenger,
+        isWinchOperator: loaded.isWinchOperator,
+        isMotorInstructor: loaded.isMotorInstructor,
+        receiveFlightReports: loaded.receiveFlightReports,
+        receiveAircraftReservationNotifications: loaded.receiveAircraftReservationNotifications,
+        receivePlanningDayRoleReminder: loaded.receivePlanningDayRoleReminder,
+        isActive: loaded.isActive,
       },
       membershipOptionals(v),
     ) as PersonClubRequest;
   }
 
   private hydrate(detail: PersonResponse): void {
-    const pc = detail.memberships?.[0];
+    const callerTenantMembership = detail.memberships?.[0];
     this.form.patchValue({
       firstname: detail.firstname,
       lastname: detail.lastname,
       email: detail.emailPrivate ?? '',
       mobilePhone: detail.mobilePhone ?? '',
       city: detail.city ?? '',
-      memberNumber: pc?.memberNumber ?? '',
-      memberStateId: pc?.memberStateId ?? null,
-      isMotorPilot: pc?.isMotorPilot ?? false,
-      isGliderPilot: pc?.isGliderPilot ?? false,
-      isTowPilot: pc?.isTowPilot ?? false,
+      memberNumber: callerTenantMembership?.memberNumber ?? '',
+      memberStateId: callerTenantMembership?.memberStateId ?? null,
+      isMotorPilot: callerTenantMembership?.isMotorPilot ?? false,
+      isGliderPilot: callerTenantMembership?.isGliderPilot ?? false,
+      isTowPilot: callerTenantMembership?.isTowPilot ?? false,
     });
   }
 }
 
 type PersonFormValue = ReturnType<PersonForm['getRawValue']>;
-
 
 function contactOptionals(v: PersonFormValue) {
   return {

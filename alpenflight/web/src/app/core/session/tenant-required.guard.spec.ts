@@ -22,7 +22,6 @@ import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
 import { onboardingRedirect, tenantRequiredGuard } from './tenant-required.guard';
 import { SessionStore, type User } from './session.store';
 
-
 const tenantedUser: User = {
   id: 'u-1',
   username: 'alice',

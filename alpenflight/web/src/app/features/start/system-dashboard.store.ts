@@ -43,11 +43,13 @@ export const SystemDashboardStore = signalStore(
     showLoading: computed(() => isLoading() && !hasLoaded()),
   })),
   withMethods((store, meApi = inject(MeService)) => {
+    const fetchSystemDashboard = () => meApi.get2();
+
     const load = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, hasError: false })),
         switchMap(() =>
-          meApi.get2().pipe(
+          fetchSystemDashboard().pipe(
             tapResponse({
               next: (totals: SystemDashboardResponse) =>
                 patchState(store, {

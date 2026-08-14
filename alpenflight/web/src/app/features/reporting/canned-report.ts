@@ -1,4 +1,3 @@
-
 export type ReportCategory = 'person' | 'location';
 
 export interface CannedReportFlags {

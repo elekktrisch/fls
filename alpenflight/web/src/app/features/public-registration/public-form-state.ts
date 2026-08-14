@@ -4,7 +4,6 @@ import type { PublicClubResponse } from '@api/generated/model';
 
 import type { PublicFormState, PublicSubmitFailure } from './public-form-shell.component';
 
-
 export type ClubResolution = 'loading' | 'ready' | 'not-found' | 'unavailable';
 
 export function clubResolutionFor(status: number): ClubResolution {

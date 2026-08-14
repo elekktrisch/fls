@@ -171,5 +171,6 @@ export class AfAutocompleteComponent<
     this.onTouched = fn;
   }
   setDisabledState(): void {
+    return;
   }
 }

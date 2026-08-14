@@ -12,7 +12,6 @@ import {
 } from './flight-form.model';
 import type { FlightPrefs } from './flight-prefs.service';
 
-
 export function buildDefaultsForNew(
   template: FlightTemplateResponse,
   lastContext: FlightLastContextResponse | null,
@@ -53,7 +52,7 @@ function coalesceCrew<S extends Record<string, unknown>>(
   return merged;
 }
 
-const GLIDER_CTX_PAIRS = [
+const GLIDER_FIELDS_BORROWED_FROM_LAST_CONTEXT = [
   ['flightTypeId', 'flightTypeId'],
   ['pilotPersonId', 'pilotPersonId'],
   ['invoiceRecipientPersonId', 'invoiceRecipientPersonId'],
@@ -64,7 +63,7 @@ const GLIDER_CTX_PAIRS = [
   ['flightCostBalanceTypeId', 'flightCostBalanceTypeId'],
 ] as const satisfies readonly (readonly [CrewStringKey, keyof FlightLastContextResponse])[];
 
-const TOW_CTX_PAIRS = [
+const TOW_FIELDS_BORROWED_FROM_LAST_CONTEXT = [
   ['aircraftId', 'aircraftId'],
   ['flightTypeId', 'flightTypeId'],
   ['pilotPersonId', 'pilotPersonId'],
@@ -83,8 +82,10 @@ function applyLastContextThenPrefs(
   const merged: FlightFormSnapshot = {
     ...base,
     startTypeId: base.startTypeId ?? ctx.startTypeId ?? null,
-    glider: coalesceCrew(base.glider, ctx, GLIDER_CTX_PAIRS),
-    tow: ctx.tow ? coalesceCrew(base.tow, ctx.tow, TOW_CTX_PAIRS) : base.tow,
+    glider: coalesceCrew(base.glider, ctx, GLIDER_FIELDS_BORROWED_FROM_LAST_CONTEXT),
+    tow: ctx.tow
+      ? coalesceCrew(base.tow, ctx.tow, TOW_FIELDS_BORROWED_FROM_LAST_CONTEXT)
+      : base.tow,
   };
   return applyPrefsOverlay(merged, prefs);
 }

@@ -1,5 +1,6 @@
 import type { FlightDetail, FlightUpdateRequest } from '@api/generated/model';
 
+const HH_MM_LENGTH = 5;
 
 export const CONFLICT_FIELDS = [
   'aircraftId',
@@ -93,6 +94,8 @@ export function timeOfConflictValue(value: string | null): string | null {
   if (!value) {
     return null;
   }
-  const t = value.indexOf('T');
-  return t < 0 ? value : value.slice(t + 1, t + 6);
+  const timeSeparator = value.indexOf('T');
+  return timeSeparator < 0
+    ? value
+    : value.slice(timeSeparator + 1, timeSeparator + 1 + HH_MM_LENGTH);
 }

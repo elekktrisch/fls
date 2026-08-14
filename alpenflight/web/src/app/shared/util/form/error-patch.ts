@@ -1,6 +1,5 @@
 import type { HttpErrorResponse } from '@angular/common/http';
 
-
 export interface ProblemDetailBody {
   readonly type?: string;
   readonly detail?: string;
@@ -25,11 +24,11 @@ export function problemDetailBody(e: HttpErrorResponse): ProblemDetailBody | nul
 
 export function classifyApiError<K extends string>(
   e: HttpErrorResponse,
-  rules: readonly SaveErrorRule<K>[],
+  narrowestFirstRules: readonly SaveErrorRule<K>[],
   fallback: (body: ProblemDetailBody | null, e: HttpErrorResponse) => SaveErrorOutcome<K>,
 ): SaveErrorOutcome<K> {
   const body = problemDetailBody(e);
-  for (const rule of rules) {
+  for (const rule of narrowestFirstRules) {
     if (rule.status !== e.status) continue;
     if (rule.when && !rule.when(body ?? {})) continue;
     return rule.outcome(body ?? {}, e);

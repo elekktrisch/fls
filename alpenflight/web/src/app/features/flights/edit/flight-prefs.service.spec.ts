@@ -127,7 +127,7 @@ describe('FlightPrefsService', () => {
   it('degrades gracefully when IndexedDB is unavailable', async () => {
     delete (globalThis as { indexedDB?: unknown }).indexedDB;
     expect(await svc.get('sub-x')).toEqual({});
-    await svc.update('sub-x', 'lastStartLocation', 'loc-z');
-    await svc.clear('sub-x');
+    await expect(svc.update('sub-x', 'lastStartLocation', 'loc-z')).resolves.toBeUndefined();
+    await expect(svc.clear('sub-x')).resolves.toBeUndefined();
   });
 });

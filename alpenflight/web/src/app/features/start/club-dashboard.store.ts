@@ -42,11 +42,13 @@ export const ClubDashboardStore = signalStore(
     showLoading: computed(() => isLoading() && !hasLoaded()),
   })),
   withMethods((store, meApi = inject(MeService)) => {
+    const fetchClubDashboard = () => meApi.get3();
+
     const load = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, hasError: false })),
         switchMap(() =>
-          meApi.get3().pipe(
+          fetchClubDashboard().pipe(
             tapResponse({
               next: (counts: ClubDashboardResponse) =>
                 patchState(store, {

@@ -11,7 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { PersonalStore } from './personal.store';
 
-
 const PERSON_BASE: MePersonResponse = {
   firstName: 'Pia',
   lastName: 'Lot',

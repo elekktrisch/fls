@@ -62,7 +62,7 @@ const initial: ReferenceDataState = {
   lastRefreshedAt: null,
 };
 
-const TTL_MS = 24 * 60 * 60 * 1000;
+const FLYWAY_MANAGED_CATALOGS_TTL_MS = 24 * 60 * 60 * 1000;
 
 function withId<T extends { id?: string }>(r: T, label: string): T & { id: string } {
   if (!r.id) {
@@ -137,7 +137,7 @@ export const ReferenceDataStore = signalStore(
       }),
       needsRefresh: computed(() => {
         const at = lastRefreshedAt();
-        return at === null || Date.now() - at > TTL_MS;
+        return at === null || Date.now() - at > FLYWAY_MANAGED_CATALOGS_TTL_MS;
       }),
     }),
   ),

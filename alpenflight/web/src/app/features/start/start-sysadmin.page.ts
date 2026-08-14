@@ -68,7 +68,7 @@ import { SystemDashboardStore } from './system-dashboard.store';
         type="button"
         class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] border border-slate-300 text-slate-800 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
         data-testid="start-tenant-enter"
-        (click)="enterTenant()"
+        (click)="enterTenantViaClubList()"
       >
         {{ t('sysadmin.tenantEnter') }}
       </button>
@@ -79,7 +79,7 @@ export class StartSysadminPage {
   protected readonly store = inject(SystemDashboardStore);
   private readonly router = inject(Router);
 
-  protected enterTenant(): void {
+  protected enterTenantViaClubList(): void {
     void this.router.navigate(['/clubs']);
   }
 }

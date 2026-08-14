@@ -42,6 +42,8 @@ const SAVE_ERROR_KEYS: Readonly<Record<string, string>> = {
 
 export type PlanningDayItem = PlanningDayDetail;
 
+const keepRowsUnlabelledOnPickerFailure = () => undefined;
+
 interface PlanningExtraState {
   isLoading: boolean;
   loadError: string | null;
@@ -123,8 +125,7 @@ export const PlanningStore = signalStore(
             aircraftApi.listAircraftForPicker().pipe(
               tapResponse({
                 next: (aircraft) => patchState(store, { immatById: buildImmatMap(aircraft) }),
-                error: () => {
-                },
+                error: keepRowsUnlabelledOnPickerFailure,
               }),
             ),
           ),
@@ -148,8 +149,7 @@ export const PlanningStore = signalStore(
                   });
                   loadAircraftLabels();
                 },
-                error: () => {
-                },
+                error: keepRowsUnlabelledOnPickerFailure,
               }),
             ),
           ),

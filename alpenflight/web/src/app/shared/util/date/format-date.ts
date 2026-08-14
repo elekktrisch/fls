@@ -1,4 +1,3 @@
-
 export function formatDdMmYyyy(value: Date | number | string | null | undefined): string {
   if (value === null || value === undefined || value === '') return '';
   const d = value instanceof Date ? value : new Date(value);

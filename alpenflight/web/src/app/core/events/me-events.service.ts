@@ -144,7 +144,8 @@ export class MeEventsService {
           return reconnectDelayMs(this.reconnectAttempt);
         },
       });
-    } catch {
+    } catch (fatalOpenErrorOrIntentionalAbort) {
+      void fatalOpenErrorOrIntentionalAbort;
     } finally {
       if (this.controller === controller) {
         this.controller = null;

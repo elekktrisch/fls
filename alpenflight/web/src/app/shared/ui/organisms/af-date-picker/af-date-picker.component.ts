@@ -99,6 +99,7 @@ export class AfDatePickerComponent implements ControlValueAccessor {
     this.onTouched = fn;
   }
   setDisabledState(): void {
+    return;
   }
 
   protected onSingleChange(next: Date | null): void {

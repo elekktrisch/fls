@@ -3,7 +3,6 @@ import type { FlightCreateRequestFlightAircraftType as CreateAcType } from '@api
 
 import { needsTowplane } from './edit/flight-form.model';
 
-
 export interface PrimaryAircraftKind {
   readonly hasEngine: boolean;
   readonly isTowingAircraft: boolean;

@@ -43,7 +43,7 @@ const DAY_HOURS = Array.from(
   { length: DAY_HOURS_END - DAY_HOURS_START + 1 },
   (_, i) => DAY_HOURS_START + i,
 );
-const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
+const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
 
 @Component({
   selector: 'af-reservations-calendar',
@@ -191,7 +191,7 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                 <span class="font-medium">{{ selectedDayIso() | date: 'EEEE, dd.MM.yyyy' }}</span>
                 <span class="muted tabular text-xs">
                   {{ t('calendar.reservationsCount', { count: dayReservationCount() }) }} ·
-                  {{ hoursStart }}:00–{{ hoursEnd }}:00
+                  {{ hoursStart }}:00–{{ hoursEndExclusive }}:00
                 </span>
               </div>
 
@@ -363,7 +363,7 @@ export class ReservationsCalendarPage {
   protected readonly views = ['day', 'week'] as const;
   protected readonly dayHours = DAY_HOURS;
   protected readonly hoursStart = DAY_HOURS_START;
-  protected readonly hoursEnd = DAY_HOURS_END + 1;
+  protected readonly hoursEndExclusive = DAY_HOURS_END + 1;
 
   protected readonly view = signal<'day' | 'week'>('day');
   protected readonly selectedDayIso = signal<string>(startOfDay(new Date()).toISOString());
@@ -384,20 +384,20 @@ export class ReservationsCalendarPage {
   );
 
   protected readonly dayReservationCount = computed<number>(() => {
-    const key = isoDate(startOfDay(this.selectedDayIso()));
-    return this.store.entities().filter((r) => startsOnDay(r, key)).length;
+    const selectedDayKey = isoDate(startOfDay(this.selectedDayIso()));
+    return this.store.entities().filter((r) => startsOnDay(r, selectedDayKey)).length;
   });
 
   protected placedBlocks(lane: SchedulerLane): PlacedBlock[] {
     const win = this.dayHourWindow();
-    const key = isoDate(startOfDay(this.selectedDayIso()));
+    const selectedDayKey = isoDate(startOfDay(this.selectedDayIso()));
     return lane.reservations
-      .filter((r) => startsOnDay(r, key))
+      .filter((r) => startsOnDay(r, selectedDayKey))
       .map((reservation) => ({
         reservation,
         placement: placeBlock(reservation.start, reservation.end, reservation.isAllDay, win),
         label: this.pilot(reservation),
-        isMaintenance: MAINTENANCE_TYPES.has(reservation.reservationTypeName ?? ''),
+        isMaintenance: MAINTENANCE_TYPE_NAMES.has(reservation.reservationTypeName ?? ''),
       }));
   }
 

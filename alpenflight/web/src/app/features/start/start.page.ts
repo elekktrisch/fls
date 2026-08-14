@@ -32,7 +32,7 @@ function pickGreeting(hourOfDay: number): GreetingKey {
   return 'greeting.evening';
 }
 
-const CREW_ROLE_LABEL: Record<string, string> = {
+const CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID: Record<string, string> = {
   '019e2e15-2c00-76b0-8000-0000000036b0': 'lastFlight.roles.pic',
   '019e2e15-2c00-76b1-8000-0000000036b1': 'lastFlight.roles.coPilot',
   '019e2e15-2c00-76b2-8000-0000000036b2': 'lastFlight.roles.instructor',
@@ -205,7 +205,7 @@ export class StartPage {
     if (!me || !f?.crew) return '—';
     const myRow = f.crew.find((c) => c.personId === me);
     if (!myRow) return '—';
-    const key = CREW_ROLE_LABEL[myRow.flightCrewTypeId];
+    const key = CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID[myRow.flightCrewTypeId];
     return key ? t(key) : '—';
   }
 

@@ -88,6 +88,7 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
+      return;
     }
   }
 
@@ -97,6 +98,7 @@ export class FlightPrefsService {
       const map = { ...(current.towPilotByAircraftId ?? {}), [aircraftId]: personId };
       await this.update(sub, 'towPilotByAircraftId', map);
     } catch {
+      return;
     }
   }
 
@@ -110,6 +112,7 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
+      return;
     }
   }
 
@@ -123,6 +126,7 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
+      return;
     }
   }
 }

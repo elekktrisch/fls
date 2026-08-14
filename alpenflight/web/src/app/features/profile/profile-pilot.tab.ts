@@ -391,18 +391,18 @@ export class ProfilePilotTab {
       hasGliderWinchStartPermission: v.hasGliderWinchStartPermission,
       receiveOwnedAircraftStatisticReports: v.receiveOwnedAircraftStatisticReports,
     };
-    setIfPresent(req, 'licenceNumber', v.licenceNumber);
-    setIfPresent(req, 'medicalClass1ExpireDate', v.medicalClass1ExpireDate);
-    setIfPresent(req, 'medicalClass2ExpireDate', v.medicalClass2ExpireDate);
-    setIfPresent(req, 'medicalLaplExpireDate', v.medicalLaplExpireDate);
-    setIfPresent(req, 'gliderInstructorLicenceExpireDate', v.gliderInstructorLicenceExpireDate);
-    setIfPresent(req, 'motorInstructorLicenceExpireDate', v.motorInstructorLicenceExpireDate);
-    setIfPresent(req, 'partMLicenceExpireDate', v.partMLicenceExpireDate);
+    setIfNonBlank(req, 'licenceNumber', v.licenceNumber);
+    setIfNonBlank(req, 'medicalClass1ExpireDate', v.medicalClass1ExpireDate);
+    setIfNonBlank(req, 'medicalClass2ExpireDate', v.medicalClass2ExpireDate);
+    setIfNonBlank(req, 'medicalLaplExpireDate', v.medicalLaplExpireDate);
+    setIfNonBlank(req, 'gliderInstructorLicenceExpireDate', v.gliderInstructorLicenceExpireDate);
+    setIfNonBlank(req, 'motorInstructorLicenceExpireDate', v.motorInstructorLicenceExpireDate);
+    setIfNonBlank(req, 'partMLicenceExpireDate', v.partMLicenceExpireDate);
     this.store.save(req);
   }
 }
 
-function setIfPresent(
+function setIfNonBlank(
   req: MePersonLicencesUpdateRequest,
   key: keyof MePersonLicencesUpdateRequest,
   value: string,

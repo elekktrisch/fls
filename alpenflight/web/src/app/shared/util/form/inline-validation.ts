@@ -12,7 +12,6 @@ import {
   startWith,
 } from 'rxjs';
 
-
 const DEFAULT_DEBOUNCE_MS = 200;
 
 export interface LiveErrorsOptions {
@@ -38,7 +37,8 @@ export function liveFieldErrors$(
   options: LiveErrorsOptions = {},
 ): Observable<ValidationErrors | null> {
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-  const client$ = merge(control.valueChanges, control.root.statusChanges).pipe(
+  const revalidatedWithoutValueChange$ = control.root.statusChanges;
+  const client$ = merge(control.valueChanges, revalidatedWithoutValueChange$).pipe(
     debounceTime(debounceMs),
     startWith(null),
     map(() => control.errors),

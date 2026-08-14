@@ -80,10 +80,13 @@ function flightsServiceStub(stubs: Partial<ApiStubs> = {}): FlightsService {
   return api as unknown as FlightsService;
 }
 
+const SERVER_HELD_AIRCRAFT_ID = 'ac-019e30c3-2c00-7001-8000-0000000000a9';
+const LOCALLY_EDITED_AIRCRAFT_ID = 'ac-019e30c3-2c00-7001-8000-0000000000b1';
+
 const SERVER_DETAIL: FlightDetail = {
   id: 'fl-019e30c3-2c00-7001-8000-000000000001',
   flightAircraftType: FlightDetailFlightAircraftType.GLIDER,
-  aircraftId: 'ac-019e30c3-2c00-7001-8000-0000000000a9',
+  aircraftId: SERVER_HELD_AIRCRAFT_ID,
   flightDate: '2026-05-20',
   nrOfLdgs: 5,
   isSoloFlight: false,
@@ -103,7 +106,7 @@ function editSnapshot(): FlightFormSnapshot {
     canUpdateRecord: true,
     canDeleteRecord: true,
     glider: {
-      aircraftId: 'ac-019e30c3-2c00-7001-8000-0000000000b1',
+      aircraftId: LOCALLY_EDITED_AIRCRAFT_ID,
       flightTypeId: null,
       pilotPersonId: null,
       coPilotPersonId: null,

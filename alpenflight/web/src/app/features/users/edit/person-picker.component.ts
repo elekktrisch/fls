@@ -71,7 +71,7 @@ type PickerForm = FormGroup<{
               autocomplete="email"
             />
           </af-form-field>
-          <div class="grid grid-cols-3 gap-2" [class.opacity-50]="emailMode()">
+          <div class="grid grid-cols-3 gap-2" [class.opacity-50]="searchesByEmail()">
             <af-form-field label="First name" for="LookupFirstname">
               <af-input
                 inputId="LookupFirstname"
@@ -166,7 +166,7 @@ export class UserPersonPickerComponent {
 
   private readonly formValue = signal(this.form.getRawValue());
 
-  protected readonly emailMode = computed(() => this.formValue().email.trim().length > 0);
+  protected readonly searchesByEmail = computed(() => this.formValue().email.trim().length > 0);
 
   protected readonly canSearch = computed(() => {
     const v = this.formValue();

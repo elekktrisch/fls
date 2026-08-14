@@ -46,17 +46,17 @@ type SetupForm = FormGroup<{
 }>;
 
 const WEEKDAYS: readonly {
-  key: string;
+  testIdSuffix: string;
   control: keyof SetupForm['controls'];
   labelKey: string;
 }[] = [
-  { key: 'mon', control: 'everyMonday', labelKey: 'weekday.mon' },
-  { key: 'tue', control: 'everyTuesday', labelKey: 'weekday.tue' },
-  { key: 'wed', control: 'everyWednesday', labelKey: 'weekday.wed' },
-  { key: 'thu', control: 'everyThursday', labelKey: 'weekday.thu' },
-  { key: 'fri', control: 'everyFriday', labelKey: 'weekday.fri' },
-  { key: 'sat', control: 'everySaturday', labelKey: 'weekday.sat' },
-  { key: 'sun', control: 'everySunday', labelKey: 'weekday.sun' },
+  { testIdSuffix: 'mon', control: 'everyMonday', labelKey: 'weekday.mon' },
+  { testIdSuffix: 'tue', control: 'everyTuesday', labelKey: 'weekday.tue' },
+  { testIdSuffix: 'wed', control: 'everyWednesday', labelKey: 'weekday.wed' },
+  { testIdSuffix: 'thu', control: 'everyThursday', labelKey: 'weekday.thu' },
+  { testIdSuffix: 'fri', control: 'everyFriday', labelKey: 'weekday.fri' },
+  { testIdSuffix: 'sat', control: 'everySaturday', labelKey: 'weekday.sat' },
+  { testIdSuffix: 'sun', control: 'everySunday', labelKey: 'weekday.sun' },
 ];
 
 @Component({
@@ -152,10 +152,10 @@ const WEEKDAYS: readonly {
               {{ t('sections.weekdays') }}
             </h2>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
-              @for (wd of weekdays; track wd.key) {
+              @for (wd of weekdays; track wd.testIdSuffix) {
                 <label
                   class="flex items-center gap-2 cursor-pointer select-none"
-                  [attr.data-testid]="'planning-setup-weekday-' + wd.key"
+                  [attr.data-testid]="'planning-setup-weekday-' + wd.testIdSuffix"
                 >
                   <input
                     type="checkbox"
@@ -243,9 +243,9 @@ export class PlanningSetupPage {
     this.store.clearSaveError();
 
     effect(() => {
-      const first = this.store.locations()[0];
-      if (first && this.form.controls.locationId.value === '') {
-        this.form.controls.locationId.setValue(first.id, { emitEvent: false });
+      const defaultLocation = this.store.locations()[0];
+      if (defaultLocation && this.form.controls.locationId.value === '') {
+        this.form.controls.locationId.setValue(defaultLocation.id, { emitEvent: false });
       }
     });
 

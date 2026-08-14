@@ -1,6 +1,7 @@
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import {
   ApplicationConfig,
+  type Provider,
   inject,
   provideAppInitializer,
   provideZonelessChangeDetection,
@@ -26,6 +27,16 @@ import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 
+const OIDC_STORAGE_OVERRIDE_THAT_MUST_BE_LISTED_AFTER_PROVIDE_AUTH: Provider = {
+  provide: AbstractSecurityStorage,
+  useClass: DefaultLocalStorageService,
+};
+
+function constructRootSingletonsWhoseConstructorsRegisterSessionEffects(): void {
+  inject(OidcSessionBridge);
+  inject(MeEventsService);
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
@@ -38,10 +49,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     provideAuth({ config: alpenflightOidcConfig }, withAppInitializerAuthCheck()),
-    { provide: AbstractSecurityStorage, useClass: DefaultLocalStorageService },
-    provideAppInitializer(() => {
-      inject(OidcSessionBridge);
-      inject(MeEventsService);
-    }),
+    OIDC_STORAGE_OVERRIDE_THAT_MUST_BE_LISTED_AFTER_PROVIDE_AUTH,
+    provideAppInitializer(constructRootSingletonsWhoseConstructorsRegisterSessionEffects),
   ],
 };

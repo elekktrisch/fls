@@ -23,10 +23,11 @@ import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 import { SessionStore, type User } from './core/session/session.store';
 
-
 const MOCK_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 
 const MOCK_PERSON_ID = 'pn-019e30c3-2c00-7100-8000-0000000000a5';
+
+const SEEDED_BERN_BELP_HOMEBASE_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
 
 const MOCK_USER: User = {
   id: 'mock-sysadmin',
@@ -36,7 +37,7 @@ const MOCK_USER: User = {
   lastName: 'Sysadmin',
   clubId: MOCK_CLUB_ID,
   personId: MOCK_PERSON_ID,
-  homebaseLocationId: 'loc-019e30c3-2c00-7001-8000-00000000c001',
+  homebaseLocationId: SEEDED_BERN_BELP_HOMEBASE_LOCATION_ID,
   roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
 };
 

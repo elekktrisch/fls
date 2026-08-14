@@ -72,10 +72,11 @@ function withDetailId(d: LocationDetail): LocationDetailLoaded {
 }
 
 function listItemFromDetail(d: LocationDetailLoaded): LocationItem {
+  const joinedColumnsPendingReload = { isAirfield: false };
   const item: LocationItem = {
     id: d.id,
     locationName: d.locationName,
-    isAirfield: false,
+    ...joinedColumnsPendingReload,
     isFastEntryRecord: d.isFastEntryRecord,
   };
   if (d.locationShortName !== undefined) item.locationShortName = d.locationShortName;

@@ -103,6 +103,8 @@ function reservationsServiceStub(stubs: Partial<ApiStubs>): AircraftReservations
   return api as unknown as AircraftReservationsService;
 }
 
+const PAST_VALIDATE_DEBOUNCE_MS = 250;
+
 const validateProbe: AircraftReservationValidateRequest = {
   aircraftId: AC_ID,
   start: '2026-07-01T10:00:00Z',
@@ -168,7 +170,7 @@ describe('ReservationsStore', () => {
     );
     const store = TestBed.inject(ReservationsStore);
     store.goToPage(3);
-    expect(offsets).toContain(40);
+    expect(offsets).toContain(2 * seedPage.pageSize);
   });
 
   it('delete emits reservation.deleted on the bus and refreshes', () => {
@@ -234,7 +236,7 @@ describe('ReservationsStore', () => {
       configure(reservationsServiceStub({ validate: () => of(fail) }));
       const store = TestBed.inject(ReservationsStore);
       store.validateOverlap(validateProbe);
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.overlapValidating()).toBe(false);
       expect(store.overlapMessage()).toBe('aircraft.reservation.overlap');
       expect(store.overlapErrors()).toEqual({ overlap: 'aircraft.reservation.overlap' });
@@ -249,7 +251,7 @@ describe('ReservationsStore', () => {
       configure(reservationsServiceStub({ validate: () => of({ valid: true }) }));
       const store = TestBed.inject(ReservationsStore);
       store.validateOverlap(validateProbe);
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.overlapMessage()).toBeNull();
       expect(store.overlapErrors()).toBeNull();
     } finally {
