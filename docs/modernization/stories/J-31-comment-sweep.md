@@ -66,6 +66,7 @@ later backend gate depends on — the repair follows immediately.
 - [x] **T-03b** — manifest scoring: group consecutive `//` lines into ONE scored entry. The pilot proved a 10-line `//` block scores 1.5–5.9 per line while an equivalent `/** */` block scores 13, so the densest rationale in the batch (`BundleWriter.java:39`) landed at **1.7** — a judge reading ≥8-first would systematically skip exactly the comments worth keeping. Must land before `server-main` (787 files)
 - [x] **T-04** — batch `database` (324 / 33)
 - [x] **T-05** — batch `ops-shell` + `auth` (492 / 16)
+- [ ] **T-05b** — heredoc bodies are opaque to BOTH the stripper and `--check`: `normalize-realm-export.sh:21-114` is a Python program inside `<<'PYEOF'` whose 6 comment blocks + docstring are invisible (33 comments tree-wide). A silent hole is the third of its kind this journey (`node_modules.windows`, the `build`/`target` exclusion) and it falsifies the "only directives and `ext:` markers survive" AC. Lex heredoc bodies by **interpreter** — a body piped to `python3`/`node`/`psql` is a program; one echoed to stdout (`INFO` banners, operator help text) is DATA and must not be touched. Must land before T-11 (`preflight.sh`, `e2e/scripts/dev-up.sh`)
 - [ ] **T-06** — batch `build-config` — the per-module `build.gradle.kts` / `settings.gradle.kts` under a module path are swept by that module's batch (T-03 already took migration-tool's 21); this batch is only what no module batch claims
 - [ ] **T-07** — batch `migration-bundle` (1,413 / 126)
 - [ ] **T-08** — batch `web-src` (2,324 / 337)
