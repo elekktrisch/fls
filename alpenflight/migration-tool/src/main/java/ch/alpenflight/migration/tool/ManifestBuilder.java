@@ -19,6 +19,8 @@ public final class ManifestBuilder {
 
     static final int SCHEMA_VERSION = 1;
 
+    private static final boolean PUBLIC_REGISTRATION_DISABLED_UNTIL_OPERATOR_REFINES = false;
+
     private static final String UNMAPPED_REASON =
             "ENTITY_NOT_YET_BOUND: no MapperLegacyBindings SELECT registered "
                     + "(grows as S-187a extends the registry)";
@@ -40,9 +42,10 @@ public final class ManifestBuilder {
             }
         }
         List<ManifestModel.ClubDeclaration> clubs = readClubDeclarations(reader);
-        UUID primaryClubId = clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
-        return new ManifestModel(
-                SCHEMA_VERSION, deploymentName, clubs, primaryClubId, policies, unmapped);
+        UUID arbitraryFirstClubAsPrimary =
+                clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
+        return new ManifestModel(SCHEMA_VERSION, deploymentName, clubs,
+                arbitraryFirstClubAsPrimary, policies, unmapped);
     }
 
     private static EntityPolicy toEntityPolicy(MapperLegacyBindings.PortPolicy policy) {
@@ -76,7 +79,8 @@ public final class ManifestBuilder {
                 UUID clubStateId = resolveClubStateSeedPk(legacyClubStateId);
                 clubs.add(new ManifestModel.ClubDeclaration(
                         legacyClubId, name, deriveSlug(clubKey, legacyClubId),
-                        clubKey, false, countryId, clubStateId));
+                        clubKey, PUBLIC_REGISTRATION_DISABLED_UNTIL_OPERATOR_REFINES,
+                        countryId, clubStateId));
             }
         } catch (SQLException e) {
             throw new ExportException(ExitCode.IO_ERROR,

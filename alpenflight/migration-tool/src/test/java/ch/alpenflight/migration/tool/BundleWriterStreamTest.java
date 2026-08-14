@@ -20,12 +20,12 @@ class BundleWriterStreamTest {
     @TempDir
     Path workDir;
 
-    private static final int ROWS = 5000;
+    private static final int ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS = 5000;
 
     @Test
     void streamsEveryRowAcrossManyBufferFlushesWithoutClosingTheTarget() throws Exception {
         BundleWriter writer = new BundleWriter(null, workDir, false);
-        ResultSet cursor = forwardOnlyCursor(ROWS);
+        ResultSet cursor = forwardOnlyCursor(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
         Mapper mapper = countingMapper();
 
         EntityStreamResult[] result = new EntityStreamResult[1];
@@ -36,14 +36,15 @@ class BundleWriterStreamTest {
 
         assertThat(result[0].rowCount())
                 .as("every fake row streamed, none lost to a premature channel close")
-                .isEqualTo(ROWS);
+                .isEqualTo(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
 
         List<String> lines = Files.readAllLines(result[0].ndjsonTempFile(), StandardCharsets.UTF_8);
         assertThat(lines)
                 .as("one NDJSON line per row, last row present (not truncated mid-stream)")
-                .hasSize(ROWS);
+                .hasSize(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
         assertThat(lines.get(0)).isEqualTo("{\"row\":0}");
-        assertThat(lines.get(ROWS - 1)).isEqualTo("{\"row\":" + (ROWS - 1) + "}");
+        int lastRow = ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS - 1;
+        assertThat(lines.get(lastRow)).isEqualTo("{\"row\":" + lastRow + "}");
     }
 
     private static ResultSet forwardOnlyCursor(int rows) {

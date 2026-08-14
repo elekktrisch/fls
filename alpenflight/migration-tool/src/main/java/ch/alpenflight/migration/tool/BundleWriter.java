@@ -36,10 +36,11 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
 public final class BundleWriter {
 
-    private static final JsonFactory JSON_FACTORY = JsonFactory.builder()
-            .disable(StreamWriteFeature.AUTO_CLOSE_TARGET)
-            .build();
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final JsonFactory PER_ROW_GENERATOR_FACTORY_LEAVING_SHARED_STREAM_OPEN =
+            JsonFactory.builder()
+                    .disable(StreamWriteFeature.AUTO_CLOSE_TARGET)
+                    .build();
+    private static final ObjectMapper NDJSON_ROW_PARSER = new ObjectMapper();
 
     private final LegacyJdbcReader reader;
     private final Path workDir;
@@ -87,7 +88,9 @@ public final class BundleWriter {
         try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(ndjson));
              DigestOutputStream digestOut = new DigestOutputStream(fileOut, digest)) {
             while (rs.next()) {
-                try (JsonGenerator gen = JSON_FACTORY.createGenerator(digestOut)) {
+                try (JsonGenerator gen =
+                             PER_ROW_GENERATOR_FACTORY_LEAVING_SHARED_STREAM_OPEN
+                                     .createGenerator(digestOut)) {
                     mapper.writeNdjson(rs, gen);
                 }
                 digestOut.write('\n');
@@ -123,7 +126,7 @@ public final class BundleWriter {
                 if (line.isBlank()) {
                     continue;
                 }
-                JsonNode row = JSON.readTree(line);
+                JsonNode row = NDJSON_ROW_PARSER.readTree(line);
                 UUID legacyGuid = requireUuid(row, "legacy_guid", entity);
                 if (fanOut) {
                     UUID clubId = requireUuid(row, "club_id", entity);
@@ -152,7 +155,7 @@ public final class BundleWriter {
                 if (line.isBlank()) {
                     continue;
                 }
-                JsonNode row = JSON.readTree(line);
+                JsonNode row = NDJSON_ROW_PARSER.readTree(line);
                 UUID legacyGuid = requireUuid(row, "legacy_guid", entity);
                 UUID seedPk = resolveSeedPk(entity, row);
                 writer.write(legacyGuid, seedPk);
@@ -166,11 +169,11 @@ public final class BundleWriter {
 
     Path writeStartTypeEnumSeedPgcopy() {
         Path pgcopy = temp("START_TYPE-seed-pgcopy");
-        Map<UUID, UUID> closure =
+        Map<UUID, UUID> everyLegacyEnumIdToSeedPk =
                 ch.alpenflight.migration.bundle.flight.StartTypeMapper.legacyEnumIdToSeedPk();
         try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(pgcopy));
              LegacyIdMapWriter writer = new LegacyIdMapWriter(fileOut)) {
-            for (Map.Entry<UUID, UUID> entry : closure.entrySet()) {
+            for (Map.Entry<UUID, UUID> entry : everyLegacyEnumIdToSeedPk.entrySet()) {
                 writer.write(entry.getKey(), entry.getValue());
             }
         } catch (IOException e) {
@@ -178,6 +181,11 @@ public final class BundleWriter {
                     "Failed writing START_TYPE enum seed id map: " + e.getMessage(), e);
         }
         return pgcopy;
+    }
+
+    private static boolean isPreSeededInV2BaselineAndMustNotBeReIngested(EntityType entity) {
+        return MapperLegacyBindings.portPolicy(entity)
+                == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL;
     }
 
     private static boolean hasSeedResolver(EntityType entity) {
@@ -222,21 +230,24 @@ public final class BundleWriter {
     public void assembleTarGz(byte[] manifestBytes,
                               List<EntityStreamResult> entityResults,
                               Path destination) {
-        Map<String, Path> pgcopyEntries = new LinkedHashMap<>();
+        Map<String, Path> idMapEntriesTarredBeforeNdjsonStreams = new LinkedHashMap<>();
         for (EntityStreamResult result : entityResults) {
             EntityType entity = result.entityType();
             MapperLegacyBindings.PortPolicy policy = MapperLegacyBindings.portPolicy(entity);
             if (policy == MapperLegacyBindings.PortPolicy.FULL_PORT
                     && !entity.idMapSeededFromProvisioning()
                     && entity.emitsIdentityMap()) {
-                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                idMapEntriesTarredBeforeNdjsonStreams.put(
+                        "legacy_id_map/" + entity.name() + ".pgcopy",
                         writeIdentityPgcopy(result));
             } else if (entity == EntityType.START_TYPE) {
-                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                idMapEntriesTarredBeforeNdjsonStreams.put(
+                        "legacy_id_map/" + entity.name() + ".pgcopy",
                         writeStartTypeEnumSeedPgcopy());
             } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
                     && hasSeedResolver(entity)) {
-                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                idMapEntriesTarredBeforeNdjsonStreams.put(
+                        "legacy_id_map/" + entity.name() + ".pgcopy",
                         writeSystemGlobalSeedPgcopy(result));
             }
         }
@@ -245,12 +256,12 @@ public final class BundleWriter {
              TarArchiveOutputStream tar = new TarArchiveOutputStream(gzip)) {
             tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
             putBytesEntry(tar, "manifest.json", manifestBytes);
-            for (Map.Entry<String, Path> entry : pgcopyEntries.entrySet()) {
+            for (Map.Entry<String, Path> entry
+                    : idMapEntriesTarredBeforeNdjsonStreams.entrySet()) {
                 putFileEntry(tar, entry.getKey(), entry.getValue());
             }
             for (EntityStreamResult result : entityResults) {
-                if (MapperLegacyBindings.portPolicy(result.entityType())
-                        == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL) {
+                if (isPreSeededInV2BaselineAndMustNotBeReIngested(result.entityType())) {
                     continue;
                 }
                 putFileEntry(tar, result.tarEntryName(), result.ndjsonTempFile());
@@ -260,7 +271,7 @@ public final class BundleWriter {
             throw new ExportException(ExitCode.IO_ERROR,
                     "Failed assembling tar.gz plaintext: " + e.getMessage(), e);
         } finally {
-            for (Path p : pgcopyEntries.values()) {
+            for (Path p : idMapEntriesTarredBeforeNdjsonStreams.values()) {
                 deleteQuietly(p);
             }
         }

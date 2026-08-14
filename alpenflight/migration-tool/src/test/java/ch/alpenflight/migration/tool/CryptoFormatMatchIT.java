@@ -21,6 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class CryptoFormatMatchIT {
 
+    private static final int PLAINTEXT_BYTES_SPANNING_MANY_AEAD_SEGMENTS = 50_000;
+
     private final MigrationBundleCipher cipher = new TinkMigrationBundleCipher();
 
     @Test
@@ -29,7 +31,7 @@ class CryptoFormatMatchIT {
         KeyPair rsa = rsa4096();
         UUID uploadId = UUID.randomUUID();
 
-        byte[] plaintext = syntheticPlaintext(50_000);
+        byte[] plaintext = syntheticPlaintext(PLAINTEXT_BYTES_SPANNING_MANY_AEAD_SEGMENTS);
         Path plaintextFile = dir.resolve("bundle.tar.gz");
         Files.write(plaintextFile, plaintext);
 

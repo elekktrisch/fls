@@ -62,7 +62,7 @@ later backend gate depends on — the repair follows immediately.
 
 - [x] **T-01** — `strip.mjs`: survive the dangling `node_modules_sandbox` symlink; regression case in `strip.test.mjs`; shake down `--check` + `--manifest` on a real sample
 - [x] **T-02** — the repeal commit: do-ship + do-task SKILL.md, comment-strip SKILL.md (relax same-day + open-branch preconditions), `CONVENTIONS.md`, the eslint message, `.gitignore` (`.comment-strip/` + `backend.log`/`backend.pid`), retire `[COMMENT-STRIP]` from `_BOYSCOUT.md`, rewrite the memory
-- [ ] **T-03** — batch `migration-tool` (180 comments / 16 files) — pilot: proves the judge→strip→gate loop end to end
+- [x] **T-03** — batch `migration-tool` (180 comments / 16 files) — pilot: proves the judge→strip→gate loop end to end
 - [ ] **T-04** — batch `database` (324 / 33)
 - [ ] **T-05** — batch `ops-shell` + `auth` (492 / 16)
 - [ ] **T-06** — batch `build-config`

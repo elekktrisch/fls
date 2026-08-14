@@ -48,7 +48,7 @@ public final class BundleEncryptor {
 
     private void writeEnvelope(Path tmp, Path plaintextTarGz, UUID uploadId,
                                SecureBytes session, byte[] wrapped) throws IOException {
-        createSecureFile(tmp);
+        createOwnerOnlyReadableFile(tmp);
         try (OutputStream raw = new BufferedOutputStream(Files.newOutputStream(tmp))) {
             raw.write(BundleHeader.magic());
             raw.write(BundleHeader.CURRENT_VERSION);
@@ -68,7 +68,7 @@ public final class BundleEncryptor {
         return parent.resolve(name);
     }
 
-    private static void createSecureFile(Path file) throws IOException {
+    private static void createOwnerOnlyReadableFile(Path file) throws IOException {
         try {
             Files.createFile(file, PosixFilePermissions.asFileAttribute(Set.of(
                     PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)));
