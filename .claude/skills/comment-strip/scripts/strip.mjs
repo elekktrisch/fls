@@ -437,6 +437,43 @@ function lineNumberAt(source, index) {
   return line;
 }
 
+const LINE_COMMENT_OPENERS = ['//', '--', '#'];
+
+function isLineComment(source, comment) {
+  return LINE_COMMENT_OPENERS.some((opener) => source.startsWith(opener, comment.start));
+}
+
+function startsOnItsOwnLine(source, comment) {
+  const lineStart = source.lastIndexOf('\n', comment.start - 1) + 1;
+  return source.slice(lineStart, comment.start).trim() === '';
+}
+
+function groupContiguousLineComments(source, comments) {
+  const groups = [];
+  for (const comment of comments) {
+    const startLine = lineNumberAt(source, comment.start);
+    const joinsAsOwnLineRun = isLineComment(source, comment) && startsOnItsOwnLine(source, comment);
+    const previousGroup = groups[groups.length - 1];
+    const continuesPreviousRun =
+      previousGroup !== undefined &&
+      previousGroup.isOwnLineRun &&
+      joinsAsOwnLineRun &&
+      previousGroup.endLine + 1 === startLine;
+    if (continuesPreviousRun) {
+      previousGroup.comments.push(comment);
+      previousGroup.endLine = startLine;
+      continue;
+    }
+    groups.push({
+      comments: [comment],
+      startLine,
+      endLine: lineNumberAt(source, comment.end),
+      isOwnLineRun: joinsAsOwnLineRun,
+    });
+  }
+  return groups;
+}
+
 function attachedDeclarationAfter(source, endIndex) {
   const remainder = source.slice(endIndex, endIndex + 800).split('\n');
   for (const line of remainder) {
@@ -477,13 +514,17 @@ function expandRemovalToWholeLines(source, comment) {
 export function stripSource(source, extension) {
   const { comments, literals } = scanComments(source, extension);
   const removable = comments.filter((comment) => classifyComment(source, comment) === 'prose');
-  const removed = removable.map((comment) => {
-    const text = comment.body.replace(/^\s*\*+/gm, '').trim();
-    const attachedDeclaration = attachedDeclarationAfter(source, comment.end);
+  const removed = groupContiguousLineComments(source, removable).map((group) => {
+    const lastComment = group.comments[group.comments.length - 1];
+    const text = group.comments
+      .map((comment) => comment.body.replace(/^\s*\*+/gm, '').trim())
+      .join('\n')
+      .trim();
     const entry = {
-      line: lineNumberAt(source, comment.start),
+      line: group.startLine,
+      endLine: group.endLine,
       text,
-      attachedDeclaration,
+      attachedDeclaration: attachedDeclarationAfter(source, lastComment.end),
     };
     return { ...entry, score: scoreComment(entry) };
   });
@@ -502,7 +543,7 @@ export function stripSource(source, extension) {
   const literalsUnchanged =
     literals.length === verification.literals.length &&
     literals.every((literal, position) => literal === verification.literals[position]);
-  return { output, removed, literalsUnchanged, remaining: verification.comments };
+  return { output, removed, removedCommentCount: removable.length, literalsUnchanged, remaining: verification.comments };
 }
 
 function isExcludedDirectory(path) {
@@ -600,7 +641,7 @@ function runStrip(files, options) {
     if (result.removed.length === 0) continue;
     writeFileSync(file, result.output);
     filesChanged += 1;
-    commentsRemoved += result.removed.length;
+    commentsRemoved += result.removedCommentCount;
     for (const entry of result.removed) {
       manifestEntries.push({ file: relative(process.cwd(), file), ...entry });
     }
@@ -616,6 +657,7 @@ function runStrip(files, options) {
     filesScanned: files.length,
     filesChanged,
     commentsRemoved,
+    manifestEntries: manifestEntries.length,
     aboveThreshold,
     failures,
   };

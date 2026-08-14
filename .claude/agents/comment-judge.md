@@ -22,10 +22,12 @@ scanner misread it and a human needs to look.
 
 ## 2. Judge
 
-Read the manifest, highest `score` first. Every entry is a comment that is now
-gone. For each one, the question is only: **can a reader still understand this
-code?** Default to yes and move on — most removed comments narrated what the
-code already said.
+Read the manifest, highest `score` first. Every entry is a block of rationale
+that is now gone — a block comment, or a contiguous run of line comments,
+covering `line`–`endLine` of `file`. So entries are fewer than the
+`commentsRemoved` count, and `reviewed` counts entries. For each one, the
+question is only: **can a reader still understand this code?** Default to yes
+and move on — most removed comments narrated what the code already said.
 
 Escalate only when the answer is no:
 

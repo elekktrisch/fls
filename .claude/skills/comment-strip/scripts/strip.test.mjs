@@ -187,6 +187,85 @@ test('scoring ranks a causal comment on an opaque name above a narration comment
   assert.ok(causal >= 8, 'a causal comment on an opaque name should clear the review threshold');
 });
 
+test('a contiguous line-comment block becomes one manifest entry scored on its combined text', () => {
+  const source = [
+    '// AUTO_CLOSE_TARGET disabled: streamOne creates a JsonGenerator PER ROW wrapping the SAME',
+    '// shared per-entity DigestOutputStream, so the generator close() must NOT close the',
+    '// underlying stream, which would otherwise die at a buffer-boundary row (J-0c T-13).',
+    'private static final JsonFactory JSON_FACTORY = builder().build();',
+  ].join('\n');
+  const result = strip(source, '.java');
+  assert.equal(result.output, 'private static final JsonFactory JSON_FACTORY = builder().build();');
+  assert.equal(result.removed.length, 1);
+  assert.equal(result.removedCommentCount, 3);
+  assert.deepEqual([result.removed[0].line, result.removed[0].endLine], [1, 3]);
+  assert.match(result.removed[0].text, /AUTO_CLOSE_TARGET disabled[\s\S]*buffer-boundary row/);
+  assert.ok(
+    result.removed[0].score >= 8,
+    `a block carrying the reason for a disabled flag should clear the review threshold, scored ${result.removed[0].score}`,
+  );
+});
+
+test('a blank line between two line-comment runs keeps them as separate entries', () => {
+  const source = ['// first run', '// still the first run', '', '// second run', 'const a = 1;'].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, ['', 'const a = 1;'].join('\n'));
+  assert.deepEqual(
+    result.removed.map((entry) => [entry.line, entry.endLine, entry.text]),
+    [
+      [1, 2, 'first run\nstill the first run'],
+      [4, 4, 'second run'],
+    ],
+  );
+});
+
+test('a code line between two line-comment runs keeps them as separate entries', () => {
+  const source = ['// before', 'const a = 1;', '// after', 'const b = 2;'].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, ['const a = 1;', 'const b = 2;'].join('\n'));
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['before', 'after'],
+  );
+});
+
+test('a trailing comment is not folded into the block that follows it', () => {
+  const source = ['const a = 1; // narrates the assignment', '// documents the next declaration', 'const b = 2;'].join('\n');
+  const result = strip(source, '.ts');
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['narrates the assignment', 'documents the next declaration'],
+  );
+});
+
+test('grouping applies to hash and dash line comments too', () => {
+  const shell = strip(['# first', '# second', 'set -euo pipefail'].join('\n'), '.sh');
+  assert.deepEqual(
+    shell.removed.map((entry) => entry.text),
+    ['first\nsecond'],
+  );
+  const sql = strip(['-- first', '-- second', 'CREATE INDEX ix_a ON a (b);'].join('\n'), '.sql');
+  assert.deepEqual(
+    sql.removed.map((entry) => entry.text),
+    ['first\nsecond'],
+  );
+});
+
+test('a directive inside a run splits the prose around it', () => {
+  const source = [
+    '// the console call below is deliberate',
+    '// eslint-disable-next-line no-console',
+    '// and the reason it is deliberate',
+    'console.log(x);',
+  ].join('\n');
+  const result = strip(source, '.ts');
+  assert.equal(result.output, ['// eslint-disable-next-line no-console', 'console.log(x);'].join('\n'));
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['the console call below is deliberate', 'and the reason it is deliberate'],
+  );
+});
+
 test('a file with no comments is left byte-identical', () => {
   const source = 'public class A {\n    private final int b = 1;\n}\n';
   const result = strip(source, '.java');

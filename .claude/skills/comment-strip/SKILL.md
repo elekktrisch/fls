@@ -176,10 +176,13 @@ strip.mjs --manifest <f> <paths…>      also write a scored JSONL manifest
 strip.mjs --check <paths…>             detector: non-zero on prose or RENAME leftovers
 ```
 
-The manifest scores each removal so judges read the dense ones first: length,
-causal vocabulary (`because`, `never`, `workaround`, `defaults to`), external
-facts (browser/version/URL/story-id), an opaque attached identifier, a bare
-literal nearby. Threshold 8.
+One manifest entry is one removed *block* of rationale: a block comment, or a
+contiguous run of own-line `//` / `#` / `--` lines, spanning `line`–`endLine`.
+Each entry is scored on its combined text so judges read the dense ones first:
+length, causal vocabulary (`because`, `never`, `workaround`, `defaults to`),
+external facts (browser/version/URL/story-id), an opaque attached identifier, a
+bare literal nearby. Threshold 8. Scoring a run line-by-line would rank the
+densest rationale in a batch below one-line narration.
 
 **Excluded everywhere:** `flsserver/`, `flsweb/` (read-only upstream),
 `node_modules/`, `build/`, `target/`, `.gradle/`, `dist/`, `.angular/`,
