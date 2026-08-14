@@ -60,13 +60,27 @@ export async function enterViaNav(page: Page, path: string): Promise<void> {
     return;
   }
 
-  // Nested masterdata path: the Masterdata group parent must be opened first.
-  // The nav renders exactly ONE surface (af-nav-bar `@if (!isWide())` burger vs
-  // `@if (isWide())` inline tabs) and that surface may still be mounting when we
-  // arrive — so DON'T branch on a point-in-time `count()` (it races the render
-  // and wrongly takes the burger path on desktop). Instead wait for the live
-  // surface to settle: the desktop group trigger OR the mobile burger, whichever
-  // this viewport paints, is visible before we decide.
+  await openMasterdataGroup(page);
+
+  const child = page.getByTestId(`af-nav-section-${path}`);
+  await expect(
+    child,
+    `the ${path} masterdata item is reachable once Masterdata is open`,
+  ).toBeVisible();
+  await child.click();
+}
+
+/**
+ * Expand the Masterdata group so its children are clickable.
+ *
+ * The nav renders exactly ONE surface (af-nav-bar `@if (!isWide())` burger vs
+ * `@if (isWide())` inline tabs) and that surface may still be mounting when we
+ * arrive — so DON'T branch on a point-in-time `count()` (it races the render and
+ * wrongly takes the burger path on desktop). Instead wait for the live surface to
+ * settle: the desktop group trigger OR the mobile burger, whichever this viewport
+ * paints, is visible before we decide.
+ */
+export async function openMasterdataGroup(page: Page): Promise<void> {
   const burger = page.getByTestId('af-nav-burger');
   const group = page.getByTestId('af-nav-group-masterdata');
   await expect(
@@ -81,11 +95,26 @@ export async function enterViaNav(page: Page, path: string): Promise<void> {
   }
   await expect(group, 'the Masterdata group trigger is chrome-reachable').toBeVisible();
   await group.click();
+}
 
-  const child = page.getByTestId(`af-nav-section-${path}`);
-  await expect(
-    child,
-    `the ${path} masterdata item is reachable once Masterdata is open`,
-  ).toBeVisible();
-  await child.click();
+/** Testid of the own-club settings entry (its path carries the club id). */
+export const CLUB_SETTINGS_NAV_TESTID = 'af-nav-section-club-settings';
+
+/**
+ * Enter the club-edit screen the way a club administrator does — through the
+ * Masterdata group's own-club entry. That role cannot read the club catalog, so
+ * this entry is its only chrome route to the screen. Returns the club id the
+ * entry links to, so the caller can assert it is the caller's OWN club.
+ */
+export async function enterClubSettingsViaNav(page: Page): Promise<string> {
+  await openMasterdataGroup(page);
+
+  const entry = page.getByTestId(CLUB_SETTINGS_NAV_TESTID);
+  await expect(entry, 'the own-club settings entry is chrome-reachable').toBeVisible();
+  const href = (await entry.getAttribute('href')) ?? '';
+  const clubId = href.match(/\/clubs\/([^/]+)\/edit$/)?.[1] ?? '';
+  expect(clubId, `the club-settings entry links to a club (href: ${href})`).not.toBe('');
+
+  await entry.click();
+  return clubId;
 }

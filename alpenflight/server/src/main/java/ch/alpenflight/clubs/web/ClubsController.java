@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  *       is one club, served via {@code GET /{id}}).</li>
  *   <li><b>Read by id</b> ({@code GET /{id}}): SYSTEM_ADMINISTRATOR any
  *       club; CLUB_ADMINISTRATOR + FLIGHT_OPERATOR only the principal's own
- *       club (SpEL gate against the JWT {@code clubId} claim).</li>
+ *       club ({@code @tenant.isOwnClub}).</li>
  *   <li><b>Mutations</b> ({@code POST}, {@code PUT /{id}}, {@code DELETE
  *       /{id}}): SYSTEM_ADMINISTRATOR; {@code PUT} also allowed for the
  *       owning CLUB_ADMINISTRATOR. FLIGHT_OPERATOR is read-only.</li>
@@ -48,9 +48,11 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>{@code @PathVariable ClubId id} resolves through
  * {@code ClubIdPathConverter} so callers send the prefixed external form
- * {@code clb-<uuid>}. The SpEL predicates dereference {@code #id.value()}
- * to compare against the JWT's raw-UUID {@code clubId} claim (typed-id
- * vs. claim-form discipline per CONVENTIONS.md §Typed entity IDs).
+ * {@code clb-<uuid>}. The own-club predicates delegate to
+ * {@link ch.alpenflight.platform.tenancy.OwnTenantAuthorization}, which
+ * compares against the tenant the principal actually resolves to — the JWT
+ * {@code clubId} claim carries a club key for every realm-seeded admin, so a
+ * direct claim comparison locks that principal out of its own club.
  *
  * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —
  * the service hard-codes the canonical CH / ACTIVE seed UUIDs. S-047
@@ -81,7 +83,7 @@ public class ClubsController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
             + "or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) "
-            + "and #id.value().toString() == principal.claims['clubId'])")
+            + "and @tenant.isOwnClub(#id))")
     public ClubResponse getClub(@PathVariable ClubId id, Authentication authentication) {
         // The join code is a quasi-secret: only a CLUB_ADMINISTRATOR sees it on
         // the wire — null for FLIGHT_OPERATOR (read-only viewer) and pilots.
@@ -104,7 +106,7 @@ public class ClubsController {
     @ApiResponse(responseCode = "409", description = "Slug already in use by another club.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
-            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.value().toString() == principal.claims['clubId'])")
+            + "or (hasRole('CLUB_ADMINISTRATOR') and @tenant.isOwnClub(#id))")
     public ClubResponse updateClub(@PathVariable ClubId id, @Valid @RequestBody ClubUpdateRequest req) {
         return service.updateClub(id, req);
     }
@@ -123,8 +125,7 @@ public class ClubsController {
     @ApiResponse(responseCode = "200", description = "Rotated; body carries the new code.")
     @ApiResponse(responseCode = "404", description = "No active club with that id.")
     @PostMapping(path = "/{clubId}/join-code/rotate")
-    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR') "
-            + "and #clubId.value().toString() == principal.claims['clubId']")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR') and @tenant.isOwnClub(#clubId)")
     public JoinCodeResponse rotateJoinCode(@PathVariable ClubId clubId) {
         return service.rotateJoinCode(clubId);
     }

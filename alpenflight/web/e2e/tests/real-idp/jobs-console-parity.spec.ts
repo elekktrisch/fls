@@ -1,7 +1,9 @@
 import { type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
+import { seedDailyReportCrew } from './_helpers/daily-report-fixture';
 import { fillKcLogin } from './_helpers/kc-form';
+import { waitForMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
@@ -18,14 +20,16 @@ import { proofVideo } from './_helpers/proof-video';
  *     tenant: the club dashboard's pending-validation count never grows across a
  *     validation pass, and the sysadmin who triggered it has no tenant of their
  *     own to read it back with.
+ *   - [happy] Run now on Daily Report really sends mail: the run reaches Mailpit
+ *     as a `Flugrapport` addressed to a pilot seeded for THIS run and naming the
+ *     flight they flew, while the crew member on the same flight whose membership
+ *     opts out of flight reports receives nothing.
  *   - [key-error] A CLUB_ADMINISTRATOR is redirected off `/system/jobs` by the
  *     sysadmin guard AND `POST /api/v1/admin/jobs/{name}/run` returns 403. The
  *     jobs are cross-tenant, so this is the load-bearing negative.
  *
- * Mailpit receipt (Daily Report) and the OGN device-database sync are proved by
- * `DailyReportJobIT` / `AircraftDatabaseSyncJobIT` against the captured outbox and
- * a recorded registry — deliberately not here, so the gate reaches no third party
- * and depends on no seeded opt-in.
+ * The OGN device-database sync is proved by `AircraftDatabaseSyncJobIT` against a
+ * recorded registry — deliberately not here, so the gate reaches no third party.
  */
 
 const JOBS_PATH = '/system/jobs';
@@ -48,6 +52,12 @@ const CLUB_ADMIN: SeededPrincipal = {
 
 /** The job the console triggers — the one with a visible cross-tenant effect. */
 const VALIDATION_JOB = 'daily-flight-validation';
+
+/** The job whose effect leaves the system: one report mail per opted-in person. */
+const REPORT_JOB = 'daily-report';
+
+/** `DailyReportJob.SUBJECT` — the only subject the seeded recipients may receive. */
+const REPORT_SUBJECT = 'Flugrapport';
 
 /** Every job the registry must surface (one `@MeasuredJob` bean each). */
 const REGISTERED_JOBS = [
@@ -203,6 +213,75 @@ test.describe('scheduled-jobs console (real chain)', () => {
         acTag: 'happy',
         caption:
           'A cross-tenant job triggered by a system administrator is read back inside a club administrator’s own tenant: the club dashboard reflects the validation pass, and the pass never adds to the pending-validation set.',
+      });
+    }
+  });
+
+  test('a Run now on Daily Report mails the opted-in pilot and skips the opt-out', async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    const admin = await loginAs(browser, baseURL!, testInfo, CLUB_ADMIN);
+    const sysadmin = await loginAs(browser, baseURL!, testInfo, SYSADMIN);
+    try {
+      const adminBearer = await captureBearer(admin.page);
+      const seed = await seedDailyReportCrew(admin.page.request, adminBearer);
+
+      // Both addresses were minted for this run, so an empty inbox HERE is what
+      // makes the message below the click's doing rather than an earlier pass'.
+      for (const address of [seed.optedIn.email, seed.optedOut.email]) {
+        await expect(
+          waitForMessage(address, { timeoutMs: 2_000 }),
+          `${address} holds no mail before the console triggers the run`,
+        ).rejects.toThrow(/no message to:/);
+      }
+
+      await sysadmin.page.goto(`${JOBS_PATH}?lang=en`);
+      const reportRow = sysadmin.page.getByTestId(TESTIDS.row).filter({ hasText: REPORT_JOB });
+      await reportRow.getByTestId(TESTIDS.runNow).click();
+
+      await expect(sysadmin.page.getByTestId(TESTIDS.resultStatus)).toContainText('COMPLETED', {
+        timeout: 60_000,
+      });
+      await expect(
+        sysadmin.page.getByTestId(TESTIDS.result),
+        'the console reports a pass that mailed at least the seeded pilot',
+      ).toContainText(/[1-9]\d* report mails sent/);
+      await expect(reportRow.getByTestId(TESTIDS.rowStatus)).toContainText('COMPLETED');
+
+      await sysadmin.page.screenshot({
+        path: 'screenshots/jobs-console/real-05-daily-report-run.png',
+        fullPage: true,
+      });
+
+      // Keyed on the seeded glider, so this is the report OF THIS RUN'S flight —
+      // not whichever Flugrapport the pass happened to send first.
+      const report = await waitForMessageWithBody(
+        seed.optedIn.email,
+        REPORT_SUBJECT,
+        seed.immatriculation,
+      );
+      const body = report.HTML ?? report.Text ?? '';
+      expect(body, 'the report greets the person it was addressed to').toContain(
+        seed.optedIn.displayName,
+      );
+      expect(body, 'and carries the day that flight was flown').toContain(seed.renderedFlightDate);
+
+      await expect(
+        waitForMessage(seed.optedOut.email, { timeoutMs: 3_000 }),
+        'the crew member on the same flight whose membership opts out is not mailed',
+      ).rejects.toThrow(/no message to:/);
+    } finally {
+      await admin.context.close();
+      await sysadmin.context.close();
+      await proofVideo(sysadmin.page, testInfo, {
+        journey: 'J-17',
+        acTag: 'happy',
+        caption:
+          'Run now on the Daily Report job completes in the console with the count of report ' +
+          'mails the pass sent; the mail reaches Mailpit as a Flugrapport addressed to the ' +
+          'opted-in pilot and naming the glider they flew, while the instructor on the same ' +
+          'flight, whose membership opts out of flight reports, receives nothing.',
       });
     }
   });

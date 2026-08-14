@@ -37,22 +37,23 @@ passes — clean seed first, then real legacy data migrated into AlpenFlight (Po
 Keycloak). Extra done-bar requirements:
 
 - **Migration journeys** (any carrying a mapper) need a **green real-export (fanout) run**, not just synth:
-  synth bundles alias columns + never hit the producer SELECT against the real schema, so unwired bindings,
-  column drift, missing dedupe, or FK-resolution bugs surface only at the real fanout (authored ≠ proven). The
-  per-journey collision/orphan IT (§2) catches the common cases in `check` first.
+  synth bundles alias columns and never hit the producer SELECT against the real schema, so unwired bindings,
+  column drift, missing dedupe, and FK-resolution bugs surface only at the real fanout (authored ≠ proven).
   [[project_synth_bundle_doesnt_validate_producer_select]] [[verify_infra_is_run_not_just_authored]]
 - **Legacy-replacing screens** produce paired legacy↔AlpenFlight screenshots + the legacy video in the gallery,
   PR link auto-posted — part of done. `e2e-driver` owns the capture.
-- **New screens are chrome-reachable:** nav/link placed per legacy (+ role visibility), and the proof
-  spec ENTERS through it — a URL-only screen is hollow (J-7 /flightreports miss). `gap-hunter` blocks it.
-- **Infra / stabilization journeys** (green a CI suite / fix a gate — J-29, J-30) are done only when the target
-  workflow is **job-level GREEN read from its test tally** (0 real failures), NOT "the stack comes up." J-29
-  declared the nightly "fully-green" on stack-runs while 12 masked legacy reds rotted for weeks — verify the
-  suite PASSES, not RUNS ([[project_nightly_e2e_dead_stack_silent_hang]], [[verify_infra_is_run_not_just_authored]]).
+- **New screens are chrome-reachable:** nav/link placed per legacy (+ role visibility) and the proof spec
+  ENTERS through it — a URL-only screen is hollow (J-7 /flightreports miss). `gap-hunter` blocks it.
+- **The packaged artifact starts** — green tests do not prove it (J-15: five green job ITs over an
+  application that could not boot). §4's real chain is the proof; `/do-task` smoke-tests it per task.
+  [[project_test_classpath_hides_boot_failures]]
+- **Infra / stabilization journeys** (J-29, J-30) are done only when the target workflow is **job-level GREEN
+  read from its test tally** (0 real failures), NOT "the stack comes up" — J-29 called the nightly fully-green
+  on stack-runs while 12 masked legacy reds rotted for weeks. Verify the suite PASSES, not RUNS.
+  [[project_nightly_e2e_dead_stack_silent_hang]] [[verify_infra_is_run_not_just_authored]]
 
-**Red is the work-list, not a wall.** Never done while red — a journey never merges red.
-Synthetic / mocked-seam green is an inner-loop aid, **never** progress toward done — only
-the real-chain green counts.
+**Red is the work-list, not a wall** — but a journey never merges red, and synthetic / mocked-seam
+green is an inner-loop aid, never progress toward done. Only the real-chain green counts.
 
 ## Procedure
 
@@ -236,28 +237,38 @@ mark each `rolls_up` story `rolled_up_into: J-NNN` **AND flip its `status: todo 
 story must not read `todo` — stamping the pointer alone left 24 shipped stories lying as `todo` through
 J-11; operator 2026-06-24). If a story is split across journeys (`rolled_up_into: [J-a, J-b]`), flip it
 to `done` only once the LAST of them merges; until then it stays `todo`.
-**Retire the shipped journey from the forward backlog** (operator 2026-06-25): `_ORDER.md` is FORWARD-ONLY
-— in the finalization commit, **remove ALL of this journey's forward `_ORDER.md` refs** — the roadmap-table
-row AND its `## Per-journey Playwright contract` one-liner (`grep "J-NNN" _ORDER.md` → only a historical
-coverage-map ref may remain; J-13 stranded its contract line by removing only the row), **append a one-line
-entry** to `docs/modernization/stories/_SHIPPED.md` (`- J-NNN — <title> — #PR`, newest-first), and
-**`git mv` the journey file to `docs/modernization/stories/implemented/`** (mirroring done `S-NNN` stories).
-The journey's `parity_test`/contract still resolve from `implemented/`; the move is the LAST commit (docs-only
-head, proof already green on the code head), so the in-flight derive — which only reads the ACTIVE journey from
-`stories/` — is unaffected.
-**Docs-only head guard** (J-27, J-12b): this finalization is usually a DOCS-only commit → it becomes the PR
-head → `detect changes` gates the heavy lane on a per-push `docs_only` flag → build/e2e/proof all **skip** on
-that head, and the `required` aggregate returns **success over the skipped deps**. So `gh pr checks --required`
-= `pass` is **NOT proof** — it greens over skips; a side `gh workflow run ci.yml` (`workflow_dispatch`) makes a
-*separate* run green but does NOT change the PR's own (skipped) checks, so it's not the gate either (operator
-2026-06-25 chose to keep the dev-time `docs_only` skip — fix it procedurally here, not in ci.yml). To declare
-the PR honestly mergeable: (1) the heavy lane already ran **job-level GREEN on the last CODE-bearing commit**
-(the proof head — that's §4); (2) confirm the finalization commit is **truly docs-only** (`git diff --stat
-<proof-head>..HEAD` touches only `docs/`/journey/story files) so the head-skip is legitimate (nothing untested
-rode in on it); (3) for a **migration** journey, the `fan-out parity` job must have executed green on the proof
-head (a docs head skips it — never let a skipped fanout read as a pass). Verify by reading the run's JOBS
-(executed/green), never the `required` rollup. A docs-head's own skipped checks are then expected + safe — say
-so to the operator rather than papering over them with a confusing side-run. [[project_false_green_derive_fallback]]
+**Retire the shipped journey from the forward backlog** (operator 2026-06-25): `_ORDER.md` is FORWARD-ONLY —
+remove **ALL** of this journey's forward refs, the roadmap-table row AND its `## Per-journey Playwright
+contract` one-liner (`grep "J-NNN" _ORDER.md` → only a historical coverage-map ref may remain; J-13 stranded
+its contract line by removing only the row); append `- J-NNN — <title> — #PR` (newest-first) to `_SHIPPED.md`;
+`git mv` the journey file to `stories/implemented/`. `ci.yml`'s proof-spec + mock-filter derives search BOTH
+`stories/` and `stories/implemented/`, so the move no longer blinds them — it once did, and every push after
+close-out then proved the J-0 baseline and published an "unknown" gallery under a green `required` (J-17).
+An integration branch whose journey file resolves in NEITHER dir is now a hard CI fail, not a baseline
+fall-back. [[project_false_green_derive_fallback]]
+**Docs-only head guard** (J-27, J-12b): a docs-only finalization head makes `detect changes` skip the heavy
+lane, and `required` greens over the skips — so `gh pr checks --required` = `pass` is **NOT proof**, and a side
+`workflow_dispatch` run greens separately without changing the PR's checks (operator 2026-06-25 keeps the
+dev-time `docs_only` skip — fix it procedurally here, not in ci.yml). Honestly mergeable needs: (1) the heavy
+lane ran **job-level GREEN on the last CODE-bearing commit** (§4); (2) the finalization commit is **truly
+docs-only** (`git diff --stat <proof-head>..HEAD`), so nothing untested rode in; (3) migration journeys — the
+`fan-out parity` job EXECUTED green on that proof head. Read the run's JOBS, never the `required` rollup; then
+tell the operator the docs-head skips are expected rather than papering over them. [[project_false_green_derive_fallback]]
+
+**Troubleshooting mode — iterate on GitHub, not on this box** (operator 2026-08-02). When diagnosis needs
+repeated heavy runs, push a temporary workflow running only the job under diagnosis, so it proceeds IN PARALLEL
+with local coding instead of monopolising a 2-core box (J-15: Gradle alongside Playwright → 13 phantom e2e
+failures + a 3× slowdown; the full backend `check` now wedges in test-JVM teardown). Fail-closed: the mode is a
+committed marker (`.ci-troubleshooting`, repo root — free-form content, echoed into the failing gate's log)
+making `ci.yml` skip the heavy lane AND `required` hard-FAIL, so the PR cannot go green while it exists. The
+`required` job re-reads the marker file itself (`ci.yml`, "Refuse to pass while CI is in troubleshooting mode"),
+so its red survives any rewiring of the job graph. Before handover: delete the marker, **fold every test the
+scratch runs introduced into the normal CI**, confirm the heavy lane then ran job-level green.
+**Reconcile the PR's OWN checklist** — its **AC checklist** is a DIFFERENT list from the journey file's task
+checklist, and ticking one is not ticking the other (J-15 reported "all tasks done" on 13/13 ticked tasks while
+the PR still showed 7 unticked ACs; the operator caught it, the workflow didn't). Tick each AC the gate proved;
+where an AC is proved at IT level rather than through the screen — or not at all — say so **on the line** and
+file the gap as a rider. An unqualified tick on a cheaper test than the AC names is a false done-bar.
 `gh pr ready`. Give the operator the **proof-gallery link** (in the gallery, not SendUserFile'd
 into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link + Mocked-seams list.
 **Stop — the operator merges** `integration/J-NNN` up the line.

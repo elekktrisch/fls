@@ -10,9 +10,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -25,18 +27,26 @@ import org.jspecify.annotations.Nullable;
  * {@code club_key} / {@code country_id} / {@code club_state_id}.
  *
  * <p>Many V2 columns (address, phone, FK to country / club_state, audit cols,
- * etc.) are intentionally NOT mapped on this aggregate today — S-048 is a
- * walking skeleton and the DTO surface is narrow. Future stories that need to
- * read/write those columns will extend the entity, as {@code city} +
- * {@code logo_url} are mapped here for the pilot join-pending public display.
+ * etc.) are intentionally NOT mapped on this aggregate today — the DTO surface is
+ * deliberately narrow. Stories that need to read/write those columns extend
+ * the entity, as {@code city} + {@code logo_url} are mapped here for the pilot
+ * join-pending public display.
  */
 @Entity
 @Table(name = "t_club")
 public class Club {
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]{3,64}$");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    // Legacy accepts comma / semicolon / whitespace as separators in every
+    // multi-recipient club address (StringExtensions.FormatMultipleEmailAddresses)
+    // and normalizes to a comma-joined string before handing it to the mailer.
+    private static final Pattern EMAIL_LIST_SEPARATOR = Pattern.compile("[,;\\s]+");
+
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_CLUB_KEY_LENGTH = 10;
+    private static final int MAX_EMAIL_LIST_LENGTH = 250;
 
     // Bounds the global-uniqueness retry. At 40-bit entropy a collision against
     // ~dozens of clubs is astronomically rare, so a handful of attempts proves
@@ -56,9 +66,8 @@ public class Club {
     @Column(name = "slug", length = 64)
     private @Nullable String slug;
 
-    // Public-display fields shown on the pilot's tenant-less /join/pending page
-    // (S-178). `city` is the legacy t_club.City (V2); `logoUrl` is net-new with
-    // no legacy source — null until a club sets one.
+    // Public-display fields shown on the pilot's tenant-less /join/pending page.
+    // `logoUrl` is net-new with no legacy source — null until a club sets one.
     @Column(name = "city", length = 100)
     private @Nullable String city;
 
@@ -69,15 +78,14 @@ public class Club {
     private boolean publicRegistrationEnabled;
 
     // The rotatable, club-shared discovery code a pilot types to file a join
-    // request (S-177). A quasi-secret, not an auth token — admission is the
+    // request. A quasi-secret, not an auth token — admission is the
     // admin's approval. Global UNIQUE (ux_club_join_code) so one code resolves
     // to exactly one Club; @AuditRedact keeps it out of the audit ledger.
     @AuditRedact
     @Column(name = "join_code", nullable = false, length = JoinCodeGenerator.LENGTH)
     private String joinCode = "";
 
-    // J-6 T-10b planning-notification fields (V35). The address the
-    // PlanningDayNotificationJob mails the imminent (day+1) status to; null /
+    // The address the PlanningDayNotificationJob mails the imminent (day+1) status to; null /
     // blank ⇒ the club opted out and the job skips it. The flag governs the
     // ok-vs-cancel choice when a day has no reservation (see
     // planningDayMailsAsOkWhenNoReservation / shouldSendPlanningDayOk below).
@@ -87,15 +95,30 @@ public class Club {
     @Column(name = "use_planning_day_without_reservations", nullable = false)
     private boolean usePlanningDayWithoutReservations;
 
-    // Homebase Location FK (V3 fk_club_homebase_id, ON DELETE SET NULL).
-    // Read-only on this aggregate today: surfaced through GET /api/v1/me
-    // (MeService → MeView.homebaseLocationId) so the SPA can scope LOCATION
-    // canned reports to the club's homebase. No write path exists yet — the
-    // V37 dev seed sets it; a future club-settings story adds the mutator.
+    // Organiser-notification recipients for the two public flight-experience
+    // registration flows. Distinct from "the club admin" and independently
+    // optional: with no address legacy logs a warning and sends no organiser
+    // mail, so the registration itself still succeeds.
+    @Column(name = "send_trial_flight_registration_operator_email", length = MAX_EMAIL_LIST_LENGTH)
+    private @Nullable String discoveryFlightOperatorEmail;
+
+    @Column(name = "send_passenger_flight_registration_operator_email", length = MAX_EMAIL_LIST_LENGTH)
+    private @Nullable String scenicFlightOperatorEmail;
+
+    // Flight type stamped on the reservation a discovery-flight registration
+    // books. Nullable by design — an unset (or since-deleted) type books the
+    // reservation without one rather than failing the registration.
+    @Column(name = "discovery_flight_type_id")
+    private @Nullable UUID discoveryFlightTypeId;
+
+    // Homebase Location FK (fk_club_homebase_id, ON DELETE SET NULL).
+    // Surfaced through GET /api/v1/me (MeService → MeView.homebaseLocationId)
+    // so the SPA can scope LOCATION canned reports to it, and read by the
+    // discovery-flight reservation as the booking's location.
     @Column(name = "homebase_id")
     private @Nullable UUID homebaseId;
 
-    // V2 NOT NULL FKs that the walking-skeleton DTO does not surface. Mapped
+    // NOT NULL FKs the DTO does not surface. Mapped
     // so update operations don't null them; not exposed as setters.
     @Column(name = "country_id", nullable = false)
     private @Nullable UUID countryId;
@@ -103,7 +126,7 @@ public class Club {
     @Column(name = "club_state_id", nullable = false)
     private @Nullable UUID clubStateId;
 
-    // FK to the parent Deployment (S-137). Plain UUID, NOT @ManyToOne —
+    // FK to the parent Deployment. Plain UUID, NOT @ManyToOne —
     // keeps the Club aggregate boundary tight; cross-Club iteration goes
     // through DeploymentContext.forEachClub, which sets the tenant per
     // Club rather than fetch-joining the Deployment.
@@ -132,7 +155,7 @@ public class Club {
         club.countryId = countryId;
         club.clubStateId = clubStateId;
         club.deploymentId = deploymentId;
-        // Every club has a join code from birth (S-177). The unique index is the
+        // Every club has a join code from birth. The unique index is the
         // global-uniqueness backstop at creation; rotation later re-mints with an
         // explicit collision-retry.
         club.joinCode = JoinCodeGenerator.secureRandom().generate();
@@ -152,11 +175,21 @@ public class Club {
     }
 
     public void rebrand(String newSlug) {
-        if (newSlug == null || !SLUG_PATTERN.matcher(newSlug).matches()) {
+        if (!isWellFormedSlug(newSlug)) {
             throw new IllegalArgumentException(
                     "Slug must match ^[a-z0-9-]{3,64}$, got: " + newSlug);
         }
         this.slug = newSlug;
+    }
+
+    /**
+     * Whether {@code candidate} is shaped like a club slug at all. Public so the
+     * anonymous slug→club resolution can reject a malformed path segment without
+     * a database round-trip — an unauthenticated surface should not turn arbitrary
+     * URL text into a query.
+     */
+    public static boolean isWellFormedSlug(@Nullable String candidate) {
+        return candidate != null && SLUG_PATTERN.matcher(candidate).matches();
     }
 
     public void enablePublicRegistration() {
@@ -168,9 +201,19 @@ public class Club {
     }
 
     /**
+     * Whether this club is a legitimate target for an anonymous public-registration
+     * submission (S-025 allowlist). Both conditions are the club's own state, so
+     * the rule lives here rather than in the resolver (ADR 0022 directive 2): a
+     * soft-deleted club admits nobody, and the flag is the club's explicit opt-in.
+     */
+    public boolean acceptsPublicRegistration() {
+        return !isDeleted() && publicRegistrationEnabled;
+    }
+
+    /**
      * Replaces this club's join code with a freshly minted one. Rotation is
      * always allowed (no domain rate-limit — the cost is small and the audit
-     * row suffices, S-177). Pending requests filed under the old code stay
+     * row suffices). Pending requests filed under the old code stay
      * valid; the rotation only invalidates the old code as a discovery key.
      *
      * <p>The new code must be globally unique ({@code ux_club_join_code}). The
@@ -198,7 +241,7 @@ public class Club {
 
     /**
      * Sets the public-display fields shown to a pilot before they belong to the
-     * club (S-178). Both normalize blank to null so an empty input clears the
+     * club. Both normalize blank to null so an empty input clears the
      * field rather than storing whitespace.
      */
     public void setPublicDisplay(@Nullable String city, @Nullable String logoUrl) {
@@ -233,10 +276,88 @@ public class Club {
         this.usePlanningDayWithoutReservations = value;
     }
 
+    /**
+     * Sets the organiser-notification recipients for the two public
+     * flight-experience registration flows.
+     *
+     * <p>Each value is a recipient <em>list</em>: addresses separated by comma,
+     * semicolon or whitespace, stored canonically as a lowercase comma-joined
+     * string. Null or blank clears the opt-in and is a valid state — the flow
+     * then simply skips the organiser mail. Every listed address must parse, so
+     * a typo is rejected at the write boundary rather than silently swallowed at
+     * send time.
+     *
+     * <p>Both values are validated before either is applied, so a rejected value
+     * never leaves the aggregate half-updated.
+     */
+    public void setRegistrationOperatorEmails(@Nullable String discoveryFlight,
+                                              @Nullable String scenicFlight) {
+        String discovery = normalizeEmailList(discoveryFlight, "discoveryFlightOperatorEmail");
+        String scenic = normalizeEmailList(scenicFlight, "scenicFlightOperatorEmail");
+        this.discoveryFlightOperatorEmail = discovery;
+        this.scenicFlightOperatorEmail = scenic;
+    }
+
+    /** Sets (or clears, with null) the flight type a discovery reservation is booked under. */
+    public void setDiscoveryFlightType(@Nullable UUID flightTypeId) {
+        this.discoveryFlightTypeId = flightTypeId;
+    }
+
+    /**
+     * Sets (or clears, with {@code null}) the club's homebase.
+     *
+     * <p>A homebase must be one of <em>this</em> club's own active Locations.
+     * Pointing it at another club's Location would be a cross-tenant reference,
+     * so ownership is part of the rule rather than a caller-side pre-check — the
+     * {@link #rotateJoinCode} shape: the aggregate owns the rule, the caller
+     * supplies the lookup it cannot perform itself.
+     *
+     * <p>{@code null} is a legitimate value and clears the homebase. A club
+     * without one still accepts discovery-flight registrations; only the
+     * reservation is skipped, with the reason reported to the organiser.
+     *
+     * @param locationId          the new homebase, or null to clear
+     * @param isOwnActiveLocation true iff the id is an active Location of THIS club
+     */
+    public void relocateHomebase(@Nullable UUID locationId, Predicate<UUID> isOwnActiveLocation) {
+        if (locationId != null && !isOwnActiveLocation.test(locationId)) {
+            throw new InvalidClubReferenceException("homebaseId");
+        }
+        this.homebaseId = locationId;
+    }
+
     public void softDelete(Clock clock) {
         if (this.deletedOn == null) {
             this.deletedOn = Instant.now(clock);
         }
+    }
+
+    private static @Nullable String normalizeEmailList(@Nullable String value, String field) {
+        String trimmed = blankToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        String canonical = EMAIL_LIST_SEPARATOR.splitAsStream(trimmed)
+                .filter(address -> !address.isEmpty())
+                .map(address -> validEmailAddress(address, field))
+                .collect(Collectors.joining(","));
+        if (canonical.isEmpty()) {
+            return null;
+        }
+        if (canonical.length() > MAX_EMAIL_LIST_LENGTH) {
+            throw new IllegalArgumentException(
+                    "%s exceeds %d characters".formatted(field, MAX_EMAIL_LIST_LENGTH));
+        }
+        return canonical;
+    }
+
+    private static String validEmailAddress(String address, String field) {
+        String lower = address.toLowerCase(Locale.ROOT);
+        if (!EMAIL_PATTERN.matcher(lower).matches()) {
+            throw new IllegalArgumentException(
+                    "%s contains an invalid email address: %s".formatted(field, address));
+        }
+        return lower;
     }
 
     private static @Nullable String blankToNull(@Nullable String value) {
@@ -281,7 +402,7 @@ public class Club {
         return slug;
     }
 
-    /** The club's city, shown on the pilot join-pending public display (S-178). */
+    /** The club's city, shown on the pilot join-pending public display. */
     public @Nullable String getCity() {
         return city;
     }
@@ -295,7 +416,7 @@ public class Club {
         return publicRegistrationEnabled;
     }
 
-    /** The club's current join code — admin-only on the wire (S-177). */
+    /** The club's current join code — admin-only on the wire. */
     public String getJoinCode() {
         return joinCode;
     }
@@ -317,11 +438,40 @@ public class Club {
         return homebaseId;
     }
 
+    /** Comma-joined organiser recipients for discovery-flight registrations, or null. */
+    public @Nullable String getDiscoveryFlightOperatorEmail() {
+        return discoveryFlightOperatorEmail;
+    }
+
+    /** Comma-joined organiser recipients for scenic-flight registrations, or null. */
+    public @Nullable String getScenicFlightOperatorEmail() {
+        return scenicFlightOperatorEmail;
+    }
+
+    /**
+     * Whether a discovery-flight registration should mail the organiser.
+     * Tolerates a blank value because migrated rows carry legacy's empty
+     * strings, which mean the same thing as an absent address.
+     */
+    public boolean notifiesDiscoveryFlightOperator() {
+        return discoveryFlightOperatorEmail != null && !discoveryFlightOperatorEmail.isBlank();
+    }
+
+    /** Whether a scenic-flight registration should mail the organiser. */
+    public boolean notifiesScenicFlightOperator() {
+        return scenicFlightOperatorEmail != null && !scenicFlightOperatorEmail.isBlank();
+    }
+
+    /** The flight type a discovery reservation is booked under, or null when unset. */
+    public @Nullable UUID getDiscoveryFlightTypeId() {
+        return discoveryFlightTypeId;
+    }
+
     public boolean isDeleted() {
         return deletedOn != null;
     }
 
-    // -- Planning-day notification rule (J-6 T-10b/T-10c, ADR 0022 §2) ----------
+    // -- Planning-day notification rule (ADR 0022 §2) --------------------------
 
     /** The club's planning-notification recipient address(es), or null if opted out. */
     public @Nullable String getPlanningDayInfoMailTo() {
@@ -330,7 +480,7 @@ public class Club {
 
     /**
      * Whether the club opted into planning-day notifications — i.e. has a
-     * non-blank recipient address. The notification job (T-10c) only processes
+     * non-blank recipient address. The notification job only processes
      * clubs for which this is true (legacy {@code PlanningDayNotificationJob.cs:53}).
      */
     public boolean wantsPlanningDayNotifications() {
@@ -348,7 +498,7 @@ public class Club {
     }
 
     /**
-     * The ok-vs-cancel rule the notification job (T-10c) uses for an imminent
+     * The ok-vs-cancel rule the notification job uses for an imminent
      * (day+1) planning day: send the {@code planningday-ok} ("takes place")
      * mail when the day has a reservation OR the club allows reservation-less
      * days; otherwise send {@code planningday-cancel}. Mirrors legacy

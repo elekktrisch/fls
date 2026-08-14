@@ -23,17 +23,23 @@ PROJECT="alpenflight-infra"
 
 # shellcheck source=lib/shared-network.sh
 source "${SCRIPT_DIR}/lib/shared-network.sh"
+# shellcheck source=lib/fail-loud.sh
+source "${SCRIPT_DIR}/lib/fail-loud.sh"
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 cd "${REPO_ROOT}"
 
+require_compose_v2
+
 log "Ensuring shared network ${ALPENFLIGHT_SHARED_NETWORK}"
 ensure_shared_network
 
 log "Bringing up Mailpit under project ${PROJECT}"
-docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" --profile infra \
-    up -d --wait --wait-timeout 30 mailpit
+# 90s, not 30s: on a cold CI runner the image pull eats the wait budget before
+# the healthcheck has a chance to report.
+compose_up_or_die "Mailpit" infra "${PROJECT}" "${COMPOSE_FILE}" \
+    up -d --wait --wait-timeout 90 mailpit
 
 printf '\033[1;32m==> Infra ready\033[0m\n'
 cat <<INFO

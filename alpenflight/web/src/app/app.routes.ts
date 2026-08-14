@@ -8,14 +8,16 @@ export const routes: Routes = [
   {
     path: 'discovery-flight',
     loadChildren: () =>
-      import('@features/discovery-flight/discovery-flight.routes').then(
+      import('@features/public-registration/public-registration.routes').then(
         (m) => m.DISCOVERY_FLIGHT_ROUTES,
       ),
   },
   {
     path: 'scenic-flight',
     loadChildren: () =>
-      import('@features/scenic-flight/scenic-flight.routes').then((m) => m.SCENIC_FLIGHT_ROUTES),
+      import('@features/public-registration/public-registration.routes').then(
+        (m) => m.SCENIC_FLIGHT_ROUTES,
+      ),
   },
   {
     path: 'demo',

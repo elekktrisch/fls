@@ -20,10 +20,12 @@ import { AuditEventRowAction } from '../../../src/app/api/generated/model/auditE
 
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const ACTOR_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000001';
+const USER_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000001';
+const ANONYMOUS_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000005';
 
 const seedRows: AuditEventRow[] = [
   {
-    id: 'aud-019e30c3-2c00-7200-8000-000000000001',
+    id: USER_ROW_ID,
     occurredAt: '2026-07-20T08:15:00Z',
     actorUserId: ACTOR_USER_ID,
     tenantClubId: CLUB_A_ID,
@@ -77,6 +79,21 @@ const seedRows: AuditEventRow[] = [
     failed: true,
     systemActor: false,
     httpStatus: 404,
+  },
+  {
+    // An anonymous public-registration write: no principal, so the server
+    // resolves no actor at all and flags the row `systemActor`. Both actor
+    // identifiers are ABSENT (not empty strings) — that is what the real
+    // projection serialises for a token-less request.
+    id: ANONYMOUS_ROW_ID,
+    occurredAt: '2026-07-20T12:05:00Z',
+    tenantClubId: CLUB_A_ID,
+    action: AuditEventRowAction.CREATE,
+    targetEntityType: 'PublicFlightRegistration',
+    targetEntityId: CLUB_A_ID,
+    afterState: { kind: 'DISCOVERY_FLIGHT', clubId: CLUB_A_ID },
+    failed: false,
+    systemActor: true,
   },
 ];
 
@@ -148,4 +165,24 @@ test('audit-logs: /system/logs lists mutation-audit rows with filters + row deta
   await expect(page.getByTestId('audit-row-detail')).toBeVisible();
 
   await page.screenshot({ path: 'screenshots/audit-logs/01-list-populated.png', fullPage: true });
+});
+
+test('audit-logs: the actor column separates an anonymous write from a user mutation', async ({
+  page,
+}) => {
+  const rows = seedRows.map((r) => ({ ...r }));
+  await page.route('**/api/v1/admin/audit-events**', setupAuditBackend(rows));
+
+  // `?lang=de` pins the locale so the label assertion is against a known string.
+  await page.goto('/system/logs?lang=de');
+
+  const anonymous = page.locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`);
+  await expect(anonymous.getByTestId('audit-row-actor')).toHaveText('System');
+
+  // The counter-example in the same list: without it, an actor column that
+  // rendered the system label for EVERY row would still pass above.
+  const user = page.locator(`[data-audit-id="${USER_ROW_ID}"]`);
+  await expect(user.getByTestId('audit-row-actor')).toHaveText(ACTOR_USER_ID);
+
+  await page.screenshot({ path: 'screenshots/audit-logs/02-anonymous-actor.png', fullPage: true });
 });

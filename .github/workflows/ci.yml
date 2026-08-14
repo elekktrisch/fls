@@ -34,6 +34,9 @@ jobs:
   #      only PR): `filter.next` is false.
   #   2. THIS push / PR-sync's incremental diff is docs-only even though the PR
   #      cumulatively contains code: `incremental.docs_only` is true (J-2 T-11).
+  #
+  # A THIRD way stands the heavy lane down but deliberately does NOT leave the
+  # gate green: the `.ci-troubleshooting` marker (see the step of that name).
   # ---------------------------------------------------------------------------
   changes:
     name: detect changes
@@ -42,6 +45,10 @@ jobs:
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
+      # Troubleshooting mode — see the "Detect troubleshooting marker" step.
+      # Only the heavy lane consumes this; `required` re-reads the marker itself
+      # so its red is caused by the marker, not by a skipped dependency.
+      troubleshooting: ${{ steps.troubleshooting.outputs.active }}
       # J-5 T-14 — the journey-under-work's real-idp proof spec, derived off the
       # integration branch name (see the "Derive journey proof spec" step). The
       # per-push `alpenflight-proof` job runs ONLY this spec; `proof_is_baseline`
@@ -64,8 +71,10 @@ jobs:
       # per-push, so an unrelated flaky mock spec can't red this journey's
       # `required`. `mock_is_full` is 'true' when derivation fell back to the
       # WHOLE chromium project (non-integration branch / no `mock_test:`
-      # frontmatter / underivable) — the FAIL-SAFE runs the full suite, never a
-      # no-spec run that Playwright would treat as "match nothing".
+      # frontmatter / underivable / the filter's specs are all still
+      # `test.fixme`) — the FAIL-SAFE runs the full suite, never a no-spec run
+      # that Playwright would treat as "match nothing", and never a scoped run
+      # that executes nothing.
       mock_filter: ${{ steps.mock_spec.outputs.filter }}
       mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
     steps:
@@ -75,6 +84,47 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # Fail the whole run before any gate job spends compute: a ternary whose
+      # then-branch is falsy silently disables the branch it looks like it
+      # enables, so a gate guard can read as configured while never running.
+      - name: Workflow expression guard (falsy then-branch)
+        run: |
+          python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
+          python3 .github/scripts/gha-falsy-ternary-lint.py
+
+      # A missed journey-file lookup does not red the two derive steps below —
+      # it silently swaps in the J-0 baseline and reports green. Pin the rule.
+      - name: Journey-file lookup guard
+        run: bash .github/scripts/journey-derive-selfcheck.sh
+
+      # ---------------------------------------------------------------------
+      # Troubleshooting mode (fail-closed).
+      #
+      # Commit a `.ci-troubleshooting` file at the repo root to stand the heavy
+      # lane down, so repeated diagnosis can run as throwaway GitHub workflows
+      # in parallel with local coding instead of contending for a 2-core box.
+      # Delete the file to restore normal gating.
+      #
+      # While the marker exists the `required` gate hard-fails on the marker
+      # itself, so the PR is physically unable to go green and a forgotten
+      # re-enable cannot pass off an un-gated branch as a proven one. The file's
+      # content is free-form and is echoed into the failing gate's log — put the
+      # reason and the restore steps in it.
+      # ---------------------------------------------------------------------
+      - name: Detect troubleshooting marker
+        id: troubleshooting
+        run: |
+          set -euo pipefail
+          if [ -f .ci-troubleshooting ]; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+            echo "── .ci-troubleshooting present → heavy lane stands down, the required gate will FAIL ──"
+            cat .ci-troubleshooting
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "no .ci-troubleshooting marker → normal gating"
+          fi
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -152,9 +202,12 @@ jobs:
       # `parity_test:` frontmatter off the integration branch name.
       #   1. branch = github.head_ref (PR) || github.ref_name (push).
       #   2. integration/J-NNN  →  journey id  J-NNN  (anything else → baseline).
-      #   3. docs/modernization/stories/J-NNN-*.md  →  the `parity_test:` value;
-      #      take its FIRST path token, normalize to a path relative to
-      #      alpenflight/web/ (so it's runnable from that working-directory).
+      #   3. docs/modernization/stories/{,implemented/}J-NNN-*.md  →  the
+      #      `parity_test:` value; take its FIRST path token, normalize to a path
+      #      relative to alpenflight/web/ (so it's runnable from that
+      #      working-directory). BOTH dirs: close-out moves the file mid-branch.
+      #      An integration branch whose journey file is in NEITHER is a hard
+      #      FAIL, not a baseline fall-back — see the step.
       #   4. Only specs UNDER tests/real-idp/ are runnable by the CLEAN-SEED
       #      `alpenflight-proof` job (they self-seed in beforeAll). J-5's
       #      `parity_test:` IS such a spec (real-idp
@@ -193,10 +246,23 @@ jobs:
           # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
           # also matches `${jid}-*.md` and would otherwise win `head -1`
           # alphabetically, derailing the derivation.
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          #
+          # BOTH locations: the journey file lives in stories/ while in flight and
+          # `git mv`s to stories/implemented/ at /do-ship close-out — which is a
+          # commit ON THE BRANCH, so searching only stories/ makes every push from
+          # close-out onward derive the baseline (J-17: CI proved the J-0 Locations
+          # spec and published an "unknown" gallery page while `required` read green).
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
+                  docs/modernization/stories/${jid}-*.md \
+                  docs/modernization/stories/implemented/${jid}-*.md \
+                  2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
-            echo "no journey file for ${jid} → baseline (fail-safe)"
-            emit "$BASELINE" "$jid" "true"; exit 0
+            # NOT fail-safe-to-baseline. The branch names a journey, so a baseline
+            # run here would prove a DIFFERENT journey, skip the deployed-journey
+            # gallery guard, and report `required` green — the false-green class
+            # this derivation exists to prevent. Underivable == red.
+            echo "::error title=No journey file for ${jid}::Branch '${branch}' is an integration branch, but no file declares 'id: ${jid}' in docs/modernization/stories/ or docs/modernization/stories/implemented/. Carve the journey file (/do-plan) or fix its frontmatter id — CI will not substitute the J-0 baseline and call that green."
+            exit 1
           fi
           # First path token of the `parity_test:` frontmatter value: stop at the
           # first whitespace, '(', or ';' (the value can carry prose / a second
@@ -267,9 +333,11 @@ jobs:
       #   1. branch = github.head_ref (PR) || github.ref_name (push).
       #   2. integration/J-NNN  →  journey id  (anything else → full suite).
       #   3. docs/.../J-NNN-*.md  →  `mock_test:` value → first path token →
-      #      strip a leading alpenflight/web/ → assert it exists on disk.
+      #      strip a leading alpenflight/web/ → assert it selects ≥1 spec on disk
+      #      carrying ≥1 active (non-fixme) test.
       # FAIL-SAFE: a non-integration branch, a missing journey file, no
-      # `mock_test:` frontmatter, or a filter that doesn't resolve on disk →
+      # `mock_test:` frontmatter, a filter that doesn't resolve on disk, or one
+      # whose specs are all still stubbed out →
       # emit an EMPTY filter + is_full=true, so the mock job runs the WHOLE
       # chromium project (the pre-T-02b baseline). NEVER a no-spec run — an empty
       # positional arg to `playwright test` means "run everything", which is
@@ -298,8 +366,16 @@ jobs:
           # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
           # also matches `${jid}-*.md` and would otherwise win `head -1`
           # alphabetically, silently defeating this step's scoping.
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Searches stories/ AND stories/implemented/ for the same reason the
+          # proof-spec step above does — close-out moves the file mid-branch.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
+                  docs/modernization/stories/${jid}-*.md \
+                  docs/modernization/stories/implemented/${jid}-*.md \
+                  2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
+            # Unreachable: the proof-spec step above already hard-failed the job
+            # on this condition. Kept as a fail-safe, and the full suite is the
+            # safe outcome for the mock half (it runs MORE, never less).
             echo "no journey file for ${jid} → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
@@ -324,46 +400,77 @@ jobs:
           # VALIDATE the token resolves to real spec(s) under alpenflight/web/,
           # else fall back to the full suite (never risk a no-spec run). Two shapes:
           #   • PLAIN PATH (no regex metachars): a tests/<feature>/ dir OR a single
-          #     spec file — check it exists on disk directly (pre-J-6b behaviour).
+          #     spec file.
           #   • REGEX ALTERNATION (contains '(' or '|'): a Playwright positional
           #     regex like `tests/(a/x|b/y|c/z)`. Decompose it into its literal
           #     path stems and require EVERY stem to resolve on disk (a *.spec.ts
           #     file or a prefix of one). The chromium project's testMatch still
           #     applies on top, so the regex only narrows — it can't widen.
+          # Both shapes resolve through `specs_for` so the active-test guard below
+          # inspects exactly the files the filter would hand to Playwright.
+          specs_for() { # $1 path stem → the *.spec.ts files it selects
+            if [ -d "alpenflight/web/$1" ]; then
+              find "alpenflight/web/$1" -type f -name '*.spec.ts'
+            elif [ -f "alpenflight/web/$1" ]; then
+              printf '%s\n' "alpenflight/web/$1"
+            else
+              # A positional regex matches by path PREFIX, so a stem like
+              # `…-hardening` selects `…-hardening.spec.ts`.
+              ls "alpenflight/web/$1"*.spec.ts 2>/dev/null || true
+            fi
+          }
+          selected=''
+          ok=1
           case "$filter" in
             *'('*|*'|'*)
               # Expand the alternation: drop the leading `prefix(`, the trailing
               # `)`, split on '|', and re-prepend the prefix to each branch.
               prefix="$(printf '%s' "$filter" | sed -E 's/\(.*$//')"
               inner="$(printf '%s' "$filter" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//')"
-              ok=1
               IFS='|'
               for branch in $inner; do
                 stem="${prefix}${branch}"
-                # A stem resolves if a *.spec.ts under alpenflight/web/ starts with
-                # it (the regex matches by path prefix, e.g. `…-hardening` → the
-                # `…-hardening.spec.ts` file). Match dir-or-file-prefix via glob.
-                if ! ls "alpenflight/web/${stem}"*.spec.ts >/dev/null 2>&1 \
-                   && [ ! -e "alpenflight/web/${stem}" ]; then
+                found="$(specs_for "$stem")"
+                if [ -z "$found" ]; then
                   echo "mock filter branch '${stem}' resolves to no spec on disk"
                   ok=0
                 fi
+                selected="$(printf '%s\n%s\n' "$selected" "$found")"
               done
               unset IFS
-              if [ "$ok" = 1 ]; then
-                emit "$filter" "false"; exit 0
-              fi
-              echo "mock filter regex '${filter}' has an unresolved branch → full chromium suite (fail-safe)"
-              emit "" "true"; exit 0
               ;;
             *)
-              if [ -e "alpenflight/web/${filter}" ]; then
-                emit "$filter" "false"; exit 0
+              selected="$(specs_for "$filter")"
+              if [ -z "$selected" ]; then
+                echo "mock filter '${filter}' resolves to no spec on disk"
+                ok=0
               fi
-              echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
-              emit "" "true"; exit 0
               ;;
           esac
+          if [ "$ok" != 1 ]; then
+            echo "mock filter '${filter}' does not resolve → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # A filter that resolves on disk can still select ONLY `test.fixme(` /
+          # `test.skip(` cases — a journey's mock spec at stub stage. Scoping to it
+          # would execute ZERO tests and report the gate green for the whole
+          # build-up. So mirror the proof-spec step: narrow only once ≥1 selected
+          # spec declares an active top-level `test(` (a `.` after `test` excludes
+          # fixme/skip/describe), and keep running the full suite until then. This
+          # auto-flips when the assertions are thickened, with no workflow change.
+          active=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            if grep -qE '^[[:space:]]*test\(' "$f"; then
+              active=1
+              break
+            fi
+          done <<< "$selected"
+          if [ "$active" = 1 ]; then
+            emit "$filter" "false"; exit 0
+          fi
+          echo "mock filter '${filter}' selects no ACTIVE (non-fixme) test → full chromium suite until thickened"
+          emit "" "true"; exit 0
 
 
   # ---------------------------------------------------------------------------
@@ -394,7 +501,10 @@ jobs:
   next-build-server:
     name: alpenflight build (server + migration-tool)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -440,7 +550,10 @@ jobs:
   next-build-web:
     name: alpenflight build (web)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -540,7 +653,10 @@ jobs:
   next-auth-realm-shape:
     name: alpenflight auth realm shape
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:
@@ -602,7 +718,10 @@ jobs:
   alpenflight-proof:
     name: alpenflight proof (real-idp, clean-seed)
     needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    if: >-
+      needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     # Serialize gh-pages writes across workflows so concurrent deploys from
@@ -1143,6 +1262,10 @@ jobs:
           PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
           PROOF_IS_BASELINE: ${{ needs.changes.outputs.proof_is_baseline }}
         run: |
+          # pipefail: the generator is piped into `tee` below, and without it a
+          # generator failure would be masked by tee's exit 0 — the deploy steps
+          # gate on this step's outcome.
+          set -o pipefail
           JUW_ARG=""
           if [ -n "${PROOF_JOURNEY:-}" ] && [ "${PROOF_IS_BASELINE:-}" != "true" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
@@ -1159,7 +1282,10 @@ jobs:
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
             $JUW_ARG \
-            $SHOT_ARG
+            $SHOT_ARG | tee /tmp/proof-gallery.log
+          # Hand the built page's stamp to the deployed link-check: it must read back
+          # THIS page, not whatever the gh-pages CDN still has cached at that URL.
+          sed -nE 's/^proof-gallery: generated-at (.+)$/generated_at=\1/p' /tmp/proof-gallery.log >> "$GITHUB_OUTPUT"
 
       # Compute the per-PR preview destination + clickable bookmark URL. PR-only.
       # Sanitize github.head_ref to a single path segment. Keep the sed
@@ -1254,6 +1380,7 @@ jobs:
           # `cond && '' || journey` ternary falls through and always yields the
           # journey, demanding a page the baseline run never produced.
           GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey || '' }}
+          GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           GALLERY_LINKS_ONLY: '1'
         run: |
           pnpm exec playwright test \
@@ -1335,6 +1462,7 @@ jobs:
       always()
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -1671,6 +1799,7 @@ jobs:
       always()
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -1985,7 +2114,9 @@ jobs:
   # own cron if any) + once at the §4 do-ship gate (e2e-driver's full chain) —
   # the cross-journey mock regression is preserved, just not per-push.
   # FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter /
-  # underivable filter → `mock_is_full=true` + empty filter → the WHOLE chromium
+  # underivable filter / a filter whose specs are all still `test.fixme` (a
+  # scoped run there would execute nothing and report green) →
+  # `mock_is_full=true` + empty filter → the WHOLE chromium
   # project runs (the pre-T-02b baseline), never a no-spec run.
   # ---------------------------------------------------------------------------
   # SHARDING (J-27 T-12). `workers` is a Playwright TOP-LEVEL option (the
@@ -2007,6 +2138,7 @@ jobs:
       github.event_name != 'push'
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     # A single shard (~41 tests / 4 workers) finishes in ~2-3 min; 6 min absorbs
     # a cold pnpm/playwright cache + ng-serve boot. The 5-min step cap on the run
@@ -2126,6 +2258,7 @@ jobs:
       && github.event_name != 'push'
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -2234,7 +2367,9 @@ jobs:
   # `alpenflight-profile-proof` `needs:` the (non-required) dashboard-proof for
   # runner serialisation only; on a docs-only push the whole heavy chain skips →
   # all three report `skipped` → the skipped-to-success path below keeps the gate
-  # green (the `success|skipped)` case).
+  # green (the `success|skipped)` case). That tolerance is exactly why
+  # troubleshooting mode gets its own hard-fail step instead of relying on the
+  # heavy lane's skips.
   # ---------------------------------------------------------------------------
   required:
     name: required
@@ -2243,6 +2378,32 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 3
     steps:
+      - uses: actions/checkout@v4
+
+      # Fail-closed on troubleshooting mode. This reads the marker off the
+      # checkout rather than trusting the `changes` output, so the gate is red
+      # BECAUSE the marker is committed — not merely because its dependencies
+      # skipped. The two look identical in the UI but differ in consequence: a
+      # skip-derived red goes green again the moment a job is added or rewired,
+      # whereas a marker-derived red survives any change to the job graph.
+      # Runs before the upstream-result check so the aggregator cannot report a
+      # pass while diagnosis is in progress.
+      - name: Refuse to pass while CI is in troubleshooting mode
+        env:
+          T_CHANGES: ${{ needs.changes.outputs.troubleshooting }}
+        run: |
+          set -euo pipefail
+          if [ ! -f .ci-troubleshooting ] && [ "${T_CHANGES:-}" != 'true' ]; then
+            echo "no .ci-troubleshooting marker — normal gating"
+            exit 0
+          fi
+          echo "::error title=CI is in troubleshooting mode::.ci-troubleshooting is committed, so the heavy lane stood down and this gate cannot pass. Delete the marker, fold every test the scratch workflows introduced back into ci.yml, then confirm the heavy lane runs job-level green."
+          if [ -f .ci-troubleshooting ]; then
+            echo "── .ci-troubleshooting ──"
+            cat .ci-troubleshooting
+          fi
+          exit 1
+
       - name: Check upstream job results
         env:
           R_CHANGES: ${{ needs.changes.result }}

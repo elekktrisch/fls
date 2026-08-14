@@ -24,6 +24,20 @@ export type ClubResponse = {
   city?: string;
   /** Public-display logo URL, or null. */
   logoUrl?: string;
+  /** Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Discovery-flight registrations. */
+  discoveryFlightOperatorEmail?: string;
+  /** Organiser-notification recipients, separated by comma, semicolon or whitespace. Null or blank means the club receives no organiser mail, which is a valid state — the registration still succeeds. Scenic-flight registrations. */
+  scenicFlightOperatorEmail?: string;
+  /**
+     * Flight type stamped on the reservation a discovery-flight registration books; null books the reservation without one.
+     * @pattern ^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     */
+  discoveryFlightTypeId?: string;
+  /**
+     * The club's home airfield — must be one of the club's OWN Locations. Null clears it, which is a valid state: a club without a homebase still accepts discovery-flight registrations, only the reservation is skipped. The update is full-replace, so an omitted key clears the homebase too.
+     * @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+     */
+  homebaseId?: string;
   /** Club join code — present only for a CLUB_ADMINISTRATOR; null otherwise. */
   joinCode?: string;
 };

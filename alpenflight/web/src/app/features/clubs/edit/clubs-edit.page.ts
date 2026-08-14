@@ -18,6 +18,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 
+import { SessionStore } from '@core/session/session.store';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
@@ -30,7 +31,24 @@ import { liveFieldErrors } from '@shared/util/form';
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
 import { ClubsStore } from '../clubs.store';
-import { slugAvailable } from './clubs-edit.validators';
+import { buildClubCreateRequest, buildClubUpdateRequest, isOwnClub } from './clubs-edit.form';
+import { emailRecipientList, slugAvailable } from './clubs-edit.validators';
+
+const OPERATOR_EMAIL_MAX_LENGTH = 250;
+
+/**
+ * Keeps the club's stored id selectable even when the catalog is empty or does
+ * not contain it — an un-renderable value is dropped by the select and then
+ * CLEARED by the full-replace save.
+ */
+function withStoredValue(
+  options: AfSelectOption<string>[],
+  stored: string | undefined,
+): readonly AfSelectOption<string>[] {
+  return stored && !options.some((o) => o.value === stored)
+    ? [{ value: stored, label: stored }, ...options]
+    : options;
+}
 
 type ClubForm = FormGroup<{
   name: FormControl<string>;
@@ -39,6 +57,10 @@ type ClubForm = FormGroup<{
   publicRegistrationEnabled: FormControl<boolean>;
   countryId: FormControl<string>;
   clubStateId: FormControl<string>;
+  discoveryFlightOperatorEmail: FormControl<string>;
+  scenicFlightOperatorEmail: FormControl<string>;
+  discoveryFlightTypeId: FormControl<string | null>;
+  homebaseId: FormControl<string | null>;
 }>;
 
 @Component({
@@ -64,6 +86,11 @@ type ClubForm = FormGroup<{
         [message]="store.saveError()"
         [retryLabel]="null"
         data-testid="clubs-save-error"
+      />
+      <af-page-error
+        [message]="store.loadError()"
+        [retryLabel]="null"
+        data-testid="clubs-load-error"
       />
       <af-page-error
         [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
@@ -137,8 +164,76 @@ type ClubForm = FormGroup<{
           <span>Enable public registration</span>
         </label>
 
+        @if (!isCreate()) {
+          <h2 class="text-base font-medium text-slate-900 mt-2 mb-3 pt-4 border-t border-slate-200">
+            Public flight registration
+          </h2>
+
+          <af-form-field
+            label="Discovery-flight organiser email"
+            for="discoveryFlightOperatorEmail"
+            [errors]="discoveryOperatorEmailErrors()"
+          >
+            <af-input
+              inputId="discoveryFlightOperatorEmail"
+              formControlName="discoveryFlightOperatorEmail"
+              type="email"
+              autocomplete="off"
+              placeholder="organiser@club.example"
+              data-testid="clubs-discovery-operator-email"
+            />
+            <p class="text-xs text-slate-500">{{ operatorEmailHint }}</p>
+          </af-form-field>
+
+          <af-form-field
+            label="Scenic-flight organiser email"
+            for="scenicFlightOperatorEmail"
+            [errors]="scenicOperatorEmailErrors()"
+          >
+            <af-input
+              inputId="scenicFlightOperatorEmail"
+              formControlName="scenicFlightOperatorEmail"
+              type="email"
+              autocomplete="off"
+              placeholder="organiser@club.example"
+              data-testid="clubs-scenic-operator-email"
+            />
+            <p class="text-xs text-slate-500">{{ operatorEmailHint }}</p>
+          </af-form-field>
+
+          <af-form-field label="Homebase" for="homebaseId">
+            <af-select
+              inputId="homebaseId"
+              formControlName="homebaseId"
+              placeholder="No homebase"
+              [allowClear]="true"
+              [showSearch]="true"
+              [options]="homebaseOptions()"
+              data-testid="clubs-homebase-select"
+            />
+            <p class="text-xs text-slate-500">
+              The club's home airfield. A discovery-flight reservation is booked here; without one
+              the registration still succeeds and the reservation is skipped.
+            </p>
+          </af-form-field>
+
+          <af-form-field label="Discovery flight type" for="discoveryFlightTypeId">
+            <af-select
+              inputId="discoveryFlightTypeId"
+              formControlName="discoveryFlightTypeId"
+              placeholder="No flight type"
+              [allowClear]="true"
+              [options]="flightTypeOptions()"
+              data-testid="clubs-discovery-flight-type-select"
+            />
+            <p class="text-xs text-slate-500">
+              Stamped on the reservation a discovery-flight registration books.
+            </p>
+          </af-form-field>
+        }
+
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
-          <af-button htmlType="button" (clicked)="router.navigateByUrl('/clubs')">
+          <af-button htmlType="button" (clicked)="router.navigateByUrl(exitUrl())">
             Cancel
           </af-button>
           <af-button
@@ -151,6 +246,70 @@ type ClubForm = FormGroup<{
           </af-button>
         </div>
       </form>
+
+      @if (managesOwnClub()) {
+        <section
+          class="mt-8 pt-4 border-t border-slate-200"
+          data-testid="clubs-discovery-days-panel"
+        >
+          <h2 class="text-base font-medium text-slate-900 mb-1">Discovery flight days</h2>
+          <p class="text-xs text-slate-500 mb-3">
+            The days visitors can pick on the public discovery-flight form.
+          </p>
+
+          <af-page-error
+            [message]="store.discoveryDayError()"
+            [retryLabel]="null"
+            data-testid="clubs-discovery-day-error"
+          />
+
+          <div class="flex items-end gap-2 mb-4">
+            <af-form-field label="Add a day" for="newDiscoveryDay" class="grow">
+              <af-input
+                inputId="newDiscoveryDay"
+                type="date"
+                [value]="newDay()"
+                (valueChange)="newDay.set($event)"
+                data-testid="clubs-discovery-day-input"
+              />
+            </af-form-field>
+            <!-- Matches the form-field's own bottom margin so both baselines line up. -->
+            <af-button
+              class="mb-4"
+              type="primary"
+              [disabled]="newDay().length === 0"
+              (clicked)="publishDay()"
+              data-testid="clubs-discovery-day-add"
+            >
+              Add day
+            </af-button>
+          </div>
+
+          @if (store.discoveryFlightDays().length === 0) {
+            <p class="text-sm text-slate-500" data-testid="clubs-discovery-days-empty">
+              No days offered.
+            </p>
+          } @else {
+            <ul class="border border-slate-200 divide-y divide-slate-200">
+              @for (day of store.discoveryFlightDays(); track day.id) {
+                <li
+                  class="flex items-center justify-between px-3 py-2"
+                  [attr.data-testid]="'clubs-discovery-day-' + day.eventDate"
+                >
+                  <span class="tabular text-sm text-slate-900">{{ day.eventDate }}</span>
+                  <af-button
+                    [danger]="true"
+                    (clicked)="store.withdrawDiscoveryFlightDay(day.id)"
+                    [attr.data-testid]="'clubs-discovery-day-withdraw-' + day.eventDate"
+                  >
+                    Withdraw
+                  </af-button>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      }
     </af-page>
   `,
 })
@@ -161,16 +320,59 @@ export class ClubsEditPage {
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
   private readonly bus = inject(MUTATION_BUS);
+  private readonly session = inject(SessionStore);
 
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly clubId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.clubId() === null);
+
+  protected readonly operatorEmailHint =
+    'Comma, semicolon or space separated. Leave blank to send no organiser mail.';
+
+  /**
+   * The day resource and the flight-type catalog are the caller's own tenant's
+   * and carry no club id, so both stay off a cross-tenant edit — a sysadmin
+   * editing another club must not manage its own club's days under that heading.
+   */
+  protected readonly managesOwnClub = computed(
+    () =>
+      !this.isCreate() &&
+      this.session.isClubAdmin() &&
+      isOwnClub(this.clubId(), this.session.currentClubId()),
+  );
+
+  /**
+   * The club catalog is a cross-tenant read, so a club admin has no list to
+   * return to — leaving the screen takes it back to its own start page.
+   */
+  protected readonly exitUrl = computed(() =>
+    this.session.isSystemAdmin() || this.session.isFlightOperator() ? '/clubs' : '/start',
+  );
+
+  protected readonly newDay = signal('');
 
   protected readonly countryOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.referenceData.countries().map((c) => ({ value: c.id, label: c.name ?? c.id })),
   );
   protected readonly clubStateOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.referenceData.clubStates().map((s) => ({ value: s.id, label: s.name ?? s.id })),
+  );
+
+  // The club's stored flight type is always an option, even when the catalog is
+  // empty or does not contain it — an un-renderable value would be dropped by
+  // the select and then CLEARED by the full-replace save.
+  protected readonly flightTypeOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    withStoredValue(
+      this.store.flightTypes().map((ft) => ({ value: ft.id, label: ft.flightTypeName })),
+      this.store.selectedClub()?.discoveryFlightTypeId,
+    ),
+  );
+
+  protected readonly homebaseOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    withStoredValue(
+      this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),
+      this.store.selectedClub()?.homebaseId,
+    ),
   );
 
   // S-007 — slug validator stack (sync + in-memory async-style) declared
@@ -191,6 +393,16 @@ export class ClubsEditPage {
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
     countryId: this.fb.nonNullable.control('', [Validators.required]),
     clubStateId: this.fb.nonNullable.control('', [Validators.required]),
+    discoveryFlightOperatorEmail: this.fb.nonNullable.control('', [
+      emailRecipientList(),
+      Validators.maxLength(OPERATOR_EMAIL_MAX_LENGTH),
+    ]),
+    scenicFlightOperatorEmail: this.fb.nonNullable.control('', [
+      emailRecipientList(),
+      Validators.maxLength(OPERATOR_EMAIL_MAX_LENGTH),
+    ]),
+    discoveryFlightTypeId: this.fb.control<string | null>(null),
+    homebaseId: this.fb.control<string | null>(null),
   });
 
   protected readonly saveSubmitted = signal(false);
@@ -214,6 +426,15 @@ export class ClubsEditPage {
   });
   protected readonly countryErrors = liveFieldErrors(this.form.controls.countryId);
   protected readonly clubStateErrors = liveFieldErrors(this.form.controls.clubStateId);
+  protected readonly discoveryOperatorEmailErrors = liveFieldErrors(
+    this.form.controls.discoveryFlightOperatorEmail,
+  );
+  protected readonly scenicOperatorEmailErrors = liveFieldErrors(
+    this.form.controls.scenicFlightOperatorEmail,
+  );
+
+  /** One fetch per club id, so a failed read does not re-fire on every signal tick. */
+  private readonly fetchedClubIds = new Set<string>();
 
   constructor() {
     effect(() => {
@@ -221,6 +442,18 @@ export class ClubsEditPage {
       // duplicate flag updates the moment ClubsStore.loadAll() resolves.
       void this.store.entities();
       this.form.controls.slug.updateValueAndValidity({ emitEvent: false });
+    });
+
+    // The club catalog is closed to a CLUB_ADMINISTRATOR, so the club under
+    // edit cannot be assumed to be in the entity map — fetch whatever the
+    // catalog did not supply through the single-club read.
+    effect(() => {
+      const id = this.clubId();
+      if (id === null || this.fetchedClubIds.has(id) || this.store.entityMap()[id]) {
+        return;
+      }
+      this.fetchedClubIds.add(id);
+      this.store.loadOne(id);
     });
 
     effect(() => {
@@ -247,8 +480,39 @@ export class ClubsEditPage {
         publicRegistrationEnabled: club.publicRegistrationEnabled ?? false,
         countryId: countriesReady ? club.countryId : '',
         clubStateId: clubStatesReady ? club.clubStateId : '',
+        // Patched verbatim: a migrated recipient list that never parsed as an
+        // address still has to render and stay editable, and the validator is
+        // what tells the admin to fix it.
+        discoveryFlightOperatorEmail: club.discoveryFlightOperatorEmail ?? '',
+        scenicFlightOperatorEmail: club.scenicFlightOperatorEmail ?? '',
+        discoveryFlightTypeId: club.discoveryFlightTypeId ?? null,
+        homebaseId: club.homebaseId ?? null,
       });
       this.form.controls.clubKey.disable({ emitEvent: false });
+    });
+
+    effect(() => {
+      if (!this.managesOwnClub()) return;
+      this.store.loadDiscoveryFlightDays();
+      this.store.loadFlightTypes();
+      this.store.loadLocations();
+    });
+
+    // Both catalogs are the CALLER's tenant's, so only the club's own admin can
+    // resolve either id to a name — a cross-tenant editor keeps the stored
+    // values but cannot repoint them at rows belonging to its own club.
+    effect(() => {
+      const own = this.managesOwnClub();
+      for (const control of [
+        this.form.controls.discoveryFlightTypeId,
+        this.form.controls.homebaseId,
+      ]) {
+        if (own) {
+          control.enable({ emitEvent: false });
+        } else {
+          control.disable({ emitEvent: false });
+        }
+      }
     });
 
     // Any save error (409, 500, network) disarms the bus-driven navigation;
@@ -290,7 +554,7 @@ export class ClubsEditPage {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'club.created' || evt.kind === 'club.updated') {
         this.saveSubmitted.set(false);
-        this.router.navigateByUrl('/clubs');
+        this.router.navigateByUrl(this.exitUrl());
       }
     });
   }
@@ -304,18 +568,16 @@ export class ClubsEditPage {
     const id = this.clubId();
     this.saveSubmitted.set(true);
     if (id) {
-      this.store.update({
-        id,
-        req: {
-          name: value.name,
-          slug: value.slug,
-          publicRegistrationEnabled: value.publicRegistrationEnabled,
-          countryId: value.countryId,
-          clubStateId: value.clubStateId,
-        },
-      });
+      this.store.update({ id, req: buildClubUpdateRequest(value) });
     } else {
-      this.store.create(value);
+      this.store.create(buildClubCreateRequest(value));
     }
+  }
+
+  protected publishDay(): void {
+    const day = this.newDay();
+    if (day.length === 0) return;
+    this.store.publishDiscoveryFlightDay(day);
+    this.newDay.set('');
   }
 }

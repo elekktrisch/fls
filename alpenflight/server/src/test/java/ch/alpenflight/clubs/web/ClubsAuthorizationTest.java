@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +47,10 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  *   <li>anonymous → 401 on every method (chain-level — single representative).</li>
  *   <li>SYSTEM_ADMINISTRATOR → access to every method.</li>
  *   <li>CLUB_ADMINISTRATOR → list / create / delete denied; read + update
- *       allowed only for the principal's own club (SpEL gate). Missing
- *       {@code clubId} claim → SpEL evaluates to false → 403 (fail-closed
- *       for federated tokens without the claim).</li>
+ *       allowed only for the principal's own club, decided by
+ *       {@code @tenant.isOwnClub} against the RESOLVED tenant — so a claim
+ *       holding a club key (the realm seed shape) reaches its own club while a
+ *       principal that resolves to no tenant is denied.</li>
  *   <li>FLIGHT_OPERATOR → read-only viewer: list + read-own-club allowed;
  *       other-club read denied; all mutations denied.</li>
  *   <li>Non-catalog roles (e.g. {@code ROLE_OFFICE_USER}, {@code ROLE_PILOT})
@@ -79,6 +81,11 @@ class ClubsAuthorizationTest {
     private static final String SEED_CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
     private static final String SEED_CLUB_PATH = "clb-" + SEED_CLUB_ID;
     private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-000000000999";
+
+    // V29 dev-user seed: clubadmin4's Keycloak subject, whose t_user row binds it
+    // to seed-club-1. Its realm `clubId` attribute is the club KEY, not a UUID.
+    private static final String SEEDED_ADMIN_SUB = "c1ab4d40-0000-4000-8000-000000000004";
+    private static final String SEEDED_ADMIN_CLUB_KEY = "club-1";
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
@@ -202,6 +209,67 @@ class ClubsAuthorizationTest {
                         .with(clubadmin(OTHER_CLUB_ID))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Hijack Attempt", "seed-club-1", false))))
+                .andExpect(status().isForbidden());
+    }
+
+    // ----- CLUB_ADMINISTRATOR whose claim is a club KEY, not a UUID -----
+
+    // Every realm-seeded club admin carries `clubId=club-1` (realm-export.json),
+    // which ClubTenantIdentifierResolver resolves to seed-club-1 through t_user.
+    // The own-club gate has to agree with that resolution, otherwise the role the
+    // screen is built for is locked out of its own club.
+
+    @Test
+    void get_clubadmin_with_club_key_claim_reads_own_club() throws Exception {
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(seededClubadmin()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void put_clubadmin_with_club_key_claim_updates_own_club() throws Exception {
+        mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(seededClubadmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(updatePayload("Seed Club", "seed-club-1", false))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void get_clubadmin_with_club_key_claim_cannot_read_another_existing_club() throws Exception {
+        String otherClubPath = createAsSysadmin(
+                "Neighbour Club", "neighbour-" + unique(), "NB" + shortUnique());
+
+        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath).with(seededClubadmin()))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(body)
+                .as("a denied cross-tenant read must not leak the other club's projection")
+                .doesNotContain("Neighbour Club");
+    }
+
+    @Test
+    void put_clubadmin_with_club_key_claim_cannot_update_another_existing_club() throws Exception {
+        String otherClubPath = createAsSysadmin(
+                "Neighbour Target", "neighbour-" + unique(), "NT" + shortUnique());
+
+        mvc.perform(put("/api/v1/clubs/" + otherClubPath)
+                        .with(seededClubadmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(updatePayload("Hijacked", "hijacked-" + unique(), true))))
+                .andExpect(status().isForbidden());
+
+        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath).with(sysadmin()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(MAPPER.readTree(body).get("name").asText()).isEqualTo("Neighbour Target");
+    }
+
+    // A CLUB_ADMINISTRATOR whose sub matches no t_user row resolves to NO_TENANT,
+    // which must never satisfy the own-club gate.
+    @Test
+    void get_clubadmin_with_unresolvable_principal_returns_403() throws Exception {
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(unboundClubadmin()))
                 .andExpect(status().isForbidden());
     }
 
@@ -376,6 +444,20 @@ class ClubsAuthorizationTest {
 
     private static RequestPostProcessor clubadminWithoutClubIdClaim() {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
+    }
+
+    /** V29 `clubadmin4`: realm claim `clubId=club-1`, {@code t_user} row bound to seed-club-1. */
+    private static RequestPostProcessor seededClubadmin() {
+        return jwt()
+                .jwt(t -> t.subject(SEEDED_ADMIN_SUB).claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
+    }
+
+    private static RequestPostProcessor unboundClubadmin() {
+        return jwt()
+                .jwt(t -> t.subject(UUID.randomUUID().toString())
+                        .claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 
     private static RequestPostProcessor role(String authority, String clubId) {

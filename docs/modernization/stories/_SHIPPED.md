@@ -3,6 +3,8 @@
 Forward-looking roadmap lives in `_ORDER.md`; shipped journey contracts live in `implemented/`.
 One line per merged journey (newest first). Cross-references (`depends_on`) resolve here + in `implemented/`.
 
+- **J-17** — Public flight-experience registration — discovery + scenic (/discovery-flight, /scenic-flight) — first unauthenticated write endpoints + tenant-from-URL (S-025); riders [J-15-MAILPIT-REPORT], [CI-TROUBLESHOOTING-MARKER], [GHA-TERNARY-AUDIT], [DEV-UP-FAIL-LOUD], [PROOF-HARNESS TRANSIENTS] — #246  (2026-08-06)
+- **J-15** — Scheduled-jobs admin console (/system/jobs) — JobRegistry + Run-now over daily-validation / daily-report / licence / OGN-aircraft-DB-sync / delivery-creation / mail-export jobs, sysadmin-gated; rider [J-15-MAILPIT-REPORT] deferred to J-17 — #245  (2026-08-02)
 - **J-16** — Public landing + nav — migrate/demo CTA pair + wordmark SVG brand assets + funnel telemetry + nav-hide re-assert (R12); riders [FRAME-ANCESTORS-HEADER], [NIGHTLY-TALLY-FLAKY-LABEL] — #244  (2026-07-22)
 - **J-30** — Nightly gate — both e2e suites job-level green (real-idp 0-fail + legacy readiness/warm-up/retries; J2 quarantined-with-rider) + loud informational surfacing + audit-filter adversarial fix — #243  (2026-07-22)
 - **J-13** — Audit-log viewer (/system/logs) — club-admin mutation-audit trail + S-160 append-only DB-role split — #242  (2026-07-20)

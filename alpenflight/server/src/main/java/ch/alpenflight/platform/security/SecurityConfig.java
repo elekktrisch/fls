@@ -5,6 +5,7 @@ import static org.springframework.security.config.http.SessionCreationPolicy.STA
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -25,6 +26,12 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p>{@link EnableMethodSecurity} turns on {@code @PreAuthorize}; the
  * canonical role-gate matrix lives on {@code ClubsController} (S-026).
+ *
+ * <p>Everything not listed as {@code permitAll} is {@code authenticated}. The
+ * {@code /api/v1/public/**} entries are the application's only anonymous API
+ * surface (S-025); the club they act on comes from the URL, and
+ * {@code ch.alpenflight.publicregistration} validates it against the
+ * {@code public_registration_enabled} allowlist before any tenant scope opens.
  */
 @Configuration
 @EnableMethodSecurity
@@ -70,6 +77,17 @@ public class SecurityConfig {
                                 "/actuator/health/**",
                                 "/actuator/info",
                                 "/error")
+                        .permitAll()
+                        // Anonymous public-registration surface (S-025). Reads under
+                        // the /public/ segment are open wholesale; writes are NOT —
+                        // each anonymous write is enumerated, so an unrelated POST /
+                        // PUT / PATCH / DELETE landing under the same prefix stays
+                        // authenticated instead of inheriting anonymous access.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/**")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/public/clubs/*/discovery-flight-registrations",
+                                "/api/v1/public/clubs/*/scenic-flight-registrations")
                         .permitAll()
                         .anyRequest()
                         .authenticated())

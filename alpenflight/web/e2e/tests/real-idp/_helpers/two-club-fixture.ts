@@ -46,8 +46,8 @@ import {
 const SEED_CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 
 /** Canonical reference seeds (V2__identity_and_reference.sql / V5). */
-const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
-const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
+export const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
+export const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 
 /** Seeded sysadmin (realm-export.json) — the only principal that may POST clubs. */
 const SYSADMIN_USER = 'sysadmin@example.com';
@@ -108,7 +108,7 @@ function adminUser(label: string, scope: string, nonce: string): TestUser {
  * the OIDC interceptor attaches to its first `/api/v1/*` call. Navigates to
  * `/clubs` (sysadmin's catalog list) to guarantee such a call fires.
  */
-async function captureSysadminBearer(browser: Browser, baseURL: string): Promise<string> {
+export async function captureSysadminBearer(browser: Browser, baseURL: string): Promise<string> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
 

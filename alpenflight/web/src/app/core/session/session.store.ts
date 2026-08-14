@@ -89,6 +89,9 @@ export const SessionStore = signalStore(
     isSystemAdmin: computed(
       () => authenticatedUser()?.roles.includes('SYSTEM_ADMINISTRATOR') ?? false,
     ),
+    isFlightOperator: computed(
+      () => authenticatedUser()?.roles.includes('FLIGHT_OPERATOR') ?? false,
+    ),
   })),
   withMethods(
     (

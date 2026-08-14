@@ -40,6 +40,7 @@ export class AppComponent {
       {
         isSystemAdmin: this.session.isSystemAdmin(),
         isClubAdmin: this.session.isClubAdmin(),
+        clubId: this.session.currentClubId(),
       },
       { joinRequests: this.joinRequestsBadge.count },
     ),

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Anmeldung Schnupperflug</title>
+  </head>
+  <body>
+    <h2>Anmeldung Schnupperflug</h2>
+    <p>
+      Die Anmeldung für den Schnupperflug vom
+      <strong th:text="${flightDate}">15.06.2099</strong>
+      <span th:if="${!locationName.isEmpty()}">
+        in <strong th:text="${locationName}">Bern-Belp</strong></span>
+      bei <strong th:text="${clubName}">Segelfluggruppe</strong> ist erfasst.
+    </p>
+
+    <h3>Schnupperflug-Kandidat</h3>
+    <p>
+      <span th:text="${candidateName}">Rosa Renggli</span><br />
+      <span th:text="${addressLine1}">Flugplatzstrasse 7</span><br />
+      <span th:text="${zip} + ' ' + ${city}">6060 Sarnen</span>
+    </p>
+    <ul>
+      <li th:if="${!privateEmail.isEmpty()}" th:text="${privateEmail}">rosa@example.ch</li>
+      <li th:if="${!mobilePhone.isEmpty()}" th:text="'Mobil: ' + ${mobilePhone}">Mobil: 079 555 66 77</li>
+      <li th:if="${!privatePhone.isEmpty()}" th:text="'Privat: ' + ${privatePhone}">Privat: 041 660 11 22</li>
+      <li th:if="${!businessPhone.isEmpty()}" th:text="'Geschäft: ' + ${businessPhone}">Geschäft: 041 660 33 44</li>
+    </ul>
+    <p th:if="${!remarks.isEmpty()}">
+      Bemerkungen: <span th:text="${remarks}">Fliegt zum ersten Mal.</span>
+    </p>
+
+    <p>
+      Der Verein meldet sich bis am <strong th:text="${contactDate}">13.06.2099</strong>
+      zur Durchführung. Bei ungeeignetem Wetter wird der Schnupperflugtag verschoben.
+    </p>
+
+    <h3>Rechnungsadresse</h3>
+    <p>
+      <span th:text="${invoiceName}">Beat Bezahler</span><br />
+      <span th:text="${invoiceAddressLine1}">Buchhaltungsweg 3</span><br />
+      <span th:text="${invoiceZip} + ' ' + ${invoiceCity}">6003 Luzern</span>
+    </p>
+  </body>
+</html>

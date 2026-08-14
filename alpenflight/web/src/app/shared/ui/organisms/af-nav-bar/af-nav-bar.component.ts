@@ -40,6 +40,12 @@ export interface NavItem {
   readonly badge?: Signal<number>;
   /** `data-testid` for the rendered badge pill; rolls up onto a parent group. */
   readonly badgeTestId?: string;
+  /**
+   * Overrides the path-derived `af-nav-section-<path>` testid. Required by an
+   * entry whose path carries a per-principal id, which would otherwise give the
+   * spec no stable handle on it.
+   */
+  readonly testId?: string;
 }
 
 export interface UserSummary {
@@ -140,7 +146,7 @@ export interface UserSummary {
                         [routerLink]="child.path"
                         routerLinkActive="!text-brand-700 !bg-slate-50"
                         class="flex items-center gap-2.5 w-full px-3 py-2 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
-                        [attr.data-testid]="'af-nav-section-' + child.path"
+                        [attr.data-testid]="sectionTestId(child)"
                       >
                         @if (child.icon) {
                           <af-icon [name]="child.icon" [size]="16" />
@@ -161,7 +167,7 @@ export interface UserSummary {
                 [routerLink]="item.path"
                 routerLinkActive="!text-slate-900 !border-brand-500"
                 class="inline-flex items-center px-3.5 text-[15px] text-slate-600 no-underline border-b-2 border-transparent -mb-px hover:text-slate-900"
-                [attr.data-testid]="'af-nav-section-' + item.path"
+                [attr.data-testid]="sectionTestId(item)"
               >
                 {{ item.label }}
                 @if (item.badge) {
@@ -299,7 +305,7 @@ export interface UserSummary {
                               [routerLink]="child.path"
                               routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
                               class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
-                              [attr.data-testid]="'af-nav-section-' + child.path"
+                              [attr.data-testid]="sectionTestId(child)"
                               (click)="closeDrawer()"
                             >
                               @if (child.icon) {
@@ -321,7 +327,7 @@ export interface UserSummary {
                       [routerLink]="item.path"
                       routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
                       class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
-                      [attr.data-testid]="'af-nav-section-' + item.path"
+                      [attr.data-testid]="sectionTestId(item)"
                       (click)="closeDrawer()"
                     >
                       @if (item.icon) {
@@ -403,6 +409,11 @@ export class AfNavBarComponent {
   protected groupActive(children: readonly NavItem[]): boolean {
     const url = this.#url();
     return children.some((c) => !!c.path && (url === c.path || url.startsWith(`${c.path}/`)));
+  }
+
+  /** A leaf's testid: its own override, else derived from the path. */
+  protected sectionTestId(item: NavItem): string {
+    return item.testId ?? `af-nav-section-${item.path}`;
   }
 
   /** Stable testid slug from a group label (`Masterdata` → `masterdata`). */

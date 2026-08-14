@@ -17,18 +17,64 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
-## Pending (filed by /do-ship J-15 gate, 2026-08-02)
+## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
-- **[J-15-MAILPIT-REPORT]** The J-15 AC "Run now → Daily Report → Mailpit email" is the one AC not proven as
-  written. The mail itself IS proven — `DailyReportJobIT` asserts the per-person report against the captured
-  outbox including the opt-out negative (two people on one flight, only the `receiveFlightReports` member is
-  mailed) — but the real-idp gate never drives it through Mailpit, so the console-triggered path is unasserted.
-  Closing it needs a **clean-seed floor**, which is why it was deferred rather than bodged: an opted-in pilot
-  (`PersonClub.receiveFlightReports = true`) with an unreported flight inside the job's 2-day window, seeded
-  through production code (ADR 0027 §3), then a `waitForMessageWithSubject('Flugrapport')` assertion in
-  `jobs-console-parity.spec.ts` after the Run-now click. Seed it in the spec rather than the shared clean seed
-  so no other journey's gate inherits a surprise mail. Rides the next journey that touches the jobs console or
-  the mail path. *(seam: `e2e/tests/real-idp/jobs-console-parity.spec.ts` + its seed)*
+- **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
+  `response.json()` on a body the SPA has already evicted by navigating on POST-success — the documented
+  trap on this project ([[project_spa_nav_evicts_post_response_body]]); read the created id from the `201`
+  `Location` header or a re-GET instead. Found by J-17's compose-free local real-idp run, where it reds
+  **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
+  establishing which, because a spec that passes on CI and fails locally erodes trust in both.
+  Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
+
+
+- **[ANON-WRITE-ATTRIBUTION]** J-17 shipped the app's first unauthenticated write endpoints **and** an abuse guard, but
+  `/system/logs` cannot tell an anonymous internet registration from a cron job: `system_actor=true`, both actor ids null,
+  and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
+  that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
+  on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
+  redaction, and whether it belongs in the audit table at all), which is why this is filed for the operator rather than
+  fixed in-journey. *(seam: audit actor columns + the anonymous write path)*
+
+## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
+
+- **[FORM-FIRST-PAINT-RED]** `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+  blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
+  gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
+  **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
+  the util (opt-in for the edit-form case if any screen genuinely wants eager reporting) rather than repeating the local
+  gate per form. Check the shipped create screens before assuming it's cosmetic. *(seam: `inline-validation.ts` + its 8 consumers)*
+- **[FIELDSET-LEGEND-SIZE]** `text-sm` loses against the UA stylesheet on `<legend>`, so fieldset legends render ~20px
+  instead of the intended size (both the T-16 "Contact" and T-17 "Pick a day" legends). Cosmetic and consistent.
+  *(seam: legend styling in the public form components)*
+
+## Pending (filed by /do-ship J-17 T-15c, 2026-08-02)
+
+- **[MOCK-CLUB-ID-SHAPE]** `MOCK_CLUB_ID` in the web mock fixtures is a raw UUID while real club ids are
+  `clb-<uuid>`. A dishonest inner-loop fixture in the sense of [[feedback_honest_inner_loop_fixtures]]: mocked
+  specs pass against an id shape the backend never emits, so an id-shape bug goes green locally and reds at the
+  gate. T-15c left it alone because the ripple is broad (many specs share the constant). This is the same class
+  as the club-key-vs-UUID confusion that made `GET /clubs/{id}` 403 for every club admin — worth fixing before
+  it hides a third one. *(seam: web e2e mock fixtures' club-id constant)*
+
+## Pending (filed by /do-ship J-17 T-07b, 2026-08-02)
+
+- **[AUDIT-ACTOR-KIND]** `AuditActorKind.SYSTEM` has no writer anywhere in the repo: the listener leaves every
+  runtime row at `NORMAL` and the cutover importer is the only thing that writes `LEGACY_MIGRATED`, so
+  `actor_kind` is in practice a native-vs-imported marker while the `system_actor` boolean does the actual
+  actor classification. T-07b confirmed `/system/logs` renders `system_actor` (`AuditEventDtos.AuditEventRow`
+  carries no `actorKind`) and pinned that in `AnonymousActorProjectionIT`, so nothing is user-visibly broken —
+  but the enum keeps a dead constant. Decide one way: **delete `SYSTEM`** (needs a migration to refresh the
+  `COMMENT ON COLUMN t_mutation_audit_event.actor_kind` V18 planted, which still enumerates it — the V18 file
+  itself is applied and must not be edited), **or** promote `actor_kind` to the single classifier and retire
+  `system_actor`, carrying it through the projection + the viewer's actor cell in the same change.
+  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` goes red either way and is the
+  intended tripwire. *(seam: `AuditActorKind` + `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts`)*
+- **[AUDIT-ACTOR-CELL]** Same cell, separate nit: for an authenticated row `/system/logs` prints the raw
+  `actorUserId` UUID, and prints **nothing** when the principal has no `t_user` row (a federated sub the
+  lookup can't resolve — `ActorResolver` legitimately yields a null id while `system_actor` stays false). Give
+  the cell a username/display-name (or at minimum fall back to `actorKeycloakSub`) so an audit reader can tell
+  who acted. *(seam: `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts:187`)*
 
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
@@ -69,14 +115,6 @@ stragglers each ceremony so the file shrinks.
   + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +
   next journeys; don't churn merged ones). *(seam: `docs/modernization/stories/*.md` per-touch)*
   [[feedback_self_explanatory_no_history_comments]]
-
-## Pending (filed by /do-ship 2026-06-13, J-8 gate)
-
-- **[PROOF-HARNESS TRANSIENTS — gh-pages CDN propagation race]** The fanout `[deployed-journey]` link-check
-  (`proof-gallery-links.spec.ts:683`) has a **60s Playwright test timeout** that races gh-pages CDN propagation —
-  the post-deploy check started ~24s after the git-push and timed out before the page propagated (every asset was
-  live moments later, verified by curl). Bump that test's timeout above its internal 60s poll budget (or add a
-  propagation pre-wait). *(seam: proof-gallery-links.spec.ts test timeout)* [[false_green_derive_fallback]]
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 

@@ -24,12 +24,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# shellcheck source=lib/fail-loud.sh
+source "${SCRIPT_DIR}/lib/fail-loud.sh"
+
 cd "${REPO_ROOT}"
 
-bash "${SCRIPT_DIR}/dev-up-infra.sh" \
-    && bash e2e/scripts/dev-up.sh \
-    && bash e2e/scripts/seed.sh \
-    && bash "${SCRIPT_DIR}/dev-up-alpenflight.sh"
+require_compose_v2
+
+run_step_or_die "infra: shared network + Mailpit" bash "${SCRIPT_DIR}/dev-up-infra.sh"
+run_step_or_die "legacy MSSQL (fls-e2e)" bash e2e/scripts/dev-up.sh
+run_step_or_die "legacy FLSTest seed" bash e2e/scripts/seed.sh
+run_step_or_die "AlpenFlight stack: Postgres + pgAdmin + Keycloak + Flyway" \
+    bash "${SCRIPT_DIR}/dev-up-alpenflight.sh"
 
 printf '\033[1;32m==> Dev stack ready\033[0m\n'
 cat <<INFO

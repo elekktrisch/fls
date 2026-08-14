@@ -11,9 +11,12 @@ Mirrors ADR 0010's deployment-stack decisions in their dev-laptop form.
 | `alpenflight/ops/dev-up-infra.sh` | Shared network + Mailpit. |
 | `alpenflight/ops/dev-up-alpenflight.sh` | Postgres + pgAdmin + Keycloak + Flyway migrations. |
 | `alpenflight/ops/dev-up-full.sh` | Thin orchestrator: infra + legacy + seed + alpenflight. |
+| `alpenflight/ops/dev-up-nocompose.sh` | Compose-free fallback: Keycloak + Mailpit via plain `docker run`, Flyway against an **external** Postgres (`DATASOURCE_*`). For boxes without the compose v2 plugin, where the scripts above hard-fail on `require_compose_v2`. |
 | `alpenflight/ops/rebuild-keycloak.sh` | Rebuild + restart Keycloak with a fresh H2 volume. |
 | `alpenflight/ops/pgadmin/` | Custom pgAdmin image (server connection pre-wired). |
+| `alpenflight/ops/lib/fail-loud.sh` | Sourced helpers: compose-v2 preflight, `compose_up_or_die`, `run_step_or_die`. Every bring-up aborts naming the service that did not start. |
 | `alpenflight/ops/lint-compose.sh` | Static checks (healthcheck, floating tags, loopback binds). Run in CI via `.github/workflows/compose-lint.yml`. |
+| `alpenflight/ops/test-bring-up-guards.sh` | Proves the bring-up scripts fail loudly (stubbed `docker`, no daemon) + that the fan-out starts Mailpit before the legacy e2e suite. Run in CI via `compose-lint.yml`. |
 | `alpenflight/ops/.env.example` | Dev-only env overrides; copy to `.env` if you need them. Most contributors won't. |
 | `alpenflight/ops/.env` | **Gitignored.** Local overrides only. |
 
@@ -37,6 +40,22 @@ Each `dev-up-*.sh` is idempotent and inspects-first for the
 `alpenflight_shared` network — a fresh-box first run creates it; subsequent
 runs reuse it. `dev-up-alpenflight.sh` and `e2e/scripts/dev-up.sh` fail
 fast if the network is missing and direct you to `dev-up-infra.sh`.
+
+### No compose plugin
+
+`require_compose_v2` aborts every script above when only the docker CLI is
+installed. That is a missing plugin, not a missing engine — the real-idp
+stack still runs:
+
+```bash
+source ~/.bashrc                                # DATASOURCE_* → the LAN Postgres
+bash alpenflight/ops/dev-up-nocompose.sh        # keycloak + mailpit + flyway
+```
+
+Postgres is external by design (a local Postgres container OOMs the 2-core
+dev box); legacy MSSQL is out of scope. The script prints the backend +
+Playwright follow-up commands — run them in order, never Gradle and
+Playwright at once.
 
 ## Tear-down
 

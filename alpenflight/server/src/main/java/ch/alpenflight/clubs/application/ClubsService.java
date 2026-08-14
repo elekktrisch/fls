@@ -18,6 +18,7 @@ import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
+import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import java.time.Clock;
@@ -49,11 +50,15 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link UUID} (Spring Data + Hibernate prefer it that way); the service is
  * the seam where the type narrows.
  *
+ * <p>The homebase FK is validated the same way, but against the edited club's
+ * OWN Locations — see {@link ClubLocationLookup} for why that read needs its
+ * own tenant window and transaction.
+ *
  * <p>Depends on {@link ClubRepository} (domain port) per ADR 0023 — the
  * concrete Spring Data implementation lives in {@code clubs.infra}. The
  * cross-module imports of {@link CountryRepository} / {@link ClubStateRepository}
- * are sanctioned by the {@code referencedata} module's OPEN type per
- * its package-info.
+ * and of {@code locations.domain} are sanctioned by the {@code referencedata} /
+ * {@code locations} modules' OPEN type per their package-info.
  */
 @Service
 @Transactional
@@ -64,6 +69,7 @@ public class ClubsService {
     private final ClubRepository clubs;
     private final CountryRepository countries;
     private final ClubStateRepository clubStates;
+    private final ClubLocationLookup clubLocations;
     private final Clock clock;
     private final AuditTrail auditTrail;
     private final JoinCodeGenerator joinCodes;
@@ -71,12 +77,14 @@ public class ClubsService {
     public ClubsService(ClubRepository clubs,
                         CountryRepository countries,
                         ClubStateRepository clubStates,
+                        ClubLocationLookup clubLocations,
                         Clock clock,
                         AuditTrail auditTrail,
                         JoinCodeGenerator joinCodes) {
         this.clubs = clubs;
         this.countries = countries;
         this.clubStates = clubStates;
+        this.clubLocations = clubLocations;
         this.clock = clock;
         this.auditTrail = auditTrail;
         this.joinCodes = joinCodes;
@@ -176,6 +184,13 @@ public class ClubsService {
             club.disablePublicRegistration();
         }
         club.relocate(req.countryId().value(), req.clubStateId().value());
+        club.setRegistrationOperatorEmails(
+                req.discoveryFlightOperatorEmail(), req.scenicFlightOperatorEmail());
+        club.setDiscoveryFlightType(
+                req.discoveryFlightTypeId() == null ? null : req.discoveryFlightTypeId().value());
+        club.relocateHomebase(
+                req.homebaseId() == null ? null : req.homebaseId().value(),
+                locationId -> ownsActiveLocation(id.value(), locationId));
         ClubResponse after = ClubMapper.toResponse(persist(club, req.slug()));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
@@ -210,6 +225,16 @@ public class ClubsService {
             return new SlugAlreadyExistsException(slug);
         }
         return e;
+    }
+
+    /**
+     * Whether {@code locationId} is an active Location of the club under edit —
+     * the club's OWN tenant, not the caller's, so a system administrator cannot
+     * point another club's homebase at a Location of its own.
+     */
+    private boolean ownsActiveLocation(UUID clubId, UUID locationId) {
+        return Tenants.runAs(clubId,
+                () -> clubLocations.isActiveLocationOfCurrentTenant(locationId));
     }
 
     private void validateReferences(CountryId countryId, ClubStateId clubStateId) {

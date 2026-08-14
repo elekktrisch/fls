@@ -139,6 +139,142 @@ class ClubDomainTest {
     }
 
     @Test
+    void registrationOperatorEmails_canonicalize_a_delimited_list_to_comma_joined() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+
+        club.setRegistrationOperatorEmails(
+                " Schnupper@club.example; ops@club.example , Second@club.example ",
+                "mitflug@club.example");
+
+        assertThat(club.getDiscoveryFlightOperatorEmail())
+                .isEqualTo("schnupper@club.example,ops@club.example,second@club.example");
+        assertThat(club.getScenicFlightOperatorEmail()).isEqualTo("mitflug@club.example");
+        assertThat(club.notifiesDiscoveryFlightOperator()).isTrue();
+        assertThat(club.notifiesScenicFlightOperator()).isTrue();
+    }
+
+    @Test
+    void registrationOperatorEmails_stay_optional_so_an_unset_address_only_skips_the_organiser_mail() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.notifiesDiscoveryFlightOperator()).isFalse();
+        assertThat(club.notifiesScenicFlightOperator()).isFalse();
+
+        club.setRegistrationOperatorEmails("ops@club.example", "ops@club.example");
+        club.setRegistrationOperatorEmails("   ", null);
+
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.getScenicFlightOperatorEmail()).isNull();
+        assertThat(club.notifiesDiscoveryFlightOperator()).isFalse();
+        assertThat(club.notifiesScenicFlightOperator()).isFalse();
+    }
+
+    @Test
+    void registrationOperatorEmails_reject_a_malformed_address_anywhere_in_the_list() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails("ops@club.example,not-an-email", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("discoveryFlightOperatorEmail");
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails(null, "nobody@"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("scenicFlightOperatorEmail");
+        assertThatThrownBy(() -> club.setRegistrationOperatorEmails(
+                ("a@b.example," + "c@d.example,").repeat(20), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("250");
+
+        assertThat(club.getDiscoveryFlightOperatorEmail()).isNull();
+        assertThat(club.getScenicFlightOperatorEmail()).isNull();
+    }
+
+    @Test
+    void discoveryFlightType_is_optional_and_clearable() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getDiscoveryFlightTypeId()).isNull();
+
+        UUID flightType = UUID.fromString("019e30c3-2c00-7001-8000-0000000000f1");
+        club.setDiscoveryFlightType(flightType);
+        assertThat(club.getDiscoveryFlightTypeId()).isEqualTo(flightType);
+
+        club.setDiscoveryFlightType(null);
+        assertThat(club.getDiscoveryFlightTypeId()).isNull();
+    }
+
+    @Test
+    void homebase_accepts_a_location_the_club_owns() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.getHomebaseId()).isNull();
+
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+        assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
+    }
+
+    @Test
+    void homebase_rejects_a_location_the_club_does_not_own() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+
+        UUID foreignLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000b002");
+        assertThatThrownBy(() -> club.relocateHomebase(foreignLocation, ownLocation::equals))
+                .isInstanceOf(InvalidClubReferenceException.class)
+                .extracting(e -> ((InvalidClubReferenceException) e).getField())
+                .isEqualTo("homebaseId");
+        // A rejected write leaves the previous homebase intact.
+        assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
+    }
+
+    @Test
+    void homebase_clears_on_null_without_consulting_the_lookup() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        UUID ownLocation = UUID.fromString("019e30c3-2c00-7001-8000-00000000a001");
+        club.relocateHomebase(ownLocation, ownLocation::equals);
+
+        club.relocateHomebase(null, id -> {
+            throw new AssertionError("clearing must not query for ownership");
+        });
+        assertThat(club.getHomebaseId()).isNull();
+    }
+
+    @Test
+    void acceptsPublicRegistration_requires_the_optIn_flag() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+
+        club.enablePublicRegistration();
+        assertThat(club.acceptsPublicRegistration()).isTrue();
+
+        club.disablePublicRegistration();
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+    }
+
+    @Test
+    void acceptsPublicRegistration_is_false_for_a_softDeleted_club() {
+        Club club = Club.create("X", "x-club", "X", true, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.acceptsPublicRegistration()).isTrue();
+
+        club.softDelete(java.time.Clock.systemUTC());
+
+        assertThat(club.isPublicRegistrationEnabled()).isTrue();
+        assertThat(club.acceptsPublicRegistration()).isFalse();
+    }
+
+    @Test
+    void isWellFormedSlug_matches_the_rebrand_rule() {
+        assertThat(Club.isWellFormedSlug("alpine-soaring")).isTrue();
+        assertThat(Club.isWellFormedSlug("abc")).isTrue();
+        assertThat(Club.isWellFormedSlug("a".repeat(64))).isTrue();
+
+        assertThat(Club.isWellFormedSlug(null)).isFalse();
+        assertThat(Club.isWellFormedSlug("ab")).isFalse();
+        assertThat(Club.isWellFormedSlug("a".repeat(65))).isFalse();
+        assertThat(Club.isWellFormedSlug("Bad-Slug")).isFalse();
+        assertThat(Club.isWellFormedSlug("../../etc/passwd")).isFalse();
+    }
+
+    @Test
     void planningNotification_optIn_tracks_a_nonBlank_recipient_address() {
         Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.wantsPlanningDayNotifications()).isFalse();

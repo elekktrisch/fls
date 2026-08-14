@@ -833,6 +833,91 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     }
 
     /**
+     * A migrated club's organiser-notification recipients must land in the
+     * comma-joined lower-cased form {@code PublicRegistrationMailer.recipients}
+     * splits on. Legacy stores the list as free text separated by comma,
+     * semicolon or whitespace, so a verbatim port collapses the whole list into
+     * ONE unusable recipient and the migrated club silently notifies nobody
+     * about a public flight registration.
+     *
+     * <p>Also pins the deliberate non-validation: an address legacy never
+     * checked is the club's own configuration and ports verbatim rather than
+     * being dropped, surfacing at the club-admin edit form where
+     * {@code Club.setRegistrationOperatorEmails} names it.
+     */
+    @Test
+    void real_producer_carries_registration_operator_recipients_in_the_form_the_mailer_splits()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        String key = testClubKey + "R";
+        Instant createdOn = Instant.parse("2019-07-04T06:15:00Z");
+
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "Organiser Club", testClubSlug + "-r", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy());
+
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, "ACTIVE"), 1);
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjsonViaRealMapper(legacyClubId, key, "Organiser Club Legacy",
+                        createdOn, createdOn,
+                        "Trial@Club.CH; second@Club.ch  third@club.ch",
+                        "keine;  scenic@club.ch"), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "Organiser Recipients Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        Path producerTarGz = workDir.resolve("organiser-recipients-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, clubStream), producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a club carrying registration-operator recipients must ingest 200; body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT send_trial_flight_registration_operator_email, "
+                        + "send_passenger_flight_registration_operator_email "
+                        + "FROM t_club WHERE id = ?::uuid",
+                newClub.toString());
+        assertThat(row.get("send_trial_flight_registration_operator_email"))
+                .as("a legacy semicolon/whitespace recipient list arrives comma-joined and "
+                        + "lower-cased, so the mailer's comma split yields all three organisers")
+                .isEqualTo("trial@club.ch,second@club.ch,third@club.ch");
+        assertThat(row.get("send_passenger_flight_registration_operator_email"))
+                .as("an address legacy never validated ports verbatim alongside the valid one "
+                        + "rather than being silently discarded at migration")
+                .isEqualTo("keine,scenic@club.ch");
+    }
+
+    /**
      * Produces a CLUB NDJSON line through the <strong>real
      * {@code ClubMapper.writeNdjson}</strong> from a fake forward-only cursor, so
      * the producer's COALESCE(ModifiedOn, CreatedOn) audit-timestamp logic is the
@@ -841,12 +926,29 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     private byte[] clubNdjsonViaRealMapper(
             UUID legacyClubId, String clubKey, String clubname,
             Instant createdOn, Instant modifiedOn) throws Exception {
+        return clubNdjsonViaRealMapper(legacyClubId, clubKey, clubname, createdOn, modifiedOn,
+                null, null);
+    }
+
+    /**
+     * As above, with the two free-text registration-operator recipient columns
+     * the producer canonicalises on the way out.
+     */
+    private byte[] clubNdjsonViaRealMapper(
+            UUID legacyClubId, String clubKey, String clubname,
+            Instant createdOn, Instant modifiedOn,
+            String trialRegistrationOperatorEmailTo,
+            String passengerRegistrationOperatorEmailTo) throws Exception {
         Map<String, Object> legacy = new LinkedHashMap<>();
         legacy.put("ClubId", legacyClubId.toString());
         legacy.put("Clubname", clubname);
         legacy.put("ClubKey", clubKey);
         legacy.put("CountryId", legacyCountryId.toString());
         legacy.put("ClubStateId", 1);
+        legacy.put("SendTrialFlightRegistrationOperatorEmailTo",
+                trialRegistrationOperatorEmailTo);
+        legacy.put("SendPassengerFlightRegistrationOperatorEmailTo",
+                passengerRegistrationOperatorEmailTo);
         legacy.put("RunDeliveryCreationJob", false);
         legacy.put("RunDeliveryMailExportJob", false);
         legacy.put("IsClubMemberNumberReadonly", false);

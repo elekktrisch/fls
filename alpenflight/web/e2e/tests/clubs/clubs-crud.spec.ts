@@ -1,5 +1,11 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
+import { selectAfOption } from '../_helpers/af-select';
+import {
+  CLUB_SETTINGS_NAV_TESTID,
+  enterClubSettingsViaNav,
+  openMasterdataGroup,
+} from '../_helpers/nav';
 
 /**
  * Clubs CRUD shape. Mocks the backend via `page.route` so the spec runs
@@ -24,12 +30,22 @@ interface MockClub {
   publicRegistrationEnabled: boolean;
   countryId: string;
   clubStateId: string;
+  discoveryFlightOperatorEmail: string;
+  scenicFlightOperatorEmail: string;
+  discoveryFlightTypeId: string | null;
+  homebaseId: string | null;
 }
 
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const DE_COUNTRY_ID = '019e2e15-2c00-743a-8000-00000000043a';
 const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
+const DISCOVERY_FLIGHT_TYPE_ID = 'ft-019e30c3-2c00-7001-8000-0000000000f1';
+const TOW_FLIGHT_TYPE_ID = 'ft-019e30c3-2c00-7001-8000-0000000000f2';
+const HOMEBASE_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a1';
+const OUTLANDING_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a2';
 
+// The mock-auth principal's own club (`app.config.mock.ts` MOCK_CLUB_ID), so the
+// club-admin-only discovery-day panel is in scope when this row is edited.
 const seedClub: MockClub = {
   id: '019e30c3-2c00-7001-8000-000000000001',
   name: 'Seed Club',
@@ -38,7 +54,66 @@ const seedClub: MockClub = {
   publicRegistrationEnabled: false,
   countryId: CH_COUNTRY_ID,
   clubStateId: ACTIVE_CLUB_STATE_ID,
+  discoveryFlightOperatorEmail: 'schnupper@seed.example',
+  scenicFlightOperatorEmail: 'mitflug@seed.example',
+  discoveryFlightTypeId: DISCOVERY_FLIGHT_TYPE_ID,
+  homebaseId: HOMEBASE_LOCATION_ID,
 };
+
+const otherClub: MockClub = {
+  id: '019e30c3-2c00-7001-8000-000000000002',
+  name: 'Other Club',
+  slug: 'other-club',
+  clubKey: 'OTHR',
+  publicRegistrationEnabled: false,
+  countryId: CH_COUNTRY_ID,
+  clubStateId: ACTIVE_CLUB_STATE_ID,
+  discoveryFlightOperatorEmail: '',
+  scenicFlightOperatorEmail: '',
+  discoveryFlightTypeId: null,
+  homebaseId: null,
+};
+
+const mockFlightTypes = [
+  {
+    id: DISCOVERY_FLIGHT_TYPE_ID,
+    flightTypeName: 'Schnupperflug',
+    flightCode: 'SF',
+    isForGliderFlights: true,
+    isForTowFlights: false,
+    isForMotorFlights: false,
+    isFlightCostBalanceSelectable: false,
+  },
+  {
+    id: TOW_FLIGHT_TYPE_ID,
+    flightTypeName: 'Schlepp',
+    flightCode: 'SL',
+    isForGliderFlights: false,
+    isForTowFlights: true,
+    isForMotorFlights: false,
+    isFlightCostBalanceSelectable: false,
+  },
+];
+
+// Tenant-scoped server-side: the path carries no club id, so this is always the
+// CALLER's own club's list — which is why the picker is own-club only.
+const mockLocations = [
+  {
+    id: HOMEBASE_LOCATION_ID,
+    locationName: 'Birrfeld',
+    icaoCode: 'LSZF',
+    locationTypeCode: 'GLIDER_AIRFIELD',
+    isAirfield: true,
+    isFastEntryRecord: false,
+  },
+  {
+    id: OUTLANDING_LOCATION_ID,
+    locationName: 'Aussenlandefeld Nord',
+    locationTypeCode: 'OUTLANDING',
+    isAirfield: false,
+    isFastEntryRecord: false,
+  },
+];
 
 const mockCountries = [
   { id: CH_COUNTRY_ID, iso2Code: 'CH', name: 'Switzerland' },
@@ -68,6 +143,88 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
   await page.route('**/api/v1/location-types**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
+  await page.route('**/api/v1/flight-types', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockFlightTypes),
+    }),
+  );
+  await page.route('**/api/v1/locations', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockLocations),
+    }),
+  );
+}
+
+interface MockDay {
+  id: string;
+  eventDate: string;
+}
+
+/**
+ * The club-admin discovery-day resource. Tenant-scoped server-side — the path
+ * carries no club id — so the mock keeps one list and mirrors the two contract
+ * rules the panel has to react to: a duplicate live date is a 409, a past date
+ * a 400.
+ */
+function stubDiscoveryDays(page: import('@playwright/test').Page, days: MockDay[]) {
+  let nextId = days.length + 1;
+  return page.route('**/api/v1/discovery-flight-days**', async (route) => {
+    const req = route.request();
+    const method = req.method();
+    const path = new URL(req.url()).pathname;
+    const idMatch = path.match(/^\/api\/v1\/discovery-flight-days\/([^/]+)$/);
+
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(days),
+      });
+      return;
+    }
+    if (method === 'POST') {
+      const { eventDate } = req.postDataJSON() as { eventDate: string };
+      if (days.some((d) => d.eventDate === eventDate)) {
+        await route.fulfill({ status: 409, contentType: 'application/json', body: '{}' });
+        return;
+      }
+      if (eventDate < '2026-01-01') {
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            field: 'eventDate',
+            message: 'Event date must not be in the past.',
+          }),
+        });
+        return;
+      }
+      const created: MockDay = { id: `dfd-${nextId++}`, eventDate };
+      days.push(created);
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        headers: { Location: `/api/v1/discovery-flight-days/${created.id}` },
+        body: JSON.stringify(created),
+      });
+      return;
+    }
+    if (method === 'DELETE' && idMatch) {
+      const idx = days.findIndex((d) => d.id === idMatch[1]);
+      if (idx === -1) {
+        await route.fulfill({ status: 404, body: '' });
+        return;
+      }
+      days.splice(idx, 1);
+      await route.fulfill({ status: 204, body: '' });
+      return;
+    }
+    await route.fallback();
+  });
 }
 
 function setupClubsBackend(clubs: MockClub[]) {
@@ -112,7 +269,7 @@ function setupClubsBackend(clubs: MockClub[]) {
       return;
     }
     if (method === 'PUT' && idMatch) {
-      const body = req.postDataJSON() as Omit<MockClub, 'id' | 'clubKey'>;
+      const body = req.postDataJSON() as Partial<Omit<MockClub, 'id' | 'clubKey'>>;
       const idx = clubs.findIndex((c) => c.id === idMatch[1]);
       if (idx === -1) {
         await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
@@ -122,7 +279,16 @@ function setupClubsBackend(clubs: MockClub[]) {
         await route.fulfill({ status: 409, contentType: 'application/json', body: '{}' });
         return;
       }
-      clubs[idx] = { ...clubs[idx], ...body } as MockClub;
+      // Full-replace, like the server: a field the payload omits is stored as
+      // cleared, so a form that forgets one loses the club's value here too.
+      clubs[idx] = {
+        ...clubs[idx],
+        ...body,
+        discoveryFlightOperatorEmail: body.discoveryFlightOperatorEmail ?? '',
+        scenicFlightOperatorEmail: body.scenicFlightOperatorEmail ?? '',
+        discoveryFlightTypeId: body.discoveryFlightTypeId ?? null,
+        homebaseId: body.homebaseId ?? null,
+      } as MockClub;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -144,6 +310,51 @@ function setupClubsBackend(clubs: MockClub[]) {
   };
 }
 
+// ── nav entry (chrome-reachable contract) ──────────────────────────────────
+test('clubs: the Masterdata nav entry opens the caller’s OWN club settings (ENTER via nav)', async ({
+  page,
+}) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, days);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto('/start?lang=de');
+  const clubId = await enterClubSettingsViaNav(page);
+
+  // The entry links to the principal's own club, not to a catalog it may not read.
+  expect(clubId).toBe(seedClub.id);
+  await expect(page).toHaveURL(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-load-error')).toBeHidden();
+  await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+    seedClub.discoveryFlightOperatorEmail,
+  );
+  await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
+    seedClub.scenicFlightOperatorEmail,
+  );
+  await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+});
+
+// The mock principal holds BOTH roles, so the sysadmin catalog entry has to
+// survive the own-club entry landing next to it.
+test('clubs: the sysadmin catalog entry still reaches /clubs alongside the own-club entry', async ({
+  page,
+}) => {
+  await stubReferenceData(page);
+  await page.route('**/api/v1/clubs**', setupClubsBackend([{ ...seedClub }]));
+
+  await page.goto('/start?lang=de');
+  await page.getByTestId('af-nav-section-/clubs').click();
+
+  await expect(page).toHaveURL('/clubs');
+  await expect(page.getByTestId('clubs-table')).toBeVisible();
+
+  await openMasterdataGroup(page);
+  await expect(page.getByTestId(CLUB_SETTINGS_NAV_TESTID)).toBeVisible();
+});
+
 test('clubs: lists the seeded row at /clubs', async ({ page }) => {
   const clubs: MockClub[] = [{ ...seedClub }];
   await stubReferenceData(page);
@@ -160,6 +371,7 @@ test('clubs: lists the seeded row at /clubs', async ({ page }) => {
 test('clubs: editing the seeded row updates the list', async ({ page }) => {
   const clubs: MockClub[] = [{ ...seedClub }];
   await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
   await page.goto('/clubs');
@@ -344,4 +556,250 @@ test('clubs: client-side async validator flags a duplicate slug before submit', 
   await expect(
     page.locator('af-form-field', { has: page.locator('#clubSlug') }).getByRole('alert'),
   ).toBeVisible();
+});
+
+// J-17 — the club PUT is full-replace, so the edit form has to resubmit every
+// field it does not display as well as the ones it does. A club's organiser
+// recipients and discovery flight type are only reachable through this screen;
+// a payload that drops them wipes them on the next unrelated save.
+test('clubs: saving an unrelated change preserves the registration fields', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+
+  await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+    'schnupper@seed.example',
+  );
+  await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
+    'mitflug@seed.example',
+  );
+  await expect(page.getByTestId('clubs-discovery-flight-type-select')).toContainText(
+    'Schnupperflug',
+  );
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
+
+  const putRequest = page.waitForRequest(
+    (r) => r.method() === 'PUT' && new URL(r.url()).pathname === `/api/v1/clubs/${seedClub.id}`,
+  );
+  await page.locator('#clubName').fill('Renamed Only');
+  await page.getByTestId('clubs-save-button').click();
+
+  const body = (await putRequest).postDataJSON() as Record<string, unknown>;
+  expect(body).toMatchObject({
+    name: 'Renamed Only',
+    discoveryFlightOperatorEmail: 'schnupper@seed.example',
+    scenicFlightOperatorEmail: 'mitflug@seed.example',
+    discoveryFlightTypeId: DISCOVERY_FLIGHT_TYPE_ID,
+    homebaseId: HOMEBASE_LOCATION_ID,
+  });
+
+  await expect(page).toHaveURL('/clubs');
+  // The mock replaces rather than merges, so a dropped field would read as ''.
+  expect(clubs[0]?.discoveryFlightOperatorEmail).toBe('schnupper@seed.example');
+  expect(clubs[0]?.scenicFlightOperatorEmail).toBe('mitflug@seed.example');
+  expect(clubs[0]?.discoveryFlightTypeId).toBe(DISCOVERY_FLIGHT_TYPE_ID);
+  expect(clubs[0]?.homebaseId).toBe(HOMEBASE_LOCATION_ID);
+});
+
+// The homebase is the location a discovery-flight reservation is booked at, and
+// this screen is the only place it can be set.
+test('clubs: the homebase picker saves a club location and clears it again', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub, homebaseId: null }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('No homebase');
+
+  await selectAfOption(page, 'clubs-homebase-select', HOMEBASE_LOCATION_ID);
+  await page.getByTestId('clubs-save-button').click();
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.homebaseId).toBe(HOMEBASE_LOCATION_ID);
+
+  // Clearing is a legitimate state, not a validation failure: the club simply
+  // has no homebase and its discovery reservations are skipped.
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
+  await page.getByTestId('clubs-homebase-select').locator('nz-select').hover();
+  await page.getByTestId('clubs-homebase-select').locator('.ant-select-clear').click();
+  await page.getByTestId('clubs-save-button').click();
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.homebaseId).toBeNull();
+});
+
+test('clubs: a recipient list of several addresses round-trips', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  const field = page.getByTestId('clubs-discovery-operator-email').locator('input');
+  await field.fill('a@seed.example; b@seed.example c@seed.example');
+
+  await expect(page.getByTestId('clubs-save-button').locator('button')).toBeEnabled();
+  await page.getByTestId('clubs-save-button').click();
+
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.discoveryFlightOperatorEmail).toBe(
+    'a@seed.example; b@seed.example c@seed.example',
+  );
+});
+
+// T-14 ports legacy operator-email values verbatim, so a migrated club can hold
+// a value that never parsed as an address. The edit form is where it surfaces.
+test('clubs: a malformed migrated operator email renders and is fixable', async ({ page }) => {
+  const clubs: MockClub[] = [
+    { ...seedClub, discoveryFlightOperatorEmail: 'bitte Adresse eintragen' },
+  ];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, []);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+
+  const field = page.getByTestId('clubs-discovery-operator-email').locator('input');
+  await expect(field).toHaveValue('bitte Adresse eintragen');
+
+  // It is not silently dropped and it does not break the form — it is flagged,
+  // and the save that would 400 server-side is blocked until it is corrected.
+  await expect(
+    page
+      .locator('af-form-field', { has: page.getByTestId('clubs-discovery-operator-email') })
+      .getByRole('alert'),
+  ).toBeVisible();
+  await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
+
+  await field.fill('schnupper@seed.example');
+  await expect(page.getByTestId('clubs-save-button').locator('button')).toBeEnabled();
+  await page.getByTestId('clubs-save-button').click();
+
+  await expect(page).toHaveURL('/clubs');
+  expect(clubs[0]?.discoveryFlightOperatorEmail).toBe('schnupper@seed.example');
+});
+
+test('clubs: discovery-flight days can be published and withdrawn', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, days);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+
+  const panel = page.getByTestId('clubs-discovery-days-panel');
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+
+  await page.getByTestId('clubs-discovery-day-input').locator('input').fill('2026-08-30');
+  await page.getByTestId('clubs-discovery-day-add').click();
+
+  await expect(page.getByTestId('clubs-discovery-day-2026-08-30')).toBeVisible();
+  expect(days.map((d) => d.eventDate)).toContain('2026-08-30');
+  // Ascending, so the newly added earlier day sorts above the seeded one.
+  await expect(panel.locator('li')).toHaveText([/2026-08-30/, /2026-09-12/]);
+
+  await page.getByTestId('clubs-discovery-day-withdraw-2026-09-12').click();
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeHidden();
+  expect(days.map((d) => d.eventDate)).toEqual(['2026-08-30']);
+});
+
+test('clubs: publishing a day the club already offers surfaces the conflict', async ({
+  page,
+}, testInfo) => {
+  allowConsoleErrors(testInfo, /\b409\b/);
+  const clubs: MockClub[] = [{ ...seedClub }];
+  const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, days);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+
+  await page.getByTestId('clubs-discovery-day-input').locator('input').fill('2026-09-12');
+  await page.getByTestId('clubs-discovery-day-add').click();
+
+  await expect(page.getByTestId('clubs-discovery-day-error')).toContainText('already offered');
+  await expect(page.getByTestId('clubs-discovery-days-panel').locator('li')).toHaveCount(1);
+});
+
+// `listClubs` is the cross-tenant catalog and is closed to a CLUB_ADMINISTRATOR,
+// so the edit screen has to populate from the single-club read alone — otherwise
+// the role the discovery-day panel is built for gets an empty form.
+test('clubs: the edit form populates from the single-club read alone', async ({
+  page,
+}, testInfo) => {
+  // The catalog is deliberately refused here; the browser logs that 403.
+  allowConsoleErrors(testInfo, /\b403\b/);
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, [{ id: 'dfd-1', eventDate: '2026-09-12' }]);
+  await page.route('**/api/v1/clubs**', async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    if (req.method() === 'GET' && url.pathname === '/api/v1/clubs') {
+      await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await setupClubsBackend([{ ...seedClub }])(route);
+  });
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+
+  await expect(page.locator('#clubName')).toHaveValue('Seed Club');
+  await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
+    'schnupper@seed.example',
+  );
+  await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
+    'mitflug@seed.example',
+  );
+  await expect(page.getByTestId('clubs-discovery-flight-type-select')).toContainText(
+    'Schnupperflug',
+  );
+  await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
+});
+
+test('clubs: a club that cannot be read surfaces an error instead of a blank form', async ({
+  page,
+}, testInfo) => {
+  allowConsoleErrors(testInfo, /\b403\b/);
+  await stubReferenceData(page);
+  await page.route('**/api/v1/clubs**', (route) =>
+    route.fulfill({ status: 403, contentType: 'application/json', body: '{}' }),
+  );
+
+  await page.goto(`/clubs/${otherClub.id}/edit`);
+
+  await expect(page.getByTestId('clubs-load-error')).toContainText('not allowed to view');
+  await expect(page.locator('#clubName')).toHaveValue('');
+});
+
+// The day resource is scoped to the caller's own tenant and carries no club id,
+// so the panel must not appear over a club that is not the principal's — it
+// would manage the wrong club's days under that club's heading.
+test('clubs: the discovery-day panel is absent when editing another club', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub }, { ...otherClub }];
+  await stubReferenceData(page);
+  await stubDiscoveryDays(page, [{ id: 'dfd-1', eventDate: '2026-09-12' }]);
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
+
+  await page.goto(`/clubs/${otherClub.id}/edit`);
+  await expect(page.locator('#clubName')).toHaveValue('Other Club');
+  await expect(page.getByTestId('clubs-discovery-days-panel')).toHaveCount(0);
+  // The operator-email fields stay editable — they ride the club PUT, which a
+  // sysadmin may issue for any club.
+  await expect(page.getByTestId('clubs-discovery-operator-email')).toBeVisible();
+  // The location catalog is the CALLER's tenant's, so offering it here would let
+  // a sysadmin point another club's homebase at its own club's airfield — which
+  // the server refuses anyway.
+  await expect(page.getByTestId('clubs-homebase-select').locator('nz-select')).toHaveClass(
+    /ant-select-disabled/,
+  );
 });
