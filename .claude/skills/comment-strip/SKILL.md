@@ -176,6 +176,19 @@ strip.mjs --manifest <f> <paths…>      also write a scored JSONL manifest
 strip.mjs --check <paths…>             detector: non-zero on prose or RENAME leftovers
 ```
 
+A shell heredoc body is classified by the command it feeds. Fed to an
+interpreter (`python3`, `node`, `psql`, `sh`/`bash`, `jq`, and the same through a
+wrapper such as `ssh`/`docker`/`timeout`) it is a *program*: lexed in that
+language, its comments stripped, its own string literals joining the
+unchanged-token-stream guarantee. Printed for a human (`cat`/`echo`/`printf`
+with no redirection away from the terminal) it is *data* — an `INFO` banner or
+generated config, where a leading `#` is output the operator reads — and stays
+byte-identical. Anything else, including a printer whose output is redirected to
+a file, is *undetermined*: `--check` reports its comments, nothing strips them.
+With an unquoted delimiter the shell expands the body, so a comment carrying
+`$`, a backtick or a backslash is reported rather than stripped. Python
+docstrings are string literals, not comments: reported, never auto-removed.
+
 One manifest entry is one removed *block* of rationale: a block comment, or a
 contiguous run of own-line `//` / `#` / `--` lines, spanning `line`–`endLine`.
 Each entry is scored on its combined text so judges read the dense ones first:

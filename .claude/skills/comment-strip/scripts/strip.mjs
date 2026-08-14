@@ -58,6 +58,41 @@ const TOOL_DIRECTIVE_PATTERNS = [
 
 const RENAME_MARKER_PATTERN = /^\s*RENAME:/;
 
+const HEREDOC_BODY_LANGUAGE_BY_INTERPRETER = new Map([
+  ['python', 'python'],
+  ['python2', 'python'],
+  ['python3', 'python'],
+  ['node', 'javascript'],
+  ['nodejs', 'javascript'],
+  ['psql', 'sql'],
+  ['sh', 'shell'],
+  ['bash', 'shell'],
+  ['zsh', 'shell'],
+  ['ksh', 'shell'],
+  ['dash', 'shell'],
+  ['jq', 'hash'],
+  ['awk', 'hash'],
+  ['gawk', 'hash'],
+  ['ruby', 'hash'],
+  ['perl', 'hash'],
+]);
+
+const COMMANDS_THAT_PRINT_THE_HEREDOC_FOR_A_HUMAN_TO_READ = new Set([
+  'cat', 'echo', 'printf', 'tee', 'column', 'less', 'more', 'head', 'tail',
+]);
+
+const COMMAND_PREFIXES_THAT_DELEGATE_TO_THE_NEXT_WORD = new Set([
+  'env', 'exec', 'command', 'time', 'sudo', 'nohup', 'nice', 'stdbuf', 'then', 'do', 'else',
+]);
+
+const COMMANDS_THAT_RUN_ANOTHER_COMMAND_SOMEWHERE_IN_THEIR_ARGUMENTS = new Set([
+  'ssh', 'docker', 'podman', 'kubectl', 'timeout', 'flock', 'su', 'chroot', 'xargs',
+]);
+
+const OUTPUT_REDIRECTION_TO_A_FILE = />(?!&)/;
+const CLOSING_GROUP_REDIRECTED_TO_A_FILE = /^\s*[)}]\s*\d*>(?!&)/;
+const SHELL_EXPANSION_INSIDE_A_HEREDOC_BODY = /[$`\\]/;
+
 const HIGH_INFORMATION_VOCABULARY =
   /\b(because|why|not|never|must|always|workaround|gotcha|differs?|defaults? to|beware|careful|caveat|otherwise|deliberate(ly)?|intentional(ly)?|do not|don't|hack|subtle|surprising|assumes?)\b/i;
 
@@ -293,34 +328,236 @@ function scanSql(source) {
   return { comments, literals };
 }
 
+function consumeTripleQuotedRun(source, startIndex, quoteCharacter) {
+  const fence = quoteCharacter.repeat(3);
+  let index = startIndex + 3;
+  while (index < source.length) {
+    if (source[index] === '\\') {
+      index += 2;
+      continue;
+    }
+    if (source.startsWith(fence, index)) return index + 3;
+    index += 1;
+  }
+  return source.length;
+}
+
+function standsWhereADocstringWould(source, index) {
+  const lineStart = source.lastIndexOf('\n', index - 1) + 1;
+  if (source.slice(lineStart, index).trim() !== '') return false;
+  const precedingLines = source
+    .slice(0, lineStart)
+    .split('\n')
+    .filter((line) => line.trim() !== '');
+  if (precedingLines.length === 0) return true;
+  return precedingLines[precedingLines.length - 1].trimEnd().endsWith(':');
+}
+
+function scanPython(source) {
+  const comments = [];
+  const literals = [];
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index];
+    if (character === '#') {
+      let end = source.indexOf('\n', index);
+      if (end === -1) end = source.length;
+      comments.push({
+        start: index,
+        end,
+        body: source.slice(index + 1, end),
+        directive: index === 0 && source.startsWith('#!'),
+      });
+      index = end;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      const isTripleQuoted = source.startsWith(character.repeat(3), index);
+      const end = isTripleQuoted
+        ? consumeTripleQuotedRun(source, index, character)
+        : consumeQuotedRun(source, index, character, true);
+      literals.push(source.slice(index, end));
+      if (isTripleQuoted && standsWhereADocstringWould(source, index)) {
+        comments.push({
+          start: index,
+          end,
+          body: source.slice(index + 3, Math.max(index + 3, end - 3)),
+          reportOnly: true,
+          kind: 'docstring (a string literal — removing it is a judgement call, not a lexical one)',
+        });
+      }
+      index = end;
+      continue;
+    }
+    index += 1;
+  }
+  return { comments, literals };
+}
+
+function scanHashCommentProgram(source, { onlyWhenAloneOnItsLine = false } = {}) {
+  const comments = [];
+  const literals = [];
+  let index = 0;
+  let previousCharacter = '';
+  while (index < source.length) {
+    const character = source[index];
+    if (character === "'" || character === '"') {
+      const end = consumeQuotedRun(source, index, character, false);
+      literals.push(source.slice(index, end));
+      index = end;
+      previousCharacter = character;
+      continue;
+    }
+    if (character === '#' && (index === 0 || /[\s;&|(]/.test(previousCharacter))) {
+      const lineStart = source.lastIndexOf('\n', index - 1) + 1;
+      const aloneOnItsLine = source.slice(lineStart, index).trim() === '';
+      if (onlyWhenAloneOnItsLine && !aloneOnItsLine) {
+        previousCharacter = character;
+        index += 1;
+        continue;
+      }
+      let end = source.indexOf('\n', index);
+      if (end === -1) end = source.length;
+      comments.push({
+        start: index,
+        end,
+        body: source.slice(index + 1, end),
+        directive: index === 0 && source.startsWith('#!'),
+      });
+      index = end;
+      continue;
+    }
+    previousCharacter = character;
+    index += 1;
+  }
+  return { comments, literals };
+}
+
+function scanHeredocBody(body, language) {
+  if (language === 'python') return scanPython(body);
+  if (language === 'javascript') return scanCLike(body, '.js');
+  if (language === 'sql') return scanSql(body);
+  if (language === 'shell') return scanShell(body);
+  return scanHashCommentProgram(body);
+}
+
+function firstCommandWordBefore(commandText) {
+  const words = (commandText.match(/\S+/g) ?? [])
+    .map((word) => word.replace(/^[({]+/, ''))
+    .filter((word) => word !== '' && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word))
+    .map((word) => word.split('/').pop());
+  let wrapperAwaitingItsCommand = '';
+  for (const word of words) {
+    if (COMMAND_PREFIXES_THAT_DELEGATE_TO_THE_NEXT_WORD.has(word)) continue;
+    if (wrapperAwaitingItsCommand === '') {
+      if (!COMMANDS_THAT_RUN_ANOTHER_COMMAND_SOMEWHERE_IN_THEIR_ARGUMENTS.has(word)) return word;
+      wrapperAwaitingItsCommand = word;
+      continue;
+    }
+    if (
+      HEREDOC_BODY_LANGUAGE_BY_INTERPRETER.has(word) ||
+      COMMANDS_THAT_PRINT_THE_HEREDOC_FOR_A_HUMAN_TO_READ.has(word)
+    ) {
+      return word;
+    }
+  }
+  return wrapperAwaitingItsCommand;
+}
+
+function heredocOutputLeavesTheTerminal(source, commandText, terminatorEnd) {
+  if (OUTPUT_REDIRECTION_TO_A_FILE.test(commandText)) return true;
+  const nextMeaningfulLine =
+    source
+      .slice(terminatorEnd)
+      .split('\n')
+      .find((line) => line.trim() !== '') ?? '';
+  return CLOSING_GROUP_REDIRECTED_TO_A_FILE.test(nextMeaningfulLine);
+}
+
+function absorbHeredocBody(source, heredoc, bodyStart, bodyEnd, terminatorEnd, comments, literals) {
+  const body = source.slice(bodyStart, bodyEnd);
+  const commandWord = firstCommandWordBefore(heredoc.commandText);
+  const language = HEREDOC_BODY_LANGUAGE_BY_INTERPRETER.get(commandWord);
+  if (language !== undefined) {
+    const scanned = scanHeredocBody(body, language);
+    for (const literal of scanned.literals) literals.push(literal);
+    for (const comment of scanned.comments) {
+      const shifted = { ...comment, start: comment.start + bodyStart, end: comment.end + bodyStart };
+      if (!heredoc.delimiterIsQuoted && SHELL_EXPANSION_INSIDE_A_HEREDOC_BODY.test(comment.body)) {
+        shifted.reportOnly = true;
+        shifted.kind = `${commandWord} heredoc comment carrying a shell expansion (unquoted delimiter)`;
+      }
+      comments.push(shifted);
+    }
+    literals.push(source.slice(bodyEnd, terminatorEnd));
+    return;
+  }
+  literals.push(source.slice(bodyStart, terminatorEnd));
+  const readByAHumanOnTheTerminal =
+    COMMANDS_THAT_PRINT_THE_HEREDOC_FOR_A_HUMAN_TO_READ.has(commandWord) &&
+    !heredocOutputLeavesTheTerminal(source, heredoc.commandText, terminatorEnd);
+  if (readByAHumanOnTheTerminal) return;
+  const scanned = scanHashCommentProgram(body, { onlyWhenAloneOnItsLine: true });
+  for (const comment of scanned.comments) {
+    comments.push({
+      ...comment,
+      start: comment.start + bodyStart,
+      end: comment.end + bodyStart,
+      reportOnly: true,
+      kind: `heredoc body of an undetermined interpreter (${commandWord || 'unknown'})`,
+    });
+  }
+}
+
 function scanShell(source) {
   const comments = [];
   const literals = [];
   let index = 0;
   let previousCharacter = '';
-  const pendingHeredocDelimiters = [];
+  let commandStartIndex = 0;
+  const pendingHeredocs = [];
   while (index < source.length) {
     const character = source[index];
-    if (character === '\n' && pendingHeredocDelimiters.length > 0) {
+    if (character === '\n' && pendingHeredocs.length > 0) {
       let cursor = index + 1;
-      while (pendingHeredocDelimiters.length > 0 && cursor < source.length) {
-        const { delimiter, stripsIndentation } = pendingHeredocDelimiters[0];
-        let lineEnd = source.indexOf('\n', cursor);
-        if (lineEnd === -1) lineEnd = source.length;
-        const line = source.slice(cursor, lineEnd);
-        const compared = stripsIndentation ? line.replace(/^\t+/, '') : line;
-        cursor = lineEnd + 1;
-        if (compared.trimEnd() === delimiter) pendingHeredocDelimiters.shift();
+      while (pendingHeredocs.length > 0) {
+        const heredoc = pendingHeredocs.shift();
+        heredoc.commandText = source.slice(heredoc.commandStartIndex, index);
+        const bodyStart = cursor;
+        let bodyEnd = source.length;
+        let terminatorEnd = source.length;
+        while (cursor < source.length) {
+          let lineEnd = source.indexOf('\n', cursor);
+          if (lineEnd === -1) lineEnd = source.length;
+          const line = source.slice(cursor, lineEnd);
+          const compared = heredoc.stripsIndentation ? line.replace(/^\t+/, '') : line;
+          const lineFollowedByItsNewline = Math.min(lineEnd + 1, source.length);
+          if (compared.trimEnd() === heredoc.delimiter) {
+            bodyEnd = cursor;
+            terminatorEnd = lineFollowedByItsNewline;
+            cursor = lineFollowedByItsNewline;
+            break;
+          }
+          cursor = lineFollowedByItsNewline;
+          bodyEnd = cursor;
+          terminatorEnd = cursor;
+        }
+        absorbHeredocBody(source, heredoc, bodyStart, bodyEnd, terminatorEnd, comments, literals);
       }
-      literals.push(source.slice(index, Math.min(cursor, source.length)));
-      index = Math.min(cursor, source.length);
+      index = cursor;
       previousCharacter = '\n';
+      commandStartIndex = index;
       continue;
     }
     if (character === '<' && source[index + 1] === '<' && source[index + 2] !== '<') {
       const heredocMatch = /^<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/.exec(source.slice(index));
       if (heredocMatch) {
-        pendingHeredocDelimiters.push({ delimiter: heredocMatch[3], stripsIndentation: heredocMatch[1] === '-' });
+        pendingHeredocs.push({
+          delimiter: heredocMatch[3],
+          stripsIndentation: heredocMatch[1] === '-',
+          delimiterIsQuoted: heredocMatch[2] !== '',
+          commandStartIndex,
+        });
         index += heredocMatch[0].length;
         previousCharacter = 'x';
         continue;
@@ -344,10 +581,16 @@ function scanShell(source) {
     if (character === '#' && (index === 0 || /[\s;&|(]/.test(previousCharacter))) {
       let end = source.indexOf('\n', index);
       if (end === -1) end = source.length;
-      comments.push({ start: index, end, body: source.slice(index + 1, end) });
+      comments.push({
+        start: index,
+        end,
+        body: source.slice(index + 1, end),
+        directive: index === 0 && source.startsWith('#!'),
+      });
       index = end;
       continue;
     }
+    if (/[\n;&|()]/.test(character)) commandStartIndex = index + 1;
     previousCharacter = character;
     index += 1;
   }
@@ -425,7 +668,7 @@ export function scanComments(source, extension) {
 }
 
 export function classifyComment(source, comment) {
-  const isShebang = comment.start === 0 && source.startsWith('#!');
+  const isShebang = comment.directive === true || (comment.start === 0 && source.startsWith('#!'));
   if (isShebang) return 'directive';
   if (RENAME_MARKER_PATTERN.test(comment.body)) return 'rename-marker';
   if (TOOL_DIRECTIVE_PATTERNS.some((pattern) => pattern.test(comment.body))) return 'directive';
@@ -521,7 +764,9 @@ function expandRemovalToWholeLines(source, comment) {
 
 export function stripSource(source, extension) {
   const { comments, literals } = scanComments(source, extension);
-  const removable = comments.filter((comment) => classifyComment(source, comment) === 'prose');
+  const removable = comments.filter(
+    (comment) => comment.reportOnly !== true && classifyComment(source, comment) === 'prose',
+  );
   const removed = groupContiguousLineComments(source, removable).map((group) => {
     const lastComment = group.comments[group.comments.length - 1];
     const text = group.comments
@@ -551,7 +796,17 @@ export function stripSource(source, extension) {
   const literalsUnchanged =
     literals.length === verification.literals.length &&
     literals.every((literal, position) => literal === verification.literals[position]);
-  return { output, removed, removedCommentCount: removable.length, literalsUnchanged, remaining: verification.comments };
+  const reportedOnly = verification.comments.filter(
+    (comment) => comment.reportOnly === true && classifyComment(output, comment) === 'prose',
+  );
+  return {
+    output,
+    removed,
+    removedCommentCount: removable.length,
+    literalsUnchanged,
+    remaining: verification.comments,
+    reportedOnly,
+  };
 }
 
 function isExcludedDirectory(path) {
@@ -617,7 +872,12 @@ function runCheck(files) {
       violations.push({
         file: relative(process.cwd(), file),
         line: lineNumberAt(source, comment.start),
-        kind: classification === 'rename-marker' ? 'abandoned RENAME marker' : 'comment',
+        kind:
+          classification === 'rename-marker'
+            ? 'abandoned RENAME marker'
+            : comment.reportOnly === true
+              ? `comment in a ${comment.kind}`
+              : 'comment',
         text: comment.body.trim().slice(0, 100),
       });
     }
@@ -639,12 +899,18 @@ function runStrip(files, options) {
   let filesChanged = 0;
   let commentsRemoved = 0;
   const failures = [];
+  const reportedNotStripped = [];
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
     const result = stripSource(source, extname(file));
     if (!result.literalsUnchanged) {
       failures.push(relative(process.cwd(), file));
       continue;
+    }
+    for (const comment of result.reportedOnly) {
+      reportedNotStripped.push(
+        `${relative(process.cwd(), file)}:${lineNumberAt(result.output, comment.start)}  ${comment.kind}`,
+      );
     }
     if (result.removed.length === 0) continue;
     writeFileSync(file, result.output);
@@ -668,6 +934,7 @@ function runStrip(files, options) {
     manifestEntries: manifestEntries.length,
     aboveThreshold,
     failures,
+    reportedNotStripped,
   };
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
   if (failures.length > 0) {

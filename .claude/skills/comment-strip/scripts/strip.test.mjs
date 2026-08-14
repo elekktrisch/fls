@@ -159,6 +159,155 @@ test('shell: heredoc bodies are opaque', () => {
   assert.equal(result.output, ['cat <<EOF', '# not a comment', 'body', 'EOF', ''].join('\n'));
 });
 
+test('shell: a python heredoc fed to python3 has its comments stripped', () => {
+  const source = [
+    "python3 - \"$REALM\" <<'PYEOF'",
+    'import json',
+    '',
+    '# Dev-only passwords baked alongside the realm.',
+    "# The realm passwordPolicy demands specialChars(1).",
+    "DEV_PASSWORDS = {'sysadmin': 'sysadmin-dev-2026!'}",
+    "print(json.dumps(DEV_PASSWORDS))  # emit for the caller",
+    'PYEOF',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(
+    result.output,
+    [
+      "python3 - \"$REALM\" <<'PYEOF'",
+      'import json',
+      '',
+      "DEV_PASSWORDS = {'sysadmin': 'sysadmin-dev-2026!'}",
+      'print(json.dumps(DEV_PASSWORDS))',
+      'PYEOF',
+    ].join('\n'),
+  );
+  assert.equal(result.removedCommentCount, 3);
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['Dev-only passwords baked alongside the realm.\nThe realm passwordPolicy demands specialChars(1).', 'emit for the caller'],
+  );
+});
+
+test('shell: a hash inside a python heredoc string literal is not a comment', () => {
+  const source = ["python3 <<'PYEOF'", "colour = '#ff0000'  # the brand red", 'print(colour)', 'PYEOF'].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(result.output, ["python3 <<'PYEOF'", "colour = '#ff0000'", 'print(colour)', 'PYEOF'].join('\n'));
+});
+
+test('shell: a python docstring is reported but never stripped', () => {
+  const source = [
+    "python3 <<'PYEOF'",
+    'def sort_string_arrays(obj):',
+    '    """Keycloak emits string arrays in non-deterministic order."""',
+    '    return obj',
+    'PYEOF',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(result.output, source);
+  assert.equal(result.removed.length, 0);
+  assert.equal(result.reportedOnly.length, 1);
+  assert.match(result.reportedOnly[0].kind, /docstring/);
+});
+
+test('shell: an INFO heredoc echoed to the terminal is left byte-identical', () => {
+  const source = [
+    'cat <<INFO',
+    '',
+    '  Keycloak admin  http://localhost:8090  (admin / admin)',
+    '',
+    'Tear down (in order):',
+    '  docker compose -p alpenflight-dev down [-v]',
+    '  docker network rm alpenflight_shared   # only when retiring the dev stack',
+    'INFO',
+    '# this one is a real comment',
+    'exit 0',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(
+    result.output,
+    [
+      'cat <<INFO',
+      '',
+      '  Keycloak admin  http://localhost:8090  (admin / admin)',
+      '',
+      'Tear down (in order):',
+      '  docker compose -p alpenflight-dev down [-v]',
+      '  docker network rm alpenflight_shared   # only when retiring the dev stack',
+      'INFO',
+      'exit 0',
+    ].join('\n'),
+  );
+  assert.equal(result.reportedOnly.length, 0);
+});
+
+test("shell: a heredoc whose interpreter cannot be determined is reported, not stripped", () => {
+  const source = [
+    '{',
+    "    cat <<'STUB'",
+    'if [[ "${1:-}" == "network" ]]; then',
+    '    # the stub must answer bridge or the caller aborts on driver drift',
+    '    echo bridge',
+    'fi',
+    'STUB',
+    '} >"${dir}/docker"',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(result.output, source);
+  assert.equal(result.removed.length, 0);
+  assert.equal(result.reportedOnly.length, 1);
+  assert.match(result.reportedOnly[0].kind, /undetermined interpreter \(cat\)/);
+  assert.match(result.reportedOnly[0].body, /answer bridge/);
+});
+
+test('shell: an unquoted-delimiter heredoc comment carrying an expansion is reported, not stripped', () => {
+  const source = [
+    'python3 <<PYEOF',
+    '# plain prose about the realm',
+    '# resolved from ${REALM_NAME} at expansion time',
+    'print(1)',
+    'PYEOF',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(
+    result.output,
+    ['python3 <<PYEOF', '# resolved from ${REALM_NAME} at expansion time', 'print(1)', 'PYEOF'].join('\n'),
+  );
+  assert.deepEqual(
+    result.removed.map((entry) => entry.text),
+    ['plain prose about the realm'],
+  );
+  assert.equal(result.reportedOnly.length, 1);
+  assert.match(result.reportedOnly[0].kind, /unquoted delimiter/);
+});
+
+test('shell: a generated script fed to bash keeps its shebang and loses its prose', () => {
+  const source = ["ssh host bash <<'REMOTE'", '#!/usr/bin/env bash', '# restart the service', 'systemctl restart app', 'REMOTE'].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(
+    result.output,
+    ["ssh host bash <<'REMOTE'", '#!/usr/bin/env bash', 'systemctl restart app', 'REMOTE'].join('\n'),
+  );
+});
+
+test('shell: a psql heredoc loses its SQL comments and keeps its string literals', () => {
+  const source = [
+    "psql -v ON_ERROR_STOP=1 <<'SQL'",
+    '-- covers tombstones',
+    "SELECT 'a -- b';",
+    'SQL',
+  ].join('\n');
+  const result = strip(source, '.sh');
+  assert.equal(result.output, ["psql -v ON_ERROR_STOP=1 <<'SQL'", "SELECT 'a -- b';", 'SQL'].join('\n'));
+});
+
+test('shell: heredoc comments are visible to a scan of the whole file', () => {
+  const source = ["python3 <<'PYEOF'", '# invisible before T-05b', 'print(1)', 'PYEOF'].join('\n');
+  const { comments } = scanComments(source, '.sh');
+  assert.equal(comments.length, 1);
+  assert.equal(classifyComment(source, comments[0]), 'prose');
+});
+
 test('yaml: comments go, quoted hashes and block scalars stay', () => {
   const source = [
     '# Flyway settings',
