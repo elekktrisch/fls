@@ -241,8 +241,11 @@ to `done` only once the LAST of them merges; until then it stays `todo`.
 remove **ALL** of this journey's forward refs, the roadmap-table row AND its `## Per-journey Playwright
 contract` one-liner (`grep "J-NNN" _ORDER.md` → only a historical coverage-map ref may remain; J-13 stranded
 its contract line by removing only the row); append `- J-NNN — <title> — #PR` (newest-first) to `_SHIPPED.md`;
-`git mv` the journey file to `stories/implemented/`. Contracts still resolve from there, and the move is the
-LAST commit so the in-flight derive (which reads only the ACTIVE journey) is unaffected.
+`git mv` the journey file to `stories/implemented/`. `ci.yml`'s proof-spec + mock-filter derives search BOTH
+`stories/` and `stories/implemented/`, so the move no longer blinds them — it once did, and every push after
+close-out then proved the J-0 baseline and published an "unknown" gallery under a green `required` (J-17).
+An integration branch whose journey file resolves in NEITHER dir is now a hard CI fail, not a baseline
+fall-back. [[project_false_green_derive_fallback]]
 **Docs-only head guard** (J-27, J-12b): a docs-only finalization head makes `detect changes` skip the heavy
 lane, and `required` greens over the skips — so `gh pr checks --required` = `pass` is **NOT proof**, and a side
 `workflow_dispatch` run greens separately without changing the PR's checks (operator 2026-06-25 keeps the

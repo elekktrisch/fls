@@ -93,6 +93,11 @@ jobs:
           python3 .github/scripts/gha-falsy-ternary-lint.py --selftest
           python3 .github/scripts/gha-falsy-ternary-lint.py
 
+      # A missed journey-file lookup does not red the two derive steps below —
+      # it silently swaps in the J-0 baseline and reports green. Pin the rule.
+      - name: Journey-file lookup guard
+        run: bash .github/scripts/journey-derive-selfcheck.sh
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #
@@ -197,9 +202,12 @@ jobs:
       # `parity_test:` frontmatter off the integration branch name.
       #   1. branch = github.head_ref (PR) || github.ref_name (push).
       #   2. integration/J-NNN  →  journey id  J-NNN  (anything else → baseline).
-      #   3. docs/modernization/stories/J-NNN-*.md  →  the `parity_test:` value;
-      #      take its FIRST path token, normalize to a path relative to
-      #      alpenflight/web/ (so it's runnable from that working-directory).
+      #   3. docs/modernization/stories/{,implemented/}J-NNN-*.md  →  the
+      #      `parity_test:` value; take its FIRST path token, normalize to a path
+      #      relative to alpenflight/web/ (so it's runnable from that
+      #      working-directory). BOTH dirs: close-out moves the file mid-branch.
+      #      An integration branch whose journey file is in NEITHER is a hard
+      #      FAIL, not a baseline fall-back — see the step.
       #   4. Only specs UNDER tests/real-idp/ are runnable by the CLEAN-SEED
       #      `alpenflight-proof` job (they self-seed in beforeAll). J-5's
       #      `parity_test:` IS such a spec (real-idp
@@ -238,10 +246,23 @@ jobs:
           # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
           # also matches `${jid}-*.md` and would otherwise win `head -1`
           # alphabetically, derailing the derivation.
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          #
+          # BOTH locations: the journey file lives in stories/ while in flight and
+          # `git mv`s to stories/implemented/ at /do-ship close-out — which is a
+          # commit ON THE BRANCH, so searching only stories/ makes every push from
+          # close-out onward derive the baseline (J-17: CI proved the J-0 Locations
+          # spec and published an "unknown" gallery page while `required` read green).
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
+                  docs/modernization/stories/${jid}-*.md \
+                  docs/modernization/stories/implemented/${jid}-*.md \
+                  2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
-            echo "no journey file for ${jid} → baseline (fail-safe)"
-            emit "$BASELINE" "$jid" "true"; exit 0
+            # NOT fail-safe-to-baseline. The branch names a journey, so a baseline
+            # run here would prove a DIFFERENT journey, skip the deployed-journey
+            # gallery guard, and report `required` green — the false-green class
+            # this derivation exists to prevent. Underivable == red.
+            echo "::error title=No journey file for ${jid}::Branch '${branch}' is an integration branch, but no file declares 'id: ${jid}' in docs/modernization/stories/ or docs/modernization/stories/implemented/. Carve the journey file (/do-plan) or fix its frontmatter id — CI will not substitute the J-0 baseline and call that green."
+            exit 1
           fi
           # First path token of the `parity_test:` frontmatter value: stop at the
           # first whitespace, '(', or ';' (the value can carry prose / a second
@@ -345,8 +366,16 @@ jobs:
           # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
           # also matches `${jid}-*.md` and would otherwise win `head -1`
           # alphabetically, silently defeating this step's scoping.
-          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Searches stories/ AND stories/implemented/ for the same reason the
+          # proof-spec step above does — close-out moves the file mid-branch.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" \
+                  docs/modernization/stories/${jid}-*.md \
+                  docs/modernization/stories/implemented/${jid}-*.md \
+                  2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
+            # Unreachable: the proof-spec step above already hard-failed the job
+            # on this condition. Kept as a fail-safe, and the full suite is the
+            # safe outcome for the mock half (it runs MORE, never less).
             echo "no journey file for ${jid} → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
