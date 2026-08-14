@@ -68,7 +68,7 @@ later backend gate depends on — the repair follows immediately.
 - [x] **T-05** — batch `ops-shell` + `auth` (492 / 16)
 - [x] **T-05b** — heredoc bodies are opaque to BOTH the stripper and `--check`: `normalize-realm-export.sh:21-114` is a Python program inside `<<'PYEOF'` whose 6 comment blocks + docstring are invisible (33 comments tree-wide). A silent hole is the third of its kind this journey (`node_modules.windows`, the `build`/`target` exclusion) and it falsifies the "only directives and `ext:` markers survive" AC. Lex heredoc bodies by **interpreter** — a body piped to `python3`/`node`/`psql` is a program; one echoed to stdout (`INFO` banners, operator help text) is DATA and must not be touched. Must land before T-11 (`preflight.sh`, `e2e/scripts/dev-up.sh`)
 - [x] **T-06** — batch `build-config` — the per-module `build.gradle.kts` / `settings.gradle.kts` under a module path are swept by that module's batch (T-03 already took migration-tool's 21); this batch is only what no module batch claims
-- [ ] **T-07** — batch `migration-bundle` (1,413 / 126)
+- [x] **T-07** — batch `migration-bundle` (1,413 / 126)
 - [ ] **T-08** — batch `web-src` (2,324 / 337)
 - [ ] **T-09** — batch `server-test` (3,795 / 319)
 - [ ] **T-10** — batch `server-main` (5,360 / 787)
