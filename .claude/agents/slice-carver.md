@@ -58,6 +58,14 @@ five screens; not a single atomic action.
 - **Note the migration contribution.** Name the legacy entity/table each journey migrates (scopes its
   per-journey mapper + seed); flag greenfield = N/A. A unit-passing mapper is NOT a working migrate — fidelity
   is unproven until a real legacy→ingest round-trip runs green. [[verify-infra-is-run-not-just-authored]]
+- **AC reachability pre-flight — run it per AC, before you write the AC** (operator 2026-08-14). For each
+  AC, verify against the code: (a) the **actor** it names can REACH the screen — route exists, a nav entry
+  is visible to that role, and the read endpoints authorize that role; (b) every **value** it asserts has
+  BOTH a write path (a screen or endpoint that sets it) and a read path. Anything unmet becomes a
+  carve-time task, not a mid-flight surprise. J-17 filed four tasks against one root cause here: a pure
+  `CLUB_ADMINISTRATOR` got 403 on its own club (T-15c), had no nav entry to reach it (T-15d), `homebaseId`
+  was projected and read but no screen wrote it (T-22a0), and the public forms headed with a raw slug
+  because no anonymous club-name read existed (T-17b) — each leaving a `[happy]` AC unmeetable as written.
 - **Self-edit/CRUD journeys carry hidden seams — name them up front:** every mutating endpoint needs its
   **own audit event** + a **GET sibling** (PATCH-only hydrates an empty form); cross-module calls need a
   **module-boundary** note (Modulith OPEN / `@NamedInterface`); a new **showcase-seed** principal must not

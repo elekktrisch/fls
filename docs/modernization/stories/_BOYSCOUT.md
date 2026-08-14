@@ -17,6 +17,13 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-retro J-17 window, 2026-08-14)
+
+- **[BACKEND-RUNTIME-ARTIFACTS-UNIGNORED]** `alpenflight/server/backend.log` and `backend.pid` are written by the
+  local real-idp bring-up (and `ci.yml` writes the pid), but neither is in a `.gitignore` — they sit untracked in
+  every working tree, so a `git add -A` commits a PID file and a server log. One `.gitignore` line.
+  *(seam: `alpenflight/.gitignore`)*
+
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
 - **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
@@ -33,8 +40,16 @@ stragglers each ceremony so the file shrinks.
   and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
   that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
   on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
-  redaction, and whether it belongs in the audit table at all), which is why this is filed for the operator rather than
-  fixed in-journey. *(seam: audit actor columns + the anonymous write path)*
+  redaction, and whether it belongs in the audit table at all), which is why this was filed for the operator rather than
+  fixed in-journey.
+  **ADJUDICATED (operator, /do-retro 2026-08-14) — build it as:** `actor_kind = ANONYMOUS_PUBLIC` (distinct from a
+  system/cron actor, `system_actor=false`), **plus the raw `client_ip`** recorded on anonymous public-registration
+  writes ONLY — never on authenticated ones. **Retention 90 days**: a scheduled job nulls `client_ip` on rows older
+  than that and **keeps the audit row** (redaction, not deletion — the trail survives, the personal data does not).
+  Redaction on request must be possible ahead of the window. Ships with a privacy-notice entry naming the purpose
+  (abuse investigation), the 90-day window, and the redaction path — the notice is part of the AC, not a follow-up.
+  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` is the intended tripwire and goes red.
+  *(seam: audit actor columns + the anonymous write path + a retention job)*
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
