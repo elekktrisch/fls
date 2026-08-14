@@ -14,29 +14,12 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfWordmarkComponent } from '@ui/atoms/af-wordmark';
 import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
-/** What the shell shows instead of — or in place of — the form body. */
 export type PublicFormState = 'loading' | 'ready' | 'not-found' | 'unavailable' | 'success';
 
-/** A submit that did not produce a registration. */
 export type PublicSubmitFailure = 'failed' | 'throttled';
 
-/**
- * A submit that is still in flight after this long stops being silent: the
- * visitor gets a "taking longer than usual" line instead of an open-ended
- * spinner (AC-DIR-4).
- */
 export const SUBMIT_STALL_MS = 3000;
 
-/**
- * The chrome both anonymous registration flows are rendered in: nav-less
- * public page, club heading, the form element with its single submit, and the
- * club-resolution / success / throttled panels.
- *
- * The page owns what differs — the club lookup, the day picker, the store — and
- * projects its fields as content. Submit is POST-only: the form element carries
- * no action and the default navigation is prevented, so no field value can
- * reach the URL (AC-DIR-4).
- */
 @Component({
   selector: 'af-public-form-shell',
   standalone: true,
@@ -210,8 +193,6 @@ export class PublicFormShellComponent implements OnDestroy {
     });
   }
 
-  // The form element has no action and never navigates: every field value
-  // travels in the POST body, never in a query string (AC-DIR-4).
   protected onSubmit(event: Event): void {
     event.preventDefault();
     if (this.submitting() || this.submitDisabled()) return;

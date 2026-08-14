@@ -9,18 +9,11 @@ import { JoinRequestsService } from '@api/generated/join-requests/join-requests.
 import type { JoinRequestResponse } from '@api/generated/model';
 import { classifyApiError, type SaveErrorRule } from '@shared/util/form';
 
-/**
- * Why each submit failure carries its own kind: the `/join` form renders them
- * differently — `unknown-code` inline under the field, `already-member` as a
- * sign-out prompt, `rate-limited` as a `Retry-After` countdown. Keeping the
- * discriminant structured here lets T-10/T-11 branch without re-parsing status.
- */
 export type SubmitErrorKind = 'unknown-code' | 'already-member' | 'rate-limited' | 'other';
 
 export interface SubmitError {
   readonly kind: SubmitErrorKind;
   readonly message: string;
-  /** Seconds the pilot must wait before retrying — present only for `rate-limited`. */
   readonly retryAfterSeconds?: number;
 }
 
@@ -41,12 +34,6 @@ interface SubmitArgs {
   note?: string;
 }
 
-/**
- * Pilot-side join-request store. Feature-scoped (not `providedIn: 'root'`): its
- * lifetime is the `/join` + `/join/pending` flow, and a fresh `loadMine()` on
- * entry is the desired behavior. Owns the three pilot calls — submit, withdraw,
- * and `me/join-request` — over the generated client.
- */
 export const JoinStore = signalStore(
   withState<JoinState>(initial),
   withMethods((store, api = inject(JoinRequestsService)) => {
@@ -55,7 +42,6 @@ export const JoinStore = signalStore(
         switchMap(() =>
           api.myJoinRequest().pipe(
             tapResponse({
-              // A 204 (no live request) resolves to a null body — back to /join.
               next: (request: JoinRequestResponse | null) =>
                 patchState(store, { request: request ?? null }),
               error: () => patchState(store, { request: null }),
@@ -83,18 +69,9 @@ export const JoinStore = signalStore(
 
     const withdraw = rxMethod<string>(
       pipe(
-        // Optimistically drop the held request up-front: the pending page
-        // navigates to `/join` the moment the pilot clicks Withdraw, and the
-        // `/join` screen bounces a STILL-PENDING held request straight back to
-        // `/join/pending` — racing the eager nav into an `AbortError`. Clearing
-        // before the HTTP round-trip means the `/join` screen sees no live
-        // request and stays put.
         tap(() => patchState(store, { request: null })),
         switchMap((id) =>
           api.withdraw(id).pipe(
-            // A withdraw returns the pilot to /join with no live request and no
-            // cooldown. The optimistic clear above already emptied the held
-            // request; re-assert null on settle so an error path converges too.
             tapResponse({
               next: () => patchState(store, { request: null }),
               error: () => patchState(store, { request: null }),

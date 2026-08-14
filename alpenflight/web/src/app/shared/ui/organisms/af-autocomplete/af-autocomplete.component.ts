@@ -15,16 +15,6 @@ import { DensityService } from '../../density';
 import { RecentlyUsedService } from '../../recency';
 import { fuzzyFilter } from './fuzzy-filter';
 
-/**
- * Searchable single-select with a "Recently used" group at the top.
- *
- * Built on `nz-select [nzShowSearch]` so chip-style selection + multi-select
- * fallback are available later. The recency group is rendered by ordering
- * the option array: recent ids first, the rest after.
- *
- * Recency is keyed by `primitiveKey` (e.g. `'aircraft'`, `'pilot'`); the
- * `RecentlyUsedService` allowlists localStorage in shared/ui/recency/.
- */
 @Component({
   selector: 'af-autocomplete',
   standalone: true,
@@ -164,11 +154,6 @@ export class AfAutocompleteComponent<
     }
   }
 
-  /**
-   * Pure-function search helper exposed for testability and future server-
-   * side wiring; the in-template `[nzFilterOption]` uses nz-select's own
-   * filter today.
-   */
   filter(query: string): readonly T[] {
     return fuzzyFilter(this.items(), this.searchFields(), query);
   }
@@ -186,6 +171,5 @@ export class AfAutocompleteComponent<
     this.onTouched = fn;
   }
   setDisabledState(): void {
-    // disabled input wins
   }
 }

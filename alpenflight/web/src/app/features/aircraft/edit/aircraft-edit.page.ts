@@ -47,11 +47,6 @@ const IMMAT_PATTERN = /^[A-Z0-9-]{2,15}$/;
 const FLARM_PATTERN = /^[A-Fa-f0-9]{6}$/;
 const COMP_SIGN_PATTERN = /^[A-Za-z0-9]{1,5}$/;
 
-/**
- * The immatriculation validator stack (required + 2..15 + upper-only pattern).
- * Exported so the as-you-type wiring spec drives the SAME rules the form does
- * (J-26 T-10) without re-declaring them — a single source of truth.
- */
 export const immatriculationValidators: readonly ValidatorFn[] = [
   Validators.required,
   Validators.minLength(2),
@@ -74,9 +69,6 @@ type AircraftForm = FormGroup<{
   nrOfSeats: FormControl<number | null>;
   daecIndex: FormControl<number | null>;
   homebaseId: FormControl<string>;
-  // Preserved from the loaded detail and echoed back on update. Not user-
-  // editable on the master-data form (legacy parity — the legacy form has no
-  // flight-counter dropdown; the value is set elsewhere in the legacy stack).
   flightOperatingCounterUnitTypeId: FormControl<string>;
   engineOperatingCounterUnitTypeId: FormControl<string>;
   spotLink: FormControl<string>;
@@ -448,13 +440,6 @@ export class AircraftEditPage {
     ...this.locations.entities().map((l) => ({ value: l.id, label: l.locationName })),
   ]);
 
-  // The flight + engine operating counters are time counters (seconds-typed
-  // columns on aircraft_operating_counter); only `HOURS_*` units make sense
-  // for them. The seeded `counter_unit_type` catalog also includes LANDINGS
-  // + STARTS (used for the totalWinchLaunchStarts / totalSelfStarts integer
-  // columns, NOT for the FK fields the form binds to) — filter those out at
-  // the UI so users can't select a count-unit for a time-counter dropdown.
-  // Documented in the story's `## Parity exclusions`.
   protected readonly counterUnitTypeOptions = computed<readonly AfSelectOption<string>[]>(() => [
     { value: '', label: '— Not set —' },
     ...this.referenceData
@@ -466,8 +451,6 @@ export class AircraftEditPage {
       })),
   ]);
 
-  // Year-only picker (legacy parity: stored as YYYY-01-01, displayed as year).
-  // Most recent first since the bulk of aircraft are post-2000.
   protected readonly yearOfManufactureOptions = computed<readonly AfSelectOption<string>[]>(() => {
     const current = new Date().getFullYear();
     const years: AfSelectOption<string>[] = [{ value: '', label: '— Not set —' }];
@@ -536,19 +519,8 @@ export class AircraftEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
-  // J-26 T-10 — server-side immatriculation-duplicate routed through the
-  // `liveFieldErrors` async slot (`inline-validation.ts` extension point) rather
-  // than `setErrors`, so the inline message surfaces under the as-you-type
-  // binding (a `setErrors` carries no `valueChanges`, so the debounced stream
-  // would never re-read it). Cleared the moment the user retypes (effect below).
   private readonly immatriculationDuplicate = signal<ValidationErrors | null>(null);
 
-  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only `[errors]="ctl.touched
-  // ? …"` bindings (silent until blur/submit) and binding the previously-silent
-  // optional fields (manufacturer/model/seats/MTOM/serial/noise class/comment)
-  // that carried a maxLength/min validator but rendered no inline error at all.
   protected readonly immatriculationErrors = liveFieldErrors(this.form.controls.immatriculation, {
     asyncErrors$: toObservable(this.immatriculationDuplicate),
   });
@@ -594,8 +566,6 @@ export class AircraftEditPage {
   }
 
   constructor() {
-    // Load reference data + clubs + locations once on entry. The stores are
-    // TTL-gated so this is cheap on re-entry.
     this.referenceData.loadAll();
 
     effect(() => {
@@ -611,14 +581,9 @@ export class AircraftEditPage {
     effect(() => {
       const detail = this.store.selectedAircraft();
       if (!detail) return;
-      // emitEvent stays true so toSignal-backed value mirrors (selectedTypeHasEngine,
-      // canTestSpotLink) pick up the loaded values without needing a separate bridge.
       this.form.patchValue(detailToFormValue(detail));
     });
 
-    // Engineless aircraft type → drop any engine-counter selection that survived
-    // a type change (legacy parity: the engine-counter dropdown only renders when
-    // selectedAircraftType.HasEngine in flsweb/.../aircraft-form-fields.html).
     effect(() => {
       if (this.selectedTypeHasEngine()) return;
       const ctrl = this.form.controls.engineOperatingCounterUnitTypeId;
@@ -627,26 +592,17 @@ export class AircraftEditPage {
       }
     });
 
-    // Save-error effect: reset the submitted flag so the user can retry, and
-    // hoist the typed save-error onto the offending field for inline visibility
-    // (mirrors LocationsEditPage; replaces the old queueMicrotask race that
-    // navigated unconditionally before the HTTP response landed).
     effect(() => {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
       if (this.store.saveErrorKind() === 'immatriculation-duplicate') {
-        // Route through the live-errors async slot (merged with any concurrent
-        // client error via `mergeFieldErrors`, never masking it) so the inline
-        // message surfaces under the as-you-type binding.
         this.immatriculationDuplicate.set({ duplicate: true });
         this.form.controls.immatriculation.markAsTouched();
       }
     });
 
     const destroyRef = inject(DestroyRef);
-    // Clear the server-side `duplicate` flag the moment the user retypes the
-    // immatriculation so Save re-enables without a blur dance.
     this.form.controls.immatriculation.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(() => {
@@ -658,7 +614,6 @@ export class AircraftEditPage {
         }
       });
 
-    // Navigate on the mutation-bus event — guaranteed-post-response, no race.
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'aircraft.created' || evt.kind === 'aircraft.updated') {
@@ -716,10 +671,6 @@ function yearOrEmpty(): ValidatorFn {
   };
 }
 
-// Legacy stored YearOfManufacture as a full date but only the year was ever
-// rendered/edited; the legacy form prepended "-01-01" on save
-// (flsweb/.../AircraftsEditController.js:33). We do the same on the wire and
-// strip back to year on load.
 function yearToIso(year: string): string {
   return year === '' ? '' : `${year}-01-01`;
 }
@@ -780,12 +731,6 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   };
 }
 
-// The required base + the shared optionals map (J-26 T-22 — both builders pass
-// the SAME pruning map to `withOptionals`, which drops every `''`/`null`/
-// `undefined` field in one pass instead of ~18 hand `if (v.x !== '') req.x = …`
-// branches per builder). `numberOrUndefined` maps the form's `null` sentinel to
-// `undefined` so `withOptionals` prunes it (it treats `null` AND `undefined` as
-// "not provided"); `''` text fields prune directly.
 type AircraftFormValue = ReturnType<AircraftForm['getRawValue']>;
 
 function aircraftRequestBase(v: AircraftFormValue) {
@@ -821,10 +766,6 @@ function aircraftSharedOptionals(v: AircraftFormValue) {
 
 function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
   const v = form.getRawValue();
-  // `withOptionals` returns `Base & Partial<Opt>`; under `exactOptionalPropertyTypes`
-  // the `Partial` widens each optional with `| undefined`, which the DTO's exact
-  // optionals reject. The runtime pruning guarantees no `undefined` survives on
-  // the object, so the narrowing cast is sound.
   return withOptionals(aircraftRequestBase(v), aircraftSharedOptionals(v)) as AircraftCreateRequest;
 }
 
@@ -832,9 +773,6 @@ function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   const v = form.getRawValue();
   return withOptionals(aircraftRequestBase(v), {
     ...aircraftSharedOptionals(v),
-    // flightOperatingCounterUnitTypeId is preserved from the loaded detail and
-    // echoed back unchanged — the master-data form has no UI for it (parity).
-    // Create has no such field on the wire, so it's update-only here.
     flightOperatingCounterUnitTypeId: v.flightOperatingCounterUnitTypeId,
   }) as AircraftUpdateRequest;
 }

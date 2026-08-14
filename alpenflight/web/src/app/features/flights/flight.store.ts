@@ -42,12 +42,6 @@ export interface FlightDateRange {
   readonly to: string | null;
 }
 
-/**
- * Client-side overlay applied to the loaded page. Server-side filtering is
- * limited to `from/to` on this endpoint (see S-062a "Out of scope — known gaps"),
- * so AirState / ProcessState / FlightAircraftType are narrowed locally over the
- * keyset window until a /flights/search story lands.
- */
 export interface FlightClientFilter {
   readonly airStates: readonly FlightListItemAirState[];
   readonly processStateIds: readonly string[];
@@ -70,25 +64,10 @@ interface FlightDetailSlice {
   detailLoading: boolean;
   detailError: string | null;
   saveError: string | null;
-  /**
-   * 412 (stale If-Match) → a resolved per-field conflict the inline diff
-   * dialog renders. Distinct from `reloadConflict` (409): a 412 is a DATA
-   * conflict the user adjudicates field-by-field; a 409 is a POLICY/STATE
-   * conflict with no field-level merge (S-062h).
-   */
   saveConflict: FlightConflict | null;
-  /**
-   * 409 (state-gate reject / optimistic-lock race) → a non-blocking
-   * "reload latest" toast. NEVER the inline diff.
-   */
   reloadConflict: boolean;
 }
 
-/**
- * A flight saved (created or edited) on a date outside the active list range.
- * Drives the post-save "View it →" jump (legacy hides off-today flights behind
- * the today-default range; this surfaces the just-saved one).
- */
 export interface OffRangeSavedFlight {
   readonly id: string;
   readonly date: string;
@@ -108,8 +87,6 @@ interface FlightListSlice {
 type FlightExtraState = FlightListSlice & FlightDetailSlice;
 
 function initialState(): FlightExtraState {
-  // Legacy parity: the daily list opens on today only (FlightsController.js
-  // seeds the FlightDate filter From/To to `moment().format("YYYY-MM-DD")`).
   const today = isoDateFromLocal(new Date());
   return {
     dateFrom: today,
@@ -173,11 +150,8 @@ export const FlightStore = signalStore(
         return rows.filter((r) => matchesClientFilter(r, f));
       }),
       hasError: computed(() => loadError() !== null),
-      // 412: a resolved data conflict drives the inline diff dialog.
       hasSaveConflict: computed(() => saveConflict() !== null),
-      // 409: a policy/state conflict drives the non-blocking reload toast.
       hasReloadConflict: computed(() => reloadConflict()),
-      // A just-saved flight dated outside the active range → the "View it →" jump.
       hasOffRangeSaved: computed(() => offRangeSaved() !== null),
     }),
   ),
@@ -208,11 +182,6 @@ export const FlightStore = signalStore(
       return (!from || from <= date) && (!to || to >= date);
     }
 
-    /**
-     * Record a just-saved flight whose date falls outside the active list range
-     * so the post-save flow can offer the "View it →" jump. In-range saves are
-     * already visible, so they clear any stale flag instead.
-     */
     function flagOffRangeSave(id: string | undefined, date: string | null): void {
       if (id && date && !isWithinActiveRange(date)) {
         patchState(store, { offRangeSaved: { id, date } });
@@ -244,7 +213,6 @@ export const FlightStore = signalStore(
           try {
             tow = await firstValueFrom(flightsApi.get(glider.towFlightId));
           } catch {
-            // Orphan or cross-tenant tow — degrade to glider-only.
           }
         }
         patchState(store, {
@@ -277,7 +245,6 @@ export const FlightStore = signalStore(
       try {
         return await firstValueFrom(flightsApi.lastContext({ aircraftId, date }));
       } catch {
-        // 404 / no context → silent fallback per AC: null last-context never toasts.
         return null;
       }
     }
@@ -289,9 +256,6 @@ export const FlightStore = signalStore(
       patchState(store, { saveError: null, saveConflict: null, reloadConflict: false });
       const requests = snapshotToCreateRequests(snapshot);
       const glider = await firstValueFrom(flightsApi.create(requests.glider));
-      // Read the id from the create response held in-store (the SPA nav on save
-      // success evicts the POST body before a component could re-read it); the
-      // date comes from the submitted snapshot, never a re-GET.
       flagOffRangeSave(glider.id, snapshot.flightDate);
       if (!requests.tow) {
         bus.next({ kind: 'flight.created', flightId: glider.id });
@@ -302,16 +266,13 @@ export const FlightStore = signalStore(
       try {
         tow = await firstValueFrom(flightsApi.create(requests.tow));
       } catch (e) {
-        // Tow-POST failure → compensating DELETE of the glider row.
         try {
           await firstValueFrom(flightsApi._delete(glider.id));
         } catch {
-          // Best-effort rollback; backend GC sweeps stragglers.
         }
         patchState(store, { saveError: (e as HttpErrorResponse).message });
         throw e;
       }
-      // Link: PUT glider with towFlightId, If-Match the just-created version.
       const linkBody = snapshotToUpdateRequest(snapshot, 'glider', tow.id);
       await firstValueFrom(
         flightsApi.update(glider.id, linkBody, {
@@ -356,16 +317,8 @@ export const FlightStore = signalStore(
       } catch (e) {
         const err = e as HttpErrorResponse;
         if (err.status === 412) {
-          // DATA conflict (stale If-Match). The 412 body carries only the new
-          // `serverVersion` (no field values), so re-GET the current detail and
-          // diff the user's submitted glider update against it. NO auto-retry —
-          // the resolved conflict opens the inline keep-mine/keep-theirs dialog;
-          // the user explicitly resubmits the merged choices.
           await openConflict(flightId, gliderBody, err);
         } else if (err.status === 409) {
-          // POLICY/STATE conflict (time-gate reject, DeliveryBooked edit,
-          // optimistic-lock race). No field-level merge — surface a
-          // non-blocking "reload latest" toast, never the inline diff.
           patchState(store, { reloadConflict: true, saveError: err.message });
         } else {
           patchState(store, { saveError: err.message });
@@ -384,8 +337,6 @@ export const FlightStore = signalStore(
       try {
         theirs = await firstValueFrom(flightsApi.get(flightId));
       } catch {
-        // Re-GET failed (e.g. the row was deleted out from under us). Degrade
-        // to the reload toast — there's nothing to diff against.
         patchState(store, { reloadConflict: true, saveError: err.message });
         return;
       }
@@ -394,9 +345,6 @@ export const FlightStore = signalStore(
       patchState(store, {
         saveConflict: buildConflict(flightId, serverVersion, mine, theirs),
         saveError: err.message,
-        // Refresh the held detail + version so an explicit resubmit (user
-        // resolved the diff) If-Matches the CURRENT server version — never
-        // an auto-retry, the user drives it.
         current: theirs,
         currentVersion: theirs.version,
       });
@@ -407,9 +355,6 @@ export const FlightStore = signalStore(
     }
 
     async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
-      // Callers pass the row's version as `ifMatch` to gate stale deletes
-      // (RFC 7232 §3.1). `*` is the escape hatch for force-delete paths
-      // that intentionally bypass the precondition.
       await firstValueFrom(
         flightsApi._delete(id, {
           headers: { 'If-Match': ifMatch },
@@ -424,11 +369,6 @@ export const FlightStore = signalStore(
         patchState(store, { dateFrom: range.from, dateTo: range.to });
         loadPage();
       },
-      /**
-       * Post-save jump (Option B): widen the active range to the off-range
-       * saved flight's date so the just-saved row loads into view, then clear
-       * the affordance.
-       */
       viewOffRangeSaved(): void {
         const saved = store.offRangeSaved();
         if (!saved) return;
@@ -470,7 +410,6 @@ export const FlightStore = signalStore(
       savePair,
       updatePair,
       deleteOne,
-      // exposed so the hook can call without re-creating the rxMethod
       _loadPage: loadPage,
     };
   }),

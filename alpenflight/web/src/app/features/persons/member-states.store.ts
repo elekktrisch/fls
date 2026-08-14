@@ -40,13 +40,6 @@ function withItemId(m: MemberStateListItem): MemberStateItem {
   return m as MemberStateItem;
 }
 
-/**
- * Tenant-scoped reference store for {@code member_state} dropdown values.
- * Counterpart to S-047's cross-tenant ReferenceDataStore — same shape but
- * per-club scoped (server-side via Hibernate {@code @TenantId}). Cleared
- * on session logout / tenant switch so a different tenant doesn't see
- * stale rows.
- */
 export const MemberStatesStore = signalStore(
   { providedIn: 'root' },
   withEntities<MemberStateItem>(),

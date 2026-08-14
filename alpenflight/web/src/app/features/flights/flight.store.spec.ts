@@ -231,7 +231,6 @@ describe('FlightStore', () => {
 
     expect(store.hasOffRangeSaved()).toBe(true);
     expect(store.offRangeSaved()).toEqual({ id: 'fl-new', date: nextWeek });
-    // The active range stays today-only until the user takes the action.
     expect(store.dateFrom()).toBe(today);
   });
 
@@ -294,8 +293,6 @@ describe('FlightStore', () => {
   });
 
   it('clearing the range (from/to null) drops the date params and refetches unfiltered', () => {
-    // T-13: clearing the flights-list range picker restores the unfiltered list.
-    // `paramsOf` omits from/to when null, so the refetch carries only `limit`.
     const calls: (ListParams | undefined)[] = [];
     configure(
       flightsServiceStub({
@@ -309,7 +306,6 @@ describe('FlightStore', () => {
     store.setDateRange({ from: '2026-05-01', to: '2026-05-31' });
     store.setDateRange({ from: null, to: null });
 
-    // Last query carries no date filter — only the page limit.
     expect(calls.at(-1)).toEqual({ limit: 50 });
     expect(calls.at(-1)).not.toHaveProperty('from');
     expect(calls.at(-1)).not.toHaveProperty('to');
@@ -438,7 +434,6 @@ describe('FlightStore', () => {
           updateCalls++;
           return throwError(() => err);
         },
-        // 412 body has no field values → the store re-GETs the server detail.
         get: () => of(SERVER_DETAIL),
       }),
     );
@@ -446,14 +441,11 @@ describe('FlightStore', () => {
 
     await expect(store.updatePair(editSnapshot(), { glider: 1, tow: null })).rejects.toBeTruthy();
 
-    // DATA conflict → inline diff state set, reload toast NOT set.
     expect(store.hasSaveConflict()).toBe(true);
     expect(store.hasReloadConflict()).toBe(false);
     const conflict = store.saveConflict();
     expect(conflict?.serverVersion).toBe(9);
-    // aircraftId differs (mine b1 vs theirs a9) → a per-field diff row.
     expect(conflict?.fields.some((f) => f.name === 'aircraftId')).toBe(true);
-    // NO auto-retry: exactly one PUT was attempted.
     expect(updateCalls).toBe(1);
   });
 
@@ -470,7 +462,6 @@ describe('FlightStore', () => {
 
     await expect(store.updatePair(editSnapshot(), { glider: 1, tow: null })).rejects.toBeTruthy();
 
-    // POLICY/STATE conflict → reload toast, NOT the inline diff dialog.
     expect(store.hasReloadConflict()).toBe(true);
     expect(store.hasSaveConflict()).toBe(false);
     expect(store.saveConflict()).toBeNull();

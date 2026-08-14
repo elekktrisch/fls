@@ -1,9 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-/**
- * Viewport-bottom-anchored bar for the wizard's primary actions on `<lg`.
- * Reflows out of the inline header-actions slot per AC-DIR-1.
- */
 @Component({
   selector: 'af-sticky-bar',
   standalone: true,

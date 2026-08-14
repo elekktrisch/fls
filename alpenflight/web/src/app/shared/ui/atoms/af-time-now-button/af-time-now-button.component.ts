@@ -9,10 +9,6 @@ function nowAsHhMm(): string {
   return `${hh}:${mm}`;
 }
 
-/**
- * Stamps the current wall-clock time as `HH:mm` into the bound control.
- * Mirrors the legacy "now" button beside time inputs.
- */
 @Component({
   selector: 'af-time-now-button',
   standalone: true,

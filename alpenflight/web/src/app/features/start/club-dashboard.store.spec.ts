@@ -13,13 +13,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { ClubDashboardStore } from './club-dashboard.store';
 
-/**
- * Logic test for the club-admin dashboard store (T-09): the `/me/club-dashboard`
- * fetch, the loading/error states, and the SSE-driven re-fetch on a
- * `flight.created` event (the "SSE is the nudge, the GET is the source of truth"
- * carve). Per the web testing posture (CLAUDE.md §8) this is a store/logic spec —
- * the tile DOM is proven by the real-idp e2e (`start-dashboard.spec.ts`, T-16).
- */
 
 function meStub(counts: () => Observable<ClubDashboardResponse>): MeService {
   return {
@@ -30,7 +23,6 @@ function meStub(counts: () => Observable<ClubDashboardResponse>): MeService {
   } as unknown as MeService;
 }
 
-/** A fake `MeEventsService` whose `flight.created` stream the spec controls. */
 function eventsStub(flightCreated: Subject<MeEvent>): MeEventsService {
   return {
     on: (kind: string): Observable<MeEvent> => {
@@ -93,7 +85,6 @@ describe('ClubDashboardStore', () => {
     const store = TestBed.inject(ClubDashboardStore);
     expect(store.todaysFlights()).toBe(2);
 
-    // SSE is the nudge — the next GET is the source of truth.
     current = counts(3, 1);
     flightCreated.next(event());
     expect(store.todaysFlights()).toBe(3);

@@ -12,9 +12,6 @@ interface Tile {
   readonly label: string;
 }
 
-// Tile labels — sentence case (ADR 0024). Mirrors legacy
-// `flsweb/src/reporting/flightreports.html` (REPORT_MY_FLIGHTS_* /
-// REPORT_LOCATION_FLIGHTS_* keys), ordered as the picker grid renders them.
 const PERSON_LABELS: Readonly<Record<PersonCannedType, string>> = {
   'my-flights-today': 'Today',
   'my-flights-yesterday': 'Yesterday',
@@ -43,17 +40,6 @@ const LOCATION_TILES: readonly Tile[] = LOCATION_CANNED_TYPES.map((type) => ({
   label: LOCATION_LABELS[type],
 }));
 
-/**
- * Flight-reports picker. Two categories — person ("my flights") + location
- * ("home location") — each a tile grid linking to `/flightreports/:category/:type`.
- * Legacy parity: `flsweb/src/reporting/flightreports.html`. Visual idiom follows
- * the logbook page header (no actions in the header here — the picker has none;
- * the Export button lives on the results screen, T-10).
- *
- * Tiles are plain `routerLink` anchors so navigation is native (and the e2e spec
- * can assert the href contract). The canned `:type` → derived date-range happens
- * downstream in the results page (T-10) via `cannedReportSpec`.
- */
 @Component({
   selector: 'af-flight-reports-picker',
   standalone: true,

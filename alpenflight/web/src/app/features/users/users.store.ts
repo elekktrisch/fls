@@ -291,10 +291,6 @@ export const UsersStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
-      // Cold-start fetch fires here; `clubAdminGuard` on the `/users` route
-      // is the structural guard that prevents non-admin construction. If
-      // future code injects this store outside the guarded route, gate the
-      // load at that consumer.
       store.loadAll();
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
@@ -311,12 +307,6 @@ export const UsersStore = signalStore(
 
 type Op = 'invite' | 'update' | 'delete' | 'resend';
 
-// Ordered classification rules (J-26 T-22, shared `classifyApiError`). First
-// status+`when` match wins, so the narrow 409 discriminators precede the broad
-// 409 / 400 catch-alls. The backend uses a single `user-conflict` URN for
-// self-delete, last-admin, and username-taken, so the 409 cases discriminate by
-// `detail` substring + the in-flight `op`; if distinct URNs land later the
-// substring match still holds.
 function userErrorRules(op: Op): readonly SaveErrorRule<SaveErrorKind>[] {
   const detailOf = (b: ProblemDetailBody) => b.detail ?? '';
   return [
@@ -374,8 +364,6 @@ function errorPatch(
   op: Op,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
   return classifyApiError(e, userErrorRules(op), (body, err) => ({
-    // The 400 rule already ran its own (no e.message) message; this generic
-    // fallback covers every other status, matching the prior cascade's tail.
     saveError: genericSaveErrorMessage(body, err),
     saveErrorKind: 'other',
   }));

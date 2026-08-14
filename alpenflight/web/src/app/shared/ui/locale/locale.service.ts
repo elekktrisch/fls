@@ -23,10 +23,6 @@ const NZ_LOCALES: Record<AppLocale, NzI18nInterface> = {
   en: en_US,
 };
 
-// ng-zorro parses manual keyboard input through its date-fns adapter only when a
-// `NZ_DATE_LOCALE` is in play; the date locale must track the UI locale so a
-// typed `dd.MM.yyyy` deserialises (the DatePipe adapter formats but cannot parse
-// a custom format, so typed dates never commit). See af-date-picker.
 const NZ_DATE_LOCALES: Record<AppLocale, Locale> = {
   de,
   fr,
@@ -34,14 +30,6 @@ const NZ_DATE_LOCALES: Record<AppLocale, Locale> = {
   en: enUS,
 };
 
-/**
- * Single switch for both ng-zorro's `NzI18nService` and the app's translation
- * library (wired via `TRANSLATION_ADAPTER` by S-005). Also sets the
- * document's `lang` attribute so screen-readers + browser tooling get the
- * right cue.
- *
- * Unknown locale tokens throw — callers must guard or coerce upstream.
- */
 @Injectable({ providedIn: 'root' })
 export class LocaleService {
   readonly #nzI18n = inject(NzI18nService);

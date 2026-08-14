@@ -15,10 +15,6 @@ describe('resolveSignupIntent', () => {
     expect(resolveSignupIntent('migrate')).toBe('migrate');
   });
 
-  // S-179 landing flip: join is the dominant signup path, so anything that
-  // isn't an explicit `migrate` — including `demo` (anonymous-pre-signup, never
-  // a post-auth destination) and any garbage — coerces to `join` rather than
-  // being navigated raw (an open redirect).
   it.each([null, undefined, '', 'demo', 'DEMO', 'garbage', 'https://evil.com/'])(
     'coerces %p to `join`',
     (raw) => {

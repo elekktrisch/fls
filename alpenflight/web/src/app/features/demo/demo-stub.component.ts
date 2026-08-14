@@ -4,8 +4,6 @@ import { TranslocoDirective } from '@jsverse/transloco';
 
 import { AfIconComponent } from '@ui/atoms/af-icon';
 
-// Resolves so the landing `Try demo` CTA deep-links without a catch-all
-// redirect; the interactive sandbox is J-20.
 @Component({
   selector: 'af-demo-stub',
   standalone: true,

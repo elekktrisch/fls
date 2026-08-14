@@ -47,16 +47,8 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 export type AccountingRuleFilterItem = AccountingRuleFilterListItem & { id: string };
 export type AccountingRuleFilterDetailLoaded = AccountingRuleFilterDetail & { id: string };
 
-// 409 → a sort-indicator / name collision the user can retry past; 403 → the
-// CLUB_ADMINISTRATOR gate; 404 → a cross-tenant or deleted row (the @TenantId
-// finder never returns another club's filter). Everything else falls through to
-// the shared generic tail in `classifyApiError`.
 export type SaveErrorKind = 'conflict' | 'forbidden' | 'not-found' | 'other';
 
-// Suggestion tokens per dropdown-backed match-list (T-13). Keys mirror the
-// `FilterConfig` match-list field names; the token is the legacy `valueField`
-// (immatriculation / ICAO code / FlightCode / member-number / crew-type
-// legacyId). `aircraftHomebases` reuses the ICAO-code location options.
 export interface MatchListOptions {
   aircraftImmatriculations: readonly string[];
   flightTypeCodes: readonly string[];
@@ -76,18 +68,8 @@ const emptyMatchListOptions: MatchListOptions = {
 interface AccountingExtraState {
   selectedId: string | null;
   selectedDetail: AccountingRuleFilterDetailLoaded | null;
-  // Reference catalog (T-07): the filter types, keyed for the list's type
-  // column + (T-12) the edit form's section-driving select.
   filterTypes: readonly AccountingRuleFilterTypeResponse[];
-  // Unit-type catalog (T-07): feeds the edit form's article-target section
-  // AccountingUnitType select (T-12). Lazy-loaded on edit-form entry.
   accountingUnitTypes: readonly AccountingUnitTypeResponse[];
-  // Suggestion tokens for the T-13 match-list controls' typed-entry datalists.
-  // Each list persists a plain string token (the legacy `valueField`), so we
-  // store the derived token arrays rather than the raw DTOs. Lazy-loaded once
-  // on edit-form entry; an empty array just means typed-entry with no
-  // suggestions (never blocks save). start-types + member-states have no
-  // token-aligned endpoint → no suggestions (pure typed entry).
   matchListOptions: MatchListOptions;
   isLoading: boolean;
   isLoadingDetail: boolean;
@@ -125,14 +107,6 @@ function withDetailId(d: AccountingRuleFilterDetail): AccountingRuleFilterDetail
   return d as AccountingRuleFilterDetailLoaded;
 }
 
-/**
- * Project the detail payload onto the list-row shape for an optimistic
- * post-save patch. `target` is a server-derived display string
- * (`{recipientName} ({memberNumber})` / `{articleNumber} ({deliveryLineText})`,
- * T-05) that the client cannot reconstruct, so the optimistic row carries an
- * empty `target`; the `loadAll()` after the mutation settles it to the
- * authoritative value.
- */
 function listItemFromDetail(d: AccountingRuleFilterDetailLoaded): AccountingRuleFilterItem {
   return {
     id: d.id,
@@ -191,8 +165,6 @@ export const AccountingStore = signalStore(
               tapResponse({
                 next: (types: AccountingRuleFilterTypeResponse[]) =>
                   patchState(store, { filterTypes: types }),
-                // A failed catalog load leaves the type column unresolved — it
-                // never blocks the list's identity columns or the edit form.
                 error: () => patchState(store, { filterTypes: [] }),
               }),
             ),
@@ -206,8 +178,6 @@ export const AccountingStore = signalStore(
               tapResponse({
                 next: (types: AccountingUnitTypeResponse[]) =>
                   patchState(store, { accountingUnitTypes: types }),
-                // A failed catalog load leaves the unit-type select empty — it
-                // never blocks the edit form (the unit-type is optional).
                 error: () => patchState(store, { accountingUnitTypes: [] }),
               }),
             ),
@@ -218,11 +188,6 @@ export const AccountingStore = signalStore(
         patchState(store, (state) => ({
           matchListOptions: { ...state.matchListOptions, ...patch },
         }));
-      // Lazy fan-out to the existing reference endpoints, deriving the legacy
-      // `valueField` token per list (T-13 match-list datalists). Each endpoint
-      // fails independently → a missing catalog just drops that list's
-      // suggestions to typed-entry, never blocks the form. start-types +
-      // member-states have no token-aligned endpoint → no loader (typed entry).
       const loadMatchListReferences = rxMethod<void>(
         pipe(
           tap(() => {
@@ -255,9 +220,6 @@ export const AccountingStore = signalStore(
                 }),
               error: () => patchOptions({ flightCrewTypes: [] }),
             });
-            // member-states loaded only to confirm the endpoint exists for a
-            // future token-aligned migration; the legacy token is a Guid the new
-            // client does not carry, so it stays typed-entry (no options patch).
             memberStatesApi.listMemberStates().subscribe({ error: () => undefined });
           }),
         ),
@@ -369,10 +331,6 @@ export const AccountingStore = signalStore(
   }),
 );
 
-// Ordered classification rules (J-26 T-22 shared `classifyApiError`): map the
-// distinct HTTP statuses the AccountingRuleFilter API raises to a `SaveErrorKind`
-// + a terse, sentence-case message. 409 (collision) → conflict; 403 (the
-// CLUB_ADMINISTRATOR gate) → forbidden; 404 (cross-tenant / deleted) → not-found.
 const accountingErrorRules: readonly SaveErrorRule<SaveErrorKind>[] = [
   {
     status: 409,
@@ -397,9 +355,6 @@ const accountingErrorRules: readonly SaveErrorRule<SaveErrorKind>[] = [
   },
 ];
 
-// Trim, drop empties, de-duplicate — the match-list datalist suggestions
-// (T-13). Reference rows may carry a null/blank token (e.g. a location without
-// an ICAO code), which is not a valid persisted value.
 function dedupeTokens(raw: readonly (string | null | undefined)[]): readonly string[] {
   const seen = new Set<string>();
   for (const value of raw) {

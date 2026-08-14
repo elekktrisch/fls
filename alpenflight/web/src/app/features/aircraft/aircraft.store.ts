@@ -36,10 +36,6 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 export type AircraftItem = AircraftListItem & { id: string };
 export type AircraftDetailLoaded = AircraftDetail & { id: string };
 
-// `ALL` is a UI-only sentinel — the server defaults to no filter when the
-// `type` query param is omitted. The other three values map 1:1 to
-// `ListAircraftType` from the generated OpenAPI client and correspond to the
-// server-side slice contract in `AircraftTypeSlice.java`.
 export type AircraftTypeFilter = 'ALL' | 'GLIDER' | 'TOWING' | 'MOTOR';
 
 export type SaveErrorKind = 'immatriculation-duplicate' | 'forbidden' | 'other';
@@ -82,12 +78,6 @@ function withDetailId(d: AircraftDetail): AircraftDetailLoaded {
   return d as AircraftDetailLoaded;
 }
 
-/**
- * Project the detail payload onto the list-row shape for optimistic post-save
- * updates. Joined columns (`aircraftTypeCode`, `currentStateCode`,
- * `currentStateFlyable`) come from server-side joins, so the optimistic patch
- * omits them — `loadAll()` after the mutation refreshes to authoritative values.
- */
 function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
   const item: AircraftItem = {
     id: d.id,
@@ -105,14 +95,6 @@ function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
   return item;
 }
 
-/**
- * Maps the UI-only `AircraftTypeFilter` to the server-side `ListAircraftType`
- * query param. `ALL` returns `null` (no `type=` in the URL — server returns
- * the full set). Membership semantics live on the server in
- * `AircraftTypeSlice.java` (preserves legacy `AircraftService.cs:303-304` for
- * GLIDER and `AircraftService.cs:96` for MOTOR — a glider-with-motor stays in
- * the glider slice, MOTOR excludes glider-with-motor).
- */
 function toServerSlice(filter: AircraftTypeFilter): ListAircraftType | null {
   switch (filter) {
     case 'ALL':
@@ -198,10 +180,6 @@ export const AircraftStore = signalStore(
                     selectedDetail: detail,
                   });
                   bus.next({ kind: 'aircraft.created', aircraftId: detail.id });
-                  // Refresh so the joined `aircraftTypeCode` / `hasEngine` /
-                  // `currentStateCode` columns settle to authoritative values;
-                  // pass the active filter so the post-mutation reload stays
-                  // consistent with the user's current slice.
                   loadAll(store.typeFilter());
                 },
                 error: (e: HttpErrorResponse) =>
@@ -268,9 +246,6 @@ export const AircraftStore = signalStore(
   }),
 );
 
-// Ordered classification rules (J-26 T-22, shared `classifyApiError`): 409 →
-// immatriculation duplicate (interpolating the submitted registration), 403 →
-// forbidden, else a `field`-prefixed validation echo, else the generic tail.
 function aircraftErrorRules(
   immatriculation: string | null | undefined,
 ): readonly SaveErrorRule<SaveErrorKind>[] {
@@ -299,9 +274,6 @@ function errorPatch(
   immatriculation: string | null | undefined,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
   return classifyApiError(e, aircraftErrorRules(immatriculation), (body, err) => {
-    // Preserve the prior tail EXACTLY: a `field`-prefixed validation echo when
-    // the body carries a non-empty `message`, else the raw `e.message` (this
-    // store never read `detail`, so the generic chain is deliberately not used).
     if (body && typeof body.message === 'string' && body.message.length > 0) {
       return {
         saveError: body.field ? `${body.field}: ${body.message}` : body.message,

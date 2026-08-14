@@ -72,11 +72,6 @@ function withDetailId(d: LocationDetail): LocationDetailLoaded {
 }
 
 function listItemFromDetail(d: LocationDetailLoaded): LocationItem {
-  // The list projection's `locationTypeCode` / `isAirfield` columns derive
-  // from the LocationType join on the server. The detail payload only
-  // carries `locationTypeId`, so the optimistic patch deliberately omits
-  // the joined columns — `loadAll()` refreshes them after the mutation
-  // round-trip so the list reflects the authoritative server projection.
   const item: LocationItem = {
     id: d.id,
     locationName: d.locationName,
@@ -154,8 +149,6 @@ export const LocationsStore = signalStore(
                     selectedDetail: detail,
                   });
                   bus.next({ kind: 'location.created', id: detail.id });
-                  // Refresh from the server so the joined `locationTypeCode`
-                  // / `isAirfield` columns settle to the authoritative values.
                   loadAll();
                 },
                 error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, req.icaoCode)),

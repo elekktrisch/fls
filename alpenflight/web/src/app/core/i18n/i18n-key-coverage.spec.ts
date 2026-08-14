@@ -3,17 +3,6 @@ import { join, relative } from 'node:path';
 
 import de from '../../../i18n/de';
 
-/**
- * Generic gate: every translation key referenced by source code must
- * exist somewhere in the canonical `de` tree. Catches typos, deleted
- * keys, and keys that landed in the template before the .ts file.
- *
- * Not exhaustive — we don't track transloco's `read: '<scope>'`
- * directive, so we treat a referenced key as valid if it equals or is
- * a suffix of any path in the tree. That keeps the test cheap, and
- * mismatched scopes still get caught by `missingHandler` at runtime
- * during the Playwright pass.
- */
 
 const PROJECT_SRC = join(process.cwd(), 'src');
 

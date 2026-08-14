@@ -4,7 +4,6 @@ import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import { JoinRequestsStore, type PendingJoinRequestItem } from './join-requests.store';
 
-/** Server caps the denial reason at 500 chars (DenyJoinRequest.reason maxLength). */
 const REASON_MAX = 500;
 
 @Component({
@@ -69,9 +68,6 @@ export class DenyModalComponent {
   protected onSubmit(): void {
     const r = this.request();
     if (!r) return;
-    // Fire-and-stay: the host closes the modal once the denial lands (the row
-    // drops); on failure the modal stays open so `deny-error` renders the cause
-    // inline. A blank reason is omitted from the body by the store.
     this.store.deny({ id: r.id, reason: this.reason() });
   }
 

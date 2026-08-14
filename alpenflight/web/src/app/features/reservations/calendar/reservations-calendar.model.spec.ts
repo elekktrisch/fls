@@ -15,24 +15,15 @@ import {
   type CalendarReservation,
 } from './reservations-calendar.model';
 
-/**
- * Calendar math for the `/reservations` calendar (J-5 T-39). The week-picker
- * day list, the per-cell week aggregation, and the day-of-week arithmetic are
- * the load-bearing logic; the component only binds the results. Unit-tested
- * here so the e2e (T-41) just proves the day/week/toggle/daypicker wiring.
- */
 describe('reservations calendar model', () => {
   it('starts the week on Monday for any day in it', () => {
-    // 2026-06-06 is a Saturday → its week starts Mon 2026-06-01.
     expect(isoDate(startOfWeek('2026-06-06T09:00:00'))).toBe('2026-06-01');
-    // The Monday itself is its own week start.
     expect(isoDate(startOfWeek('2026-06-01T23:00:00'))).toBe('2026-06-01');
-    // Sunday belongs to the same (Mon-started) week.
     expect(isoDate(startOfWeek('2026-06-07T00:30:00'))).toBe('2026-06-01');
   });
 
   it('builds seven Monday→Sunday days with the selected one flagged', () => {
-    const days = weekDays('2026-06-04', 'en-US'); // a Thursday
+    const days = weekDays('2026-06-04', 'en-US');
     expect(days).toHaveLength(7);
     expect(days.map((d) => d.key)).toEqual([
       '2026-06-01',
@@ -66,7 +57,6 @@ describe('reservations calendar model', () => {
       end: '2026-06-04T00:00:00',
       isAllDay: true,
     };
-    // Window is 08–19 inclusive → 12 hours.
     expect(reservationHours(allDay)).toBe(12);
 
     const negative: CalendarReservation = {
@@ -89,21 +79,20 @@ describe('reservations calendar model', () => {
 
   it('weekCell aggregates count, hours and a clamped fill fraction', () => {
     const reservations: CalendarReservation[] = [
-      { start: '2026-06-04T08:00:00', end: '2026-06-04T11:00:00', isAllDay: false }, // 3h
-      { start: '2026-06-04T13:00:00', end: '2026-06-04T16:00:00', isAllDay: false }, // 3h
-      { start: '2026-06-05T09:00:00', end: '2026-06-05T10:00:00', isAllDay: false }, // other day
+      { start: '2026-06-04T08:00:00', end: '2026-06-04T11:00:00', isAllDay: false },
+      { start: '2026-06-04T13:00:00', end: '2026-06-04T16:00:00', isAllDay: false },
+      { start: '2026-06-05T09:00:00', end: '2026-06-05T10:00:00', isAllDay: false },
     ];
     const cell = weekCell(reservations, '2026-06-04');
     expect(cell.count).toBe(2);
     expect(cell.hours).toBeCloseTo(6, 5);
-    // 6h over the 12h window → 50%.
     expect(cell.fillPct).toBeCloseTo(50, 5);
   });
 
   it('weekCell clamps the fill fraction at 100%', () => {
     const reservations: CalendarReservation[] = [
-      { start: '2026-06-04T00:00:00', end: '2026-06-04T00:00:00', isAllDay: true }, // 12h
-      { start: '2026-06-04T08:00:00', end: '2026-06-04T16:00:00', isAllDay: false }, // 8h
+      { start: '2026-06-04T00:00:00', end: '2026-06-04T00:00:00', isAllDay: true },
+      { start: '2026-06-04T08:00:00', end: '2026-06-04T16:00:00', isAllDay: false },
     ];
     const cell = weekCell(reservations, '2026-06-04');
     expect(cell.fillPct).toBe(100);
@@ -121,10 +110,8 @@ describe('reservations calendar model', () => {
   });
 
   it('periodLabel is the single day in day-view, the week start–end range in week-view', () => {
-    // Thursday 2026-06-04 → its week is Mon 01 → Sun 07.
     expect(periodLabel('day', '2026-06-04T15:00:00')).toBe('04.06.2026');
     expect(periodLabel('week', '2026-06-04T15:00:00')).toBe('01.06.2026 – 07.06.2026');
-    // Any day in the week yields the same week range.
     expect(periodLabel('week', '2026-06-07T23:00:00')).toBe('01.06.2026 – 07.06.2026');
   });
 

@@ -16,7 +16,6 @@ describe('cannedReportRequest', () => {
       towFlights: false,
       flightCrewPersonId: IDS.personId,
     });
-    // No locationId on a person report.
     expect(req.searchFilter?.locationId).toBeUndefined();
   });
 

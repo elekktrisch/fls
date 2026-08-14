@@ -3,18 +3,6 @@ import type { ValidationErrors } from '@angular/forms';
 
 import { AfFieldErrorsComponent } from '../af-field-errors';
 
-/**
- * Label + content + errors wrapper. Vertical stack everywhere — label
- * above the input — so widths align cleanly regardless of field type and
- * the label sits where readers expect.
- *
- *   <af-form-field label="Email" for="emailField" [required]="true" [errors]="ctl.errors">
- *     <input id="emailField" [formControl]="ctl" type="email" />
- *   </af-form-field>
- *
- * Label-association convention: the consumer matches the `[for]` input
- * with the projected input's `id` attribute.
- */
 @Component({
   selector: 'af-form-field',
   standalone: true,

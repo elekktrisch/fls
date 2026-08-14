@@ -16,25 +16,6 @@ export interface PageChange {
   readonly pageSize: number;
 }
 
-/**
- * List-based data view. Renders `<ul role="list">` with `<li>` items —
- * never a `<table>`. The consumer projects three named templates:
- *
- *   <af-data-table [items]="...">
- *     <ng-template #primary let-item>{{ item.name }}</ng-template>
- *     <ng-template #secondary let-item>{{ item.subtitle }}</ng-template>
- *     <ng-template #meta let-item>{{ item.timestamp }}</ng-template>
- *   </af-data-table>
- *
- * Below md the row stacks vertically (card-like); at md and above the
- * cells flow horizontally — primary takes remaining width, secondary
- * sits next to it, meta is pinned to the right. The kebab / trailing
- * action lives in #meta, which is why meta is the flex-none rightmost
- * cell, not the wrapping one.
- *
- * The `[virtualScroll]` seam is wired but no-op — S-047 turns it on for
- * lists >500 rows.
- */
 @Component({
   selector: 'af-data-table',
   standalone: true,

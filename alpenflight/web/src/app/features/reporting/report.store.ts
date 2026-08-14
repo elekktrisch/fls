@@ -27,12 +27,9 @@ import type {
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-// Canned reports request a large window legacy-side (count 1000); the backend
-// clamps to its 500 cap (oracle § Pagination). Page from offset 0.
 const DEFAULT_PAGE_START = 0;
 const DEFAULT_PAGE_SIZE = 500;
 
-/** The fetched Excel export: the streamed `.xlsx` blob + its server filename. */
 export interface ExcelDownload {
   readonly blob: Blob;
   readonly filename: string;
@@ -40,7 +37,6 @@ export interface ExcelDownload {
 
 const DEFAULT_EXPORT_FILENAME = 'FlightReports.xlsx';
 
-/** Parse `attachment; filename="FlightReports.xlsx"` → the filename, or null. */
 function filenameFromContentDisposition(header: string | null): string | null {
   if (!header) return null;
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
@@ -48,14 +44,12 @@ function filenameFromContentDisposition(header: string | null): string | null {
 }
 
 interface ReportState {
-  /** The filter the current result was loaded with (drives the criteria panel). */
   filter: FlightReportPageRequest | null;
   items: readonly FlightReportDataRecord[];
   summaries: readonly FlightReportSummary[];
   totalRows: number;
   isLoading: boolean;
   loadError: string | null;
-  /** Custom-builder selector option data (T-11) — loaded on demand by category. */
   personOptions: readonly PersonListItem[];
   locationOptions: readonly LocationListItem[];
 }
@@ -71,18 +65,6 @@ const initial: ReportState = {
   locationOptions: [],
 };
 
-/**
- * Flight-report read store. Calls `getFlightReportPage` with the
- * `{ sorting, searchFilter }` request shape and exposes the result + summaries
- * + loading/error for the results page (T-10) and custom builder (T-11).
- *
- * The store is filter-agnostic: callers (the canned-report route resolver, the
- * custom builder) compose the `searchFilter` — including binding
- * `flightCrewPersonId` (person reports → current user's PersonId) or `locationId`
- * (location reports → club homebase) — and pass it to `load()`. Sourcing those
- * IDs is the caller's concern (the picker reads SessionStore.personId; the
- * homebase source is flagged in the T-09 report — not yet on the web wire).
- */
 export const ReportStore = signalStore(
   { providedIn: 'root' },
   withState<ReportState>(initial),
@@ -120,9 +102,6 @@ export const ReportStore = signalStore(
         ),
       );
 
-      // Custom-builder selector option loaders (T-11). Lazy + idempotent: skip the
-      // fetch once the list is populated (masterdata is cache-long — web/CLAUDE.md
-      // §4b). The store owns the HTTP so the builder component stays HTTP-free.
       const fetchPersons = rxMethod<void>(
         pipe(
           switchMap(() =>
@@ -150,38 +129,23 @@ export const ReportStore = signalStore(
       );
 
       return {
-        /** Load a report page for the given `{ sorting, searchFilter }` request. */
         load(request: FlightReportPageRequest): void {
           fetchPage(request);
         },
-        /** Fetch the person picker options for the custom builder (idempotent). */
         loadPersonOptions(): void {
           if (store.personOptions().length === 0) fetchPersons();
         },
-        /** Fetch the location picker options for the custom builder (idempotent). */
         loadLocationOptions(): void {
           if (store.locationOptions().length === 0) fetchLocations();
         },
-        /** Re-run the last-loaded filter (visibility refresh / retry). */
         reload(): void {
           const f = store.filter();
           if (f) fetchPage(f);
         },
-        /**
-         * Fetch the streamed `.xlsx` export for the given request. The store owns
-         * the HTTP call (web/CLAUDE.md §4 — no HttpClient in components); the
-         * caller performs the browser download (DOM is a component concern). The
-         * orval client types the body as `StreamingResponseBody`, so we override
-         * `responseType: 'blob'` + `observe: 'response'` to read the binary body
-         * AND the `Content-Disposition` filename.
-         */
         async exportExcel(request: FlightReportPageRequest): Promise<ExcelDownload> {
           const response = (await firstValueFrom(
             api.exportFlightReportExcel(DEFAULT_PAGE_START, DEFAULT_PAGE_SIZE, request, {
               observe: 'response',
-              // `responseType` is outside the orval-generated option type (it only
-              // ever generates JSON bodies); the cast keeps Angular's HttpClient
-              // returning the raw blob instead of attempting a JSON parse.
               responseType: 'blob' as 'json',
             } as never),
           )) as HttpResponse<Blob>;
@@ -200,8 +164,6 @@ export const ReportStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
-      // Read-side store: clear on tenant switch / logout so a stale club's
-      // report never bleeds across a tenant boundary (web/CLAUDE.md § 4b).
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.tenantSwitch' || evt.kind === 'session.logout') {
           store.clear();

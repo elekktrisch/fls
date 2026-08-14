@@ -2,12 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { actionForStatus, parseStatusChanged } from './join-pending.logic';
 
-/**
- * Pure decision logic for `/join/pending` (T-11). Tested in vitest per the web
- * testing posture (§8: vitest for logic, Playwright for DOM) — the rendered
- * club projection / withdraw link / SSE-driven navigation are proven by the
- * real-idp spec `e2e/tests/real-idp/join-request.spec.ts`.
- */
 describe('parseStatusChanged', () => {
   it('extracts the status from a status-changed frame', () => {
     expect(parseStatusChanged('{"requestId":"jr-1","status":"APPROVED"}')).toBe('APPROVED');

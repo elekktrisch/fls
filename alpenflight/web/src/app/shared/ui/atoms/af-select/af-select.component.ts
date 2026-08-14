@@ -69,11 +69,6 @@ export class AfSelectComponent<T> implements ControlValueAccessor {
 
   readonly options = input.required<readonly AfSelectOption<T>[]>();
 
-  /**
-   * Stamped onto the inner ng-zorro control (`nzId`) so a sibling
-   * `<label for="X">` targets the actual focusable element, matching the
-   * `af-input` convention.
-   */
   readonly inputId = input<string>('');
   readonly placeholder = input<string>('');
   readonly showSearch = input<boolean>(true);
@@ -81,12 +76,6 @@ export class AfSelectComponent<T> implements ControlValueAccessor {
   readonly disabled = input<boolean>(false);
   readonly value = model<T | null>(null);
 
-  /**
-   * CVA-driven disabled state (set by `form.disable()`/`enable()`), OR'd with the
-   * explicit `[disabled]` input. A read-only form (`form.disable()`) MUST render
-   * its selects non-editable, not just mark the control DISABLED (J-6b T-09: the
-   * planning view-mode read-only fix).
-   */
   private readonly cvaDisabled = signal(false);
   protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 

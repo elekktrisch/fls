@@ -9,11 +9,6 @@ import {
   type TowFlightForm,
 } from './flight-form.model';
 
-/**
- * Read-only metadata the wizard hands the coordinator. The wizard owns the
- * Signal Store lookups (S-006); the coordinator owns the rules. Pure-TS access
- * keeps the coordinator testable without Angular DI.
- */
 export interface CoordinatorMetadata {
   aircraft(id: string | null | undefined): {
     nrOfSeats: number | null;
@@ -32,7 +27,6 @@ export interface CoordinatorMetadata {
     isOutboundRouteRequired: boolean;
     isInboundRouteRequired: boolean;
   } | null;
-  /** Club defaults applied by `resetTowFlightDefaults` on tow aircraft pick. */
   clubDefaults(): {
     homebaseLocationId: string | null;
     defaultTowFlightTypeId: string | null;
@@ -42,15 +36,6 @@ export interface CoordinatorMetadata {
 
 const NO_EMIT = { emitEvent: false } as const;
 
-/**
- * Plain TS class — no Angular DI. The wizard component instantiates this
- * once in ngOnInit and calls `attach(form, metadata, destroyRef)`.
- *
- * Owns the cross-field reactive rules from the parity oracle (see the story's
- * `## Client form mechanics` § Cross-field reactive rules). All `patchValue`
- * calls use `emitEvent: false` to avoid `valueChanges` re-entry deadlocks
- * (Vitest fakeAsync sentinel).
- */
 export class FlightFormCoordinator {
   private form!: FlightForm;
   private md!: CoordinatorMetadata;
@@ -64,64 +49,47 @@ export class FlightFormCoordinator {
   private wireRules(destroyRef: DestroyRef): void {
     const { glider, tow, startTypeId } = this.form.controls;
 
-    // Rule: startType change — when changing AWAY from Towing, ldgTime mirrors
-    // don't apply but tow values are kept in memory; the submit-time tow-discard
-    // (see snapshotToCreateRequests) handles the partial-data drop.
     startTypeId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((next) => this.onStartTypeChange(next));
 
-    // Rule: glider.flightTypeId change → recompute solo tri-state + clear conditionals.
     glider.controls.flightTypeId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((id) => this.onGliderFlightTypeChange(id));
 
-    // Rule: glider.flightCostBalanceTypeId change → conditionally clear invoice recipient.
     glider.controls.flightCostBalanceTypeId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((id) => this.onFlightCostBalanceChange(id));
 
-    // Rule: glider.aircraftId change — seat-count force-solo, engine-counter reset (conditional).
     glider.controls.aircraftId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((id) => this.onGliderAircraftChange(id));
 
-    // Rule: tow.aircraftId change → resetTowFlightDefaults (fill empties from club defaults).
     tow.controls.aircraftId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((id) => this.onTowAircraftChange(id));
 
-    // Rule: glider.startLocationId change → mirror to ldgLocationId + tow.startLocationId + tow.ldgLocationId.
     glider.controls.startLocationId.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((id) => this.onGliderStartLocationChange(id));
 
-    // Rule: glider.noStartTimeInformation toggle → propagate to tow (asymmetric — landing doesn't propagate).
     glider.controls.noStartTimeInformation.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((flag) => this.onNoStartTimeInfoToggle(flag, glider, tow));
 
-    // Rule: glider.ldgTime blur → default nrOfLdgs=1 if unset.
     glider.controls.ldgTime.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((t) => this.onLdgTimeFirstSet(t, glider));
 
-    // Rule: tow.ldgTime blur → default tow.nrOfLdgs=1 if unset (parity FlightsController.js:749).
     tow.controls.ldgTime.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((t) => this.onLdgTimeFirstSet(t, tow));
 
-    // Rule: isSoloFlight toggle to true → clear coPilotPersonId.
     glider.controls.isSoloFlight.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe((solo) => this.onSoloToggle(solo));
 
-    // Rule: engine counters blur → mirror engineDurationSeconds (derived; not in form yet — leave for UI step).
-    // Duration mirror (glider.startTime / ldgTime / duration) — see computeDurationFromTimes below.
-    // Hooked up in the step components for now since the duration field is display-only there.
 
-    // Mirror canUpdateRecord onto each sub-group's disabled state — the wizard
-    // body disables when the server flag is false.
     this.form.controls.canUpdateRecord.valueChanges
       .pipe(
         startWith(this.form.controls.canUpdateRecord.value),
@@ -138,21 +106,13 @@ export class FlightFormCoordinator {
       });
   }
 
-  // ============================== Rules ===============================
 
   private onStartTypeChange(next: string | null): void {
-    // The glider group's conditional validator (winch operator on a winch
-    // launch) reads the start type off the parent — re-run it so the inline
-    // error + Save gate track the start-type switch (a group validator doesn't
-    // re-run on a parent value change on its own).
     this.form.controls.glider.updateValueAndValidity();
 
-    // Tow sub-form is always built (cheap); the wizard's @if (needsTowplane(…))
-    // template gate controls visibility.
     if (needsTowplane(next)) {
       const tow = this.form.controls.tow;
       const club = this.md.clubDefaults();
-      // Seed defaults on the first transition INTO Towing, only when empty.
       if (!tow.controls.flightTypeId.value && club.defaultTowFlightTypeId) {
         tow.controls.flightTypeId.setValue(club.defaultTowFlightTypeId, NO_EMIT);
       }
@@ -188,9 +148,6 @@ export class FlightFormCoordinator {
       glider.controls.isSoloFlight.setValue(true, NO_EMIT);
       glider.controls.coPilotPersonId.setValue(null, NO_EMIT);
     }
-    // Engine-counter reset is conditional on club.resetEngineOperatingCounters
-    // AND on a real aircraft change (not draft restore). The wizard owns the
-    // draft-restore guard and calls `clearEngineCounters()` directly.
     if (this.md.clubDefaults().resetEngineOperatingCounters) {
       glider.controls.engineStartOperatingCounterInSeconds.setValue(null, NO_EMIT);
       glider.controls.engineEndOperatingCounterInSeconds.setValue(null, NO_EMIT);
@@ -201,7 +158,6 @@ export class FlightFormCoordinator {
     if (!id) return;
     const tow = this.form.controls.tow;
     const club = this.md.clubDefaults();
-    // resetTowFlightDefaults — fill empties only (don't overwrite user input).
     if (!tow.controls.startLocationId.value && club.homebaseLocationId) {
       tow.controls.startLocationId.setValue(club.homebaseLocationId, NO_EMIT);
     }
@@ -219,9 +175,7 @@ export class FlightFormCoordinator {
   private onGliderStartLocationChange(id: string | null): void {
     const glider = this.form.controls.glider;
     const tow = this.form.controls.tow;
-    // Overwrite ldgLocationId on the glider — legacy parity (FlightsController.js:649-656).
     glider.controls.ldgLocationId.setValue(id, NO_EMIT);
-    // Mirror to tow start AND tow landing — those are display-only / disabled in the UI.
     tow.controls.startLocationId.setValue(id, NO_EMIT);
     tow.controls.ldgLocationId.setValue(id, NO_EMIT);
   }
@@ -234,7 +188,6 @@ export class FlightFormCoordinator {
     if (flag) {
       glider.controls.startTime.setValue(null, NO_EMIT);
     }
-    // Propagates to tow (start only; landing flag is NOT mirrored — asymmetric by design).
     if (tow.controls.noStartTimeInformation.value !== flag) {
       tow.controls.noStartTimeInformation.setValue(flag, NO_EMIT);
     }

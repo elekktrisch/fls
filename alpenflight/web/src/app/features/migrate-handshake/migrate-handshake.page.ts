@@ -22,35 +22,9 @@ import { consumeSignupPending } from '../signup/signup-pending';
 import { handshakeArtifactDownload } from './handshake-artifact';
 import { MigrateHandshakeStore } from './migrate-handshake.store';
 
-/**
- * Placeholder until S-139 publishes the export tool. Centralising the
- * URL behind a named export keeps the swap to the real release URL a
- * one-line edit.
- */
 const JAR_DOWNLOAD_PLACEHOLDER_HREF =
   'https://github.com/elekktrisch/fls/releases?q=alpenflight-export-jar';
 
-/**
- * /migrate/start page (S-140). Owns:
- *
- * <ul>
- *   <li>Mount-restore: {@code GET .../handshake/current} → 200 sets state;
- *       404 falls through to {@code POST .../handshake}.</li>
- *   <li>Regenerate flow: explicit button → {@code <af-dialog>} confirm →
- *       on accept fires a fresh POST (silently supersedes the prior row).</li>
- *   <li>Public-key surface: copy-friendly textarea (PEM, display-only) +
- *       Copy + Download, both emitting the combined handshake artifact
- *       {@code alpenflight-handshake-<uploadId>.json} (uploadId + public
- *       key) the export jar reads via {@code --handshake-file} (S-140a).</li>
- *   <li>Export-tool panel: link to the JAR download (placeholder URL).</li>
- *   <li>Funnel emission: {@code signup.completed} fires once per
- *       signup-pending session (carried over from the placeholder).</li>
- * </ul>
- *
- * <p>The {@code email_verified} guard is enforced server-side (controller
- * {@code @PreAuthorize}); a SPA-side redirect to {@code /verify-email-pending}
- * is a UX follow-up that needs the destination page first.
- */
 @Component({
   selector: 'af-migrate-handshake',
   standalone: true,
@@ -238,12 +212,6 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Funnel-telemetry parity with the prior placeholder component — emit
-   * {@code signup.completed} exactly once per signup round-trip if the
-   * pending stamp is present. PII-free per
-   * {@code features/signup/funnel-telemetry.ts}.
-   */
   private fireSignupCompletedOnce(): void {
     const pending = consumeSignupPending();
     if (!pending) return;

@@ -7,8 +7,6 @@ const d = (iso: string): Date => new Date(iso);
 describe('date-value-bridge — zoneless reference stability (S-062e)', () => {
   describe('rangeArray', () => {
     it('returns the SAME reference when the value is range-equivalent to prev', () => {
-      // The deadlock fix: identical epochs must not mint a new array, or the
-      // range picker re-reads a "new" input every CD pass and busy-loops.
       const prev = [d('2026-01-01'), d('2026-01-31')];
       const next = rangeArray([d('2026-01-01'), d('2026-01-31')], prev);
       expect(next).toBe(prev);

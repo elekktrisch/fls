@@ -4,13 +4,6 @@ import type { AppRole } from '../../core/session/session.store';
 
 import { effectiveVariant, isAdminVariant, roleVariant } from './start-variant';
 
-/**
- * Variant-selection logic for the `/start` role-switch shell (T-07). Pure
- * function tests per the web testing posture (§8: vitest for logic, Playwright
- * for DOM) — the container rendering / testids are proven by the real-idp spec
- * `e2e/tests/real-idp/start-dashboard.spec.ts`. Tile contents are NOT asserted
- * here (those are T-09 / T-11).
- */
 describe('start-variant selection', () => {
   describe('roleVariant — precedence sysadmin > clubadmin > pilot', () => {
     it('maps a pilot to the pilot variant', () => {
@@ -38,7 +31,6 @@ describe('start-variant selection', () => {
     it('gives a multi-role user the highest variant (sysadmin wins over clubadmin)', () => {
       const both: AppRole[] = ['CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR'];
       expect(roleVariant(both)).toBe('sysadmin');
-      // Order-independent: membership, not array position.
       expect(roleVariant(['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'])).toBe('sysadmin');
     });
 
@@ -72,7 +64,6 @@ describe('start-variant selection', () => {
     });
 
     it('flips back to the role variant when the override is cleared', () => {
-      // Toggle on then off — an admin returns to their own variant.
       expect(effectiveVariant(['SYSTEM_ADMINISTRATOR'], true)).toBe('pilot');
       expect(effectiveVariant(['SYSTEM_ADMINISTRATOR'], false)).toBe('sysadmin');
     });

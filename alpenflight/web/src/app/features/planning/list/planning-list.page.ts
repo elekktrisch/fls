@@ -13,23 +13,6 @@ import { SessionStore } from '../../../core/session/session.store';
 import type { PlanningDayItem } from '../planning.store';
 import { PlanningStore } from '../planning.store';
 
-/**
- * `/planning` — the paged future-days list (J-6 T-07).
- *
- * NO design oracle (J-6 Notes "No design oracle"): the screen shape is derived
- * from the legacy `flsweb/src/planning/` structure + J-5's reservations list
- * visual language (slate table, 1px borders, kebab row-actions, sentence case —
- * ADR 0024). Columns: date + weekday (Sat/Sun flagged, legacy `isSaturday`/
- * `isSunday` highlight), location, the 3 crew display names (instructor /
- * tow-pilot / flight-operator), and the computed `numberOfAircraftReservations`.
- * Row actions: edit / view / delete (delete → confirm → `deletePlanningDay`,
- * refresh; gated on `canDeleteRecord`). Top: New (→ /planning/new/edit) +
- * Setup (→ /planningsetup).
- *
- * Data: `listFuturePlanningDays` (GET overview/future) via `PlanningStore`;
- * crew + location names decorated client-side from the picker maps (ADR 0023 —
- * no server cross-module join), mirroring the reservations store.
- */
 @Component({
   selector: 'af-planning-list',
   standalone: true,
@@ -255,7 +238,6 @@ export class PlanningListPage {
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
 
-  /** The day currently awaiting delete confirmation (null = no dialog). */
   protected readonly pendingDelete = signal<PlanningDayItem | null>(null);
 
   protected isWeekend(day: PlanningDayItem): boolean {
@@ -272,7 +254,6 @@ export class PlanningListPage {
     return this.store.personNameById()[id] ?? id;
   }
 
-  /** `dd.MM.yyyy` from the pure-DATE `YYYY-MM-DD` (no tz shift). */
   protected formatDate(iso: string): string {
     const [y, m, d] = iso.split('-');
     return y && m && d ? `${d}.${m}.${y}` : iso;
@@ -283,7 +264,6 @@ export class PlanningListPage {
     return WEEKDAYS_DE[dow] ?? '';
   }
 
-  /** Local day-of-week (0 = Sun … 6 = Sat) from a pure-DATE string. */
   private dayOfWeek(iso: string): number {
     const [y, m, d] = iso.split('-').map(Number);
     if (!y || !m || !d) return -1;
@@ -315,5 +295,4 @@ export class PlanningListPage {
   }
 }
 
-/** German weekday short labels, indexed by `Date.getDay()` (0 = Sun). */
 const WEEKDAYS_DE: readonly string[] = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];

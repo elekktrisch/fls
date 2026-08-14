@@ -6,7 +6,6 @@ import {
   instructorObserverExclusiveValidator,
 } from './instructor-observer-exclusive.validator';
 
-/** Minimal form shape — only the two flags the validator reads. */
 function group(instructor: boolean, observer: boolean): FormGroup {
   return new FormGroup(
     {

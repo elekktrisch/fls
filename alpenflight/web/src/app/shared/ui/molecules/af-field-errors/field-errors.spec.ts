@@ -24,11 +24,6 @@ describe('errorTranslationKey', () => {
 });
 
 describe('canonical error keys resolve in every shipped locale (J-26 T-08)', () => {
-  // The validator names that reach <af-field-errors> today: the Angular
-  // built-ins used across the edit forms + the synthetic `duplicate` key the
-  // stores set on 409. `errorTranslationKey` maps each onto `common.errors.*`;
-  // the component renders the key through transloco, so a missing entry in any
-  // locale file would put a raw i18n key (or the de fallback) on screen.
   const VALIDATOR_NAMES = [
     'required',
     'minlength',

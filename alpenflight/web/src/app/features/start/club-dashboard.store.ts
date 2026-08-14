@@ -23,8 +23,6 @@ interface ClubDashboardState {
   pendingValidation: number;
   isLoading: boolean;
   hasError: boolean;
-  // True once a fetch has resolved successfully at least once — lets the tile
-  // distinguish "first paint, still loading" from "loaded, count happens to be 0".
   hasLoaded: boolean;
 }
 
@@ -36,33 +34,11 @@ const initial: ClubDashboardState = {
   hasLoaded: false,
 };
 
-/**
- * Feeds the club-admin dashboard variant's tiles (J-3 T-09): today's club
- * flight count + flights-pending-validation count, both from
- * {@code GET /api/v1/me/club-dashboard} (T-08, tenant-scoped server-side to the
- * caller's club via {@code @TenantId}).
- *
- * <p><b>Live update.</b> The store subscribes to the per-principal SSE channel
- * ({@link MeEventsService} `flight.created`, T-06) and, on each event,
- * <em>re-fetches</em> the counts. Per the journey carve, "SSE is the nudge, the
- * GET is the source of truth" — so the today-count moves in place without a
- * page reload, and the displayed numbers always reflect a real server read
- * (no optimistic drift). The re-fetch keeps the previously-shown counts visible
- * (no flicker to zero), only flipping to the error branch if the GET itself
- * fails.
- *
- * <p>Provided in root (a single dashboard surface) and cleared on
- * `session.logout` / `session.tenantSwitch` like every domain store (CLAUDE.md
- * §4b) so one club's counts never bleed into another's session.
- */
 export const ClubDashboardStore = signalStore(
   { providedIn: 'root' },
   withState<ClubDashboardState>(initial),
   withComputed(({ isLoading, hasError, hasLoaded }) => ({
-    // Show the numbers once a load has resolved; keep them visible across a
-    // background re-fetch (isLoading true but hasLoaded already true).
     showCounts: computed(() => hasLoaded() && !hasError()),
-    // First-paint spinner: loading with nothing resolved yet.
     showLoading: computed(() => isLoading() && !hasLoaded()),
   })),
   withMethods((store, meApi = inject(MeService)) => {
@@ -80,7 +56,6 @@ export const ClubDashboardStore = signalStore(
                   hasError: false,
                   hasLoaded: true,
                 }),
-              // Keep the last good counts on screen; only flag the error.
               error: () => patchState(store, { isLoading: false, hasError: true }),
             }),
           ),
@@ -100,12 +75,8 @@ export const ClubDashboardStore = signalStore(
       const events = inject(MeEventsService);
       const destroyRef = inject(DestroyRef);
 
-      // Initial paint — load the counts.
       store.load();
 
-      // Live update: every flight.created push re-fetches (SSE is the nudge,
-      // the GET is the source of truth — journey carve). Zoneless: patchState
-      // writes signals, which schedule change detection on their own.
       events
         .on('flight.created')
         .pipe(takeUntilDestroyed(destroyRef))

@@ -1,13 +1,3 @@
-/**
- * Canonical start-type identifiers seeded by
- * `alpenflight/server/src/main/resources/db/migration/V2__identity_and_reference.sql`.
- *
- * No `/api/v1/start-types` endpoint exists yet, so the wizard hardcodes
- * the seeded UUIDs against the migration. **Follow-up:** add a backend
- * reference-data endpoint + a `StartTypesStore` and consume them from the
- * wizard — tracked alongside the masterdata-field-plumbing rework (the
- * cross-field reactive rules also need richer master-data flags).
- */
 
 export const START_TYPE = {
   WINCH_LAUNCH: '019e2e15-2c00-7fa0-8000-000000000fa0',

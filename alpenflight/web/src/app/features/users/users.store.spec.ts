@@ -327,9 +327,6 @@ describe('UsersStore', () => {
 });
 
 describe('mergeManagedRoles (role-diff formula)', () => {
-  // (currentFromServer \ uiManagedRoles) ∪ checkedBoxes
-  // Preserves SYSTEM_ADMINISTRATOR (and any future out-of-band role) on
-  // profile edit so a CLUB_ADMIN never silently demotes a sysadmin user.
 
   it('returns checked boxes when no out-of-band roles exist', () => {
     expect(mergeManagedRoles(['PILOT'], ['CLUB_ADMINISTRATOR', 'PILOT']).sort()).toEqual(

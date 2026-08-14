@@ -117,7 +117,6 @@ export class SignupComponent {
   }
 
   protected signIn(): void {
-    // Existing-user fallback — Keycloak login screen, no signup-pending stamp.
     this.#authorizeSafely({ customParams: { ui_locales: this.#locale.current() } });
   }
 
@@ -130,15 +129,10 @@ export class SignupComponent {
     this.#authorizeSafely({ customParams });
   }
 
-  // Reset the pending lock on synchronous failure so the user can retry.
-  // OIDC library's async failures route through PublicEventsService — handled
-  // upstream by OidcSessionBridge, not here.
   #authorizeSafely(args: { customParams: Record<string, string> }): void {
     try {
       this.#oidc.authorize(undefined, args);
     } catch (err) {
-      // Dev-loop diagnostic so a misconfigured OIDC client surfaces on the
-      // console rather than dying silently behind a user-facing toast.
       console.error('[signup] authorize failed', err);
       this.pending.set(null);
       this.error.set(true);

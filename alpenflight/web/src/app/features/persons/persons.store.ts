@@ -74,14 +74,6 @@ function withDetailId(d: PersonResponse): PersonDetailLoaded {
   return d as PersonDetailLoaded;
 }
 
-/**
- * Project the detail payload onto the list-row shape for post-save patching.
- * Joined columns (memberStateName, memberNumber, role flags) live on the
- * caller-tenant's PersonClub; on create / update the response includes
- * exactly one PersonClub for the caller's tenant (or zero if the request
- * omitted `initialClubMembership`). The list reload after the mutation
- * settles authoritative values from the JOIN-projection query.
- */
 function listItemFromDetail(d: PersonDetailLoaded): PersonItem {
   const pc = d.memberships?.[0];
   const item: PersonItem = {
@@ -181,16 +173,6 @@ export const PersonsStore = signalStore(
           ),
         ),
       ),
-      /**
-       * Forked update (J-26 T-04 data-loss fix): the edit form spans TWO
-       * resources — Person identity/contact (PUT /persons/{id}) and the
-       * caller-tenant PersonClub (PUT /persons/{id}/clubs/current). The two
-       * PUTs run SEQUENTIALLY (person first): the membership response then
-       * reflects both halves, so it is the authoritative source for the
-       * detail/list patch. Any failure — either half — lands in errorPatch
-       * and NO `person.updated` event fires, so the edit page stays put and
-       * shows the error instead of a false success.
-       */
       update: rxMethod<{ id: string; req: PersonUpdateRequest; membership?: PersonClubRequest }>(
         pipe(
           tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
@@ -250,13 +232,6 @@ export const PersonsStore = signalStore(
   }),
 );
 
-// Ordered classification rules (J-26 T-23, shared `classifyApiError`): 403 →
-// forbidden, then the two 409 `type`-URN discriminators (cross-tenant delete
-// block / duplicate-membership) ahead of the broad 409 catch-all. Each rule
-// keeps its prior hardcoded fallback message verbatim. The generic tail (a
-// `field`-prefixed validation echo when the body carries a non-empty
-// detail/message, else `e.message`) stays in `fallback` — it covers 400 and
-// every other status exactly as the prior cascade's bottom did.
 function personErrorRules(): readonly SaveErrorRule<SaveErrorKind>[] {
   const typeOf = (b: ProblemDetailBody) => b.type ?? '';
   return [
@@ -297,10 +272,6 @@ function personErrorRules(): readonly SaveErrorRule<SaveErrorKind>[] {
 
 function errorPatch(e: HttpErrorResponse): { saveError: string; saveErrorKind: SaveErrorKind } {
   return classifyApiError(e, personErrorRules(), (body, err) => {
-    // Prior non-409/403 tail EXACTLY: a `field`-prefixed echo when the body
-    // carries a non-empty `detail`/`message`, else the raw `e.message`. The
-    // empty-`msg` branch falls to `err.message` (NOT `genericSaveErrorMessage`,
-    // which would surface an empty `''` detail) to stay byte-identical.
     const msg = body ? (body.detail ?? body.message ?? '') : '';
     if (msg.length > 0) {
       return {

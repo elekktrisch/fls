@@ -19,12 +19,6 @@ const BREAKPOINT_MIN_PX: Record<Breakpoint, number> = {
   xl: 1440,
 };
 
-/**
- * Signal-derived viewport tracking.
- *
- * Subscribes one `MediaQueryList` per AC-DIR-1 breakpoint and exposes per-bp
- * signals. `isBelow` / `isAtLeast` are computed-derived from `current`.
- */
 @Injectable({ providedIn: 'root' })
 export class ViewportService {
   readonly #destroyRef = inject(DestroyRef);
@@ -45,12 +39,10 @@ export class ViewportService {
     }
   }
 
-  /** True when the viewport width is >= the breakpoint's lower bound. */
   isAtLeast(bp: Breakpoint): Signal<boolean> {
     return this.#matches[bp].asReadonly();
   }
 
-  /** True when the viewport width is strictly below the breakpoint. */
   isBelow(bp: Breakpoint): Signal<boolean> {
     return computed(() => !this.#matches[bp]());
   }

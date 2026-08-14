@@ -37,27 +37,18 @@ import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 export type DeliveryCreationTestItem = DeliveryCreationTestListItem & { id: string };
 export type DeliveryCreationTestDetailLoaded = DeliveryCreationTestDetail & { id: string };
 
-/** The Flight picker option the edit form runs the harness against (id + label). */
 export interface FlightPickerOption {
   id: string;
   label: string;
 }
 
-// 403 → the CLUB_ADMINISTRATOR gate (every harness endpoint is admin-gated);
-// 404 → a cross-tenant or deleted row (the @TenantId finder never returns
-// another club's test). Everything else falls through to the generic tail.
 export type SaveErrorKind = 'forbidden' | 'not-found' | 'other';
 
 interface DeliveryCreationTestsExtraState {
   selectedId: string | null;
   selectedDetail: DeliveryCreationTestDetailLoaded | null;
-  // The last dry-run output (T-17 fills the expected-item set from it) and the
-  // last run verdict (T-17/T-18 render the result + diff). Cleared on a fresh
-  // edit-form entry so a stale run never bleeds across tests.
   exampleResult: ExampleDeliveryResult | null;
   runResult: RunTestResult | null;
-  // The Flight picker source for the edit form. Lazily loaded; the harness runs
-  // the engine against the selected flight (the dry-run + the run-test input).
   flightOptions: FlightPickerOption[];
   isLoading: boolean;
   isLoadingDetail: boolean;
@@ -87,7 +78,6 @@ const initialExtra: DeliveryCreationTestsExtraState = {
   lastRefreshedAt: null,
 };
 
-/** A human label for the picker — best of date / immat / pilot the row carries. */
 function flightOptionLabel(row: Record<string, unknown>): string {
   const parts = [row['flightDate'], row['aircraftImmatriculation'], row['pilotName']]
     .filter((v): v is string => typeof v === 'string' && v.length > 0)
@@ -95,11 +85,6 @@ function flightOptionLabel(row: Record<string, unknown>): string {
   return parts.length > 0 ? parts.join(' · ') : String(row['id'] ?? '');
 }
 
-/**
- * Normalize the flights endpoint to picker options. The real client returns a
- * keyset envelope (`{items}`); the mock-route harness fulfils a bare array — so
- * accept either shape rather than coupling the picker to one wire form.
- */
 function toFlightOptions(payload: unknown): FlightPickerOption[] {
   const rows: unknown[] = Array.isArray(payload)
     ? payload
@@ -126,12 +111,6 @@ function withDetailId(d: DeliveryCreationTestDetail): DeliveryCreationTestDetail
   return d as DeliveryCreationTestDetailLoaded;
 }
 
-/**
- * Fold the last dry-run output into the write request so a saved harness persists
- * the expected set the operator just captured (the backend's `captureExpected`
- * runs only when `expectedDelivery` is present). No dry-run captured → send the
- * request as-is, leaving any previously persisted expectation untouched.
- */
 function withCapturedExpected(
   req: DeliveryCreationTestWriteRequest,
   example: ExampleDeliveryResult | null,
@@ -144,10 +123,6 @@ function withCapturedExpected(
   };
 }
 
-/**
- * Project the detail onto the list-row shape for an optimistic post-save patch;
- * `loadAll()` after the mutation settles `lastTest*` to the authoritative value.
- */
 function listItemFromDetail(d: DeliveryCreationTestDetailLoaded): DeliveryCreationTestItem {
   const item: DeliveryCreationTestItem = {
     id: d.id,
@@ -289,9 +264,6 @@ export const DeliveryCreationTestsStore = signalStore(
             ),
           ),
         ),
-        // Dry-run the engine for the picked flight — fills the expected-item set
-        // WITHOUT persisting (T-17's "Create test delivery"). Failure leaves the
-        // form usable; the dry-run never blocks save.
         exampleForFlight: rxMethod<string>(
           pipe(
             tap(() => patchState(store, { isExampleLoading: true, saveError: null })),
@@ -307,8 +279,6 @@ export const DeliveryCreationTestsStore = signalStore(
             ),
           ),
         ),
-        // Run the engine vs the stored expectation (T-17 "Run test"); the verdict +
-        // diff + matched-rule ids feed T-17's result panel and T-18's diff UI.
         run: rxMethod<string>(
           pipe(
             tap(() => patchState(store, { isRunning: true, saveError: null })),
@@ -323,8 +293,6 @@ export const DeliveryCreationTestsStore = signalStore(
             ),
           ),
         ),
-        // The Flight picker source for the edit form. The flights endpoint shape
-        // is normalized (envelope or bare array) by `toFlightOptions`.
         loadFlightOptions: rxMethod<void>(
           pipe(
             switchMap(() =>
@@ -360,8 +328,6 @@ export const DeliveryCreationTestsStore = signalStore(
   }),
 );
 
-// 403 → the CLUB_ADMINISTRATOR gate; 404 → cross-tenant / deleted (the
-// @TenantId-scoped finder never returns another club's test).
 const errorRules: readonly SaveErrorRule<SaveErrorKind>[] = [
   {
     status: 403,

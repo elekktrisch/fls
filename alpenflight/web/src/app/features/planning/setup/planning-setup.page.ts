@@ -45,11 +45,6 @@ type SetupForm = FormGroup<{
   info: FormControl<string>;
 }>;
 
-/** Weekday checkbox rows — control name (matches the rule-request field), the
- *  short `mon`..`sun` testid suffix the setup-wizard spec ticks, + the full
- *  scoped label key (referenced via a variable, not a literal, so the i18n
- *  key-coverage extractor doesn't mis-parse a concatenated translate call).
- *  Monday-first display order (ISO / Swiss week). */
 const WEEKDAYS: readonly {
   key: string;
   control: keyof SetupForm['controls'];
@@ -64,23 +59,6 @@ const WEEKDAYS: readonly {
   { key: 'sun', control: 'everySunday', labelKey: 'weekday.sun' },
 ];
 
-/**
- * Planning-day SETUP WIZARD (J-6 T-09) — `/planningsetup`.
- *
- * Single-step form (legacy `planning-setup.html` is a single form too — parity,
- * not under-build): a `StartDate`/`EndDate` range, the seven `Every<Weekday>`
- * checkboxes (default Sat+Sun ticked, legacy `PlanningDaySetupController.js:8-17`),
- * a location select (defaults to the first available location — the SPA tenant
- * model carries no club `HomebaseId`, so "the club's home base if available" maps
- * to the first location). On submit → POST `/api/v1/planning-days/create/rule`
- * (orval `bulkCreatePlanningDays`); the backend expands the rule, skips existing
- * days idempotently + bounds the range (T-05) → routes back to `/planning` where
- * the created days appear. Cancel → `/planning`.
- *
- * Built on the J-5 / T-08 form idiom — typed reactive `FormGroup`, the shared
- * `withOptionals` request builder (low-CRAP rider), design-system tokens. Nav
- * happens only on the bus success event (the SPA-nav-evicts-response-body trap).
- */
 @Component({
   selector: 'af-planning-setup',
   standalone: true,
@@ -238,7 +216,6 @@ export class PlanningSetupPage {
   protected readonly weekdays = WEEKDAYS;
   protected readonly submitted = signal(false);
 
-  // Legacy parity: Saturday + Sunday default-ticked (`PlanningDaySetupController.js:8-10`).
   protected readonly form: SetupForm = this.fb.group({
     startDate: this.fb.nonNullable.control('', [Validators.required]),
     endDate: this.fb.nonNullable.control('', [Validators.required]),
@@ -253,10 +230,6 @@ export class PlanningSetupPage {
     info: this.fb.nonNullable.control(''),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): each required `af-form-field [errors]` tracks its control's errors
-  // debounced ~200ms and clears when valid — replacing the touched-only
-  // bindings (silent until blur/submit).
   protected readonly startDateErrors = liveFieldErrors(this.form.controls.startDate);
   protected readonly endDateErrors = liveFieldErrors(this.form.controls.endDate);
   protected readonly locationIdErrors = liveFieldErrors(this.form.controls.locationId);
@@ -266,15 +239,9 @@ export class PlanningSetupPage {
   );
 
   constructor() {
-    // Picker payloads (locations) are loaded by the root store on init; ensure
-    // they are present when the wizard is the first screen hit.
     this.store.loadDecorations();
     this.store.clearSaveError();
 
-    // Default the location to the club's home base if available — the SPA has no
-    // homebase claim, so fall back to the first available location (legacy
-    // `PlanningDaySetupController.js:13-16`). Only seed an empty control so a
-    // user choice is never overwritten.
     effect(() => {
       const first = this.store.locations()[0];
       if (first && this.form.controls.locationId.value === '') {
@@ -283,8 +250,6 @@ export class PlanningSetupPage {
     });
 
     const destroyRef = inject(DestroyRef);
-    // Navigate only on the bus success event — a 422 (range) / error leaves us
-    // on the form with the inline error (no nav-evicts-response-body race).
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.submitted()) return;
       if (evt.kind === 'planningDay.bulkCreated') {
@@ -308,11 +273,6 @@ export class PlanningSetupPage {
   }
 }
 
-/**
- * Form → rule-expand request. The 7 weekday flags + range are always sent;
- * `withOptionals` prunes only the empty `info`. Empty weekday flags are sent
- * as-is (all `false`) → the backend returns an empty list, no error (oracle).
- */
 function formToRuleRequest(form: SetupForm): PlanningDayRuleRequest {
   const v = form.getRawValue();
   return withOptionals(

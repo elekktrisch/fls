@@ -15,27 +15,6 @@ import { ProfileNotificationsTab } from './profile-notifications.tab';
 import { ProfilePersonalTab } from './profile-personal.tab';
 import { ProfilePilotTab } from './profile-pilot.tab';
 
-/**
- * `/profile` self-edit shell (T-03, J-4 / S-182). Renders the 4-tab scaffold —
- * Account / Personal / Pilot / Notifications — that the per-tab tasks build on.
- * Entry is the nav-bar avatar dropdown (wired at the app shell: `app.component.ts`
- * `userSummary()` feeds `<af-nav-bar [user]>`, whose dropdown carries the
- * `Profile` → `/profile` menuitem + `Sign out` → `/auth/logout`).
- *
- * Tab bodies are STUBS here — the real forms + caller-scoped `PATCH /api/v1/me/*`
- * calls land in T-05 (Account), T-07 (Personal), T-09 (Pilot), T-11
- * (Notifications). This task commits the shell, the tab routing, and the
- * `data-testid` contract from the T-01 spec stub.
- *
- * **No-Person gating (S-182 AC "No-Person state").** The caller's linked-Person
- * status comes off the session: `SessionStore.authenticatedUser().personId` is
- * `null` for a sysadmin / federated user with no `t_person` row (populated by
- * `loadMe()` from the `/api/v1/me` projection — no new `/me` field needed). When
- * unlinked, the {@link hasPerson} computed is false: the
- * `profile-no-person-banner` renders and the Personal / Pilot / Notifications
- * tabs are disabled (`[nzDisabled]`). Account stays editable (it targets the
- * `t_user` row, which every authenticated principal has).
- */
 @Component({
   selector: 'af-profile-shell',
   standalone: true,
@@ -49,9 +28,6 @@ import { ProfilePilotTab } from './profile-pilot.tab';
     ProfilePilotTab,
     ProfileNotificationsTab,
   ],
-  // Account / Personal / Pilot / Notifications stores are feature-scoped to
-  // /profile — provided here so their lifetime is the shell, and a fresh load runs
-  // on every visit (T-05 Account, T-07 Personal, T-09 Pilot, T-11 Notifications).
   providers: [AccountStore, PersonalStore, PilotStore, NotificationsStore],
   template: `
     <ng-container *transloco="let t; read: 'profile'">
@@ -128,13 +104,7 @@ import { ProfilePilotTab } from './profile-pilot.tab';
 export class ProfileShellPage {
   private readonly session = inject(SessionStore);
 
-  /** Account is the default-active tab (index 0). */
   protected readonly selectedIndex = signal(0);
 
-  /**
-   * True when the caller has a linked Person. Drives the no-Person banner +
-   * which tabs are enabled. Sourced from the `/me`-populated session — see the
-   * class doc.
-   */
   protected readonly hasPerson = computed(() => this.session.authenticatedUser()?.personId != null);
 }

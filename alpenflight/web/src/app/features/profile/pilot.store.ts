@@ -9,18 +9,7 @@ import type { MePersonLicencesResponse, MePersonLicencesUpdateRequest } from '@a
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-/**
- * The Pilot (licence / medical) self-edit values the form binds to. Sourced from
- * the caller-scoped `GET /api/v1/me/person/licences` projection (T-08) and
- * round-tripped through `PATCH /api/v1/me/person/licences` (`updateMyLicences`).
- *
- * All flags default to `false` and all dates / the licence number default to the
- * empty string so the reactive form's non-nullable controls always have a value.
- * The medical / instructor / Part-M expiry dates are FADP-sensitive; here they
- * are ordinary `<input type="date">`-shaped strings (`YYYY-MM-DD`).
- */
 export interface PilotView {
-  // 10 licence flags.
   hasMotorPilotLicence: boolean;
   hasTowPilotLicence: boolean;
   hasGliderInstructorLicence: boolean;
@@ -31,20 +20,16 @@ export interface PilotView {
   hasWinchOperatorLicence: boolean;
   hasMotorInstructorLicence: boolean;
   hasPartMLicence: boolean;
-  // Licence number.
   licenceNumber: string;
-  // 6 expiry dates (YYYY-MM-DD).
   medicalClass1ExpireDate: string;
   medicalClass2ExpireDate: string;
   medicalLaplExpireDate: string;
   gliderInstructorLicenceExpireDate: string;
   motorInstructorLicenceExpireDate: string;
   partMLicenceExpireDate: string;
-  // 3 glider start-permission flags.
   hasGliderTowingStartPermission: boolean;
   hasGliderSelfStartPermission: boolean;
   hasGliderWinchStartPermission: boolean;
-  // Owned-aircraft statistic reports.
   receiveOwnedAircraftStatisticReports: boolean;
 }
 
@@ -53,7 +38,6 @@ interface PilotState {
   isLoading: boolean;
   isSaving: boolean;
   hasError: boolean;
-  // True once a save has persisted — drives the inline "saved" confirmation.
   savedOnce: boolean;
 }
 
@@ -65,7 +49,6 @@ const initial: PilotState = {
   savedOnce: false,
 };
 
-/** Map the licence/medical projection to the view, defaulting absent fields. */
 function toView(res: MePersonLicencesResponse): PilotView {
   return {
     hasMotorPilotLicence: res.hasMotorPilotLicence ?? false,
@@ -92,21 +75,6 @@ function toView(res: MePersonLicencesResponse): PilotView {
   };
 }
 
-/**
- * Pilot-tab store (J-4 T-09). Loads the caller's own Person licence/medical
- * fields from `GET /api/v1/me/person/licences` (orval `getMyLicences`) and
- * persists edits through `PATCH /api/v1/me/person/licences` (orval
- * `updateMyLicences`). On a saved edit it emits a `profile.updated` MUTATION_BUS
- * event so the session re-reads `/me` (same event the Account / Personal tabs
- * emit) — coordinated via the bus, not a direct SessionStore injection
- * (no-sibling-store rule, CLAUDE.md §10).
- *
- * Feature-scoped (not `providedIn: 'root'`): the store's lifetime is the
- * `/profile` route, and a fresh load on every visit is the desired behavior.
- * The backend GET / PATCH 409 when the caller has no linked Person; the shell
- * gates this tab on `hasPerson()`, so the load never fires for a person-less
- * principal.
- */
 export const PilotStore = signalStore(
   withState<PilotState>(initial),
   withComputed(({ view, isSaving }) => ({
@@ -140,9 +108,6 @@ export const PilotStore = signalStore(
                   isSaving: false,
                   savedOnce: true,
                 });
-                // Nudge the session to re-read /me so any /me consumer reflects
-                // the change (the licence fields are not on /me today, but the
-                // event keeps the self-edit tabs uniform).
                 bus.next({ kind: 'profile.updated' });
               },
               error: () => patchState(store, { isSaving: false, hasError: true }),

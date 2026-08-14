@@ -14,11 +14,6 @@ export interface LangResolveInput {
 const isLocale = (langs: readonly AppLocale[], value: string): value is AppLocale =>
   (langs as readonly string[]).includes(value);
 
-/**
- * Cold-start locale resolution. Order: `?lang=` query param → exact match
- * on `navigator.language` → base-lang match (`de-CH` → `de`) → default.
- * No localStorage / cookie persistence per CLAUDE.md §10.
- */
 export function resolveInitialLang(input: LangResolveInput = {}): AppLocale {
   const availableLangs = input.availableLangs ?? AVAILABLE_LOCALES;
   const defaultLang = input.defaultLang ?? DEFAULT_LOCALE;
@@ -53,13 +48,6 @@ function readQueryParam(search: string): string | null {
   }
 }
 
-/**
- * True when the URL carries an explicit, supported `?lang=` override. The
- * authenticated-user locale resolution defers to it: an operator who pins a
- * locale in the URL wins over their persisted preference (and over the
- * navigator/default cold-start fallback). An absent or unsupported `?lang=`
- * is not an override.
- */
 export function hasExplicitLangOverride(
   urlSearch: string | null | undefined,
   availableLangs: readonly AppLocale[] = AVAILABLE_LOCALES,
@@ -71,12 +59,6 @@ export function hasExplicitLangOverride(
   return fromParam !== null && isLocale(availableLangs, fromParam);
 }
 
-/**
- * Map a persisted BCP-47 language code (`/me` `languageCode`, e.g. `de`,
- * `fr`, `de-CH`) to an SPA-supported locale, or `null` when it maps to none
- * (a migrated user on `rm` keeps the cold-start-resolved locale). Same
- * exact-then-base-lang matching the navigator path uses, so `de-CH` → `de`.
- */
 export function localeForLanguageCode(
   languageCode: string | null | undefined,
   availableLangs: readonly AppLocale[] = AVAILABLE_LOCALES,

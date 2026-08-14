@@ -12,12 +12,9 @@ import { DeliveriesStore } from '../deliveries.store';
 
 interface RecipientFieldSpec {
   readonly key: keyof DeliveryRecipientView;
-  // Full literal so the i18n key-coverage gate resolves it (no concatenation).
   readonly labelKey: string;
 }
 
-// The nine frozen recipient-snapshot fields (OR Art. 957a), rendered in a fixed
-// order; each maps to a `del-recipient-<field>` testid.
 const RECIPIENT_FIELDS: readonly RecipientFieldSpec[] = [
   { key: 'name', labelKey: 'view.recipientFields.name' },
   { key: 'firstName', labelKey: 'view.recipientFields.firstName' },
@@ -34,12 +31,6 @@ interface RecipientField extends RecipientFieldSpec {
   readonly value: string;
 }
 
-/**
- * Delivery view (`/deliveries/:id`). READ-ONLY: the engine's line items, the
- * frozen recipient snapshot, the linked flight, and the state badge. A 404 is
- * the tenant-isolation outcome — the @TenantId finder never returns another
- * club's row — so a cross-tenant id surfaces `del-not-found` instead of detail.
- */
 @Component({
   selector: 'af-deliveries-view',
   standalone: true,

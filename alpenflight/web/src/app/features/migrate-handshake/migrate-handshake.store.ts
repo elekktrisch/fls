@@ -20,19 +20,6 @@ const initial: MigrateHandshakeState = {
   hasError: false,
 };
 
-/**
- * Drives the {@code /migrate/start} page. Two transitions matter:
- *
- * <ul>
- *   <li>{@link MigrateHandshakeStore#restoreOrIssue}: page mount —
- *       try {@code GET .../current}; on 404 fall through to
- *       {@code POST .../handshake}. Restoring the existing row protects
- *       against accidental supersession on a refresh / browser-back.</li>
- *   <li>{@link MigrateHandshakeStore#regenerate}: user clicked the
- *       Regenerate button + confirmed the modal — {@code POST .../handshake}
- *       silently supersedes the prior row.</li>
- * </ul>
- */
 export const MigrateHandshakeStore = signalStore(
   { providedIn: 'root' },
   withState<MigrateHandshakeState>(initial),
@@ -70,9 +57,6 @@ export const MigrateHandshakeStore = signalStore(
               next: setSuccess,
               error: (error: HttpErrorResponse) => {
                 if (error.status === 404) {
-                  // No in-flight row — fire a fresh POST. The supersede
-                  // modal is suppressed because there is no prior key to
-                  // invalidate from the user's perspective.
                   issueFresh();
                 } else {
                   setError();

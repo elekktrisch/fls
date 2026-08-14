@@ -26,17 +26,6 @@ import {
 } from './join-page.logic';
 import { JoinStore } from './join.store';
 
-/**
- * Pilot self-serve `/join` screen (T-10). An authenticated principal without a
- * `t_user` enters a club join code (+ optional note) and files a join request.
- * On 201 the store holds the new request and we route to `/join/pending`
- * (T-11). 404 / 409 render inline; a 429 shows a `Retry-After` countdown that
- * disables submit until it elapses.
- *
- * No reactive form: the code field needs sanitize-on-input (uppercase + alphabet
- * filter) so the model is the single source of truth, and the note is a plain
- * length-capped textarea — a `FormGroup` would add ceremony without a payoff.
- */
 @Component({
   selector: 'af-join',
   standalone: true,
@@ -134,11 +123,9 @@ export class JoinPageComponent implements OnDestroy {
   protected readonly note = signal('');
   protected readonly noteLeft = computed(() => noteRemaining(this.note()));
 
-  // Drives the 429 countdown: a tick signal re-evaluates `view()` each second.
   readonly #now = signal(Date.now());
   #timer: ReturnType<typeof setInterval> | null = null;
 
-  // The live rate-limit window, set when a 429 lands and cleared once elapsed.
   readonly #window = signal<RateLimitWindow | null>(null);
 
   protected readonly countdown = computed(() => {
@@ -152,8 +139,6 @@ export class JoinPageComponent implements OnDestroy {
   );
 
   constructor() {
-    // A fresh 429 opens a countdown window from its Retry-After value; the
-    // ticking `#now` signal closes it once the seconds run out.
     effect(() => {
       const err = this.store.submitError();
       if (err?.kind === 'rate-limited' && err.retryAfterSeconds) {
@@ -163,12 +148,6 @@ export class JoinPageComponent implements OnDestroy {
       }
     });
 
-    // On a 201 the store swaps `submitError` for a held PENDING request — route
-    // to the pending page (T-11 owns that screen + the public-club projection).
-    // Gate on PENDING: a terminal request the store still holds (a DENIED /
-    // WITHDRAWN request the pilot came back from to re-apply) must NOT bounce
-    // `/join` straight to `/join/pending` — the pilot is here to enter a new
-    // code.
     effect(() => {
       if (this.store.request()?.status === 'PENDING') {
         void this.#router.navigateByUrl('/join/pending');

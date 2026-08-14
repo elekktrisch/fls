@@ -15,24 +15,9 @@ import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import type { ConflictFieldName, FlightConflict } from './conflict-resolver';
 
-/** The user's per-field adjudication of a 412 conflict. */
 export type ConflictChoice = 'mine' | 'theirs';
 export type ConflictResolution = Readonly<Record<ConflictFieldName, ConflictChoice>>;
 
-/**
- * S-062h — 412 inline per-field conflict-diff prompt.
- *
- * Opens (via the host's `<af-dialog>` overlay) when a stale `If-Match` PUT
- * returns 412. For each conflicting field it shows the value the user
- * submitted ("keep mine") beside the stored value ("keep theirs"); the user
- * picks per field, then explicitly resubmits — there is NO auto-retry (legacy
- * was last-write-wins; this is the net-new affordance).
- *
- * - The FIRST conflicting field's "keep mine" control is focused on open.
- * - Enter activates the focused choice (native button activation — each
- *   choice is a real `<button>`, so a focused one fires on Enter).
- * - Default per field is "keep mine" (the user just typed those values).
- */
 @Component({
   selector: 'af-flight-conflict-prompt',
   standalone: true,
@@ -100,20 +85,15 @@ export type ConflictResolution = Readonly<Record<ConflictFieldName, ConflictChoi
   `,
 })
 export class FlightConflictPromptComponent {
-  /** The resolved 412 conflict; `null` keeps the dialog closed. */
   readonly conflict = input<FlightConflict | null>(null);
 
-  /** Emits the user's per-field choices when they explicitly resubmit. */
   readonly resolved = output<ConflictResolution>();
-  /** Emits when the user cancels (keeps editing, no resubmit). */
   readonly dismissed = output<void>();
 
   private readonly firstChoice = viewChild<ElementRef<HTMLButtonElement>>('firstChoice');
 
-  /** Per-field choice; absent = the default ("keep mine"). */
   private readonly choices = signal<Partial<Record<ConflictFieldName, ConflictChoice>>>({});
 
-  /** Transloco key for a field's human label (read under the `flight.conflict` scope). */
   protected fieldLabelKey(name: ConflictFieldName): string {
     return `field.${name}`;
   }
@@ -126,7 +106,6 @@ export class FlightConflictPromptComponent {
     this.choices.update((c) => ({ ...c, [name]: choice }));
   }
 
-  /** The full resolution, defaulting every conflicting field to "keep mine". */
   private readonly resolution = computed<ConflictResolution>(() => {
     const c = this.conflict();
     const picked = this.choices();
@@ -138,15 +117,12 @@ export class FlightConflictPromptComponent {
   });
 
   constructor() {
-    // Reset choices + focus the first field's "keep mine" control each time a
-    // fresh conflict opens (NO auto-retry — the user drives the resubmit).
     effect(() => {
       const c = this.conflict();
       if (!c) {
         return;
       }
       this.choices.set({});
-      // The view child resolves after the dialog renders; focus once present.
       const el = this.firstChoice()?.nativeElement;
       el?.focus();
     });

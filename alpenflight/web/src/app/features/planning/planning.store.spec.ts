@@ -154,7 +154,6 @@ describe('PlanningStore', () => {
     const callsBefore = futureCalls;
     store.delete(DAY_ID);
     expect(events).toContainEqual({ kind: 'planningDay.deleted', id: DAY_ID });
-    // refreshed: one extra future-days read after the delete.
     expect(futureCalls).toBeGreaterThan(callsBefore);
   });
 
@@ -194,7 +193,6 @@ describe('PlanningStore', () => {
     expect(store.entities().length).toBe(0);
   });
 
-  // ── edit-page methods (T-08) ────────────────────────────────────────────────
 
   it('loadDetail populates selectedDetail for the edit form', () => {
     configure(planningServiceStub({ detail: () => of(seedDay) }));
@@ -255,7 +253,6 @@ describe('PlanningStore', () => {
     expect(store.saveError()).toBe('A planning day already exists for this date and location.');
   });
 
-  // ── setup wizard (T-09) ─────────────────────────────────────────────────────
 
   it('bulkCreate emits planningDay.bulkCreated with the created count and refetches', () => {
     const events: MutationEvent[] = [];
@@ -322,7 +319,6 @@ describe('PlanningStore', () => {
     expect(store.dayReservations().map((r) => r.id)).toEqual(['r1']);
   });
 
-  // ── inline (date, location) uniqueness pre-check (T-07) ──────────────────────
 
   it('validateUniqueness (debounced) surfaces a duplicate inline on a valid:false result', () => {
     vi.useFakeTimers();
@@ -335,13 +331,11 @@ describe('PlanningStore', () => {
       configure(planningServiceStub({ validate: () => of(dup) }));
       const store = TestBed.inject(PlanningStore);
       store.validateUniqueness({ planningDate: '2026-07-04', locationId: LOCATION_ID });
-      // The debounce (200ms) gates the call; advancing past it runs the probe.
       vi.advanceTimersByTime(250);
       expect(store.uniquenessValidating()).toBe(false);
       expect(store.uniquenessMessage()).toBe(
         'A planning day already exists for this date and location.',
       );
-      // The inline slot the date field merges via liveFieldErrors's asyncErrors$.
       expect(store.uniquenessErrors()).toEqual({
         duplicate: 'A planning day already exists for this date and location.',
       });

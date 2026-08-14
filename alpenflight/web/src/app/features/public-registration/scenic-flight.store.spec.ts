@@ -14,7 +14,6 @@ import { PublicRegistrationService } from '@api/generated/public-registration/pu
 
 import { ScenicFlightStore } from './scenic-flight.store';
 
-// @mocked: http — store unit test
 
 const CLUB_SLUG = 'alpine-soaring';
 const CLUB_NAME = 'Alpine Soaring';
@@ -103,7 +102,6 @@ describe('ScenicFlightStore — opening the form', () => {
     );
     unknown.loadClub('no-such-club');
     expect(unknown.formState()).toBe('not-found');
-    // Nothing was submitted to learn that — the read answered it.
     expect(unknown.registration()).toBeNull();
 
     TestBed.resetTestingModule();
@@ -146,8 +144,6 @@ describe('ScenicFlightStore — submit', () => {
     store.submit(registrant);
 
     expect(sentSlug).toBe(CLUB_SLUG);
-    // Exact, not a subset: the endpoint rejects an unknown property, deliberately,
-    // so a dropped day cannot read back as a booked slot.
     expect(sentBody).toEqual({ registrant });
     expect(Object.keys(sentBody!)).toEqual(['registrant']);
     expect(sentBody).not.toHaveProperty('selectedDay');
@@ -163,7 +159,6 @@ describe('ScenicFlightStore — submit', () => {
     unknown.loadClub('no-such-club');
     unknown.submit(registrant);
     expect(unknown.formState()).toBe('not-found');
-    // Not a retryable failure: re-submitting would be refused the same way.
     expect(unknown.failure()).toBeNull();
 
     TestBed.resetTestingModule();

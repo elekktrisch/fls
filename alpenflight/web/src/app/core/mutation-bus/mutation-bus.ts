@@ -4,10 +4,6 @@ import { Subject } from 'rxjs';
 export type MutationEvent =
   | { kind: 'session.logout' }
   | { kind: 'session.tenantSwitch'; clubId: string }
-  // The caller self-edited their own Account (/profile). The session re-reads
-  // /me so the nav avatar + any session-backed consumer reflect the new
-  // friendlyName / email / language. Cross-store, so it rides the bus rather
-  // than a direct SessionStore injection (no-sibling-store rule, CLAUDE.md §10).
   | { kind: 'profile.updated' }
   | { kind: 'aircraft.created'; aircraftId: string }
   | { kind: 'aircraft.updated'; aircraftId: string }
@@ -47,9 +43,6 @@ export type MutationEvent =
   | { kind: 'delivery-creation-test.created'; id: string }
   | { kind: 'delivery-creation-test.updated'; id: string }
   | { kind: 'delivery-creation-test.deleted'; id: string }
-  // An admin resolved a pending join request (approve / deny). Drives the nav
-  // pending-count badge down without a refetch; the admin's own decision is not
-  // echoed back over their SSE channel (that frame goes to the pilot).
   | { kind: 'join-request.decided'; id: string };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {

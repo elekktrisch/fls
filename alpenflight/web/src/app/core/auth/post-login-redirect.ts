@@ -1,7 +1,3 @@
-// Auth-owned: this is the one allowlisted file for sessionStorage writes
-// per alpenflight/web/CLAUDE.md §10. The OIDC library doesn't preserve the
-// originally-requested URL across the Keycloak redirect; we persist it
-// here before authorize() and consume it after the callback lands.
 
 const KEY = 'alpenflight.post-login-redirect';
 

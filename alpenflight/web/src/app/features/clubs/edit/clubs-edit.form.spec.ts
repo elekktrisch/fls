@@ -21,12 +21,6 @@ const formValue: ClubEditFormValue = {
 };
 
 describe('buildClubUpdateRequest', () => {
-  /**
-   * The club PUT is full-replace, so a field the payload omits is persisted as
-   * cleared. `CLUB_UPDATE_FIELDS` stops compiling when `ClubUpdateRequest`
-   * grows a field it does not list; this asserts the builder actually emits
-   * every field on that list.
-   */
   it('emits every field of the full-replace PUT', () => {
     expect(CLUB_UPDATE_IS_FULLY_COVERED).toBe(true);
     expect(Object.keys(buildClubUpdateRequest(formValue)).sort()).toEqual(
@@ -72,8 +66,6 @@ describe('buildClubUpdateRequest', () => {
 
 describe('buildClubCreateRequest', () => {
   it('omits the fields the create endpoint does not accept', () => {
-    // The server rejects unknown properties, so the extra edit-only controls
-    // must not ride along on the POST.
     expect(Object.keys(buildClubCreateRequest(formValue)).sort()).toEqual(
       ['clubKey', 'clubStateId', 'countryId', 'name', 'publicRegistrationEnabled', 'slug'].sort(),
     );

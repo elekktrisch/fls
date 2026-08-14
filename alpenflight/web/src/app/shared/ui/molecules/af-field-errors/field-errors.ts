@@ -15,10 +15,6 @@ export function errorTranslationKey(key: string): string {
   return CANONICAL_KEYS[key] ?? `common.errors.${key}`;
 }
 
-/**
- * Map a `FormControl.errors` object to translation keys, in the order the
- * keys were registered (the first failing rule shown to the user).
- */
 export function errorsToKeys(errors: ValidationErrors | null | undefined): readonly string[] {
   if (!errors) return [];
   return Object.keys(errors).map(errorTranslationKey);

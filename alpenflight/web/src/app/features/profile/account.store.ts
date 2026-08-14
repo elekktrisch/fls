@@ -10,13 +10,6 @@ import { LocaleService, localeForLanguageId } from '@shared/ui/locale';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-/**
- * The Account self-edit values the form binds to. Sourced from the `/api/v1/me`
- * projection (J-4 extended it with `friendlyName` / `phoneNumber` /
- * `languageId` / `languageCode`). `username` + `clubId` are read-only display
- * fields; the rest are editable and round-trip through
- * {@code PATCH /api/v1/me/profile} (`updateMyProfile`).
- */
 export interface AccountView {
   friendlyName: string;
   notificationEmail: string;
@@ -31,7 +24,6 @@ interface AccountState {
   isLoading: boolean;
   isSaving: boolean;
   hasError: boolean;
-  // True once a save has persisted — drives the inline "saved" confirmation.
   savedOnce: boolean;
 }
 
@@ -46,8 +38,6 @@ const initial: AccountState = {
 function toView(res: MeResponse): AccountView {
   return {
     friendlyName: res.friendlyName ?? '',
-    // `email` IS the notification email in the /me projection (distinct from
-    // the Keycloak login email).
     notificationEmail: res.email ?? '',
     phoneNumber: res.phoneNumber ?? '',
     languageId: res.languageId ?? '',
@@ -56,18 +46,6 @@ function toView(res: MeResponse): AccountView {
   };
 }
 
-/**
- * Account-tab store (J-4 T-05). Loads the caller's own Account fields from
- * `/api/v1/me` and persists edits through `PATCH /api/v1/me/profile`
- * (orval `updateMyProfile`). On a saved language change it flips the SPA's
- * active locale via {@link LocaleService} and emits a `profile.updated`
- * MUTATION_BUS event so the session re-reads `/me` (the nav avatar + any other
- * `/me` consumer reflect the new values) — coordinated via the bus rather than
- * a direct SessionStore injection (no-sibling-store rule, CLAUDE.md §10).
- *
- * Feature-scoped (not `providedIn: 'root'`): the store's lifetime is the
- * `/profile` route, and a fresh load on every visit is the desired behavior.
- */
 export const AccountStore = signalStore(
   withState<AccountState>(initial),
   withComputed(({ view, isSaving }) => ({
@@ -77,8 +55,6 @@ export const AccountStore = signalStore(
     (store, me = inject(MeService), locale = inject(LocaleService), bus = inject(MUTATION_BUS)) => {
       const applyLocale = (languageId: string): void => {
         const next = localeForLanguageId(languageId);
-        // Only flip when the chosen language maps to an SPA-supported locale
-        // (de/fr/it/en). A migrated user on de-CH / rm keeps the active locale.
         if (next !== null && next !== locale.current()) {
           locale.set(next);
         }
@@ -111,10 +87,7 @@ export const AccountStore = signalStore(
                     isSaving: false,
                     savedOnce: true,
                   });
-                  // Persisted languageId → flip the SPA locale.
                   applyLocale(res.languageId ?? req.languageId);
-                  // Nudge the session to re-read /me so the nav avatar +
-                  // session-backed consumers reflect the new values.
                   bus.next({ kind: 'profile.updated' });
                 },
                 error: () => patchState(store, { isSaving: false, hasError: true }),

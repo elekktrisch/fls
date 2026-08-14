@@ -16,8 +16,6 @@ export const MASTERDATA_TENANT_ITEMS: readonly NavItem[] = [
   { path: '/flight-types', label: 'Flight types', icon: 'tags' },
 ];
 
-// Every endpoint behind these screens is CLUB_ADMINISTRATOR-gated on the server
-// (even GET reads), so they append to the Masterdata group only for an admin.
 export const MASTERDATA_CLUB_ADMIN_ITEMS: readonly NavItem[] = [
   { path: '/join-requests', label: 'Join requests', icon: 'user-plus' },
   { path: '/users', label: 'Users', icon: 'shield' },
@@ -28,8 +26,6 @@ export const MASTERDATA_CLUB_ADMIN_ITEMS: readonly NavItem[] = [
   { path: '/system/logs', label: 'Audit logs', icon: 'file-text' },
 ];
 
-// Clubs is a cross-tenant surface deliberately hidden from club-admins + regular
-// users (a divergence from legacy, which showed it to everyone).
 export const SYS_ADMIN_SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
   { path: '/system/jobs', label: 'Jobs', icon: 'file-text' },
@@ -38,11 +34,9 @@ export const SYS_ADMIN_SECTIONS: readonly NavItem[] = [
 export interface NavPrincipal {
   readonly isSystemAdmin: boolean;
   readonly isClubAdmin: boolean;
-  /** The caller's own club (`/me`'s `clubId`) — the only club it can read. */
   readonly clubId?: string | null;
 }
 
-/** Live signals threaded onto specific nav entries (e.g. the join-request badge). */
 export interface NavBadges {
   readonly joinRequests?: Signal<number>;
 }
@@ -63,12 +57,6 @@ function withJoinRequestsBadge(items: readonly NavItem[], badges: NavBadges): re
 
 export const CLUB_SETTINGS_TEST_ID = 'af-nav-section-club-settings';
 
-/**
- * The own-club settings entry. The club catalog (`/clubs`) is closed to a
- * CLUB_ADMINISTRATOR, so its only chrome route to the club-edit screen is a
- * direct link to its OWN club — hence the id in the path and the fixed testid.
- * The id arrives with `/me`; until then there is nothing routable to link to.
- */
 function clubSettingsItems(clubId: string | null | undefined): readonly NavItem[] {
   return clubId
     ? [
@@ -93,12 +81,6 @@ function masterdataGroup(principal: NavPrincipal, badges: NavBadges): NavItem {
   return { label: 'Masterdata', icon: 'database', children };
 }
 
-/**
- * Pure nav-section assembly per principal role. A sysadmin-only principal has no
- * managing tenant (no clubId claim), so it gets the cross-tenant Clubs surface
- * only; club-admins + regular users get the tenant sections (admins also see the
- * admin-gated Masterdata children); a dual-role principal gets the role union.
- */
 export function navSectionsFor(
   principal: NavPrincipal,
   badges: NavBadges = {},

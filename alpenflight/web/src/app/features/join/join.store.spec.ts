@@ -9,7 +9,6 @@ import type { JoinRequestResponse, SubmitJoinRequest } from '@api/generated/mode
 
 import { JoinStore } from './join.store';
 
-// @mocked: http — store unit test
 
 const pending: JoinRequestResponse = {
   id: 'jr-1',

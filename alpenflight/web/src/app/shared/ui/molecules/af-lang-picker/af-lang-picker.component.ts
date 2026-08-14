@@ -17,12 +17,6 @@ const LOCALE_SHORT: Record<AppLocale, string> = {
   en: 'EN',
 };
 
-/**
- * Inline button-row locale picker. Reads + writes through LocaleService,
- * which is the single switch for ng-zorro locale, transloco active lang,
- * and `<html lang>`. Each button renders the short code visibly + the
- * autonym (e.g. "Deutsch") as the accessible name.
- */
 @Component({
   selector: 'af-lang-picker',
   standalone: true,

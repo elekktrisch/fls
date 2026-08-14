@@ -1,17 +1,8 @@
-// Aliased to avoid shadowing vitest's globally-injected `it()`.
 import deBundle from '../../../i18n/de';
 import enBundle from '../../../i18n/en';
 import frBundle from '../../../i18n/fr';
 import itBundle from '../../../i18n/it';
 
-/**
- * Guard against translator-pasted HTML slipping into a locale file
- * (or surviving the migration script's strip step). Angular interpolation
- * auto-escapes, so an HTML tag in a value renders as literal `&lt;b&gt;`
- * text — not a security hole, but never the intended UX. CLAUDE.md
- * §6 / §10 forbid `[innerHTML]` + `bypassSecurityTrust*` as escape
- * hatches; this spec keeps the rule enforceable at PR time.
- */
 
 interface Tree {
   [k: string]: string | Tree;

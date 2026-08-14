@@ -8,5 +8,3 @@ export const SIGNUP_ROUTES: Routes = [
   },
 ];
 
-// /migrate/* moved to features/migrate-handshake/ at S-140; the
-// migrate-start.component.ts placeholder was promoted into the handshake page.

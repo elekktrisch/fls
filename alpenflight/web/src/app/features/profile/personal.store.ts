@@ -9,26 +9,9 @@ import type { MePersonResponse, MePersonUpdateRequest } from '@api/generated/mod
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-/**
- * The Personal (Person-contact) self-edit values the form binds to. Sourced from
- * the caller-scoped `GET /api/v1/me/person` projection (T-18) and round-tripped
- * through `PATCH /api/v1/me/person` (`updateMyPerson`).
- *
- * `firstName` / `lastName` render READ-ONLY (rename stays admin-only). The
- * contact / address fields are editable. All fields default to the empty string
- * (or `false` for the business-mail pref) so the reactive form's non-nullable
- * controls always have a value.
- *
- * <p>The dedicated GET (mirroring the Pilot / Notifications tabs, T-08 / T-10) is
- * what makes the populated-render + edit→persist→reflect-on-reload round-trip
- * work: `/me` carries only the Person's name, not the contact / address fields,
- * so the tab would otherwise hydrate empty (the T-06/T-07 read gap).
- */
 export interface PersonalView {
-  // Read-only identity (admin-owned rename) — display only.
   firstName: string;
   lastName: string;
-  // Editable contact / address fields.
   addressLine1: string;
   addressLine2: string;
   zip: string;
@@ -50,7 +33,6 @@ interface PersonalState {
   isLoading: boolean;
   isSaving: boolean;
   hasError: boolean;
-  // True once a save has persisted — drives the inline "saved" confirmation.
   savedOnce: boolean;
 }
 
@@ -62,7 +44,6 @@ const initial: PersonalState = {
   savedOnce: false,
 };
 
-/** Map the contact/address projection to the view, defaulting absent fields. */
 function toView(res: MePersonResponse): PersonalView {
   return {
     firstName: res.firstName ?? '',
@@ -84,26 +65,6 @@ function toView(res: MePersonResponse): PersonalView {
   };
 }
 
-/**
- * Personal-tab store (J-4 T-07 form, T-18 hydrate). Loads the caller's own
- * Person contact / address fields from `GET /api/v1/me/person` (orval
- * `getMyPerson`) and persists edits through `PATCH /api/v1/me/person` (orval
- * `updateMyPerson`). Name fields (first/last/mid/company) are admin-only —
- * read-only here.
- *
- * On a saved edit it re-reads via `getMyPerson` so the form reflects the
- * persisted contact values (the PATCH response is the `/me` projection, which
- * carries only the name) and emits a `profile.updated` MUTATION_BUS event so the
- * session re-reads `/me` (the same event the Account / Pilot tabs emit) —
- * coordinated via the bus rather than a direct SessionStore injection
- * (no-sibling-store rule, CLAUDE.md §10).
- *
- * Feature-scoped (not `providedIn: 'root'`): the store's lifetime is the
- * `/profile` route, and a fresh load on every visit is the desired behavior.
- * The backend GET / PATCH 409 when the caller has no linked Person; the shell
- * gates this tab on `hasPerson()`, so the load never fires for a person-less
- * principal.
- */
 export const PersonalStore = signalStore(
   withState<PersonalState>(initial),
   withComputed(({ view, isSaving }) => ({
@@ -130,8 +91,6 @@ export const PersonalStore = signalStore(
         tap(() => patchState(store, { isSaving: true, hasError: false })),
         switchMap((req) =>
           me.updateMyPerson(req).pipe(
-            // The PATCH response is the /me projection (name only); re-read the
-            // contact shape so the form reflects the persisted values.
             switchMap(() => me.getMyPerson()),
             tapResponse({
               next: (res: MePersonResponse) => {
@@ -140,8 +99,6 @@ export const PersonalStore = signalStore(
                   isSaving: false,
                   savedOnce: true,
                 });
-                // Nudge the session to re-read /me so the nav avatar +
-                // session-backed consumers reflect the new values.
                 bus.next({ kind: 'profile.updated' });
               },
               error: () => patchState(store, { isSaving: false, hasError: true }),

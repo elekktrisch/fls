@@ -4,31 +4,6 @@ import { TranslocoDirective } from '@jsverse/transloco';
 
 import { SystemDashboardStore } from './system-dashboard.store';
 
-/**
- * Sysadmin dashboard variant body (J-3 T-11): three cross-tenant tiles fed by
- * {@code GET /api/v1/me/system-dashboard} (T-10) via {@link SystemDashboardStore}
- * — total clubs / users / flights across ALL tenants (deliberately
- * tenant-unscoped, SYSTEM_ADMINISTRATOR-gated server-side) — plus a
- * `start-tenant-enter` control that takes the sysadmin into a tenant context.
- *
- * <p><b>Load-on-init, no SSE.</b> Unlike the club-admin tiles, the aggregates
- * load once via a normal GET — cross-tenant totals don't track a single
- * principal's `flight.created` events (journey carve: SSE is a per-tenant change
- * overlay, not a deployment-wide counter), so there's no live re-fetch here.
- *
- * <p><b>Tenant entry point.</b> No standalone tenant-switch picker exists yet in
- * the SPA (`session.tenantSwitch` is a bus event that domain stores clear on,
- * but nothing <em>produces</em> it via UI). The thinnest real affordance is the
- * existing cross-club {@code /clubs} list — the sysadmin's natural entry surface
- * for picking a club to act in — so `start-tenant-enter` navigates there rather
- * than building a tenant-switching subsystem (out of journey scope).
- *
- * <p>This component owns ONLY the variant body (tiles + the enter control). The
- * {@code start-variant-sysadmin} container, the heading, and the
- * `start-pilot-view-toggle` are owned by {@code StartShellPage} (T-07) and are
- * not duplicated here. Visual stance per ADR 0024: flat 1px-border tiles, no
- * shadows, matching the club-admin / pilot dashboard cards.
- */
 @Component({
   selector: 'af-start-sysadmin',
   standalone: true,
@@ -104,7 +79,6 @@ export class StartSysadminPage {
   protected readonly store = inject(SystemDashboardStore);
   private readonly router = inject(Router);
 
-  /** Enter a tenant context via the existing cross-club {@code /clubs} list. */
   protected enterTenant(): void {
     void this.router.navigate(['/clubs']);
   }

@@ -1,7 +1,3 @@
-/**
- * Case-insensitive substring match across multiple fields. Returns items
- * whose value at any of `searchFields` contains `query` (case-insensitive).
- */
 export function fuzzyFilter<T>(
   items: readonly T[],
   searchFields: readonly (keyof T)[],

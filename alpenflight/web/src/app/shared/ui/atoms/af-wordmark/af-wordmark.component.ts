@@ -1,12 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-/*
- * Brand wordmark (ADR 0024 §Wordmark). Renders the full lockup at ≥md and the
- * plane-glyph-only compact mark at <md — CSS-driven so both are in the DOM and
- * the swap costs no request. `label` names the mark for assistive tech and any
- * name-based locator; the two <img alt> carry it (an <img>-loaded SVG's own
- * internal aria-label does not surface to the host document).
- */
 @Component({
   selector: 'af-wordmark',
   standalone: true,

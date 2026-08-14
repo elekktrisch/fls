@@ -12,16 +12,6 @@ import type {
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-/**
- * The Notifications (per-club notification-prefs) self-edit values the form binds
- * to. Sourced from the caller-tenant-scoped
- * `GET /api/v1/me/club-membership/notification-prefs` projection (T-10) and
- * round-tripped through `PATCH /api/v1/me/club-membership/notification-prefs`
- * (`updateMyNotificationPrefs`).
- *
- * All three flags default to `false` so the reactive form's non-nullable controls
- * always have a value (absent in the response = unchecked).
- */
 export interface NotificationsView {
   receiveFlightReports: boolean;
   receiveAircraftReservationNotifications: boolean;
@@ -33,7 +23,6 @@ interface NotificationsState {
   isLoading: boolean;
   isSaving: boolean;
   hasError: boolean;
-  // True once a save has persisted — drives the inline "saved" confirmation.
   savedOnce: boolean;
 }
 
@@ -45,7 +34,6 @@ const initial: NotificationsState = {
   savedOnce: false,
 };
 
-/** Map the notification-prefs projection to the view, defaulting absent flags. */
 function toView(res: MeNotificationPrefsResponse): NotificationsView {
   return {
     receiveFlightReports: res.receiveFlightReports ?? false,
@@ -54,22 +42,6 @@ function toView(res: MeNotificationPrefsResponse): NotificationsView {
   };
 }
 
-/**
- * Notifications-tab store (J-4 T-11). Loads the caller's own per-club notification
- * preferences from `GET /api/v1/me/club-membership/notification-prefs` (orval
- * `getMyNotificationPrefs`) and persists edits through
- * `PATCH /api/v1/me/club-membership/notification-prefs` (orval
- * `updateMyNotificationPrefs`). On a saved edit it emits a `profile.updated`
- * MUTATION_BUS event so the session re-reads `/me` (same event the Account /
- * Personal / Pilot tabs emit) — coordinated via the bus, not a direct
- * SessionStore injection (no-sibling-store rule, CLAUDE.md §10).
- *
- * Feature-scoped (not `providedIn: 'root'`): the store's lifetime is the
- * `/profile` route, and a fresh load on every visit is the desired behavior.
- * The backend GET / PATCH 409 when the caller has no linked Person / membership;
- * the shell gates this tab on `hasPerson()`, so the load never fires for a
- * person-less principal.
- */
 export const NotificationsStore = signalStore(
   withState<NotificationsState>(initial),
   withComputed(({ view, isSaving }) => ({
@@ -103,8 +75,6 @@ export const NotificationsStore = signalStore(
                   isSaving: false,
                   savedOnce: true,
                 });
-                // Nudge the session to re-read /me so any /me consumer reflects
-                // the change — keeps the self-edit tabs uniform.
                 bus.next({ kind: 'profile.updated' });
               },
               error: () => patchState(store, { isSaving: false, hasError: true }),

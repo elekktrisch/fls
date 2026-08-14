@@ -12,16 +12,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { AccountStore } from './account.store';
 
-/**
- * Logic test for the Account-tab store (J-4 T-05): the `/me` load hydrates the
- * view, `save()` round-trips through `updateMyProfile` and reflects the
- * persisted projection, a saved language change flips the SPA locale via
- * {@link LocaleService}, and a `profile.updated` event is emitted so the
- * session re-reads `/me` (nav avatar reflects the change). The form DOM + the
- * real PATCH wiring are proven by the real-idp e2e (`profile/self-edit.spec.ts`).
- * Per web testing posture (CLAUDE.md §8) this is a store/logic spec, no
- * template rendering.
- */
 
 const ME_BASE: MeResponse = {
   id: 'u-1',

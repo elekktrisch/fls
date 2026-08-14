@@ -80,11 +80,11 @@ describe('flight-form.model', () => {
     it('stays INVALID while date / aircraft / pilot are still missing', () => {
       const form = buildFlightForm(fb);
       form.controls.flightDate.setValue('2026-07-01');
-      expect(form.invalid).toBe(true); // aircraft + pilot still empty
+      expect(form.invalid).toBe(true);
       form.controls.glider.controls.aircraftId.setValue('ac-1');
-      expect(form.invalid).toBe(true); // pilot still empty
+      expect(form.invalid).toBe(true);
       form.controls.glider.controls.pilotPersonId.setValue('pe-1');
-      expect(form.invalid).toBe(true); // rest of the minimal-valid set still empty
+      expect(form.invalid).toBe(true);
     });
   });
 
@@ -170,7 +170,6 @@ describe('flight-form.model', () => {
     it('requires a winch operator on a winch launch, not on other start types', () => {
       const form = buildFlightForm(fb);
       fillMinimalValid(form);
-      // fillMinimalValid uses a non-winch start type → no winch-operator gate.
       expect(form.valid).toBe(true);
 
       form.controls.startTypeId.setValue(START_TYPE.WINCH_LAUNCH);
@@ -235,7 +234,7 @@ describe('flight-form.model', () => {
         nrOfLdgs: 1,
         crew: [{ personId: 'pe-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT }],
       });
-      delete (incomplete as { ldgLocationId?: string }).ldgLocationId; // missing landing location
+      delete (incomplete as { ldgLocationId?: string }).ldgLocationId;
       const snap = flightDetailToFormSnapshot(incomplete, undefined);
       form.patchValue(
         { flightDate: snap.flightDate, startTypeId: snap.startTypeId },
@@ -264,8 +263,6 @@ describe('flight-form.model', () => {
     it('enables Save once date + glider aircraft + pilot are present (rest of the set still empty)', () => {
       const form = buildFlightForm(fb);
       setGate(form, '2026-07-01', 'ac-1', 'pe-1');
-      // start/ldg time, locations, flight type, landings all still empty → the
-      // full form is invalid, yet Save is enabled (incomplete flight, saved Invalid).
       expect(form.invalid).toBe(true);
       expect(isFlightSaveable(form)).toBe(true);
     });
@@ -275,7 +272,6 @@ describe('flight-form.model', () => {
       setGate(form, '2026-07-01', 'ac-1', 'pe-1');
       form.controls.glider.controls.flightTypeId.setValue('ft-1');
       form.controls.glider.controls.startLocationId.setValue('loc-start');
-      // landing location / times / landings still missing — incomplete but saveable.
       expect(form.invalid).toBe(true);
       expect(isFlightSaveable(form)).toBe(true);
     });
@@ -431,7 +427,7 @@ describe('flight-form.model', () => {
         tow: {
           aircraftId: towAircraftId,
           pilotPersonId: towAircraftId ? 'pn-tow-pilot' : null,
-          startLocationId: 'loc-OTHER', // intentionally different to verify glider→tow sync wins
+          startLocationId: 'loc-OTHER',
           startTime: '09:00',
           outboundRoute: 'OTHER',
         },
@@ -536,10 +532,6 @@ describe('flight-form.model', () => {
   });
 
   describe('mapper round-trip: every editable attribute survives snapshot→request→echo', () => {
-    // Fully-populated CrewSnapshot — every field non-null, every flag non-default.
-    // The two side-mirrored fields (startLocationId, startTime, outboundRoute) are
-    // populated identically on glider + tow so the submit-time glider→tow sync
-    // doesn't flip them.
     const FULL_GLIDER: CrewSnapshot = {
       aircraftId: 'ac-glider',
       flightTypeId: 'ft-glider',
@@ -573,7 +565,7 @@ describe('flight-form.model', () => {
       aircraftId: 'ac-tow',
       flightTypeId: 'ft-tow',
       pilotPersonId: 'pn-tow-pilot',
-      coPilotPersonId: null, // tow has no coPilot slot in legacy
+      coPilotPersonId: null,
       instructorPersonId: null,
       observerPersonId: null,
       passengerPersonId: null,
@@ -594,7 +586,6 @@ describe('flight-form.model', () => {
       };
     }
 
-    /** Simulates the server echoing a create request back as a detail. */
     function echoAsDetail(
       req: FlightCreateRequest,
       id: string,

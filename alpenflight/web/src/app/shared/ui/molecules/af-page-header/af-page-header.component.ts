@@ -1,17 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-/**
- * Page header pattern: H1 left, primary action(s) right, hairline border
- * below. Optional muted description line under the H1.
- *
- *   <af-page-header title="Clubs">
- *     <af-button type="primary">New club</af-button>
- *   </af-page-header>
- *
- * Actions project into the default slot; markup is consumer-owned so a
- * page can render a button, a button group, or a kebab without the header
- * caring.
- */
 @Component({
   selector: 'af-page-header',
   standalone: true,

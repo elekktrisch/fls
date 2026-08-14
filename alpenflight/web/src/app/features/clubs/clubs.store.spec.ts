@@ -231,7 +231,6 @@ describe('ClubsStore', () => {
       clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
     });
 
-    // The clubKey duplicate no longer collapses onto the slug message.
     expect(store.saveError()).toContain('SEED');
     expect(store.saveError()).toContain('Club key');
     expect(store.saveError()).not.toContain('unique-slug');

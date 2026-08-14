@@ -25,7 +25,6 @@ import { isCannedType } from '../canned-report';
 import { customFilterRequest, decodeCustomFilter } from '../custom-filter';
 import { ReportStore } from '../report.store';
 
-/** Render a `YYYY-MM-DDTHH:mm:ssZ` (or any ISO) value as local `HH:MM`. */
 function formatTime(iso?: string): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -35,25 +34,6 @@ function formatTime(iso?: string): string {
   return `${hh}:${mm}`;
 }
 
-/**
- * Flight-report RESULTS page (legacy `flightreportresults.html`). Mounted on
- * `/flightreports/:category/:type`; reads the route params, derives the canned
- * filter (T-09 date-math + `cannedReportRequest`, binding the principal's
- * personId / club homebase), and loads the {@link ReportStore}.
- *
- * Three surfaces, all keyed to the T-01 `data-testid` contract:
- *   • filter-criteria panel — the derived From–To (DD.MM.YYYY), the flight-type
- *     toggle state, and the person/location scope the report ran with;
- *   • summary table — GroupBy / Starts / Ldgs / Flights / Duration (h:mm); the
- *     backend groups by crew-function (person) or FlightTypeName (location);
- *   • flights data table — the J-2 logbook column idiom, with a nested TowFlight
- *     block under an aerotow glider row.
- *
- * Excel export (logbook idiom — a button in `af-page__actions`) calls the store's
- * blob fetch and triggers a browser download. Empty-state copy (screens-misc)
- * renders when the report matches no flights. Kept low-CRAP: no reactive-forms
- * mapping / errorPatch complexity (read-side, the filter is derived, not edited).
- */
 @Component({
   selector: 'af-report-results',
   standalone: true,
@@ -247,14 +227,9 @@ export class ReportResultsPage {
   private readonly session = inject(SessionStore);
   private readonly route = inject(ActivatedRoute);
 
-  // Read route params off the paramMap directly: this page serves BOTH the
-  // canned route (`:category/:type`) and the custom-apply route
-  // (`custom/:category/:filter/:mode`), whose param sets differ — a single
-  // paramMap read handles both without per-route input bindings.
   private readonly routeParams = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly category = computed(() => this.routeParams().get('category') ?? 'person');
   protected readonly type = computed(() => this.routeParams().get('type') ?? '');
-  /** Present only on the custom-apply route; drives the custom-filter branch. */
   private readonly filterParam = computed(() => this.routeParams().get('filter'));
 
   protected readonly exporting = signal(false);
@@ -263,12 +238,6 @@ export class ReportResultsPage {
     this.category() === 'location' ? 'Location flight report' : 'My flight report',
   );
 
-  /**
-   * The derived request the route loaded. On the custom-apply route the filter
-   * is decoded from the `:filter` segment (the round-trip); on the canned route
-   * it is derived from the `:type` date-math + the principal-bound id. Null when
-   * neither resolves (an unknown canned `:type` → empty).
-   */
   private readonly request = computed<FlightReportPageRequest | null>(() => {
     const encoded = this.filterParam();
     if (encoded !== null) {
@@ -312,7 +281,6 @@ export class ReportResultsPage {
   });
 
   constructor() {
-    // Re-derive + reload whenever the route params (and thus the request) change.
     effect(() => {
       const request = this.request();
       if (request) {
@@ -329,7 +297,6 @@ export class ReportResultsPage {
     return formatTime(iso);
   }
 
-  /** Render an `h:mm` / `hh:mm` duration string straight through. */
   protected durationLabel(value: string): string {
     return value || '0:00';
   }
@@ -352,9 +319,6 @@ export class ReportResultsPage {
         URL.revokeObjectURL(url);
       }
     } catch {
-      // Surface nothing fancy — the export is best-effort; the page error
-      // affordance covers the page load, and a failed export leaves the
-      // already-rendered report intact. (No toast infra wired here yet.)
     } finally {
       this.exporting.set(false);
     }

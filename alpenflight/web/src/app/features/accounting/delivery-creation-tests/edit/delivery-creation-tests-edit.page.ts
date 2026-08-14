@@ -38,9 +38,6 @@ import { SessionStore } from '../../../../core/session/session.store';
 import { DeliveryCreationTestsStore } from '../delivery-creation-tests.store';
 import { type DiffRow, deliveryItemDiff } from './delivery-item-diff';
 
-// The engine leaves these two snapshot text fields null (T-12 DeliveryDetailsStage
-// deferral), so the harness must ignore them or every run fails the diff — they
-// default ON for a new harness.
 type DctForm = FormGroup<{
   testName: FormControl<string>;
   flightId: FormControl<string>;
@@ -58,8 +55,6 @@ type DctForm = FormGroup<{
   ignoreItemAdditionalInformation: FormControl<boolean>;
 }>;
 
-// The nine diff-suppression flags, rendered as one checkbox block off this spec
-// so the template stays a single @for instead of nine copy-pasted labels.
 interface IgnoreFlagSpec {
   readonly control: keyof DctForm['controls'];
   readonly testid: string;
@@ -110,23 +105,6 @@ const IGNORE_FLAG_SPECS: readonly IgnoreFlagSpec[] = [
   },
 ];
 
-/**
- * DeliveryCreationTest edit form (`/deliverycreationtests/new` + `/:id/edit`) —
- * the rules-engine harness authoring surface (replaces the T-16 placeholder).
- *
- * Flow: pick a Flight → "Create test delivery" DRY-RUNS the engine (no persist)
- * and fills the expected DeliveryItem set → Save round-trips the harness → "Run
- * test" runs the engine vs the stored expectation and surfaces a Success/Failure
- * verdict + the diff message + the matched AccountingRuleFilter links (each into
- * the J-8 rule editor). The per-item cell diff is T-18; it mounts into the
- * run-result area below the verdict.
- *
- * Validation is the J-6b `liveFieldErrors` as-you-type bar (testName + flight
- * required); Save is gated on a REACTIVE `formStatus` signal (J-26 T-09) so the
- * disable binding never lags validity under OnPush + zoneless. A 404 on detail
- * load (cross-tenant / deleted) surfaces `dct-not-found` instead of the form —
- * the @TenantId finder never returns another club's row.
- */
 @Component({
   selector: 'af-delivery-creation-tests-edit',
   standalone: true,
@@ -433,19 +411,12 @@ export class DeliveryCreationTestsEditPage {
     return this.form.controls.flightId;
   }
 
-  // The dry-run output fills the expected set when authoring; on a loaded
-  // harness the saved expectation comes back through the detail snapshot. The
-  // dry-run (live, just-captured) wins so re-running it re-fills before save.
   protected readonly expectedItems = computed<DeliveryItemDetails[]>(() => {
     const example = this.store.exampleResult();
     if (example) return example.delivery.items ?? [];
     return this.store.selectedTest()?.expectedDelivery.items ?? [];
   });
 
-  // On a Failure the run diffed the engine output against the STORED expectation
-  // (not the live dry-run preview) — so the diff pairs `lastTestCreatedDelivery`
-  // against the saved `expectedDelivery`, position-by-position, surfacing only
-  // the rows whose fields diverge (empty list on a Success).
   protected readonly runDiff = computed<DiffRow[]>(() => {
     const run = this.store.runResult();
     if (!run || run.lastTestSuccessful) return [];
@@ -488,9 +459,6 @@ export class DeliveryCreationTestsEditPage {
       }
     });
 
-    // A 404 on detail load (cross-tenant / deleted) surfaces a not-found banner
-    // instead of an empty form — the @TenantId finder never returns another
-    // club's row.
     effect(() => {
       if (this.store.notFound() && !this.isCreate()) {
         this.notFound.set(true);
@@ -503,7 +471,6 @@ export class DeliveryCreationTestsEditPage {
       if (this.store.saveError()) this.saveSubmitted.set(false);
     });
 
-    // Navigate on the mutation-bus event — guaranteed-post-response, no race.
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (

@@ -32,7 +32,6 @@ import {
   type WeekCell,
 } from './reservations-calendar.model';
 
-/** A reservation pre-decorated with its horizontal placement for the day lane. */
 interface PlacedBlock {
   reservation: ReservationItem;
   placement: BlockPlacement;
@@ -40,35 +39,12 @@ interface PlacedBlock {
   isMaintenance: boolean;
 }
 
-/** Hour columns of the day grid (reference 08–19 inclusive). */
 const DAY_HOURS = Array.from(
   { length: DAY_HOURS_END - DAY_HOURS_START + 1 },
   (_, i) => DAY_HOURS_START + i,
 );
-/** Reservation-type names that render as a hatched maintenance band (reference). */
 const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
 
-/**
- * `/reservations` calendar (J-5 T-39) — the single calendar-first reservations
- * screen that consolidates the old paged table + the separate
- * `/reservation-scheduler` into one view (design reference
- * `screens-reservations.jsx`, ADR 0024 Option A).
- *
- * Two views over the SAME store data (no extra fetch — reuses the list store's
- * already-loaded reservations + picker label maps):
- * - **Day view**: aircraft×hour grid (08–19). Each aircraft is a lane; each
- *   reservation is a time-placed block, reusing the T-10 `placeBlock` math over
- *   an `hourWindow`. Maintenance renders as a hatched band.
- * - **Week view**: aircraft×day matrix. Each cell shows `count · hours` + a thin
- *   progress bar + the first pilot, aggregated by the `weekCell` helper.
- *
- * Chrome: page header + actions (Today, New reservation → /reservations/new),
- * a prev/next-week + week day-picker row, and a day/week toggle. The METAR /
- * weather strip from the reference is SKIPPED (no weather source — deferred in
- * the journey). Clicking a block → edit; New / empty → create.
- *
- * Mobile: the day grid horizontal-scrolls (reference `.rsv-day`).
- */
 @Component({
   selector: 'af-reservations-calendar',
   standalone: true,
@@ -390,7 +366,6 @@ export class ReservationsCalendarPage {
   protected readonly hoursEnd = DAY_HOURS_END + 1;
 
   protected readonly view = signal<'day' | 'week'>('day');
-  /** Local-midnight ISO of the selected day; drives both views. */
   protected readonly selectedDayIso = signal<string>(startOfDay(new Date()).toISOString());
 
   protected readonly lanes = this.store.schedulerLanes;
@@ -398,19 +373,12 @@ export class ReservationsCalendarPage {
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
 
-  /** The seven day-picker cells of the selected day's week. */
   protected readonly weekDayCells = computed<CalendarDay[]>(() => weekDays(this.selectedDayIso()));
 
-  /** Day-grid placement window — business hours of the selected day. */
   private readonly dayHourWindow = computed(() =>
     hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END + 1),
   );
 
-  /**
-   * View-aware period label (J-6b T-08 #3): single day `DD.MM.YYYY` in day view,
-   * the week's `DD.MM.YYYY – DD.MM.YYYY` start–end range in week view. Drives the
-   * page-header subtitle + the `reservations-period-label` hook.
-   */
   protected readonly periodLabel = computed<string>(() =>
     periodLabel(this.view(), this.selectedDayIso()),
   );
@@ -420,7 +388,6 @@ export class ReservationsCalendarPage {
     return this.store.entities().filter((r) => startsOnDay(r, key)).length;
   });
 
-  /** Day-view blocks for a lane: only reservations starting on the selected day. */
   protected placedBlocks(lane: SchedulerLane): PlacedBlock[] {
     const win = this.dayHourWindow();
     const key = isoDate(startOfDay(this.selectedDayIso()));
@@ -458,10 +425,6 @@ export class ReservationsCalendarPage {
     this.selectedDayIso.set(d.iso);
   }
 
-  /**
-   * Pager step — granularity follows the active view (J-6b T-08 #3): day view
-   * steps ±1 day, week view steps ±7 days. `delta` is the direction (−1 / +1).
-   */
   protected shiftPeriod(delta: number): void {
     const step = stepDaysForView(this.view());
     this.selectedDayIso.set(addDays(this.selectedDayIso(), delta * step).toISOString());

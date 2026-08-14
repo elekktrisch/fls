@@ -7,12 +7,6 @@ interface NetworkStatusState {
   networkOnline: boolean;
 }
 
-/**
- * Interim online/offline signal sourced from `window.online`/`window.offline`
- * events. S-117 (PWA service worker) replaces with a more reliable signal
- * driven by fetch outcomes — at that point this store stays as the public
- * surface and the underlying source swaps.
- */
 export const NetworkStatusStore = signalStore(
   { providedIn: 'root' },
   withState<NetworkStatusState>({

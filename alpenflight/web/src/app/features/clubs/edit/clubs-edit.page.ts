@@ -36,11 +36,6 @@ import { emailRecipientList, slugAvailable } from './clubs-edit.validators';
 
 const OPERATOR_EMAIL_MAX_LENGTH = 250;
 
-/**
- * Keeps the club's stored id selectable even when the catalog is empty or does
- * not contain it — an un-renderable value is dropped by the select and then
- * CLEARED by the full-replace save.
- */
 function withStoredValue(
   options: AfSelectOption<string>[],
   stored: string | undefined,
@@ -329,11 +324,6 @@ export class ClubsEditPage {
   protected readonly operatorEmailHint =
     'Comma, semicolon or space separated. Leave blank to send no organiser mail.';
 
-  /**
-   * The day resource and the flight-type catalog are the caller's own tenant's
-   * and carry no club id, so both stay off a cross-tenant edit — a sysadmin
-   * editing another club must not manage its own club's days under that heading.
-   */
   protected readonly managesOwnClub = computed(
     () =>
       !this.isCreate() &&
@@ -341,10 +331,6 @@ export class ClubsEditPage {
       isOwnClub(this.clubId(), this.session.currentClubId()),
   );
 
-  /**
-   * The club catalog is a cross-tenant read, so a club admin has no list to
-   * return to — leaving the screen takes it back to its own start page.
-   */
   protected readonly exitUrl = computed(() =>
     this.session.isSystemAdmin() || this.session.isFlightOperator() ? '/clubs' : '/start',
   );
@@ -358,9 +344,6 @@ export class ClubsEditPage {
     this.referenceData.clubStates().map((s) => ({ value: s.id, label: s.name ?? s.id })),
   );
 
-  // The club's stored flight type is always an option, even when the catalog is
-  // empty or does not contain it — an un-renderable value would be dropped by
-  // the select and then CLEARED by the full-replace save.
   protected readonly flightTypeOptions = computed<readonly AfSelectOption<string>[]>(() =>
     withStoredValue(
       this.store.flightTypes().map((ft) => ({ value: ft.id, label: ft.flightTypeName })),
@@ -375,10 +358,6 @@ export class ClubsEditPage {
     ),
   );
 
-  // S-007 — slug validator stack (sync + in-memory async-style) declared
-  // alongside the rest of the form definition. The duplicate-check closure
-  // reads `this.store.entities()` and `this.clubId()` lazily so it stays
-  // current as the store refreshes / the route changes.
   protected readonly form: ClubForm = this.fb.group({
     name: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(100)]),
     slug: this.fb.nonNullable.control('', [
@@ -407,16 +386,9 @@ export class ClubsEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
-  // J-26 T-10 — server-side duplicate 409s (slug / clubKey, discriminated by
-  // T-07) routed through the `liveFieldErrors` async slot rather than `setErrors`
-  // (which carries no `valueChanges`, so the debounced stream never re-reads it).
-  // Cleared on retype (effects below).
   private readonly slugDuplicate = signal<ValidationErrors | null>(null);
   private readonly clubKeyDuplicate = signal<ValidationErrors | null>(null);
 
-  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
-  // infra): each field tracks its control's errors debounced ~200ms and clears
-  // when valid — replacing the touched-only `[errors]="ctl.touched ? …"` bindings.
   protected readonly nameErrors = liveFieldErrors(this.form.controls.name);
   protected readonly slugErrors = liveFieldErrors(this.form.controls.slug, {
     asyncErrors$: toObservable(this.slugDuplicate),
@@ -433,20 +405,14 @@ export class ClubsEditPage {
     this.form.controls.scenicFlightOperatorEmail,
   );
 
-  /** One fetch per club id, so a failed read does not re-fire on every signal tick. */
   private readonly fetchedClubIds = new Set<string>();
 
   constructor() {
     effect(() => {
-      // Re-run the slug validator whenever the entity list refreshes so the
-      // duplicate flag updates the moment ClubsStore.loadAll() resolves.
       void this.store.entities();
       this.form.controls.slug.updateValueAndValidity({ emitEvent: false });
     });
 
-    // The club catalog is closed to a CLUB_ADMINISTRATOR, so the club under
-    // edit cannot be assumed to be in the entity map — fetch whatever the
-    // catalog did not supply through the single-club read.
     effect(() => {
       const id = this.clubId();
       if (id === null || this.fetchedClubIds.has(id) || this.store.entityMap()[id]) {
@@ -460,17 +426,12 @@ export class ClubsEditPage {
       const id = this.clubId();
       if (!id) {
         this.store.select(null);
-        // Re-enable on edit→new navigation; patchValue doesn't reset disabled.
         this.form.controls.clubKey.enable({ emitEvent: false });
         return;
       }
       this.store.select(id);
       const club = this.store.selectedClub();
       if (!club) return;
-      // Race guard: countryId / clubStateId must match an option in the
-      // <af-select> when patched, otherwise nz-select silently drops the
-      // value and the form looks empty + invalid with no cue. Re-fire when
-      // ref-data lands.
       const countriesReady = this.referenceData.countries().length > 0;
       const clubStatesReady = this.referenceData.clubStates().length > 0;
       this.form.patchValue({
@@ -480,9 +441,6 @@ export class ClubsEditPage {
         publicRegistrationEnabled: club.publicRegistrationEnabled ?? false,
         countryId: countriesReady ? club.countryId : '',
         clubStateId: clubStatesReady ? club.clubStateId : '',
-        // Patched verbatim: a migrated recipient list that never parsed as an
-        // address still has to render and stay editable, and the validator is
-        // what tells the admin to fix it.
         discoveryFlightOperatorEmail: club.discoveryFlightOperatorEmail ?? '',
         scenicFlightOperatorEmail: club.scenicFlightOperatorEmail ?? '',
         discoveryFlightTypeId: club.discoveryFlightTypeId ?? null,
@@ -498,9 +456,6 @@ export class ClubsEditPage {
       this.store.loadLocations();
     });
 
-    // Both catalogs are the CALLER's tenant's, so only the club's own admin can
-    // resolve either id to a name — a cross-tenant editor keeps the stored
-    // values but cannot repoint them at rows belonging to its own club.
     effect(() => {
       const own = this.managesOwnClub();
       for (const control of [
@@ -515,18 +470,11 @@ export class ClubsEditPage {
       }
     });
 
-    // Any save error (409, 500, network) disarms the bus-driven navigation;
-    // a duplicate 409 marks the OFFENDING control inline, routed by the
-    // store's saveErrorKind (J-26 T-07 — the server discriminates
-    // ux_club_key vs ux_club_slug, so clubKey conflicts no longer land on
-    // the slug field).
     effect(() => {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
       const kind = this.store.saveErrorKind();
-      // Route through the live-errors async slot so the inline message surfaces
-      // under the as-you-type binding (a `setErrors` carries no `valueChanges`).
       if (kind === 'club-key-duplicate') {
         this.clubKeyDuplicate.set({ duplicate: true });
         this.form.controls.clubKey.markAsTouched();
@@ -537,8 +485,6 @@ export class ClubsEditPage {
     });
 
     const destroyRef = inject(DestroyRef);
-    // Clear the server-side duplicate flag the moment the user retypes either
-    // field so Save re-enables and the stale 409 message disappears.
     this.form.controls.slug.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
       if (this.slugDuplicate() !== null) this.slugDuplicate.set(null);
     });
@@ -546,10 +492,6 @@ export class ClubsEditPage {
       if (this.clubKeyDuplicate() !== null) this.clubKeyDuplicate.set(null);
     });
 
-    // Navigate on confirmed server success — the store emits club.created /
-    // club.updated only inside the rxMethod's tapResponse.next callback,
-    // which fires after the HTTP response. Errors disarm saveSubmitted via
-    // the effect above so we don't navigate past them.
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'club.created' || evt.kind === 'club.updated') {

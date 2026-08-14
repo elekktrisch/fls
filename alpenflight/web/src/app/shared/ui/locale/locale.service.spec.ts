@@ -40,8 +40,6 @@ describe('LocaleService', () => {
     expect(svc.current()).toBe('de');
   });
 
-  // The date-fns locale tracks the UI locale so the date pickers can parse
-  // manually-typed dates (the DatePipe adapter can only format).
   it('set() also points the ng-zorro date-fns locale at the active locale', () => {
     const svc = TestBed.inject(LocaleService);
     svc.set('de');

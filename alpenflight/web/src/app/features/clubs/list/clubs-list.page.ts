@@ -116,7 +116,6 @@ export class ClubsListPage {
   protected readonly router = inject(Router);
 
   protected confirmDelete(club: Club): void {
-    // Lightweight confirm for v1; replace with nz-modal in a follow-up.
     if (typeof window === 'undefined' || !club.id) return;
     if (window.confirm(`Delete "${club.name}"? This cannot be undone.`)) {
       this.store.delete(club.id);

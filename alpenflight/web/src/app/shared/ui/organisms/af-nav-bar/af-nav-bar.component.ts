@@ -19,32 +19,13 @@ import { AfWordmarkComponent } from '../../atoms/af-wordmark';
 import { AfLangPickerComponent } from '../../molecules/af-lang-picker';
 import { ViewportService } from '../../viewport';
 
-/**
- * A top-level nav entry is EITHER a leaf (carries `path`, links straight to a
- * route) OR a group (carries `children`, no `path` — opens a dropdown / nested
- * drawer block listing its children). The `children`-on-NavItem model keeps the
- * input surface a single flat array; the component branches on `path` presence.
- */
 export interface NavItem {
-  /** Present on a leaf; absent on a group. */
   readonly path?: string;
   readonly label: string;
   readonly icon?: string;
-  /** Present on a group; absent on a leaf. A group never carries `path`. */
   readonly children?: readonly NavItem[];
-  /**
-   * Live count rendered as a pill next to the label. A group with no badge of
-   * its own rolls up its children's badges onto its trigger, so a count carried
-   * by a dropdown child still shows when the menu is collapsed.
-   */
   readonly badge?: Signal<number>;
-  /** `data-testid` for the rendered badge pill; rolls up onto a parent group. */
   readonly badgeTestId?: string;
-  /**
-   * Overrides the path-derived `af-nav-section-<path>` testid. Required by an
-   * entry whose path carries a per-principal id, which would otherwise give the
-   * spec no stable handle on it.
-   */
   readonly testId?: string;
 }
 
@@ -53,18 +34,6 @@ export interface UserSummary {
   readonly initials: string;
 }
 
-/**
- * Top-bar primary nav (ADR 0024 §Decision).
- *
- *   ┌────────────────────────────────────────────────────────────────┐
- *   │ [✈ AlpenFlight]  Clubs  Flights  Members         [👤 user ▾]   │
- *   └────────────────────────────────────────────────────────────────┘
- *
- * Single-layer, 56px tall. Below md, sections collapse to a hamburger
- * drawer; the bar shows hamburger + brand + user avatar.
- *
- * Active section indicator: brand-500 underline.
- */
 @Component({
   selector: 'af-nav-bar',
   standalone: true,
@@ -380,14 +349,8 @@ export class AfNavBarComponent {
   protected readonly drawerOpen = this.#drawerOpen.asReadonly();
   protected readonly isWide = computed(() => this.#atLeastMd());
 
-  /** Drawer group-block expanded state (mobile), keyed by group label. */
   readonly #openGroups = signal<ReadonlySet<string>>(new Set());
 
-  /**
-   * Current url as a signal (zoneless — bridge NavigationEnd, seed with the
-   * router's current url so the first paint already reflects the active route).
-   * `groupActive()` reads this to light the parent when a child is active.
-   */
   readonly #url = toSignal(
     this.#router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -397,26 +360,19 @@ export class AfNavBarComponent {
     { initialValue: this.#router.url },
   );
 
-  /**
-   * The badge a group surfaces on its (collapsed) trigger: the first child that
-   * carries one. A leaf badges itself, so this only resolves the roll-up.
-   */
   protected groupBadge(item: NavItem): NavItem | null {
     return item.children?.find((c) => c.badge) ?? null;
   }
 
-  /** A group is active when the current url matches any of its children's paths. */
   protected groupActive(children: readonly NavItem[]): boolean {
     const url = this.#url();
     return children.some((c) => !!c.path && (url === c.path || url.startsWith(`${c.path}/`)));
   }
 
-  /** A leaf's testid: its own override, else derived from the path. */
   protected sectionTestId(item: NavItem): string {
     return item.testId ?? `af-nav-section-${item.path}`;
   }
 
-  /** Stable testid slug from a group label (`Masterdata` → `masterdata`). */
   protected slug(label: string): string {
     return label.toLowerCase().replace(/\s+/g, '-');
   }

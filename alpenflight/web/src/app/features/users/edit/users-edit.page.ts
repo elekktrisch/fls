@@ -61,12 +61,6 @@ type UserForm = FormGroup<{
   GUEST: FormControl<boolean>;
 }>;
 
-// The role-control keys, narrowly typed to the boolean controls on `UserForm`
-// (NOT the wider `UserUpdateRequestRolesItem`, which includes the non-control
-// SYSTEM_ADMINISTRATOR). Drives `checkedRoles` / the live-roles signal by
-// indexing the raw form value without the TS7053 the wider union triggers
-// (J-26 T-13 boyscout precedent: `form.controls[r]` index-fails for the same
-// reason). Order matches `CLUB_ADMIN_GRANTABLE_ROLES` — the submitted role set.
 type RoleKey = 'CLUB_ADMINISTRATOR' | 'FLIGHT_OPERATOR' | 'PILOT' | 'OFFICE_USER' | 'GUEST';
 const ROLE_KEYS: readonly RoleKey[] = [
   'CLUB_ADMINISTRATOR',
@@ -76,9 +70,6 @@ const ROLE_KEYS: readonly RoleKey[] = [
   'GUEST',
 ];
 
-// Mirrors UserInviteRequest.username @Pattern in
-// `ch.alpenflight.users.application.UserDtos`. Drift here means inline
-// validation accepts what the backend later 400s — change both together.
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
 const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
 
@@ -315,9 +306,6 @@ export class UsersEditPage {
   protected readonly deactivateOpen = signal(false);
   protected readonly pinnedPerson = signal<PersonLookupMatch | null>(null);
 
-  // Deactivate-specific error: set when the dialog is open and a save error
-  // surfaces. Decoupled from `formError()` so the dialog body doesn't show a
-  // stale invite/update error after a 409.
   private readonly deactivateErrorMessage = signal<string | null>(null);
   protected readonly deactivateError = computed(() => this.deactivateErrorMessage());
 
@@ -358,12 +346,6 @@ export class UsersEditPage {
     GUEST: this.fb.control(false),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings (silent
-  // until blur/submit) and binding the previously-silent optional fields
-  // (phone / remarks) that carried a maxLength validator but rendered no inline
-  // error at all.
   protected readonly usernameErrors = liveFieldErrors(this.form.controls.username);
   protected readonly friendlyNameErrors = liveFieldErrors(this.form.controls.friendlyName);
   protected readonly notificationEmailErrors = liveFieldErrors(
@@ -372,15 +354,7 @@ export class UsersEditPage {
   protected readonly phoneNumberErrors = liveFieldErrors(this.form.controls.phoneNumber);
   protected readonly remarksErrors = liveFieldErrors(this.form.controls.remarks);
 
-  // Roles ≥1 cross-field — now LIVE (J-26 T-12). The error surfaces once the
-  // user has interacted with the role checkboxes and unticked them all (the
-  // as-you-type bar), debounced ~200ms off the group value, OR after a submit
-  // attempt. Checkbox `touched` flags are unreliable on groups; track the first
-  // interaction via a debounced value-change signal instead of waiting for submit.
   private readonly rolesInteracted = toSignal(
-    // `ROLE_KEYS` is narrowly typed to the boolean role controls (J-26 T-22),
-    // so `this.form.controls[r]` indexes cleanly — no TS7053, no `get(r)!`
-    // workaround (the T-13 boyscout this supersedes).
     merge(...ROLE_KEYS.map((r) => this.form.controls[r].valueChanges)).pipe(debounceTime(200)),
     { initialValue: undefined },
   );
@@ -461,7 +435,6 @@ export class UsersEditPage {
 
   protected onConfirmDeactivate(): void {
     if (this.deactivateErrorMessage() !== null) {
-      // "Close" mode — the 409 already landed; confirm dismisses.
       this.onDismissDeactivate();
       return;
     }
@@ -497,10 +470,6 @@ export class UsersEditPage {
     this.store.update({ id, req: this.buildUpdateRequest(checked) });
   }
 
-  // Phone + remarks are the only optionals; `withOptionals` prunes the trimmed
-  // empties in one pass (J-26 T-22) instead of the `if (x.length > 0)` appends
-  // each branch grew. The optionals map is the SAME for invite + update — only
-  // the required base + the roles-diff differ.
   private optionalContactFields(): { phoneNumber: string; remarks: string } {
     const v = this.form.getRawValue();
     return { phoneNumber: v.phoneNumber.trim(), remarks: v.remarks.trim() };
@@ -509,9 +478,6 @@ export class UsersEditPage {
   private buildInviteRequest(roles: UserUpdateRequestRolesItem[]): UserInviteRequest {
     const v = this.form.getRawValue();
     const pinned = this.pinnedPerson();
-    // `withOptionals` runtime-prunes the empty/undefined optionals; the cast
-    // narrows the `Partial<…>` (which `exactOptionalPropertyTypes` widens with
-    // `| undefined`) back to the DTO's exact optionals — sound at runtime.
     return withOptionals(
       {
         username: v.username.trim(),

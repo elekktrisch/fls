@@ -36,12 +36,6 @@ function runGuard(data: Record<string, unknown> = {}, url = '/protected') {
   return runInInjectionContext(TestBed.inject(EnvironmentInjector), () => authGuard(route, state));
 }
 
-/**
- * Subscribes to the guard's wait-for-settle observable, capturing every
- * emission. `toObservable` bridges the signal via a root effect, so the
- * emission only fires after `TestBed.tick()` flushes effects + CD — exactly
- * the zoneless behavior the guard relies on (no zone timers).
- */
 function collect(result: ReturnType<typeof authGuard>): { emissions: boolean[] } {
   const emissions: boolean[] = [];
   if (typeof result === 'boolean') {
@@ -88,8 +82,6 @@ describe('authGuard', () => {
   it('returns a waiting observable (not a synchronous false) when sessionStatus is idle', () => {
     const result = runGuard({});
 
-    // The pre-fix behavior returned `false` here, which CANCELS the
-    // navigation. Now it must defer via an observable until settle.
     expect(isObservable(result)).toBe(true);
   });
 
@@ -106,12 +98,9 @@ describe('authGuard', () => {
 
     const { emissions } = collect(runGuard({}));
 
-    // Nothing emitted yet — the guard is parked on `isLoadingSession`.
     TestBed.tick();
     expect(emissions).toEqual([]);
 
-    // Session settles authenticated mid-flight (the token-renew window
-    // resolving). The guard must now resolve true, not have cancelled.
     store.login(sampleUser, 'club-1');
     TestBed.tick();
 
@@ -127,7 +116,6 @@ describe('authGuard', () => {
     TestBed.tick();
     expect(emissions).toEqual([]);
 
-    // Settles with no principal → ADR 0007 hard-401: authorize() + emit false.
     store.markUnauthenticated();
     TestBed.tick();
 

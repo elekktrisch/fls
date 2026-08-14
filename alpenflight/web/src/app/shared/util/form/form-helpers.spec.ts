@@ -89,7 +89,6 @@ describe('classifyApiError', () => {
 
   it('skips a status-matching rule whose `when` predicate fails, then falls through', () => {
     const e = new HttpErrorResponse({ status: 409, error: { detail: 'totally different' } });
-    // 409 self-rule `when` fails → no other 409 rule → generic fallback.
     expect(classifyApiError(e, rules, fallback)).toEqual({
       saveError: 'totally different',
       saveErrorKind: 'other',
@@ -114,7 +113,6 @@ describe('classifyApiError', () => {
 
   it('passes an empty body object to predicates/outcomes when error body is null', () => {
     const e = new HttpErrorResponse({ status: 400, error: null });
-    // 400 rule fires with an empty body → no detail/message → empty saveError.
     expect(classifyApiError(e, rules, fallback)).toEqual({
       saveError: '',
       saveErrorKind: 'validation',
@@ -135,7 +133,6 @@ describe('withOptionals', () => {
 
   it('drops null + empty-string optionals, keeps falsy-but-meaningful values', () => {
     const out = withOptionals({ x: 1 }, { a: null, b: '', c: 0, d: false });
-    // 0 and false are meaningful (not "empty"); only '' / null / undefined drop.
     expect(out).toEqual({ x: 1, c: 0, d: false });
   });
 });

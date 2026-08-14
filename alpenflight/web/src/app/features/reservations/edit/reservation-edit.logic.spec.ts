@@ -10,7 +10,6 @@ import {
 const AC_ID = 'ac-019e30c3-2c00-7001-8000-00000000a001';
 const RES_ID = 'res-019e30c3-2c00-7001-8000-000000000001';
 
-/** A complete timed-slot raw form value (the shape `getRawValue()` returns). */
 function rawValue(over: Partial<Record<string, string | boolean>> = {}) {
   return {
     aircraftId: AC_ID,
@@ -61,7 +60,6 @@ describe('reservation-edit overlap probe (T-06)', () => {
     expect(overlapProbe(rawValue({ date: '' }), null)).toBeNull();
     expect(overlapProbe(rawValue({ startTime: '' }), null)).toBeNull();
     expect(overlapProbe(rawValue({ endTime: '' }), null)).toBeNull();
-    // An all-day slot is probe-ready even with empty times.
     expect(
       overlapProbe(rawValue({ isAllDay: true, startTime: '', endTime: '' }), null),
     ).not.toBeNull();
@@ -104,11 +102,6 @@ describe('reservation-edit conditional second-crew (T-18)', () => {
 });
 
 describe('reservation-edit save-disable vs async validator race (T-09)', () => {
-  // The bug: the second-crew validator flips the form back to invalid AFTER the
-  // aircraft picker resolves `nrOfSeats`; the disable binding must track the live
-  // form STATUS so it never shows enabled while the form is invalid OR pending.
-  // The transition order a real edit walks: PENDING (async leg running) →
-  // INVALID (second-crew now required, empty) → VALID (crew supplied).
   it('keeps Save disabled while the form status is PENDING (async validator running)', () => {
     expect(saveDisabledFor('PENDING', false, false)).toBe(true);
   });
@@ -154,25 +147,16 @@ describe('reservation-edit cancel returnUrl (T-10)', () => {
   });
 
   it('rejects external / off-app targets (no open redirect)', () => {
-    // Protocol-relative `//host` would navigate off-app.
     expect(sanitizeReturnUrl('//evil.example.com/phish')).toBe('/reservations');
-    // Absolute external URL.
     expect(sanitizeReturnUrl('https://evil.example.com')).toBe('/reservations');
-    // Scheme-bearing / javascript: payloads are not rooted paths.
     expect(sanitizeReturnUrl('javascript:alert(1)')).toBe('/reservations');
-    // A non-rooted relative value is rejected too.
     expect(sanitizeReturnUrl('planning/abc/edit')).toBe('/reservations');
   });
 
   it('rejects a leading-slash + backslash open-redirect bypass (T-20 gap-hunter)', () => {
-    // `/\evil.com` starts with a single `/` and is not `//`, but browsers
-    // normalise `\` → `/`, so it resolves like the protocol-relative `//evil.com`
-    // — a known open-redirect bypass. The backslash (and any control char) must
-    // be rejected.
     expect(sanitizeReturnUrl('/\\evil.example.com')).toBe('/reservations');
     expect(sanitizeReturnUrl('/\\/evil.example.com')).toBe('/reservations');
     expect(sanitizeReturnUrl('/planning\\..\\evil')).toBe('/reservations');
-    // A control char anywhere in the path is rejected too.
     expect(sanitizeReturnUrl('/planning/\tabc')).toBe('/reservations');
   });
 });

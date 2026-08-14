@@ -10,7 +10,6 @@ import type { EmailTemplateListItem, EmailTemplateSaveRequest } from '@api/gener
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { EmailTemplatesStore } from './email-templates.store';
 
-// @mocked: http — store unit test
 
 const fileDefault: EmailTemplateListItem = {
   templateKey: 'lostpassword',
@@ -83,7 +82,6 @@ describe('EmailTemplatesStore', () => {
   it('load populates the union list', () => {
     configure(emailTemplatesServiceStub({ list: () => of([fileDefault, clubOverride]) }));
 
-    // onInit already fires load(); inject resolves the store and runs it.
     const store = TestBed.inject(EmailTemplatesStore);
 
     expect(store.items()).toEqual([fileDefault, clubOverride]);
@@ -94,8 +92,6 @@ describe('EmailTemplatesStore', () => {
   it('save PUTs the override then refreshes the list', () => {
     const calls: string[] = [];
     let savePayload: EmailTemplateSaveRequest | null = null;
-    // The post-save refresh must reflect the new override row, not the pre-save
-    // file default — else the refresh would silently revert the edit.
     let listState: EmailTemplateListItem[] = [fileDefault];
     configure(
       emailTemplatesServiceStub({
@@ -162,7 +158,6 @@ describe('EmailTemplatesStore', () => {
     const store = TestBed.inject(EmailTemplatesStore);
     store.save({ templateKey: 'lostpassword', languageLocale: 'de', request: saveRequest });
 
-    // Only the init load ran — the failed PUT triggers no refresh.
     expect(calls).toEqual(['list']);
     expect(store.saveError()).not.toBeNull();
     expect(store.saveErrorKind()).toBe('forbidden');

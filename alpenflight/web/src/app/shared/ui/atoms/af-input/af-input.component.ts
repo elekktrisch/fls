@@ -12,14 +12,6 @@ import {
 } from '@angular/core';
 import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
 
-/**
- * Native `<input>` wrapper. AC-DIR-9 keeps native types — `type="time"`,
- * `type="date"`, `inputmode="numeric"` — over ng-zorro custom widgets so the
- * mobile system pickers fire and Reactive-Forms integration stays simple.
- *
- * For richer date/time UIs use `<af-date-picker>` (the only ng-zorro picker
- * the kit pulls in).
- */
 @Component({
   selector: 'af-input',
   standalone: true,
@@ -55,10 +47,6 @@ export class AfInputComponent implements ControlValueAccessor {
   private readonly inputEl = viewChild.required<ElementRef<HTMLInputElement>>('inputEl');
   protected readonly _elementRef = inject(ElementRef);
 
-  /**
-   * Stamped onto the inner native `<input>` so a sibling `<label for="X">`
-   * can target the actual focusable element, not the `<af-input>` host.
-   */
   readonly inputId = input<string>('');
 
   readonly type = input<'text' | 'number' | 'email' | 'tel' | 'time' | 'date' | 'password'>('text');
@@ -72,13 +60,6 @@ export class AfInputComponent implements ControlValueAccessor {
 
   readonly value = model<string>('');
 
-  /**
-   * CVA-driven disabled state (set by `form.disable()`/`enable()`), OR'd with the
-   * explicit `[disabled]` input. Reactive-Forms calls `setDisabledState` to
-   * reflect a disabled control onto the native element — a read-only form
-   * (`form.disable()`) MUST render its inputs non-editable, not just mark the
-   * control DISABLED (J-6b T-09: the planning view-mode read-only fix).
-   */
   private readonly cvaDisabled = signal(false);
   protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 

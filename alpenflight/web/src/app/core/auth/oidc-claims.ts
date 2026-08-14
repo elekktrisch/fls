@@ -35,12 +35,6 @@ function extractRoles(claims: KeycloakClaims): readonly AppRole[] {
   return raw.filter((r): r is AppRole => typeof r === 'string' && KNOWN_ROLES.has(r as AppRole));
 }
 
-/**
- * Translates a Keycloak access-token claim payload into the SessionStore's
- * User shape. Returns `null` when the payload is not a plausible principal
- * (missing `sub`, wrong type, etc.); callers should treat that as "logged
- * out" rather than "logged in with empty fields."
- */
 export function mapClaimsToUser(claims: unknown): User | null {
   if (claims === null || typeof claims !== 'object') {
     return null;
@@ -57,11 +51,7 @@ export function mapClaimsToUser(claims: unknown): User | null {
     firstName: asString(c.given_name),
     lastName: asString(c.family_name),
     clubId: asNullableString(c.clubId),
-    // Resolved by SessionStore.loadMe() post-login from the /me endpoint
-    // (S-165) — the JWT carries no personId claim.
     personId: null,
-    // Resolved by SessionStore.loadMe() from /me (J-7 T-09b); the JWT
-    // carries no club-homebase claim.
     homebaseLocationId: null,
     roles: extractRoles(c),
   };

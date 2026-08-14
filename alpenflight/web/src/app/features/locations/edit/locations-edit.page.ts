@@ -367,16 +367,8 @@ export class LocationsEditPage {
 
   private readonly injector = inject(Injector);
 
-  // J-26 T-11 — server-side ICAO-duplicate routed through the `liveFieldErrors`
-  // async slot (`inline-validation.ts` extension point) rather than `setErrors`,
-  // so the inline message surfaces under the as-you-type binding (a `setErrors`
-  // carries no `valueChanges`, so the debounced stream never re-reads it).
-  // Cleared the moment the user retypes (effect below).
   private readonly icaoDuplicate = signal<ValidationErrors | null>(null);
 
-  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings.
   protected readonly locationNameErrors = liveFieldErrors(this.form.controls.locationName);
   protected readonly locationShortNameErrors = liveFieldErrors(
     this.form.controls.locationShortName,
@@ -389,13 +381,6 @@ export class LocationsEditPage {
   protected readonly latitudeErrors = liveFieldErrors(this.form.controls.latitude);
   protected readonly longitudeErrors = liveFieldErrors(this.form.controls.longitude);
 
-  // Per-IOP-row live-error signals, created EAGERLY when the row's FormGroup is
-  // built (`makeIopGroup`) and cached against it. They must NOT be created from
-  // the template: `liveFieldErrors` calls `toSignal()`, and `toSignal()` inside a
-  // reactive context (a template expression, or an `effect`) throws NG0602 —
-  // which previously aborted the IOP row's render mid-way (the nested controls,
-  // the per-row testid for rows > 0, and the remove button silently vanished).
-  // `iopErrors()` is now a pure cache READ, safe to call from the template.
   private readonly iopFieldErrors = new WeakMap<
     IopForm,
     Record<keyof IopForm['controls'], Signal<ValidationErrors | null>>
@@ -457,23 +442,16 @@ export class LocationsEditPage {
       if (!err) return;
       this.saveSubmitted.set(false);
       if (this.store.saveErrorKind() === 'icao-duplicate') {
-        // Route through the live-errors async slot (J-26 T-11) so the inline
-        // message surfaces under the as-you-type binding (merged with any
-        // concurrent client error, never masking it).
         this.icaoDuplicate.set({ duplicate: true });
         this.form.controls.icaoCode.markAsTouched();
       }
     });
 
     const destroyRef = inject(DestroyRef);
-    // Clear the synthetic `duplicate` flag the moment the user retypes the
-    // ICAO so Save re-enables without a tab-out/tab-back blur dance.
     this.form.controls.icaoCode.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
       if (this.icaoDuplicate() !== null) {
         this.icaoDuplicate.set(null);
       }
-      // Drop the page-level save banner too so the user isn't reading a stale
-      // "already in use" prompt while already retyping the value.
       if (this.store.saveErrorKind() === 'icao-duplicate') {
         this.store.clearSaveError();
       }
@@ -521,10 +499,6 @@ export class LocationsEditPage {
       direction: this.fb.nonNullable.control(value.direction, [Validators.maxLength(50)]),
       description: this.fb.nonNullable.control(value.description, [Validators.maxLength(500)]),
     });
-    // Build the row's live-error signals NOW (row-construction time), never from
-    // the template. `untracked` detaches any enclosing reactive context (the
-    // hydrate `effect`); `runInInjectionContext` supplies the DestroyRef that
-    // `liveFieldErrors`/`toSignal` need. See the `iopFieldErrors` note above.
     this.iopFieldErrors.set(
       group,
       untracked(() =>

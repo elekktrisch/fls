@@ -63,8 +63,6 @@ const PROCESS_STATE_LABEL: Readonly<Record<ProcessState, string>> = {
 
 function formatLegacyDate(iso?: string): string {
   if (!iso || iso.length !== 10) return iso ?? '';
-  // Surface dd.MM.yyyy — parity with legacy `flights.html`
-  // (`flight.FlightDate | date:'dd.MM.yyyy'`).
   const [yyyy, mm, dd] = iso.split('-');
   return `${dd}.${mm}.${yyyy}`;
 }
@@ -113,14 +111,11 @@ function airStateTone(state: AirState): Tone {
 
 function processStateTone(state: ProcessState): Tone {
   switch (state) {
-    // Valid + downstream delivery states are operationally "done" / good.
     case FlightListItemProcessState.VALID:
     case FlightListItemProcessState.LOCKED:
     case FlightListItemProcessState.DELIVERY_PREPARED:
     case FlightListItemProcessState.DELIVERY_BOOKED:
       return 'ok';
-    // Operator-required-attention conditions surface red (distinct from
-    // amber/warn which marks in-flight transient states elsewhere).
     case FlightListItemProcessState.INVALID:
     case FlightListItemProcessState.DELIVERY_PREPARATION_ERROR:
       return 'danger';
@@ -159,21 +154,6 @@ function toneDotClass(tone: Tone): string {
   }
 }
 
-/**
- * Logbook (flight list). Visual reference: docs/modernization/design-reference
- * screens-logbook.jsx + screenshots/02-desktop-cards.png. Card-per-flight,
- * header row (date / type pill / air-state pill / duration), emphasis row
- * (aircraft immatriculation), labels grid (aircraft / takeoff / landing).
- *
- * Columns are grounded in legacy `flsweb/src/flights/flights.html`: FlightDate
- * (rendered dd.MM.yyyy), Immatriculation, takeoff/landing times, glider-flight
- * duration, AirState, ProcessState. Pilot / second-crew / locations / comments
- * / tow columns from legacy are deferred with the rest of the decoration set
- * (per S-062a "decorations deferred").
- *
- * Server-side date-range filter; air-state / aircraft-type narrowing is
- * client-side over the loaded page until `/flights/search` lands.
- */
 @Component({
   selector: 'af-flights-list',
   standalone: true,
@@ -552,12 +532,6 @@ export class FlightsListPage {
   }
 
   protected readonly dateRangeValue = computed<DateValue>(() => {
-    // Parse the stored ISO date-only strings as LOCAL midnight (not the
-    // `new Date('YYYY-MM-DD')` UTC-midnight default, which renders a day early
-    // in any negative-offset zone). Symmetric with the `isoDateFromLocal` write
-    // path below, so the range the picker displays is the range the store filters
-    // by — T-13: the picker drifted a day west of UTC and the model fell out of
-    // sync with the store's from/to.
     const from = localDateFromIso(this.store.dateFrom());
     const to = localDateFromIso(this.store.dateTo());
     return from && to ? [from, to] : null;
@@ -574,9 +548,6 @@ export class FlightsListPage {
   });
 
   protected aircraftImmat(id: string): string {
-    // Falls back to `…` while AircraftStore hydrates so the row never
-    // surfaces a raw UUID. The store is global + warmed by sibling
-    // navigation; first-paint races are bounded by SessionStore prefetch.
     const immat = this.aircraft.entityMap()[id]?.immatriculation;
     return immat ?? '…';
   }
@@ -622,7 +593,6 @@ export class FlightsListPage {
   }
 
   protected onDateRangeChange(value: DateValue): void {
-    // The range picker emits a [from,to] tuple or null on clear.
     if (Array.isArray(value)) {
       this.store.setDateRange({
         from: isoDateFromLocal(value[0]),
@@ -642,8 +612,6 @@ export class FlightsListPage {
   }
 
   protected onClearFilters(): void {
-    // Reset to the today-default baseline (legacy parity), not show-all — the
-    // today range is the resting state, so "Clear filters" returns there.
     const today = isoDateFromLocal(new Date());
     this.store.clearClientFilter();
     this.store.setDateRange({ from: today, to: today });
@@ -669,18 +637,10 @@ export class FlightsListPage {
     return `Soft-deletes ${acBit}${dateBit ? ` on ${dateBit}` : ''}.${towBit} Cannot be undone from the UI.`;
   });
 
-  // After a failed delete the dialog stays open so the user sees the
-  // outcome next to the action they just took; swap the body to the
-  // error message so the previously-confirmed prompt isn't misleading.
   protected readonly deleteDialogMessage = computed<string | null>(
     () => this.deleteError() ?? this.deletePromptMessage(),
   );
 
-  // Mirror the server's FlightStateGateException gate. Both the TERMINAL
-  // (DELIVERY_BOOKED) and ADMIN_REQUIRED (LOCKED + delivery-prep states)
-  // paths surface as 409 from the backend; the list page can't elevate the
-  // caller's role, so we suppress the affordance on every state the server
-  // would reject for the default CLUB_ADMINISTRATOR principal.
   private static readonly NON_DELETABLE_STATES: ReadonlySet<FlightListItemProcessState> =
     new Set<FlightListItemProcessState>([
       FlightListItemProcessState.DELIVERY_BOOKED,
@@ -713,9 +673,6 @@ export class FlightsListPage {
       await this.store.deleteOne(target.id, String(target.version));
       this.deleteTarget.set(null);
     } catch (e) {
-      // Keep the dialog open so the error renders next to the prompt the
-      // user just confirmed — the inline rose error inside the dialog is
-      // load-bearing context that doesn't get lost when they look away.
       const err = e as { status?: number; message?: string };
       if (err.status === 409) {
         this.deleteError.set(
@@ -735,11 +692,6 @@ export class FlightsListPage {
     return this.isRangeNarrowed() || this.hasClientFilter();
   }
 
-  // Empty-state copy: an active date range narrows the result, so an empty list
-  // is a no-MATCH, not an empty logbook. The today-default range counts here
-  // (unlike hasActiveFilter, which gates the Clear-filters affordance on an
-  // OFF-baseline range) — the only true-empty case is a fully cleared range
-  // (dateFrom/dateTo null) with no client filters.
   protected isFiltered(): boolean {
     return this.store.dateFrom() !== null || this.store.dateTo() !== null || this.hasClientFilter();
   }
@@ -749,9 +701,6 @@ export class FlightsListPage {
     return f.airStates.length > 0 || f.processStateIds.length > 0 || f.aircraftTypes.length > 0;
   }
 
-  // The today-default range (legacy parity) is the baseline, not a user filter:
-  // only a range the user changed off today counts toward "active filters" (the
-  // Clear-filters affordance + the "no flights MATCH" empty copy).
   private isRangeNarrowed(): boolean {
     const today = isoDateFromLocal(new Date());
     return this.store.dateFrom() !== today || this.store.dateTo() !== today;

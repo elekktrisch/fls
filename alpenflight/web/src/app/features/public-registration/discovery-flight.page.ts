@@ -15,14 +15,6 @@ import {
   toRegistrantDetails,
 } from './registrant-form';
 
-/**
- * The anonymous discovery-flight (Schnupperflug) registration form for the club
- * its URL names.
- *
- * The day is a page-level signal rather than a control of the shared registrant
- * form: the scenic flow posts that same form with no day, so a day control on it
- * would have to be conditionally disabled per flow.
- */
 @Component({
   selector: 'af-discovery-flight-page',
   standalone: true,

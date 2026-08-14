@@ -166,7 +166,6 @@ describe('FlightFormCoordinator', () => {
 
     it('preserves engine counters when club.resetEngineOperatingCounters=false', () => {
       metadata.clubDefaults.resetEngineOperatingCounters = false;
-      // Re-attach with the updated stub.
       const fb = new FormBuilder().nonNullable;
       form = buildFlightForm(fb);
       coordinator = new FlightFormCoordinator();
@@ -195,7 +194,7 @@ describe('FlightFormCoordinator', () => {
 
   describe('glider startLocation → mirror to ldgLocation + tow start/ldg', () => {
     it('overwrites ldgLocation on the glider AND mirrors to tow start+ldg', () => {
-      form.controls.glider.controls.ldgLocationId.setValue('loc-other'); // pre-existing user pick
+      form.controls.glider.controls.ldgLocationId.setValue('loc-other');
       form.controls.glider.controls.startLocationId.setValue('loc-home');
       expect(form.controls.glider.controls.ldgLocationId.value).toBe('loc-home');
       expect(form.controls.tow.controls.startLocationId.value).toBe('loc-home');
@@ -227,7 +226,6 @@ describe('FlightFormCoordinator', () => {
     });
 
     it('does NOT overwrite tow.startLocationId when user already picked one (mirror via glider only)', () => {
-      // Pre-set tow.startLocationId via glider mirror; tow-aircraft pick should NOT overwrite.
       form.controls.glider.controls.startLocationId.setValue('loc-other');
       form.controls.tow.controls.aircraftId.setValue('ac-tow');
       expect(form.controls.tow.controls.startLocationId.value).toBe('loc-other');
@@ -269,11 +267,8 @@ describe('FlightFormCoordinator', () => {
 
   describe('coordinator does not deadlock when patching with emitEvent:false', () => {
     it('chained rules (flight-type → solo → coPilot clear) all settle in one tick', () => {
-      // If any rule used `setValue` without `{emitEvent:false}`, this would
-      // trigger valueChanges → re-fire the rule → infinite loop (Vitest hang).
       form.controls.glider.controls.coPilotPersonId.setValue('pn-copilot');
       form.controls.glider.controls.flightTypeId.setValue('ft-solo');
-      // Reaching this line at all means no deadlock.
       expect(form.controls.glider.controls.isSoloFlight.value).toBe(true);
     });
   });

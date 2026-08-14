@@ -11,9 +11,6 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
 import { emitFunnelEvent } from '../signup/funnel-telemetry';
 
-// Splash placeholder — slate-tinted diagonal-stripes pattern with a
-// brand-500 tint, 1600×1200 aspect. The `splashUrl` input accepts a
-// per-club override once the whitelabel store lands (AC-DIR-3 follow-up).
 const SPLASH_DEFAULT_SVG = 'splash.jpg';
 
 @Component({
@@ -178,17 +175,12 @@ export class LandingComponent {
   protected readonly year = new Date().getFullYear();
 
   protected signIn(): void {
-    // Keycloak hosts the credentials form. ui_locales hints Keycloak's UI
-    // language; the server picks it up via the OIDC ui_locales parameter.
     this.#oidc.authorize(undefined, {
       customParams: { ui_locales: this.#localeService.current() },
     });
   }
 
   protected emitCtaClick(ctaId: 'migrate' | 'demo'): void {
-    // Fire-and-forget alongside the CTA's own routerLink so emission never
-    // blocks navigation. Real FunnelEvent shape (funnel-telemetry.ts), not
-    // the AC-shorthand.
     emitFunnelEvent({
       event_id: 'landing.cta_click',
       timestamp: new Date().toISOString(),

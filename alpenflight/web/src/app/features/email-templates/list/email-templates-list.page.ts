@@ -9,7 +9,6 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { EmailTemplatesStore } from '../email-templates.store';
 
-/** Stable testid/route suffix for the `(templateKey, languageLocale)` identity. */
 function rowId(t: Pick<EmailTemplateListItem, 'templateKey' | 'languageLocale'>): string {
   return `${t.templateKey}-${t.languageLocale}`;
 }

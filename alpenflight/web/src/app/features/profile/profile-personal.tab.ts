@@ -38,24 +38,6 @@ type PersonalForm = FormGroup<{
   birthday: FormControl<string>;
 }>;
 
-/**
- * Personal tab of `/profile` (J-4 T-07). Edits the caller's own Person
- * aggregate's contact / address fields — address, zip/city/region, country,
- * phones, private/business email, fax, business-mail preference, birthday — via
- * {@code PATCH /api/v1/me/person} (orval `updateMyPerson`). The name fields
- * (first / last) render READ-ONLY: rename stays admin-only.
- *
- * testid contract (T-01 spec + the convention extension): the editable controls
- * carry `profile-personal-<field>` —
- * `address` (addressLine1), `addressLine2`, `zip`, `city`, `region`, `country`,
- * `phonePrivate`, `mobilePhone`, `phoneBusiness`, `faxNumber`, `emailPrivate`,
- * `emailBusiness`, `preferMailToBusinessMail`, `birthday`. The read-only name
- * fields carry `profile-personal-{firstName,lastName}`.
- *
- * The shell gates this tab on a linked Person (`[nzDisabled]` + no-Person
- * banner); this body always sits inside that gate, so it never renders for a
- * person-less principal.
- */
 @Component({
   selector: 'af-profile-personal-tab',
   standalone: true,
@@ -309,12 +291,6 @@ export class ProfilePersonalTab {
     birthday: this.fb.control(''),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings (silent
-  // until blur/submit) and binding the previously-silent maxLength-only fields
-  // (addressLine2 / zip / city / region / privatePhone / mobilePhone /
-  // businessPhone / faxNumber) that rendered no inline error at all.
   protected readonly addressLine1Errors = liveFieldErrors(this.form.controls.addressLine1);
   protected readonly addressLine2Errors = liveFieldErrors(this.form.controls.addressLine2);
   protected readonly zipErrors = liveFieldErrors(this.form.controls.zip);
@@ -328,8 +304,6 @@ export class ProfilePersonalTab {
   protected readonly emailBusinessErrors = liveFieldErrors(this.form.controls.emailBusiness);
 
   constructor() {
-    // Hydrate the form whenever the store's view lands (initial load + after a
-    // save reflects the persisted projection).
     effect(() => {
       const view = this.store.view();
       if (view !== null) {
@@ -367,8 +341,6 @@ export class ProfilePersonalTab {
     const req: MePersonUpdateRequest = {
       preferMailToBusinessMail: v.preferMailToBusinessMail,
     };
-    // Only send non-empty optional fields — keeps the PATCH lean and avoids
-    // clobbering with blanks the user never touched.
     setIfPresent(req, 'addressLine1', v.addressLine1);
     setIfPresent(req, 'addressLine2', v.addressLine2);
     setIfPresent(req, 'zip', v.zip);
@@ -386,7 +358,6 @@ export class ProfilePersonalTab {
   }
 }
 
-/** Assign a trimmed string field onto the request only when it is non-blank. */
 function setIfPresent(
   req: MePersonUpdateRequest,
   key: keyof MePersonUpdateRequest,
