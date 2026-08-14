@@ -9,33 +9,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Producer-binding contract for the SELECT half of {@link MapperLegacyBindings}
- * (the legacy-export side consumed by the {@code S-139} export jar +
- * {@code ProducerHarness}).
- *
- * <p>The load-bearing invariant the registry Javadoc promises is "a legacy
- * column rename is caught by a {@code SELECT} failure rather than a silent
- * {@code NULL}": every legacy ResultSet column a mapper's {@code writeNdjson}
- * reads must be projected by the bound SELECT. This test pins that for the
- * tenant-scoped FLIGHT-group pair LOCATION + INOUTBOUND_POINT (T-02c) — they
- * were unbound before, so the export jar threw "No legacy binding registered"
- * for them.
- *
- * <p>Verified against the legacy MSSQL FLSTest schema
- * ({@code flsserver/database/FLSTest/2 alter/2 Alter Database.sql} +
- * {@code DBUpdate_v1.8.0.sql}): {@code Locations} carries no own
- * {@code ClubId} — it is the fan-out partner Club aliased producer-side per
- * {@link ch.alpenflight.migration.bundle.flight.LocationMapper}'s contract,
- * so it is asserted as an alias rather than a base table column.
- */
 class MapperLegacyBindingsTest {
 
-    /**
-     * Every legacy ResultSet column {@code LocationMapper.writeNdjson} reads.
-     * {@code ClubId} is the fan-out partner (no base-table column) — projected
-     * by the SELECT's join, aliased on the cursor.
-     */
     private static final List<String> LOCATION_LEGACY_COLUMNS = List.of(
             "LocationId", "ClubId", "LocationName", "LocationShortName",
             "CountryId", "LocationTypeId", "IcaoCode", "Latitude", "Longitude",
@@ -45,28 +20,11 @@ class MapperLegacyBindingsTest {
             "IsFastEntryRecord", "CreatedOn", "CreatedByUserId", "ModifiedOn",
             "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
-    /**
-     * Every legacy ResultSet column {@code InOutboundPointMapper.writeNdjson}
-     * reads. {@code ClubId} is the child's own fan-out partner club (the child
-     * fans out across its parent Location's partner set, exactly like LOCATION) —
-     * no base-table column, projected via the SELECT's join, aliased on the cursor.
-     */
     private static final List<String> INOUTBOUND_POINT_LEGACY_COLUMNS = List.of(
             "InOutboundPointId", "LocationId", "ClubId", "InOutboundPointName",
             "IsInboundPoint", "IsOutboundPoint", "CreatedOn", "CreatedByUserId",
             "ModifiedOn", "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
-    /**
-     * Every legacy {@code Persons} ResultSet column {@code PersonMapper.writeNdjson}
-     * reads (J-0c T-21). {@code Persons} is cross-tenant (no {@code ClubId}); its
-     * only outgoing FK is the nullable {@code CountryId} → {@code Countries},
-     * resolved via the SYSTEM_GLOBAL COUNTRY id-map (T-15 mechanism), so the
-     * column is projected verbatim and {@code PersonMapper.foreignKeys()} declares
-     * COUNTRY. Note the British-spelled {@code LicenceNumber} (added by
-     * DBUpdate_v1.8.1) and {@code Has*Licence}/{@code Has*StartPermission} flags
-     * the later DBUpdate scripts add — the SELECT must project the names the
-     * mapper actually reads, not the v1.0 base-schema names.
-     */
     private static final List<String> PERSON_LEGACY_COLUMNS = List.of(
             "PersonId", "Lastname", "Firstname", "Midname", "CompanyName",
             "AddressLine1", "AddressLine2", "Zip", "City", "Region", "CountryId",
@@ -126,9 +84,6 @@ class MapperLegacyBindingsTest {
     @Test
     void locationSelectAliasesTheFanOutPartnerClubId() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.LOCATION).toUpperCase();
-        // Legacy Locations has no own ClubId; the producer fans out one row per
-        // referencing Club (Clubs.HomebaseId + Flights start/ldg via OwnerId),
-        // aliasing the partner Club id as the cursor's ClubId column.
         assertThat(select)
                 .as("the fan-out partner Club must be aliased AS ClubId on the cursor")
                 .contains("AS CLUBID");
@@ -137,13 +92,6 @@ class MapperLegacyBindingsTest {
     @Test
     void locationSelectProjectsTheLocationTypeIntCupIdNotTheGuidFk() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.LOCATION).toUpperCase();
-        // Legacy Locations.LocationTypeId is a uniqueidentifier (GUID FK to
-        // LocationTypes), but LocationMapper.writeNdjson reads it via getInt +
-        // legacyIntIdToUuidString — the legacy_int_id resolution expects the int
-        // LocationTypeCupId (== t_location_type.legacy_int_id), which lives on
-        // LocationTypes, not on Locations. The producer must JOIN LocationTypes
-        // and project the int CupId AS LocationTypeId, else getInt throws
-        // "conversion from uniqueidentifier to INTEGER is unsupported" (J-0c T-14).
         assertThat(select)
                 .as("SELECT must JOIN LocationTypes to source the int CupId")
                 .contains("LOCATIONTYPES");
@@ -168,11 +116,6 @@ class MapperLegacyBindingsTest {
     void inOutboundPointSelectFansOutOverTheSameParentPartnerSetAsLocation() {
         String iop = MapperLegacyBindings.selectForProducer(EntityType.INOUTBOUND_POINT)
                 .toUpperCase();
-        // The child fans out one row per (legacy IOP, partner club), joining its
-        // parent Location's fan-out partner set — the SAME union the LOCATION
-        // binding uses — and aliasing the partner Club id AS ClubId so the child
-        // carries its OWN legacy club on the wire (resolver-only) for T-07's
-        // composite (location_id, club_id) FK lookup.
         assertThat(iop)
                 .as("child must alias its own fan-out partner Club AS ClubId")
                 .contains("AS CLUBID");
@@ -229,9 +172,6 @@ class MapperLegacyBindingsTest {
 
     @Test
     void personHasNoConsumerInsertOnlyWriteAccessIsValidated() {
-        // PERSON is FULL_PORT, so it carries a real INSERT (unlike SYSTEM_GLOBAL
-        // entries whose consumer half is empty). Cross-tenant: t_person has NO
-        // club_id column, so the INSERT must not reference one.
         String insert = MapperLegacyBindings.insertForConsumer(EntityType.PERSON);
         assertThat(insert)
                 .as("PERSON FULL_PORT consumer INSERT targets t_person")
@@ -243,31 +183,12 @@ class MapperLegacyBindingsTest {
 
     @Test
     void unregisteredEntityStillFailsLoudly() {
-        // Guard the fail-closed contract survives the registry growth: the negative
-        // case points at a genuinely still-unbound EntityType — MEMBER_STATE has an
-        // authored mapper + KnownMappers entry but no MapperLegacyBindings entry yet.
         assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.MEMBER_STATE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No legacy binding registered");
     }
 
-    // -------------------------------------------------------------------------
-    // AIRCRAFT + its two aggregate-internal children (J-1 T-04). The AIRCRAFT
-    // mappers + KnownMappers entries already exist; T-04 wires the legacy binding
-    // (producer SELECT + consumer INSERT) so the export jar / ProducerHarness stop
-    // throwing "No legacy binding registered" for the Aircraft register.
-    // -------------------------------------------------------------------------
 
-    /**
-     * Every legacy {@code Aircrafts} ResultSet column {@code AircraftMapper.writeNdjson}
-     * reads. {@code ManagingClubId} is the producer-computed tenant identity aliased
-     * on the cursor (cascade from {@code AircraftOwnerClubId} per the J-1 parity
-     * decision); {@code AircraftType} is the real legacy int FK column the mapper's
-     * {@code getInt} reads — the EF entity exposes it as the C# property
-     * {@code AircraftTypeId} via {@code [Column("AircraftType")]}, but the MSSQL
-     * column is {@code AircraftType} (T-16: the live export aborted on the prior
-     * {@code AircraftTypeId} alias, which names a non-existent column).
-     */
     private static final List<String> AIRCRAFT_LEGACY_COLUMNS = List.of(
             "AircraftId", "ManagingClubId", "AircraftOwnerClubId", "AircraftType",
             "ManufacturerName", "AircraftModel", "Immatriculation", "CompetitionSign",
@@ -279,13 +200,11 @@ class MapperLegacyBindingsTest {
             "DaecIndex", "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy column {@code AircraftAircraftStateMapper.writeNdjson} reads. */
     private static final List<String> AIRCRAFT_AIRCRAFT_STATE_LEGACY_COLUMNS = List.of(
             "AircraftId", "AircraftState", "ValidFrom", "ValidTo", "NoticedByPersonId",
             "Remarks", "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy column {@code AircraftOperatingCounterMapper.writeNdjson} reads. */
     private static final List<String> AIRCRAFT_OPERATING_COUNTER_LEGACY_COLUMNS = List.of(
             "AircraftOperatingCounterId", "AircraftId", "AtDateTime",
             "TotalTowedGliderStarts", "TotalWinchLaunchStarts", "TotalSelfStarts",
@@ -333,9 +252,6 @@ class MapperLegacyBindingsTest {
     @Test
     void aircraftSelectDerivesManagingClubIdFromOwnerClubId() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT).toUpperCase();
-        // J-1 parity decision: managing_club_id is derived from legacy
-        // AircraftOwnerClubId (the authored AircraftMapper cascade) and aliased
-        // AS ManagingClubId on the cursor; the mapper reads it verbatim.
         assertThat(select)
                 .as("managing_club_id source must be AircraftOwnerClubId, aliased AS ManagingClubId")
                 .contains("AIRCRAFTOWNERCLUBID AS MANAGINGCLUBID");
@@ -344,11 +260,6 @@ class MapperLegacyBindingsTest {
     @Test
     void aircraftSelectProjectsTheRealAircraftTypeColumn() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT).toUpperCase();
-        // AircraftMapper reads getInt("AircraftType") — the int code resolved via
-        // legacyIntIdToUuidString. The real legacy column is AircraftType (Aircrafts
-        // DDL; EF Aircraft.cs [Column("AircraftType")]), NOT AircraftTypeId — the
-        // export aborts on a non-existent column (T-16). The SELECT must project the
-        // real column and must NOT reference the C#-property name AircraftTypeId.
         assertThat(select)
                 .as("SELECT projects the real legacy AircraftType column")
                 .contains("AIRCRAFTTYPE");
@@ -388,9 +299,6 @@ class MapperLegacyBindingsTest {
         assertThat(select)
                 .as("base table is the legacy AircraftAircraftStates table")
                 .contains("AircraftAircraftStates");
-        // Real legacy column is AircraftState (AircraftAircraftStates DDL; EF
-        // AircraftAircraftState.cs [Column("AircraftState")]), NOT AircraftStateId.
-        // Same class of bug as AIRCRAFT's AircraftType (T-16).
         assertThat(select.toUpperCase())
                 .as("SELECT projects the real legacy AircraftState column")
                 .contains("AIRCRAFTSTATE");
@@ -414,46 +322,7 @@ class MapperLegacyBindingsTest {
                 .contains("AircraftOperatingCounters");
     }
 
-    /**
-     * Binding-completeness closure guard (J-1 T-04 boyscout, the J-0c T-21
-     * "authored-but-unwired FK target" class). For every entity that HAS a
-     * {@link MapperLegacyBindings} entry, its mapper's {@link Mapper#foreignKeys()}
-     * targets must ALSO have a binding — otherwise the producer/consumer resolves
-     * an FK against an id-map that the bundle never produces, surfacing as a
-     * ProducerHarness "No legacy binding registered" mid-run instead of here.
-     *
-     * <p>Scoped to the bound set's closure (not every KnownMapper): the registry
-     * grows journey-by-journey, so an authored-but-not-yet-bound mapper (e.g.
-     * FLIGHT) legitimately points at targets that land later — what must never
-     * happen is a BOUND mapper pointing at an UNBOUND target.
-     */
-    // -------------------------------------------------------------------------
-    // FLIGHT + FLIGHT_CREW + their reference closure START_TYPE / FLIGHT_TYPE
-    // (J-2 T-07). The mappers + KnownMappers entries already exist (J-0b
-    // authoring) but were UNBOUND; T-07 wires the producer SELECT (reconciled
-    // against the real legacy Flights/FlightCrew MSSQL schema) + the consumer
-    // INSERT so the Flight register migrates end-to-end. The closure guard
-    // (everyBoundMappersForeignKeyTargetsAreAlsoBound) forces START_TYPE +
-    // FLIGHT_TYPE to be bound the moment FLIGHT is: FlightMapper.foreignKeys()
-    // lists them, and FlightCrewMapper lists FLIGHT + PERSON.
-    // -------------------------------------------------------------------------
 
-    /**
-     * Every legacy {@code Flights} ResultSet column {@code FlightMapper.writeNdjson}
-     * reads. The producer-SELECT catch (J-1 T-16 class,
-     * {@code project_synth_bundle_doesnt_validate_producer_select}): the
-     * operating-club source is the real legacy {@code OwnerId} column
-     * ({@code Flight.cs:130}; same column the LOCATION fan-out keys
-     * {@code Flights.OwnerId AS ClubId}), NOT {@code OwnerClubId} — that column
-     * does not exist on the legacy {@code Flights} table and would abort the live
-     * export. {@code StartType} / {@code FlightCostBalanceType} are the real int
-     * columns (EF {@code [Column("StartType")]} / {@code [Column("FlightCostBalanceType")]}
-     * over the C# {@code StartTypeId} / {@code FlightCostBalanceTypeId} properties).
-     * {@code FlightAircraftType} / {@code AirStateId} / {@code ProcessStateId} /
-     * {@code FlightDate} / {@code NrOfLdgsOnStartLocation} / the
-     * {@code EngineStartOperatingCounterInSeconds} pair are all added by the
-     * DBUpdate chain (v1.9.x) and exist in the final FLSTest schema.
-     */
     private static final List<String> FLIGHT_LEGACY_COLUMNS = List.of(
             "FlightId", "OwnerId", "AircraftId", "FlightDate", "StartDateTime",
             "LdgDateTime", "BlockStartDateTime", "BlockEndDateTime",
@@ -469,7 +338,6 @@ class MapperLegacyBindingsTest {
             "FlightReportSentOn", "CreatedOn", "CreatedByUserId", "ModifiedOn",
             "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy {@code FlightCrew} ResultSet column the mapper reads. */
     private static final List<String> FLIGHT_CREW_LEGACY_COLUMNS = List.of(
             "FlightCrewId", "FlightId", "PersonId", "FlightCrewType",
             "BeginFlightDateTime", "EndFlightDateTime", "BeginInstructionDateTime",
@@ -525,11 +393,6 @@ class MapperLegacyBindingsTest {
     @Test
     void flightSelectSourcesOperatingClubFromOwnerIdNotOwnerClubId() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.FLIGHT).toUpperCase();
-        // The producer-SELECT catch (J-1 T-16 class): legacy Flights has an OwnerId
-        // column (the ASP.NET ownership club, = the operating club per
-        // FlightReportService.cs:123 / the LOCATION fan-out key), and NO OwnerClubId
-        // column. FlightMapper.writeNdjson originally read getString("OwnerClubId"),
-        // which would abort the live export on a non-existent column.
         assertThat(select)
                 .as("SELECT projects the real legacy OwnerId column")
                 .contains("OWNERID");
@@ -604,24 +467,10 @@ class MapperLegacyBindingsTest {
         assertThat(select).contains("StartTypes");
     }
 
-    /**
-     * START_TYPE SYSTEM_GLOBAL completeness guard (J-2 T-39, the J-1 T-16 class).
-     * A FLIGHT's {@code start_type_id} carries the synthetic
-     * {@code UUID(0, legacyAircraftStartType)} for ANY legacy enum value — the
-     * legacy {@code AircraftStartType} enum is 1=TowingByAircraft, 2=WinchLaunch,
-     * 3=SelfStart, 4=ExternalStart, 5=MotorFlightStart, and the column can hold
-     * any of them regardless of which rows the legacy {@code StartTypes} table
-     * seeds. So the bundle's {@code legacy_id_map_START_TYPE} closure must
-     * enumerate ALL FIVE — a missing value (the real FLSTest SelfStart(3) catch)
-     * fail-closes the ingest with {@code BUNDLE_CROSS_TENANT_FK_LEAK}. This guard
-     * fails loudly at build, not at the nightly real-bundle ingest.
-     */
     @Test
     void startTypeClosureEnumeratesTheFullLegacyAircraftStartTypeEnum() {
         Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
 
-        // The legacy AircraftStartType enum is exactly 1..5 (no gaps, no extras):
-        // flsserver/src/FLS.Server.Data/Enums/AircraftStartType.cs.
         assertThat(StartTypeMapper.LEGACY_ENUM_IDS)
                 .as("the START_TYPE closure must cover the full legacy "
                         + "AircraftStartType enum (1..5) — add a missing value here, "
@@ -638,47 +487,16 @@ class MapperLegacyBindingsTest {
                     .containsKey(synthetic);
         }
 
-        // SelfStart(3) is the value the real export caught — pin it explicitly.
         assertThat(closure)
                 .as("SelfStart(3) must map to the V2 SELF_START seed PK")
                 .containsEntry(new UUID(0L, 3L), SeedReferenceUuids.startTypeByCode("SELF_START"));
 
-        // The 5 enum values map to 5 DISTINCT seed PKs (no accidental collapse).
         assertThat(closure.values().stream().distinct().count())
                 .as("the 5 legacy start types map to 5 distinct t_start_type seed PKs")
                 .isEqualTo(5L);
     }
 
-    // -------------------------------------------------------------------------
-    // AIRCRAFT_RESERVATION + AIRCRAFT_RESERVATION_TYPE (J-5 T-07). The mappers +
-    // KnownMappers entries + the TENANT_BYPASS_ALLOW_LIST entry already exist
-    // (S-185/S-187 authoring) but were UNBOUND — MapperLegacyBindings.require()
-    // threw "No legacy binding registered", so the producer never emitted the
-    // reservation streams and the round-trip was authored-but-unproven
-    // (verify_infra_is_run_not_just_authored). T-07 wires the producer SELECT
-    // (reconciled against the REAL legacy AircraftReservations / -Types MSSQL
-    // schema as it stands AFTER DBUpdate_v1.9.23 — which DROPS the v1.0
-    // ReservationTypeId + InstructorPersonId columns and ADDS
-    // AircraftReservationTypeId / FlightTypeId / SecondCrewPersonId) + the
-    // consumer INSERT. The closure guard below forces every reservation FK
-    // target (CLUB / AIRCRAFT / PERSON / LOCATION / AIRCRAFT_RESERVATION_TYPE /
-    // FLIGHT_TYPE) to be bound the moment AIRCRAFT_RESERVATION is.
-    //
-    // Producer-SELECT catch (project_synth_bundle_doesnt_validate_producer_select):
-    // the modern legacy column is AircraftReservationTypeId, NOT the v1.0
-    // ReservationTypeId (dropped in v1.9.23); the second-crew column is
-    // SecondCrewPersonId, NOT InstructorPersonId (also dropped in v1.9.23). A
-    // SELECT naming either dropped column would abort the live export — these
-    // guards pin the post-v1.9.23 names the mapper's writeNdjson actually reads.
-    // -------------------------------------------------------------------------
 
-    /**
-     * Every legacy {@code AircraftReservations} ResultSet column
-     * {@code AircraftReservationMapper.writeNdjson} reads, in the post-v1.9.23
-     * schema. {@code ClubId} (the @TenantId source) + {@code LocationId} are
-     * added by DBUpdate_v1.1; {@code AircraftReservationTypeId} /
-     * {@code FlightTypeId} / {@code SecondCrewPersonId} by DBUpdate_v1.9.23.
-     */
     private static final List<String> AIRCRAFT_RESERVATION_LEGACY_COLUMNS = List.of(
             "AircraftReservationId", "ClubId", "AircraftId", "Start", "End",
             "IsAllDayReservation", "PilotPersonId", "SecondCrewPersonId", "LocationId",
@@ -686,7 +504,6 @@ class MapperLegacyBindingsTest {
             "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy column {@code AircraftReservationTypeMapper.writeNdjson} reads (post-v1.9.23). */
     private static final List<String> AIRCRAFT_RESERVATION_TYPE_LEGACY_COLUMNS = List.of(
             "AircraftReservationTypeId", "ClubId", "AircraftReservationTypeName",
             "IsInstructorRequired", "IsMaintenance", "IsActive", "Remarks",
@@ -731,10 +548,6 @@ class MapperLegacyBindingsTest {
     void aircraftReservationSelectUsesPostV1923ColumnNamesNotTheDroppedV10Ones() {
         String select =
                 MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_RESERVATION).toUpperCase();
-        // DBUpdate_v1.9.23 DROPs ReservationTypeId (replaced by
-        // AircraftReservationTypeId) and InstructorPersonId (replaced by
-        // SecondCrewPersonId). A SELECT naming either dropped column aborts the
-        // live export on a non-existent column (the J-1 T-16 producer-SELECT class).
         assertThat(select)
                 .as("SELECT projects the post-v1.9.23 AircraftReservationTypeId column")
                 .contains("AIRCRAFTRESERVATIONTYPEID");
@@ -786,46 +599,18 @@ class MapperLegacyBindingsTest {
                 .contains("operating_club_id");
     }
 
-    // -------------------------------------------------------------------------
-    // PLANNING_DAY + PLANNING_DAY_ASSIGNMENT + PLANNING_DAY_ASSIGNMENT_TYPE
-    // (J-6 T-11). The 3 mappers + KnownMappers entries already existed (S-014
-    // baseline authoring, unit-tested) but were UNBOUND — MapperLegacyBindings.
-    // require() threw "No legacy binding registered", so the producer never
-    // emitted the planning streams and the round-trip was authored-but-unproven
-    // (verify_infra_is_run_not_just_authored). T-11 wires the producer SELECT
-    // (reconciled against the REAL legacy PlanningDays / PlanningDayAssignments /
-    // PlanningDayAssignmentTypes MSSQL schema, DBUpdate_v1.0.1 DDL) + the consumer
-    // INSERT; PlanningDayMigrationRoundTripIT (server) proves the fan-out-resolved
-    // location round-trip end to end.
-    //
-    // Producer-SELECT catches (project_synth_bundle_doesnt_validate_producer_select):
-    //  * the type mapper reads getInt("RequiredNrOfAssignments"), but the real
-    //    legacy column is RequiredNrOfPlanningDayAssignments (no [Column] rename on
-    //    the EF entity) — projected AS RequiredNrOfAssignments, else export abort.
-    //  * the assignment table has NO own ClubId column — operating_club_id is
-    //    denormalised by JOINing the parent PlanningDays and projecting its ClubId
-    //    AS OperatingClubId (the name the mapper reads).
-    // -------------------------------------------------------------------------
 
-    /** Every legacy {@code PlanningDays} column {@code PlanningDayMapper.writeNdjson} reads. */
     private static final List<String> PLANNING_DAY_LEGACY_COLUMNS = List.of(
             "PlanningDayId", "ClubId", "Day", "LocationId", "Remarks",
             "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /**
-     * Every legacy column {@code PlanningDayAssignmentMapper.writeNdjson} reads.
-     * {@code OperatingClubId} is the denormalised @TenantId — sourced producer-side
-     * by JOINing PlanningDays (the assignment table has no own ClubId), aliased on
-     * the cursor.
-     */
     private static final List<String> PLANNING_DAY_ASSIGNMENT_LEGACY_COLUMNS = List.of(
             "PlanningDayAssignmentId", "OperatingClubId", "AssignedPlanningDayId",
             "AssignedPersonId", "AssignmentTypeId", "Remarks",
             "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy column {@code PlanningDayAssignmentTypeMapper.writeNdjson} reads. */
     private static final List<String> PLANNING_DAY_ASSIGNMENT_TYPE_LEGACY_COLUMNS = List.of(
             "PlanningDayAssignmentTypeId", "ClubId", "AssignmentTypeName",
             "RequiredNrOfAssignments",
@@ -874,17 +659,6 @@ class MapperLegacyBindingsTest {
 
     @Test
     void planningDaySelectDedupesKeepFirstOnTheV4UniquePartialKey() {
-        // J-6 T-11b: the real legacy PlanningDays has duplicate
-        // (ClubId, Day, LocationId) rows (no legacy UNIQUE), but V4's
-        // ux_pln_club_date_loc partial unique forbids them. PLANNING_DAY is NOT
-        // fan-out, so two dups resolve to the same club + own-club Location
-        // replica → the 2nd INSERT 23505s (the §4 fanout gate blocker). The
-        // producer SELECT must keep-first per the UNIQUE-partial key, ordered
-        // deterministically (CreatedOn, PlanningDayId), so only one row reaches
-        // the mapper. This pins the dedupe so a future edit can't drop it and
-        // silently reintroduce the 23505. (The behavioural keep-first proof —
-        // two seeded dups, one survivor — runs against real MSSQL in the parity
-        // oracle harness; the round-trip IT proves the deduped output ingests.)
         String normalised = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY)
                 .toUpperCase(java.util.Locale.ROOT)
                 .replaceAll("\\s+", " ");
@@ -920,24 +694,12 @@ class MapperLegacyBindingsTest {
                     .contains(legacyColumn);
         }
         String upper = select.toUpperCase(java.util.Locale.ROOT);
-        // The real legacy PlanningDayAssignments table has NO own ClubId column —
-        // operating_club_id is denormalised by JOINing PlanningDays and projecting
-        // its ClubId AS OperatingClubId (the name the mapper reads). A SELECT that
-        // tried to read PlanningDayAssignments.ClubId would abort the live export.
         assertThat(upper)
                 .as("operating_club_id is sourced by JOINing the parent PlanningDays")
                 .contains("JOIN PLANNINGDAYS");
         assertThat(upper)
                 .as("the parent's ClubId is aliased AS OperatingClubId on the cursor")
                 .contains("AS OPERATINGCLUBID");
-        // J-6 T-16 (the 23503 fix): the PLANNING_DAY SELECT keeps-first per
-        // (ClubId, Day, LocationId) and DROPS duplicate days, so an assignment of a
-        // dropped day would FK-violate (fk_pda_planning_day_id, 23503) at ingest.
-        // The assignment SELECT must REMAP planning_day_id onto the SURVIVING
-        // (kept-first) day for its parent's (ClubId, Day, LocationId) — the same
-        // FIRST_VALUE/ROW_NUMBER keep-first ordering — so every exported assignment
-        // points at a day that WILL exist post-dedupe. Pin it so a future edit can't
-        // drop the remap and silently reintroduce the 23503.
         assertThat(upper.replaceAll("\\s+", " "))
                 .as("the assignment SELECT remaps planning_day_id onto the kept-first "
                         + "survivor per (ClubId, Day, LocationId) — else a dropped-day "
@@ -961,12 +723,6 @@ class MapperLegacyBindingsTest {
         assertThat(select)
                 .as("base table is the legacy PlanningDayAssignmentTypes table")
                 .contains("PlanningDayAssignmentTypes");
-        // The mapper reads getInt("RequiredNrOfAssignments"), but the real MSSQL
-        // column is RequiredNrOfPlanningDayAssignments (DBUpdate_v1.0.1 DDL; the EF
-        // entity property of that name, no [Column] rename). The SELECT must project
-        // the real column AS the short name the mapper reads — else the live export
-        // aborts on a non-existent RequiredNrOfAssignments column (the J-1 T-16
-        // producer-SELECT class).
         assertThat(select)
                 .as("SELECT must project the real RequiredNrOfPlanningDayAssignments column")
                 .contains("RequiredNrOfPlanningDayAssignments AS RequiredNrOfAssignments");
@@ -1005,10 +761,6 @@ class MapperLegacyBindingsTest {
 
     @Test
     void articleResolvesItsClubFkThroughOperatingClubIdNotTheConvention() {
-        // operating_club_id is off-convention for the CLUB target (the resolver's
-        // default derives club_id). Without the foreignKeyColumns() override the
-        // legacy ClubId GUID reaches the INSERT verbatim → fk_article_operating_club_id
-        // 23503 for every article at the §4 fanout.
         Mapper article = KnownMappers.all().stream()
                 .filter(m -> m.entityType() == EntityType.ARTICLE)
                 .findFirst()
@@ -1018,18 +770,7 @@ class MapperLegacyBindingsTest {
                 .containsExactly(new ForeignKeyColumn("operating_club_id", EntityType.CLUB));
     }
 
-    // -------------------------------------------------------------------------
-    // DELIVERY + DELIVERY_ITEM (J-10b T-05). The mappers + KnownMappers entries
-    // existed (J-10 authoring, read-side) but were UNBOUND; T-05 wires the
-    // producer SELECT (reconciled against the FINAL legacy FLSTest schema —
-    // post DBUpdate_v1.10.5/.6, where RecipientDetails is split into columns then
-    // dropped) + the consumer INSERT. The Article-number resolution keeps orphans
-    // (null article_id) rather than failing the bundle; the closure guard forces
-    // DELIVERY's FK targets (CLUB/FLIGHT/PERSON) and DELIVERY_ITEM's
-    // (CLUB/DELIVERY/ARTICLE) to be bound the moment they are.
-    // -------------------------------------------------------------------------
 
-    /** Every legacy cursor column {@code DeliveryMapper.writeNdjson} reads. */
     private static final List<String> DELIVERY_LEGACY_COLUMNS = List.of(
             "DeliveryId", "ClubId", "ResolvedProcessStateId", "FlightId",
             "RecipientPersonId", "RecipientName", "RecipientFirstname",
@@ -1040,7 +781,6 @@ class MapperLegacyBindingsTest {
             "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
             "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy cursor column {@code DeliveryItemMapper.writeNdjson} reads. */
     private static final List<String> DELIVERY_ITEM_LEGACY_COLUMNS = List.of(
             "DeliveryItemId", "OperatingClubId", "DeliveryId", "Position",
             "ResolvedArticleId", "ArticleNumber", "ItemText", "AdditionalInformation",
@@ -1081,10 +821,6 @@ class MapperLegacyBindingsTest {
         String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY)
                 .toUpperCase(java.util.Locale.ROOT)
                 .replaceAll("\\s+", " ");
-        // process_state_id is DERIVED (legacy Deliveries has no ProcessStateId
-        // column): IsFurtherProcessed=1 wins → 20 (Booked); else the LEFT-JOINed
-        // Flight's ProcessStateId maps 60→20 / 50→10 / 45→30 / else→10. The LEFT
-        // JOIN keeps a FlightId-NULL delivery (falls through to the Prepared floor).
         assertThat(select)
                 .as("IsFurtherProcessed=1 short-circuits to Booked (20) before any "
                         + "flight-state inspection")
@@ -1102,7 +838,6 @@ class MapperLegacyBindingsTest {
     void deliverySelectCoalescesNullBatchIdToZero() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY)
                 .toUpperCase(java.util.Locale.ROOT);
-        // legacy BatchId is bigint NULL; t_delivery.batch_id is NOT NULL DEFAULT 0.
         assertThat(select)
                 .as("NULL legacy BatchId must coalesce to 0 for the NOT-NULL column")
                 .contains("COALESCE(D.BATCHID, 0)");
@@ -1127,14 +862,9 @@ class MapperLegacyBindingsTest {
                     .contains(legacyColumn);
         }
         String upper = select.toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
-        // operating_club_id is denormalised from the parent Delivery (the item has
-        // no own ClubId) — JOIN Deliveries and alias its ClubId AS OperatingClubId.
         assertThat(upper)
                 .as("item tenant is the parent Delivery's club, aliased AS OperatingClubId")
                 .contains("D.CLUBID AS OPERATINGCLUBID");
-        // ArticleNumber → article_id resolves via a LEFT JOIN to the LIVE Article
-        // (IsDeleted=0 — the legacy UNIQUE is (ArticleNumber, ClubId, DeletedOn), so
-        // without it a re-created article fans the item out). Unresolvable → NULL.
         assertThat(upper)
                 .as("article resolution is a LEFT JOIN (orphan ArticleNumber → null "
                         + "article_id, NOT a 23503 bundle failure)")
@@ -1152,8 +882,6 @@ class MapperLegacyBindingsTest {
     void deliveryItemSelectEmitsZeroUnitPriceSinceLegacyHasNone() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.DELIVERY_ITEM)
                 .toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
-        // Neither DeliveryItems nor Articles carries a price — the producer emits a
-        // literal 0 aliased ResolvedUnitPrice for the NOT-NULL t_delivery_item.unit_price.
         assertThat(select)
                 .as("unit_price has no legacy source → literal 0")
                 .contains("CAST(0 AS DECIMAL(12, 4)) AS RESOLVEDUNITPRICE");

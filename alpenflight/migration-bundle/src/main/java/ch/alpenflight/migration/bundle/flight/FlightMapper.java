@@ -17,63 +17,8 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped aggregate root: legacy {@code Flights.FlightId} →
- * {@code t_flight.id}. {@code operating_club_id} is the {@code @TenantId}
- * discriminator per V3 (set per-flight by the operator, NOT denormalized
- * from Aircraft — the charter case keeps Club B as operator of Club A's
- * aircraft).
- *
- * <p>V13 air-state translation: legacy {@code Flights.AirStateId} is an
- * INT FK to {@code FlightAirStates} (legacy_int_id 0..25). V13 dropped
- * the destination column and table; air state is now computed on the
- * Flight aggregate (S-058 / S-060) per ADR 0022 directive 2. The only
- * legacy state value that carries information forward is
- * {@code FlightPlanOpen (legacy_int_id=5)}: when current state == 5, we
- * record the timestamp of the transition into
- * {@code t_flight.flight_plan_opened_on} via legacy
- * {@code Flights.ModifiedOn}. Lossy for flights that transitioned through
- * FlightPlanOpen and onward — current legacy state is no longer 5, so the
- * timestamp is dropped. Accepted by S-060 / S-185 refinement.
- *
- * <p>{@code aircraft_id} → cross-tenant Aircraft (tenant-bypass per the
- * {@link ch.alpenflight.migration.bundle.Manifest} TENANT_BYPASS_ALLOW_LIST
- * widening). {@code start_location_id} / {@code ldg_location_id} → Location
- * (tenant-scoped per V7; resolves through the per-bundle replica matching
- * {@code operating_club_id}). {@code start_type_id} resolves through
- * V2's {@code t_start_type.code} natural-key map (no {@code legacy_int_id}
- * on V2 seed). {@code process_state_id} + {@code flight_cost_balance_type_id}
- * resolve through V3's seeded {@code legacy_int_id} maps — entities
- * outside {@link EntityType}, no per-bundle dependency declared.
- *
- * <p>{@code flight_aircraft_type_id SMALLINT} sparse-enum sacred cow
- * (1=Glider, 2=Tow, 4=Motor — value 3 deliberately skipped): mapper
- * passes through verbatim. Value-set rejection lives on the Flight
- * aggregate constructor at S-058 per ADR 0022 directive 2; the mapper
- * MUST NOT add a guard here (would re-introduce schema-shaped business
- * logic into the producer layer).
- *
- * <p>Self-FK {@code tow_flight_id} is NOT declared in
- * {@link #foreignKeys()} — declaring FLIGHT would break the ArchUnit
- * ingest-order rule (source ordinal ≮ target ordinal). S-141 splits
- * the two-pass: first pass writes the legacy GUID through; second pass
- * UPDATEs after the FLIGHT pass walks
- * {@code legacy_id_map_flight}. Soft-deleted tow ref preserves both
- * rows tombstoned (V3 schema FK is {@code ON DELETE SET NULL}; mapper
- * does NOT nullify at ingest — forensic-preserving).
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class FlightMapper implements Mapper {
 
-    /**
-     * Legacy {@code FlightAirStates.AirStateId} for FLIGHT_PLAN_OPEN. The
-     * only legacy air-state value whose timestamp survives the V13
-     * translation. Sourced from
-     * {@code flsserver/src/FLS.Data.WebApi/Flight/FlightAirState.cs:10}
-     * ({@code FlightPlanOpen = 5}).
-     */
     static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -128,20 +73,9 @@ public final class FlightMapper implements Mapper {
     static final String DELETED_ON = "deleted_on";
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
-    /**
-     * Net-new T-02 column (V27, S-061 — no legacy counterpart). Migration rule
-     * (J-2 T-07): a flight that legacy already locked or billed
-     * ({@code ProcessStateId >= LOCKED(40)}) carries {@code locked_at =
-     * ModifiedOn} (the closest legacy proxy for when the lock happened — legacy
-     * has no lock timestamp). A still-editable flight ({@code < 40}) ports
-     * {@code locked_at = null}: it has not been locked, so the bill-gate
-     * ({@code locked_at <= today-3d}) correctly never fires until the new stack
-     * locks it. {@code @ParityIgnore} — no legacy column to diff against.
-     */
     @ParityIgnore
     static final String LOCKED_AT = "locked_at";
 
-    /** Legacy {@code FlightProcessState.Locked} (FlightProcessState.cs). */
     static final int LEGACY_PROCESS_STATE_LOCKED = 40;
 
     private static final String[] COLUMNS = {
@@ -180,9 +114,6 @@ public final class FlightMapper implements Mapper {
 
     @Override
     public List<EntityType> foreignKeys() {
-        // tow_flight_id (self-FK) deferred to S-141 two-pass UPDATE per the
-        // PersonCategory precedent (S-184). Declaring FLIGHT here would
-        // violate the ingest-order invariant (source ordinal < target).
         return List.of(
                 EntityType.CLUB, EntityType.AIRCRAFT, EntityType.LOCATION,
                 EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
@@ -190,15 +121,6 @@ public final class FlightMapper implements Mapper {
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // Off-convention FK columns the <target>_id default cannot derive:
-        //  * operating_club_id → CLUB (the @TenantId; convention would be club_id)
-        //  * start_location_id + ldg_location_id → LOCATION (TWO columns to one
-        //    fan-out target; each disambiguated by the flight's OWN
-        //    operating_club_id so it lands on that club's per-club replica —
-        //    Location is tenant-scoped fan-out per V7)
-        // aircraft_id → AIRCRAFT, flight_type_id → FLIGHT_TYPE, start_type_id →
-        // START_TYPE all match the <target>_id convention, so they are NOT
-        // declared here (the resolver falls back to convention for them).
         return List.of(
                 new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
                 new ForeignKeyColumn(START_LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID),
@@ -207,24 +129,11 @@ public final class FlightMapper implements Mapper {
 
     @Override
     public List<String> deferredSelfFkColumns() {
-        // tow_flight_id is a self-FK on t_flight (fk_flight_tow_flight_id). It
-        // cannot ride foreignKeys() (self-edge breaks the ingest-order rule), and
-        // the producer emits flights in arbitrary intra-batch order, so a glider
-        // can be INSERTed before its tow. S-141 two-pass: INSERT with NULL, then
-        // UPDATE once every flight row exists (the value is already the preserved
-        // tow id — non-fan-out FULL_PORT). Robust to any batch order.
         return List.of(TOW_FLIGHT_ID);
     }
 
     @Override
     public List<ReferenceLookup> referenceLookups() {
-        // process_state_id + flight_cost_balance_type_id carry the synthetic
-        // new UUID(0, legacyIntId) (writeNdjson uses legacyIntIdToUuidString /
-        // optionalLegacyIntIdAsUuidString) for a V3-seeded FLIGHT-group lookup
-        // row OUTSIDE EntityType — resolved structurally against the seed table's
-        // legacy_int_id, not via a per-bundle legacy_id_map. (start_type_id is
-        // NOT here: START_TYPE is a bundle EntityType resolved via
-        // legacy_id_map_START_TYPE, declared in foreignKeys().)
         return List.of(
                 new ReferenceLookup(PROCESS_STATE_ID, "t_flight_process_state"),
                 new ReferenceLookup(FLIGHT_COST_BALANCE_TYPE_ID, "t_flight_cost_balance_type"));
@@ -235,12 +144,6 @@ public final class FlightMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         target.writeStringField(LEGACY_GUID, source.getString("FlightId"));
-        // Operating-club source is the real legacy Flights.OwnerId column
-        // (Flight.cs:130 — the ASP.NET ownership club, = operating club per
-        // FlightReportService.cs:123 and the LOCATION fan-out key
-        // Flights.OwnerId AS ClubId). NOT OwnerClubId — no such column exists on
-        // the legacy Flights table; the prior read aborted the live export
-        // (J-1 T-16 class, project_synth_bundle_doesnt_validate_producer_select).
         target.writeStringField(OPERATING_CLUB_ID, source.getString("OwnerId"));
         target.writeStringField(AIRCRAFT_ID, source.getString("AircraftId"));
         Coercions.writeOptionalDate(target, FLIGHT_DATE, source.getDate("FlightDate"));
@@ -265,13 +168,6 @@ public final class FlightMapper implements Mapper {
         target.writeBooleanField(IS_SOLO_FLIGHT, source.getBoolean("IsSoloFlight"));
         Coercions.writeOptionalString(target, START_TYPE_ID,
                 Coercions.optionalLegacyIntIdAsUuidString(source, "StartType"));
-        // Self-FK: empty-guid (00000000-…) on a non-towed flight → null
-        // (oracle #18); a real tow GUID is carried verbatim (FLIGHT is non-fan-
-        // out FULL_PORT, so legacy_guid is preserved as id → the tow GUID == the
-        // tow row's id). The ingest applies it in a SECOND pass (S-141 two-pass,
-        // see deferredSelfFkColumns) — a glider can stream BEFORE its tow, so
-        // binding it on the INSERT FK-violates (fk_flight_tow_flight_id) when
-        // the batch order is unfavorable (J-2 T-41 real-export catch).
         Coercions.writeOptionalGuidString(target, TOW_FLIGHT_ID,
                 source.getString("TowFlightId"));
         Coercions.writeOptionalShort(target, NR_OF_LDGS,
@@ -282,8 +178,6 @@ public final class FlightMapper implements Mapper {
                 source.getBoolean("NoStartTimeInformation"));
         target.writeBooleanField(NO_LDG_TIME_INFORMATION,
                 source.getBoolean("NoLdgTimeInformation"));
-        // V13 translation: legacy AirStateId==FlightPlanOpen → ModifiedOn timestamp;
-        // every other state collapses to null per ADR 0022 D2.
         int legacyAirState = source.getInt("AirStateId");
         Timestamp flightPlanOpenedOn = legacyAirState == LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN
                 ? source.getTimestamp("ModifiedOn")
@@ -291,8 +185,6 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalTimestamp(target, FLIGHT_PLAN_OPENED_ON, flightPlanOpenedOn);
         target.writeStringField(PROCESS_STATE_ID,
                 Coercions.legacyIntIdToUuidString(source.getInt("ProcessStateId")));
-        // Sparse-enum sacred cow: pass through SMALLINT verbatim; rejection
-        // lives on the Flight aggregate (S-058) per ADR 0022 D2.
         target.writeNumberField(FLIGHT_AIRCRAFT_TYPE_ID,
                 (short) source.getInt("FlightAircraftType"));
         Coercions.writeOptionalLong(target, ENGINE_START_OPERATING_COUNTER_IN_SECONDS,
@@ -327,9 +219,6 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalTimestamp(target, DELETED_ON, source.getTimestamp("DeletedOn"));
         Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
                 source.getString("DeletedByUserId"));
-        // Net-new locked_at (V27): legacy has no lock timestamp. A flight legacy
-        // already locked/billed (ProcessStateId >= LOCKED(40)) carries ModifiedOn
-        // as the lock-time proxy; a still-editable flight ports null.
         Timestamp lockedAt = source.getInt("ProcessStateId") >= LEGACY_PROCESS_STATE_LOCKED
                 ? source.getTimestamp("ModifiedOn")
                 : null;
@@ -367,7 +256,6 @@ public final class FlightMapper implements Mapper {
         target.setTimestamp(position++,
                 Coercions.readTimestampOrNull(source, FLIGHT_PLAN_OPENED_ON));
         target.setObject(position++, UUID.fromString(source.get(PROCESS_STATE_ID).asText()));
-        // SMALLINT sparse-enum: bind via setShort to preserve type fidelity.
         target.setShort(position++, (short) source.get(FLIGHT_AIRCRAFT_TYPE_ID).intValue());
         target.setObject(position++,
                 Coercions.readLongOrNull(source, ENGINE_START_OPERATING_COUNTER_IN_SECONDS));

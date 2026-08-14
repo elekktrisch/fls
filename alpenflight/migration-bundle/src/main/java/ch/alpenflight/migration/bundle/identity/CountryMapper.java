@@ -12,15 +12,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * SYSTEM_GLOBAL reference. V2 seeds the canonical {@code t_country} rows by
- * ISO 3166 code; the bundle carries (legacy_guid, iso2_code) pairs that
- * S-141 resolves through a {@code legacy_id_map_country} populate query.
- *
- * <p>Walking-skeleton sample for the {@link Mapper} contract — demonstrates
- * the column-list shape, the parity-sentinel marker, and the bidirectional
- * round-trip discipline. The full per-package mappers land at S-184.
- */
 public final class CountryMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";

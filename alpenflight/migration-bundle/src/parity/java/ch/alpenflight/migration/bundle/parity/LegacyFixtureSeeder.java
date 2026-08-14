@@ -14,24 +14,6 @@ import java.util.UUID;
 import net.datafaker.Faker;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Faker-driven seeder for the legacy {@code Clubs} + {@code Users} fixture
- * the vertical-slice harness round-trips. Pinned to a sysprop-controlled
- * seed ({@code parity.seed}; default 42) so re-ordering Faker calls — even
- * logically equivalent — perturbs every downstream UUID and is caught.
- *
- * <p>Anchors against the canonical FLSTest seed applied by
- * {@link FlsTestSchemaApplier}: picks Switzerland from {@code Countries}
- * via {@code CountryCodeIso2 = 'CH'} and German from {@code Languages} via
- * {@code LanguageKey = 'de'}; {@code ClubStateId = 1} ("Active") is V2's
- * {@code ACTIVE} per {@code ClubStateMapper.LEGACY_ID_TO_V2_CODE}. Resolution
- * is by canonical join-key, never by GUID — the legacy MSSQL GUIDs vary
- * across canonical seed builds; the lookup keys do not.
- *
- * <p>Audit-actor / sparse-enum / tow-chain / PersonCategory-tree /
- * degenerate-AircraftReservation obligations from the S-187 design notes
- * land at S-187a alongside the remaining mappers.
- */
 public final class LegacyFixtureSeeder {
 
     public static final int CLUB_COUNT = 2;
@@ -40,7 +22,6 @@ public final class LegacyFixtureSeeder {
     private static final String SWITZERLAND_ISO2 = "CH";
     private static final String GERMAN_LANGUAGE_KEY = "de";
 
-    /** {@code club_state_id = 1} ("Active") per the canonical seed (4 rows: 0..3). */
     private static final int ACTIVE_CLUB_STATE_LEGACY_ID = 1;
 
     private final long seed;
@@ -270,11 +251,6 @@ public final class LegacyFixtureSeeder {
         return new UUID(mostSignificantBits, leastSignificantBits);
     }
 
-    /**
-     * MSSQL {@code datetime2(7)} → Postgres {@code timestamptz} precision shift:
-     * pin to microseconds on both sides so the diff engine sees byte-identical
-     * values regardless of JDBC nanosecond handling.
-     */
     private static Timestamp utcMicros(Instant source) {
         return Timestamp.from(source.truncatedTo(ChronoUnit.MICROS));
     }

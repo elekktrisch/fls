@@ -25,18 +25,6 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 
-/**
- * Tink-backed implementation of {@link MigrationBundleCipher}. Tink owns
- * the streaming AEAD body; the JDK {@link Cipher} provider owns the
- * one-shot RSA-OAEP session-key wrap (no framed input, no truncation risk).
- *
- * <p>Streaming parameters: {@code AES256_GCM_HKDF_4KB} (4 KB ciphertext
- * segments, SHA-256 HKDF derivation, 32-byte derived key). The producer
- * (S-139 JAR + test producer in {@code MigrationBundleTestFactory}) uses
- * the same parameters; mismatch surfaces as
- * {@link BundleCipherException.Failure#AEAD_TAG_FAILED} on the
- * first segment read.
- */
 public class TinkMigrationBundleCipher implements MigrationBundleCipher {
 
     public TinkMigrationBundleCipher() {

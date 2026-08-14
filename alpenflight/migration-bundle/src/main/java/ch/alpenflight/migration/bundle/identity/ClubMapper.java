@@ -13,30 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant root: legacy {@code Clubs.ClubId} → {@code t_club.id}.
- *
- * <p>Outgoing structural FKs:
- * <ul>
- *   <li>{@code country_id} → COUNTRY (SYSTEM_GLOBAL)</li>
- *   <li>{@code club_state_id} → CLUB_STATE (SYSTEM_GLOBAL; INT → synthetic
- *       UUID via {@link Coercions#legacyIntIdToUuidString})</li>
- * </ul>
- *
- * <p>Flight-domain FKs ({@code homebase_id}, default {@code start_type_id}
- * / glider / motor / tow flight types) are added to {@code t_club} by V3's
- * {@code ALTER TABLE} (S-185 epic scope). They stay NULL at S-184 ingest;
- * S-185's flight-group mapper layer fills them in a second pass after the
- * FLIGHT-group entities exist.
- *
- * <p>Legacy ASP.NET artifacts dropped (no destination): {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted} (encoded
- * structurally via {@code deleted_on}).
- *
- * <p>{@code last_*_synchronisation_on} are operational caches resampled
- * post-ingest — marked {@link ParityIgnore} so S-187's sampled-value diff
- * does not assert equality on them.
- */
 public final class ClubMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";

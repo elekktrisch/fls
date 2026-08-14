@@ -64,11 +64,6 @@ class AircraftReservationMapperTest
 
     @Test
     void declaresOffConventionForeignKeyColumnsSoFkResolutionRewritesThem() {
-        // Regression for J-5 T-22 (live fanout bundle-ingest 23503): without
-        // these declarations the resolver's <target>_id convention looks for
-        // club_id / person_id / aircraft_reservation_type_id (none exist on the
-        // row) and leaves operating_club_id / pilot_person_id / reservation_type_id
-        // carrying verbatim legacy GUIDs → fk_arv_* violation on INSERT.
         assertThat(mapper.foreignKeyColumns())
                 .extracting(fk -> fk.column() + "->" + fk.target()
                         + (fk.disambiguatorColumn() == null ? "" : "@" + fk.disambiguatorColumn()))

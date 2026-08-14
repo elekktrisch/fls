@@ -23,10 +23,6 @@ class AuditLogMapperTest extends AbstractMapperContractTest<AuditLogMapper> {
 
     @Override
     protected Map<String, Object> legacyRow(Faker faker) {
-        // Round-trip fixture populates BOTH mutually-exclusive UUID columns
-        // (real User match + synthetic orphan) so the abstract suite's
-        // every-position-bound check passes. At-most-one invariants live on
-        // the audit aggregate; producer enforces them at write time.
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("LegacyGuid", randomUuidString(faker));
         row.put("EventDateUTC", Timestamp.from(Instant.parse("2024-06-15T08:30:00Z")));
@@ -62,9 +58,6 @@ class AuditLogMapperTest extends AbstractMapperContractTest<AuditLogMapper> {
 
     @Test
     void declaresOnlyUserAsForeignKey() {
-        // actor_user_id → cross-tenant USER via Manifest bypass.
-        // target_entity_id has no FK constraint in V9; tenant_club_id
-        // stays NULL on migrated rows.
         assertThat(mapper.foreignKeys()).containsExactly(EntityType.USER);
     }
 

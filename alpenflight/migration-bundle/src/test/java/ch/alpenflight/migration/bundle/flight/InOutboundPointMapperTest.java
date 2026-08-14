@@ -27,14 +27,7 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("InOutboundPointId", randomUuidString(faker));
-        // The parent Location legacy GUID — stays the shared legacy GUID on the
-        // wire; T-07's ForeignKeyResolver resolves it composite via club_id.
         row.put("LocationId", randomUuidString(faker));
-        // ClubId comes from the producer's per-Club fan-out: the child fans out
-        // one row per (legacy IOP, partner club) joining its parent Location's
-        // fan-out partner set. It is the child's OWN legacy club id, carried as a
-        // RESOLVER-ONLY wire field (no own column on t_inoutbound_point — tenancy
-        // is inherited via location_id).
         row.put("ClubId", randomUuidString(faker));
         row.put("InOutboundPointName", "07N");
         row.put("IsInboundPoint", true);

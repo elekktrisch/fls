@@ -9,28 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Bundle manifest. Jackson-serialized JSON on the wire; consumed by S-139
- * (producer) and S-141 (consumer). The constructor enforces the coverage
- * gate: every {@link EntityType} value must either appear in
- * {@code entityPolicies} or {@code unmappedReason}.
- *
- * <p>Unknown wire fields fail-fast at parse via
- * {@link JsonIgnoreProperties}: a tampered or forward-incompatible bundle
- * is rejected before the COPY begins.
- *
- * <p>Distinct from {@link UnmappedTables#REGISTRY} which is keyed by the
- * legacy table name (no destination {@link EntityType} exists).
- * {@code unmappedReason} here is keyed by {@link EntityType} — entities
- * the bundle MAY omit even though they have a destination table.
- *
- * @param schemaVersion     bumped when the wire format changes; mismatch
- *                          rejected by the consumer pre-COPY with distinct
- *                          UPGRADE / DOWNGRADE error codes.
- * @param entityPolicies    per-entity port policy.
- * @param unmappedReason    per-{@link EntityType} "WHY not mapped" string
- *                          for entities the bundle MAY omit.
- */
 @JsonIgnoreProperties(ignoreUnknown = false)
 public record Manifest(
         @JsonProperty("schemaVersion") int schemaVersion,
@@ -39,40 +17,6 @@ public record Manifest(
 
     public static final int CURRENT_SCHEMA_VERSION = 1;
 
-    /**
-     * Entities allowed to declare a non-empty {@code tenantBypassFks} per
-     * ADR 0008 + the S-184, S-185, and S-186 Security plans.
-     *
-     * <ul>
-     *   <li>Identity group (S-184): {@code User.person_id},
-     *       {@code PersonClub.person_id},
-     *       {@code PersonCategoryAssignment.person_id} all resolve through
-     *       the per-bundle cross-tenant Person sub-map.</li>
-     *   <li>Flight group (S-185): cross-tenant Person + Aircraft refs.
-     *       {@code Flight.aircraft_id} crosses to cross-tenant Aircraft;
-     *       {@code FlightCrew.person_id} and
-     *       {@code AircraftAircraftState.noticed_by_person_id} cross to
-     *       Person; {@code Aircraft.aircraft_owner_person_id} crosses to
-     *       Person and {@code Aircraft.homebase_id} rides cross-tenant out
-     *       of Aircraft into tenant-scoped Location.</li>
-     *   <li>Accounting + audit group (S-186):
-     *       {@code AircraftReservation.aircraft_id} crosses to cross-tenant
-     *       Aircraft; {@code AircraftReservation.pilot_person_id} +
-     *       {@code AircraftReservation.second_crew_person_id} +
-     *       {@code PlanningDayAssignment.assigned_person_id} cross to
-     *       Person; {@code Delivery.recipient_person_id} rides cross-tenant
-     *       SET-NULL (Swiss OR Art. 957a frozen-snapshot ride-through);
-     *       {@code PersonFlightTimeCredit.person_id} crosses to Person (the
-     *       credit is per-person, visible to every club the Person belongs to,
-     *       no own club_id);
-     *       {@code AuditLog.actor_user_id} rides cross-tenant to historical
-     *       User rows (orphan-synthesized when no User in the bundle).</li>
-     * </ul>
-     *
-     * <p>Reference tables, aggregate-internal counter entities, and Club
-     * itself must declare empty bypass — a producer bundle widening the
-     * set beyond this allow-list is rejected at parse.
-     */
     private static final Set<EntityType> TENANT_BYPASS_ALLOW_LIST = Set.of(
             EntityType.USER,
             EntityType.PERSON_CLUB,
@@ -87,7 +31,6 @@ public record Manifest(
             EntityType.PERSON_FLIGHT_TIME_CREDIT,
             EntityType.AUDIT_LOG);
 
-    /** The canonical cross-tenant allow-list; see {@link #TENANT_BYPASS_ALLOW_LIST}. */
     public static Set<EntityType> tenantBypassAllowList() {
         return TENANT_BYPASS_ALLOW_LIST;
     }
@@ -114,11 +57,6 @@ public record Manifest(
         return destination;
     }
 
-    /**
-     * Every {@link EntityType} must be either policy-mapped or in the
-     * unmapped-reason map. Overlap is rejected — an entity is one or the
-     * other, never both.
-     */
     private static void validateCoverage(
             Map<EntityType, EntityPolicy> policies,
             Map<EntityType, String> unmapped) {
@@ -138,14 +76,6 @@ public record Manifest(
         }
     }
 
-    /**
-     * Defense-in-depth gate for the S-184 Security plan: only the three
-     * cross-tenant FK holders may carry a non-empty
-     * {@link EntityPolicy#tenantBypassFks}; every other entity must
-     * declare an empty set. A producer bundle widening the allow-list is
-     * rejected at parse so a malformed Manifest cannot smuggle a
-     * cross-tenant bypass past S-141.
-     */
     private static void validateTenantBypassAllowList(
             Map<EntityType, EntityPolicy> policies) {
         for (Map.Entry<EntityType, EntityPolicy> entry : policies.entrySet()) {

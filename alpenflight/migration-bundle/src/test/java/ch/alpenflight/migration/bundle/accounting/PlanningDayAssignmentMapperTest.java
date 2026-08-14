@@ -46,8 +46,6 @@ class PlanningDayAssignmentMapperTest
 
     @Test
     void declaresClubPlanningDayPersonAndAssignmentTypeAsForeignKeys() {
-        // assigned_person_id → cross-tenant Person via the Manifest
-        // TENANT_BYPASS_ALLOW_LIST widening (S-186).
         assertThat(mapper.foreignKeys())
                 .containsExactly(
                         EntityType.CLUB,

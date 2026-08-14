@@ -29,25 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-/**
- * Parity oracle harness — round-trips three identity-group mappers
- * (Country / Language / ClubState as SYSTEM_GLOBAL, Club / User as
- * FULL_PORT) against the canonical FLSTest schema in MSSQL + the V2 Flyway-
- * migrated Postgres. Asserts producer / envelope / consumer / diff plumbing
- * end-to-end and writes a structured report under
- * {@code build/reports/parity/<run-id>/}.
- *
- * <p>Containers driven via {@code docker} CLI (see
- * {@link MssqlContainerLifecycle} / {@link PostgresContainerLifecycle}) —
- * sandbox Docker daemons that enforce REST API ≥ 1.44 reject Testcontainers'
- * bundled docker-java. One MSSQL cold start (~30-60 s) + one Postgres cold
- * start (~5-10 s) + canonical FLSTest schema apply (~30-90 s) per
- * parity-job run.
- *
- * <p>Gated to the parity source set; {@code ./gradlew test} never sees it.
- * Invocation: {@code ./gradlew parityTest -Dparity.seed=42 -Dparity.scale=1}.
- * Skips cleanly when Docker is unreachable.
- */
 @Tag("parity")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf(value = "dockerAvailable",
@@ -82,12 +63,10 @@ class ParityOracleHarnessTest {
         try {
             POSTGRES.stop();
         } catch (Throwable ignored) {
-            // best effort
         }
         try {
             MSSQL.stop();
         } catch (Throwable ignored) {
-            // best effort
         }
     }
 
@@ -148,10 +127,6 @@ class ParityOracleHarnessTest {
 
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
-        // fkOrphans stays null in this 5-mapper slice: the FK-orphan walk runs
-        // with the round-trip extension that adds the remaining mappers
-        // (deferred follow-up). ParityReports emits the measured value once it
-        // is supplied.
         Path summary = ParityReports.write(reportsDirectory, runIdentity, producerCounts,
                 ingestOutcome.rowCountByEntity(), diffOutcome, null);
 

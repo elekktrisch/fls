@@ -13,23 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Aggregate-internal current-balance row under {@link PersonFlightTimeCreditMapper}:
- * legacy {@code PersonFlightTimeCreditTransactions.PersonFlightTimeCreditTransactionId}
- * → {@code t_person_flight_time_credit_transaction.id}. The engine reads only the
- * single {@code IsCurrent} balance, so the producer SELECT keeps just the
- * {@code IsCurrent} row per credit and dedupe-keep-firsts it so the V46 partial
- * UNIQUE {@code (credit_id) WHERE is_current} never 23505s at ingest.
- *
- * <p>{@code credit_id} resolves intra-aggregate through the migrated credit's
- * id-map. {@code balanced_delivery_id} → Delivery is nulled producer-side when
- * the linked Delivery is not in the migrated set (Delivery migration deferred to
- * J-10b) — the producer projects {@code ResolvedBalancedDeliveryId}, NULL for an
- * unmigrated target, so the row carries no orphan FK.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId}, {@code OwnershipType},
- * {@code RecordState}, {@code IsDeleted}.
- */
 public final class PersonFlightTimeCreditTransactionMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";

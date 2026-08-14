@@ -12,7 +12,6 @@ class ParityCoverageGateTest {
 
     private static final Set<String> TWO_CLUBS = Set.of("club-1", "club-2");
 
-    /** A fixture that satisfies every gate — used as the baseline to perturb. */
     private static Inputs satisfied() {
         return new Inputs(
                 Set.of(EntityType.COUNTRY, EntityType.USER),

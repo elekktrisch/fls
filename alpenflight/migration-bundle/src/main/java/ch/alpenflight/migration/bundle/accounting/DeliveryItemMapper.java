@@ -14,43 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped delivery line item: legacy
- * {@code DeliveryItems.DeliveryItemId} → {@code t_delivery_item.id}.
- * Invoice-retention semantics inherited from the parent Delivery
- * aggregate (Swiss OR Art. 957a 10-year retention; tombstones ported).
- *
- * <p>{@code article_id} resolves the free-text legacy {@code ArticleNumber}
- * (no FK in legacy) to the migrated per-club {@code t_article.id} producer-side,
- * keyed by {@code (ClubId, ArticleNumber)} against the live (non-deleted)
- * Article. An ArticleNumber matching no live article (free-typed or deleted)
- * yields a NULL {@code ResolvedArticleId} — the line is kept with a null
- * {@code article_id} (the {@code article_number} snapshot is preserved), never
- * a 23503 bundle failure.
- *
- * <p>{@code unit_price NUMERIC(12,4) NOT NULL} — neither legacy
- * {@code DeliveryItems} nor the Article master carries any price column
- * (FLS never priced lines; Proffix did). The producer emits a literal 0
- * aliased {@code ResolvedUnitPrice}; the mapper reads it verbatim.
- *
- * <p>{@code quantity decimal(18,3) → NUMERIC(12,4)} — precision
- * narrowing (15 integer digits → 8). Real-world line-item quantities
- * never exceed ~9999; the producer rejects overflow with
- * {@code DELIVERY_ITEM_QUANTITY_OVERFLOW}. Mapper trusts the producer.
- *
- * <p>{@code unit_type_code VARCHAR(50)} from legacy
- * {@code UnitType NVARCHAR(250)} — overrun → producer rejects with
- * {@code DELIVERY_ITEM_UNIT_TYPE_TOO_LONG} (no silent truncation).
- *
- * <p>{@code total_amount} (V4 GENERATED column removed per ADR 0022
- * D2 — DeliveryItem.totalAmount() compute-on-read VO at S-022)
- * intentionally absent from {@link #columns()}.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- * {@code operating_club_id} is denormalised producer-side from the
- * linked Delivery (V4 schema invariant).
- */
 public final class DeliveryItemMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";

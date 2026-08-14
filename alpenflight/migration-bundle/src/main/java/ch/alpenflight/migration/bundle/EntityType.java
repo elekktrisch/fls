@@ -2,16 +2,6 @@ package ch.alpenflight.migration.bundle;
 
 import java.util.Locale;
 
-/**
- * Topological insert order — declaration order IS ingest order. FK targets
- * must precede their sources; S-183's ArchUnit rule makes this structural.
- * {@link Group} routes mappers to the {@code .identity}, {@code .flight}, and
- * {@code .accounting} sub-packages matching V2/V3/V4 Flyway boundaries.
- *
- * <p>Role / UserRole intentionally absent: per ADR 0007, Keycloak owns the
- * realm-role catalog. Legacy {@code Roles} / {@code UserRoles} tables are
- * registered in {@link UnmappedTables#REGISTRY}.
- */
 public enum EntityType {
 
     COUNTRY(Group.IDENTITY),
@@ -57,7 +47,6 @@ public enum EntityType {
 
     public enum Group { IDENTITY, FLIGHT, ACCOUNTING }
 
-    /** Internal tri-state-free marker so the constant table reads declaratively. */
     private enum FanOut { YES, NO }
 
     private final Group group;
@@ -76,60 +65,14 @@ public enum EntityType {
         return group;
     }
 
-    /**
-     * Fan-out entities are tenant-scoped shared legacy masterdata: one legacy
-     * row referenced by many clubs must land as N {@code club_id}-distinct
-     * rows in the new stack (ADR 0008 tenant partitioning), so the producer
-     * derives a per-(legacy_guid, legacy club) id via
-     * {@link Coercions#deriveFanOutId} and emits a 3-column
-     * {@code (legacy_guid, club_id, new_uuid)} id-map row
-     * ({@link LegacyIdMapWriter#write(UUID, UUID, UUID)}).
-     *
-     * <p>{@code LOCATION} is the first fan-out entity; {@code INOUTBOUND_POINT}
-     * is its child and itself carries {@code club_id} per the J-0b architect
-     * decision, so it fans out too. Everything else — CLUB, COUNTRY,
-     * CLUB_STATE, and the identity entities — is NOT fan-out and keeps the
-     * existing 2-column id-map format untouched.
-     */
     public boolean fansOut() {
         return fansOut;
     }
 
-    /**
-     * CLUB is the tenant root: its {@code legacy_id_map_club} is owned by the
-     * orchestrator, NOT the bundle. Migration provisions the clubs declared in
-     * the manifest (minting a NEW {@code t_club.id} per club) and
-     * {@code EntityStreamIngestor.seedClubLegacyIdMap} populates
-     * {@code legacy_id_map_club} with {@code legacy_club_guid -> provisioned
-     * t_club.id}. The CLUB NDJSON then reconciles onto that provisioned row via
-     * {@code rewriteSelfId} + an {@code ON CONFLICT (id) DO UPDATE} overlay.
-     *
-     * <p>So the producer must NOT emit a {@code legacy_id_map/CLUB.pgcopy}: an
-     * identity map ({@code legacy_guid -> legacy_guid}) would (a) collide with
-     * the orchestrator-seeded rows on {@code legacy_id_map_club_pkey} (23505),
-     * and (b) be semantically wrong — the real new club id is the provisioned
-     * one, not the legacy guid (J-0b T-10 finding, fixed in J-0c T-01). CLUB is
-     * the only such manifest-provisioned id-map; every other FULL_PORT entity's
-     * id-map is bundle-owned (the producer's identity / composite pgcopy).
-     */
     public boolean idMapSeededFromProvisioning() {
         return this == CLUB;
     }
 
-    /**
-     * Whether this entity emits its own {@code legacy_id_map/<E>.pgcopy} identity
-     * map. A LEAF whose legacy composite PK is reshaped to a surrogate {@code id}
-     * minted at INSERT carries no own {@code legacy_guid} and is referenced by
-     * NOBODY by its new id — it resolves its parent / scope FKs but nothing FKs
-     * back to it — so the producer must NOT build an identity pgcopy for it
-     * ({@code writeIdentityPgcopy} would fail on the absent {@code legacy_guid}).
-     * {@code AIRCRAFT_AIRCRAFT_STATE} (aggregate-internal child) and
-     * {@code PERSON_CLUB} (per-club membership junction: the credit-load pivot
-     * JOINs through {@code PersonClubs.club_id} but references Person, never the
-     * membership's surrogate id) are both such leaves. {@code AIRCRAFT_OPERATING_COUNTER}
-     * keeps its {@code legacy_guid} so it DOES emit one. Everything else with an
-     * identity emits its map.
-     */
     public boolean emitsIdentityMap() {
         return this != AIRCRAFT_AIRCRAFT_STATE && this != PERSON_CLUB;
     }

@@ -14,22 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped catalog aggregate: legacy {@code Articles.ArticleId} →
- * {@code t_article.id}. {@code operating_club_id} is the
- * {@code @TenantId} discriminator per V3.
- *
- * <p>{@code (operating_club_id, article_number)} UNIQUE collisions:
- * producer hard-fails the bundle ({@code ARTICLE_DUPLICATE_NUMBER}
- * warning + reject). DeliveryItem snapshots reference
- * {@code article_number} per Swiss OR Art. 957a — silent dedupe would
- * rewrite legal-record references. The mapper itself does not enforce;
- * the producer-side {@code SELECT} flags collisions before any row
- * crosses the bundle boundary.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class ArticleMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -74,9 +58,6 @@ public final class ArticleMapper implements Mapper {
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // operating_club_id (the @TenantId) is off-convention for the CLUB FK —
-        // the resolver's default derives club_id and never rewrites the legacy
-        // GUID, leaving fk_article_operating_club_id unresolved at INSERT.
         return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 

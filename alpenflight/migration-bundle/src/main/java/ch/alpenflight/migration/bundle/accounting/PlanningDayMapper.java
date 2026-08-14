@@ -14,33 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped planning calendar aggregate root: legacy
- * {@code PlanningDays.PlanningDayId} → {@code t_planning_day.id}.
- * {@code operating_club_id} is the {@code @TenantId} discriminator per
- * V4.
- *
- * <p>Legacy column rename: {@code Day} → {@code planning_date} (the
- * column carries the planned-for date, not the row's creation date).
- *
- * <p>{@code location_id} → tenant-scoped {@link EntityType#LOCATION}.
- * Per S-185 the legacy {@code Locations} table fans out to one replica
- * per referencing Club, keyed via the composite
- * {@code legacy_id_map_location.(legacy_guid, club_id)} map. S-141
- * picks the replica matching this PlanningDay's
- * {@code operating_club_id}. No tenant bypass on PlanningDay itself —
- * the Location replica IS tenant-scoped.
- *
- * <p>{@code (operating_club_id, planning_date, location_id)} UNIQUE
- * partial: legacy had no equivalent constraint. Producer-side
- * dedupe-keep-first (deterministic on {@code (CreatedOn, PlanningDayId)})
- * + {@code PLANNING_DAY_DUPLICATE} warning. Mapper passes through; the
- * producer-side dedupe runs before any bundle row hits this mapper.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- * Legacy {@code Remarks} maps to the new {@code info} column.
- */
 public final class PlanningDayMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -82,13 +55,6 @@ public final class PlanningDayMapper implements Mapper {
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // Off-convention + fan-out FK columns (J-6 T-11):
-        //  * operating_club_id → CLUB (the @TenantId; not the convention club_id).
-        //  * location_id → LOCATION (fan-out target; the column name matches the
-        //    convention, but PlanningDay carries no own club_id wire field — the
-        //    fan-out disambiguator is this row's own operating_club_id, so the
-        //    composite (legacy_guid, club_id) resolve lands on the day's OWN-club
-        //    Location replica). Mirrors AircraftReservationMapper (J-5 T-07).
         return List.of(
                 new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
                 new ForeignKeyColumn(LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID));

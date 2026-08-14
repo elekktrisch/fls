@@ -37,9 +37,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
     @Override
     protected Map<String, Set<Number>> permittedSparseEnumValues() {
-        // Sparse-enum sacred cow (FlightAircraftTypeValue.cs:5-7):
-        // 1=Glider, 2=Tow, 4=Motor — 3 deliberately skipped. S-058
-        // enforces; mapper passes through.
         return Map.of(FlightMapper.FLIGHT_AIRCRAFT_TYPE_ID,
                 Set.of((short) 1, (short) 2, (short) 4));
     }
@@ -66,11 +63,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
                         EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
     }
 
-    // FLIGHT-FIDELITY: flight-type survives migration. Legacy Flights.FlightTypeId
-    // is a scalar GUID FK; the rewrite keeps it scalar (flight_type_id) and
-    // resolves it through legacy_id_map_FLIGHT_TYPE (FLIGHT_TYPE is a declared FK
-    // target, resolved by the <target>_id convention). A real (non-empty) GUID
-    // must carry verbatim — the empty-guid → null branch is covered separately.
     @Test
     void flightTypeIdScalarFkCarriesVerbatim() throws Exception {
         Map<String, Object> row = rowWithAirState(
@@ -114,13 +106,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
     @Test
     void towFlightIdPreservedAcrossSoftDeleteToggle() throws Exception {
-        // Build a live (non-tombstoned) row, capture the original tow ref,
-        // and assert it both survives the live emission AND survives when
-        // the same row is re-emitted with DeletedOn set. V3 schema FK is
-        // ON DELETE SET NULL; the mapper must NOT pre-empt the cascade by
-        // nullifying tow_flight_id at port time — the legacy chain must
-        // remain intact for the S-141 two-pass UPDATE even when the tow
-        // flight also ports tombstoned.
         Map<String, Object> liveRow = rowWithAirState(
                 seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
         liveRow.put("DeletedOn", null);
@@ -145,10 +130,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
     @Test
     void emptyGuidTowAndLocationFksPortAsNull() throws Exception {
-        // Legacy ASP.NET writes the all-zero uniqueidentifier into NOT-NULL GUID
-        // FK columns to mean "no relation" (oracle #18). The nullable rewrite FKs
-        // must port that as null — a verbatim empty-guid would violate
-        // fk_flight_tow_flight_id / fk_flight_*_location_id at INSERT.
         Map<String, Object> row = rowWithAirState(
                 seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
         String emptyGuid = "00000000-0000-0000-0000-000000000000";
@@ -170,14 +151,12 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     @Test
     void lockedAtSetFromModifiedOnOnlyForLockedOrBeyond() throws Exception {
         Instant modifiedOn = Instant.parse("2024-06-10T09:00:00Z");
-        // Still-Valid (30): locked_at null — the bill gate must never fire on import.
         Map<String, Object> valid = rowWithAirState(
                 seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
         valid.put("ProcessStateId", 30);
         valid.put("ModifiedOn", Timestamp.from(modifiedOn));
         assertThat(invokeWriteNdjson(valid).get(FlightMapper.LOCKED_AT).isNull())
                 .as("Valid(30) flight ports locked_at = null").isTrue();
-        // Locked(40) and beyond: locked_at = ModifiedOn (the legacy lock-time proxy).
         for (int lockedState : new int[] {40, 50, 60, 99}) {
             Map<String, Object> locked = rowWithAirState(
                     seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
@@ -218,7 +197,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
             shortBinds.put(invocation.getArgument(0), invocation.getArgument(1));
             return null;
         }).when(ps).setShort(anyInt(), anyShort());
-        // Soak up every other bind so the call doesn't blow up on unstubbed methods.
         lenient().doNothing().when(ps).setObject(anyInt(), any());
         lenient().doNothing().when(ps).setObject(anyInt(), any(), anyInt());
         lenient().doNothing().when(ps).setString(anyInt(), any());
@@ -242,8 +220,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     private Map<String, Object> rowWithAirState(Faker faker, int legacyAirStateId) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("FlightId", randomUuidString(faker));
-        // Real legacy column is OwnerId (the operating-club source), NOT
-        // OwnerClubId — the J-2 T-07 producer-SELECT reconciliation fix.
         row.put("OwnerId", randomUuidString(faker));
         row.put("AircraftId", randomUuidString(faker));
         row.put("FlightDate", java.sql.Date.valueOf("2024-06-01"));

@@ -16,28 +16,6 @@ import java.util.Map;
 import java.util.TreeSet;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Emits the parity report tree under {@code build/reports/parity/<run-id>/}:
- *
- * <pre>
- *   summary.json     — per-mapper counts + outcome flags (passed,
- *                      totalDeltas, fkOrphans)
- *   report.md        — human-readable summary mirror
- *   deltas/*.json    — one file per entity with a non-empty delta list,
- *                      keyed by legacy GUID where applicable
- * </pre>
- *
- * <p>{@code summary.json.fkOrphans} is emitted as JSON {@code null} until
- * the FK orphan walker lands at S-187a; downstream tooling distinguishes
- * "measured zero" from "not yet implemented" by keying on the field's
- * concrete value.
- *
- * <p>PII columns are never written. Vertical-slice reports carry only
- * structural metadata (entity name, counts, sentinel column names). When
- * S-187a adds the sampled-value diff, the PII-column allow-list lives
- * alongside the emitter so an additional mapper cannot smuggle a
- * {@code Persons.Firstname} into a delta file.
- */
 public final class ParityReports {
 
     private static final ObjectMapper JSON = new ObjectMapper()
@@ -76,10 +54,6 @@ public final class ParityReports {
         root.put("generatedAt", Instant.now().toString());
         root.put("passed", diffOutcome.passed());
         root.put("totalDeltas", diffOutcome.totalDeltas());
-        // JSON null until the caller supplies a measured walk result, so a
-        // downstream consumer keying on the field cannot misread an unmeasured
-        // zero for a verified zero. The walk that supplies a concrete value
-        // lands with the round-trip extension (deferred follow-up).
         if (fkOrphans == null) {
             root.putNull("fkOrphans");
         } else {

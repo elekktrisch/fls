@@ -14,50 +14,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Tenant-bound principal subject: legacy {@code Users.UserId} →
- * {@code t_user.id}.
- *
- * <p>FK shape:
- * <ul>
- *   <li>{@code club_id} → CLUB (home club; NOT a @TenantId discriminator
- *       per the V2 schema comment).</li>
- *   <li>{@code person_id} → PERSON (nullable; cross-tenant escape hatch
- *       via {@code EntityPolicy.tenantBypassFks}).</li>
- *   <li>{@code language_id} → LANGUAGE (INT → synthetic UUID via
- *       {@link Coercions#legacyIntIdToUuidString}). Drift outside the V2
- *       seed set fails closed at S-141 ingest with
- *       {@code BUNDLE_LANGUAGE_NOT_SEEDED}.</li>
- * </ul>
- *
- * <p><strong>Password + Keycloak-shadow deny-list.</strong> Keycloak owns
- * password storage, MFA, lockout, and account state per ADR 0007. The
- * legacy ASP.NET-Identity shadow columns MUST NEVER leave the legacy DB.
- * {@link #FORBIDDEN_LEGACY_COLUMNS} enumerates the producer-side
- * {@code SELECT} deny-list as defense-in-depth — the bundle NDJSON never
- * carries what the destination does not model. A test asserts these
- * names do not appear in {@link #columns()}.
- *
- * <p>{@code keycloak_sub} ships as NULL — S-028's
- * {@code BulkUserProvisioningService} is the only writer that flips
- * NULL → UUID. Adding {@code keycloak_sub} to the bundle column list
- * would create a double-write race; the column is structurally
- * always-null at bundle time and marked {@link ParityIgnore}.
- *
- * <p>The system-actor row {@link #LEGACY_SYSTEM_USER_ID} is filtered out
- * at producer time (legacy {@code WHERE UserId != ...}); audit references
- * to it land in S-186's orphan-actor synthesis path rather than crossing
- * the boundary as a Keycloak-less user (ADR 0007 violation).
- */
 public final class UserMapper implements Mapper {
 
-    /**
-     * Legacy ASP.NET Identity system actor — the synthetic principal that
-     * legacy uses for cron / workflow-triggered audit writes. It has no
-     * Keycloak counterpart and MUST NOT cross the bundle boundary; the
-     * producer-side {@code SELECT} filters {@code WHERE UserId != ...}.
-     * S-186 orphan-actor synthesis reroutes audit references.
-     */
     public static final UUID LEGACY_SYSTEM_USER_ID =
             UUID.fromString("13731ee2-c1d8-455c-8ad1-c39399893fff");
 
@@ -67,10 +25,6 @@ public final class UserMapper implements Mapper {
     static final String FRIENDLY_NAME = "friendly_name";
     static final String PERSON_ID = "person_id";
 
-    /**
-     * @ParityIgnore reason: free-text PII field with no parity-relevant
-     * invariant — S-187's sampled-value oracle treats it as opaque.
-     */
     @ParityIgnore
     static final String NOTIFICATION_EMAIL = "notification_email";
 
@@ -90,12 +44,6 @@ public final class UserMapper implements Mapper {
     static final String DELETED_ON = "deleted_on";
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
-    /**
-     * Legacy column names that the producer-side {@code SELECT} must NOT
-     * project — the bundle NDJSON must never carry password material or
-     * Keycloak-shadow account state. See the deny-list rationale on the
-     * class Javadoc.
-     */
     public static final Set<String> FORBIDDEN_LEGACY_COLUMNS = Set.of(
             "Password",
             "PasswordHash",

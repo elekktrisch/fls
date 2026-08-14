@@ -33,17 +33,6 @@ import ch.alpenflight.migration.bundle.identity.PersonMapper;
 import ch.alpenflight.migration.bundle.identity.UserMapper;
 import java.util.List;
 
-/**
- * Hand-curated registry of every concrete {@link Mapper} the bundle ships
- * with. Lives in the main source set so external test contexts — notably
- * {@code MapperVsSchemaCompatibilityTest} in {@code alpenflight/server/}
- * (S-187) — can read it without scanning the classpath.
- *
- * <p>Drift guard: {@code ArchitectureTest.knownMappersListCoversEveryConcreteMapperOnTheClasspath}
- * fails loudly if a new concrete mapper is added to the classpath without
- * being registered here. Stay hand-curated — reflection-only discovery
- * makes the diff unreviewable.
- */
 public final class KnownMappers {
 
     private static final List<Mapper> ALL = List.of(

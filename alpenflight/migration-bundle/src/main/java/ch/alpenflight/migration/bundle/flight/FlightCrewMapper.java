@@ -14,29 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Aggregate-internal crew row under {@link FlightMapper}: legacy
- * {@code FlightCrew.FlightCrewId} → {@code t_flight_crew.id}. Highest-row
- * entity in the system (~25M rows at customer scale per ADR 0019).
- *
- * <p><strong>S-188 JMH-benched mapper.</strong> Allocation discipline per
- * the {@link Mapper} contract: no per-row allocation beyond Jackson +
- * JDBC inherent. No {@code String.format}, no defensive byte copies, no
- * intermediate {@code Map}/buffer reuse, no boxed-Integer FK paths.
- * Budget per S-183 / S-188: ≥ 200K rows/sec single-thread, ≤ 50 MB/s
- * allocation rate (-prof gc).
- *
- * <p>{@code person_id} → cross-tenant Person (tenant-bypass per the
- * {@link ch.alpenflight.migration.bundle.Manifest} TENANT_BYPASS_ALLOW_LIST
- * widening). {@code flight_crew_type_id} resolves through V3's seeded
- * {@code t_flight_crew_type.legacy_int_id} map — entity outside
- * {@link EntityType}, no per-bundle dependency declared.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}. V3
- * destination keeps only {@code deleted_on} / {@code deleted_by_user_id}
- * — no created/modified audit pair on this aggregate-internal row.
- */
 public final class FlightCrewMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -74,18 +51,11 @@ public final class FlightCrewMapper implements Mapper {
 
     @Override
     public List<EntityType> foreignKeys() {
-        // flight_id → FLIGHT, person_id → PERSON both match the <target>_id
-        // convention, so no foreignKeyColumns() override is needed.
         return List.of(EntityType.FLIGHT, EntityType.PERSON);
     }
 
     @Override
     public List<ReferenceLookup> referenceLookups() {
-        // flight_crew_type_id carries the synthetic new UUID(0, legacyIntId)
-        // (writeNdjson uses legacyIntIdToUuidString over FlightCrewType) for a
-        // V3-seeded t_flight_crew_type row OUTSIDE EntityType — resolved
-        // structurally against t_flight_crew_type.legacy_int_id, not via a
-        // per-bundle legacy_id_map.
         return List.of(new ReferenceLookup(FLIGHT_CREW_TYPE_ID, "t_flight_crew_type"));
     }
 

@@ -25,19 +25,14 @@ class DeliveryItemMapperTest extends AbstractMapperContractTest<DeliveryItemMapp
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("DeliveryItemId", randomUuidString(faker));
-        // Producer-aliased — OperatingClubId denormalised from the parent
-        // Delivery (V4 schema invariant).
         row.put("OperatingClubId", randomUuidString(faker));
         row.put("DeliveryId", randomUuidString(faker));
         row.put("Position", 1);
-        // Producer-resolved Article UUID from the (ClubId, ArticleNumber)
-        // JOIN to the Article master.
         row.put("ResolvedArticleId", randomUuidString(faker));
         row.put("ArticleNumber", "A-1001");
         row.put("ItemText", faker.commerce().productName());
         row.put("AdditionalInformation", "");
         row.put("Quantity", new BigDecimal("1.5000"));
-        // Producer-resolved unit price — legacy DeliveryItems has no such column.
         row.put("ResolvedUnitPrice", new BigDecimal("85.0000"));
         row.put("DiscountInPercent", 0);
         row.put("UnitType", "MINUTES");
@@ -63,15 +58,11 @@ class DeliveryItemMapperTest extends AbstractMapperContractTest<DeliveryItemMapp
 
     @Test
     void columnsDoNotIncludeRemovedTotalAmount() {
-        // total_amount GENERATED column removed at V4 per ADR 0022 D2 —
-        // DeliveryItem.totalAmount() is a compute-on-read VO at S-022.
         assertThat(mapper.columns()).doesNotContain("total_amount");
     }
 
     @Test
     void unitPriceColumnDeclaredEvenThoughLegacyHasNoSuchColumn() {
-        // Legacy DeliveryItems carries no UnitPrice — producer back-fills
-        // from the Article master per the V4 schema header.
         assertThat(mapper.columns()).contains(DeliveryItemMapper.UNIT_PRICE);
     }
 }

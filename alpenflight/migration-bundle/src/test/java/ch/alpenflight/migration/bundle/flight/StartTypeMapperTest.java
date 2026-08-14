@@ -48,16 +48,6 @@ class StartTypeMapperTest extends AbstractMapperContractTest<StartTypeMapper> {
                 .isEmpty();
     }
 
-    /**
-     * Pins the legacy {@code AircraftStartType} enum
-     * ({@code FLS.Server.Data/Enums/AircraftStartType.cs}: 1=TowingByAircraft,
-     * 2=WinchLaunch, 3=SelfStart, 4=ExternalStart, 5=MotorFlightStart) onto the
-     * V2 {@code t_start_type.code} seed. Legacy 1 is TowingByAircraft (towed by
-     * an aircraft) — the legacy web oracle {@code FlightsController.needsTowplane}
-     * returns {@code startType == 1}, so legacy 1 must map to AEROTOW, NOT
-     * WINCH_LAUNCH. Guards against the J-2 T-40 parity inversion where 1↔2 were
-     * swapped, silently mis-typing every migrated aerotow as winch-launched.
-     */
     @ParameterizedTest
     @CsvSource({
         "1, AEROTOW",

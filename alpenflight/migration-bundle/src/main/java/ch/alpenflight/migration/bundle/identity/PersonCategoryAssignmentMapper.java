@@ -13,21 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Legacy {@code PersonPersonCategories} composite junction
- * {@code (PersonId, PersonCategoryId)} → V17
- * {@code t_person_category_assignment} surrogate-keyed junction with a
- * denormalised {@code club_id} for @TenantId routing.
- *
- * <p>The producer-side {@code SELECT} joins {@code PersonCategories} on
- * the legacy side to pull {@code ClubId} into the projected row; the
- * legacy junction itself carries no club discriminator. S-141 mints the
- * surrogate {@code id UUID v7} at INSERT time.
- *
- * <p>Leaf junction — no inbound FKs from other identity-group entities
- * — so S-141 does NOT populate a
- * {@code legacy_id_map_person_category_assignment} temp table.
- */
 public final class PersonCategoryAssignmentMapper implements Mapper {
 
     static final String PERSON_ID = "person_id";

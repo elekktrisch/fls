@@ -17,12 +17,6 @@ import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * Module-level structural rules. The declarative rules are pure ArchUnit;
- * the EntityType ingest-order rule walks {@code Mapper.foreignKeys()} at
- * runtime, so it lives as a JUnit test on the same class — same enforcement
- * window, one file to read.
- */
 @AnalyzeClasses(
         packages = "ch.alpenflight.migration.bundle",
         importOptions = ImportOption.DoNotIncludeTests.class)
@@ -138,15 +132,6 @@ public class ArchitectureTest {
                             + "JPA dependency the library refuses by design.")
                     .allowEmptyShould(true);
 
-    /**
-     * Concrete-mapper registry the ingest-order check walks. The registry
-     * itself lives on {@link KnownMappers} in the main source set so the
-     * server-side {@code MapperVsSchemaCompatibilityTest} (S-187) can
-     * consume it without copying. Drift guard
-     * ({@link #knownMappersListCoversEveryConcreteMapperOnTheClasspath()})
-     * stays here — it scans the classpath structurally, which is a test
-     * concern.
-     */
     private static final List<Mapper> KNOWN_MAPPERS = KnownMappers.all();
 
     @Test
@@ -175,10 +160,6 @@ public class ArchitectureTest {
                 .filter(javaClass -> !javaClass.isInterface())
                 .filter(javaClass -> !javaClass.getModifiers().contains(
                         com.tngtech.archunit.core.domain.JavaModifier.ABSTRACT))
-                // Decorators that wrap another Mapper (e.g. the mutation-smoke
-                // ColumnDroppingMapper) are harness adapters, not entity
-                // mappers — they bind no legacy table and must not appear in
-                // KNOWN_MAPPERS, which the ingest-order rule walks per entity.
                 .filter(javaClass -> javaClass.getFields().stream()
                         .noneMatch(field -> field.getRawType().isAssignableTo(Mapper.class)))
                 .map(javaClass -> javaClass.getFullName())

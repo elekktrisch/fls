@@ -14,23 +14,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/**
- * SYSTEM_GLOBAL reference. V2 seeds {@code t_language} (8 canonical codes);
- * legacy {@code Languages.LanguageKey} resolves via case-folded lookup
- * against {@code t_language.code}. V2 does not carry {@code legacy_int_id}
- * on the language row — the join is by code, not by id.
- *
- * <p>The legacy primary key is {@code int}; this mapper widens it through
- * {@link Coercions#legacyIntIdToUuidString} into the new-stack's fixed
- * {@code legacy_id_map_*} byte format. Every mapper that emits an FK to a
- * language row uses the same encoding (see {@code UserMapper.language_id}).
- *
- * <p>S-141 ingest populates {@code legacy_id_map_language} by joining
- * {@code (legacy_guid, code)} bundle pairs against the V2 seed; drift
- * (a legacy LanguageKey not in the V2 seed set) is surfaced fail-closed
- * per ADR 0022 directive 1 with the explicit
- * {@code BUNDLE_LANGUAGE_NOT_SEEDED} error code, not silently defaulted.
- */
 public final class LanguageMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";

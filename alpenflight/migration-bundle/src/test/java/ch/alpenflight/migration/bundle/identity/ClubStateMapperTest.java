@@ -57,9 +57,7 @@ class ClubStateMapperTest extends AbstractMapperContractTest<ClubStateMapper> {
 
     @Test
     void writeNdjsonEmitsTheV2CodeForEveryLegacyEnumValue() throws Exception {
-        // The full legacy ClubState enum (FLS.Data.WebApi/Club/ClubState.cs):
-        // System=0, Active=1, Passive=2, Inactive=3 — ALL must resolve (J-0c T-16).
-        assertEmittedCode(0, "ACTIVE"); // System club → usable tenant; see mapper Javadoc
+        assertEmittedCode(0, "ACTIVE");
         assertEmittedCode(1, "ACTIVE");
         assertEmittedCode(2, "CLOSED");
         assertEmittedCode(3, "SUSPENDED");

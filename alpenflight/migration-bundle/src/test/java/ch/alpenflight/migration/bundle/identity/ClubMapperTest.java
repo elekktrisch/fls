@@ -71,10 +71,6 @@ class ClubMapperTest extends AbstractMapperContractTest<ClubMapper> {
 
     @Test
     void modifiedOnFallsBackToCreatedOnForANeverModifiedClub() throws Exception {
-        // J-0c T-19: a real legacy Club created-but-never-modified has
-        // ModifiedOn NULL; t_club.modified_on is NOT NULL (audit invariant).
-        // The producer must coalesce to CreatedOn so the NDJSON carries a
-        // value rather than emitting null and 23502-ing at ingest.
         Map<String, Object> row = legacyRow(seededFaker());
         row.put("ModifiedOn", null);
         Timestamp createdOn = Timestamp.from(Instant.parse("2016-06-07T22:53:46Z"));

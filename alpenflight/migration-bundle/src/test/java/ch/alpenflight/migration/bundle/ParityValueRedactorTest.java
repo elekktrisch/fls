@@ -23,8 +23,6 @@ class ParityValueRedactorTest {
 
     @Test
     void nonSentinelColumnRedactsByDefault() {
-        // Fail-closed: a column nobody opted into the value diff for (and that
-        // a future mapper might quietly add) never has its value emitted.
         String emitted = ParityValueRedactor.emit(
                 EntityType.USER, "remarks", "secret note", Set.of());
         assertThat(emitted).isEqualTo(ParityValueRedactor.REDACTED);
@@ -41,8 +39,6 @@ class ParityValueRedactorTest {
 
     @Test
     void piiSetIsASupersetOfTheAuthoritativeTenantRulesColumns() {
-        // Every tenant-rules.yaml pii_column for a mapped table must be covered,
-        // else a future sentinel marking on one of these would leak its value.
         assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "company_name")).isTrue();
         assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "address_line1")).isTrue();
         assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "address_line2")).isTrue();
