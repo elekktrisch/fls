@@ -186,15 +186,18 @@ val verifyNullAwayFailsOnViolation by tasks.registering(Exec::class) {
     }
 }
 
+val productionClasspathsWhereAVersionSplitIsFatal = setOf("runtimeClasspath", "compileClasspath")
+
 configurations.matching {
-    it.name == "runtimeClasspath" || it.name == "compileClasspath"
+    it.name in productionClasspathsWhereAVersionSplitIsFatal
 }.configureEach {
     resolutionStrategy.failOnVersionConflict()
 }
 
+val pmdVersionWithoutTheJdk25TypeResolutionStackOverflow = "7.25.0"
 
 pmd {
-    toolVersion = "7.25.0"
+    toolVersion = pmdVersionWithoutTheJdk25TypeResolutionStackOverflow
     isConsoleOutput = false
     ruleSetConfig = resources.text.fromFile("config/pmd/ruleset.xml")
     ruleSets = emptyList()
@@ -209,19 +212,24 @@ tasks.withType<org.gradle.api.plugins.quality.Pmd>().configureEach {
     }
 }
 
+val autoWiredPmdCallableThatDragsDemoSourceSetCompilesIntoCheck = "org.gradle.api.plugins.quality"
+
 tasks.named("check") {
     setDependsOn(
-        dependsOn.filterNot { dep ->
-            dep.javaClass.name.startsWith("org.gradle.api.plugins.quality")
+        dependsOn.filterNot { checkDependency ->
+            checkDependency.javaClass.name
+                .startsWith(autoWiredPmdCallableThatDragsDemoSourceSetCompilesIntoCheck)
         },
     )
     dependsOn("pmdMain")
 }
 
+val cpdTokenCountApproximatingEightDuplicatedLines = 50
+
 cpd {
     toolVersion = "7.7.0"
     language = "java"
-    minimumTokenCount = 50
+    minimumTokenCount = cpdTokenCountApproximatingEightDuplicatedLines
     isIgnoreFailures = true
     isIgnoreLiterals = false
     isIgnoreIdentifiers = false
@@ -236,6 +244,7 @@ tasks.named<Cpd>("cpdCheck") {
 }
 
 val cpdBaselineFile = layout.projectDirectory.file("config/pmd/cpd-baseline.txt")
+val uncommittedBaselineNeverFailsTheRatchet = Long.MAX_VALUE
 
 val cpdRatchet by tasks.registering {
     group = "verification"
@@ -247,13 +256,14 @@ val cpdRatchet by tasks.registering {
     inputs.file(baseline).optional(true)
     doLast {
         val xml = reportXml.get().asFile
+        val noReportMeansCpdFoundZeroClones = 0L
         val measured =
             if (xml.exists()) {
                 Regex("""<duplication\s+lines="\d+"\s+tokens="(\d+)"""")
                     .findAll(xml.readText())
                     .sumOf { it.groupValues[1].toLong() }
             } else {
-                0L
+                noReportMeansCpdFoundZeroClones
             }
         val baselineFile = baseline.asFile
         val baselineTokens =
@@ -262,7 +272,7 @@ val cpdRatchet by tasks.registering {
                     .firstOrNull { it.isNotBlank() && !it.startsWith("#") }
                     ?.trim()?.toLongOrNull() ?: 0L
             } else {
-                Long.MAX_VALUE
+                uncommittedBaselineNeverFailsTheRatchet
             }
         logger.lifecycle("CPD duplicate tokens: measured=$measured baseline=$baselineTokens")
         if (measured > baselineTokens) {
@@ -272,7 +282,7 @@ val cpdRatchet by tasks.registering {
                     "re-measure with `./gradlew cpdCheck` and commit the new (lower-is-better) baseline.",
             )
         }
-        if (measured < baselineTokens && baselineTokens != Long.MAX_VALUE) {
+        if (measured < baselineTokens && baselineTokens != uncommittedBaselineNeverFailsTheRatchet) {
             logger.lifecycle(
                 "Duplication DROPPED below baseline ($measured < $baselineTokens) — " +
                     "commit $measured to config/pmd/cpd-baseline.txt to lock the gain.",
@@ -309,6 +319,10 @@ flyway {
     )
 }
 
+val testForksEachOwningItsOwnPostgresContainer =
+    System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 2
+val heapOneForkNeedsForTheWholeSuiteSpringContextCache = "1g"
+
 tasks.withType<Test> {
     useJUnitPlatform()
     testLogging {
@@ -318,8 +332,8 @@ tasks.withType<Test> {
         showStackTraces = true
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
-    maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 2).coerceAtLeast(1)
-    maxHeapSize = "1g"
+    maxParallelForks = testForksEachOwningItsOwnPostgresContainer.coerceAtLeast(1)
+    maxHeapSize = heapOneForkNeedsForTheWholeSuiteSpringContextCache
 }
 
 val verifyArchUnitFailsOnViolation by tasks.registering(Test::class) {
@@ -424,6 +438,9 @@ val generateFlightReportGoldenFixture by tasks.registering(JavaExec::class) {
     args = listOf("src/test/resources/excel-parity/flight-reports-legacy-golden.xlsx")
 }
 
+val keepServletContextButBindAnEphemeralPortSoSeedingNeverCollidesWithARunningBackend =
+    "--server.port=0"
+
 val seedShowcase by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Load the on-demand showcase seed (deterministic demo dataset) in one command."
@@ -432,6 +449,6 @@ val seedShowcase by tasks.registering(JavaExec::class) {
     args = listOf(
         "--spring.profiles.active=dev,showcase",
         "--alpenflight.showcase.exit-after-seed=true",
-        "--server.port=0",
+        keepServletContextButBindAnEphemeralPortSoSeedingNeverCollidesWithARunningBackend,
     )
 }
