@@ -92,12 +92,7 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
             flights.save(glider);
         });
 
-        TenantTestContext.runAs(clubA, () -> {
-            rows.delete(rows.findByFlightId(gliderId).orElseThrow());
-            rows.delete(rows.findByFlightId(towId).orElseThrow());
-            assertThat(rows.findByFlightId(gliderId)).isEmpty();
-            assertThat(rows.findByFlightId(towId)).isEmpty();
-        });
+        dropRowsAsIfTheFlightsHadArrivedWithoutPassingTheProjector(clubA, gliderId, towId);
 
         FlightReportRebuildService.RebuildResult first = rebuild.rebuildForClub(clubA);
         assertThat(first.liveFlights()).isEqualTo(2);
@@ -114,9 +109,9 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
         assertThat(gliderRow.getTowFlightCode()).isEqualTo("TOW");
         assertThat(rowOf(clubA, towId).getTowedGliderFlightId()).isEqualTo(gliderId);
 
-        FlightReportRebuildService.RebuildResult second = rebuild.rebuildForClub(clubA);
-        assertThat(second.liveFlights()).isEqualTo(2);
-        assertThat(second.orphanRowsDeleted()).isZero();
+        FlightReportRebuildService.RebuildResult repeatRun = rebuild.rebuildForClub(clubA);
+        assertThat(repeatRun.liveFlights()).isEqualTo(2);
+        assertThat(repeatRun.orphanRowsDeleted()).isZero();
         FlightReportRow gliderRowAfter = rowOf(clubA, gliderId);
         assertThat(gliderRowAfter.getPilotName()).isEqualTo("Wieder Willi");
         assertThat(gliderRowAfter.getTowFlightId()).isEqualTo(towId);
@@ -135,8 +130,7 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
                 loc, loc, flightType, WINCH_LAUNCH, List.of());
         assertThat(countRowsFor(flightId)).isEqualTo(1);
 
-        jdbc.update("UPDATE t_flight SET deleted_on = now() WHERE id = ?::uuid",
-                flightId.toString());
+        softDeleteWithRawJdbcSoTheProjectorNeverLearnsOfIt(flightId);
 
         FlightReportRebuildService.RebuildResult result = rebuild.rebuildForClub(clubA);
         assertThat(result.orphanRowsDeleted()).isEqualTo(1);
@@ -159,10 +153,8 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
                 Instant.parse("2026-05-16T08:00:00Z"), Instant.parse("2026-05-16T09:00:00Z"),
                 locB, locB, typeB, WINCH_LAUNCH, List.of());
 
-        TenantTestContext.runAs(clubA, () ->
-                rows.delete(rows.findByFlightId(flightA).orElseThrow()));
-        TenantTestContext.runAs(clubB, () ->
-                rows.delete(rows.findByFlightId(flightB).orElseThrow()));
+        dropRowsAsIfTheFlightsHadArrivedWithoutPassingTheProjector(clubA, flightA);
+        dropRowsAsIfTheFlightsHadArrivedWithoutPassingTheProjector(clubB, flightB);
 
         rebuild.rebuildForClub(clubA);
         assertThat(countRowsFor(flightA)).isEqualTo(1);
@@ -175,6 +167,21 @@ class FlightReportRebuildServiceIT extends PostgresIntegrationTest {
                 UUID.class, flightB.toString())).isEqualTo(clubB);
     }
 
+
+    private void dropRowsAsIfTheFlightsHadArrivedWithoutPassingTheProjector(
+            UUID clubId, UUID... flightIds) {
+        TenantTestContext.runAs(clubId, () -> {
+            for (UUID flightId : flightIds) {
+                rows.delete(rows.findByFlightId(flightId).orElseThrow());
+                assertThat(rows.findByFlightId(flightId)).isEmpty();
+            }
+        });
+    }
+
+    private void softDeleteWithRawJdbcSoTheProjectorNeverLearnsOfIt(UUID flightId) {
+        jdbc.update("UPDATE t_flight SET deleted_on = now() WHERE id = ?::uuid",
+                flightId.toString());
+    }
 
     private FlightReportRow rowOf(UUID clubId, UUID flightId) {
         return TenantTestContext.runAs(clubId, () -> rows.findByFlightId(flightId)

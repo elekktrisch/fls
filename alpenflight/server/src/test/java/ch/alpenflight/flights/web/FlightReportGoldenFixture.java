@@ -19,8 +19,13 @@ final class FlightReportGoldenFixture {
     private static final String TIME_FORMAT = "HH:MM";
     private static final String DURATION_FORMAT = "[H]:MM";
 
+    private static final int LDG_LOCATION_COLUMN = 15;
+    private static final int BLANK_LEGACY_GAP_COLUMN = LDG_LOCATION_COLUMN + 1;
+    private static final int FLIGHT_COMMENT_COLUMN = BLANK_LEGACY_GAP_COLUMN + 1;
+
     private FlightReportGoldenFixture() {}
 
+    // RENAME: write -> writeContractByHandNotViaTheProductionWriter
     static void write(OutputStream out) throws IOException {
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             CreationHelper helper = wb.getCreationHelper();
@@ -71,8 +76,8 @@ final class FlightReportGoldenFixture {
         row.createCell(12).setCellValue(gr.isSoloFlight() ? 1 : 0);
         row.createCell(13).setCellValue(gr.startType());
         row.createCell(14).setCellValue(gr.startLocation());
-        row.createCell(15).setCellValue(gr.ldgLocation());
-        row.createCell(17).setCellValue(gr.flightComment());
+        row.createCell(LDG_LOCATION_COLUMN).setCellValue(gr.ldgLocation());
+        row.createCell(FLIGHT_COMMENT_COLUMN).setCellValue(gr.flightComment());
 
         FlightReportGoldenDataset.GoldenTow tow = gr.tow();
         if (tow != null) {

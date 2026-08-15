@@ -68,6 +68,8 @@ class AuditPayloadTurboFilterTest {
 
         assertThat(appender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
+                .as("the deny is reserved for payload markers — an operational log naming the "
+                        + "before_state column must still reach its appender")
                 .anyMatch(m -> m.contains("before_state"));
     }
 

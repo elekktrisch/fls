@@ -81,7 +81,9 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 .isEqualTo("urn:alpenflight:problem:flight-version-mismatch");
         assertThat(body.get("expected").asLong()).isEqualTo(stale);
         assertThat(body.get("serverVersion").asLong()).isEqualTo(current);
-        assertThat(body.has("actual")).isFalse();
+        assertThat(body.has("actual"))
+                .as("legacy 'actual' property is gone — replaced by the wire-stable serverVersion")
+                .isFalse();
     }
 
     @Test
@@ -113,7 +115,9 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 String.class);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
-        assertThat(get("/api/v1/flights/" + id).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get("/api/v1/flights/" + id).getStatusCode())
+                .as("Stale precondition aborted the delete — the row is still there")
+                .isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -177,7 +181,10 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 String.class);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
-        assertThat(get("/api/v1/flights/" + gliderId).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get("/api/v1/flights/" + gliderId).getStatusCode())
+                .as("The tow's terminal-state gate rolled the whole cascade back — the glider "
+                        + "survives its own otherwise-legal delete")
+                .isEqualTo(HttpStatus.OK);
         assertThat(get("/api/v1/flights/" + towId).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -188,7 +195,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
         long sharedVersion = readJson(get("/api/v1/flights/" + id)).get("version").asLong();
 
         Map<String, Object> firstBody = updatePayload();
-        firstBody.put("comment", "first writer");
+        firstBody.put("comment", "first writer changes a field so the save is not a no-op");
         ResponseEntity<String> first = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -199,7 +206,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Map<String, Object> secondBody = updatePayload();
-        secondBody.put("comment", "second writer");
+        secondBody.put("comment", "second writer changes a field so the save is not a no-op");
         ResponseEntity<String> second = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -209,7 +216,10 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 String.class);
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
         JsonNode body = readJson(second);
-        assertThat(body.get("serverVersion").asLong()).isEqualTo(sharedVersion + 1);
+        assertThat(body.get("serverVersion").asLong())
+                .as("The first PUT dirtied a field, so Hibernate bumped @Version — the second "
+                        + "client's copy of sharedVersion is now stale")
+                .isEqualTo(sharedVersion + 1);
     }
 
     private Map<String, Object> updatePayload() {

@@ -113,7 +113,9 @@ class DeliveryCreationTestRunIT extends PostgresIntegrationTest {
         Long harnessCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_delivery_creation_test WHERE operating_club_id = ?::uuid",
                 Long.class, clubA.toString());
-        assertThat(harnessCount).isZero();
+        assertThat(harnessCount)
+                .as("the dry-run persisted no harness")
+                .isZero();
     }
 
     @Test

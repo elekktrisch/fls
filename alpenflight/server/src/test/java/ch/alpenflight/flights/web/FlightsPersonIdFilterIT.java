@@ -109,7 +109,10 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                 "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
 
-        assertThat(extractIds(items)).contains(picFlight, paxFlight);
+        assertThat(extractIds(items))
+                .as("Both crew roles surface — the EXISTS clause carries no "
+                        + "flightCrewTypeId predicate")
+                .contains(picFlight, paxFlight);
     }
 
     @Test
@@ -186,7 +189,8 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
         String pilotExt = PersonId.of(pilot).toExternal();
         createFlightWithPicAndStart(pilotExt, "2026-05-09", "2026-05-09T07:00:00Z");
-        String winner = createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T08:00:00Z");
+        String latestDateAndLatestStartTime =
+                createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T08:00:00Z");
         createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T06:00:00Z");
 
         JsonNode items = readJson(get(
@@ -194,8 +198,9 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                         + "&limit=1")).get("items");
         assertThat(items).hasSize(1);
         assertThat(items.get(0).get("id").asText())
-                .as("limit=1 returns the most recent flight per the AC sort")
-                .isEqualTo(winner);
+                .as("limit=1 returns the most recent flight per the AC sort "
+                        + "(flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC)")
+                .isEqualTo(latestDateAndLatestStartTime);
     }
 
     private String createFlightWithPic(String personIdExternal, String flightDateIso) {

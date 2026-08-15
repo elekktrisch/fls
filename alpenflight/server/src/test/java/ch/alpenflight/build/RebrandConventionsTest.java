@@ -77,10 +77,12 @@ class RebrandConventionsTest {
             try (Stream<Path> walk = Files.walk(root)) {
                 walk.filter(Files::isRegularFile)
                         .filter(p -> p.getFileName().toString().endsWith(".java"))
-                        .filter(p -> !isOwnTestFile(p))
+                        .filter(p -> !isOwnSourceFileHoldingTheSearchPatterns(p))
                         .forEach(p -> {
                             try {
-                                String stripped = stripLineComments(Files.readString(p, StandardCharsets.UTF_8));
+                                String stripped =
+                                        stripLineCommentsSoDiscussedLiteralsAreNotViolations(
+                                                Files.readString(p, StandardCharsets.UTF_8));
                                 if (stripped.contains(FORBIDDEN_LOG_PREFIX)) {
                                     offenders.add(moduleRoot.relativize(p).toString());
                                 }
@@ -121,7 +123,7 @@ class RebrandConventionsTest {
                 .doesNotContain("rootProject.name = \"fls-server\"");
     }
 
-    private static String stripLineComments(String source) {
+    private static String stripLineCommentsSoDiscussedLiteralsAreNotViolations(String source) {
         return source.replaceAll("(?m)//[^\\n]*", "");
     }
 
@@ -133,7 +135,7 @@ class RebrandConventionsTest {
         try (Stream<Path> walk = Files.walk(root)) {
             walk.filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(".java"))
-                    .filter(p -> !isOwnTestFile(p))
+                    .filter(p -> !isOwnSourceFileHoldingTheSearchPatterns(p))
                     .forEach(p -> {
                         try {
                             String content = Files.readString(p, StandardCharsets.UTF_8);
@@ -148,7 +150,7 @@ class RebrandConventionsTest {
         return hits;
     }
 
-    private static boolean isOwnTestFile(Path p) {
+    private static boolean isOwnSourceFileHoldingTheSearchPatterns(Path p) {
         return p.getFileName().toString().equals("RebrandConventionsTest.java");
     }
 

@@ -71,11 +71,11 @@ class FlightAirStateTest {
     }
 
     @Test
-    void flightPlanClosed_never_emitted_by_compute() throws Exception {
-        Instant[] tsValues = { null, T_LDG };
+    void flightPlanClosed_never_emitted_for_any_input_combination() throws Exception {
+        Instant[] ldgValues = { null, T_LDG };
         Instant[] startValues = { null, T_START };
         Instant[] planValues = { null, T_PLAN };
-        for (Instant ldg : tsValues) {
+        for (Instant ldg : ldgValues) {
             for (Instant start : startValues) {
                 for (boolean noLdg : new boolean[] { false, true }) {
                     for (boolean noStart : new boolean[] { false, true }) {
@@ -97,7 +97,7 @@ class FlightAirStateTest {
     }
 
     @Test
-    void airState_enum_carries_legacy_codes() {
+    void airState_enum_order_and_legacy_codes_are_frozen() {
         assertThat(Arrays.stream(FlightAirState.values()).map(FlightAirState::legacyCode))
                 .containsExactly((short) 0, (short) 5, (short) 8, (short) 10,
                         (short) 15, (short) 20, (short) 25);

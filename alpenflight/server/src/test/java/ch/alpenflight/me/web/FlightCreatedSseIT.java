@@ -35,7 +35,7 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = "alpenflight.sse.heartbeat-interval-ms=300")
 class FlightCreatedSseIT extends PostgresIntegrationTest {
 
-    private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
+    private static final String SEED_CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
     private static final String SEED_AIRCRAFT_TYPE_GLIDER = "019e2e15-2c00-7af9-8000-000000002af9";
 
     @LocalServerPort int port;
@@ -48,9 +48,9 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
     void closeClients() {
         openClients.forEach(HttpClient::close);
         openClients.clear();
-        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", SEED_CLUB_ID);
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
-                + "AND immatriculation LIKE 'HB-SSE%'", CLUB_ID);
+                + "AND immatriculation LIKE 'HB-SSE%'", SEED_CLUB_ID);
     }
 
     @Test
@@ -58,7 +58,7 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
         String sub = UUID.randomUUID().toString();
         String token = jwts.mint(c -> c
                 .subject(sub)
-                .claim("clubId", CLUB_ID)
+                .claim("clubId", SEED_CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
         UUID aircraftId = seedAircraft();
 
@@ -66,7 +66,7 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
         try {
             assertThat(reader.statusCode()).as("authenticated open → 200").isEqualTo(200);
 
-            waitUntil(() -> {
+            retryUntil(() -> {
                 createFlight(token, aircraftId);
                 return reader.lines().stream()
                         .anyMatch(l -> l.replace(" ", "").startsWith("event:flight.created"));
@@ -89,7 +89,7 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
                                       is_towing_aircraft, is_fast_entry_record, nr_of_seats)
                 VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, false, false, false, false, false, 2)
                 """,
-                id.toString(), CLUB_ID, CLUB_ID, SEED_AIRCRAFT_TYPE_GLIDER,
+                id.toString(), SEED_CLUB_ID, SEED_CLUB_ID, SEED_AIRCRAFT_TYPE_GLIDER,
                 "HB-SSE" + Integer.toHexString((int) (System.nanoTime() & 0xFFFF)));
         return id;
     }
@@ -140,10 +140,10 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
         return '"' + String.valueOf(v) + '"';
     }
 
-    private static void waitUntil(BooleanSupplier condition) throws InterruptedException {
+    private static void retryUntil(BooleanSupplier attempt) throws InterruptedException {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
         while (Instant.now().isBefore(deadline)) {
-            if (condition.getAsBoolean()) {
+            if (attempt.getAsBoolean()) {
                 return;
             }
             Thread.sleep(100);
@@ -177,7 +177,7 @@ class FlightCreatedSseIT extends PostgresIntegrationTest {
             this.pump = new Thread(() -> {
                 try {
                     response.body().forEach(received::add);
-                } catch (RuntimeException e) {
+                } catch (RuntimeException streamCancelledAtTeardown) {
                 }
             }, "sse-it-pump");
             this.pump.setDaemon(true);

@@ -24,6 +24,12 @@ final class FlightReportGoldenDataset {
 
     static final String[] HEADERS = legacyHeaders();
 
+    private static final int LEGACY_START_TYPE_AEROTOW = 1;
+    private static final int LEGACY_START_TYPE_WINCH_LAUNCH = 2;
+
+    private static final long TOW_DURATION_SECONDS_BEYOND_24H_SO_THE_BRACKET_H_FORMAT_MATTERS =
+            25 * 3600;
+
     private static final UUID GLIDER_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000001");
     private static final UUID AEROTOW_GLIDER_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000002");
     private static final UUID TOW_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000003");
@@ -43,7 +49,7 @@ final class FlightReportGoldenDataset {
                 LocalDateTime.of(2026, 5, 15, 9, 35),
                 90 * 60,
                 false,
-                2,
+                LEGACY_START_TYPE_WINCH_LAUNCH,
                 "Birrfeld",
                 "Birrfeld",
                 "Schulflug Doppelsitzer",
@@ -57,7 +63,7 @@ final class FlightReportGoldenDataset {
                 "Towpilot Carl",
                 LocalDateTime.of(2026, 5, 15, 10, 0),
                 LocalDateTime.of(2026, 5, 16, 11, 0),
-                25 * 3600,
+                TOW_DURATION_SECONDS_BEYOND_24H_SO_THE_BRACKET_H_FORMAT_MATTERS,
                 "Birrfeld",
                 "Birrfeld",
                 "SLEP",
@@ -78,7 +84,7 @@ final class FlightReportGoldenDataset {
                 LocalDateTime.of(2026, 5, 15, 13, 45),
                 225 * 60,
                 true,
-                1,
+                LEGACY_START_TYPE_AEROTOW,
                 "Birrfeld",
                 "Schänis",
                 "Soloflug mit Schlepp",

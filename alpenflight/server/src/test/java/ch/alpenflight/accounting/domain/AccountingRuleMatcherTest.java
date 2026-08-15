@@ -14,13 +14,13 @@ class AccountingRuleMatcherTest {
 
     private static final AccountingRuleMatcher MATCHER = new AccountingRuleMatcher();
 
-    private static final List<MatchableCrew> ONE_PILOT =
+    private static final List<MatchableCrew> ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS =
             List.of(MatchableCrew.of("PILOT", "1234", null, List.of()));
 
     private static MatchableFlight gliderWithImmat(String immat) {
         return MatchableFlight.builder(FlightAircraftType.GLIDER)
                 .immatriculation(immat)
-                .crew(ONE_PILOT)
+                .crew(ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS)
                 .build();
     }
 
@@ -96,7 +96,7 @@ class AccountingRuleMatcherTest {
                     MatchList.empty(), MatchList.empty(), MatchList.empty(), MatchList.empty(), MatchList.empty(),
                     MatchList.empty(), MatchList.empty(), MatchList.empty(), MatchList.empty(), MatchList.empty(),
                     null, null);
-            MatchableFlight tow = MatchableFlight.builder(FlightAircraftType.TOW).crew(ONE_PILOT).build();
+            MatchableFlight tow = MatchableFlight.builder(FlightAircraftType.TOW).crew(ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS).build();
 
             assertThat(MATCHER.matches(tow, towingRule)).isTrue();
         }
@@ -137,7 +137,7 @@ class AccountingRuleMatcherTest {
             MatchableFlight glider = MatchableFlight.builder(FlightAircraftType.GLIDER)
                     .flightTypeCode("GLIDERCODE")
                     .towFlightTypeCode("TOWCODE")
-                    .crew(ONE_PILOT)
+                    .crew(ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS)
                     .build();
 
             assertThat(MATCHER.matches(glider, rule)).isFalse();
@@ -149,7 +149,7 @@ class AccountingRuleMatcherTest {
             MatchableFlight glider = MatchableFlight.builder(FlightAircraftType.GLIDER)
                     .flightTypeCode("GLIDERCODE")
                     .towFlightTypeCode("TOWCODE")
-                    .crew(ONE_PILOT)
+                    .crew(ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS)
                     .build();
 
             assertThat(MATCHER.matches(glider, rule)).isTrue();
@@ -161,7 +161,7 @@ class AccountingRuleMatcherTest {
             MatchableFlight tow = MatchableFlight.builder(FlightAircraftType.TOW)
                     .flightTypeCode("TOWCODE")
                     .towedFlightTypeCodes(List.of("GLIDERCODE"))
-                    .crew(ONE_PILOT)
+                    .crew(ONE_PILOT_SO_THE_FLIGHT_IS_NEVER_CREWLESS)
                     .build();
 
             assertThat(MATCHER.matches(tow, rule)).isTrue();

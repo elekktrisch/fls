@@ -19,6 +19,9 @@ final class FlightsTestFixtures {
     private static final AtomicInteger IMMAT_COUNTER = new AtomicInteger(0);
     private static final AtomicInteger AIRCRAFT_COUNTER = new AtomicInteger(0);
 
+    private static final String TEST_FIXTURE_AIRCRAFT_ID_PREFIX = "019e2e15-2c00-7e15-8000-";
+    private static final long TEST_FIXTURE_ID_SLOT_BASE = 0xff_0000_0000L;
+
     private FlightsTestFixtures() {}
 
     static String uniqueImmatriculation() {
@@ -75,11 +78,16 @@ final class FlightsTestFixtures {
         if (flightDateIso != null) {
             body.put("flightDate", flightDateIso);
         }
+        putBooleanFlagsThatJacksonRejectsAsNullBecauseTheDtoFieldsArePrimitive(body);
+        body.put("crew", new ArrayList<>());
+        return body;
+    }
+
+    private static void putBooleanFlagsThatJacksonRejectsAsNullBecauseTheDtoFieldsArePrimitive(
+            Map<String, Object> body) {
         body.put("isSoloFlight", false);
         body.put("noStartTimeInformation", false);
         body.put("noLdgTimeInformation", false);
-        body.put("crew", new ArrayList<>());
-        return body;
     }
 
     static Map<String, Object> crewItem(String personIdExternal, String crewTypeId) {
@@ -104,7 +112,7 @@ final class FlightsTestFixtures {
 
     private static UUID newAircraftId() {
         int n = AIRCRAFT_COUNTER.incrementAndGet();
-        String suffix = String.format("%012x", 0xff_0000_0000L + n);
-        return UUID.fromString("019e2e15-2c00-7e15-8000-" + suffix);
+        String perProcessUniqueSlot = String.format("%012x", TEST_FIXTURE_ID_SLOT_BASE + n);
+        return UUID.fromString(TEST_FIXTURE_AIRCRAFT_ID_PREFIX + perProcessUniqueSlot);
     }
 }

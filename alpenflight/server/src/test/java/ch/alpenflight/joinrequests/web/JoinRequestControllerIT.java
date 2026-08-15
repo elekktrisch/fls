@@ -155,6 +155,8 @@ class JoinRequestControllerIT extends PostgresIntegrationTest {
         submit(token, codeA, "hi");
         JsonNode body = readJson(get(token, "/api/v1/me/join-request"));
         assertThat(body.get("clubName").asText())
+                .as("the tenant-less pilot reads the club's public display off the request they "
+                        + "own — there is no cross-tenant club endpoint")
                 .isEqualTo(clubs.findActiveById(clubA).orElseThrow().getClubname());
         assertThat(body.get("city").asText()).isEqualTo("Zurich");
         assertThat(body.get("logoUrl").asText()).isEqualTo("https://example.com/clubA-logo.png");

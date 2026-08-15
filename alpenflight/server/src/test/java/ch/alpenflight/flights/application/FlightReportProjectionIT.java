@@ -164,7 +164,9 @@ class FlightReportProjectionIT extends PostgresIntegrationTest {
 
         FlightReportRow row = rowOf(flightId);
         assertThat(row.getPilotName()).isEqualTo("Neu Nina");
-        assertThat(row.getSecondCrewName()).isEqualTo("Lehrer Ida");
+        assertThat(row.getSecondCrewName())
+                .as("the instructor outranks the passenger for the single second-crew slot")
+                .isEqualTo("Lehrer Ida");
         assertThat(row.getCrew()).hasSize(3);
     }
 

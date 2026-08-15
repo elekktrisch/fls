@@ -139,18 +139,25 @@ class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(clubA, () ->
                 id.set(service.create(articleRequest(uniqueName())).id()));
 
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT action, after_state FROM t_mutation_audit_event "
-                        + "WHERE tenant_club_id = ?::uuid AND target_entity_id = ?::uuid "
-                        + "AND target_entity_type = 'AccountingRuleFilter'",
-                clubA.toString(), id.get().toString());
+        List<Map<String, Object>> rows = auditRowsViaJdbcBypassingTheTenantFilter(clubA, id.get());
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("action")).isEqualTo("CREATE");
         String after = String.valueOf(rows.get(0).get("after_state"));
-        assertThat(after).contains("[redacted]");
+        assertThat(after)
+                .as("the PII-bearing filter_config is redacted while the non-PII rule name survives")
+                .contains("[redacted]");
         assertThat(after).doesNotContain("Landing fee line");
         assertThat(after).contains("ruleFilterName");
+    }
+
+    private List<Map<String, Object>> auditRowsViaJdbcBypassingTheTenantFilter(
+            UUID tenantClubId, UUID targetEntityId) {
+        return jdbc.queryForList(
+                "SELECT action, after_state FROM t_mutation_audit_event "
+                        + "WHERE tenant_club_id = ?::uuid AND target_entity_id = ?::uuid "
+                        + "AND target_entity_type = 'AccountingRuleFilter'",
+                tenantClubId.toString(), targetEntityId.toString());
     }
 
 

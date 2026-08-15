@@ -36,6 +36,7 @@ class MePersonControllerIT extends PostgresIntegrationTest {
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID LANG_DE_UUID =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
+    private static final String TEARDOWN_MARKER_COMPANY_NAME = "MePersonIT";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -44,7 +45,7 @@ class MePersonControllerIT extends PostgresIntegrationTest {
     @BeforeEach
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'meperson-it-%'");
-        jdbc.update("DELETE FROM t_person WHERE company_name = 'MePersonIT'");
+        jdbc.update("DELETE FROM t_person WHERE company_name = ?", TEARDOWN_MARKER_COMPANY_NAME);
     }
 
     @Test
@@ -71,7 +72,9 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("emailPrivate").asText()).isEqualTo("ada@example.com");
         assertThat(body.get("preferMailToBusinessMail").asBoolean()).isTrue();
         assertThat(body.get("birthday").asText()).isEqualTo("1815-12-10");
-        assertThat(body.get("firstName").asText()).isEqualTo("Ada");
+        assertThat(body.get("firstName").asText())
+                .as("read-only name fields ride along for display")
+                .isEqualTo("Ada");
         assertThat(body.get("lastName").asText()).isEqualTo("Lovelace");
         assertThat(body.get("midName").asText()).isEqualTo("M");
     }
@@ -88,7 +91,9 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         seedUser(subB, "meperson-it-get-other", personB);
 
         JsonNode body = parse(get("/api/v1/me/person", pilotToken(subA)).getBody());
-        assertThat(body.get("firstName").asText()).isEqualTo("Ada");
+        assertThat(body.get("firstName").asText())
+                .as("A reads A's own contact — B's is unreachable through this surface")
+                .isEqualTo("Ada");
         assertThat(body.get("city").asText()).isEqualTo("A-City");
     }
 
@@ -136,7 +141,9 @@ class MePersonControllerIT extends PostgresIntegrationTest {
         assertThat(row.get("email_business")).isEqualTo("ada.biz@example.com");
         assertThat(row.get("prefer_mail_to_business_mail")).isEqualTo(true);
 
-        assertThat(row.get("firstname")).isEqualTo("Ada");
+        assertThat(row.get("firstname"))
+                .as("name fields are admin-only — the self-edit must leave them untouched")
+                .isEqualTo("Ada");
         assertThat(row.get("lastname")).isEqualTo("Lovelace");
         assertThat(row.get("midname")).isEqualTo("M");
     }
@@ -178,8 +185,9 @@ class MePersonControllerIT extends PostgresIntegrationTest {
     private UUID seedPerson(String firstname, String lastname, String midname) {
         UUID personId = UUID.randomUUID();
         jdbc.update("INSERT INTO t_person (id, firstname, lastname, midname, company_name) "
-                        + "VALUES (?::uuid, ?, ?, ?, 'MePersonIT')",
-                personId.toString(), firstname, lastname, midname);
+                        + "VALUES (?::uuid, ?, ?, ?, ?)",
+                personId.toString(), firstname, lastname, midname,
+                TEARDOWN_MARKER_COMPANY_NAME);
         return personId;
     }
 

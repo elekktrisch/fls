@@ -33,14 +33,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(FlightTimeGateIT.FixedClockConfig.class)
 class FlightTimeGateIT extends PostgresIntegrationTest {
 
+    private static final LocalDate FIXED_TODAY = LocalDate.of(2026, 1, 1);
+    private static final Instant FIXED_NOW =
+            FIXED_TODAY.atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant();
+    private static final int LOCK_GATE_DAYS_BEFORE_TODAY = 2;
+
     @TestConfiguration
     static class FixedClockConfig {
         @Bean
         @Primary
         Clock fixedClock() {
-            return Clock.fixed(
-                    LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant(),
-                    ZoneOffset.UTC);
+            return Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
         }
     }
 
@@ -66,8 +69,8 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void too_recent_flight_cannot_lock() {
-        FlightId id = seedValidFlight(LocalDate.of(2025, 12, 31));
+    void flight_one_day_short_of_the_lock_gate_cannot_lock() {
+        FlightId id = seedValidFlight(FIXED_TODAY.minusDays(LOCK_GATE_DAYS_BEFORE_TODAY - 1));
         TenantTestContext.runAs(club, () -> {
             assertThatThrownBy(() ->
                     stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB))
@@ -78,13 +81,15 @@ class FlightTimeGateIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void past_threshold_flight_locks_and_stamps_locked_at() {
-        FlightId id = seedValidFlight(LocalDate.of(2025, 12, 30));
+    void flight_exactly_on_the_lock_gate_boundary_locks_and_stamps_locked_at() {
+        FlightId id = seedValidFlight(FIXED_TODAY.minusDays(LOCK_GATE_DAYS_BEFORE_TODAY));
         TenantTestContext.runAs(club, () ->
                 stateService.transition(id, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB));
         assertThat(processStateOf(id.value())).isEqualTo(FlightProcessState.LOCKED.id());
         Instant lockedAt = lockedAtOf(id.value());
-        assertThat(lockedAt).isEqualTo(Instant.parse("2026-01-01T12:00:00Z"));
+        assertThat(lockedAt)
+                .as("locked_at is stamped from the fixed clock")
+                .isEqualTo(FIXED_NOW);
     }
 
     private FlightId seedValidFlight(LocalDate flightDate) {

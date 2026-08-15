@@ -103,9 +103,13 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         assertThat(detail.get("description").asText()).isEqualTo("daily tuning tool");
         assertThat(detail.get("mustNotCreateDeliveryForFlight").asBoolean()).isTrue();
         assertThat(detail.get("ignoreItemText").asBoolean()).isTrue();
-        assertThat(detail.get("expectedDelivery").get("items").size()).isZero();
+        assertThat(detail.get("expectedDelivery").get("items").size())
+                .as("a brand-new harness has captured no expected set yet")
+                .isZero();
         JsonNode runOn = detail.path("lastTestRunOn");
-        assertThat(runOn.isMissingNode() || runOn.isNull()).isTrue();
+        assertThat(runOn.isMissingNode() || runOn.isNull())
+                .as("a brand-new harness has never run")
+                .isTrue();
     }
 
     @Test
@@ -153,7 +157,9 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         String id = readJson(created).get("id").asText();
 
         ResponseEntity<String> res = get(BASE + "/" + id, adminB);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getStatusCode())
+                .as("the @TenantId discriminator makes club A's harness invisible, not forbidden")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -170,7 +176,10 @@ class DeliveryCreationTestsControllerIT extends PostgresIntegrationTest {
         body.put("flightId", FlightId.of(flightA).toExternal());
         body.put("testName", "No-flags harness");
         ResponseEntity<String> created = post(BASE, body, adminA);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getStatusCode())
+                .as("every optional flag is @Nullable Boolean, so the toggles the SPA never sends "
+                        + "deserialise instead of tripping Jackson's FAIL_ON_NULL_FOR_PRIMITIVES")
+                .isEqualTo(HttpStatus.CREATED);
 
         String id = readJson(created).get("id").asText();
         ResponseEntity<String> got = get(BASE + "/" + id, adminA);

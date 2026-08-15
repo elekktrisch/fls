@@ -83,7 +83,9 @@ class FlightTypeDuplicateCodeIT extends PostgresIntegrationTest {
 
         Map<String, Object> keepOwn = updatePayload(nameB);
         keepOwn.put("flightCode", "C2");
-        assertThat(put(idB, keepOwn).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(put(idB, keepOwn).getStatusCode())
+                .as("self-exclusion: re-saving a row with its own code is not a conflict")
+                .isEqualTo(HttpStatus.OK);
 
         Map<String, Object> takeOther = updatePayload(nameB);
         takeOther.put("flightCode", "C1");

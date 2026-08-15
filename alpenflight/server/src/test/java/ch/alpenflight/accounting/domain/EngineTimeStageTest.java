@@ -26,7 +26,7 @@ class EngineTimeStageTest {
                 .build();
     }
 
-    private static RuleFilterInput tier(
+    private static RuleFilterInput motorTierBilledInMinutes(
             String article, @Nullable Integer min, @Nullable Integer max) {
         FilterConfig base = FilterConfig.empty();
         FilterConfig config = new FilterConfig(
@@ -46,8 +46,8 @@ class EngineTimeStageTest {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
         STAGE.run(acc, motor(), 1500, List.of(
-                tier("UPPER", 600, null),
-                tier("LOWER", 0, 600)));
+                motorTierBilledInMinutes("UPPER", 600, null),
+                motorTierBilledInMinutes("LOWER", 0, 600)));
 
         List<DeliveryItemDetails> items = acc.deliveryItems();
         assertThat(items).hasSize(2);
@@ -66,7 +66,7 @@ class EngineTimeStageTest {
     void zeroEngineTimeEmitsNoItems() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, motor(), 0, List.of(tier("ANY", 0, null)));
+        STAGE.run(acc, motor(), 0, List.of(motorTierBilledInMinutes("ANY", 0, null)));
 
         assertThat(acc.deliveryItems()).isEmpty();
     }
@@ -75,7 +75,7 @@ class EngineTimeStageTest {
     void tierGapLeavesRemainderSilentlyUnbilled() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, motor(), 1500, List.of(tier("MID", 600, 1200)));
+        STAGE.run(acc, motor(), 1500, List.of(motorTierBilledInMinutes("MID", 600, 1200)));
 
         assertThat(acc.deliveryItems()).isEmpty();
         assertThat(acc.getActiveEngineTimeInSeconds()).isEqualTo(1500);

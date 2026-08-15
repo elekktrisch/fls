@@ -21,7 +21,7 @@ import java.util.Set;
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class ReservationExclusivityBypassAllowlistTest {
 
-    private static final Set<String> ALLOWED_CALLERS = Set.of(
+    private static final Set<String> ALLOWED_CALLER_FQNS = Set.of(
             "ch.alpenflight.reservations.application.AircraftReservationsService",
             "ch.alpenflight.publicregistration.application.DiscoveryReservationBooker");
 
@@ -31,11 +31,12 @@ class ReservationExclusivityBypassAllowlistTest {
     static final ArchRule only_allowlisted_callers_create_or_save_a_reservation =
             noClasses()
                     .that(describe("are not on the reservation-bypass allow-list",
-                            (JavaClass c) -> !ALLOWED_CALLERS.contains(c.getFullName())))
+                            (JavaClass c) -> !ALLOWED_CALLER_FQNS.contains(c.getFullName())))
                     .should().callCodeUnitWhere(mintsOrPersistsAReservation())
                     .as("Creating or persisting an AircraftReservation outside "
-                            + "AircraftReservationsService skips the exclusivity probe — only "
-                            + "allow-listed FQNs may, see the class javadoc.");
+                            + "AircraftReservationsService skips the exclusivity probe that "
+                            + "answers 409 for an overlapping booking. Allow-listing a new FQN "
+                            + "asserts that caller's bookings are genuinely non-exclusive.");
 
     private static DescribedPredicate<JavaCall<?>> mintsOrPersistsAReservation() {
         return describe("mint or persist an AircraftReservation",
@@ -43,8 +44,11 @@ class ReservationExclusivityBypassAllowlistTest {
     }
 
     private static boolean mints(JavaCall<?> call) {
-        if (!call.getTargetOwner().isEquivalentTo(AircraftReservation.class)
-                || call.getOriginOwner().isEquivalentTo(AircraftReservation.class)) {
+        boolean targetsTheAggregate =
+                call.getTargetOwner().isEquivalentTo(AircraftReservation.class);
+        boolean originIsTheAggregateCallingItsOwnConstructor =
+                call.getOriginOwner().isEquivalentTo(AircraftReservation.class);
+        if (!targetsTheAggregate || originIsTheAggregateCallingItsOwnConstructor) {
             return false;
         }
         String target = call.getTarget().getName();

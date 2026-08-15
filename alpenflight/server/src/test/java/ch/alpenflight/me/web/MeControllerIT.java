@@ -48,6 +48,10 @@ class MeControllerIT extends PostgresIntegrationTest {
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'me-it-%'");
         jdbc.update("DELETE FROM t_person WHERE firstname = 'MeIT'");
+        resetSharedSeedClubHomebaseSoTheHomebaseTestCannotLeakIntoTheOthers();
+    }
+
+    private void resetSharedSeedClubHomebaseSoTheHomebaseTestCannotLeakIntoTheOthers() {
         jdbc.update("UPDATE t_club SET homebase_id = NULL WHERE id = ?::uuid",
                 CLUB_UUID.toString());
     }
@@ -122,7 +126,10 @@ class MeControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> res = get("/api/v1/me", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode roles = readJson(res).get("roles");
-        assertThat(roles).hasSize(1);
+        assertThat(roles)
+                .as("Keycloak's realm-wide built-ins are stripped, so SPA consumers couple only "
+                        + "to AlpenFlight's own role vocabulary")
+                .hasSize(1);
         assertThat(roles.get(0).asText()).isEqualTo("CLUB_ADMINISTRATOR");
     }
 

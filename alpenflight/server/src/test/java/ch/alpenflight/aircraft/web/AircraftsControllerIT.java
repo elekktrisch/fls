@@ -99,7 +99,10 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     void registerAircraft_lowercaseImmatriculation_isUppercased() {
         String imm = "hb-x999";
         ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm));
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(res.getStatusCode())
+                .as("the immatriculation pattern is case-insensitive, so lowercase is accepted "
+                        + "and normalised by the value object, not rejected")
+                .isEqualTo(HttpStatus.CREATED);
         assertThat(readJson(res).get("immatriculation").asText()).isEqualTo("HB-X999");
     }
 
@@ -281,7 +284,8 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         assertThat(openCount).as("exactly one open state").isEqualTo(1);
         assertThat(closedEntry).as("exactly one closed state").isNotNull();
         assertThat(closedEntry.get("validTo").asText())
-                .as("closed state's validTo equals the new state's validFrom")
+                .as("the periods are contiguous — no gap, no overlap: the closed state's validTo "
+                        + "equals the new state's validFrom")
                 .isEqualTo("2026-02-01T08:00:00Z");
     }
 

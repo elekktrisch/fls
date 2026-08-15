@@ -68,7 +68,9 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
             Integer matches = jdbc.queryForObject(
                     "SELECT count(*) FROM t_location WHERE id = ?::uuid AND club_id = ?::uuid",
                     Integer.class, aRow.id().value().toString(), clubA.toString());
-            assertThat(matches).isEqualTo(1);
+            assertThat(matches)
+                    .as("the persisted row carries A's club_id — not B's, not the nil sentinel")
+                    .isEqualTo(1);
         });
     }
 

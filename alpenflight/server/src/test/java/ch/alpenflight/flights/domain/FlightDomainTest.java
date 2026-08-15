@@ -63,9 +63,9 @@ class FlightDomainTest {
         Flight glider = Flight.createGlider(AIRCRAFT_A, PROCESS_STATE_NEW, ops());
         UUID id = UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb");
         setField(glider, "id", id);
-        Flight twin = Flight.createTow(AIRCRAFT_A, PROCESS_STATE_NEW, ops());
-        setField(twin, "id", id);
-        assertThatThrownBy(() -> glider.linkTow(twin))
+        Flight towWithTheSameIdAsTheGlider = Flight.createTow(AIRCRAFT_A, PROCESS_STATE_NEW, ops());
+        setField(towWithTheSameIdAsTheGlider, "id", id);
+        assertThatThrownBy(() -> glider.linkTow(towWithTheSameIdAsTheGlider))
                 .isInstanceOf(InvalidTowLinkException.class)
                 .hasMessageContaining("may not link itself");
     }

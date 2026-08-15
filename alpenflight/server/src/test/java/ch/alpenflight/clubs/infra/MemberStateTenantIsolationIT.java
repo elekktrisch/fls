@@ -20,7 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_MSTI_";
-    private static final String TEST_KEY_PREFIX = "IT_M_";
+    private static final String CLUB_KEY_PREFIX_KEPT_SHORT_FOR_VARCHAR10 = "IT_M_";
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -42,8 +42,9 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        TwoClubFixture fixture =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        TwoClubFixture fixture = new TwoClubFixture(
+                jdbc, clubs, countries, clubStates,
+                TEST_NAME_PREFIX, CLUB_KEY_PREFIX_KEPT_SHORT_FOR_VARCHAR10);
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();

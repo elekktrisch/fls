@@ -108,7 +108,10 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         ResponseEntity<String> recreated = post("/api/v1/articles", createPayload(number));
-        assertThat(recreated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(recreated.getStatusCode())
+                .as("the partial UNIQUE excludes soft-deleted rows, so a retired number "
+                        + "can be re-issued")
+                .isEqualTo(HttpStatus.CREATED);
     }
 
     @Test
@@ -138,7 +141,9 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         JsonNode fullList = readJson(get("/api/v1/articles?includeInactive=true"));
-        assertThat(toNumbers(fullList)).doesNotContain(number);
+        assertThat(toNumbers(fullList))
+                .as("includeInactive surfaces is_active=false rows but never soft-deleted ones")
+                .doesNotContain(number);
     }
 
     @Test
@@ -157,7 +162,7 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerArticle_missingIsActive_returns_400() {
+    void registerArticle_missingIsActive_returns_400_rather_than_inserting_inactive_by_default() {
         Map<String, Object> body = createPayload(uniqueNumber());
         body.remove("isActive");
         ResponseEntity<String> res = post("/api/v1/articles", body);

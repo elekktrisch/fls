@@ -8,7 +8,7 @@ public final class NullDereferenceDemo {
         return null;
     }
 
-    public static int demo() {
+    public static int dereferencesNullSoThisSourceSetMustNotCompile() {
         String s = alwaysReturnsNull();
         return s.length();
     }

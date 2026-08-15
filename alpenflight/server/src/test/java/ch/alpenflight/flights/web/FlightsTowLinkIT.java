@@ -142,6 +142,7 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         JsonNode detail = readJson(get("/api/v1/flights/" + gliderId, tokenA));
         assertThat(detail.get("towFlightId").asText()).isEqualTo(tow2);
         assertThat(get("/api/v1/flights/" + tow1, tokenA).getStatusCode())
+                .as("Re-link leaves the previous tow row alive — no auto-cleanup (legacy parity)")
                 .isEqualTo(HttpStatus.OK);
     }
 

@@ -142,7 +142,9 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         Integer users = jdbc.queryForObject(
                 "SELECT count(*) FROM t_user WHERE keycloak_sub = ?::uuid", Integer.class, sub.toString());
-        assertThat(users).isZero();
+        assertThat(users)
+                .as("no t_user materialized — the cross-tenant person link aborted the transaction")
+                .isZero();
     }
 
 
@@ -165,7 +167,7 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
 
 
     @Test
-    void approve_dbFailsAfterKcWrite_leavesNoHalfJoin_andRequestStaysPending() {
+    void approve_whenKcGrantThrowsAfterTheAttributeWrite_strandsNothing_andStaysPending() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
 
@@ -213,7 +215,7 @@ class JoinRequestApprovalIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void approve_forbiddenRole_is_403() {
+    void approve_grantingSystemAdministrator_is_403_beforeAnyExternalWrite() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String reqId = filePending(sub, codeA);
 

@@ -33,6 +33,7 @@ class FlightCostBalanceTypesControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-000000000001";
+    private static final String SYSADMIN_HAS_NO_CLUB_ID_CLAIM = null;
 
     @Autowired TestRestTemplate rest;
     @Autowired JwtTestFixture jwts;
@@ -51,7 +52,8 @@ class FlightCostBalanceTypesControllerIT extends PostgresIntegrationTest {
 
     @ParameterizedTest(name = "{0} reads FCBT catalogue")
     @MethodSource("roleMatrix")
-    void any_authenticated_role_can_read(String role, String clubId) {
+    void any_authenticated_role_reads_the_cross_tenant_catalogue_even_without_a_clubId_claim(
+            String role, String clubId) {
         String token = mintToken(clubId, role);
         ResponseEntity<String> res = get("/api/v1/flight-cost-balance-types", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -62,7 +64,7 @@ class FlightCostBalanceTypesControllerIT extends PostgresIntegrationTest {
                 Arguments.of("CLUB_ADMINISTRATOR", CLUB_A),
                 Arguments.of("FLIGHT_OPERATOR", CLUB_A),
                 Arguments.of("OFFICE_USER", CLUB_A),
-                Arguments.of("SYSTEM_ADMINISTRATOR", null)
+                Arguments.of("SYSTEM_ADMINISTRATOR", SYSADMIN_HAS_NO_CLUB_ID_CLAIM)
         );
     }
 

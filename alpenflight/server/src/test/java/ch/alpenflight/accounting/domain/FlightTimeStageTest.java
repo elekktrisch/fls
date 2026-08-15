@@ -31,12 +31,12 @@ class FlightTimeStageTest {
                 .build();
     }
 
-    private static RuleFilterInput tier(
+    private static RuleFilterInput gliderTierBilledInMinutes(
             String article, @Nullable Integer min, @Nullable Integer max) {
-        return tier(article, min, max, AccountingUnitType.MIN);
+        return gliderTier(article, min, max, AccountingUnitType.MIN);
     }
 
-    private static RuleFilterInput tier(
+    private static RuleFilterInput gliderTier(
             String article, @Nullable Integer min, @Nullable Integer max, AccountingUnitType unit) {
         FilterConfig base = FilterConfig.empty();
         FilterConfig config = new FilterConfig(
@@ -71,8 +71,8 @@ class FlightTimeStageTest {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
         STAGE.run(acc, glider(), 1500, List.of(
-                tier("UPPER", 600, null),
-                tier("LOWER", 0, 600)));
+                gliderTierBilledInMinutes("UPPER", 600, null),
+                gliderTierBilledInMinutes("LOWER", 0, 600)));
 
         List<DeliveryItemDetails> items = acc.deliveryItems();
         assertThat(items).hasSize(2);
@@ -91,7 +91,7 @@ class FlightTimeStageTest {
     void zeroFlightTimeEmitsNoItems() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 0, List.of(tier("ANY", 0, null)));
+        STAGE.run(acc, glider(), 0, List.of(gliderTierBilledInMinutes("ANY", 0, null)));
 
         assertThat(acc.deliveryItems()).isEmpty();
     }
@@ -100,14 +100,14 @@ class FlightTimeStageTest {
     void tierGapLeavesRemainderSilentlyUnbilled() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1500, List.of(tier("MID", 600, 1200)));
+        STAGE.run(acc, glider(), 1500, List.of(gliderTierBilledInMinutes("MID", 600, 1200)));
 
         assertThat(acc.deliveryItems()).isEmpty();
         assertThat(acc.getActiveFlightTimeInSeconds()).isEqualTo(1500);
     }
 
-    private static List<RuleFilterInput> oneSecTier() {
-        return List.of(tier("FT", 0, null, AccountingUnitType.SEC));
+    private static List<RuleFilterInput> secondsUnitTierSoQuantityEqualsCreditedSeconds() {
+        return List.of(gliderTier("FT", 0, null, AccountingUnitType.SEC));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -124,7 +124,7 @@ class FlightTimeStageTest {
             int firstQty, int firstDiscount, int remainderQty, int remainderDiscount) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(),
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(),
                 List.of(credit(exceptListed, IMMAT, discount, unlimited, balance)));
 
         var items = acc.deliveryItems();
@@ -151,7 +151,7 @@ class FlightTimeStageTest {
             long balance, int firstQty, int firstDiscount, int remainderQty, int remainderDiscount) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 900, List.of(tier("FT", 600, null, AccountingUnitType.SEC)),
+        STAGE.run(acc, glider(), 900, List.of(gliderTier("FT", 600, null, AccountingUnitType.SEC)),
                 List.of(credit(false, IMMAT, firstDiscount, false, balance)));
 
         var items = acc.deliveryItems();
@@ -162,7 +162,10 @@ class FlightTimeStageTest {
             assertThat(items.get(1).quantity()).isEqualByComparingTo(BigDecimal.valueOf(remainderQty));
             assertThat(items.get(1).discountInPercent()).isEqualTo(remainderDiscount);
         } else {
-            assertThat(items).hasSize(1);
+            assertThat(items)
+                    .as("a balance covering the whole billed slice yields one credited line: "
+                            + "no remainder line, no negative-quantity line")
+                    .hasSize(1);
         }
     }
 
@@ -179,7 +182,7 @@ class FlightTimeStageTest {
             boolean exceptListed, @Nullable String matchedImmats, boolean applies) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(),
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(),
                 List.of(credit(exceptListed, matchedImmats, 20, false, 5_000L)));
 
         assertThat(acc.deliveryItems().getFirst().discountInPercent())
@@ -204,7 +207,7 @@ class FlightTimeStageTest {
             default -> List.of();
         };
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(), credits);
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(), credits);
 
         assertThat(acc.deliveryItems()).hasSize(1);
         assertThat(acc.deliveryItems().getFirst().discountInPercent()).isEqualTo(expectedDiscount);

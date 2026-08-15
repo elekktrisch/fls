@@ -6,5 +6,5 @@ public class JacksonLeak {
 
     @SuppressWarnings("unused")
     @JsonProperty("name")
-    private String name = "";
+    private String fieldCarryingTheJacksonAnnotationTheArchRuleScansFor = "";
 }

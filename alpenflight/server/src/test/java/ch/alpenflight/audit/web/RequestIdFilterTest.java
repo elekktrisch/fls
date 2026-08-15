@@ -11,6 +11,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 class RequestIdFilterTest {
 
+    private static final int CANONICAL_UUID_V7_STRING_LENGTH = 36;
+
     private final RequestIdFilter filter = new RequestIdFilter();
 
     @AfterEach
@@ -29,7 +31,7 @@ class RequestIdFilterTest {
 
         assertThat(capturedMdc[0]).isNotNull();
         assertThat(res.getHeader(RequestIdFilter.HEADER)).isEqualTo(capturedMdc[0]);
-        assertThat(capturedMdc[0]).hasSize(36).matches("^[0-9a-f-]+$");
+        assertThat(capturedMdc[0]).hasSize(CANONICAL_UUID_V7_STRING_LENGTH).matches("^[0-9a-f-]+$");
     }
 
     @Test
@@ -57,7 +59,7 @@ class RequestIdFilterTest {
                 capturedMdc[0] = MDC.get(RequestIdFilter.MDC_KEY));
 
         assertThat(capturedMdc[0]).isNotEqualTo("corr\r\nInjected-Header: bad");
-        assertThat(capturedMdc[0]).hasSize(36);
+        assertThat(capturedMdc[0]).hasSize(CANONICAL_UUID_V7_STRING_LENGTH);
     }
 
     @Test
@@ -70,7 +72,7 @@ class RequestIdFilterTest {
         filter.doFilter(req, res, (request, response) ->
                 capturedMdc[0] = MDC.get(RequestIdFilter.MDC_KEY));
 
-        assertThat(capturedMdc[0]).hasSize(36);
+        assertThat(capturedMdc[0]).hasSize(CANONICAL_UUID_V7_STRING_LENGTH);
     }
 
     @Test

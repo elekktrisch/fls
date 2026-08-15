@@ -15,7 +15,8 @@ import org.springframework.test.context.DynamicPropertySource;
 class ApplicationContextTest {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void datasourceAndFlywayPropsSinceBaseFlywayTargetsTheMigratorRole(
+            DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);

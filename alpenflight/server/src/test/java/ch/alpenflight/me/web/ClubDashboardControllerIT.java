@@ -39,11 +39,14 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final UUID INVALID = UUID.fromString("019e2e15-2c00-7a99-8000-000000003a99");
-    private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
+    private static final UUID PROCESS_STATE_INVALID =
+            UUID.fromString("019e2e15-2c00-7a99-8000-000000003a99");
+    private static final UUID PROCESS_STATE_VALID =
+            UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
+    private static final UUID AS_CREATED_NOT_PROCESSED = null;
 
-    private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
-    private static final LocalDate PAST = TODAY.minusDays(30);
+    private static final LocalDate TODAY_UTC = LocalDate.now(ZoneOffset.UTC);
+    private static final LocalDate THIRTY_DAYS_AGO = TODAY_UTC.minusDays(30);
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -72,15 +75,15 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
         String adminA = adminToken(clubA);
         String aircraftB = "ac-" + seedAircraft(clubB);
 
-        createFlight(adminA, aircraftAExternal, TODAY, null);
-        createFlight(adminA, aircraftAExternal, TODAY, null);
-        createFlight(adminA, aircraftAExternal, TODAY, VALID);
-        createFlight(adminA, aircraftAExternal, PAST, INVALID);
-        createFlight(adminA, aircraftAExternal, PAST, VALID);
+        createFlight(adminA, aircraftAExternal, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
+        createFlight(adminA, aircraftAExternal, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
+        createFlight(adminA, aircraftAExternal, TODAY_UTC, PROCESS_STATE_VALID);
+        createFlight(adminA, aircraftAExternal, THIRTY_DAYS_AGO, PROCESS_STATE_INVALID);
+        createFlight(adminA, aircraftAExternal, THIRTY_DAYS_AGO, PROCESS_STATE_VALID);
 
         String adminB = adminToken(clubB);
-        createFlight(adminB, aircraftB, TODAY, null);
-        createFlight(adminB, aircraftB, PAST, INVALID);
+        createFlight(adminB, aircraftB, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
+        createFlight(adminB, aircraftB, THIRTY_DAYS_AGO, PROCESS_STATE_INVALID);
 
         JsonNode body = get("/api/v1/me/club-dashboard", adminA);
         assertThat(body.get("todaysFlights").asLong())
@@ -94,12 +97,12 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     @Test
     void counts_are_tenant_isolated_clubB_sees_only_its_own() {
         String adminA = adminToken(clubA);
-        createFlight(adminA, aircraftAExternal, TODAY, null);
-        createFlight(adminA, aircraftAExternal, TODAY, null);
+        createFlight(adminA, aircraftAExternal, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
+        createFlight(adminA, aircraftAExternal, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
 
         String aircraftB = "ac-" + seedAircraft(clubB);
         String adminB = adminToken(clubB);
-        createFlight(adminB, aircraftB, TODAY, null);
+        createFlight(adminB, aircraftB, TODAY_UTC, AS_CREATED_NOT_PROCESSED);
 
         JsonNode body = get("/api/v1/me/club-dashboard", adminB);
         assertThat(body.get("todaysFlights").asLong())
@@ -126,7 +129,7 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
     }
 
     private void createFlight(String token, String aircraftExternal, LocalDate date,
-                              UUID targetState) {
+                              UUID processStateToForceViaJdbc) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("flightAircraftType", "GLIDER");
         body.put("aircraftId", aircraftExternal);
@@ -137,11 +140,11 @@ class ClubDashboardControllerIT extends PostgresIntegrationTest {
         body.put("crew", List.of());
         ResponseEntity<String> res = post("/api/v1/flights", body, token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        if (targetState != null) {
+        if (processStateToForceViaJdbc != null) {
             String idExternal = readJson(res).get("id").asText();
             UUID flightUuid = UUID.fromString(idExternal.substring("fl-".length()));
             jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
-                    targetState.toString(), flightUuid.toString());
+                    processStateToForceViaJdbc.toString(), flightUuid.toString());
         }
     }
 

@@ -14,7 +14,7 @@ class MutationAuditEventLegacyMigratedReadBackIT extends PostgresIntegrationTest
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    void orphanActorRowSurfacesForensicQuadrupleWithNullActorUserId() {
+    void orphanActorRowRoundTripsThroughJdbcBecauseTenantIdCannotSurfaceNullTenantRows() {
         UUID rowId = UUID.fromString("019e30c3-2c00-71a7-8000-000000000186");
         UUID synthesisedOrphanActorId = UUID.fromString("019e30c3-2c00-71a7-8000-00000000018a");
         Instant occurredAt = Instant.parse("2024-06-15T08:30:00Z");

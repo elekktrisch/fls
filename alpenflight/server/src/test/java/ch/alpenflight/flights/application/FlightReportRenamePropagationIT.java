@@ -85,7 +85,9 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
             aircraftRepository.save(glider);
         });
 
-        assertThat(rowOf(gliderId).getTowImmatriculation()).isEqualTo("HB-NEW1");
+        assertThat(rowOf(gliderId).getTowImmatriculation())
+                .as("the glider row's denormalized tow block follows the tow's own rename")
+                .isEqualTo("HB-NEW1");
         assertThat(rowOf(towId).getImmatriculation()).isEqualTo("HB-NEW1");
         assertThat(rowOf(gliderId).getImmatriculation()).isEqualTo("HB-NEW2");
     }
@@ -161,21 +163,21 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void rename_doesNotDisturbOtherTenantsRows() {
-        UUID pilot = seedPerson("Geteilt", "Greta");
+    void renaming_a_person_both_clubs_fly_with_leaves_the_other_clubs_row_intact() {
+        UUID pilotFlyingForBothClubs = seedPerson("Geteilt", "Greta");
         UUID acA = seedAircraft(clubA);
         UUID locA = seedLocation(clubA, "BaseA");
         UUID typeA = seedFlightType(clubA, "TA", "TA");
         UUID flightA = seedGlider(clubA, acA, locA, typeA, WINCH_LAUNCH,
-                List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
+                List.of(crew(pilotFlyingForBothClubs, FlightCrewTypeIds.PILOT_OR_STUDENT)));
         UUID acB = seedAircraft(clubB);
         UUID locB = seedLocation(clubB, "BaseB");
         UUID typeB = seedFlightType(clubB, "TB", "TB");
         UUID flightB = seedGlider(clubB, acB, locB, typeB, WINCH_LAUNCH,
-                List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
+                List.of(crew(pilotFlyingForBothClubs, FlightCrewTypeIds.PILOT_OR_STUDENT)));
 
         TenantTestContext.runAs(clubA, () -> {
-            Person p = persons.findActiveById(pilot).orElseThrow();
+            Person p = persons.findActiveById(pilotFlyingForBothClubs).orElseThrow();
             p.rename("Greta", "Umbenannt", null, null);
             persons.save(p);
         });
@@ -183,7 +185,10 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
         assertThat(rowOf(flightA).getPilotName()).isEqualTo("Umbenannt Greta");
         FlightReportRow rowB = TenantTestContext.runAs(clubB,
                 () -> rows.findByFlightId(flightB).orElseThrow());
-        assertThat(rowB.getPilotName()).isEqualTo("Geteilt Greta");
+        assertThat(rowB.getPilotName())
+                .as("the crew-child lookup is not tenant-discriminated: club B's row must "
+                        + "survive untouched, not be deleted or rewritten")
+                .isEqualTo("Geteilt Greta");
     }
 
 

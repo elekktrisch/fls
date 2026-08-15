@@ -90,16 +90,18 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void findActivePage_ordersByBatchDescThenRecipientAsc() {
-        UUID highest = save(clubA, 30L, recipientNamed("Zulu"));
-        UUID middle = save(clubA, 20L, recipientNamed("Mike"));
-        UUID unbatchedAlpha = save(clubA, 0L, recipientNamed("Alpha"));
-        UUID unbatchedBravo = save(clubA, 0L, recipientNamed("Bravo"));
+        UUID highest = hydrateAndSaveReadOnlyDelivery(clubA, 30L, recipientNamed("Zulu"));
+        UUID middle = hydrateAndSaveReadOnlyDelivery(clubA, 20L, recipientNamed("Mike"));
+        UUID unbatchedAlpha = hydrateAndSaveReadOnlyDelivery(clubA, 0L, recipientNamed("Alpha"));
+        UUID unbatchedBravo = hydrateAndSaveReadOnlyDelivery(clubA, 0L, recipientNamed("Bravo"));
 
         TenantTestContext.runAs(clubA, () -> {
             assertThat(deliveries.countActive()).isEqualTo(4);
             assertThat(deliveries.findActivePage(PageRequest.of(0, 10)))
                     .extracting(Delivery::getId)
-                    .as("batch desc, then recipient lastname asc within a batch")
+                    .as("batch desc, then recipient lastname asc within a batch — the within-batch "
+                            + "ordering rides the batch_id=0 rows, the only ones ux_dlv_club_batch_partial "
+                            + "exempts from per-club batch uniqueness")
                     .containsExactly(highest, middle, unbatchedAlpha, unbatchedBravo);
 
             assertThat(deliveries.findActivePage(PageRequest.of(1, 2)))
@@ -112,7 +114,7 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void findActiveById_isTenantScoped() {
-        UUID bRow = save(clubB, 5L, recipientNamed("Bravo"));
+        UUID bRow = hydrateAndSaveReadOnlyDelivery(clubB, 5L, recipientNamed("Bravo"));
 
         TenantTestContext.runAs(clubA, () -> {
             assertThat(deliveries.findActiveById(bRow))
@@ -128,7 +130,8 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
         });
     }
 
-    private UUID save(UUID clubId, long batchId, DeliveryRecipient recipient) {
+    private UUID hydrateAndSaveReadOnlyDelivery(UUID clubId, long batchId,
+                                                DeliveryRecipient recipient) {
         return TenantTestContext.runAs(clubId, () -> {
             Delivery delivery = DeliveryTestHydrator.delivery(
                     DeliveryProcessState.PREPARED, null, batchId, recipient, List.of());

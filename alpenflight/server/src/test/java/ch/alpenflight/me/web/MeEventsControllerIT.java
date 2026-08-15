@@ -35,6 +35,8 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = "alpenflight.sse.heartbeat-interval-ms=300")
 class MeEventsControllerIT extends PostgresIntegrationTest {
 
+    private static final String SSE_COMMENT_LINE_PREFIX = ":";
+
     @LocalServerPort int port;
     @Autowired JwtTestFixture jwts;
     @Autowired MePrincipalEventBus eventBus;
@@ -63,7 +65,7 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
                     .as("SSE content type")
                     .startsWith(MediaType.TEXT_EVENT_STREAM_VALUE);
 
-            waitUntil(() -> {
+            retryUntil(() -> {
                 eventBus.publish(sub, "flight.created", Map.of("flightId", "f-1"));
                 return reader.lines().stream()
                         .anyMatch(l -> l.replace(" ", "").startsWith("event:flight.created"));
@@ -87,10 +89,11 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
         StreamReader reader = openStream(token);
         try {
             assertThat(reader.statusCode()).isEqualTo(200);
-            waitUntil(() -> reader.lines().stream().anyMatch(l -> l.startsWith(":")));
+            retryUntil(() -> reader.lines().stream()
+                    .anyMatch(l -> l.startsWith(SSE_COMMENT_LINE_PREFIX)));
             assertThat(reader.lines())
                     .as("heartbeat comment on an idle stream")
-                    .anyMatch(l -> l.startsWith(":"));
+                    .anyMatch(l -> l.startsWith(SSE_COMMENT_LINE_PREFIX));
         } finally {
             reader.cancel();
         }
@@ -108,10 +111,10 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
                 .isEqualTo(401);
     }
 
-    private static void waitUntil(BooleanSupplier condition) throws InterruptedException {
+    private static void retryUntil(BooleanSupplier attempt) throws InterruptedException {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
         while (Instant.now().isBefore(deadline)) {
-            if (condition.getAsBoolean()) {
+            if (attempt.getAsBoolean()) {
                 return;
             }
             Thread.sleep(50);
@@ -148,7 +151,7 @@ class MeEventsControllerIT extends PostgresIntegrationTest {
             this.pump = new Thread(() -> {
                 try {
                     response.body().forEach(received::add);
-                } catch (RuntimeException e) {
+                } catch (RuntimeException streamCancelledAtTeardown) {
                 }
             }, "sse-it-pump");
             this.pump.setDaemon(true);

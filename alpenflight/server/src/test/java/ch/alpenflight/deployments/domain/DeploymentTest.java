@@ -168,7 +168,7 @@ class DeploymentTest {
         return Stream.of(LifecycleState.values())
                 .filter(s -> s != LifecycleState.SANDBOX)
                 .flatMap(from -> Stream.of(LifecycleState.values())
-                        .filter(to -> to != LifecycleState.SANDBOX && to != LifecycleState.TRIAL)
+                        .filter(DeploymentTest::isReachableAsATransitionTarget)
                         .filter(to -> from != to)
                         .filter(to -> !LEGAL_PAIRS.contains(List.of(from, to)))
                         .map(to -> Arguments.of(from, to)));
@@ -176,8 +176,12 @@ class DeploymentTest {
 
     static Stream<Arguments> allTargets() {
         return Stream.of(LifecycleState.values())
-                .filter(s -> s != LifecycleState.SANDBOX && s != LifecycleState.TRIAL)
+                .filter(DeploymentTest::isReachableAsATransitionTarget)
                 .map(Arguments::of);
+    }
+
+    private static boolean isReachableAsATransitionTarget(LifecycleState state) {
+        return state != LifecycleState.SANDBOX && state != LifecycleState.TRIAL;
     }
 
     @Test

@@ -45,7 +45,7 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
-    void cleanOwnerPersonFixtures() {
+    void deleteUsersBeforePersonsBecauseUserHasPersonFk() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'aircraft-authz-it-%'");
         jdbc.update("DELETE FROM t_person WHERE firstname = 'AircraftAuthzIT'");
     }
@@ -101,14 +101,20 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         ResponseEntity<String> managerRead = get("/api/v1/aircraft/" + id, adminA);
         assertThat(managerRead.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode managerCounter = readJson(managerRead).get("latestCounter");
-        assertThat(managerCounter).isNotNull();
+        assertThat(managerCounter)
+                .as("managing-club caller sees the counter it books")
+                .isNotNull();
         assertThat(managerCounter.isNull()).isFalse();
 
         String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> foreignRead = get("/api/v1/aircraft/" + id, adminB);
-        assertThat(foreignRead.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(foreignRead.getStatusCode())
+                .as("reads stay cross-tenant: the foreign reader still gets the aircraft")
+                .isEqualTo(HttpStatus.OK);
         JsonNode foreignCounter = readJson(foreignRead).get("latestCounter");
-        assertThat(foreignCounter == null || foreignCounter.isNull()).isTrue();
+        assertThat(foreignCounter == null || foreignCounter.isNull())
+                .as("counter is redacted (absent or null) for any non-managing reader")
+                .isTrue();
     }
 
     @Test
@@ -126,7 +132,8 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         seedUserLinkedToPerson(ownerSub, UUID.fromString(CLUB_B), personId);
         setAircraftOwnerPerson(aircraftId, personId);
 
-        String ownerToken = mintJitReady(ownerSub, CLUB_B, "CLUB_ADMINISTRATOR");
+        String ownerToken = mintTokenWhoseSubjectResolvesToUser(
+                ownerSub, CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
                 updatePayload(uniqueImmatriculation()), ownerToken);
         assertThat(upd.getStatusCode())
@@ -147,16 +154,18 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String id = readJson(created).get("id").asText();
 
-        UUID otherPersonId = UUID.randomUUID();
-        UUID otherSub = UUID.randomUUID();
-        seedPerson(otherPersonId);
-        seedUserLinkedToPerson(otherSub, UUID.fromString(CLUB_B), otherPersonId);
+        UUID nonOwnerPersonId = UUID.randomUUID();
+        UUID nonOwnerSub = UUID.randomUUID();
+        seedPerson(nonOwnerPersonId);
+        seedUserLinkedToPerson(nonOwnerSub, UUID.fromString(CLUB_B), nonOwnerPersonId);
 
-        String otherToken = mintJitReady(otherSub, CLUB_B, "CLUB_ADMINISTRATOR");
+        String nonOwnerToken = mintTokenWhoseSubjectResolvesToUser(
+                nonOwnerSub, CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
-                updatePayload(uniqueImmatriculation()), otherToken);
+                updatePayload(uniqueImmatriculation()), nonOwnerToken);
         assertThat(upd.getStatusCode())
-                .as("non-managing caller with no matching person link is denied")
+                .as("the owner-person branch is a strict OR-add, never a widening: a non-managing "
+                        + "caller whose person link is not the owner-person is still denied")
                 .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
@@ -223,7 +232,9 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
                         "aircraftStateId", SEED_AIRCRAFT_STATE_OK,
                         "validFrom", "2026-01-01T08:00:00Z"),
                 opsB);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(res.getStatusCode())
+                .as("the row is readable cross-tenant, so a denied write is 403, not a hiding 404")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -235,7 +246,9 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
 
         String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> res = get("/api/v1/aircraft/" + id + "/counters", adminB);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(res.getStatusCode())
+                .as("counter listing is managing-club only even though detail reads stay open")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -290,7 +303,7 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         return jwts.mint(body);
     }
 
-    private String mintJitReady(UUID sub, String clubId, String role) {
+    private String mintTokenWhoseSubjectResolvesToUser(UUID sub, String clubId, String role) {
         return jwts.mint(c -> {
             c.subject(sub.toString());
             if (clubId != null) {

@@ -32,7 +32,9 @@ class LifecycleTransitionAuditListenerTest {
         AuditedTarget target = recorded.targets.get(0);
         assertThat(target.entityType()).isEqualTo("Deployment");
         assertThat(target.entityId()).isEqualTo(id);
-        assertThat(target.before()).isNull();
+        assertThat(target.before())
+                .as("downstream consumers read a literal null before-state for the first transition")
+                .isNull();
         assertThat(target.after()).isEqualTo(new LifecycleSnapshot(LifecycleState.TRIAL));
     }
 
@@ -64,6 +66,8 @@ class LifecycleTransitionAuditListenerTest {
                                  AuditedTarget target,
                                  int httpStatus,
                                  @Nullable String failureReason) {
+            throw new AssertionError(
+                    "lifecycle transitions emit success rows only: " + action + " " + failureReason);
         }
     }
 }

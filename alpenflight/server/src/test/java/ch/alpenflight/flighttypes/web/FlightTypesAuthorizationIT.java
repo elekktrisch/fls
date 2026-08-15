@@ -78,7 +78,10 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
         assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
         ResponseEntity<String> del = delete("/api/v1/flight-types/" + id, adminB);
-        assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(del.getStatusCode())
+                .as("the mutation paths share the same loadOrThrow gate as the read path, "
+                        + "so the IDOR contract holds for DELETE too")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -104,7 +107,10 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
         String sysToken = mintToken(null, "SYSTEM_ADMINISTRATOR");
         ResponseEntity<String> res = post("/api/v1/flight-types",
                 createPayload(uniqueName()), sysToken);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(res.getStatusCode())
+                .as("rejected at the @PreAuthorize gate with 403 — the cross-tenant 404 contract "
+                        + "applies only once the role gate has passed")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test

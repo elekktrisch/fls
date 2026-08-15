@@ -52,13 +52,17 @@ final class AuditRollbackTestSupport {
 
         @Transactional
         public void publishAuditThenExplode(UUID targetId) {
-            for (Club ignored : clubs.findAllActive()) {
-                break;
-            }
+            forceTheTransactionToMaterialiseWithARealQuery();
             auditTrail.record(AuditAction.CREATE,
                     AuditedTarget.created("RollbackProbe", targetId,
                             Map.of("probe", "value", "targetId", targetId.toString())));
             throw new ForcedRollback("rollback after audit publish");
+        }
+
+        private void forceTheTransactionToMaterialiseWithARealQuery() {
+            for (Club ignored : clubs.findAllActive()) {
+                break;
+            }
         }
     }
 

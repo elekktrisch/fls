@@ -148,7 +148,10 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
         Integer iopCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
-        assertThat(iopCount).isEqualTo(1);
+        assertThat(iopCount)
+                .as("soft delete only flips the parent's flag — ON DELETE CASCADE fires on a "
+                        + "HARD delete, so the child rows stay")
+                .isEqualTo(1);
     }
 
 

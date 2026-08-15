@@ -189,6 +189,8 @@ class AccountingRuleFilterDomainTest {
         java.util.ArrayList<String> mutable = new java.util.ArrayList<>(List.of("X"));
         FilterConfig.MatchList list = new FilterConfig.MatchList(false, mutable);
         mutable.add("Y");
-        assertThat(list.matched()).containsExactly("X");
+        assertThat(list.matched())
+                .as("the record copied the list at construction, so the external mutation cannot leak in")
+                .containsExactly("X");
     }
 }

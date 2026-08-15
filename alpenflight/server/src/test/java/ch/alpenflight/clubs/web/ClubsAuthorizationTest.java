@@ -40,10 +40,12 @@ class ClubsAuthorizationTest {
 
     private static final String SEED_CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
     private static final String SEED_CLUB_PATH = "clb-" + SEED_CLUB_ID;
-    private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-000000000999";
+    private static final String OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP =
+            "019e30c3-2c00-7001-8000-000000000999";
 
-    private static final String SEEDED_ADMIN_SUB = "c1ab4d40-0000-4000-8000-000000000004";
-    private static final String SEEDED_ADMIN_CLUB_KEY = "club-1";
+    private static final String REALM_SEEDED_ADMIN_SUB_BOUND_TO_SEED_CLUB_BY_T_USER_ROW =
+            "c1ab4d40-0000-4000-8000-000000000004";
+    private static final String REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID = "club-1";
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
@@ -152,14 +154,15 @@ class ClubsAuthorizationTest {
 
     @Test
     void get_clubadmin_other_club_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(clubadmin(OTHER_CLUB_ID)))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void put_clubadmin_other_club_returns_403() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
-                        .with(clubadmin(OTHER_CLUB_ID))
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Hijack Attempt", "seed-club-1", false))))
                 .andExpect(status().isForbidden());
@@ -169,14 +172,15 @@ class ClubsAuthorizationTest {
 
     @Test
     void get_clubadmin_with_club_key_claim_reads_own_club() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(seededClubadmin()))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey()))
                 .andExpect(status().isOk());
     }
 
     @Test
     void put_clubadmin_with_club_key_claim_updates_own_club() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
-                        .with(seededClubadmin())
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Seed Club", "seed-club-1", false))))
                 .andExpect(status().isOk());
@@ -187,7 +191,8 @@ class ClubsAuthorizationTest {
         String otherClubPath = createAsSysadmin(
                 "Neighbour Club", "neighbour-" + unique(), "NB" + shortUnique());
 
-        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath).with(seededClubadmin()))
+        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath)
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey()))
                 .andExpect(status().isForbidden())
                 .andReturn().getResponse().getContentAsString();
 
@@ -202,7 +207,7 @@ class ClubsAuthorizationTest {
                 "Neighbour Target", "neighbour-" + unique(), "NT" + shortUnique());
 
         mvc.perform(put("/api/v1/clubs/" + otherClubPath)
-                        .with(seededClubadmin())
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Hijacked", "hijacked-" + unique(), true))))
                 .andExpect(status().isForbidden());
@@ -214,19 +219,20 @@ class ClubsAuthorizationTest {
     }
 
     @Test
-    void get_clubadmin_with_unresolvable_principal_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(unboundClubadmin()))
+    void get_clubadmin_whose_sub_matches_no_t_user_row_resolves_to_no_tenant_and_is_denied_403() throws Exception {
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(clubadminWhoseSubMatchesNoTUserRow()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void get_clubadmin_missing_clubId_claim_returns_403() throws Exception {
+    void get_clubadmin_missing_clubId_claim_is_denied_fail_closed_403() throws Exception {
         mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(clubadminWithoutClubIdClaim()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void put_clubadmin_missing_clubId_claim_returns_403() throws Exception {
+    void put_clubadmin_missing_clubId_claim_is_denied_fail_closed_403() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
                         .with(clubadminWithoutClubIdClaim())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -249,7 +255,8 @@ class ClubsAuthorizationTest {
 
     @Test
     void get_flightoperator_other_club_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(flightOperator(OTHER_CLUB_ID)))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(flightOperator(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
@@ -292,7 +299,7 @@ class ClubsAuthorizationTest {
     @Test
     void rotateJoinCode_clubadmin_other_club_returns_403() throws Exception {
         mvc.perform(post("/api/v1/clubs/" + SEED_CLUB_PATH + "/join-code/rotate")
-                        .with(clubadmin(OTHER_CLUB_ID)))
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
@@ -348,7 +355,7 @@ class ClubsAuthorizationTest {
 
 
     @Test
-    void list_with_legacy_mock_auth_header_returns_401() throws Exception {
+    void list_with_spa_mock_auth_bearer_header_is_rejected_as_invalid_jwt_401() throws Exception {
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer mock-sysadmin"))
                 .andExpect(status().isUnauthorized());
     }
@@ -376,16 +383,17 @@ class ClubsAuthorizationTest {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 
-    private static RequestPostProcessor seededClubadmin() {
+    private static RequestPostProcessor realmSeededClubadminWhoseClubIdClaimIsAClubKey() {
         return jwt()
-                .jwt(t -> t.subject(SEEDED_ADMIN_SUB).claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                .jwt(t -> t.subject(REALM_SEEDED_ADMIN_SUB_BOUND_TO_SEED_CLUB_BY_T_USER_ROW)
+                        .claim("clubId", REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID))
                 .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 
-    private static RequestPostProcessor unboundClubadmin() {
+    private static RequestPostProcessor clubadminWhoseSubMatchesNoTUserRow() {
         return jwt()
                 .jwt(t -> t.subject(UUID.randomUUID().toString())
-                        .claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                        .claim("clubId", REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID))
                 .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 

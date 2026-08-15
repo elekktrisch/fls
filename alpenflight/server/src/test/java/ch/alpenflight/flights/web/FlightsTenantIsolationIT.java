@@ -84,18 +84,22 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
                 body("GLIDER", "ac-" + aircraftA), clubAToken);
         String flightId = readJson(created).get("id").asText();
 
-        UUID aircraftB = seedAircraftFor(jdbc, clubB);
+        UUID callersOwnValidAircraft = seedAircraftFor(jdbc, clubB);
         String clubBToken = mintToken(clubB);
         ResponseEntity<String> res = put("/api/v1/flights/" + flightId,
-                updateBody("ac-" + aircraftB), clubBToken);
+                updateBody("ac-" + callersOwnValidAircraft), clubBToken);
         assertThat(res.getStatusCode())
-                .as("Cross-tenant PUT surfaces as 404, NOT 403 or a silent edit (oracle #24)")
+                .as("Cross-tenant PUT surfaces as 404, NOT 403 or a silent edit (oracle #24) — "
+                        + "the body carries B's own valid aircraft, so the 404 can only come "
+                        + "from the tenant-scoped row lookup")
                 .isEqualTo(HttpStatus.NOT_FOUND);
 
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE id = ?::uuid AND operating_club_id = ?::uuid",
                 Integer.class, rawId(flightId), clubA.toString());
-        assertThat(count).isEqualTo(1);
+        assertThat(count)
+                .as("the owning club's flight is untouched — no cross-tenant write landed")
+                .isEqualTo(1);
     }
 
     @Test

@@ -112,7 +112,7 @@ class FlightTransitionMatrixTest {
     }
 
     @Test
-    void enum_codes_match_legacy_smallints() {
+    void enum_codes_match_the_legacy_smallints_that_audit_payloads_and_e2e_parity_key_off() {
         assertThat(FlightProcessState.NOT_PROCESSED.legacyCode()).isEqualTo((short) 0);
         assertThat(FlightProcessState.INVALID.legacyCode()).isEqualTo((short) 28);
         assertThat(FlightProcessState.VALID.legacyCode()).isEqualTo((short) 30);
@@ -125,24 +125,24 @@ class FlightTransitionMatrixTest {
 
     @Test
     void flight_transition_throws_on_illegal() {
-        Flight f = newGliderInState(FlightProcessState.NOT_PROCESSED);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.NOT_PROCESSED);
         assertThatThrownBy(() ->
                 f.transition(FlightProcessState.LOCKED, TransitionTrigger.OPERATOR))
                 .isInstanceOf(IllegalFlightTransitionException.class);
     }
 
     @Test
-    void flight_transition_applies_legal_change() {
-        Flight f = newGliderInState(FlightProcessState.VALID);
-        java.time.Instant at = java.time.Instant.parse("2026-01-01T12:00:00Z");
-        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB, at);
+    void flight_transition_to_locked_stamps_lockedAt_from_the_supplied_instant() {
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.VALID);
+        java.time.Instant lockJobInstant = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB, lockJobInstant);
         assertThat(f.getProcessState()).isEqualTo(FlightProcessState.LOCKED);
-        assertThat(f.getLockedAt()).isEqualTo(at);
+        assertThat(f.getLockedAt()).isEqualTo(lockJobInstant);
     }
 
     @Test
     void flight_transition_rejects_same_state() {
-        Flight f = newGliderInState(FlightProcessState.VALID);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.VALID);
         assertThatThrownBy(() ->
                 f.transition(FlightProcessState.VALID, TransitionTrigger.OPERATOR))
                 .isInstanceOf(IllegalFlightTransitionException.class);
@@ -150,11 +150,11 @@ class FlightTransitionMatrixTest {
 
     @Test
     void bookDelivery_flipsPreparedToBooked_andRejectsFromNonPrepared() {
-        Flight prepared = newGliderInState(FlightProcessState.DELIVERY_PREPARED);
+        Flight prepared = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_PREPARED);
         prepared.bookDelivery();
         assertThat(prepared.getProcessState()).isEqualTo(FlightProcessState.DELIVERY_BOOKED);
 
-        Flight booked = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
+        Flight booked = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_BOOKED);
         assertThatThrownBy(booked::bookDelivery)
                 .as("an already-booked flight rejects re-booking")
                 .isInstanceOf(IllegalFlightTransitionException.class);
@@ -162,7 +162,7 @@ class FlightTransitionMatrixTest {
 
     @Test
     void delivery_booked_is_sink_at_aggregate_level() {
-        Flight f = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_BOOKED);
         for (FlightProcessState to : FlightProcessState.values()) {
             if (to == FlightProcessState.DELIVERY_BOOKED) {
                 continue;
@@ -173,7 +173,7 @@ class FlightTransitionMatrixTest {
         }
     }
 
-    private static Flight newGliderInState(FlightProcessState state) {
+    private static Flight gliderSeededDirectlyInState(FlightProcessState state) {
         return Flight.createGlider(
                 java.util.UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1"),
                 state.id(),

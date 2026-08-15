@@ -72,6 +72,9 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
     private static final int LEGACY_FLIGHT_TIME = 30;
     private static final long CREDIT_BALANCE_SECONDS = 5_400L;
 
+    private static final Instant CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR =
+            Instant.parse("2026-01-01T00:00:00Z");
+
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
@@ -186,7 +189,7 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
             return flights.save(flight).getId();
         });
         jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?",
-                java.sql.Timestamp.from(Instant.parse("2026-01-01T00:00:00Z")), flightId);
+                java.sql.Timestamp.from(CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR), flightId);
         return flightId;
     }
 

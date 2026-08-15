@@ -50,8 +50,7 @@ class DeploymentContextIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbc.update("UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
-                + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_DC_%')");
+        repointStaleClubsToTheOperatorDeploymentSoTheRestrictedDeleteCanRun();
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_DC_%'");
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
@@ -68,6 +67,12 @@ class DeploymentContextIT extends PostgresIntegrationTest {
         jdbc.update("UPDATE t_club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
                 activeDeploymentId.toString(),
                 clubA.toString(), clubB.toString());
+    }
+
+    private void repointStaleClubsToTheOperatorDeploymentSoTheRestrictedDeleteCanRun() {
+        jdbc.update("UPDATE t_club SET deployment_id = ?::uuid "
+                        + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_DC_%')",
+                Deployment.OPERATOR_ID.toString());
     }
 
     @Test

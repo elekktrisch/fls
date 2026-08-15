@@ -34,10 +34,11 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
     private static final String BASE = "/api/v1/accounting-rule-filters";
 
     private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
-    private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-0000000000ff";
+    private static final String UNSEEDED_OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-0000000000ff";
 
-    private static final String FILTER_TYPE_FLIGHT_TIME = "019e2e15-2c00-7652-8000-000000004652";
-    private static final int LEGACY_FLIGHT_TIME = 30;
+    private static final String V4_SEEDED_FILTER_TYPE_ID_FLIGHT_TIME =
+            "019e2e15-2c00-7652-8000-000000004652";
+    private static final int LEGACY_INT_ID_FLIGHT_TIME = 30;
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -47,9 +48,9 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
     private String otherClubAdminToken;
 
     @BeforeEach
-    void mintTokensAndClean() {
+    void mintTokensAndDeleteFiltersSoEachTestStartsFromAnEmptySlate() {
         clubAdminToken = adminTokenFor(CLUB_ID);
-        otherClubAdminToken = adminTokenFor(OTHER_CLUB_ID);
+        otherClubAdminToken = adminTokenFor(UNSEEDED_OTHER_CLUB_ID);
         jdbc.update("DELETE FROM t_accounting_rule_filter WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
@@ -128,7 +129,9 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         String id = readJson(created).get("id").asText();
 
         ResponseEntity<String> res = get(BASE + "/" + id, otherClubAdminToken);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getStatusCode())
+                .as("the @TenantId discriminator makes another club's filter invisible, not forbidden")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -147,7 +150,10 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         body.remove("chargedToClubInternal");
 
         ResponseEntity<String> created = post(BASE, body, clubAdminToken);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getStatusCode())
+                .as("the optional booleans are @Nullable Boolean, so an omitted flag deserialises "
+                        + "instead of tripping Jackson's FAIL_ON_NULL_FOR_PRIMITIVES")
+                .isEqualTo(HttpStatus.CREATED);
 
         String id = readJson(created).get("id").asText();
         ResponseEntity<String> got = get(BASE + "/" + id, clubAdminToken);
@@ -161,8 +167,8 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
 
     private static Map<String, Object> articlePayload(String name) {
         Map<String, Object> body = new HashMap<>();
-        body.put("filterTypeId", FILTER_TYPE_FLIGHT_TIME);
-        body.put("filterTypeLegacyId", LEGACY_FLIGHT_TIME);
+        body.put("filterTypeId", V4_SEEDED_FILTER_TYPE_ID_FLIGHT_TIME);
+        body.put("filterTypeLegacyId", LEGACY_INT_ID_FLIGHT_TIME);
         body.put("ruleFilterName", name);
         body.put("description", "desc");
         body.put("active", true);
@@ -170,11 +176,11 @@ class AccountingRuleFiltersControllerIT extends PostgresIntegrationTest {
         body.put("chargedToClubInternal", false);
         body.put("articleNumber", "ART-100");
         body.put("deliveryLineText", "Landing fee line");
-        body.put("filterConfig", filterConfig());
+        body.put("filterConfig", filterConfigWithEveryPrimitiveFlagPresent());
         return body;
     }
 
-    private static Map<String, Object> filterConfig() {
+    private static Map<String, Object> filterConfigWithEveryPrimitiveFlagPresent() {
         Map<String, Object> cfg = new HashMap<>();
         cfg.put("isRuleForGliderFlights", true);
         cfg.put("isRuleForTowingFlights", false);

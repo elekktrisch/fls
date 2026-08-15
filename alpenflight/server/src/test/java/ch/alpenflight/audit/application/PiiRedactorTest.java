@@ -102,7 +102,10 @@ class PiiRedactorTest {
 
         JsonNode child = out.get("child");
         assertThat(child.get("safe").asText()).isEqualTo("ok-to-log");
-        assertThat(child.get("sensitive").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
+        assertThat(child.get("sensitive").asText())
+                .as("the outer policy allows \"child\" wholesale, yet the nested field is still "
+                        + "redacted — without the recursion it would land in jsonb verbatim")
+                .isEqualTo(PiiRedactor.REDACTED_SENTINEL);
     }
 
     @Test

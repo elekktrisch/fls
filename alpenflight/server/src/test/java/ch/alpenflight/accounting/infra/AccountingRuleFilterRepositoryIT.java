@@ -33,7 +33,7 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
 
     private UUID clubA;
     private UUID clubB;
-    private UUID filterTypeId;
+    private UUID seededRecipientFilterTypeId;
 
     @BeforeEach
     void seed() {
@@ -43,7 +43,7 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
         clubA = fixture.clubA();
         clubB = fixture.clubB();
 
-        filterTypeId = jdbc.queryForObject(
+        seededRecipientFilterTypeId = jdbc.queryForObject(
                 "SELECT id FROM t_accounting_rule_filter_type WHERE legacy_int_id = 10",
                 UUID.class);
     }
@@ -113,7 +113,7 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
     private UUID createFilter(UUID clubId, String name, int sort) {
         return Tenants.runAs(clubId, () -> {
             AccountingRuleFilter arf = AccountingRuleFilter.create(
-                    filterTypeId, name, null, null,
+                    seededRecipientFilterTypeId, name, null, null,
                     true, false, false, null, null, FilterConfig.empty());
             arf.assignSortIndicator(sort);
             AccountingRuleFilter saved = filters.save(arf);

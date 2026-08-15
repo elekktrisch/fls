@@ -121,9 +121,14 @@ class MePersonLicencesControllerIT extends PostgresIntegrationTest {
 
         JsonNode before = parse((String) auditRow.get("before_state"));
         JsonNode after = parse((String) auditRow.get("after_state"));
-        assertThat(before.get("hasGliderPilotLicence").asText()).isEqualTo("false");
+        assertThat(before.get("hasGliderPilotLicence").asText())
+                .as("the diff is readable — the licence flag carries its real value, not the "
+                        + "[redacted] sentinel Person fields get")
+                .isEqualTo("false");
         assertThat(before.has("medicalClass2ExpireDate")
-                && "[redacted]".equals(before.get("medicalClass2ExpireDate").asText())).isFalse();
+                && "[redacted]".equals(before.get("medicalClass2ExpireDate").asText()))
+                .as("a null medical date is omitted by the non-null serializer, never [redacted]")
+                .isFalse();
         assertThat(after.get("hasGliderPilotLicence").asBoolean()).isTrue();
         assertThat(after.get("medicalClass2ExpireDate").asText()).isEqualTo("2029-06-30");
     }

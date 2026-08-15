@@ -34,6 +34,9 @@ import org.mockito.Mockito;
 
 class FlightStateTransitionServiceTest {
 
+    private static final Instant LOCKED_LONG_ENOUGH_AGO_TO_CLEAR_THE_BILL_GATE =
+            LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+
     private FlightRepository repo;
     private AuditTrail audit;
     private FlightStateTransitionService service;
@@ -43,11 +46,11 @@ class FlightStateTransitionServiceTest {
         repo = Mockito.mock(FlightRepository.class);
         audit = Mockito.mock(AuditTrail.class);
         FlightInitialStateProvider initial = () -> FlightProcessState.NOT_PROCESSED.id();
-        Clock clock = Clock.fixed(
+        Clock clockFixedWellAfterEveryFixtureFlightDate = Clock.fixed(
                 LocalDate.of(2026, 6, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
                 ZoneOffset.UTC);
         service = new FlightStateTransitionService(repo, audit,
-                new FlightGatePolicy(), clock, initial);
+                new FlightGatePolicy(), clockFixedWellAfterEveryFixtureFlightDate, initial);
     }
 
     @Test
@@ -103,9 +106,8 @@ class FlightStateTransitionServiceTest {
         setField(glider, "id", gliderId.value());
         setField(tow, "id", towId.value());
         setField(glider, "towFlightId", towId.value());
-        Instant longAgo = LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        setField(glider, "lockedAt", longAgo);
-        setField(tow, "lockedAt", longAgo);
+        setField(glider, "lockedAt", LOCKED_LONG_ENOUGH_AGO_TO_CLEAR_THE_BILL_GATE);
+        setField(tow, "lockedAt", LOCKED_LONG_ENOUGH_AGO_TO_CLEAR_THE_BILL_GATE);
 
         when(repo.findByIdWithCrew(gliderId)).thenReturn(Optional.of(glider));
         when(repo.findByIdWithCrew(FlightId.of(towId.value()))).thenReturn(Optional.of(tow));
@@ -124,8 +126,7 @@ class FlightStateTransitionServiceTest {
         FlightId gliderId = FlightId.of(UUID.randomUUID());
         Flight glider = gliderInState(FlightProcessState.LOCKED);
         setField(glider, "id", gliderId.value());
-        setField(glider, "lockedAt",
-                LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant());
+        setField(glider, "lockedAt", LOCKED_LONG_ENOUGH_AGO_TO_CLEAR_THE_BILL_GATE);
         when(repo.findByIdWithCrew(gliderId)).thenReturn(Optional.of(glider));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

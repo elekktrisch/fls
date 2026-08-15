@@ -50,7 +50,11 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7268-8000-000000004268");
     private static final int LEGACY_FLIGHT_TIME = 30;
 
-    private static final Instant AGED = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Instant CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR =
+            Instant.parse("2026-01-01T00:00:00Z");
+
+    private static final boolean WITH_PILOT = true;
+    private static final boolean WITHOUT_PILOT_SO_NO_RECIPIENT_RESOLVES = false;
 
     @Autowired JdbcTemplate jdbc;
     @Autowired DeliveryCreationJob job;
@@ -77,8 +81,9 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
     @Test
     void runOnce_billsWhatItCan_andIsolatesTheFlightItCannot() {
         seedBillingSetup(clubA);
-        UUID billable = seedLockedAgedFlight(clubA, "HB-JOBOK", true);
-        UUID unbillable = seedLockedAgedFlight(clubA, "HB-JOBNG", false);
+        UUID billable = seedLockedAgedFlight(clubA, "HB-JOBOK", WITH_PILOT);
+        UUID unbillable =
+                seedLockedAgedFlight(clubA, "HB-JOBNG", WITHOUT_PILOT_SO_NO_RECIPIENT_RESOLVES);
 
         DeliveryCreationJob.RunSummary summary = job.runOnce();
 
@@ -128,7 +133,8 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
                 return flights.save(flight);
             });
         }
-        jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?", Timestamp.from(AGED), flightId);
+        jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?",
+                Timestamp.from(CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR), flightId);
         return flightId;
     }
 

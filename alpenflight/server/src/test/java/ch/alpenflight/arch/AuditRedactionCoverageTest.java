@@ -36,7 +36,7 @@ class AuditRedactionCoverageTest {
             "ch.alpenflight.persons.domain"
     );
 
-    private static final Set<Class<?>> EXEMPT = Set.of(
+    private static final Set<Class<?>> EXEMPT_AS_THE_AUDIT_LEDGER_ITSELF = Set.of(
             MutationAuditEvent.class
     );
 
@@ -58,7 +58,7 @@ class AuditRedactionCoverageTest {
                 .forEach(c -> {
                     try {
                         Class<?> resolved = Class.forName(c.getFullName());
-                        if (!EXEMPT.contains(resolved)) {
+                        if (!EXEMPT_AS_THE_AUDIT_LEDGER_ITSELF.contains(resolved)) {
                             audited.add(resolved);
                         }
                     } catch (ClassNotFoundException e) {
@@ -72,7 +72,7 @@ class AuditRedactionCoverageTest {
 
         List<String> uncoveredFields = new ArrayList<>();
         for (Class<?> entity : audited) {
-            String entityName = simpleName(entity);
+            String entityName = logicalEntityNameThePolicyKeysOn(entity);
             boolean denyAll = policy.denyAll.contains(entityName);
             Set<String> allow = policy.allowed(entityName);
             for (Field f : collectInstanceFields(entity)) {
@@ -110,7 +110,7 @@ class AuditRedactionCoverageTest {
         return out;
     }
 
-    private static String simpleName(Class<?> cls) {
+    private static String logicalEntityNameThePolicyKeysOn(Class<?> cls) {
         Entity e = cls.getAnnotation(Entity.class);
         if (e != null && !e.name().isEmpty()) {
             return e.name();

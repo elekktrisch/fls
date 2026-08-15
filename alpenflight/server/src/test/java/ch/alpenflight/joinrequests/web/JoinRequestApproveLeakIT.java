@@ -57,7 +57,8 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
     @Autowired ClubStateRepository clubStates;
     @MockitoBean UserDirectoryPort directory;
 
-    private final Map<UUID, UUID> directoryClubIdAttr = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> clubIdAttributeTheRealmMapperWouldProject =
+            new ConcurrentHashMap<>();
 
     private UUID clubA;
     private String codeA;
@@ -72,21 +73,9 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         codeA = clubs.findActiveById(clubA).map(Club::getJoinCode).orElseThrow();
         adminSubA = UuidCreator.getTimeOrderedEpoch();
         seedUser(adminSubA, clubA, "admin-a");
-        directoryClubIdAttr.clear();
+        clubIdAttributeTheRealmMapperWouldProject.clear();
         reset(directory);
-        when(directory.findRealmRolesByName(any())).thenAnswer(inv -> {
-            @SuppressWarnings("unchecked")
-            java.util.Set<String> names = (java.util.Set<String>) inv.getArgument(0);
-            return names.stream().map(n -> new RealmRoleRef(UUID.randomUUID().toString(), n, null)).toList();
-        });
-        org.mockito.Mockito.doAnswer(inv -> {
-            directoryClubIdAttr.put(inv.getArgument(0), inv.getArgument(1));
-            return null;
-        }).when(directory).writeClubIdAttribute(any(), any());
-        org.mockito.Mockito.doAnswer(inv -> {
-            directoryClubIdAttr.remove(inv.getArgument(0));
-            return null;
-        }).when(directory).clearClubIdAttribute(any());
+        stubDirectoryToRecordClubIdAttributeWritesAndClears();
     }
 
     @Test
@@ -101,7 +90,7 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
         assertThat(failed.getStatusCode().is5xxServerError())
                 .as("KC failure mid-transaction rolls everything back").isTrue();
 
-        assertThat(directoryClubIdAttr.get(sub))
+        assertThat(clubIdAttributeTheRealmMapperWouldProject.get(sub))
                 .as("a rolled-back approve must strand no clubId attribute").isNull();
 
         ResponseEntity<String> meAsProjected =
@@ -121,7 +110,7 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
                 .as("tenant-less projected principal reads no club-A pending rows").isTrue();
 
         reset(directory);
-        rewireDirectory();
+        stubDirectoryToRecordClubIdAttributeWritesAndClears();
         ResponseEntity<String> realApprove = approve(adminToken(clubA, adminSubA), reqId,
                 List.of("PILOT"), null);
         assertThat(realApprove.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -133,18 +122,18 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
     }
 
 
-    private void rewireDirectory() {
+    private void stubDirectoryToRecordClubIdAttributeWritesAndClears() {
         when(directory.findRealmRolesByName(any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
             java.util.Set<String> names = (java.util.Set<String>) inv.getArgument(0);
             return names.stream().map(n -> new RealmRoleRef(UUID.randomUUID().toString(), n, null)).toList();
         });
         org.mockito.Mockito.doAnswer(inv -> {
-            directoryClubIdAttr.put(inv.getArgument(0), inv.getArgument(1));
+            clubIdAttributeTheRealmMapperWouldProject.put(inv.getArgument(0), inv.getArgument(1));
             return null;
         }).when(directory).writeClubIdAttribute(any(), any());
         org.mockito.Mockito.doAnswer(inv -> {
-            directoryClubIdAttr.remove(inv.getArgument(0));
+            clubIdAttributeTheRealmMapperWouldProject.remove(inv.getArgument(0));
             return null;
         }).when(directory).clearClubIdAttribute(any());
     }
@@ -166,29 +155,29 @@ class JoinRequestApproveLeakIT extends PostgresIntegrationTest {
     }
 
     private String projectedPilotToken(UUID sub) {
-        UUID attr = directoryClubIdAttr.get(sub);
+        UUID recordedClubIdAttribute = clubIdAttributeTheRealmMapperWouldProject.get(sub);
         return jwts.mint(c -> {
             c.subject(sub.toString())
                     .claim("email", "pilot-" + sub + "@example.com")
                     .claim("given_name", "Test")
                     .claim("preferred_username", "pilot-" + sub)
                     .claim("realm_access", Map.of("roles", List.of("PILOT")));
-            if (attr != null) {
-                c.claim("clubId", attr.toString());
+            if (recordedClubIdAttribute != null) {
+                c.claim("clubId", recordedClubIdAttribute.toString());
             }
         });
     }
 
     private String projectedAdminToken(UUID sub) {
-        UUID attr = directoryClubIdAttr.get(sub);
+        UUID recordedClubIdAttribute = clubIdAttributeTheRealmMapperWouldProject.get(sub);
         return jwts.mint(c -> {
             c.subject(sub.toString())
                     .claim("email", "pilot-" + sub + "@example.com")
                     .claim("given_name", "Test")
                     .claim("preferred_username", "pilot-" + sub)
                     .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR")));
-            if (attr != null) {
-                c.claim("clubId", attr.toString());
+            if (recordedClubIdAttribute != null) {
+                c.claim("clubId", recordedClubIdAttribute.toString());
             }
         });
     }

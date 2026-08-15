@@ -75,19 +75,28 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_validatesUnprocessedAndLocksGateEligible_acrossClubs() {
-        UUID unprocessed = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
-        UUID lockable = seedFlight(clubA, FlightProcessState.VALID, LOCKABLE_DAY, true);
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
-        UUID tooRecent = seedFlight(clubA, FlightProcessState.VALID, TOO_RECENT_DAY, true);
-        UUID otherClub = seedFlight(clubB, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
+        UUID unprocessed = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID lockable = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.VALID, LOCKABLE_DAY);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID tooRecent = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.VALID, TOO_RECENT_DAY);
+        UUID otherClub = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubB, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         RunSummary summary = job.runOnce();
 
         assertThat(stateOf(clubA, unprocessed)).isEqualTo(FlightProcessState.VALID);
         assertThat(stateOf(clubA, lockable)).isEqualTo(FlightProcessState.LOCKED);
         assertThat(stateOf(clubA, incomplete)).isEqualTo(FlightProcessState.INVALID);
-        assertThat(stateOf(clubA, tooRecent)).isEqualTo(FlightProcessState.VALID);
-        assertThat(stateOf(clubB, otherClub)).isEqualTo(FlightProcessState.VALID);
+        assertThat(stateOf(clubA, tooRecent))
+                .as("one day short of the lock gate stays VALID — the job locks nothing blindly")
+                .isEqualTo(FlightProcessState.VALID);
+        assertThat(stateOf(clubB, otherClub))
+                .as("the run reaches the second club too")
+                .isEqualTo(FlightProcessState.VALID);
 
         assertThat(summary.validatedCount()).isGreaterThanOrEqualTo(2);
         assertThat(summary.invalidatedCount()).isGreaterThanOrEqualTo(1);
@@ -96,8 +105,10 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void validationStampsOutcomeOnTheFlight() {
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
-        UUID complete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID complete = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         job.runOnce();
 
@@ -112,7 +123,8 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void repeatedRunIsIdempotent_stillInvalidFlightStaysInvalid() {
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         job.runOnce();
         Instant firstPass = flightOf(clubA, incomplete).getValidatedOn();
@@ -132,13 +144,21 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
                 .orElseThrow(() -> new AssertionError("no flight " + flightId)));
     }
 
+    private UUID seedFlightWithTheCrewAWinchLaunchNeeds(UUID clubId, FlightProcessState state,
+                                                        LocalDate date) {
+        return seedFlight(clubId, state, date,
+                List.of(crew(seedPerson(), FlightCrewTypeIds.PILOT_OR_STUDENT),
+                        crew(seedPerson(), FlightCrewTypeIds.WINCH_OPERATOR)));
+    }
+
+    private UUID seedFlightWithoutCrewSoTheValidatorRejectsIt(UUID clubId, FlightProcessState state,
+                                                              LocalDate date) {
+        return seedFlight(clubId, state, date, List.of());
+    }
+
     private UUID seedFlight(UUID clubId, FlightProcessState state, LocalDate date,
-                            boolean withPilot) {
+                            List<CrewMemberSpec> crew) {
         ClubSeed seed = seedFor(clubId);
-        List<CrewMemberSpec> crew = withPilot
-                ? List.of(crew(seedPerson(), FlightCrewTypeIds.PILOT_OR_STUDENT),
-                          crew(seedPerson(), FlightCrewTypeIds.WINCH_OPERATOR))
-                : List.of();
         FlightOperationalData ops = ops(date, seed.location(), seed.flightType());
         return TenantTestContext.runAs(clubId, () -> {
             Flight flight = Flight.createGlider(seed.aircraft(), state.id(), ops);

@@ -95,6 +95,8 @@ class DeliveryCreationTestRepositoryIT extends PostgresIntegrationTest {
                     .isEqualTo(new RuleBasedDeliveryDetails.Recipient(
                             null, "REC-1", "Petra Pilot", "Petra", "Pilot"));
             assertThat(snapshot.items())
+                    .as("the jsonb graph is compared field by field, not by whole-record equals: "
+                            + "the Jackson FormatMapper can shift a BigDecimal's scale")
                     .singleElement()
                     .satisfies(jsonItem -> {
                         assertThat(jsonItem.position()).isEqualTo(1);

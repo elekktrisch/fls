@@ -97,7 +97,7 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
     private UUID club;
 
     @BeforeEach
-    void seedClub(org.junit.jupiter.api.TestInfo testInfo) {
+    void seedFreshClubPerCaseSoFiltersCannotLeakBetweenCases(org.junit.jupiter.api.TestInfo testInfo) {
         String tag = "C" + Integer.toHexString(testInfo.getDisplayName().hashCode());
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, tag + "_", tag);
@@ -129,6 +129,8 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
         assertThat(items).hasSize(1);
         assertThat(items.get(0).quantity().toPlainString())
+                .as("MathContext(28, HALF_EVEN) C#-decimal parity on a non-terminating division; "
+                        + "a plain double would yield 1.6666666666666667")
                 .isEqualTo("1.666666666666666666666666667");
     }
 
@@ -163,7 +165,9 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(withEngineItems.get(1).quantity()).isEqualByComparingTo(new BigDecimal("10"));
 
         UUID noEngine = glider(seconds(1500), (short) 1);
-        assertThat(compute(noEngine)).isEmpty();
+        assertThat(compute(noEngine))
+                .as("a flight with no engine counter never enters the tier loop")
+                .isEmpty();
     }
 
     @Test
@@ -178,7 +182,9 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
         UUID suppressed = glider(seconds(1500), (short) 3);
         noLandingTaxForGlider();
-        assertThat(compute(suppressed)).isEmpty();
+        assertThat(compute(suppressed))
+                .as("the NoLandingTax filter runs first and forces the glider's landing-tax line off")
+                .isEmpty();
     }
 
     @Test
@@ -239,7 +245,10 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         RuleBasedDeliveryDetails result =
                 TenantTestContext.runAs(club, () -> engine.computeForFlight(flight));
         assertThat(result.isDoNotInvoiceFlight()).isTrue();
-        assertThat(result.deliveryItems()).isEmpty();
+        assertThat(result.deliveryItems())
+                .as("a line filter that would otherwise emit is seeded, so an empty delivery proves "
+                        + "the do-not-invoice short-circuit rather than an absence of rules")
+                .isEmpty();
     }
 
     @Test
@@ -266,7 +275,9 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         List<DeliveryItemDetails> items = compute(glider);
         assertThat(items).hasSize(1);
         assertThat(items.get(0).articleNumber()).isEqualTo("ROLL");
-        assertThat(items.get(0).quantity()).isEqualByComparingTo(new BigDecimal("45"));
+        assertThat(items.get(0).quantity())
+                .as("the tow rolls into the same-article glider line: 1500s (25 min) + 1200s (20 min)")
+                .isEqualByComparingTo(new BigDecimal("45"));
     }
 
 

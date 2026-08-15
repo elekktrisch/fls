@@ -37,7 +37,7 @@ class DeliveryItemPipelineTest {
                 .crew(ONE_PILOT);
     }
 
-    private static RuleFilterInput lineFilter(String article, AccountingUnitType unit) {
+    private static RuleFilterInput gliderScopedLineFilter(String article, AccountingUnitType unit) {
         return new RuleFilterInput(UUID.randomUUID(), null, article, unit, kindScoped(true, false));
     }
 
@@ -54,22 +54,22 @@ class DeliveryItemPipelineTest {
                 additionalFuelFee, startTax, landingTax, vsfFee);
     }
 
-    private static RuleFilters allOneEach() {
+    private static RuleFilters oneFilterOfEveryEmittingType() {
         return buckets(
-                List.of(lineFilter("FT", AccountingUnitType.MIN)),
-                List.of(lineFilter("ET", AccountingUnitType.MIN)),
-                List.of(lineFilter("INSTR", AccountingUnitType.MIN)),
-                List.of(lineFilter("FUEL", AccountingUnitType.MIN)),
-                List.of(lineFilter("START", AccountingUnitType.START_OR_FLIGHT)),
-                List.of(lineFilter("LDG", AccountingUnitType.LDGS)),
-                List.of(lineFilter("VSF", AccountingUnitType.LDGS)));
+                List.of(gliderScopedLineFilter("FT", AccountingUnitType.MIN)),
+                List.of(gliderScopedLineFilter("ET", AccountingUnitType.MIN)),
+                List.of(gliderScopedLineFilter("INSTR", AccountingUnitType.MIN)),
+                List.of(gliderScopedLineFilter("FUEL", AccountingUnitType.MIN)),
+                List.of(gliderScopedLineFilter("START", AccountingUnitType.START_OR_FLIGHT)),
+                List.of(gliderScopedLineFilter("LDG", AccountingUnitType.LDGS)),
+                List.of(gliderScopedLineFilter("VSF", AccountingUnitType.LDGS)));
     }
 
     @Test
     void emitsLinesInLegacyStageOrder() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        PIPELINE.run(acc, glider().build(), allOneEach(), 1800, 1200, null);
+        PIPELINE.run(acc, glider().build(), oneFilterOfEveryEmittingType(), 1800, 1200, null);
 
         assertThat(acc.deliveryItems())
                 .extracting(DeliveryItemDetails::articleNumber)
@@ -127,13 +127,16 @@ class DeliveryItemPipelineTest {
         PersonFlightTimeCredit shared = creditMatching("HB-GLDR,HB-TOWA", 10_000L, creditId);
 
         RuleFilters filters = buckets(
-                List.of(creditTier("FT_G", true, false), creditTier("FT_T", false, true)),
+                List.of(creditTierWithDistinctArticleSoPassesDoNotCoalesce("FT_G", true, false),
+                        creditTierWithDistinctArticleSoPassesDoNotCoalesce("FT_T", false, true)),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
 
         PIPELINE.run(acc, glider().build(), filters, 1800, 0,
                 new TowInput(tow().build(), 600, 0), List.of(shared));
 
         assertThat(acc.creditConsumptions())
+                .as("both passes draw on the one shared credit and their consumption SUMS; "
+                        + "an overwrite would silently erase the first pass")
                 .singleElement()
                 .satisfies(c -> {
                     assertThat(c.creditId()).isEqualTo(creditId);
@@ -141,7 +144,8 @@ class DeliveryItemPipelineTest {
                 });
     }
 
-    private static RuleFilterInput creditTier(String article, boolean glider, boolean towing) {
+    private static RuleFilterInput creditTierWithDistinctArticleSoPassesDoNotCoalesce(
+            String article, boolean glider, boolean towing) {
         FilterConfig base = FilterConfig.empty();
         FilterConfig config = new FilterConfig(
                 glider, towing, false,

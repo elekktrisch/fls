@@ -97,6 +97,8 @@ class JoinRequestRepositoryIT extends PostgresIntegrationTest {
 
         TenantTestContext.runAs(clubA, () ->
                 assertThat(requests.findPendingForCurrentTenant())
+                        .as("only the new request is PENDING — the withdrawn one is filtered "
+                                + "out by status, so this holds without ordering two rows")
                         .extracting(JoinRequest::getId)
                         .containsExactly(secondId));
 

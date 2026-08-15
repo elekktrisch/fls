@@ -72,9 +72,7 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
         UUID kcSub = UUID.randomUUID();
         UUID personId = seedPerson("Bessie", "Coleman");
         UUID pcId = seedMembership(personId, "NOTIF-9", false, false, false);
-        jdbc.update("UPDATE t_person_club SET is_glider_pilot = true, is_motor_pilot = true, "
-                        + "is_active = true WHERE id = ?::uuid",
-                pcId.toString());
+        setAdminOnlyFieldsToNonDefaultsSoUntouchedIsNotVacuous(pcId);
         seedUser(kcSub, "menotif-it-patch", personId);
         String token = pilotToken(kcSub);
 
@@ -92,7 +90,9 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
         assertThat(row.get("receive_flight_reports")).isEqualTo(true);
         assertThat(row.get("receive_aircraft_reservation_notifications")).isEqualTo(true);
         assertThat(row.get("receive_planning_day_role_reminder")).isEqualTo(false);
-        assertThat(row.get("member_number")).isEqualTo("NOTIF-9");
+        assertThat(row.get("member_number"))
+                .as("admin-only membership identity / role fields survive a prefs PATCH untouched")
+                .isEqualTo("NOTIF-9");
         assertThat(row.get("is_glider_pilot")).isEqualTo(true);
         assertThat(row.get("is_motor_pilot")).isEqualTo(true);
         assertThat(row.get("is_active")).isEqualTo(true);
@@ -127,7 +127,9 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
 
         JsonNode before = parse((String) auditRow.get("before_state"));
         JsonNode after = parse((String) auditRow.get("after_state"));
-        assertThat(before.get("receiveFlightReports").asBoolean()).isFalse();
+        assertThat(before.get("receiveFlightReports").asBoolean())
+                .as("a sysadmin reads the changed booleans verbatim — not the [redacted] sentinel")
+                .isFalse();
         assertThat(after.get("receiveFlightReports").asBoolean()).isTrue();
         assertThat(after.get("receivePlanningDayRoleReminder").asBoolean()).isTrue();
     }
@@ -202,6 +204,12 @@ class MeNotificationPrefsControllerIT extends PostgresIntegrationTest {
                 pcId.toString(), personId.toString(), CLUB_UUID.toString(), memberNumber,
                 flightReports, reservations, planningReminder);
         return pcId;
+    }
+
+    private void setAdminOnlyFieldsToNonDefaultsSoUntouchedIsNotVacuous(UUID pcId) {
+        jdbc.update("UPDATE t_person_club SET is_glider_pilot = true, is_motor_pilot = true, "
+                        + "is_active = true WHERE id = ?::uuid",
+                pcId.toString());
     }
 
     private UUID seedUser(UUID kcSub, String username, UUID personId) {

@@ -100,8 +100,10 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
     @Test
     void target_entity_type_filter_excludes_non_matching_rows() throws Exception {
-        UUID locationTargetId = insertAuditRow("Location");
-        UUID aircraftTargetId = insertAuditRow("Aircraft");
+        UUID locationTargetId =
+                insertAuditRowDirectlySinceTheListenerWritesOneEntityTypePerEndpoint("Location");
+        UUID aircraftTargetId =
+                insertAuditRowDirectlySinceTheListenerWritesOneEntityTypePerEndpoint("Aircraft");
 
         JsonNode filtered = list("/api/v1/admin/audit-events?targetEntityType=Location");
         assertThat(targetIds(filtered))
@@ -143,7 +145,10 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
                 authed(RequestEntity.get(URI.create("/api/v1/admin/audit-events")), token).build(),
                 String.class);
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(res.getStatusCode())
+                .as("a PILOT holds a tenant context but no admin authority — the role gate "
+                        + "denies before any tenant-scoped read")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -182,7 +187,8 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("items").isArray()).isTrue();
     }
 
-    private UUID insertAuditRow(String targetEntityType) {
+    private UUID insertAuditRowDirectlySinceTheListenerWritesOneEntityTypePerEndpoint(
+            String targetEntityType) {
         UUID targetId = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO t_mutation_audit_event "

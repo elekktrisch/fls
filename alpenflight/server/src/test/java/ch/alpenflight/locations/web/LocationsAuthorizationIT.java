@@ -31,20 +31,21 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final String CLUB_A = "019e30c3-2c00-7001-8000-00000010ca01";
-    private static final String CLUB_B = "019e30c3-2c00-7001-8000-00000010ca02";
+    private static final String CLASS_EXCLUSIVE_CLUB_A = "019e30c3-2c00-7001-8000-00000010ca01";
+    private static final String CLASS_EXCLUSIVE_CLUB_B = "019e30c3-2c00-7001-8000-00000010ca02";
 
     private static final String NAME_PREFIX = "IT_LA_";
     private static final String KEY_PREFIX = "IT_A_";
+    private static final String ICAO_REUSED_IN_BOTH_CLUBS = "SH99";
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
     void seedTwoClubs() {
-        cleanupPreviousRun();
-        seedClub(CLUB_A, "alpha");
-        seedClub(CLUB_B, "bravo");
+        hardDeleteClassExclusiveClubsAndTheirLocations();
+        seedClub(CLASS_EXCLUSIVE_CLUB_A, "alpha");
+        seedClub(CLASS_EXCLUSIVE_CLUB_B, "bravo");
     }
 
     @Test
@@ -59,9 +60,10 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
     @ParameterizedTest(name = "{0} writing under own club returns {1}")
     @MethodSource("ownClubWriteMatrix")
-    void own_club_write_status(String authority, int expectedStatus) throws Exception {
+    void only_club_administrator_may_write_under_own_club(String authority, int expectedStatus)
+            throws Exception {
         mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_" + authority, CLUB_A))
+                        .with(role("ROLE_" + authority, CLASS_EXCLUSIVE_CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.createPayload(
                                 authority + " " + LocationsControllerIT.suffix(),
@@ -80,35 +82,35 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
     @Test
     void club_admin_full_crud_own_club() throws Exception {
         String icao = LocationsControllerIT.uniqueIcao();
-        String createdId = createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", icao);
+        String createdId = createUnderClub(CLASS_EXCLUSIVE_CLUB_A, "ROLE_CLUB_ADMINISTRATOR", icao);
         mvc.perform(get("/api/v1/locations/" + createdId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_A)))
                 .andExpect(status().isOk());
         mvc.perform(put("/api/v1/locations/" + createdId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.updatePayload("Renamed", icao))))
                 .andExpect(status().isOk());
         mvc.perform(delete("/api/v1/locations/" + createdId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_A)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void club_admin_cross_tenant_sees_404_not_403() throws Exception {
-        String externalId = createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR",
+        String externalId = createUnderClub(CLASS_EXCLUSIVE_CLUB_A, "ROLE_CLUB_ADMINISTRATOR",
                 LocationsControllerIT.uniqueIcao());
         mvc.perform(get("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_B)))
                 .andExpect(status().isNotFound());
         mvc.perform(put("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_B))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.updatePayload(
                                 "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
                 .andExpect(status().isNotFound());
         mvc.perform(delete("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_B)))
                 .andExpect(status().isNotFound());
     }
 
@@ -117,9 +119,9 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
         Map<String, Object> body = LocationsControllerIT.createPayload(
                 "No mass-assign " + LocationsControllerIT.suffix(),
                 LocationsControllerIT.uniqueIcao());
-        body.put("clubId", CLUB_B);
+        body.put("clubId", CLASS_EXCLUSIVE_CLUB_B);
         mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(body)))
                 .andExpect(status().isBadRequest());
@@ -129,17 +131,17 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
     void lists_for_two_clubs_are_disjoint_and_same_icao_coexists() throws Exception {
         String aIcao = LocationsControllerIT.uniqueIcao();
         String bIcao = LocationsControllerIT.uniqueIcao();
-        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", aIcao);
-        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", bIcao);
-        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", "SH99");
-        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", "SH99");
+        createUnderClub(CLASS_EXCLUSIVE_CLUB_A, "ROLE_CLUB_ADMINISTRATOR", aIcao);
+        createUnderClub(CLASS_EXCLUSIVE_CLUB_B, "ROLE_CLUB_ADMINISTRATOR", bIcao);
+        createUnderClub(CLASS_EXCLUSIVE_CLUB_A, "ROLE_CLUB_ADMINISTRATOR", ICAO_REUSED_IN_BOTH_CLUBS);
+        createUnderClub(CLASS_EXCLUSIVE_CLUB_B, "ROLE_CLUB_ADMINISTRATOR", ICAO_REUSED_IN_BOTH_CLUBS);
 
         String aList = mvc.perform(get("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_A)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         String bList = mvc.perform(get("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLASS_EXCLUSIVE_CLUB_B)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -166,13 +168,14 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
         return MAPPER.readTree(responseBody).get("id").asText();
     }
 
-    private void cleanupPreviousRun() {
+    private void hardDeleteClassExclusiveClubsAndTheirLocations() {
         jdbc.update("DELETE FROM t_inoutbound_point WHERE location_id IN ("
                         + "  SELECT id FROM t_location WHERE club_id IN (?::uuid, ?::uuid))",
-                CLUB_A, CLUB_B);
+                CLASS_EXCLUSIVE_CLUB_A, CLASS_EXCLUSIVE_CLUB_B);
         jdbc.update("DELETE FROM t_location WHERE club_id IN (?::uuid, ?::uuid)",
-                CLUB_A, CLUB_B);
-        jdbc.update("DELETE FROM t_club WHERE id IN (?::uuid, ?::uuid)", CLUB_A, CLUB_B);
+                CLASS_EXCLUSIVE_CLUB_A, CLASS_EXCLUSIVE_CLUB_B);
+        jdbc.update("DELETE FROM t_club WHERE id IN (?::uuid, ?::uuid)",
+                CLASS_EXCLUSIVE_CLUB_A, CLASS_EXCLUSIVE_CLUB_B);
     }
 
     private void seedClub(String id, String slug) {

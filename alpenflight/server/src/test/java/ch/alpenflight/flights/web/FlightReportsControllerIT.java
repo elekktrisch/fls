@@ -62,8 +62,23 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final UUID WINCH_LAUNCH_START_TYPE =
+    private static final UUID WINCH_LAUNCH_START_TYPE_ID =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
+    private static final int WINCH_LAUNCH_AS_LEGACY_START_TYPE_INT = 2;
+    private static final int NOT_A_SOLO_FLIGHT_AS_LEGACY_INT = 0;
+
+    private static final int HEADER_ROW = 4;
+    private static final int FIRST_DATA_ROW = 5;
+    private static final int FLIGHT_ID_COLUMN = 0;
+    private static final int IMMATRICULATION_COLUMN = 2;
+    private static final int PILOT_NAME_COLUMN = 3;
+    private static final int START_TIME_COLUMN = 9;
+    private static final int LDG_TIME_COLUMN = 10;
+    private static final int DURATION_COLUMN = 11;
+    private static final int IS_SOLO_FLIGHT_COLUMN = 12;
+    private static final int START_TYPE_COLUMN = 13;
+    private static final int BLANK_LEGACY_GAP_COLUMN = 16;
+    private static final int FLIGHT_COMMENT_COLUMN = BLANK_LEGACY_GAP_COLUMN + 1;
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -102,7 +117,7 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         Instant ldg = Instant.parse("2026-05-15T09:30:00Z");
         UUID flight = seedFlight(clubA, aircraft, LocalDate.of(2026, 5, 15), start, ldg,
                 location, location, flightType);
-        seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
+        seedCrew(flight, pilot, PILOT_OR_STUDENT_CREW_TYPE);
 
         String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         Map<String, Object> body = Map.of("searchFilter", Map.of(
@@ -122,40 +137,44 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
 
         JsonNode summaries = page.get("summaries");
         assertThat(summaries.isArray()).isTrue();
-        assertThat(summaries.size()).isGreaterThanOrEqualTo(2);
+        assertThat(summaries.size())
+                .as("the person filter drives the person branch: at least Pilot (Glider) + Total")
+                .isGreaterThanOrEqualTo(2);
         assertThat(summary(summaries, "Total").get("totalFlights").asInt()).isEqualTo(1);
     }
 
     @Test
-    void pageQuery_clubAFilteringByClubBLocation_seesNoClubBRows() {
+    void pageQuery_clubAFilteringByALocationClubBAlsoFliesFrom_seesNoClubBRows() {
         UUID aircraftA = seedAircraft(clubA);
         UUID aircraftB = seedAircraft(clubB);
-        UUID locationA = seedLocation(clubA, "HomeA");
+        UUID locationOwnedByClubA = seedLocation(clubA, "HomeA");
         UUID ftA = seedFlightType(clubA, "TypeA", "TA");
         UUID ftB = seedFlightType(clubB, "TypeB", "TB");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
         seedFlight(clubA, aircraftA, LocalDate.of(2026, 5, 15), start, ldg,
-                locationA, locationA, ftA);
+                locationOwnedByClubA, locationOwnedByClubA, ftA);
         seedFlight(clubB, aircraftB, LocalDate.of(2026, 5, 15), start, ldg,
-                locationA, locationA, ftB);
+                locationOwnedByClubA, locationOwnedByClubA, ftB);
 
         String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         Map<String, Object> body = Map.of("searchFilter", Map.of(
-                "locationId", "loc-" + locationA,
+                "locationId", "loc-" + locationOwnedByClubA,
                 "towFlights", true));
 
         ResponseEntity<String> res = post("/api/v1/flightreports/page/0/100", body, token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode page = readJson(res);
-        assertThat(page.get("totalRows").asLong()).isEqualTo(1);
+        assertThat(page.get("totalRows").asLong())
+                .as("club A's flight only — the legacy tenancy hole leaked club B's")
+                .isEqualTo(1);
         assertThat(page.get("items")).hasSize(1);
     }
 
     @Test
-    void pageQuery_pilotRole_canRead() {
+    void pageQuery_lowPrivilegePilotRole_canRead() {
         UUID aircraft = seedAircraft(clubA);
         UUID location = seedLocation(clubA, "Loc");
         UUID flightType = seedFlightType(clubA, "T", "T");
@@ -167,7 +186,9 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         String token = mintToken(clubA, "PILOT");
         ResponseEntity<String> res = post("/api/v1/flightreports/page/0/100",
                 Map.of(), token);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getStatusCode())
+                .as("a PILOT principal reads its club's reports — no role-gate 403")
+                .isEqualTo(HttpStatus.OK);
         assertThat(readJson(res).get("totalRows").asLong()).isEqualTo(1);
     }
 
@@ -181,8 +202,8 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
         Instant start = Instant.parse("2026-05-15T08:05:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:35:00Z");
         UUID flight = seedFlightWithStartType(clubA, aircraft, LocalDate.of(2026, 5, 15),
-                start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE);
-        seedCrew(flight, pilot, FlightCrewTypeIds_PILOT);
+                start, ldg, location, location, flightType, WINCH_LAUNCH_START_TYPE_ID);
+        seedCrew(flight, pilot, PILOT_OR_STUDENT_CREW_TYPE);
 
         String token = mintToken(clubA, "CLUB_ADMINISTRATOR");
         Map<String, Object> body = Map.of("searchFilter", Map.of(
@@ -211,30 +232,42 @@ class FlightReportsControllerIT extends PostgresIntegrationTest {
             Cell c3 = sheet.getRow(2).getCell(2);
             assertThat(c3.getCellStyle().getDataFormatString()).isEqualTo("dd.mm.yyyy HH:MM:ss");
 
-            Row header = sheet.getRow(4);
-            assertThat(header.getCell(0).getStringCellValue()).isEqualTo("Flight ID");
-            assertThat(header.getCell(9).getStringCellValue()).isEqualTo("StartTime UTC");
-            assertThat(header.getCell(10).getStringCellValue()).isEqualTo("LdgTime UCT");
-            assertThat(header.getCell(12).getStringCellValue()).isEqualTo("IsSoloFlight");
-            assertThat(header.getCell(13).getStringCellValue()).isEqualTo("StartType");
-            Cell skipped = header.getCell(16);
-            assertThat(skipped == null || skipped.getStringCellValue().isEmpty())
+            Row header = sheet.getRow(HEADER_ROW);
+            assertThat(header.getCell(FLIGHT_ID_COLUMN).getStringCellValue()).isEqualTo("Flight ID");
+            assertThat(header.getCell(START_TIME_COLUMN).getStringCellValue())
+                    .isEqualTo("StartTime UTC");
+            assertThat(header.getCell(LDG_TIME_COLUMN).getStringCellValue())
+                    .as("the legacy header preserves the UCT typo")
+                    .isEqualTo("LdgTime UCT");
+            assertThat(header.getCell(IS_SOLO_FLIGHT_COLUMN).getStringCellValue())
+                    .isEqualTo("IsSoloFlight");
+            assertThat(header.getCell(START_TYPE_COLUMN).getStringCellValue())
+                    .isEqualTo("StartType");
+            Cell blankLegacyGap = header.getCell(BLANK_LEGACY_GAP_COLUMN);
+            assertThat(blankLegacyGap == null || blankLegacyGap.getStringCellValue().isEmpty())
                     .as("column 17 header is blank").isTrue();
-            assertThat(header.getCell(17).getStringCellValue()).isEqualTo("FlightComment");
+            assertThat(header.getCell(FLIGHT_COMMENT_COLUMN).getStringCellValue())
+                    .isEqualTo("FlightComment");
 
-            Row data = sheet.getRow(5);
-            assertThat(data.getCell(2).getStringCellValue()).startsWith("HB-");
-            assertThat(data.getCell(3).getStringCellValue()).isEqualTo("Tester Anna");
-            assertThat(data.getCell(9).getCellStyle().getDataFormatString()).isEqualTo("HH:MM");
-            assertThat(data.getCell(10).getCellStyle().getDataFormatString()).isEqualTo("HH:MM");
-            assertThat(data.getCell(11).getCellStyle().getDataFormatString()).isEqualTo("[H]:MM");
-            assertThat((int) data.getCell(12).getNumericCellValue()).isEqualTo(0);
-            assertThat((int) data.getCell(13).getNumericCellValue()).isEqualTo(2);
+            Row data = sheet.getRow(FIRST_DATA_ROW);
+            assertThat(data.getCell(IMMATRICULATION_COLUMN).getStringCellValue()).startsWith("HB-");
+            assertThat(data.getCell(PILOT_NAME_COLUMN).getStringCellValue())
+                    .isEqualTo("Tester Anna");
+            assertThat(data.getCell(START_TIME_COLUMN).getCellStyle().getDataFormatString())
+                    .isEqualTo("HH:MM");
+            assertThat(data.getCell(LDG_TIME_COLUMN).getCellStyle().getDataFormatString())
+                    .isEqualTo("HH:MM");
+            assertThat(data.getCell(DURATION_COLUMN).getCellStyle().getDataFormatString())
+                    .isEqualTo("[H]:MM");
+            assertThat((int) data.getCell(IS_SOLO_FLIGHT_COLUMN).getNumericCellValue())
+                    .isEqualTo(NOT_A_SOLO_FLIGHT_AS_LEGACY_INT);
+            assertThat((int) data.getCell(START_TYPE_COLUMN).getNumericCellValue())
+                    .isEqualTo(WINCH_LAUNCH_AS_LEGACY_START_TYPE_INT);
         }
     }
 
 
-    private static final UUID FlightCrewTypeIds_PILOT =
+    private static final UUID PILOT_OR_STUDENT_CREW_TYPE =
             ch.alpenflight.flights.domain.FlightCrewTypeIds.PILOT_OR_STUDENT;
 
     private static JsonNode summary(JsonNode summaries, String groupBy) {

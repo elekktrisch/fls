@@ -118,7 +118,8 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                 createPayload("Key Dup", "key-b-" + suffix(), clubKey));
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(second.getBody())
-                .as("the 409 must carry the problem-detail field=clubKey discriminator")
+                .as("slugs are unique per call, so only ux_club_key can trip here — "
+                        + "the 409 must carry the problem-detail field=clubKey discriminator")
                 .isNotNull()
                 .contains("\"field\":\"clubKey\"");
     }
@@ -154,10 +155,13 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         assertThat(updated.get("scenicFlightOperatorEmail").asText())
                 .isEqualTo("mitflug@club.example");
 
-        Map<String, Object> cleared = updatePayload("Operator Club", slug, true);
-        cleared.put("discoveryFlightOperatorEmail", "");
-        JsonNode afterClear = readJson(put("/api/v1/clubs/" + id, cleared));
-        assertThat(afterClear.hasNonNull("discoveryFlightOperatorEmail")).isFalse();
+        Map<String, Object> blankedOperatorEmail = updatePayload("Operator Club", slug, true);
+        blankedOperatorEmail.put("discoveryFlightOperatorEmail", "");
+        JsonNode afterClear = readJson(put("/api/v1/clubs/" + id, blankedOperatorEmail));
+        assertThat(afterClear.hasNonNull("discoveryFlightOperatorEmail"))
+                .as("blank clears the opt-in instead of failing — an unset organiser "
+                        + "address must never block a registration")
+                .isFalse();
         assertThat(afterClear.hasNonNull("scenicFlightOperatorEmail")).isFalse();
         assertThat(afterClear.hasNonNull("discoveryFlightTypeId")).isFalse();
     }
@@ -195,7 +199,7 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         String slug = "homebase-" + suffix();
         String clubId = readJson(post("/api/v1/clubs",
                 createPayload("Homebase Club", slug, "HMB" + shortSuffix()))).get("id").asText();
-        String homebaseId = createLocation(clubId, "IT_CTL_Homebase");
+        String homebaseId = createLocationAsAdminOfOwningClub(clubId, "IT_CTL_Homebase");
 
         Map<String, Object> payload = updatePayload("Homebase Club", slug, false);
         payload.put("homebaseId", homebaseId);
@@ -215,13 +219,13 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         String slug = "ownhome-" + suffix();
         String clubId = readJson(post("/api/v1/clubs",
                 createPayload("Own Home Club", slug, "OWN" + shortSuffix()))).get("id").asText();
-        String ownLocationId = createLocation(clubId, "IT_CTL_Own");
+        String ownLocationId = createLocationAsAdminOfOwningClub(clubId, "IT_CTL_Own");
 
         String neighbourSlug = "neighbour-" + suffix();
         String neighbourId = readJson(post("/api/v1/clubs",
                 createPayload("Neighbour Club", neighbourSlug, "NBR" + shortSuffix())))
                 .get("id").asText();
-        String neighbourLocationId = createLocation(neighbourId, "IT_CTL_Neighbour");
+        String neighbourLocationId = createLocationAsAdminOfOwningClub(neighbourId, "IT_CTL_Neighbour");
 
         String adminToken = clubAdminToken(clubId);
         Map<String, Object> payload = updatePayload("Own Home Club", slug, false);
@@ -235,36 +239,41 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         assertThat(refused.getBody()).contains("homebaseId");
 
         assertThat(readJson(get("/api/v1/clubs/" + clubId)).get("homebaseId").asText())
+                .as("the refusal is not cosmetic — the stored homebase never moved")
                 .isEqualTo(ownLocationId);
     }
 
     @Test
     void updateClub_sysadmin_cannot_point_a_clubs_homebase_at_its_own_clubs_location() {
-        String seedLocationId = createLocation(SEED_CLUB_PATH, "IT_CTL_SeedClubOwned");
+        String locationOwnedByTheSysadminsOwnTenant =
+                createLocationAsAdminOfOwningClub(SEED_CLUB_PATH, "IT_CTL_SeedClubOwned");
 
         String slug = "sysadminhome-" + suffix();
         String clubId = readJson(post("/api/v1/clubs",
                 createPayload("Sysadmin Home Club", slug, "SAH" + shortSuffix()))).get("id").asText();
 
         Map<String, Object> payload = updatePayload("Sysadmin Home Club", slug, false);
-        payload.put("homebaseId", seedLocationId);
+        payload.put("homebaseId", locationOwnedByTheSysadminsOwnTenant);
         ResponseEntity<String> refused = put("/api/v1/clubs/" + clubId, payload);
 
-        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(refused.getStatusCode())
+                .as("a homebase check run on the CALLER's tenant would accept this "
+                        + "and store a cross-tenant FK")
+                .isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(refused.getBody()).contains("homebaseId");
     }
 
     @Test
     void updateClub_unknownId_returns_404() {
-        ClubId ghost = ClubId.of(new java.util.UUID(0L, 0L));
+        ClubId wellFormedClubIdWithNoRow = ClubId.of(new java.util.UUID(0L, 0L));
         ResponseEntity<String> res = put(
-                "/api/v1/clubs/" + ghost,
+                "/api/v1/clubs/" + wellFormedClubIdWithNoRow,
                 updatePayload("x", "ghost-" + suffix(), false));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void getClub_malformed_id_returns_400() {
+    void getClub_bare_uuid_without_the_clb_prefix_returns_400() {
         ResponseEntity<String> res = get("/api/v1/clubs/00000000-0000-0000-0000-000000000000");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -305,11 +314,13 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
         ResponseEntity<String> list = get("/api/v1/clubs");
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(list.getBody()).doesNotContain(slug);
+        assertThat(list.getBody())
+                .as("the list endpoint excludes soft-deleted rows")
+                .doesNotContain(slug);
     }
 
 
-    private String createLocation(String clubExternalId, String name) {
+    private String createLocationAsAdminOfOwningClub(String owningClubExternalId, String name) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("locationName", name + "_" + shortSuffix());
         body.put("countryId", SEED_COUNTRY_ID);
@@ -319,7 +330,8 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         body.put("isFastEntryRecord", false);
         ResponseEntity<String> created = rest.exchange(
                 RequestEntity.post(URI.create("/api/v1/locations"))
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken(clubExternalId))
+                        .header(HttpHeaders.AUTHORIZATION,
+                                "Bearer " + clubAdminToken(owningClubExternalId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body),
                 String.class);

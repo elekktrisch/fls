@@ -41,7 +41,7 @@ class FlightTypeDomainTest {
     }
 
     @Test
-    void register_minSeatsZero_rejects() {
+    void register_minSeatsZero_rejects_in_the_aggregate_not_only_at_the_dto_boundary() {
         assertThatThrownBy(() -> FlightType.register("Foo", null,
                 false, false, false, false, false,
                 true, false, false,

@@ -118,6 +118,8 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
     @Test
     void no_tenant_context_writes_fail_at_fk_constraint() {
         assertThatThrownBy(() -> articles.registerArticle(payload(uniqueNumber())))
+                .as("no real row carries the nil UUID, so fk_article_operating_club_id rejects "
+                        + "the write — the fail-closed half of the @TenantId contract")
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

@@ -46,6 +46,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final int MAX_ATTEMPTS_PER_WINDOW = 5;
+    private static final Duration BRUTE_FORCE_WINDOW = Duration.ofMinutes(15);
+    private static final Duration DENY_COOLDOWN = Duration.ofHours(24);
 
     @TestConfiguration
     static class MutableClockConfig {
@@ -112,8 +115,9 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
     void sixthAttemptInWindow_is_429_withRetryAfter() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String token = pilotToken(sub);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < MAX_ATTEMPTS_PER_WINDOW; i++) {
             assertThat(submit(token, "NOPE" + i + "AB", null).getStatusCode())
+                    .as("unknown-code attempts still count toward the per-sub window")
                     .isEqualTo(HttpStatus.NOT_FOUND);
         }
         ResponseEntity<String> sixth = submit(token, "NOPE5XYZ", null);
@@ -127,13 +131,13 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
     void windowResetsAfterExpiry_allowsAgain() {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         String token = pilotToken(sub);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < MAX_ATTEMPTS_PER_WINDOW; i++) {
             submit(token, "NOPE" + i + "AB", null);
         }
         assertThat(submit(token, "NOPE5XYZ", null).getStatusCode())
                 .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
 
-        clock.advance(Duration.ofMinutes(16));
+        clock.advance(BRUTE_FORCE_WINDOW.plusMinutes(1));
 
         assertThat(submit(token, "NOPE6XYZ", null).getStatusCode())
                 .as("window reset — an unknown-code 404 again, not a 429")
@@ -157,7 +161,7 @@ class JoinRequestSubmitGuardIT extends PostgresIntegrationTest {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         denyAFreshRequest(sub);
 
-        clock.advance(Duration.ofHours(25));
+        clock.advance(DENY_COOLDOWN.plusHours(1));
         assertThat(submit(pilotToken(sub), codeA, null).getStatusCode())
                 .as("cooldown elapsed — a fresh pending request is filed")
                 .isEqualTo(HttpStatus.CREATED);

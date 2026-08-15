@@ -81,6 +81,7 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
     @Test
     void register_without_tenant_context_throws_illegalState() {
         assertThatThrownBy(() -> aircrafts.registerAircraft(payload(uniqueImmat())))
+                .as("the service fails closed on its own, not only behind the controller's role gate")
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tenant context");
     }

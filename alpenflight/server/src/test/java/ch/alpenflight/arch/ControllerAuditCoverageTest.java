@@ -100,7 +100,7 @@ class ControllerAuditCoverageTest {
                 if (AuditTrail.class.getName().equals(targetType)) {
                     return true;
                 }
-                if (!isReachableProductionMethod(targetType)) {
+                if (!isOwnProductionCodeSoTheWalkStaysBounded(targetType)) {
                     continue;
                 }
                 call.getTarget().resolveMember()
@@ -110,7 +110,7 @@ class ControllerAuditCoverageTest {
         return false;
     }
 
-    private boolean isReachableProductionMethod(String typeName) {
+    private boolean isOwnProductionCodeSoTheWalkStaysBounded(String typeName) {
         return typeName.startsWith("ch.alpenflight.");
     }
 

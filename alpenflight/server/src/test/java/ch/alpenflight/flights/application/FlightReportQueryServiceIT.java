@@ -90,11 +90,11 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         seedCrew(gliderInWindow, pilot, FlightCrewTypeIds.PILOT_OR_STUDENT);
         seedCrew(gliderInWindow, copilot, FlightCrewTypeIds.CO_PILOT);
 
-        seedFlight(clubA, TYPE_GLIDER, aircraft,
+        UUID gliderOutsideTheDateWindow = seedFlight(clubA, TYPE_GLIDER, aircraft,
                 LocalDate.of(2026, 1, 1), Instant.parse("2026-01-01T08:00:00Z"),
                 Instant.parse("2026-01-01T09:00:00Z"), location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
-        seedFlight(clubA, TYPE_MOTOR, aircraft,
+        UUID motorFlightTheMotorFlagExcludes = seedFlight(clubA, TYPE_MOTOR, aircraft,
                 LocalDate.of(2026, 5, 16), start, ldg, location, location, flightType,
                 FlightProcessState.VALID.id(), null, false);
 
@@ -106,7 +106,10 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
                 () -> service.getReportPage(filter, 0, 100, false, true));
 
         assertThat(result.totalRows()).isEqualTo(1);
-        assertThat(result.items()).hasSize(1);
+        assertThat(ids(result))
+                .as("excludes %s (outside the date window) and %s (motor flag off)",
+                        gliderOutsideTheDateWindow, motorFlightTheMotorFlagExcludes)
+                .containsExactly(gliderInWindow);
         assertThat(result.summaries()).isEmpty();
 
         FlightReportDataRecord row = result.items().get(0);
@@ -130,24 +133,28 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
     void tenantIsolation_clubBFlight_neverReturnedToClubA() {
         UUID aircraftA = seedAircraft(clubA);
         UUID aircraftB = seedAircraft(clubB);
-        UUID locationA = seedLocation(clubA, "Homebase");
+        UUID locationOwnedByClubA = seedLocation(clubA, "Homebase");
         UUID flightTypeA = seedFlightType(clubA, "TypeA", "TA");
         UUID flightTypeB = seedFlightType(clubB, "TypeB", "TB");
 
         Instant start = Instant.parse("2026-05-15T08:00:00Z");
         Instant ldg = Instant.parse("2026-05-15T09:00:00Z");
         UUID flightA = seedFlight(clubA, TYPE_GLIDER, aircraftA,
-                LocalDate.of(2026, 5, 15), start, ldg, locationA, locationA, flightTypeA,
+                LocalDate.of(2026, 5, 15), start, ldg,
+                locationOwnedByClubA, locationOwnedByClubA, flightTypeA,
                 FlightProcessState.VALID.id(), null, false);
         UUID flightB = seedFlight(clubB, TYPE_GLIDER, aircraftB,
-                LocalDate.of(2026, 5, 15), start, ldg, locationA, locationA, flightTypeB,
+                LocalDate.of(2026, 5, 15), start, ldg,
+                locationOwnedByClubA, locationOwnedByClubA, flightTypeB,
                 FlightProcessState.VALID.id(), null, false);
 
         FlightReportFilter filterA = new FlightReportFilter(null, null, null,
-                new LocationId(locationA), true, true, true);
+                new LocationId(locationOwnedByClubA), true, true, true);
         FlightReportResult aResult = TenantTestContext.runAs(clubA,
                 () -> service.getReportPage(filterA, 0, 100, false, true));
-        assertThat(ids(aResult)).containsExactly(flightA);
+        assertThat(ids(aResult))
+                .as("club B flies from club A's location; the tenant scope still hides %s", flightB)
+                .containsExactly(flightA);
 
         FlightReportResult bResult = TenantTestContext.runAs(clubB,
                 () -> service.getReportPage(
@@ -289,11 +296,17 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         assertThat(pg.totalStarts()).isEqualTo(2 + (1 + 1));
         assertThat(pg.totalFlightDuration()).isEqualTo(java.time.Duration.ofHours(2));
 
-        assertThat(summary(sums, "Pilot (Motor)").totalFlights()).isEqualTo(1);
-        assertThat(summary(sums, "Pilot (Towing)").totalFlights()).isEqualTo(1);
+        assertThat(summary(sums, "Pilot (Motor)").totalFlights())
+                .as("corrected legacy bug: motor pilot rows carry a non-zero flight count")
+                .isEqualTo(1);
+        assertThat(summary(sums, "Pilot (Towing)").totalFlights())
+                .as("corrected legacy bug: towing pilot rows carry a non-zero flight count")
+                .isEqualTo(1);
 
         assertThat(summary(sums, "Instructor").totalFlights()).isEqualTo(1);
-        assertThat(summary(sums, "Instructor (Soloflights)").totalFlights()).isEqualTo(1);
+        assertThat(summary(sums, "Instructor (Soloflights)").totalFlights())
+                .as("instructor rows split on IsSoloFlight")
+                .isEqualTo(1);
         assertThat(summary(sums, "Copilot").totalFlights()).isEqualTo(1);
 
         var total = summary(sums, "Total");
@@ -311,11 +324,11 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         Instant s = Instant.parse("2026-05-15T08:00:00Z");
         Instant l = Instant.parse("2026-05-15T09:00:00Z");
 
-        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 15), s, l,
+        UUID sameAirfieldFlight = seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 15), s, l,
                 loc, loc, schulung, FlightProcessState.VALID.id(), null, false, (short) 3, (short) 0);
-        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 16), s, l,
+        UUID flyInFromAway = seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 16), s, l,
                 away, loc, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 2, (short) 0);
-        seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 17), s, l,
+        UUID flyOutToAway = seedFlight(clubA, TYPE_GLIDER, ac, LocalDate.of(2026, 5, 17), s, l,
                 loc, away, streckenflug, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
 
         FlightReportFilter filter = new FlightReportFilter(
@@ -331,12 +344,20 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         var sch = summary(sums, "Schulung");
         assertThat(sch.totalFlights()).isEqualTo(1);
         assertThat(sch.totalLdgs()).isEqualTo(3);
-        assertThat(sch.totalStarts()).isEqualTo(3);
+        assertThat(sch.totalStarts())
+                .as("same-airfield flight %s: starts == its nrOfLdgs", sameAirfieldFlight)
+                .isEqualTo(3);
 
         var str = summary(sums, "Streckenflug");
         assertThat(str.totalFlights()).isEqualTo(2);
-        assertThat(str.totalLdgs()).isEqualTo(2);
-        assertThat(str.totalStarts()).isEqualTo((2 - 1) + 1);
+        assertThat(str.totalLdgs())
+                .as("only the fly-in %s lands here; the fly-out %s does not",
+                        flyInFromAway, flyOutToAway)
+                .isEqualTo(2);
+        assertThat(str.totalStarts())
+                .as("fly-in %s contributes nrOfLdgs-1, fly-out %s contributes nrOfLdgs",
+                        flyInFromAway, flyOutToAway)
+                .isEqualTo((2 - 1) + 1);
 
         var total = summary(sums, "Total");
         assertThat(total.totalFlights()).isEqualTo(3);
@@ -356,12 +377,13 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
         Instant s = Instant.parse("2026-05-15T08:00:00Z");
         Instant l = Instant.parse("2026-05-15T09:00:00Z");
 
-        UUID fa = seedFlight(clubA, TYPE_GLIDER, acA, LocalDate.of(2026, 5, 15), s, l,
+        UUID clubAFlight = seedFlight(clubA, TYPE_GLIDER, acA, LocalDate.of(2026, 5, 15), s, l,
                 locA, locA, ftA, FlightProcessState.VALID.id(), null, false, (short) 1, (short) 0);
-        seedCrew(fa, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
-        UUID fb = seedFlight(clubB, TYPE_GLIDER, acB, LocalDate.of(2026, 5, 15), s, l,
+        seedCrew(clubAFlight, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+        UUID clubBFlightWithTheSamePilot = seedFlight(clubB, TYPE_GLIDER, acB,
+                LocalDate.of(2026, 5, 15), s, l,
                 locA, locA, ftB, FlightProcessState.VALID.id(), null, false, (short) 5, (short) 0);
-        seedCrew(fb, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
+        seedCrew(clubBFlightWithTheSamePilot, person, FlightCrewTypeIds.PILOT_OR_STUDENT);
 
         FlightReportFilter filter = new FlightReportFilter(null, null,
                 new PersonId(person), null, true, true, true);
@@ -370,7 +392,10 @@ class FlightReportQueryServiceIT extends PostgresIntegrationTest {
 
         var pg = summary(aResult.summaries(), "Pilot (Glider)");
         assertThat(pg.totalFlights()).isEqualTo(1);
-        assertThat(pg.totalLdgs()).isEqualTo(1);
+        assertThat(pg.totalLdgs())
+                .as("club B's 5 landings on %s stay out of club A's summary",
+                        clubBFlightWithTheSamePilot)
+                .isEqualTo(1);
         assertThat(summary(aResult.summaries(), "Total").totalFlights()).isEqualTo(1);
     }
 

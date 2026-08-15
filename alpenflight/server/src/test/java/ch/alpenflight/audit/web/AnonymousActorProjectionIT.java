@@ -126,8 +126,11 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
 
         Map<String, String> kinds = actorKindByTargetEntityType();
 
-        assertThat(kinds).containsEntry(PUBLIC_REGISTRATION_ENTITY, "NORMAL");
-        assertThat(kinds).containsEntry(CLUB_ENTITY, "NORMAL");
+        assertThat(kinds)
+                .as("actor_kind reads the same on both rows, which is why the projection "
+                        + "omits it and the viewer keys on system_actor instead")
+                .containsEntry(PUBLIC_REGISTRATION_ENTITY, "NORMAL")
+                .containsEntry(CLUB_ENTITY, "NORMAL");
     }
 
     private void submitAnonymously() {

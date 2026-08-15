@@ -18,6 +18,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 class DeploymentRepositoryIT extends PostgresIntegrationTest {
 
+    private static final String IT_ONLY_NAME_PREFIX = "IT_DEPRO_";
+
     @Autowired
     private DeploymentRepository deployments;
 
@@ -27,8 +29,18 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
     private final Clock clock = Clock.systemUTC();
 
     @BeforeEach
-    void cleanFixtureRows() {
-        jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_DEPRO_%'");
+    void deleteRowsFromPriorRunsTaggedWithTheItOnlyNamePrefix() {
+        jdbc.update("DELETE FROM t_deployment WHERE name LIKE ?", IT_ONLY_NAME_PREFIX + "%");
+    }
+
+    private void insertDirectlySoTheUniqueViolationSurfacesAtInsertTimeInsteadOfAtFlush(
+            String name, UUID owner, String lifecycleState, String plan) {
+        jdbc.update("""
+                        INSERT INTO t_deployment (id, name, owner_keycloak_sub,
+                                                lifecycle_state, plan)
+                        VALUES (?::uuid, ?, ?::uuid, ?, ?)
+                        """,
+                UUID.randomUUID().toString(), name, owner.toString(), lifecycleState, plan);
     }
 
     @Test
@@ -51,11 +63,9 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
         UUID owner = UUID.fromString("00000000-0000-0000-0000-00000000a002");
         deployments.save(Deployment.startTrial(clock, "IT_DEPRO_first", owner));
 
-        assertThatThrownBy(() -> jdbc.update("""
-                        INSERT INTO t_deployment (id, name, owner_keycloak_sub,
-                                                lifecycle_state, plan)
-                        VALUES (?::uuid, 'IT_DEPRO_second', ?::uuid, 'TRIAL', 'ACTIVE')
-                        """, UUID.randomUUID().toString(), owner.toString()))
+        assertThatThrownBy(() ->
+                insertDirectlySoTheUniqueViolationSurfacesAtInsertTimeInsteadOfAtFlush(
+                        "IT_DEPRO_second", owner, "TRIAL", "ACTIVE"))
                 .isInstanceOf(DuplicateKeyException.class);
     }
 
@@ -63,15 +73,15 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
     void partial_unique_excludes_deleting_and_sandbox_states() {
         UUID owner = UUID.fromString("00000000-0000-0000-0000-00000000a003");
 
-        jdbc.update("""
-                        INSERT INTO t_deployment (id, name, owner_keycloak_sub,
-                                                lifecycle_state, plan)
-                        VALUES (?::uuid, 'IT_DEPRO_deleting', ?::uuid, 'DELETING', 'FREE')
-                        """, UUID.randomUUID().toString(), owner.toString());
+        insertDirectlySoTheUniqueViolationSurfacesAtInsertTimeInsteadOfAtFlush(
+                "IT_DEPRO_deleting", owner, "DELETING", "FREE");
 
         Deployment fresh = deployments.save(
                 Deployment.startTrial(clock, "IT_DEPRO_fresh_after_delete", owner));
-        assertThat(fresh.getLifecycleState()).isEqualTo(LifecycleState.TRIAL);
+        assertThat(fresh.getLifecycleState())
+                .as("the partial UNIQUE predicate excludes DELETING, so the same owner may "
+                        + "provision a fresh TRIAL")
+                .isEqualTo(LifecycleState.TRIAL);
     }
 
     @Test

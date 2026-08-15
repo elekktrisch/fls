@@ -81,15 +81,17 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void page_returns_club_deliveries_sorted_batch_desc_recipient_asc() {
-        saveDelivery(clubA, 30L, recipientNamed("Zulu"), null, List.of());
-        saveDelivery(clubA, 40L, recipientNamed("Mike"), null, List.of());
-        saveDelivery(clubB, 99L, recipientNamed("Other"), null, List.of());
+        hydrateAndSaveReadOnlyDelivery(clubA, 30L, recipientNamed("Zulu"), null, List.of());
+        hydrateAndSaveReadOnlyDelivery(clubA, 40L, recipientNamed("Mike"), null, List.of());
+        hydrateAndSaveReadOnlyDelivery(clubB, 99L, recipientNamed("Other"), null, List.of());
 
         ResponseEntity<String> res = post(BASE + "/page/0/100", adminA);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
 
-        assertThat(body.get("totalRows").asLong()).isEqualTo(2);
+        assertThat(body.get("totalRows").asLong())
+                .as("club B's delivery is excluded from club A's page")
+                .isEqualTo(2);
         JsonNode items = body.get("items");
         assertThat(items.size()).isEqualTo(2);
         assertThat(items.get(0).get("batchId").asLong()).isEqualTo(40L);
@@ -110,7 +112,7 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
                 clubA, 1, articleId, "ART-FT", "first 30min",
                 new BigDecimal("0.5000"), new BigDecimal("120.0000"), 10, "Min");
 
-        UUID id = saveDelivery(clubA, 90L, recipient, flightId, List.of(item));
+        UUID id = hydrateAndSaveReadOnlyDelivery(clubA, 90L, recipient, flightId, List.of(item));
 
         ResponseEntity<String> res = get(BASE + "/" + id, adminA);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -134,15 +136,18 @@ class DeliveriesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void crossTenant_get_returns_404() {
-        UUID bRow = saveDelivery(clubB, 5L, recipientNamed("Bravo"), null, List.of());
+        UUID bRow = hydrateAndSaveReadOnlyDelivery(clubB, 5L, recipientNamed("Bravo"), null, List.of());
 
         ResponseEntity<String> res = get(BASE + "/" + bRow, adminA);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getStatusCode())
+                .as("the @TenantId discriminator makes club B's delivery invisible, not forbidden")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
 
-    private UUID saveDelivery(UUID clubId, long batchId, DeliveryRecipient recipient,
-                              UUID flightId, List<DeliveryItem> items) {
+    private UUID hydrateAndSaveReadOnlyDelivery(UUID clubId, long batchId,
+                                                DeliveryRecipient recipient,
+                                                UUID flightId, List<DeliveryItem> items) {
         DeliveryProcessState state = items.isEmpty()
                 ? DeliveryProcessState.PREPARED
                 : DeliveryProcessState.BOOKED;

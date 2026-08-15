@@ -46,8 +46,12 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
+        deleteClubFlightsBeforeFlightTypesBecauseFlightRowsFkReferenceThem();
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id = ?::uuid", CLUB_ID);
+    }
+
+    private void deleteClubFlightsBeforeFlightTypesBecauseFlightRowsFkReferenceThem() {
+        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
     @Test
@@ -110,7 +114,9 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         ResponseEntity<String> recreated = post("/api/v1/flight-types", createPayload(name));
-        assertThat(recreated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(recreated.getStatusCode())
+                .as("the partial UNIQUE excludes soft-deleted rows from the uniqueness scope")
+                .isEqualTo(HttpStatus.CREATED);
     }
 
     @Test

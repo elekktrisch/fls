@@ -220,7 +220,9 @@ class ClubDomainTest {
                 .isInstanceOf(InvalidClubReferenceException.class)
                 .extracting(e -> ((InvalidClubReferenceException) e).getField())
                 .isEqualTo("homebaseId");
-        assertThat(club.getHomebaseId()).isEqualTo(ownLocation);
+        assertThat(club.getHomebaseId())
+                .as("a rejected write leaves the previous homebase intact")
+                .isEqualTo(ownLocation);
     }
 
     @Test

@@ -177,7 +177,10 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(result.recipient()).isNotNull();
         assertThat(result.recipient().personClubMemberNumber()).isEqualTo("999007");
         assertThat(result.recipient().recipientName()).isEqualTo("FGZO Passagierflug Gutschein");
-        assertThat(result.recipient().personId()).isNull();
+        assertThat(result.recipient().personId())
+                .as("no Person owns this member number, yet the recipient still resolves "
+                        + "self-contained instead of failing the delivery")
+                .isNull();
         assertThat(result.getMatchedFilterIds()).contains(recipientFilterId);
     }
 
@@ -202,7 +205,10 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
                 TenantTestContext.runAs(clubA, () -> engine.computeForFlight(flight));
 
         assertThat(result.isDoNotInvoiceFlight()).isTrue();
-        assertThat(result.deliveryItems()).isEmpty();
+        assertThat(result.deliveryItems())
+                .as("a flight-time filter that would otherwise emit is seeded, so an empty delivery "
+                        + "proves the short-circuit rather than an absence of rules")
+                .isEmpty();
         assertThat(result.getMatchedFilterIds()).containsExactly(doNotInvoiceId);
     }
 

@@ -51,8 +51,12 @@ class VsfFeeStageTest {
                 .nrOfLdgsOnStartLocation(3)
                 .build(), List.of(filter));
 
-        assertThat(billed.deliveryItems()).hasSize(1);
+        assertThat(billed.deliveryItems())
+                .as("the flight landed at LSZF, so only the start-substituted pass matches the "
+                        + "LSZK include-list")
+                .hasSize(1);
         assertThat(billed.deliveryItems().get(0).quantity())
+                .as("the start-substituted pass bills nrOfLdgsOnStartLocation, not nrOfLdgs")
                 .isEqualByComparingTo(BigDecimal.valueOf(3));
 
         var forcedOff = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());

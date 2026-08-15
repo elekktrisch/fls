@@ -63,7 +63,8 @@ class RoleVocabularySingleSourceTest {
         Set<String> realmRoleNames = parseRealmRoleNames(readFile(REALM_EXPORT_JSON));
 
         assertThat(realmRoleNames)
-                .as("every Role enum constant must be defined as a realm role in realm-export.json")
+                .as("every Role enum constant must be defined as a realm role in realm-export.json "
+                        + "or a token can never carry it and variant routing breaks")
                 .containsAll(enumRoleNames());
     }
 

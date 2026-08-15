@@ -91,7 +91,9 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
                         .body(createPayload("NoClubSysadminClub", slug, "NCS" + shortSuffix())),
                 String.class);
         assertThat(res.getStatusCode())
-                .as("a tenant-less sysadmin club-create must not 500 on the audit FK")
+                .as("a tenant-less sysadmin club-create must not 500 on the audit FK — the "
+                        + "NO_TENANT nil-UUID has no t_club parent and would violate "
+                        + "fk_mutation_audit_event_tenant_club_id")
                 .isEqualTo(HttpStatus.CREATED);
         UUID createdId = ClubId.parse(readJson(res).get("id").asText()).value();
 
@@ -181,7 +183,9 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT * FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 SYSADMIN_TENANT.toString());
-        assertThat(rows).isEmpty();
+        assertThat(rows)
+                .as("a GET emits neither a service row nor a synthetic failure row")
+                .isEmpty();
     }
 
     @Test
@@ -262,7 +266,9 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         assertThat(failedRows)
                 .as("409 conflict should produce one synthetic failure row")
                 .hasSize(1);
-        assertThat(failedRows.get(0).get("http_status")).isEqualTo(409);
+        assertThat(failedRows.get(0).get("http_status"))
+                .as("http_status is SMALLINT, which queryForList maps to Integer")
+                .isEqualTo(409);
         assertThat(failedRows.get(0).get("target_entity_type")).isEqualTo("Club");
     }
 

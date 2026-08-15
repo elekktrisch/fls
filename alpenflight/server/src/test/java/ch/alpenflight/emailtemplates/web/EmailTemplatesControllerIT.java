@@ -63,7 +63,9 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         JsonNode beforeList = readJson(get("/api/v1/email-templates", admin));
         JsonNode defaultEntry = entryFor(beforeList, FILE_DEFAULT_KEY, LOCALE);
         assertThat(defaultEntry.get("source").asText()).isEqualTo("FILE_DEFAULT");
-        assertThat(isAbsentOrNull(defaultEntry.get("subject"))).isTrue();
+        assertThat(isAbsentOrNull(defaultEntry.get("subject")))
+                .as("a file default carries no stored subject on the wire")
+                .isTrue();
         assertThat(defaultEntry.get("body").asText()).contains("Flugbetriebstag");
 
         ResponseEntity<String> saved = put(
@@ -76,7 +78,9 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         assertThat(overrideEntry.get("source").asText()).isEqualTo("CLUB_OVERRIDE");
         assertThat(overrideEntry.get("subject").asText()).isEqualTo("Custom subject");
         assertThat(overrideEntry.get("body").asText()).isEqualTo("<p>Custom body</p>");
-        assertThat(countEntries(afterList, FILE_DEFAULT_KEY, LOCALE)).isEqualTo(1);
+        assertThat(countEntries(afterList, FILE_DEFAULT_KEY, LOCALE))
+                .as("the override replaces the file default instead of adding a second entry")
+                .isEqualTo(1);
     }
 
     @Test
@@ -131,7 +135,9 @@ class EmailTemplatesControllerIT extends PostgresIntegrationTest {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         JsonNode listA = readJson(get("/api/v1/email-templates", adminA));
         JsonNode entryA = entryFor(listA, FILE_DEFAULT_KEY, LOCALE);
-        assertThat(entryA.get("source").asText()).isEqualTo("FILE_DEFAULT");
+        assertThat(entryA.get("source").asText())
+                .as("club A still sees the file default — club B's override is invisible to it")
+                .isEqualTo("FILE_DEFAULT");
     }
 
 

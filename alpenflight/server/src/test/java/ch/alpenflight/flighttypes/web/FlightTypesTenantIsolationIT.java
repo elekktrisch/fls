@@ -26,7 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightTypesTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_FTI_";
-    private static final String TEST_KEY_PREFIX = "IT_FT";
+    private static final String CLASS_UNIQUE_CLUB_KEY_PREFIX = "IT_FT";
 
     private static final AtomicInteger NAME_COUNTER = new AtomicInteger(0);
 
@@ -42,7 +42,8 @@ class FlightTypesTenantIsolationIT extends PostgresIntegrationTest {
     @BeforeEach
     void seedTwoClubs() {
         TwoClubFixture fixture =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+                new TwoClubFixture(jdbc, clubs, countries, clubStates,
+                        TEST_NAME_PREFIX, CLASS_UNIQUE_CLUB_KEY_PREFIX);
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();
@@ -82,7 +83,10 @@ class FlightTypesTenantIsolationIT extends PostgresIntegrationTest {
         Integer matches = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_type WHERE flight_type_name = ?",
                 Integer.class, shared);
-        assertThat(matches).isEqualTo(2);
+        assertThat(matches)
+                .as("name uniqueness is per-tenant (V11 partial UNIQUE) — a global UNIQUE "
+                        + "would have rejected the second club's row")
+                .isEqualTo(2);
     }
 
     @Test
