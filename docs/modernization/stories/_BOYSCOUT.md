@@ -17,6 +17,21 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-09, 2026-08-15)
+
+- **[VACUOUS-NARROWING-ASSERTIONS]** Two tests were found asserting less than their names claimed, each held up
+  only by a comment the sweep deleted. `FlightsControllerIT.list_default_window_returns_recent_flights_only`
+  seeds **no old-dated row**, so "recent only" was never proven — renamed to
+  `list_without_explicit_window_includes_a_flight_dated_today` rather than gerrymandering the seed mid-sweep.
+  `MePersonControllerIT` carried a comment claiming the Person aggregate lower-cases email, but the PATCH input
+  is **already lower-case**, so nothing proves it; an `.as(…)` was deliberately NOT added because it would
+  assert a claim the test does not make. Both need an adversarial row / mixed-case payload to become real
+  ([[feedback_adversarial_seed_for_narrowing_assertions]]). *(seam: those two ITs' seeds)*
+- **[TENANT-ISOLATION-IT-PREFIX-COLLISION]** `FlightsTenantIsolationIT` and `FlightTypesTenantIsolationIT` share
+  the same club-name/club-key prefixes (`IT_FTI_` / `IT_FT`) — the ADR 0021 rule-1 collision that a deleted
+  `LocationsAuthorizationIT` comment existed to warn about. Pre-existing, not caused by the sweep; single-schema
+  external-PG runs are where it bites. Give each class its own ids on next touch. *(seam: those two ITs' club ids)*
+
 ## Pending (filed by /do-ship J-31 T-08c, 2026-08-14)
 
 - **[TAILWIND-LAYER-VS-NGZORRO-ADR]** The sweep deleted the only written explanation of why `!text-white`
