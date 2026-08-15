@@ -3,6 +3,7 @@ id: S-100
 title: Lost-password + email-confirmation landing pages
 epic: E-12
 status: todo
+rolled_up_into: J-19
 depends_on: [S-097, S-019]
 acceptance:
   - `/lostpassword` page renders a "click the link in your email" message after submitting an email; the actual reset flow is owned by Keycloak.
