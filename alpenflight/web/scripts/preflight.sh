@@ -5,15 +5,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVER_DIR="$(cd "${WEB_DIR}/../server" && pwd)"
+REPO_ROOT="$(cd "${WEB_DIR}/../.." && pwd)"
 
 usage() {
   cat <<'USAGE'
 preflight — the local CI-equivalent, stage by stage, failing on the first red.
 
-  scripts/preflight.sh                 backend + web + gallery + e2e
+  scripts/preflight.sh                 comment-policy + backend + web + gallery + e2e
   scripts/preflight.sh --web-only      skip ./gradlew test
   scripts/preflight.sh --no-e2e        everything except the chromium e2e suite
-  scripts/preflight.sh --backend-only  only ./gradlew test
+  scripts/preflight.sh --backend-only  only the comment-policy stage + ./gradlew test
+
+The comment-policy stage (strip.mjs --check over alpenflight/ + e2e/) runs first in
+every scope — it is the local half of the CI guard that reds on a re-added comment,
+and it costs about a second.
 
 The e2e stage is skipped (not failed) when no launchable chromium is resolvable
 via PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH or a probed apk system chromium.
@@ -42,6 +47,9 @@ source_datasource_env_the_jpa_booting_tasks_need() {
   # shellcheck disable=SC1090
   [ -f "${HOME}/.bashrc" ] && source "${HOME}/.bashrc" || true
 }
+
+banner "comment policy — strip.mjs --check (no human-written comments in alpenflight/ + e2e/)"
+( cd "${REPO_ROOT}" && node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e )
 
 if [ "$RUN_BACKEND" = 1 ]; then
   banner "backend — ./gradlew test (whole server suite)"

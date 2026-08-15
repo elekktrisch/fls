@@ -85,18 +85,33 @@ when the sweep finishes in one sitting can the two share a commit.
 
 Ten batches. Each is one revert unit and gets its own cheap gate.
 
-| # | Batch | Paths | Cheap gate |
+Every `alpenflight/*` module is its own **standalone** Gradle build (each has its
+own `settings.gradle.kts` + wrapper), so every gate below runs from that module's
+directory with **bare** task names — there is no aggregate root build and no
+`:module:` path. A module's `build.gradle.kts` / `settings.gradle.kts` belongs to
+**its own batch**, not to batch 10: it is what that batch's gate compiles with.
+
+| # | Batch | Paths | Cheap gate (from the module dir) |
 | --- | --- | --- | --- |
-| 1 | `server-main` | `alpenflight/server/src/main` *(excluding `resources/db/migration`)* | `./gradlew :server:compileJava` |
-| 2 | `server-test` | `alpenflight/server/src/test`, `src/archDemo`, `src/nullawayDemo` | `./gradlew :server:compileTestJava` |
+| 1 | `server-main` | `alpenflight/server/src/main` *(excluding `resources/db/migration`)*, `server/build.gradle.kts`, `server/settings.gradle.kts` | `./gradlew compileJava` |
+| 2 | `server-test` | `alpenflight/server/src/test`, `src/archDemo`, `src/nullawayDemo` | `./gradlew compileTestJava` |
 | 3 | `web-src` | `alpenflight/web/src` | `pnpm lint` |
 | 4 | `web-e2e` | `alpenflight/web/e2e`, `alpenflight/web/scripts`, `e2e/` | `pnpm lint` |
-| 5 | `database-extract` | `alpenflight/database` | `./gradlew :extract:compileJava` |
-| 6 | `migration-tool` | `alpenflight/migration-tool` | `./gradlew compileJava compileTestJava` |
-| 7 | `migration-bundle` | `alpenflight/migration-bundle` | `./gradlew compileJava compileTestJava` |
+| 5 | `database-extract` | `alpenflight/database` *(incl. `extract/build.gradle.kts`, `extract/settings.gradle.kts`)* | `cd alpenflight/database/extract && ./gradlew compileJava` |
+| 6 | `migration-tool` | `alpenflight/migration-tool` *(incl. its build files)* | `./gradlew compileJava compileTestJava` |
+| 7 | `migration-bundle` | `alpenflight/migration-bundle` *(incl. its build files)* | `./gradlew compileJava compileTestJava` |
 | 8 | `migrations-sql` | `alpenflight/server/src/main/resources/db/migration` | `--check` only |
 | 9 | `ops-shell` | `alpenflight/ops`, `alpenflight/auth`, root `*.sh` | `bash -n` per file |
-| 10 | `build-config` | `**/build.gradle.kts`, `settings.gradle.kts`, `application*.yml`, `qodana.yaml`, `docker-compose.yml`, root `*.mjs` | `./gradlew help -q` |
+| 10 | `module-root config` | config that sits outside every batch glob yet still reds the final tree-wide `--check`: `alpenflight/web/orval.config.ts`, `alpenflight/web/eslint.config.mjs`, `web/pnpm-workspace.yaml`, `qodana.yaml`, `docker-compose.yml`, root `*.mjs` | `pnpm lint` + `--check` |
+
+Batch 5's build is `rootProject.name = "alpenflight-legacy-extract"` — `:extract:compileJava`
+does not resolve from anywhere.
+
+Batches 1–2 gate on `compileJava`/`compileTestJava` for speed, but a judge who
+verifies a file with `javac -proc:none` sees **neither NullAway nor ErrorProne**:
+both are Gradle-configured annotation processors, so a nullness or ErrorProne
+regression a strip introduces stays invisible until the real build runs. Run the
+Gradle task, not bare `javac`, before calling a Java batch green.
 
 Batch 8 note: Flyway checksums every migration, so stripping them invalidates
 any database that already ran them. There is no production database, so this is
@@ -105,8 +120,12 @@ used by the real-idp gate need `flyway repair` or a recreate.
 
 ### Per batch
 
-1. **Shard** the batch's files into disjoint groups of 30–50, grouped within one
-   package so a judge sees enough context to name things well.
+1. **Shard** the batch's files into disjoint groups, grouped within one package so
+   a judge sees enough context to name things well. Size a shard by **comment
+   count, not file count** — density varies ~10× across batches (an e2e spec
+   carries ~45 comments, a Java file ~4), so 30–50 files is a sane shard in
+   `server-*` and a judge-drowning one in `web-e2e`. Target **~200 comments** per
+   shard; `--check <files…>` counts them before you split.
 2. **Dispatch `comment-judge` subagents, 8 in flight.** Each shard runs the
    stripper over *its own files only*:
 
