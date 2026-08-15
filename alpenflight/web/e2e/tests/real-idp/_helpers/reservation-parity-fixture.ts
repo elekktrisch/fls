@@ -13,7 +13,6 @@ import { fillKcLogin } from './kc-form';
 import { findUsersByUsernameSearch, makeMigratedAdminLoginable } from './keycloak-admin';
 import { E2E_CANNED_PASSWORD } from './test-user';
 
-
 export const PRINCIPAL_USER = 'clubadmin4@example.com';
 export const PRINCIPAL_PASSWORD = 'clubadmin4-dev-2026!';
 
@@ -47,13 +46,13 @@ export async function captureReservationAdminBearer(
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   try {
-    const bearerPromise = page.waitForRequest((req) => {
+    const bearerFromFirstAuthorizedApiCall = page.waitForRequest((req) => {
       const auth = req.headers()['authorization'];
       return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
     });
     await loginAsReservationAdmin(page);
     await page.goto('/reservations');
-    const req = await bearerPromise;
+    const req = await bearerFromFirstAuthorizedApiCall;
     return req.headers()['authorization']!;
   } finally {
     await context.close();
@@ -106,7 +105,7 @@ export async function seedReservationMasterdata(
     isFastEntryRecord: false,
   });
 
-  const pilot = await postJson(api, bearer, '/api/v1/persons', {
+  const pilotWithClubMembership = await postJson(api, bearer, '/api/v1/persons', {
     firstname: 'J5',
     lastname: `Pilot ${tag}`,
     preferMailToBusinessMail: false,
@@ -159,7 +158,7 @@ export async function seedReservationMasterdata(
     managedImmat,
     foreignAircraftId: String(foreign['id']),
     foreignImmat,
-    pilotPersonId: String(pilot['id']),
+    pilotPersonId: String(pilotWithClubMembership['id']),
     locationId: String(location['id']),
   };
 }
@@ -189,7 +188,6 @@ export function useRealBundle(): boolean {
   return (process.env['J5_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
 }
 
-
 const MIGRATED_ADMIN_USERNAME_INFIX = 'migrated-admin+';
 
 const RESERVATIONS_PATH = '/api/v1/aircraft-reservations';
@@ -215,7 +213,7 @@ function clubIdFromUsername(username: string): string | null {
   return m ? m[1]! : null;
 }
 
-const resolvedAdminMemo = new Map<string, Promise<ResolvedMigratedAdmin>>();
+const resolvedAdminMemoByOwnershipKey = new Map<string, Promise<ResolvedMigratedAdmin>>();
 
 function bearerExpiresAtMs(bearer: string): number {
   const jwt = bearer.replace(/^Bearer\s+/i, '');
@@ -240,8 +238,8 @@ export async function resolveMigratedTestClubAdmin(
   testInfo?: TestInfo,
 ): Promise<ResolvedMigratedAdmin> {
   testInfo?.setTimeout(COLD_RESOLUTION_HOOK_BUDGET_MS);
-  const key = MIGRATED_RESERVATION_REMARK;
-  const cached = resolvedAdminMemo.get(key);
+  const ownershipKey = MIGRATED_RESERVATION_REMARK;
+  const cached = resolvedAdminMemoByOwnershipKey.get(ownershipKey);
   if (cached) {
     const resolved = await cached;
     if (bearerExpiresAtMs(resolved.bearer) - BEARER_REFRESH_SKEW_MS > Date.now()) {
@@ -249,16 +247,16 @@ export async function resolveMigratedTestClubAdmin(
     }
     const bearer = await captureMigratedTestClubBearer(browser, baseURL, resolved.admin);
     const refreshed: ResolvedMigratedAdmin = { admin: resolved.admin, bearer };
-    resolvedAdminMemo.set(key, Promise.resolve(refreshed));
+    resolvedAdminMemoByOwnershipKey.set(ownershipKey, Promise.resolve(refreshed));
     return refreshed;
   }
 
   const pending = enumerateMigratedTestClubAdmin(browser, baseURL);
-  resolvedAdminMemo.set(key, pending);
+  resolvedAdminMemoByOwnershipKey.set(ownershipKey, pending);
   try {
     return await pending;
   } catch (err) {
-    resolvedAdminMemo.delete(key);
+    resolvedAdminMemoByOwnershipKey.delete(ownershipKey);
     throw err;
   }
 }
@@ -335,6 +333,11 @@ export async function loginAsMigratedTestClubAdmin(
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }
 
+async function warmNavToReservations(page: Page): Promise<void> {
+  await page.goto('/start?lang=en');
+  await enterViaNav(page, '/reservations');
+}
+
 export async function captureMigratedTestClubBearer(
   browser: Browser,
   baseURL: string,
@@ -343,14 +346,13 @@ export async function captureMigratedTestClubBearer(
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   try {
-    const bearerPromise = page.waitForRequest((req) => {
+    const bearerFromFirstAuthorizedApiCall = page.waitForRequest((req) => {
       const auth = req.headers()['authorization'];
       return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
     });
     await loginAsMigratedTestClubAdmin(page, admin);
-    await page.goto('/start?lang=en');
-    await enterViaNav(page, '/reservations');
-    const req = await bearerPromise;
+    await warmNavToReservations(page);
+    const req = await bearerFromFirstAuthorizedApiCall;
     return req.headers()['authorization']!;
   } finally {
     await context.close();

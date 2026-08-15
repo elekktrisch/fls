@@ -3,7 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 const PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000a01';
 const STATE_ACTIVE_ID = '019e2e15-2c00-7c01-8000-000000000c01';
@@ -61,6 +60,11 @@ const mockMemberStates = [
   { id: STATE_HONORARY_ID, name: 'Honorary' },
 ];
 
+const membershipFlagsNotExposedOnTheEditFormThatSaveMustEchoBack = {
+  isWinchOperator: true,
+  receiveFlightReports: true,
+};
+
 const seedPerson: MockPerson = {
   id: PERSON_ID,
   firstname: 'Anna',
@@ -95,9 +99,8 @@ const seedPerson: MockPerson = {
       isGliderPilot: true,
       isGliderTrainee: false,
       isPassenger: false,
-      isWinchOperator: true,
       isMotorInstructor: false,
-      receiveFlightReports: true,
+      ...membershipFlagsNotExposedOnTheEditFormThatSaveMustEchoBack,
       receiveAircraftReservationNotifications: false,
       receivePlanningDayRoleReminder: false,
       isActive: true,

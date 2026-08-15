@@ -3,7 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const LOCATION_BERN_ID = '019e30c3-2c00-7001-8000-00000000c001';
 
 const mockLocationsPicker = [{ id: LOCATION_BERN_ID, locationName: 'Bern-Belp', icaoCode: 'LSZB' }];
@@ -30,7 +29,7 @@ interface RuleRequest {
   everySunday: boolean;
 }
 
-function selectsWeekday(rule: RuleRequest, dow: number): boolean {
+function selectsWeekday(rule: RuleRequest, sundayZeroDayOfWeek: number): boolean {
   return [
     rule.everySunday,
     rule.everyMonday,
@@ -39,7 +38,7 @@ function selectsWeekday(rule: RuleRequest, dow: number): boolean {
     rule.everyThursday,
     rule.everyFriday,
     rule.everySaturday,
-  ][dow]!;
+  ][sundayZeroDayOfWeek]!;
 }
 
 function setupRuleBackend(existing: Set<string>) {
@@ -78,6 +77,15 @@ function setupRuleBackend(existing: Set<string>) {
   };
 }
 
+async function stubReadsForkJoinedWithTheLocationPicker(page: Page): Promise<void> {
+  await page.route('**/api/v1/persons', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/v1/aircraft/picker', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+}
+
 async function wireWizard(page: Page, existing = new Set<string>()): Promise<void> {
   await page.route('**/api/v1/locations', (route) =>
     route.fulfill({
@@ -86,12 +94,7 @@ async function wireWizard(page: Page, existing = new Set<string>()): Promise<voi
       body: JSON.stringify(mockLocationsPicker),
     }),
   );
-  await page.route('**/api/v1/persons', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-  );
-  await page.route('**/api/v1/aircraft/picker', (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
-  );
+  await stubReadsForkJoinedWithTheLocationPicker(page);
   await page.route('**/api/v1/planning-days/create/rule', setupRuleBackend(existing));
 }
 

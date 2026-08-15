@@ -3,7 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const LOCATION_BERN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
 const AC_ID = '019e30c3-2c00-7001-8000-00000000a001';
 const PILOT_ID = '019e30c3-2c00-7001-8000-0000000000b1';

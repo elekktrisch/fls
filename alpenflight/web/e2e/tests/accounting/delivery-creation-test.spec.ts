@@ -3,7 +3,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
 const FLIGHT_ID = 'flt-019e30c3-2c00-7001-8000-000000000010';

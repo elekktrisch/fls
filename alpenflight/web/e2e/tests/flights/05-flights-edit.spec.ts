@@ -1,12 +1,12 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
 const LOC_HOME = 'loc-019e30c3-2c00-7001-8000-000000000001';
 const FT_GLIDER = 'ft-019e30c3-2c00-7001-8000-000000000001';
 const FLIGHT_ID = 'fl-019e30c3-2c00-7001-8000-000000000001';
+const PILOT_CREW_TYPE = '019e2e15-2c00-76b0-8000-0000000036b0';
 
 async function stubMasterdata(page: Page): Promise<void> {
   await page.route('**/api/v1/aircraft', (route) =>
@@ -96,9 +96,7 @@ async function stubFlightDetail(
           airState: 'LANDED',
           processStateId: 'ps-1',
           version: 7,
-          crew: [
-            { personId: PERSON_PILOT, flightCrewTypeId: '019e2e15-2c00-76b0-8000-0000000036b0' },
-          ],
+          crew: [{ personId: PERSON_PILOT, flightCrewTypeId: PILOT_CREW_TYPE }],
           comment: 'before edit',
         }),
       });

@@ -1,11 +1,12 @@
 import type { Page, TestInfo } from '@playwright/test';
 
 export async function proofVideo(
-  page: Page,
+  closedContextPage: Page,
   testInfo: TestInfo,
   meta: { journey: string; caption: string; acTag: 'happy' | 'edge' | 'key-error' },
 ): Promise<void> {
-  const videoPath = await page.video()?.path();
+  // ext: proof-gallery generator contract — 'proof-video' attachment + 'proof-*' annotation names
+  const videoPath = await closedContextPage.video()?.path();
 
   if (videoPath) {
     await testInfo.attach('proof-video', { path: videoPath, contentType: 'video/webm' });

@@ -23,6 +23,6 @@ export function resolveChromiumExecutablePath(
   return undefined;
 }
 
-export function chromiumLaunchArgs(executablePath: string | undefined): string[] {
-  return executablePath ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
+export function chromiumLaunchArgs(systemChromiumExecutablePath: string | undefined): string[] {
+  return systemChromiumExecutablePath ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 }

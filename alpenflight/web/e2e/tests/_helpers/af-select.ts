@@ -9,23 +9,23 @@ export async function selectAfOption(
   page: Page,
   selectTestId: string,
   optionValue: string,
-  search?: string,
+  searchTermThatRendersTheVirtualisedOption?: string,
 ): Promise<void> {
   const trigger = afSelectTrigger(page, selectTestId);
   await expect(trigger).toBeVisible();
   await trigger.click();
 
-  if (search !== undefined) {
+  if (searchTermThatRendersTheVirtualisedOption !== undefined) {
     const searchInput = page
       .getByTestId(selectTestId)
       .locator('input.ant-select-selection-search-input');
     await expect(searchInput).toBeVisible();
-    await searchInput.fill(search);
+    await searchInput.fill(searchTermThatRendersTheVirtualisedOption);
   }
 
-  const option = page.getByTestId(`af-select-option-${optionValue}`);
-  await expect(option).toBeVisible();
-  await option.click();
+  const optionInFreshlyOpenedPortal = page.getByTestId(`af-select-option-${optionValue}`);
+  await expect(optionInFreshlyOpenedPortal).toBeVisible();
+  await optionInFreshlyOpenedPortal.click();
 
-  await expect(option).toHaveCount(0);
+  await expect(optionInFreshlyOpenedPortal).toHaveCount(0);
 }

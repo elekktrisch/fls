@@ -1,7 +1,6 @@
 import { mailpitInfo } from './mailpit-client';
 import { findUserByEmail, _testing } from './keycloak-admin';
 
-
 const BACKEND_HEALTH = process.env['E2E_BACKEND_HEALTH'] ?? 'http://localhost:8080/actuator/health';
 
 export interface ProbeResult {

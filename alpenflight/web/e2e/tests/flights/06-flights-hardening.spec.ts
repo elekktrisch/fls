@@ -11,7 +11,6 @@ function saveButton(page: Page): Locator {
   return page.getByTestId('flight-submit-header').locator('button');
 }
 
-
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
 const LOC_HOME = 'loc-019e30c3-2c00-7001-8000-000000000001';
@@ -180,7 +179,7 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flights-table')).toBeVisible();
   });
 
-  test('[edge] a flight dated OFF today is discoverable via the date-range filter', async ({
+  test('[edge] a flight dated OFF today is not listed under the today-default range; the date-range filter is present to widen it', async ({
     page,
   }) => {
     await stubMasterdata(page);

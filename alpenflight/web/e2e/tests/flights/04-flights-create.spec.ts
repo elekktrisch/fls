@@ -3,7 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
@@ -160,7 +159,8 @@ test.describe('flight edit — create (parity port)', () => {
       '2026-05-25',
     );
 
-    await expect(page.getByTestId('flight-step-2')).toHaveCount(0);
+    const towStepperItem = page.getByTestId('flight-step-2');
+    await expect(towStepperItem).toHaveCount(0);
 
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();

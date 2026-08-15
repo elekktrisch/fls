@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-
 export const E2E_EMAIL_PREFIX = 'e2e-';
 export const E2E_EMAIL_SUFFIX = '@example.com';
 export const E2E_OCCUPIED_EMAIL = `${E2E_EMAIL_PREFIX}occupied${E2E_EMAIL_SUFFIX}`;

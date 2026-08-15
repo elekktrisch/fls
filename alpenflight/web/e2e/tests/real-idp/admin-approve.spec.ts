@@ -14,7 +14,6 @@ import { createUserWithAttributes, findUserByEmail, deleteUser } from './_helper
 import { waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const ADMIN_USER = 'clubadmin4@example.com';
 const ADMIN_PASSWORD = 'clubadmin4-dev-2026!';
 
@@ -23,7 +22,9 @@ const PILOT_PASSWORD = 'pilot1-dev-2026!';
 
 const SEED_JOIN_CODE = 'SEEDCLUB';
 
-const SUBJECT_PILOT_DENIED = 'Beitrittsanfrage abgelehnt';
+const SUBJECT_PILOT_DENIED_DE = 'Beitrittsanfrage abgelehnt';
+
+const DENY_REASON_MAX_LENGTH = 500;
 
 const JOIN_REQUESTS_PATH = '/join-requests';
 
@@ -269,13 +270,15 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
       await row.getByTestId(TESTIDS.rowDeny).click();
       await expect(page.getByTestId(TESTIDS.denyModal)).toBeVisible();
       await page.getByTestId(TESTIDS.denyReason).fill(reason);
-      await expect(page.getByTestId(TESTIDS.denyReasonCounter)).toHaveText(`${reason.length}/500`);
+      await expect(page.getByTestId(TESTIDS.denyReasonCounter)).toHaveText(
+        `${reason.length}/${DENY_REASON_MAX_LENGTH}`,
+      );
       await page.getByTestId(TESTIDS.denySubmit).click();
 
       await expect(row).toHaveCount(0, { timeout: 30_000 });
       await expect.poll(async () => navBadgeCount(page), { timeout: 30_000 }).toBe(countBefore - 1);
 
-      const mail = await waitForMessageWithSubject(pilot.email, SUBJECT_PILOT_DENIED, {
+      const mail = await waitForMessageWithSubject(pilot.email, SUBJECT_PILOT_DENIED_DE, {
         timeoutMs: 20_000,
       });
       const body = mail.HTML ?? mail.Text ?? '';
@@ -368,7 +371,9 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
       await openMasterdataGroup(page);
       await expect(page.getByTestId(`af-nav-section-${JOIN_REQUESTS_PATH}`)).toHaveCount(0);
       await expect(page.getByTestId(CLUB_SETTINGS_NAV_TESTID)).toHaveCount(0);
-      await expect(page.getByTestId('af-nav-section-/persons')).toBeVisible();
+      const tenantVisibleNavChildProvingTheGroupIsOpen =
+        page.getByTestId('af-nav-section-/persons');
+      await expect(tenantVisibleNavChildProvingTheGroupIsOpen).toBeVisible();
     } finally {
       await ctx.close();
     }

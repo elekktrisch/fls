@@ -12,6 +12,8 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     expiresAt: '2026-05-30T10:00:00Z',
   };
 
+  const REGENERATED_UPLOAD_ID = '019e30c3-2c00-7001-8000-000000000002';
+
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/migrations/handshake/current', async (route) => {
       await route.fulfill({
@@ -21,14 +23,14 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
       });
     });
     await page.route('**/api/v1/migrations/handshake', async (route) => {
-      const next = {
+      const regenerated = {
         ...MOCK_UPLOAD,
-        uploadId: '019e30c3-2c00-7001-8000-000000000002',
+        uploadId: REGENERATED_UPLOAD_ID,
       };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(next),
+        body: JSON.stringify(regenerated),
       });
     });
   });
@@ -119,7 +121,7 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     await page.getByTestId('migrate-handshake-download').click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(
-      'alpenflight-handshake-019e30c3-2c00-7001-8000-000000000002.json',
+      `alpenflight-handshake-${REGENERATED_UPLOAD_ID}.json`,
     );
   });
 

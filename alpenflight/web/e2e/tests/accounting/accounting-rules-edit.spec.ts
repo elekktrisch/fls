@@ -6,10 +6,12 @@ import { enterViaNav } from '../_helpers/nav';
 
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
-const TYPE_ARTICLE_TARGET = 40;
-const TYPE_RECIPIENT_TARGET = 10;
-const TYPE_NO_LANDING_TAX = 20;
-const TYPE_AIRCRAFT_FILTER = 30;
+const LEGACY_ID_DO_NOT_INVOICE = 5;
+const LEGACY_ID_RECIPIENT_TARGET = 10;
+const LEGACY_ID_NO_LANDING_TAX = 20;
+const LEGACY_ID_AIRCRAFT_FILTER = 30;
+const LEGACY_ID_ARTICLE_TARGET = 40;
+const LEGACY_ID_START_TAX = 55;
 
 interface MockMatchList {
   useAllExcept: boolean;
@@ -67,42 +69,52 @@ interface MockRuleFilterListItem {
   target: string;
 }
 
-const FILTER_TYPE_UUIDS: Record<number, string> = {
-  5: '019e2e15-2c00-7658-8000-000000004658',
-  10: '019e2e15-2c00-7652-8000-000000004652',
-  20: '019e2e15-2c00-7653-8000-000000004653',
-  30: '019e2e15-2c00-7654-8000-000000004654',
-  40: '019e2e15-2c00-7655-8000-000000004655',
-  55: '019e2e15-2c00-7659-8000-000000004659',
+const FILTER_TYPE_UUID_BY_LEGACY_ID: Record<number, string> = {
+  [LEGACY_ID_DO_NOT_INVOICE]: '019e2e15-2c00-7658-8000-000000004658',
+  [LEGACY_ID_RECIPIENT_TARGET]: '019e2e15-2c00-7652-8000-000000004652',
+  [LEGACY_ID_NO_LANDING_TAX]: '019e2e15-2c00-7653-8000-000000004653',
+  [LEGACY_ID_AIRCRAFT_FILTER]: '019e2e15-2c00-7654-8000-000000004654',
+  [LEGACY_ID_ARTICLE_TARGET]: '019e2e15-2c00-7655-8000-000000004655',
+  [LEGACY_ID_START_TAX]: '019e2e15-2c00-7659-8000-000000004659',
 };
 
 const mockFilterTypes = [
-  { id: FILTER_TYPE_UUIDS[5], code: 'DO_NOT_INVOICE', legacyId: 5, name: 'Do not invoice' },
   {
-    id: FILTER_TYPE_UUIDS[10],
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_DO_NOT_INVOICE],
+    code: 'DO_NOT_INVOICE',
+    legacyId: LEGACY_ID_DO_NOT_INVOICE,
+    name: 'Do not invoice',
+  },
+  {
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_RECIPIENT_TARGET],
     code: 'RECIPIENT',
-    legacyId: TYPE_RECIPIENT_TARGET,
+    legacyId: LEGACY_ID_RECIPIENT_TARGET,
     name: 'Recipient',
   },
   {
-    id: FILTER_TYPE_UUIDS[20],
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_NO_LANDING_TAX],
     code: 'NO_LANDING_TAX',
-    legacyId: TYPE_NO_LANDING_TAX,
+    legacyId: LEGACY_ID_NO_LANDING_TAX,
     name: 'No landing tax',
   },
   {
-    id: FILTER_TYPE_UUIDS[30],
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_AIRCRAFT_FILTER],
     code: 'AIRCRAFT_FILTER',
-    legacyId: TYPE_AIRCRAFT_FILTER,
+    legacyId: LEGACY_ID_AIRCRAFT_FILTER,
     name: 'Aircraft filter',
   },
   {
-    id: FILTER_TYPE_UUIDS[40],
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_ARTICLE_TARGET],
     code: 'ARTICLE_TARGET',
-    legacyId: TYPE_ARTICLE_TARGET,
+    legacyId: LEGACY_ID_ARTICLE_TARGET,
     name: 'Article target',
   },
-  { id: FILTER_TYPE_UUIDS[55], code: 'START_TAX', legacyId: 55, name: 'Start tax' },
+  {
+    id: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_START_TAX],
+    code: 'START_TAX',
+    legacyId: LEGACY_ID_START_TAX,
+    name: 'Start tax',
+  },
 ];
 
 function emptyList(): MockMatchList {
@@ -135,7 +147,7 @@ function defaultFilterConfig(): MockFilterConfig {
 
 const seededArticleFilter: MockRuleFilterDetail = {
   id: 'arf-019e30c3-2c00-7001-8000-000000000001',
-  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET]!,
+  filterTypeId: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_ARTICLE_TARGET]!,
   ruleFilterName: 'Landing fee — gliders',
   active: true,
   sortIndicator: 1,
@@ -153,7 +165,7 @@ const seededArticleFilter: MockRuleFilterDetail = {
 
 const seededFullMatchListFilter: MockRuleFilterDetail = {
   id: 'arf-019e30c3-2c00-7001-8000-000000000002',
-  filterTypeId: FILTER_TYPE_UUIDS[TYPE_ARTICLE_TARGET]!,
+  filterTypeId: FILTER_TYPE_UUID_BY_LEGACY_ID[LEGACY_ID_ARTICLE_TARGET]!,
   ruleFilterName: 'Full match-list rule',
   active: true,
   sortIndicator: 2,
@@ -183,11 +195,15 @@ function legacyIdFor(filterTypeId: string): number {
 
 function targetFor(d: MockRuleFilterDetail): string {
   const legacyId = legacyIdFor(d.filterTypeId);
-  if (legacyId === TYPE_RECIPIENT_TARGET && d.recipientTarget) {
+  if (legacyId === LEGACY_ID_RECIPIENT_TARGET && d.recipientTarget) {
     const name = d.filterConfig.recipientName;
     return name ? `${name} (${d.recipientTarget})` : d.recipientTarget;
   }
-  if (legacyId !== 5 && legacyId !== TYPE_RECIPIENT_TARGET && d.articleTarget) {
+  if (
+    legacyId !== LEGACY_ID_DO_NOT_INVOICE &&
+    legacyId !== LEGACY_ID_RECIPIENT_TARGET &&
+    d.articleTarget
+  ) {
     const text = d.filterConfig.deliveryLineText;
     return text ? `${d.articleTarget} (${text})` : d.articleTarget;
   }
@@ -386,7 +402,9 @@ test('accounting-rules: create via the edit form → appears in the list → rel
   await page.getByTestId('accounting-rules-new-button').locator('button').click();
   await expect(page).toHaveURL('/accountingrules/new');
 
-  await page.getByTestId('accounting-rules-filter-type').selectOption(String(TYPE_ARTICLE_TARGET));
+  await page
+    .getByTestId('accounting-rules-filter-type')
+    .selectOption(String(LEGACY_ID_ARTICLE_TARGET));
   await page.locator('#RuleFilterName').fill('Tow fee');
   await page.locator('#Description').fill('Tow fee for the towing aircraft');
   await page.getByTestId('accounting-rules-flag-towing').check();
@@ -432,25 +450,25 @@ test('accounting-rules: selecting a filter-type shows/hides the conditional sect
   const noLandingTaxSection = page.getByTestId('accounting-rules-section-no-landing-tax');
   const typeSelect = page.getByTestId('accounting-rules-filter-type');
 
-  await typeSelect.selectOption(String(TYPE_ARTICLE_TARGET));
+  await typeSelect.selectOption(String(LEGACY_ID_ARTICLE_TARGET));
   await expect(articleSection).toBeVisible();
   await expect(recipientSection).toBeHidden();
   await expect(aircraftSection).toBeHidden();
   await expect(noLandingTaxSection).toBeHidden();
 
-  await typeSelect.selectOption(String(TYPE_RECIPIENT_TARGET));
+  await typeSelect.selectOption(String(LEGACY_ID_RECIPIENT_TARGET));
   await expect(recipientSection).toBeVisible();
   await expect(articleSection).toBeHidden();
   await expect(aircraftSection).toBeHidden();
   await expect(noLandingTaxSection).toBeHidden();
 
-  await typeSelect.selectOption(String(TYPE_AIRCRAFT_FILTER));
+  await typeSelect.selectOption(String(LEGACY_ID_AIRCRAFT_FILTER));
   await expect(aircraftSection).toBeVisible();
   await expect(articleSection).toBeVisible();
   await expect(recipientSection).toBeHidden();
   await expect(noLandingTaxSection).toBeHidden();
 
-  await typeSelect.selectOption(String(TYPE_NO_LANDING_TAX));
+  await typeSelect.selectOption(String(LEGACY_ID_NO_LANDING_TAX));
   await expect(noLandingTaxSection).toBeVisible();
   await expect(articleSection).toBeVisible();
   await expect(recipientSection).toBeHidden();

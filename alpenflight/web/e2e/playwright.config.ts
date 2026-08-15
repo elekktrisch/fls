@@ -6,6 +6,14 @@ const PROJECT_ROOT = resolve(__dirname, '..');
 const MOCK_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
 const REAL_IDP_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 
+const CI_RUNNER_VCPU_WORKERS = 4;
+const REAL_IDP_SERIAL_WORKERS_ENFORCED_BY_CLI_FLAG = 1;
+const PROOF_MANIFEST_OUTPUT_FILE_RELATIVE_TO_CONFIG_DIR = '../test-results/proof-manifest.json';
+const OFF_CRITICAL_PATH_SPECS_SKIPPED_FOR_PR_STEP_BUDGET = [
+  '**/masterdata/articles-crud.spec.ts',
+  '**/masterdata/flight-types-crud.spec.ts',
+];
+
 const CHROMIUM_EXECUTABLE_PATH = resolveChromiumExecutablePath();
 const CHROMIUM_LAUNCH_OPTIONS = {
   ...(CHROMIUM_EXECUTABLE_PATH ? { executablePath: CHROMIUM_EXECUTABLE_PATH } : {}),
@@ -50,8 +58,8 @@ const WEB_SERVER = process.env['GALLERY_LINKS_ONLY']
 
 export default defineConfig({
   testDir: './tests',
-  ...(process.env['CI'] ? { workers: 4 } : {}),
-  testIgnore: ['**/masterdata/articles-crud.spec.ts', '**/masterdata/flight-types-crud.spec.ts'],
+  ...(process.env['CI'] ? { workers: CI_RUNNER_VCPU_WORKERS } : {}),
+  testIgnore: OFF_CRITICAL_PATH_SPECS_SKIPPED_FOR_PR_STEP_BUDGET,
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   globalTeardown: require.resolve('./tests/real-idp/global-teardown.ts'),
@@ -59,7 +67,7 @@ export default defineConfig({
     ? [
         ['github'],
         ['html', { open: 'never' }],
-        ['json', { outputFile: '../test-results/proof-manifest.json' }],
+        ['json', { outputFile: PROOF_MANIFEST_OUTPUT_FILE_RELATIVE_TO_CONFIG_DIR }],
       ]
     : 'html',
   use: {
@@ -97,7 +105,7 @@ export default defineConfig({
         video: 'on',
         launchOptions: CHROMIUM_LAUNCH_OPTIONS,
       },
-      workers: 1,
+      workers: REAL_IDP_SERIAL_WORKERS_ENFORCED_BY_CLI_FLAG,
       retries: process.env['CI'] ? 1 : 0,
       timeout: 45_000,
       expect: { timeout: 5_000 },

@@ -495,6 +495,7 @@ const SAMPLE_CPD =
   '<duplication lines="20" tokens="40"><file/></duplication>' +
   '<duplication lines="10" tokens="20"><file/></duplication>' +
   '</pmd-cpd>';
+const SAMPLE_CPD_DUPLICATION_PCT = '3.0%';
 const SAMPLE_QODANA = JSON.stringify({
   version: '2.1.0',
   runs: [
@@ -621,7 +622,7 @@ describe('generateGallery — Maintainability panel on the page', () => {
     expect(html).toContain('FE delta (this journey vs main)');
     expect(html).toContain('score <strong>71.1</strong> (B)');
     expect(html).toContain('<strong>3</strong> violations');
-    expect(html).toContain('3.0%');
+    expect(html).toContain(SAMPLE_CPD_DUPLICATION_PCT);
     expect(html).toContain('BE unused code (Qodana)');
     expect(html).toContain('<strong>1</strong> new vs baseline');
     expect(html).toContain('(report-only)');

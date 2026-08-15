@@ -16,6 +16,12 @@ import { proofVideo } from './_helpers/proof-video';
 
 const LANG_DE_UUID = '019e2e15-2c00-77d0-8000-0000000007d0';
 
+const SPEC_TOKEN_KEEPING_ADMIN_USERNAMES_DISJOINT = 'acft';
+
+const GRADLE_OWNER_LINK_SEEDER_TIMEOUT_MS = 90_000;
+
+const SINGLE_USE_BUNDLE_FORBIDS_RETRY = 0;
+
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -99,7 +105,11 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdAircraftIds.length = 0;
-    fixture = await provisionTwoClubs(browser, baseURL, 'acft');
+    fixture = await provisionTwoClubs(
+      browser,
+      baseURL,
+      SPEC_TOKEN_KEEPING_ADMIN_USERNAMES_DISJOINT,
+    );
   });
 
   test.afterAll(async ({ browser }) => {
@@ -125,7 +135,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
     await fixture?.dispose();
   });
 
-  test('club admin lists, creates an aircraft, and sees it sorted in the list', async ({
+  test('club admin lists, creates aircraft, and sees every created row in the list', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -137,7 +147,9 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page.locator('h1')).toHaveText('Aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
 
-      const baselineRowCount = await page.locator('[data-testid^="aircraft-row-"]').count();
+      const baselineRowCountInSharedSeedTenant = await page
+        .locator('[data-testid^="aircraft-row-"]')
+        .count();
 
       aircraftImmat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
       aircraftId = await createAircraftViaUi(page, aircraftImmat, {
@@ -155,11 +167,11 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page.getByTestId(`aircraft-model-${aircraftId}`)).toContainText('ASK 21');
       await expect(page.getByTestId(`aircraft-seats-${aircraftId}`)).toContainText('2 seats');
 
-      const extras = [
+      const extraRowsForThePopulatedListScreenshot = [
         { manufacturer: 'Schempp-Hirth', model: 'Discus b', seats: 1, competitionSign: 'GZ' },
         { manufacturer: 'DG Flugzeugbau', model: 'DG-1000', seats: 2, competitionSign: 'ZO' },
       ];
-      for (const extra of extras) {
+      for (const extra of extraRowsForThePopulatedListScreenshot) {
         const immat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
         const extraId = await createAircraftViaUi(page, immat, extra);
         createdAircraftIds.push(extraId);
@@ -172,7 +184,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page).toHaveURL('/aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
       await expect(page.locator('[data-testid^="aircraft-row-"]')).toHaveCount(
-        baselineRowCount + 3,
+        baselineRowCountInSharedSeedTenant + 3,
       );
       for (const id of createdAircraftIds) {
         await expect(
@@ -346,7 +358,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
   test('S-163 · the owner-person of a non-managing club may edit the aircraft', async ({
     browser,
   }, testInfo) => {
-    test.setTimeout(90_000);
+    test.setTimeout(GRADLE_OWNER_LINK_SEEDER_TIMEOUT_MS);
     expect(aircraftId, 'create must have run first').toBeTruthy();
     await seedAircraftOwnerLink({
       aircraftId,
@@ -392,7 +404,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
 });
 
 test.describe('Aircraft register — migrated legacy aircraft renders (real-idp)', () => {
-  test.describe.configure({ mode: 'serial', retries: 0 });
+  test.describe.configure({ mode: 'serial', retries: SINGLE_USE_BUNDLE_FORBIDS_RETRY });
 
   let fixture: AircraftParityFixture;
   let baseURL: string;

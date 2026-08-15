@@ -71,6 +71,8 @@ interface ResourceStub {
   readonly body: string;
 }
 
+const NO_ROW_BODY_200_NOT_404 = 'null';
+
 const PER_SCREEN_RESOURCE_STUBS: readonly ResourceStub[] = [
   { url: '**/api/v1/me/system-dashboard', status: 200, body: '{}' },
   { url: '**/api/v1/me/person/licences', status: 200, body: '{}' },
@@ -80,13 +82,13 @@ const PER_SCREEN_RESOURCE_STUBS: readonly ResourceStub[] = [
   { url: '**/api/v1/club/member-states', status: 200, body: '[]' },
   { url: '**/api/v1/locations', status: 200, body: '[]' },
   { url: '**/api/v1/flight-types', status: 200, body: '[]' },
-  { url: '**/api/v1/flights/new-template**', status: 200, body: newTemplateBody() },
+  { url: '**/api/v1/flights/new-template**', status: 200, body: minimalValidFlightTemplateBody() },
   { url: /\/api\/v1\/flights(\?|$)/, status: 200, body: '{"items":[]}' },
-  { url: /\/api\/v1\/flights\/last-context(\?|$)/, status: 200, body: 'null' },
+  { url: /\/api\/v1\/flights\/last-context(\?|$)/, status: 200, body: NO_ROW_BODY_200_NOT_404 },
   {
     url: /\/api\/v1\/flights\/(?!new-template|last-context)[^/?]+(\?|$)/,
     status: 200,
-    body: 'null',
+    body: NO_ROW_BODY_200_NOT_404,
   },
   { url: '**/api/v1/planning-days/overview/future', status: 200, body: '[]' },
   { url: '**/api/v1/planning-days/validate', status: 200, body: '{"valid":true}' },
@@ -101,7 +103,7 @@ const PER_SCREEN_RESOURCE_STUBS: readonly ResourceStub[] = [
   { url: '**/api/v1/migrations/handshake/current', status: 200, body: '{}' },
 ];
 
-function newTemplateBody(): string {
+function minimalValidFlightTemplateBody(): string {
   return JSON.stringify({
     flightAircraftType: 'GLIDER',
     isSoloFlight: false,
@@ -119,7 +121,7 @@ async function installPerScreenResourceStubs(page: Page): Promise<void> {
   }
 }
 
-async function installApiFloor(page: Page): Promise<void> {
+async function installLowestPriorityApiFloor(page: Page): Promise<void> {
   await page.route('**/api/v1/**', (route) => {
     const method = route.request().method();
     if (method === 'GET') {
@@ -130,10 +132,10 @@ async function installApiFloor(page: Page): Promise<void> {
   });
 }
 
-const MOCK_AUTH_PROJECT = 'chromium';
+const NO_BACKEND_MOCK_AUTH_PROJECT = 'chromium';
 
 export async function installMockApiStubs(page: Page): Promise<void> {
-  await installApiFloor(page);
+  await installLowestPriorityApiFloor(page);
   await installBootstrapReferenceStubs(page);
   await installPerScreenResourceStubs(page);
 }
@@ -142,7 +144,7 @@ export const test = base.extend<{ consoleGuard: void }>({
   consoleGuard: [
     async ({ page }, use, testInfo) => {
       watchConsoleErrors(page, testInfo);
-      if (testInfo.project.name === MOCK_AUTH_PROJECT) {
+      if (testInfo.project.name === NO_BACKEND_MOCK_AUTH_PROJECT) {
         await installMockApiStubs(page);
       }
       await use();

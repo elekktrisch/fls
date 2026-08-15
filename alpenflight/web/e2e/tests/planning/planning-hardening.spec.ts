@@ -1,7 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const LOCATION_BERN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
 const AC_ID = '019e30c3-2c00-7001-8000-00000000a001';

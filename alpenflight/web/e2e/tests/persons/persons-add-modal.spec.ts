@@ -1,7 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 interface MockMemberState {
   id: string;
   name: string;

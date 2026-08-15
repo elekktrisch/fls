@@ -3,7 +3,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 
 const LOCATION_BERN_ID = '019e30c3-2c00-7001-8000-00000000c001';
@@ -25,10 +24,12 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+const SATURDAY = 6;
+
 function nextSaturdayKey(): string {
   const d = new Date();
-  const delta = (6 - d.getDay() + 7) % 7 || 7;
-  d.setDate(d.getDate() + delta);
+  const daysUntilNextSaturday = (SATURDAY - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilNextSaturday);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -341,7 +342,9 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await page.screenshot({ path: 'screenshots/planning/01-list.png', fullPage: true });
   });
 
-  test.fixme('list: the paged read sends + receives the SPA envelope shape', async ({ page }) => {
+  test.fixme('list: the paged read sends + receives the SPA envelope shape (fixme: the list page reads overview/future, not the page POST)', async ({
+    page,
+  }) => {
     await wirePlanning(page, [{ ...seedDay }]);
 
     const paged = page.waitForResponse(
@@ -413,7 +416,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await expect(page.getByTestId('planning-instructor-select')).toContainText('Fred Flightop');
   });
 
-  test('edit: the per-day reservations list renders inline with view/edit + new-reservation links', async ({
+  test('edit: the per-day reservations list renders inline with an edit link carrying returnUrl + a new-reservation link', async ({
     page,
   }) => {
     await wirePlanning(page, [{ ...seedDay }]);
@@ -493,7 +496,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await page.screenshot({ path: 'screenshots/planning/03-duplicate-409.png', fullPage: true });
   });
 
-  test('delete: deleting a planning day cascades its assignments and removes it from the list', async ({
+  test('delete: deleting a planning day sends DELETE and removes it from the list', async ({
     page,
   }) => {
     await wirePlanning(page, [{ ...seedDay }]);

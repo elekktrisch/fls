@@ -3,7 +3,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
@@ -233,7 +232,8 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
       fullPage: true,
     });
 
-    await expect(page.getByTestId('flight-step-2')).toBeVisible();
+    const towStepperItem = page.getByTestId('flight-step-2');
+    await expect(towStepperItem).toBeVisible();
 
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
@@ -301,7 +301,8 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     expect(backend.observed[2]!.method).toBe('DELETE');
     expect(backend.observed[2]!.path).toBe('/api/v1/flights/fl-glider-id');
 
-    expect(backend.observed.find((c) => c.method === 'PUT')).toBeUndefined();
+    const linkPut = backend.observed.find((c) => c.method === 'PUT');
+    expect(linkPut, 'the rollback supersedes the link PUT').toBeUndefined();
 
     await page.screenshot({
       path: 'screenshots/flights/04c-05-rollback.png',

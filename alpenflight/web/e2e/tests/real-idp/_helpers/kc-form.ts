@@ -2,7 +2,6 @@ import { type Page } from '@playwright/test';
 
 import { type TestUser } from './test-user';
 
-
 export const KC_LOGIN_FORM = '#kc-form-login';
 export const KC_REGISTER_FORM = '#kc-register-form';
 

@@ -16,9 +16,8 @@ import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
 
-
-const PRINCIPAL_USER = 'clubadmin1@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin1-dev-2026!';
+const MIGRATION_PRINCIPAL_USER = 'clubadmin1@example.com';
+const MIGRATION_PRINCIPAL_PASSWORD = 'clubadmin1-dev-2026!';
 
 function runId(): string {
   const id = process.env['E2E_RUN_ID'];
@@ -123,7 +122,7 @@ interface MigrationRunStatusView {
 interface IngestAttempt {
   deploymentId: string;
   clubIds: string[];
-  reused: boolean;
+  reusedPriorDeployment: boolean;
 }
 
 interface LocationListItem {
@@ -149,7 +148,7 @@ async function capturePrincipalBearer(browser: Browser, baseURL: string): Promis
     await page.goto('/');
     await page.getByTestId('landing-topbar-sign-in').click();
     await page.waitForURL(/\/realms\/alpenflight\//);
-    await fillKcLogin(page, PRINCIPAL_USER, PRINCIPAL_PASSWORD);
+    await fillKcLogin(page, MIGRATION_PRINCIPAL_USER, MIGRATION_PRINCIPAL_PASSWORD);
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
     await page.goto('/locations');
     const req = await bearerPromise;
@@ -212,6 +211,19 @@ async function buildBundleBytes(
   return Buffer.from(b64, 'base64');
 }
 
+interface ProblemDetail {
+  errorCode?: string;
+  existingDeploymentId?: string;
+}
+
+function problemDetailOrEmpty(text: string): ProblemDetail {
+  try {
+    return JSON.parse(text) as ProblemDetail;
+  } catch {
+    return {};
+  }
+}
+
 async function ingestBundle(
   api: APIRequestContext,
   bearer: string,
@@ -225,17 +237,13 @@ async function ingestBundle(
   if (res.ok()) {
     const body = (await res.json()) as IngestResponse;
     await pollDeploymentToCompleted(api, bearer, uploadId);
-    return { deploymentId: body.deploymentId, clubIds: body.clubIds, reused: false };
+    return { deploymentId: body.deploymentId, clubIds: body.clubIds, reusedPriorDeployment: false };
   }
 
   const status = res.status();
   const text = await res.text();
   if (status === 409) {
-    let problem: { errorCode?: string; existingDeploymentId?: string } = {};
-    try {
-      problem = JSON.parse(text) as typeof problem;
-    } catch {
-    }
+    const problem = problemDetailOrEmpty(text);
     if (problem.errorCode === 'DEPLOYMENT_EXISTS') {
       const existing = problem.existingDeploymentId ?? '';
       if (!existing) {
@@ -244,7 +252,7 @@ async function ingestBundle(
             `migration (body: ${text})`,
         );
       }
-      return { deploymentId: existing, clubIds: [], reused: true };
+      return { deploymentId: existing, clubIds: [], reusedPriorDeployment: true };
     }
   }
   throw new Error(`bundle ingest failed (${status}): ${text}`);
@@ -310,7 +318,7 @@ async function tryBearerForMigratedAdmin(
 ): Promise<string | undefined> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
-  const bearerPromise = page
+  const bearerPromiseSettledBeforeClose = page
     .waitForRequest(
       (req) =>
         new URL(req.url()).pathname === '/api/v1/locations' &&
@@ -325,7 +333,7 @@ async function tryBearerForMigratedAdmin(
   try {
     await loginAsMigratedAdmin(page, admin, PER_CLUB_LOGIN_BUDGET_MS);
     await page.goto('/locations');
-    return await bearerPromise;
+    return await bearerPromiseSettledBeforeClose;
   } catch (err) {
     console.warn(
       `[T-23] club ${admin.clubId} admin did not reach the authed root within ` +
@@ -333,7 +341,7 @@ async function tryBearerForMigratedAdmin(
     );
     return undefined;
   } finally {
-    await bearerPromise;
+    await bearerPromiseSettledBeforeClose;
     await context.close();
   }
 }
@@ -443,7 +451,7 @@ export async function seedFanOutParity(
 
   const ingest = await ingestBundle(api, bearer, uploadId, bundle);
 
-  if (ingest.reused) {
+  if (ingest.reusedPriorDeployment) {
     return reusedDeploymentFixture(browser, api, baseURL, locationName);
   }
 
@@ -491,14 +499,14 @@ export async function seedFanOutParity(
   return { locationName, clubA, clubB, ...(nonOwner ? { nonOwner } : {}) };
 }
 
-let sharedBundlePromise: Promise<FanOutParityFixture> | undefined;
+let singleUseBundleIngestPromise: Promise<FanOutParityFixture> | undefined;
 
 export async function ensureSharedMigrationBundle(
   browser: Browser,
   baseURL: string,
 ): Promise<FanOutParityFixture> {
-  if (sharedBundlePromise) return sharedBundlePromise;
-  sharedBundlePromise = (async () => {
+  if (singleUseBundleIngestPromise) return singleUseBundleIngestPromise;
+  singleUseBundleIngestPromise = (async () => {
     const context = await browser.newContext({ baseURL });
     try {
       return await seedFanOutParity(browser, context.request, baseURL);
@@ -507,9 +515,9 @@ export async function ensureSharedMigrationBundle(
     }
   })();
   try {
-    return await sharedBundlePromise;
+    return await singleUseBundleIngestPromise;
   } catch (err) {
-    sharedBundlePromise = undefined;
+    singleUseBundleIngestPromise = undefined;
     throw err;
   }
 }

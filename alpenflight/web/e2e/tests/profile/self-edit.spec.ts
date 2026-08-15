@@ -9,7 +9,6 @@ import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { fillKcLogin } from '../real-idp/_helpers/kc-form';
 
-
 interface SeededPrincipal {
   username: string;
   password: string;
@@ -46,16 +45,17 @@ const SEED = {
 
 const LANGUAGE_ID_EN = '019e2e15-2c00-77d3-8000-0000000007d3';
 
-async function loginAsPilot(
+async function loginAsSeededPrincipal(
   browser: Browser,
   baseURL: string,
   testInfo: TestInfo,
   principal: SeededPrincipal,
-  contextLocale?: string,
+  nonEnglishLocaleForColdStartProof?: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
-  // proof). Chromium defaults to `navigator.language=en-US`→`en`, which would
   const context = await browser.newContext(
-    contextLocale ? { baseURL, locale: contextLocale } : { baseURL },
+    nonEnglishLocaleForColdStartProof
+      ? { baseURL, locale: nonEnglishLocaleForColdStartProof }
+      : { baseURL },
   );
   context.on('page', (p) => watchConsoleErrors(p, testInfo));
   const page = await context.newPage();
@@ -85,7 +85,7 @@ async function openTab(page: Page, tab: ProfileTab): Promise<void> {
   await expect(page.getByTestId(`profile-panel-${tab}`)).toBeVisible();
 }
 
-function field(page: Page, testid: string) {
+function nativeInputOf(page: Page, testid: string) {
   return page.getByTestId(testid).locator('input');
 }
 
@@ -103,7 +103,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await expect(page.getByTestId('profile-page')).toBeVisible();
@@ -119,7 +119,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       await page.getByTestId('af-nav-user').click();
       await page.getByRole('menuitem', { name: 'Profile' }).click();
@@ -131,7 +131,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await expect
         .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
         .not.toMatch(/\/profile/);
-      await expect(page.getByTestId('landing-topbar-sign-in')).toBeVisible({ timeout: 30_000 });
+      const signInTriggerRenderedOnlyWhileSignedOut = page.getByTestId('landing-topbar-sign-in');
+      await expect(signInTriggerRenderedOnlyWhileSignedOut).toBeVisible({ timeout: 30_000 });
     } finally {
       await context.close();
     }
@@ -141,7 +142,13 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT, 'de-CH');
+    const { context, page } = await loginAsSeededPrincipal(
+      browser,
+      baseURL!,
+      testInfo,
+      PILOT,
+      'de-CH',
+    );
     try {
       await page.goto('/profile');
       await openTab(page, 'account');
@@ -149,19 +156,21 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await expect(page.locator('html')).toHaveAttribute('lang', 'de', { timeout: 10_000 });
       await expect(page.getByText('Anzeigename')).toBeVisible();
 
-      await expect(field(page, 'profile-account-friendlyName')).toHaveValue(SEED.friendlyName);
-      await expect(field(page, 'profile-account-notificationEmail')).toHaveValue(
+      await expect(nativeInputOf(page, 'profile-account-friendlyName')).toHaveValue(
+        SEED.friendlyName,
+      );
+      await expect(nativeInputOf(page, 'profile-account-notificationEmail')).toHaveValue(
         SEED.notificationEmail,
       );
 
-      await expect(field(page, 'profile-account-username')).toBeDisabled();
-      await expect(field(page, 'profile-account-username')).toHaveValue(SEED.username);
-      await expect(field(page, 'profile-account-clubId')).toBeDisabled();
+      await expect(nativeInputOf(page, 'profile-account-username')).toBeDisabled();
+      await expect(nativeInputOf(page, 'profile-account-username')).toHaveValue(SEED.username);
+      await expect(nativeInputOf(page, 'profile-account-clubId')).toBeDisabled();
 
       const newFriendly = 'Pilot One Edited';
       const newPhone = '+41 79 555 11 22';
-      await field(page, 'profile-account-friendlyName').fill(newFriendly);
-      await field(page, 'profile-account-phone').fill(newPhone);
+      await nativeInputOf(page, 'profile-account-friendlyName').fill(newFriendly);
+      await nativeInputOf(page, 'profile-account-phone').fill(newPhone);
 
       await page.getByTestId('profile-account-language').click();
       await page.getByTestId(`af-select-option-${LANGUAGE_ID_EN}`).click();
@@ -178,12 +187,14 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await expect(page.getByText('Display name')).toBeVisible();
       await expect(page.getByText('Anzeigename')).toHaveCount(0);
 
-      await page.goto('/profile');
-      await openTab(page, 'account');
-      await expect(field(page, 'profile-account-friendlyName')).toHaveValue(newFriendly);
-      await expect(field(page, 'profile-account-phone')).toHaveValue(newPhone);
-      await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
-      await expect(page.getByText('Display name')).toBeVisible();
+      await test.step('the edits and the English locale survive a cold start whose navigator is still de-CH', async () => {
+        await page.goto('/profile');
+        await openTab(page, 'account');
+        await expect(nativeInputOf(page, 'profile-account-friendlyName')).toHaveValue(newFriendly);
+        await expect(nativeInputOf(page, 'profile-account-phone')).toHaveValue(newPhone);
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
+        await expect(page.getByText('Display name')).toBeVisible();
+      });
     } finally {
       await context.close();
     }
@@ -193,19 +204,19 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'personal');
 
-      await expect(field(page, 'profile-personal-city')).toHaveValue(SEED.city);
-      await expect(field(page, 'profile-personal-firstName')).toBeDisabled();
-      await expect(field(page, 'profile-personal-firstName')).toHaveValue(SEED.firstName);
-      await expect(field(page, 'profile-personal-lastName')).toBeDisabled();
-      await expect(field(page, 'profile-personal-lastName')).toHaveValue(SEED.lastName);
+      await expect(nativeInputOf(page, 'profile-personal-city')).toHaveValue(SEED.city);
+      await expect(nativeInputOf(page, 'profile-personal-firstName')).toBeDisabled();
+      await expect(nativeInputOf(page, 'profile-personal-firstName')).toHaveValue(SEED.firstName);
+      await expect(nativeInputOf(page, 'profile-personal-lastName')).toBeDisabled();
+      await expect(nativeInputOf(page, 'profile-personal-lastName')).toHaveValue(SEED.lastName);
 
       const newCity = 'Bern-Belp';
-      await field(page, 'profile-personal-city').fill(newCity);
+      await nativeInputOf(page, 'profile-personal-city').fill(newCity);
 
       const patchPromise = page.waitForResponse(
         (r) =>
@@ -218,8 +229,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
 
       await page.goto('/profile');
       await openTab(page, 'personal');
-      await expect(field(page, 'profile-personal-city')).toHaveValue(newCity);
-      await expect(field(page, 'profile-personal-firstName')).toHaveValue(SEED.firstName);
+      await expect(nativeInputOf(page, 'profile-personal-city')).toHaveValue(newCity);
+      await expect(nativeInputOf(page, 'profile-personal-firstName')).toHaveValue(SEED.firstName);
     } finally {
       await context.close();
     }
@@ -229,18 +240,18 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'pilot');
 
       await expect(page.getByTestId('profile-pilot-licence-glider')).toBeChecked();
-      await expect(field(page, 'profile-pilot-medical-expiry')).toHaveValue(
+      await expect(nativeInputOf(page, 'profile-pilot-medical-expiry')).toHaveValue(
         SEED.medicalClass2Expire,
       );
 
       const newExpiry = '2029-06-30';
-      await field(page, 'profile-pilot-medical-expiry').fill(newExpiry);
+      await nativeInputOf(page, 'profile-pilot-medical-expiry').fill(newExpiry);
 
       const patchPromise = page.waitForResponse(
         (r) =>
@@ -255,13 +266,13 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
 
       await page.goto('/profile');
       await openTab(page, 'pilot');
-      await expect(field(page, 'profile-pilot-medical-expiry')).toHaveValue(newExpiry);
+      await expect(nativeInputOf(page, 'profile-pilot-medical-expiry')).toHaveValue(newExpiry);
       await expect(page.getByTestId('profile-pilot-licence-glider')).toBeChecked();
     } finally {
       await context.close();
     }
 
-    const admin = await loginAsPilot(browser, baseURL!, testInfo, CLUB_ADMIN);
+    const admin = await loginAsSeededPrincipal(browser, baseURL!, testInfo, CLUB_ADMIN);
     try {
       const bearer = await captureBearer(admin.page);
       const auditRow = await readLatestPersonLicencesAudit(admin.context.request, bearer);
@@ -282,7 +293,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       await page.goto('/profile');
       await openTab(page, 'notifications');
@@ -318,7 +329,12 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT_EMPTY);
+    const { context, page } = await loginAsSeededPrincipal(
+      browser,
+      baseURL!,
+      testInfo,
+      PILOT_EMPTY,
+    );
     try {
       await page.goto('/profile');
       await expect(page.getByTestId('profile-page')).toBeVisible();
@@ -332,7 +348,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
 
       await openTab(page, 'account');
       const newFriendly = 'Empty Pilot Edited';
-      await field(page, 'profile-account-friendlyName').fill(newFriendly);
+      await nativeInputOf(page, 'profile-account-friendlyName').fill(newFriendly);
 
       const patchPromise = page.waitForResponse(
         (r) => r.url().includes('/api/v1/me/profile') && r.request().method() === 'PATCH' && r.ok(),
@@ -344,7 +360,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
 
       await page.goto('/profile');
       await openTab(page, 'account');
-      await expect(field(page, 'profile-account-friendlyName')).toHaveValue(newFriendly);
+      await expect(nativeInputOf(page, 'profile-account-friendlyName')).toHaveValue(newFriendly);
     } finally {
       await context.close();
     }
@@ -354,7 +370,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }, testInfo) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, testInfo, PILOT);
+    const { context, page } = await loginAsSeededPrincipal(browser, baseURL!, testInfo, PILOT);
     try {
       const patchPaths: string[] = [];
       page.on('request', (req) => {
@@ -366,15 +382,15 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await page.goto('/profile');
 
       await openTab(page, 'account');
-      await field(page, 'profile-account-friendlyName').fill('Pilot One Iso');
+      await nativeInputOf(page, 'profile-account-friendlyName').fill('Pilot One Iso');
       await fireSaveAndWait(page, 'profile-account-save', '/api/v1/me/profile');
 
       await openTab(page, 'personal');
-      await field(page, 'profile-personal-city').fill('Bern');
+      await nativeInputOf(page, 'profile-personal-city').fill('Bern');
       await fireSaveAndWait(page, 'profile-personal-save', '/api/v1/me/person');
 
       await openTab(page, 'pilot');
-      await field(page, 'profile-pilot-medical-expiry').fill('2030-01-31');
+      await nativeInputOf(page, 'profile-pilot-medical-expiry').fill('2030-01-31');
       await fireSaveAndWait(page, 'profile-pilot-save', '/api/v1/me/person/licences');
 
       await openTab(page, 'notifications');

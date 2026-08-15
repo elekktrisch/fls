@@ -4,7 +4,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 import { selectAfOption } from '../_helpers/af-select';
 import { enterViaNav } from '../_helpers/nav';
 
-
 const CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 const FLIGHT_TYPE_ID = '019e30c3-2c00-7001-8000-0000000000f1';
 const PERSON_ID = '019e30c3-2c00-7001-8000-0000000000b1';
@@ -31,7 +30,10 @@ const mockAircraft = [
   { id: AIRCRAFT_ID, immatriculation: 'HB-3210', isTowingAircraft: false, nrOfSeats: 1 },
 ];
 
-async function enterSection(page: Page, sectionPath: string): Promise<void> {
+async function enterSectionThroughNavChromeInGerman(
+  page: Page,
+  sectionPath: string,
+): Promise<void> {
   await page.goto('/start?lang=de');
   await enterViaNav(page, sectionPath);
 }
@@ -52,7 +54,7 @@ test.describe('J-26 cross-field validator + translated messages (mock inner loop
     );
     await page.route('**/api/v1/clubs', (route) => route.fulfill({ json: mockClubs }));
 
-    await enterSection(page, '/clubs');
+    await enterSectionThroughNavChromeInGerman(page, '/clubs');
     await page.getByTestId('club-row-seed-club').click();
     await expect(page.getByTestId('clubs-edit-form')).toBeVisible();
 
@@ -75,23 +77,22 @@ test.describe('J-26 cross-field validator + translated messages (mock inner loop
   test('[happy] profile Account languageId required validator restored (legacy parity)', async ({
     page,
   }) => {
+    const meWithoutPersonIdSoOnlyTheAccountTabLoads = {
+      id: 'mock-sysadmin',
+      personId: null,
+      clubId: CLUB_ID,
+      roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
+      firstName: 'Mock',
+      lastName: 'Sysadmin',
+      email: 'mock@local',
+      username: 'mock-sysadmin',
+      friendlyName: 'Mock Sysadmin',
+      phoneNumber: '',
+      languageId: LANGUAGE_ID_DE,
+      languageCode: 'de',
+    };
     await page.route('**/api/v1/me', (route) =>
-      route.fulfill({
-        json: {
-          id: 'mock-sysadmin',
-          personId: null,
-          clubId: CLUB_ID,
-          roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
-          firstName: 'Mock',
-          lastName: 'Sysadmin',
-          email: 'mock@local',
-          username: 'mock-sysadmin',
-          friendlyName: 'Mock Sysadmin',
-          phoneNumber: '',
-          languageId: LANGUAGE_ID_DE,
-          languageCode: 'de',
-        },
-      }),
+      route.fulfill({ json: meWithoutPersonIdSoOnlyTheAccountTabLoads }),
     );
 
     await page.goto('/start?lang=de');
@@ -131,7 +132,7 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
   }) => {
     await page.route('**/api/v1/aircraft**', (route) => route.fulfill({ json: mockAircraft }));
 
-    await enterSection(page, '/aircraft');
+    await enterSectionThroughNavChromeInGerman(page, '/aircraft');
     await page.getByTestId('aircraft-new-button').click();
     await expect(page.getByTestId('aircraft-edit-form')).toBeVisible();
 
@@ -142,7 +143,7 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
     await expect(fieldErrors(page, immat)).toHaveCount(0);
   });
 
-  test('[happy] person edit shows a debounced inline error while typing + clears on valid (T-11)', async ({
+  test('[happy] person edit shows a debounced inline error while typing — translated German, never a raw common.errors.* key — and clears on valid (T-11)', async ({
     page,
   }) => {
     await page.route(`**/api/v1/persons/${PERSON_ID}`, (route) =>
@@ -151,7 +152,7 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
     await page.route('**/api/v1/persons**', (route) => route.fulfill({ json: mockPersons }));
     await page.route('**/api/v1/member-states**', (route) => route.fulfill({ json: [] }));
 
-    await enterSection(page, '/persons');
+    await enterSectionThroughNavChromeInGerman(page, '/persons');
     await page.getByTestId(`person-row-${PERSON_ID}`).click();
     await expect(page.getByTestId('person-form')).toBeVisible();
 
@@ -170,7 +171,7 @@ test.describe('J-26 as-you-type debounced inline validation trio (mock inner loo
   }) => {
     await page.route('**/api/v1/flight-types', (route) => route.fulfill({ json: mockFlightTypes }));
 
-    await enterSection(page, '/flight-types');
+    await enterSectionThroughNavChromeInGerman(page, '/flight-types');
     await page.getByTestId('flight-types-new-button').click();
     await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
 
@@ -190,19 +191,21 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
     allowConsoleErrors(testInfo, /\b404\b/);
     const FT_GLIDER_ID = FLIGHT_TYPE_ID;
     const START_TYPE_WINCH = '019e2e15-2c00-7fa0-8000-000000000fa0';
-    await page.route('**/api/v1/flights**', (route) => route.fulfill({ json: { items: [] } }));
+    const flightsCatchAllRegisteredFirstSoTheSpecificRoutesBelowWin = '**/api/v1/flights**';
+    const newTemplateWithoutAircraftOrCrewSoTheFormOpensInvalid = {
+      flightAircraftType: 'GLIDER',
+      flightDate: '2026-07-01',
+      startTypeId: START_TYPE_WINCH,
+      crew: [],
+      isSoloFlight: false,
+      noStartTimeInformation: false,
+      noLdgTimeInformation: false,
+    };
+    await page.route(flightsCatchAllRegisteredFirstSoTheSpecificRoutesBelowWin, (route) =>
+      route.fulfill({ json: { items: [] } }),
+    );
     await page.route('**/api/v1/flights/new-template', (route) =>
-      route.fulfill({
-        json: {
-          flightAircraftType: 'GLIDER',
-          flightDate: '2026-07-01',
-          startTypeId: START_TYPE_WINCH,
-          crew: [],
-          isSoloFlight: false,
-          noStartTimeInformation: false,
-          noLdgTimeInformation: false,
-        },
-      }),
+      route.fulfill({ json: newTemplateWithoutAircraftOrCrewSoTheFormOpensInvalid }),
     );
     await page.route('**/api/v1/flights/last-context**', (route) =>
       route.fulfill({ status: 404, json: {} }),
@@ -212,7 +215,7 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
     await page.route('**/api/v1/flight-types', (route) => route.fulfill({ json: mockFlightTypes }));
     await page.route('**/api/v1/locations', (route) => route.fulfill({ json: [] }));
 
-    await enterSection(page, '/flights');
+    await enterSectionThroughNavChromeInGerman(page, '/flights');
     await page.getByTestId('flights-new-button').click();
     await expect(page.getByTestId('flight-form')).toBeVisible();
 
@@ -235,14 +238,14 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
   test('[edge] reservation Save disable state never disagrees with form validity (async second-crew race)', async ({
     page,
   }) => {
-    const RES_AIRCRAFT_ID = '019e30c3-2c00-7001-8000-00000000a002';
+    const MULTI_SEAT_AIRCRAFT_ID = '019e30c3-2c00-7001-8000-00000000a002';
     const RES_TYPE_ID = '019e30c3-2c00-7001-8000-0000000000d1';
     const RES_LOCATION_ID = '019e30c3-2c00-7001-8000-0000000000c1';
     await page.route('**/api/v1/aircraft/picker**', (route) =>
       route.fulfill({
         json: [
           {
-            id: RES_AIRCRAFT_ID,
+            id: MULTI_SEAT_AIRCRAFT_ID,
             immatriculation: 'HB-MULTI',
             isTowingAircraft: false,
             nrOfSeats: 2,
@@ -261,7 +264,11 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
         json: [{ id: RES_TYPE_ID, name: 'Flight', active: true, instructorRequired: false }],
       }),
     );
-    await page.route('**/api/v1/aircraft-reservations**', (route) => route.fulfill({ json: [] }));
+    const reservationsCatchAllRegisteredFirstSoTheSpecificRoutesBelowWin =
+      '**/api/v1/aircraft-reservations**';
+    await page.route(reservationsCatchAllRegisteredFirstSoTheSpecificRoutesBelowWin, (route) =>
+      route.fulfill({ json: [] }),
+    );
     await page.route('**/api/v1/aircraft-reservations/page/**', (route) =>
       route.fulfill({ json: { items: [], pageStart: 0, pageSize: 20, totalRows: 0 } }),
     );
@@ -269,7 +276,7 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
       route.fulfill({ json: { valid: true } }),
     );
 
-    await enterSection(page, '/reservations');
+    await enterSectionThroughNavChromeInGerman(page, '/reservations');
     await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
     await page.getByTestId('reservations-new-button').click();
     await expect(page.getByTestId('reservation-edit-form')).toBeVisible();
@@ -284,7 +291,7 @@ test.describe('J-26 save-gating tracks form validity (mock inner loop)', () => {
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
     await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
-    await selectAfOption(page, 'reservation-aircraft-select', RES_AIRCRAFT_ID);
+    await selectAfOption(page, 'reservation-aircraft-select', MULTI_SEAT_AIRCRAFT_ID);
 
     await expect(saveButton).toBeDisabled();
 

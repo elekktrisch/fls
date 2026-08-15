@@ -7,7 +7,6 @@ import {
   openMasterdataGroup,
 } from '../_helpers/nav';
 
-
 interface MockClub {
   id: string;
   name: string;
@@ -30,7 +29,7 @@ const TOW_FLIGHT_TYPE_ID = 'ft-019e30c3-2c00-7001-8000-0000000000f2';
 const HOMEBASE_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a1';
 const OUTLANDING_LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-0000000000a2';
 
-const seedClub: MockClub = {
+const principalsOwnClub: MockClub = {
   id: '019e30c3-2c00-7001-8000-000000000001',
   name: 'Seed Club',
   slug: 'seed-club-1',
@@ -284,7 +283,7 @@ function setupClubsBackend(clubs: MockClub[]) {
 test('clubs: the Masterdata nav entry opens the caller’s OWN club settings (ENTER via nav)', async ({
   page,
 }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, days);
@@ -293,14 +292,14 @@ test('clubs: the Masterdata nav entry opens the caller’s OWN club settings (EN
   await page.goto('/start?lang=de');
   const clubId = await enterClubSettingsViaNav(page);
 
-  expect(clubId).toBe(seedClub.id);
-  await expect(page).toHaveURL(`/clubs/${seedClub.id}/edit`);
+  expect(clubId).toBe(principalsOwnClub.id);
+  await expect(page).toHaveURL(`/clubs/${principalsOwnClub.id}/edit`);
   await expect(page.getByTestId('clubs-load-error')).toBeHidden();
   await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
-    seedClub.discoveryFlightOperatorEmail,
+    principalsOwnClub.discoveryFlightOperatorEmail,
   );
   await expect(page.getByTestId('clubs-scenic-operator-email').locator('input')).toHaveValue(
-    seedClub.scenicFlightOperatorEmail,
+    principalsOwnClub.scenicFlightOperatorEmail,
   );
   await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
   await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
@@ -310,7 +309,7 @@ test('clubs: the sysadmin catalog entry still reaches /clubs alongside the own-c
   page,
 }) => {
   await stubReferenceData(page);
-  await page.route('**/api/v1/clubs**', setupClubsBackend([{ ...seedClub }]));
+  await page.route('**/api/v1/clubs**', setupClubsBackend([{ ...principalsOwnClub }]));
 
   await page.goto('/start?lang=de');
   await page.getByTestId('af-nav-section-/clubs').click();
@@ -323,7 +322,7 @@ test('clubs: the sysadmin catalog entry still reaches /clubs alongside the own-c
 });
 
 test('clubs: lists the seeded row at /clubs', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
@@ -336,7 +335,7 @@ test('clubs: lists the seeded row at /clubs', async ({ page }) => {
 });
 
 test('clubs: editing the seeded row updates the list', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
@@ -367,7 +366,7 @@ test('clubs: editing the seeded row updates the list', async ({ page }) => {
 });
 
 test('clubs: creating a new club appears in the list', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
@@ -389,7 +388,7 @@ test('clubs: creating a new club appears in the list', async ({ page }) => {
 });
 
 test('clubs: country picker is populated and a non-default country persists', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
@@ -449,7 +448,7 @@ test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }, t
 });
 
 test('clubs: invalid slug shows an inline field error before submit', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
@@ -457,8 +456,9 @@ test('clubs: invalid slug shows an inline field error before submit', async ({ p
   await page.locator('#clubName').fill('Test Club');
   await page.locator('#clubKey').fill('TST');
 
+  const uppercaseAndTooShortSlug = 'AB';
   const slug = page.locator('#clubSlug');
-  await slug.fill('AB');
+  await slug.fill(uppercaseAndTooShortSlug);
   await slug.blur();
 
   await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
@@ -471,12 +471,15 @@ test('clubs: invalid slug shows an inline field error before submit', async ({ p
 test('clubs: client-side async validator flags a duplicate slug before submit', async ({
   page,
 }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
   await page.goto('/clubs');
-  await expect(page.getByTestId('club-row-seed-club-1')).toBeVisible();
+  await expect(
+    page.getByTestId('club-row-seed-club-1'),
+    'the list load populates ClubsStore — the async slug validator probes its entity map',
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'New club' }).click();
   await expect(page).toHaveURL('/clubs/new');
@@ -484,7 +487,7 @@ test('clubs: client-side async validator flags a duplicate slug before submit', 
   await page.locator('#clubName').fill('Conflict Pre-check');
   await page.locator('#clubKey').fill('CPC');
   const slug = page.locator('#clubSlug');
-  await slug.fill(seedClub.slug);
+  await slug.fill(principalsOwnClub.slug);
   await slug.blur();
 
   await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
@@ -494,12 +497,12 @@ test('clubs: client-side async validator flags a duplicate slug before submit', 
 });
 
 test('clubs: saving an unrelated change preserves the registration fields', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
 
   await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
     'schnupper@seed.example',
@@ -513,7 +516,8 @@ test('clubs: saving an unrelated change preserves the registration fields', asyn
   await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
 
   const putRequest = page.waitForRequest(
-    (r) => r.method() === 'PUT' && new URL(r.url()).pathname === `/api/v1/clubs/${seedClub.id}`,
+    (r) =>
+      r.method() === 'PUT' && new URL(r.url()).pathname === `/api/v1/clubs/${principalsOwnClub.id}`,
   );
   await page.locator('#clubName').fill('Renamed Only');
   await page.getByTestId('clubs-save-button').click();
@@ -535,12 +539,12 @@ test('clubs: saving an unrelated change preserves the registration fields', asyn
 });
 
 test('clubs: the homebase picker saves a club location and clears it again', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub, homebaseId: null }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub, homebaseId: null }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
   await expect(page.getByTestId('clubs-homebase-select')).toContainText('No homebase');
 
   await selectAfOption(page, 'clubs-homebase-select', HOMEBASE_LOCATION_ID);
@@ -548,7 +552,7 @@ test('clubs: the homebase picker saves a club location and clears it again', asy
   await expect(page).toHaveURL('/clubs');
   expect(clubs[0]?.homebaseId).toBe(HOMEBASE_LOCATION_ID);
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
   await expect(page.getByTestId('clubs-homebase-select')).toContainText('Birrfeld');
   await page.getByTestId('clubs-homebase-select').locator('nz-select').hover();
   await page.getByTestId('clubs-homebase-select').locator('.ant-select-clear').click();
@@ -558,12 +562,12 @@ test('clubs: the homebase picker saves a club location and clears it again', asy
 });
 
 test('clubs: a recipient list of several addresses round-trips', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
   const field = page.getByTestId('clubs-discovery-operator-email').locator('input');
   await field.fill('a@seed.example; b@seed.example c@seed.example');
 
@@ -578,13 +582,13 @@ test('clubs: a recipient list of several addresses round-trips', async ({ page }
 
 test('clubs: a malformed migrated operator email renders and is fixable', async ({ page }) => {
   const clubs: MockClub[] = [
-    { ...seedClub, discoveryFlightOperatorEmail: 'bitte Adresse eintragen' },
+    { ...principalsOwnClub, discoveryFlightOperatorEmail: 'bitte Adresse eintragen' },
   ];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, []);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
 
   const field = page.getByTestId('clubs-discovery-operator-email').locator('input');
   await expect(field).toHaveValue('bitte Adresse eintragen');
@@ -605,13 +609,13 @@ test('clubs: a malformed migrated operator email renders and is fixable', async 
 });
 
 test('clubs: discovery-flight days can be published and withdrawn', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, days);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
 
   const panel = page.getByTestId('clubs-discovery-days-panel');
   await expect(panel).toBeVisible();
@@ -633,13 +637,13 @@ test('clubs: publishing a day the club already offers surfaces the conflict', as
   page,
 }, testInfo) => {
   allowConsoleErrors(testInfo, /\b409\b/);
-  const clubs: MockClub[] = [{ ...seedClub }];
+  const clubs: MockClub[] = [{ ...principalsOwnClub }];
   const days: MockDay[] = [{ id: 'dfd-1', eventDate: '2026-09-12' }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, days);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
   await expect(page.getByTestId('clubs-discovery-day-2026-09-12')).toBeVisible();
 
   await page.getByTestId('clubs-discovery-day-input').locator('input').fill('2026-09-12');
@@ -662,10 +666,10 @@ test('clubs: the edit form populates from the single-club read alone', async ({
       await route.fulfill({ status: 403, contentType: 'application/json', body: '{}' });
       return;
     }
-    await setupClubsBackend([{ ...seedClub }])(route);
+    await setupClubsBackend([{ ...principalsOwnClub }])(route);
   });
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
 
   await expect(page.locator('#clubName')).toHaveValue('Seed Club');
   await expect(page.getByTestId('clubs-discovery-operator-email').locator('input')).toHaveValue(
@@ -695,13 +699,15 @@ test('clubs: a club that cannot be read surfaces an error instead of a blank for
   await expect(page.locator('#clubName')).toHaveValue('');
 });
 
-test('clubs: the discovery-day panel is absent when editing another club', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }, { ...otherClub }];
+test('clubs: editing another club — no discovery-day panel, homebase picker disabled (own-tenant catalogs), operator emails still editable', async ({
+  page,
+}) => {
+  const clubs: MockClub[] = [{ ...principalsOwnClub }, { ...otherClub }];
   await stubReferenceData(page);
   await stubDiscoveryDays(page, [{ id: 'dfd-1', eventDate: '2026-09-12' }]);
   await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
 
-  await page.goto(`/clubs/${seedClub.id}/edit`);
+  await page.goto(`/clubs/${principalsOwnClub.id}/edit`);
   await expect(page.getByTestId('clubs-discovery-days-panel')).toBeVisible();
 
   await page.goto(`/clubs/${otherClub.id}/edit`);

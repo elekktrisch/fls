@@ -3,7 +3,6 @@ import { expect, installMockApiStubs, test, watchConsoleErrors } from '../_helpe
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 const GLIDER_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
 const MOTOR_TYPE_ID = '019e2e15-2c00-7afc-8000-000000002afc';
@@ -50,6 +49,8 @@ const TODAY = (() => {
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 })();
+
+const A_DATE_THE_TODAY_DEFAULT_RANGE_EXCLUDES = '2026-01-01';
 
 const allFlights: [MockFlightListItem, MockFlightListItem, MockFlightListItem] = [
   {
@@ -228,7 +229,7 @@ function setupFlightsBackend(flights: readonly MockFlightListItem[]): {
 }
 
 test.describe('flights list page', () => {
-  test('renders rows, applies server date filter, applies client air-state filter, navigates via kebab', async ({
+  test('renders rows, sends the today-default from/to to the server, narrows client-side by air state, navigates via kebab', async ({
     page,
   }) => {
     await stubReferenceData(page);
@@ -255,11 +256,13 @@ test.describe('flights list page', () => {
     await expect(page.getByTestId(`flights-duration-${allFlights[0].id}`)).toHaveText('01:32');
 
     const firstRow = page.getByTestId(`flights-row-${allFlights[0].id}`);
-    await expect(firstRow).toContainText('Takeoff');
-    await expect(firstRow).toContainText('Landing');
-    await expect(firstRow).not.toContainText('Pilot');
-    await expect(firstRow).not.toContainText('Comment');
-    await expect(firstRow).not.toContainText('Tow ');
+    await test.step('column inventory — takeoff + landing render; pilot / comment / tow stay deferred (S-062a)', async () => {
+      await expect(firstRow).toContainText('Takeoff');
+      await expect(firstRow).toContainText('Landing');
+      await expect(firstRow).not.toContainText('Pilot');
+      await expect(firstRow).not.toContainText('Comment');
+      await expect(firstRow).not.toContainText('Tow ');
+    });
 
     await firstRow.click();
     await expect(page).toHaveURL(new RegExp(`/flights/${allFlights[0].id}/edit$`));
@@ -305,11 +308,13 @@ test.describe('flights list page', () => {
     await page.getByTestId('flights-date-range').locator('input').first().click();
     const overlay = page.locator('.cdk-overlay-container .ant-picker-panel-container');
     await expect(overlay).toBeVisible();
-    const days = overlay.locator(
+    const inViewDayCells = overlay.locator(
       '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
     );
-    await days.nth(2).click();
-    await days.nth(18).click();
+    const rangeStartCell = inViewDayCells.nth(2);
+    const rangeEndCell = inViewDayCells.nth(18);
+    await rangeStartCell.click();
+    await rangeEndCell.click();
 
     await expect
       .poll(() => lastParams.from, {
@@ -363,8 +368,11 @@ test.describe('flights list page', () => {
     page,
   }) => {
     await stubReferenceData(page);
-    const backdated = allFlights.map((f) => ({ ...f, flightDate: '2026-01-01' }));
-    const { handler } = setupFlightsBackend(backdated);
+    const flightsDatedOutsideTheTodayDefaultRange = allFlights.map((f) => ({
+      ...f,
+      flightDate: A_DATE_THE_TODAY_DEFAULT_RANGE_EXCLUDES,
+    }));
+    const { handler } = setupFlightsBackend(flightsDatedOutsideTheTodayDefaultRange);
     await page.route('**/api/v1/flights**', handler);
 
     await page.goto('/flights');
@@ -383,8 +391,9 @@ test.describe('flights list page', () => {
 
     await page.goto('/flights');
     const picker = page.getByTestId('flights-date-range');
+    const clearTheTodayDefaultRange = picker.locator('.ant-picker-clear');
     await picker.hover();
-    await picker.locator('.ant-picker-clear').click();
+    await clearTheTodayDefaultRange.click();
 
     await expect(page.getByTestId('flights-empty')).toContainText('No flights yet');
     await expect(page.getByTestId('flights-empty')).not.toContainText('No matching flights');

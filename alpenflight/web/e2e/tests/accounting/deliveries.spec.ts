@@ -133,7 +133,7 @@ async function stubReferenceData(page: Page): Promise<void> {
   );
 }
 
-function setupBackend(items: MockDelivery[]) {
+function setupReadOnlyDeliveriesBackend(items: MockDelivery[]) {
   return async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
@@ -170,7 +170,7 @@ function setupBackend(items: MockDelivery[]) {
 
 async function bootBackend(page: Page, items: MockDelivery[]): Promise<void> {
   await stubReferenceData(page);
-  await page.route('**/api/v1/deliveries**', setupBackend(items));
+  await page.route('**/api/v1/deliveries**', setupReadOnlyDeliveriesBackend(items));
 }
 
 test('deliveries: a nav entry under masterdata reaches /deliveries (ENTER via nav)', async ({

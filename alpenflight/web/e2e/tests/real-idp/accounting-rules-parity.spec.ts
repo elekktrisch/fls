@@ -17,9 +17,15 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const BASE = '/api/v1/accounting-rule-filters';
 const TYPES = '/api/v1/accounting-rule-filter-types';
+
+const SPEC_TOKEN_KEEPING_ADMIN_USERNAMES_DISJOINT = 'arf';
+
+const ARTICLE_TARGET_LEGACY_ID = 40;
+const RECIPIENT_TARGET_LEGACY_ID = 10;
+const AIRCRAFT_FILTER_LEGACY_ID = 30;
+const NO_LANDING_TAX_LEGACY_ID = 20;
 
 interface FilterTypeRow {
   id: string;
@@ -123,11 +129,15 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
     adminBearer = await captureReservationAdminBearer(browser, baseURL);
-    twoClubs = await provisionTwoClubs(browser, baseURL, 'arf');
+    twoClubs = await provisionTwoClubs(
+      browser,
+      baseURL,
+      SPEC_TOKEN_KEEPING_ADMIN_USERNAMES_DISJOINT,
+    );
     cleanupCtx = await browser.newContext({ baseURL });
-    articleTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, 40);
-    recipientTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, 10);
-    aircraftTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, 30);
+    articleTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, ARTICLE_TARGET_LEGACY_ID);
+    recipientTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, RECIPIENT_TARGET_LEGACY_ID);
+    aircraftTypeId = await typeUuidByLegacyId(cleanupCtx, adminBearer, AIRCRAFT_FILTER_LEGACY_ID);
   });
 
   test.afterAll(async () => {
@@ -161,7 +171,7 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
       const name = `J-8 article rule ${Date.now().toString(36)}`;
       const id = await createFilter(ctx, adminBearer, createdIds, {
         filterTypeId: articleTypeId,
-        filterTypeLegacyId: 40,
+        filterTypeLegacyId: ARTICLE_TARGET_LEGACY_ID,
         ruleFilterName: name,
         description: 'J-8 real-chain article rule',
         active: true,
@@ -229,22 +239,22 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
       const noLandingTaxSection = page.getByTestId('accounting-rules-section-no-landing-tax');
       const typeSelect = page.getByTestId('accounting-rules-filter-type');
 
-      await typeSelect.selectOption('40');
+      await typeSelect.selectOption(String(ARTICLE_TARGET_LEGACY_ID));
       await expect(articleSection).toBeVisible();
       await expect(recipientSection).toBeHidden();
       await expect(aircraftSection).toBeHidden();
       await expect(noLandingTaxSection).toBeHidden();
 
-      await typeSelect.selectOption('10');
+      await typeSelect.selectOption(String(RECIPIENT_TARGET_LEGACY_ID));
       await expect(recipientSection).toBeVisible();
       await expect(articleSection).toBeHidden();
 
-      await typeSelect.selectOption('30');
+      await typeSelect.selectOption(String(AIRCRAFT_FILTER_LEGACY_ID));
       await expect(aircraftSection).toBeVisible();
       await expect(articleSection).toBeVisible();
       await expect(recipientSection).toBeHidden();
 
-      await typeSelect.selectOption('20');
+      await typeSelect.selectOption(String(NO_LANDING_TAX_LEGACY_ID));
       await expect(noLandingTaxSection).toBeVisible();
       await expect(aircraftSection).toBeHidden();
     } finally {
@@ -271,7 +281,7 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
       const name = `J-8 match-list rule ${Date.now().toString(36)}`;
       const id = await createFilter(ctx, adminBearer, createdIds, {
         filterTypeId: aircraftTypeId,
-        filterTypeLegacyId: 30,
+        filterTypeLegacyId: AIRCRAFT_FILTER_LEGACY_ID,
         ruleFilterName: name,
         active: true,
         filterConfig: filterConfig({
@@ -344,7 +354,7 @@ test.describe('Accounting rule filters — clean-seed real chain (real-idp)', ()
     try {
       const id = await createFilter(ctx, adminBearer, createdIds, {
         filterTypeId: recipientTypeId,
-        filterTypeLegacyId: 10,
+        filterTypeLegacyId: RECIPIENT_TARGET_LEGACY_ID,
         ruleFilterName: `J-8 tenant rule ${Date.now().toString(36)}`,
         active: true,
         recipientMemberNumber: '900900',

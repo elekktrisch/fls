@@ -3,15 +3,14 @@ import { type APIRequestContext } from '@playwright/test';
 import { seedFlightMasterdata } from './flight-parity-fixture';
 import { freshTestUser } from './test-user';
 
-
 const CREW_TYPE_PILOT_OR_STUDENT = '019e2e15-2c00-76b0-8000-0000000036b0';
 const CREW_TYPE_FLIGHT_INSTRUCTOR = '019e2e15-2c00-76b2-8000-0000000036b2';
 
 const START_TYPE_WINCH = '019e2e15-2c00-7fa0-8000-000000000fa0';
 
-const FLIGHT_DAYS_AGO = 1;
+const COMPLETED_FLIGHT_DAYS_AGO_WITHIN_REPORT_WINDOW = 1;
 
-const FIRSTNAME = 'Rapport';
+const REPORT_CREW_FIRSTNAME = 'Rapport';
 
 export interface DailyReportCrewMember {
   personId: string;
@@ -53,7 +52,7 @@ async function createMember(
   const res = await api.post('/api/v1/persons', {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {
-      firstname: FIRSTNAME,
+      firstname: REPORT_CREW_FIRSTNAME,
       lastname,
       emailPrivate: email,
       preferMailToBusinessMail: false,
@@ -87,7 +86,7 @@ async function createMember(
         `${stored?.receiveFlightReports} instead of ${receiveFlightReports}`,
     );
   }
-  return { personId: person.id, email, displayName: `${FIRSTNAME} ${lastname}` };
+  return { personId: person.id, email, displayName: `${REPORT_CREW_FIRSTNAME} ${lastname}` };
 }
 
 export async function seedDailyReportCrew(
@@ -98,7 +97,7 @@ export async function seedDailyReportCrew(
   const optedIn = await createMember(api, bearer, 'Optin', true);
   const optedOut = await createMember(api, bearer, 'Optout', false);
 
-  const flightDate = daysAgo(FLIGHT_DAYS_AGO);
+  const flightDate = daysAgo(COMPLETED_FLIGHT_DAYS_AGO_WITHIN_REPORT_WINDOW);
   const res = await api.post('/api/v1/flights', {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {

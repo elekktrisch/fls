@@ -1,6 +1,6 @@
 import { isCleanupCandidate, type TestUser } from './test-user';
 
-
+// RENAME: SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS -> ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS
 export const SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS = 30;
 
 export const CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS = 900;
@@ -34,9 +34,11 @@ export interface AdminUser {
   attributes?: Record<string, string[]>;
 }
 
+const TOKEN_REFRESH_LEEWAY_SECONDS = 30;
+
 interface CachedToken {
   accessToken: string;
-  expiresAt: number;
+  expiresAtEpochMs: number;
 }
 
 let tokenPromise: Promise<CachedToken> | undefined;
@@ -69,14 +71,14 @@ async function mintToken(): Promise<CachedToken> {
   const payload = (await res.json()) as { access_token: string; expires_in: number };
   return {
     accessToken: payload.access_token,
-    expiresAt: Date.now() + (payload.expires_in - 30) * 1000,
+    expiresAtEpochMs: Date.now() + (payload.expires_in - TOKEN_REFRESH_LEEWAY_SECONDS) * 1000,
   };
 }
 
 async function getToken(): Promise<string> {
   if (tokenPromise) {
     const cached = await tokenPromise;
-    if (cached.expiresAt > Date.now()) return cached.accessToken;
+    if (cached.expiresAtEpochMs > Date.now()) return cached.accessToken;
   }
   tokenPromise = mintToken();
   return (await tokenPromise).accessToken;
@@ -89,7 +91,7 @@ function invalidateToken(): void {
 async function adminRequest(
   path: string,
   init: RequestInit = {},
-  retry = true,
+  retryOnUnauthorized = true,
 ): Promise<Response> {
   assertLocalhostIssuer();
   const token = await getToken();
@@ -99,7 +101,7 @@ async function adminRequest(
     headers.set('content-type', 'application/json');
   }
   const res = await fetch(`${ADMIN_BASE}${path}`, { ...init, headers });
-  if (res.status === 401 && retry) {
+  if (res.status === 401 && retryOnUnauthorized) {
     invalidateToken();
     return adminRequest(path, init, false);
   }
@@ -150,9 +152,9 @@ export async function createUserWithAttributes(
   if (!res.ok) {
     throw new Error(`createUser(${user.email}) failed (${res.status}): ${await res.text()}`);
   }
-  const location = res.headers.get('location');
-  if (!location) throw new Error('createUser: no Location header on 201');
-  return location.split('/').pop()!;
+  const createdUserLocation = res.headers.get('location');
+  if (!createdUserLocation) throw new Error('createUser: no Location header on 201');
+  return createdUserLocation.split('/').pop()!;
 }
 
 export async function findUserByUsername(username: string): Promise<AdminUser | undefined> {

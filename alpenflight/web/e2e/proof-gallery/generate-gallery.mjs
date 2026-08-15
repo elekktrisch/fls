@@ -633,9 +633,9 @@ export function generateGallery({
   journeyUnderWork = journeyFromFile(branch) ?? 'unknown',
   legacyVideoDir,
   screenshotsDir,
-  siteBase = DEFAULT_SITE_BASE,
+  siteBase: acceptedButUnusedSiteBase = DEFAULT_SITE_BASE,
 }) {
-  void siteBase;
+  void acceptedButUnusedSiteBase;
   const journey = journeyUnderWork;
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
@@ -744,6 +744,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     console.log(
       `  journey ${journey}: ${proofs.length} green proof video(s); ${shots.length} parity screenshot(s).`,
     );
+    // ext: prefix sed-parsed by ci.yml + proof-fanout → GALLERY_EXPECT_GENERATED_AT
     console.log(`proof-gallery: generated-at ${generatedAt}`);
   } catch (err) {
     console.error(`proof-gallery: ${err.message}`);

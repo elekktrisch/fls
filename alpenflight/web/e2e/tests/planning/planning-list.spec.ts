@@ -1,7 +1,6 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const LOCATION_BERN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
 const LOCATION_THUN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c002';
@@ -21,17 +20,20 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+const SUNDAY = 0;
+const SATURDAY = 6;
+
 function weekdayKeyFromToday(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  const shift = d.getDay() === 6 ? 2 : d.getDay() === 0 ? 1 : 0;
-  return dayKeyFromToday(days + shift);
+  const shiftOffTheWeekend = d.getDay() === SATURDAY ? 2 : d.getDay() === SUNDAY ? 1 : 0;
+  return dayKeyFromToday(days + shiftOffTheWeekend);
 }
 
 function nextSaturdayKey(): string {
   const d = new Date();
-  const delta = (6 - d.getDay() + 7) % 7 || 7;
-  d.setDate(d.getDate() + delta);
+  const daysUntilNextSaturday = (SATURDAY - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilNextSaturday);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');

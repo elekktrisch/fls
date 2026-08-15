@@ -12,9 +12,8 @@ import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
 
-
-const PRINCIPAL_USER = 'clubadmin2@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
+const AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_USER = 'clubadmin2@example.com';
+const AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
 
 const SERVER_DIR = resolve(__dirname, '../../../../../server');
 const GRADLEW = resolve(SERVER_DIR, 'gradlew');
@@ -93,7 +92,11 @@ async function capturePrincipalBearer(browser: Browser, baseURL: string): Promis
     await page.goto('/');
     await page.getByTestId('landing-topbar-sign-in').click();
     await page.waitForURL(/\/realms\/alpenflight\//);
-    await fillKcLogin(page, PRINCIPAL_USER, PRINCIPAL_PASSWORD);
+    await fillKcLogin(
+      page,
+      AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_USER,
+      AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_PASSWORD,
+    );
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
     await page.goto('/aircraft');
     const req = await bearerPromise;
@@ -149,8 +152,8 @@ async function resolveSynthBundle(
   bearer: string,
   attempt: number,
 ): Promise<ResolvedBundle> {
-  const attemptTag = `${Date.now().toString(36)}${attempt > 0 ? `r${attempt}` : ''}`;
-  const immatriculation = `J1-${attemptTag.slice(-6).toUpperCase()}`;
+  const perAttemptUniqueTag = `${Date.now().toString(36)}${attempt > 0 ? `r${attempt}` : ''}`;
+  const immatriculation = `J1-${perAttemptUniqueTag.slice(-6).toUpperCase()}`;
   const clubKey = `J1A${runId().slice(0, 4).toUpperCase()}${attempt}`;
   const handshake = await mintHandshake(api, bearer);
   const bundle = await buildBundleBytes(

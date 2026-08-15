@@ -11,7 +11,6 @@ import {
   type TestUser,
 } from './test-user';
 
-
 const SEED_CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 
 export const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
@@ -19,6 +18,8 @@ export const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 
 const SYSADMIN_USER = 'sysadmin@example.com';
 const SYSADMIN_PASSWORD = 'sysadmin-dev-2026!';
+
+const SYSADMIN_PAGE_THAT_ISSUES_AN_API_CALL = '/clubs';
 
 const CLUB_ADMINISTRATOR_ROLE = 'CLUB_ADMINISTRATOR';
 
@@ -42,9 +43,9 @@ function runId(): string {
   return id;
 }
 
-function adminUser(label: string, scope: string, nonce: string): TestUser {
+function adminUser(label: string, scope: string, aliveUsernameNonce: string): TestUser {
   return {
-    email: `${E2E_EMAIL_PREFIX}${runId()}-${scope}-${label}-${nonce}${E2E_EMAIL_SUFFIX}`,
+    email: `${E2E_EMAIL_PREFIX}${runId()}-${scope}-${label}-${aliveUsernameNonce}${E2E_EMAIL_SUFFIX}`,
     password: E2E_CANNED_PASSWORD,
     firstName: 'E2e',
     lastName: `Admin${label}`,
@@ -55,7 +56,7 @@ export async function captureSysadminBearer(browser: Browser, baseURL: string): 
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
 
-  const bearerPromise = page.waitForRequest((req) => {
+  const bearerFromFirstAuthorizedApiCall = page.waitForRequest((req) => {
     const auth = req.headers()['authorization'];
     return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
   });
@@ -66,9 +67,9 @@ export async function captureSysadminBearer(browser: Browser, baseURL: string): 
   await fillKcLogin(page, SYSADMIN_USER, SYSADMIN_PASSWORD);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
 
-  await page.goto('/clubs');
+  await page.goto(SYSADMIN_PAGE_THAT_ISSUES_AN_API_CALL);
 
-  const req = await bearerPromise;
+  const req = await bearerFromFirstAuthorizedApiCall;
   const bearer = req.headers()['authorization']!;
   await context.close();
   return bearer;
@@ -95,17 +96,19 @@ async function createClubB(browser: Browser, baseURL: string): Promise<string> {
       },
     });
     if (res.status() === 409) {
-      const existingId = await findClubIdBySlug(ctx, bearer, slug);
-      if (!existingId) {
+      const clubBFromAPriorAttempt = await findClubIdBySlug(ctx, bearer, slug);
+      if (!clubBFromAPriorAttempt) {
         throw new Error(
           `createClubB 409'd on slug "${slug}" but no club with that slug is listed — ` +
             'slug collides with a non-recoverable row',
         );
       }
-      if (existingId === SEED_CLUB_A_ID) {
-        throw new Error(`createClubB recovered the seeded club A id for club B (${existingId})`);
+      if (clubBFromAPriorAttempt === SEED_CLUB_A_ID) {
+        throw new Error(
+          `createClubB recovered the seeded club A id for club B (${clubBFromAPriorAttempt})`,
+        );
       }
-      return existingId;
+      return clubBFromAPriorAttempt;
     }
     if (!res.ok()) {
       throw new Error(`createClubB failed (${res.status()}): ${await res.text()}`);
@@ -137,9 +140,9 @@ async function provisionClubAdmin(
   clubId: string,
   label: string,
   scope: string,
-  nonce: string,
+  aliveUsernameNonce: string,
 ): Promise<ClubAdmin> {
-  const user = adminUser(label, scope, nonce);
+  const user = adminUser(label, scope, aliveUsernameNonce);
   const kcUserId = await createUserWithAttributes(user, { clubId: [clubId] });
   await assignRealmRole(kcUserId, CLUB_ADMINISTRATOR_ROLE);
   return { clubId, user, kcUserId };
@@ -152,9 +155,9 @@ export async function provisionTwoClubs(
 ): Promise<TwoClubFixture> {
   const clubBId = await createClubB(browser, baseURL);
 
-  const nonce = randomUUID().replace(/-/g, '').slice(0, 8);
-  const clubA = await provisionClubAdmin(SEED_CLUB_A_ID, 'club-a-admin', scope, nonce);
-  const clubB = await provisionClubAdmin(clubBId, 'club-b-admin', scope, nonce);
+  const aliveUsernameNonce = randomUUID().replace(/-/g, '').slice(0, 8);
+  const clubA = await provisionClubAdmin(SEED_CLUB_A_ID, 'club-a-admin', scope, aliveUsernameNonce);
+  const clubB = await provisionClubAdmin(clubBId, 'club-b-admin', scope, aliveUsernameNonce);
 
   return {
     clubA,

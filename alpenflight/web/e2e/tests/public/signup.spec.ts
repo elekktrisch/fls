@@ -1,6 +1,5 @@
 import { expect, test } from '../_helpers/console-guard';
 
-
 interface AuthorizeArgs {
   configId?: string;
   params?: { customParams?: Record<string, string> };
@@ -43,7 +42,9 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
     }
   });
 
-  test('clicking "Sign up" calls authorize with prompt=create + ui_locales', async ({ page }) => {
+  test('clicking "Sign up" calls authorize with prompt=create + ui_locales and no kc_idp_hint', async ({
+    page,
+  }) => {
     await page.goto('/signup?lang=de');
     await page.getByTestId('signup-local').click();
 
@@ -107,6 +108,8 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
   });
 });
 
+const ONINIT_FUNNEL_EMIT_WINDOW_MS = 250;
+
 test.describe('signup — post-signup landing emits funnel event', () => {
   test('/migrate/start with signup-pending stamp emits PII-free signup.completed', async ({
     page,
@@ -155,7 +158,7 @@ test.describe('signup — post-signup landing emits funnel event', () => {
     await page.goto('/migrate/start');
     await expect(page.getByTestId('migrate-handshake')).toBeVisible();
 
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(ONINIT_FUNNEL_EMIT_WINDOW_MS);
     expect(funnelEvents.filter((e) => e.includes('signup.completed'))).toHaveLength(0);
   });
 });

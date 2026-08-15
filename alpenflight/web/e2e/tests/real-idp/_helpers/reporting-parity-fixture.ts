@@ -2,7 +2,6 @@ import { type APIRequestContext } from '@playwright/test';
 
 import { seedFlightMasterdata, type FlightMasterdata } from './flight-parity-fixture';
 
-
 const CREW_TYPE_PILOT_OR_STUDENT = '019e2e15-2c00-76b0-8000-0000000036b0';
 const CREW_TYPE_FLIGHT_INSTRUCTOR = '019e2e15-2c00-76b2-8000-0000000036b2';
 
@@ -151,19 +150,18 @@ export async function seedReportingFixture(
   const secondFlightTypeId = await postFlightType(api, bearer, secondFlightTypeName, `J7X${tag}`);
   const instructorPersonId = await postInstructor(api, bearer, tag);
 
-
   const pilot = masterdata.pilotPersonId;
-  const homebase = SEED_CLUB_HOMEBASE_LOCATION_ID;
+  const locationReportHomebase = SEED_CLUB_HOMEBASE_LOCATION_ID;
 
-  const towDate = daysAgo(2);
-  const tow = await postFlight(api, bearer, {
+  const aerotowPairDate = daysAgo(2);
+  const aerotowTowFlight = await postFlight(api, bearer, {
     flightAircraftType: 'TOW',
     aircraftId: masterdata.towAircraftId,
-    flightDate: towDate,
-    startDateTime: iso(towDate, '08:00'),
-    ldgDateTime: iso(towDate, '08:12'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: aerotowPairDate,
+    startDateTime: iso(aerotowPairDate, '08:00'),
+    ldgDateTime: iso(aerotowPairDate, '08:12'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -172,14 +170,14 @@ export async function seedReportingFixture(
     crew: [{ personId: masterdata.towPilotPersonId, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
 
-  const glider = await postFlight(api, bearer, {
+  const aerotowGliderFlight = await postFlight(api, bearer, {
     flightAircraftType: 'GLIDER',
     aircraftId: masterdata.gliderAircraftId,
-    flightDate: towDate,
-    startDateTime: iso(towDate, '08:00'),
-    ldgDateTime: iso(towDate, '09:30'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: aerotowPairDate,
+    startDateTime: iso(aerotowPairDate, '08:00'),
+    ldgDateTime: iso(aerotowPairDate, '09:30'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -187,31 +185,31 @@ export async function seedReportingFixture(
     noLdgTimeInformation: false,
     crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
-  await putFlight(api, bearer, glider.id, {
+  await putFlight(api, bearer, aerotowGliderFlight.id, {
     aircraftId: masterdata.gliderAircraftId,
-    flightDate: towDate,
-    startDateTime: iso(towDate, '08:00'),
-    ldgDateTime: iso(towDate, '09:30'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: aerotowPairDate,
+    startDateTime: iso(aerotowPairDate, '08:00'),
+    ldgDateTime: iso(aerotowPairDate, '09:30'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
     noStartTimeInformation: false,
     noLdgTimeInformation: false,
-    towFlightId: tow.id,
+    towFlightId: aerotowTowFlight.id,
     crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
 
-  const winchDate = daysAgo(3);
+  const pilotSecondGliderDate = daysAgo(3);
   await postFlight(api, bearer, {
     flightAircraftType: 'GLIDER',
     aircraftId: masterdata.gliderAircraftId,
-    flightDate: winchDate,
-    startDateTime: iso(winchDate, '10:00'),
-    ldgDateTime: iso(winchDate, '10:45'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: pilotSecondGliderDate,
+    startDateTime: iso(pilotSecondGliderDate, '10:00'),
+    ldgDateTime: iso(pilotSecondGliderDate, '10:45'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: false,
@@ -220,15 +218,15 @@ export async function seedReportingFixture(
     crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
 
-  const motorDate = daysAgo(1);
+  const pilotMotorDate = daysAgo(1);
   await postFlight(api, bearer, {
     flightAircraftType: 'MOTOR',
     aircraftId: masterdata.motorAircraftId,
-    flightDate: motorDate,
-    startDateTime: iso(motorDate, '11:00'),
-    ldgDateTime: iso(motorDate, '12:30'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: pilotMotorDate,
+    startDateTime: iso(pilotMotorDate, '11:00'),
+    ldgDateTime: iso(pilotMotorDate, '12:30'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_MOTOR,
     isSoloFlight: false,
@@ -237,15 +235,15 @@ export async function seedReportingFixture(
     crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
 
-  const pilotTowDate = daysAgo(1);
+  const pilotFlyingTheTowAircraftDate = daysAgo(1);
   await postFlight(api, bearer, {
     flightAircraftType: 'TOW',
     aircraftId: masterdata.towAircraftId,
-    flightDate: pilotTowDate,
-    startDateTime: iso(pilotTowDate, '15:00'),
-    ldgDateTime: iso(pilotTowDate, '15:14'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: pilotFlyingTheTowAircraftDate,
+    startDateTime: iso(pilotFlyingTheTowAircraftDate, '15:00'),
+    ldgDateTime: iso(pilotFlyingTheTowAircraftDate, '15:14'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: masterdata.gliderFlightTypeId,
     startTypeId: START_TYPE_AEROTOW,
     isSoloFlight: false,
@@ -254,15 +252,15 @@ export async function seedReportingFixture(
     crew: [{ personId: pilot, flightCrewTypeId: CREW_TYPE_PILOT_OR_STUDENT }],
   });
 
-  const instrDate = daysAgo(4);
+  const instructorNonSoloDate = daysAgo(4);
   await postFlight(api, bearer, {
     flightAircraftType: 'GLIDER',
     aircraftId: masterdata.gliderAircraftId,
-    flightDate: instrDate,
-    startDateTime: iso(instrDate, '13:00'),
-    ldgDateTime: iso(instrDate, '13:45'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: instructorNonSoloDate,
+    startDateTime: iso(instructorNonSoloDate, '13:00'),
+    ldgDateTime: iso(instructorNonSoloDate, '13:45'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: false,
@@ -271,15 +269,15 @@ export async function seedReportingFixture(
     crew: [{ personId: instructorPersonId, flightCrewTypeId: CREW_TYPE_FLIGHT_INSTRUCTOR }],
   });
 
-  const soloDate = daysAgo(5);
+  const instructorSoloDate = daysAgo(5);
   await postFlight(api, bearer, {
     flightAircraftType: 'GLIDER',
     aircraftId: masterdata.gliderAircraftId,
-    flightDate: soloDate,
-    startDateTime: iso(soloDate, '14:00'),
-    ldgDateTime: iso(soloDate, '14:30'),
-    startLocationId: homebase,
-    ldgLocationId: homebase,
+    flightDate: instructorSoloDate,
+    startDateTime: iso(instructorSoloDate, '14:00'),
+    ldgDateTime: iso(instructorSoloDate, '14:30'),
+    startLocationId: locationReportHomebase,
+    ldgLocationId: locationReportHomebase,
     flightTypeId: secondFlightTypeId,
     startTypeId: START_TYPE_WINCH,
     isSoloFlight: true,
@@ -294,8 +292,8 @@ export async function seedReportingFixture(
     secondFlightTypeName,
     pilotPersonId: pilot,
     instructorPersonId,
-    aerotowGliderFlightId: glider.id,
-    towFlightId: tow.id,
+    aerotowGliderFlightId: aerotowGliderFlight.id,
+    towFlightId: aerotowTowFlight.id,
   };
 }
 

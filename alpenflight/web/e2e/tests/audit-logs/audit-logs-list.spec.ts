@@ -4,13 +4,12 @@ import type { AuditEventPage } from '../../../src/app/api/generated/model/auditE
 import type { AuditEventRow } from '../../../src/app/api/generated/model/auditEventRow';
 import { AuditEventRowAction } from '../../../src/app/api/generated/model/auditEventRowAction';
 
-
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const ACTOR_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000001';
 const USER_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000001';
 const ANONYMOUS_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000005';
 
-const seedRows: AuditEventRow[] = [
+const succeededRowsCarryNoHttpStatus: AuditEventRow[] = [
   {
     id: USER_ROW_ID,
     occurredAt: '2026-07-20T08:15:00Z',
@@ -48,29 +47,37 @@ const seedRows: AuditEventRow[] = [
     failed: false,
     systemActor: false,
   },
-  {
-    id: 'aud-019e30c3-2c00-7200-8000-000000000004',
-    occurredAt: '2026-07-20T11:00:00Z',
-    actorUserId: ACTOR_USER_ID,
-    tenantClubId: CLUB_A_ID,
-    action: AuditEventRowAction.DELETE,
-    targetEntityType: 'Location',
-    targetEntityId: 'loc-019e30c3-2c00-7400-8000-000000000099',
-    failed: true,
-    systemActor: false,
-    httpStatus: 404,
-  },
-  {
-    id: ANONYMOUS_ROW_ID,
-    occurredAt: '2026-07-20T12:05:00Z',
-    tenantClubId: CLUB_A_ID,
-    action: AuditEventRowAction.CREATE,
-    targetEntityType: 'PublicFlightRegistration',
-    targetEntityId: CLUB_A_ID,
-    afterState: { kind: 'DISCOVERY_FLIGHT', clubId: CLUB_A_ID },
-    failed: false,
-    systemActor: true,
-  },
+];
+
+const failedRowCarriesTheRecordedHttpStatus: AuditEventRow = {
+  id: 'aud-019e30c3-2c00-7200-8000-000000000004',
+  occurredAt: '2026-07-20T11:00:00Z',
+  actorUserId: ACTOR_USER_ID,
+  tenantClubId: CLUB_A_ID,
+  action: AuditEventRowAction.DELETE,
+  targetEntityType: 'Location',
+  targetEntityId: 'loc-019e30c3-2c00-7400-8000-000000000099',
+  failed: true,
+  systemActor: false,
+  httpStatus: 404,
+};
+
+const anonymousRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
+  id: ANONYMOUS_ROW_ID,
+  occurredAt: '2026-07-20T12:05:00Z',
+  tenantClubId: CLUB_A_ID,
+  action: AuditEventRowAction.CREATE,
+  targetEntityType: 'PublicFlightRegistration',
+  targetEntityId: CLUB_A_ID,
+  afterState: { kind: 'DISCOVERY_FLIGHT', clubId: CLUB_A_ID },
+  failed: false,
+  systemActor: true,
+};
+
+const seedRows: AuditEventRow[] = [
+  ...succeededRowsCarryNoHttpStatus,
+  failedRowCarriesTheRecordedHttpStatus,
+  anonymousRowCarriesNoActorIdentifierAtAll,
 ];
 
 function setupAuditBackend(rows: AuditEventRow[]) {

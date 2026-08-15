@@ -12,9 +12,8 @@ import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
 
-
-const PRINCIPAL_USER = 'clubadmin3@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin3-dev-2026!';
+const MIGRATION_PRINCIPAL_USER = 'clubadmin3@example.com';
+const MIGRATION_PRINCIPAL_PASSWORD = 'clubadmin3-dev-2026!';
 
 const SERVER_DIR = resolve(__dirname, '../../../../../server');
 const GRADLEW = resolve(SERVER_DIR, 'gradlew');
@@ -108,7 +107,7 @@ async function capturePrincipalBearer(browser: Browser, baseURL: string): Promis
     await page.goto('/');
     await page.getByTestId('landing-topbar-sign-in').click();
     await page.waitForURL(/\/realms\/alpenflight\//);
-    await fillKcLogin(page, PRINCIPAL_USER, PRINCIPAL_PASSWORD);
+    await fillKcLogin(page, MIGRATION_PRINCIPAL_USER, MIGRATION_PRINCIPAL_PASSWORD);
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
     await page.goto('/flights');
     const req = await bearerPromise;
@@ -276,7 +275,7 @@ async function tryBearerForMigratedAdmin(
 ): Promise<string | undefined> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
-  const bearerPromise = page
+  const bearerPromiseSettledBeforeClose = page
     .waitForRequest(
       (req) =>
         new URL(req.url()).pathname === '/api/v1/flights' &&
@@ -291,7 +290,7 @@ async function tryBearerForMigratedAdmin(
   try {
     await loginAsMigratedAdmin(page, admin, PER_CLUB_LOGIN_BUDGET_MS);
     await page.goto('/flights');
-    return await bearerPromise;
+    return await bearerPromiseSettledBeforeClose;
   } catch (err) {
     console.warn(
       `[J-2] club ${admin.clubId} admin did not reach the authed root within ` +
@@ -299,7 +298,7 @@ async function tryBearerForMigratedAdmin(
     );
     return undefined;
   } finally {
-    await bearerPromise;
+    await bearerPromiseSettledBeforeClose;
     await context.close();
   }
 }
@@ -345,7 +344,6 @@ export async function seedFlightParity(
 
   return { gliderImmatriculation: MIGRATED_GLIDER_IMMAT, freshnessToken, owner: owner! };
 }
-
 
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const GLIDER_AIRCRAFT_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';

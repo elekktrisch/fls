@@ -1,7 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 type JobRunStatus = 'NEVER_RUN' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
 interface JobRun {

@@ -1,7 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-
 interface MockLocationType {
   id: string;
   code: string;
@@ -299,13 +298,13 @@ test('locations: invalid ICAO pattern keeps Save disabled with an inline error',
   await icao.fill('XX');
   await icao.blur();
 
+  const icaoAlertEmittedOnlyWhenAnErrorKeyIsPresent = page
+    .locator('af-form-field')
+    .filter({ has: page.locator('#IcaoCode') })
+    .locator('af-field-errors [role="alert"]');
+
   await expect(page.getByTestId('locations-save-button').locator('button')).toBeDisabled();
-  await expect(
-    page
-      .locator('af-form-field')
-      .filter({ has: page.locator('#IcaoCode') })
-      .locator('af-field-errors [role="alert"]'),
-  ).toBeVisible();
+  await expect(icaoAlertEmittedOnlyWhenAnErrorKeyIsPresent).toBeVisible();
 });
 
 test('locations: lowercase ICAO is uppercased on save', async ({ page }) => {

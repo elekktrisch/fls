@@ -7,7 +7,6 @@ import { fillKcLogin } from './kc-form';
 import { freshTestUser, type TestUser } from './test-user';
 import { ACTIVE_CLUB_STATE_ID, CH_COUNTRY_ID, captureSysadminBearer } from './two-club-fixture';
 
-
 const CLUB_ADMINISTRATOR_ROLE = 'CLUB_ADMINISTRATOR';
 
 const GLIDER_TYPE_CODE = 'GLIDER';
@@ -241,17 +240,18 @@ async function seedClub(
     await createJson(api, '/api/v1/discovery-flight-days', adminAuthorization, { eventDate });
 
     const operatorEmail = `e2e-${runId()}-organiser-${tag}@example.com`;
+    const everyFieldTheClubMustKeep = {
+      name: clubName,
+      slug,
+      publicRegistrationEnabled: true,
+      countryId: CH_COUNTRY_ID,
+      clubStateId: ACTIVE_CLUB_STATE_ID,
+      discoveryFlightOperatorEmail: operatorEmail,
+      homebaseId: homebase.id,
+    };
     const configured = await api.put(`/api/v1/clubs/${externalClubId}`, {
       headers: { authorization: adminAuthorization, 'content-type': 'application/json' },
-      data: {
-        name: clubName,
-        slug,
-        publicRegistrationEnabled: true,
-        countryId: CH_COUNTRY_ID,
-        clubStateId: ACTIVE_CLUB_STATE_ID,
-        discoveryFlightOperatorEmail: operatorEmail,
-        homebaseId: homebase.id,
-      },
+      data: everyFieldTheClubMustKeep,
     });
     if (!configured.ok()) {
       throw new Error(

@@ -1,4 +1,3 @@
-
 const MAILPIT_BASE = process.env['E2E_MAILPIT_BASE'] ?? 'http://localhost:8025';
 const MAILPIT_SEARCH = `${MAILPIT_BASE}/api/v1/search`;
 const MAILPIT_MESSAGE = `${MAILPIT_BASE}/api/v1/message`;
@@ -43,6 +42,7 @@ export interface WaitForMessageOptions {
   intervalMs?: number;
 }
 
+// RENAME: waitForMessage -> waitForExactlyOneMessage
 export async function waitForMessage(
   toAddress: string,
   options: WaitForMessageOptions = {},

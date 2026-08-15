@@ -1,7 +1,6 @@
 import { type APIRequestContext } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const DEPLOYED_POLL_BUDGET_MS = 180_000;
 const DEPLOYED_TEST_TIMEOUT_MS = DEPLOYED_POLL_BUDGET_MS + 30_000;
 const RETRY_INTERVAL_MS = 5_000;
@@ -36,6 +35,9 @@ function stalenessReason(html: string): string {
   return '';
 }
 
+const FRAGMENT_OR_EXTERNAL_REF = /^(?:#|[a-z]+:|\/\/)/i;
+const EXTERNAL_REF = /^(?:[a-z]+:|\/\/)/i;
+
 function extractHrefs(html: string): string[] {
   return [...new Set([...html.matchAll(/<a\b[^>]*\bhref="([^"]+)"/gi)].map((m) => m[1]!))];
 }
@@ -57,7 +59,7 @@ async function checkOnce(request: APIRequestContext, url: string): Promise<strin
   if (stale) return [`${url} → ${stale}`];
 
   for (const ref of [...extractAssetSrcs(html), ...extractHrefs(html)]) {
-    if (/^(?:#|[a-z]+:|\/\/)/i.test(ref)) continue;
+    if (FRAGMENT_OR_EXTERNAL_REF.test(ref)) continue;
     const abs = new URL(ref, url).href;
     const r = await getFresh(request, abs);
     if (!r.ok()) broken.push(`${url} → ${abs} (${r.status()})`);
@@ -77,32 +79,35 @@ async function checkWithRetry(request: APIRequestContext, url: string): Promise<
   expect(broken, `live dead links (after retry):\n  - ${broken.join('\n  - ')}`).toEqual([]);
 }
 
-const DEPLOYED = process.env['GALLERY_DEPLOYED_URL'];
-const DEPLOYED_JOURNEY = process.env['GALLERY_DEPLOYED_JOURNEY'];
+const DEPLOYED_GALLERY_URL = process.env['GALLERY_DEPLOYED_URL'];
+const DEPLOYED_GALLERY_JOURNEY = process.env['GALLERY_DEPLOYED_JOURNEY'];
 
 test.describe('proof-gallery deployed bookmark', () => {
   test('[deployed] the single bookmark page + every declared asset resolve 200', async ({
     request,
   }) => {
-    test.skip(!DEPLOYED, 'set GALLERY_DEPLOYED_URL to check the live gh-pages bookmark');
+    test.skip(
+      !DEPLOYED_GALLERY_URL,
+      'set GALLERY_DEPLOYED_URL to check the live gh-pages bookmark',
+    );
     test.setTimeout(DEPLOYED_TEST_TIMEOUT_MS);
-    await checkWithRetry(request, pageUrl(DEPLOYED!));
+    await checkWithRetry(request, pageUrl(DEPLOYED_GALLERY_URL!));
   });
 
   test('[deployed-journey] the bookmark is the in-flight journey + not a thin page', async ({
     request,
   }) => {
     test.skip(
-      !DEPLOYED || !DEPLOYED_JOURNEY,
+      !DEPLOYED_GALLERY_URL || !DEPLOYED_GALLERY_JOURNEY,
       'set GALLERY_DEPLOYED_URL + GALLERY_DEPLOYED_JOURNEY to assert the in-flight page',
     );
     test.setTimeout(DEPLOYED_TEST_TIMEOUT_MS);
-    const url = pageUrl(DEPLOYED!);
+    const url = pageUrl(DEPLOYED_GALLERY_URL!);
     const deadlineMs = Date.now() + DEPLOYED_POLL_BUDGET_MS;
 
     let lastErr: string;
     for (;;) {
-      lastErr = await tryAssertJourneyPage(request, url, DEPLOYED_JOURNEY!);
+      lastErr = await tryAssertJourneyPage(request, url, DEPLOYED_GALLERY_JOURNEY!);
       if (lastErr === '') return;
       if (Date.now() >= deadlineMs) break;
       await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
@@ -132,7 +137,7 @@ async function tryAssertJourneyPage(
   }
   const broken: string[] = [];
   for (const src of assets) {
-    if (/^(?:[a-z]+:|\/\/)/i.test(src)) continue;
+    if (EXTERNAL_REF.test(src)) continue;
     const abs = new URL(src, url).href;
     const r = await getFresh(request, abs);
     if (!r.ok()) broken.push(`${abs} (${r.status()})`);

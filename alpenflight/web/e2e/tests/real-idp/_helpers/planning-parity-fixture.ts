@@ -13,7 +13,6 @@ import {
 
 const SEED_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 
-
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const GRASS_RUNWAY_LOCATION_TYPE_ID = '019e2e15-2c00-72c9-8000-0000000032c9';
 const GLIDER_AIRCRAFT_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
@@ -26,6 +25,7 @@ function runId(): string {
   return id;
 }
 
+// ext: must match V34__dev_planning_seed.sql
 export const SEED_CLUB_NOTIFICATION_ADDRESS = 'flugbetrieb@seed-club-1.example';
 
 let shortTagSeq = 0;
@@ -191,6 +191,9 @@ export async function seedPlanningMasterdata(
   };
 }
 
+const MIDDAY_UTC_WINDOW_START = 'T10:00:00Z';
+const MIDDAY_UTC_WINDOW_END = 'T11:00:00Z';
+
 export async function seedReservationOnPlanningDay(
   api: APIRequestContext,
   bearer: string,
@@ -209,8 +212,8 @@ export async function seedReservationOnPlanningDay(
       pilotPersonId: args.pilotPersonId,
       locationId: args.locationId,
       reservationTypeId: args.reservationTypeId,
-      start: `${args.planningDate}T10:00:00Z`,
-      end: `${args.planningDate}T11:00:00Z`,
+      start: `${args.planningDate}${MIDDAY_UTC_WINDOW_START}`,
+      end: `${args.planningDate}${MIDDAY_UTC_WINDOW_END}`,
       isAllDay: false,
       remarks: 'J-6 inline-panel parity reservation',
     },
@@ -226,7 +229,6 @@ export async function seedReservationOnPlanningDay(
   }
   return new URL(location, 'http://localhost').pathname.split('/').pop() ?? '';
 }
-
 
 const PILOT_ROLE = 'PILOT';
 

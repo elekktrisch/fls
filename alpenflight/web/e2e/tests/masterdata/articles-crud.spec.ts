@@ -1,7 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-
 interface MockArticleDetail {
   id: string;
   articleNumber: string;

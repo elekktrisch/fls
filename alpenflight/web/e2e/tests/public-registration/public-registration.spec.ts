@@ -14,7 +14,6 @@ import {
   testId,
 } from './_helpers/public-registration-form';
 
-
 const DISCOVERY_DAYS = ['2099-06-15', '2099-08-25'];
 
 const SHOT = {
@@ -355,7 +354,7 @@ test.describe('scenic flight — anonymous registration form', () => {
 });
 
 test.describe('public registration — club resolution + abuse guard surfaces', () => {
-  test('[key-error] an unknown club slug renders the not-found panel and submits nothing', async ({
+  test('[key-error] an unknown club slug renders the not-found panel instead of the form and submits nothing', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(testInfo, /\b404\b/);
@@ -375,7 +374,7 @@ test.describe('public registration — club resolution + abuse guard surfaces', 
     expect(submissions).toEqual([]);
   });
 
-  test('[key-error] a club with public registration disabled renders the unavailable panel', async ({
+  test('[key-error] a club with public registration disabled renders the unavailable panel instead of the form and submits nothing', async ({
     page,
   }, testInfo) => {
     allowConsoleErrors(testInfo, /\b403\b/);
@@ -451,7 +450,7 @@ test.describe('public registration — mobile-first', () => {
 
   test.use({ viewport: MOBILE_PORTRAIT });
 
-  async function boxOf(locator: Locator): Promise<Box> {
+  async function documentAbsoluteBoxOf(locator: Locator): Promise<Box> {
     return locator.evaluate((el: Element) => {
       const rect = el.getBoundingClientRect();
       return {
@@ -486,7 +485,7 @@ test.describe('public registration — mobile-first', () => {
     ];
     let previousBottom = 0;
     for (const selector of column) {
-      const box = await boxOf(page.locator(selector));
+      const box = await documentAbsoluteBoxOf(page.locator(selector));
       expect(box.y, `${selector} shares a row with the field above it`).toBeGreaterThanOrEqual(
         previousBottom,
       );
@@ -496,21 +495,21 @@ test.describe('public registration — mobile-first', () => {
     const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(documentWidth).toBeLessThanOrEqual(MOBILE_PORTRAIT.width);
 
-    const dayOption = page.locator('label', {
+    const dayOptionLabelTapTarget = page.locator('label', {
       has: page.getByTestId(testId.dayOption(DISCOVERY_DAYS[0]!)),
     });
-    const invoiceToggle = page.locator('label', {
+    const invoiceToggleLabelTapTarget = page.locator('label', {
       has: page.getByTestId(testId.invoiceDiffers),
     });
-    const targets = [
+    const tapTargets = [
       page.getByTestId(testId.submit),
-      dayOption,
-      invoiceToggle,
+      dayOptionLabelTapTarget,
+      invoiceToggleLabelTapTarget,
       page.locator(fieldId.firstName),
       page.locator(fieldId.notificationEmail),
     ];
-    for (const target of targets) {
-      const box = await boxOf(target);
+    for (const target of tapTargets) {
+      const box = await documentAbsoluteBoxOf(target);
       expect(box.height).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
       expect(box.width).toBeGreaterThanOrEqual(TOUCH_TARGET_PX);
     }

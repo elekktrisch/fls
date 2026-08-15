@@ -1,6 +1,5 @@
 import { test, expect } from '../_helpers/console-guard';
 
-
 test.describe('landing — i18n + locale switch', () => {
   test('renders the German tagline when ?lang=de and html[lang=de]', async ({ page }) => {
     await page.goto('/?lang=de');
@@ -119,10 +118,10 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
 
     await page.getByTestId('signup-page').waitFor({ state: 'visible' });
     await page.getByTestId('signup-local').click();
-    const stamp = await page.evaluate(() =>
+    const resolvedPostLoginRedirect = await page.evaluate(() =>
       sessionStorage.getItem('alpenflight.post-login-redirect'),
     );
-    expect(stamp).toBe('/migrate/start');
+    expect(resolvedPostLoginRedirect).toBe('/migrate/start');
   });
 
   test('demo CTA reaches /demo and the stub route resolves (no redirect)', async ({ page }) => {

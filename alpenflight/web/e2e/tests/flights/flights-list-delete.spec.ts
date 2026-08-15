@@ -1,7 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 const GLIDER_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
 const PROC_STATE_VALID = '019e2e15-2c00-7100-8000-000000007002';

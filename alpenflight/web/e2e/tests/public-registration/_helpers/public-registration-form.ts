@@ -1,6 +1,5 @@
 import { type Page } from '@playwright/test';
 
-
 export const CLUB_SLUG = 'alpine-soaring';
 export const DISABLED_CLUB_SLUG = 'registration-closed-club';
 export const UNKNOWN_CLUB_SLUG = 'no-such-club';
