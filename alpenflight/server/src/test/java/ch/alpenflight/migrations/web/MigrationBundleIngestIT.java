@@ -83,7 +83,7 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 .claim("email_verified", true));
 
         Mockito.reset(directory);
-        when(directory.provisionClubAdminIdentity(
+        when(directory.provisionClubAdminIdentityFailClosed(
                 any(UUID.class), anyString(), anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> UUID.randomUUID());
     }
@@ -205,14 +205,14 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         UUID provisionedClubA = UUID.fromString(body.get("clubIds").get(0).asText());
         UUID provisionedClubB = UUID.fromString(body.get("clubIds").get(1).asText());
 
-        verify(directory, times(2)).provisionClubAdminIdentity(
+        verify(directory, times(2)).provisionClubAdminIdentityFailClosed(
                 any(UUID.class), anyString(), anyString(), anyString(), anyString());
-        verify(directory).provisionClubAdminIdentity(
+        verify(directory).provisionClubAdminIdentityFailClosed(
                 eq(provisionedClubA),
                 eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"),
                 eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"),
                 eq("Migrated"), eq("Admin"));
-        verify(directory).provisionClubAdminIdentity(
+        verify(directory).provisionClubAdminIdentityFailClosed(
                 eq(provisionedClubB),
                 eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"),
                 eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"),

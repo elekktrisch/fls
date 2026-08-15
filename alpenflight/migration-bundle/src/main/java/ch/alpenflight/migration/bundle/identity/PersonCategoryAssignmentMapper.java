@@ -41,12 +41,12 @@ public final class PersonCategoryAssignmentMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.PERSON, EntityType.PERSON_CATEGORY, EntityType.CLUB);
     }
 

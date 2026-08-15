@@ -15,7 +15,6 @@ public interface KeycloakDeploymentDirectory {
 
     void setUserAttribute(UUID userKeycloakSub, String attributeName, List<String> values);
 
-    // RENAME: provisionClubAdminIdentity -> provisionClubAdminIdentityFailClosed
-    UUID provisionClubAdminIdentity(UUID clubId, String username, String email,
+    UUID provisionClubAdminIdentityFailClosed(UUID clubId, String username, String email,
                                     String firstName, String lastName);
 }

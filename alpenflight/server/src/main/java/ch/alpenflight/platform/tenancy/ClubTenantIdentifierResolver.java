@@ -23,12 +23,11 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
     @Override
     public UUID resolveCurrentTenantIdentifier() {
         return TenantContextCarrier.current()
-                .or(this::resolveForAuthenticatedPrincipal)
+                .or(this::resolveForAuthenticatedPrincipalIgnoringRunAsOverride)
                 .orElse(NO_TENANT);
     }
 
-    // RENAME: resolveForAuthenticatedPrincipal -> resolveForAuthenticatedPrincipalIgnoringRunAsOverride
-    public Optional<UUID> resolveForAuthenticatedPrincipal() {
+    public Optional<UUID> resolveForAuthenticatedPrincipalIgnoringRunAsOverride() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {
             return Optional.empty();

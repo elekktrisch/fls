@@ -33,7 +33,7 @@ public class HttpOgnDeviceDatabase implements OgnDeviceDatabase {
     }
 
     @Override
-    public List<OgnDevice> fetchDevices() {
+    public List<OgnDevice> fetchDevicesOrEmptyWhenRegistryUnreachable() {
         try {
             DdbResponse response = restClient.get()
                     .uri(ddbUrl)

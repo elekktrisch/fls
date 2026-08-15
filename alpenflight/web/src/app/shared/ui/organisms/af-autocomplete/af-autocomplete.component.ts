@@ -13,7 +13,7 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 
 import { DensityService } from '../../density';
 import { RecentlyUsedService } from '../../recency';
-import { fuzzyFilter } from './fuzzy-filter';
+import { substringFilter } from './fuzzy-filter';
 
 @Component({
   selector: 'af-autocomplete',
@@ -155,7 +155,7 @@ export class AfAutocompleteComponent<
   }
 
   filter(query: string): readonly T[] {
-    return fuzzyFilter(this.items(), this.searchFields(), query);
+    return substringFilter(this.items(), this.searchFields(), query);
   }
 
   private onChange: (value: T | null) => void = () => undefined;

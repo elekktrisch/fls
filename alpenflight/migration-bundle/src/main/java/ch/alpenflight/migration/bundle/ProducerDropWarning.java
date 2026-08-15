@@ -8,8 +8,7 @@ public record ProducerDropWarning(
         EntityType entityType,
         @Nullable UUID clubId,
         @Nullable UUID legacyGuid,
-        // RENAME: detail -> nonPiiDetail
-        String detail) {
+        String nonPiiDetail) {
 
     public ProducerDropWarning {
         if (code == null || code.isBlank()) {
@@ -18,8 +17,8 @@ public record ProducerDropWarning(
         if (entityType == null) {
             throw new IllegalArgumentException("entityType must not be null");
         }
-        if (detail == null) {
-            detail = "";
+        if (nonPiiDetail == null) {
+            nonPiiDetail = "";
         }
     }
 }

@@ -26,7 +26,7 @@ public class SystemDashboardService {
 
         long totalFlights = 0L;
         for (UUID clubId : clubs.activeClubIds()) {
-            totalFlights += Tenants.runAs(clubId, flights::countAllFlights);
+            totalFlights += Tenants.runAs(clubId, flights::countFlightsInCurrentTenant);
         }
 
         return new SystemDashboardTotals(totalClubs, totalUsers, totalFlights);

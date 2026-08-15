@@ -11,5 +11,5 @@ public interface JpaClubStateRepository extends JpaRepository<ClubState, UUID>, 
 
     @Override
     @Query("SELECT s FROM ClubState s ORDER BY s.name")
-    List<ClubState> findAllOrdered();
+    List<ClubState> findAllOrderedByNameUnderIcuCollation();
 }

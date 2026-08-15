@@ -139,7 +139,7 @@ public class ArchitectureTest {
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {
         for (Mapper mapper : KNOWN_MAPPERS) {
             int selfOrdinal = mapper.entityType().ordinal();
-            for (EntityType target : mapper.foreignKeys()) {
+            for (EntityType target : mapper.foreignKeyTargets()) {
                 assertThat(target.ordinal())
                         .as("%s declares FK to %s but %s.ordinal() >= %s.ordinal() — "
                                 + "ingest cannot resolve the FK target before the source. "

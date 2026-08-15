@@ -18,7 +18,7 @@ public final class ColumnDroppingMapper implements Mapper {
     public ColumnDroppingMapper(Mapper delegate, String droppedColumn) {
         this.delegate = delegate;
         this.droppedColumn = droppedColumn;
-        String[] declared = delegate.columns();
+        String[] declared = delegate.wireColumns();
         if (Arrays.stream(declared).noneMatch(droppedColumn::equals)) {
             throw new IllegalArgumentException(
                     "Cannot drop column " + droppedColumn + " — " + delegate.entityType()
@@ -35,13 +35,13 @@ public final class ColumnDroppingMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return remainingColumns.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
-        return delegate.foreignKeys();
+    public List<EntityType> foreignKeyTargets() {
+        return delegate.foreignKeyTargets();
     }
 
     @Override

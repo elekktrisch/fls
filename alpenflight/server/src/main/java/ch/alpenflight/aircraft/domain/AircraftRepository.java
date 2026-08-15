@@ -33,8 +33,7 @@ public interface AircraftRepository {
 
     List<ListRow> findActiveTowingListRows();
 
-    // RENAME: findActiveOwnedIdsByTypeCodeAndSeats -> findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation
-    List<UUID> findActiveOwnedIdsByTypeCodeAndSeats(UUID ownerClubId,
+    List<UUID> findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation(UUID ownerClubId,
                                                     String typeCode,
                                                     int nrOfSeats);
 

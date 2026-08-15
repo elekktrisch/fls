@@ -53,7 +53,7 @@ class RuleFilterLoader {
         Map<UUID, AccountingUnitType> unitByById = unitTypeByById();
         Map<Integer, List<RuleFilterInput>> byType = new HashMap<>();
 
-        for (AccountingRuleFilter filter : filters.findActiveForEngineOrdered()) {
+        for (AccountingRuleFilter filter : filters.findActiveForEngineOrderedBySortIndicatorThenId()) {
             Integer legacyType = filterTypeLegacyById.get(filter.getFilterTypeId());
             if (legacyType == null) {
                 continue;

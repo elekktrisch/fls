@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SubmitError } from './join.store';
 
 import {
-  JOIN_CODE_ALPHABET,
+  JOIN_CODE_UNAMBIGUOUS_ALPHABET,
   JOIN_CODE_LENGTH,
   JOIN_NOTE_MAX,
   countdownRemaining,
@@ -31,7 +31,7 @@ describe('sanitizeJoinCode', () => {
   });
 
   it('every alphabet character survives sanitization', () => {
-    for (const ch of JOIN_CODE_ALPHABET) {
+    for (const ch of JOIN_CODE_UNAMBIGUOUS_ALPHABET) {
       expect(sanitizeJoinCode(ch)).toBe(ch);
     }
   });

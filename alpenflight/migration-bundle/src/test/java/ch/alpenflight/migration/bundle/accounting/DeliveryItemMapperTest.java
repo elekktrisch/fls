@@ -52,17 +52,17 @@ class DeliveryItemMapperTest extends AbstractMapperContractTest<DeliveryItemMapp
 
     @Test
     void declaresClubDeliveryAndArticleAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.DELIVERY, EntityType.ARTICLE);
     }
 
     @Test
     void columnsDoNotIncludeTotalAmountSinceItIsComputedOnReadNotStored() {
-        assertThat(mapper.columns()).doesNotContain("total_amount");
+        assertThat(mapper.wireColumns()).doesNotContain("total_amount");
     }
 
     @Test
     void unitPriceColumnDeclaredEvenThoughLegacyHasNoSuchColumn() {
-        assertThat(mapper.columns()).contains(DeliveryItemMapper.UNIT_PRICE);
+        assertThat(mapper.wireColumns()).contains(DeliveryItemMapper.UNIT_PRICE);
     }
 }

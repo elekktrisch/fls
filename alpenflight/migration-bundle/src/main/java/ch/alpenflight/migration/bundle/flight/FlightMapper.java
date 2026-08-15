@@ -110,12 +110,12 @@ public final class FlightMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(
                 EntityType.CLUB, EntityType.AIRCRAFT, EntityType.LOCATION,
                 EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
@@ -158,20 +158,20 @@ public final class FlightMapper implements Mapper {
                 source.getTimestamp("BlockStartDateTime"));
         Coercions.writeOptionalTimestamp(target, BLOCK_END_DATE_TIME,
                 source.getTimestamp("BlockEndDateTime"));
-        Coercions.writeOptionalGuidString(target, START_LOCATION_ID,
+        Coercions.writeOptionalGuidCollapsingNoRelationSentinelToNull(target, START_LOCATION_ID,
                 source.getString("StartLocationId"));
-        Coercions.writeOptionalGuidString(target, LDG_LOCATION_ID,
+        Coercions.writeOptionalGuidCollapsingNoRelationSentinelToNull(target, LDG_LOCATION_ID,
                 source.getString("LdgLocationId"));
         Coercions.writeOptionalString(target, START_RUNWAY, source.getString("StartRunway"));
         Coercions.writeOptionalString(target, LDG_RUNWAY, source.getString("LdgRunway"));
         Coercions.writeOptionalString(target, OUTBOUND_ROUTE, source.getString("OutboundRoute"));
         Coercions.writeOptionalString(target, INBOUND_ROUTE, source.getString("InboundRoute"));
-        Coercions.writeOptionalGuidString(target, FLIGHT_TYPE_ID,
+        Coercions.writeOptionalGuidCollapsingNoRelationSentinelToNull(target, FLIGHT_TYPE_ID,
                 source.getString("FlightTypeId"));
         target.writeBooleanField(IS_SOLO_FLIGHT, source.getBoolean("IsSoloFlight"));
         Coercions.writeOptionalString(target, START_TYPE_ID,
                 Coercions.optionalLegacyIntIdAsUuidString(source, "StartType"));
-        Coercions.writeOptionalGuidString(target, TOW_FLIGHT_ID,
+        Coercions.writeOptionalGuidCollapsingNoRelationSentinelToNull(target, TOW_FLIGHT_ID,
                 source.getString("TowFlightId"));
         Coercions.writeOptionalShort(target, NR_OF_LDGS,
                 source.getObject("NrOfLdgs", Short.class));

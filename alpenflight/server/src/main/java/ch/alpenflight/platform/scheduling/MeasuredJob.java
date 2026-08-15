@@ -11,8 +11,7 @@ public @interface MeasuredJob {
 
     String name();
 
-    // RENAME: cron -> cronShownInConsole
-    String cron() default "";
+    String cronShownInConsole() default "";
 
     String description() default "";
 }

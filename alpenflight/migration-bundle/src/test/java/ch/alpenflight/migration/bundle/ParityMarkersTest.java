@@ -28,9 +28,9 @@ class ParityMarkersTest {
     @Test
     void parityIgnoredColumnsStillAppearInMapperColumnsList() {
         FixtureMapper fixture = new FixtureMapper();
-        assertThat(fixture.columns())
+        assertThat(fixture.wireColumns())
                 .as("@ParityIgnore opts out of the parity diff but the column still "
-                        + "round-trips on the wire — the mapper must include it in columns()")
+                        + "round-trips on the wire — the mapper must include it in wireColumns()")
                 .contains("notes_cache");
     }
 
@@ -54,10 +54,10 @@ class ParityMarkersTest {
         static final String PLAIN_FIELD = "plain_field";
 
         @Override public EntityType entityType() { return EntityType.COUNTRY; }
-        @Override public String[] columns() {
+        @Override public String[] wireColumns() {
             return new String[] { NOTES_CACHE, OPERATING_CLUB_ID, PLAIN_FIELD };
         }
-        @Override public List<EntityType> foreignKeys() { return List.of(); }
+        @Override public List<EntityType> foreignKeyTargets() { return List.of(); }
         @Override public void writeNdjson(ResultSet source, JsonGenerator target)
                 throws IOException { target.writeStartObject(); target.writeEndObject(); }
         @Override public void readEntity(JsonNode source, PreparedStatement target) { }

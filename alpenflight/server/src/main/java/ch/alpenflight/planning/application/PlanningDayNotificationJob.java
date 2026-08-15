@@ -45,7 +45,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @MeasuredJob(name = PlanningDayNotificationJob.JOB_NAME,
-        cron = "0 0 6 * * *",
+        cronShownInConsole = "0 0 6 * * *",
         description = "Planning-day notifications (imminent ok/cancel + week-ahead assignments)")
 public class PlanningDayNotificationJob implements BusinessJob {
 
@@ -118,7 +118,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
     public RunSummary runOnce() {
         int imminent = 0;
         int weekAhead = 0;
-        for (Deployment deployment : deploymentContext.findDeployment(LifecycleState.ACTIVE)) {
+        for (Deployment deployment : deploymentContext.findDeploymentsInLifecycleStates(LifecycleState.ACTIVE)) {
             UUID deploymentId = deployment.getId();
             if (deploymentId == null) {
                 continue;

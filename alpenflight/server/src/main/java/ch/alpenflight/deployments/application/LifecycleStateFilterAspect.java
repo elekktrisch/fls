@@ -39,7 +39,7 @@ public class LifecycleStateFilterAspect {
             return null;
         }
 
-        for (Deployment deployment : deploymentContext.findDeployment(
+        for (Deployment deployment : deploymentContext.findDeploymentsInLifecycleStates(
                 eligible.toArray(LifecycleState[]::new))) {
             UUID deploymentId = deployment.getId();
             if (deploymentId == null) {

@@ -117,7 +117,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
         }
     }
 
-    @MeasuredJob(name = TEST_JOB, cron = "0 0 0 1 1 ?", description = "Admin-console IT job")
+    @MeasuredJob(name = TEST_JOB, cronShownInConsole = "0 0 0 1 1 ?", description = "Admin-console IT job")
     static class ConsoleTestJob implements ch.alpenflight.platform.scheduling.BusinessJob {
         @Override
         public String runOnce() {

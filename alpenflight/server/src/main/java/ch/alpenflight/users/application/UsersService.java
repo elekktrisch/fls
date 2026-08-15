@@ -132,7 +132,7 @@ public class UsersService {
 
         String lowercasedEmailAsKeycloakStoresIt =
                 req.notificationEmail().toLowerCase(java.util.Locale.ROOT);
-        Optional<DirectoryUser> existingKc = kc.findUserByEmail(lowercasedEmailAsKeycloakStoresIt);
+        Optional<DirectoryUser> existingKc = kc.findUserByEmailRealmWide(lowercasedEmailAsKeycloakStoresIt);
         if (existingKc.isPresent()) {
             DirectoryUser kcUser = existingKc.get();
             if (kcUser.clubId() != null) {

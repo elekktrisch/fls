@@ -93,7 +93,7 @@ class MapperVsSchemaCompatibilityTest {
             }
         }
         assertThat(failures)
-                .as("MapperVsSchemaCompatibility — every FULL_PORT mapper's columns() "
+                .as("MapperVsSchemaCompatibility — every FULL_PORT mapper's wireColumns() "
                         + "must be a subset of its destination table and must cover every "
                         + "non-nullable non-defaulted column not on the skip set. "
                         + "SYSTEM_GLOBAL reference mappers (COUNTRY / LANGUAGE / CLUB_STATE / "
@@ -103,7 +103,7 @@ class MapperVsSchemaCompatibilityTest {
 
     private static Set<String> mapperColumnsWithLegacyGuidResolvedToDestinationPk(Mapper mapper) {
         Set<String> resolved = new LinkedHashSet<>();
-        for (String column : Arrays.asList(mapper.columns())) {
+        for (String column : Arrays.asList(mapper.wireColumns())) {
             resolved.add(LEGACY_GUID_WIRE_COLUMN.equals(column)
                     ? DESTINATION_PK_COLUMN : column);
         }
@@ -120,7 +120,7 @@ class MapperVsSchemaCompatibilityTest {
         extras.removeAll(tableSchema.columnsByName().keySet());
         if (!extras.isEmpty()) {
             failures.add(String.format(
-                    "%s declares columns not present in %s: %s. Mapper.columns() (with "
+                    "%s declares columns not present in %s: %s. Mapper.wireColumns() (with "
                             + "legacy_guid → id alias) must be a subset of the destination "
                             + "table.",
                     mapper.getClass().getSimpleName(), tableName, extras));
@@ -159,7 +159,7 @@ class MapperVsSchemaCompatibilityTest {
         if (!missing.isEmpty()) {
             failures.add(String.format(
                     "%s must bind non-nullable non-defaulted columns of %s: missing %s. "
-                            + "Either add them to columns() / readEntity() or add a skip-set "
+                            + "Either add them to wireColumns() / readEntity() or add a skip-set "
                             + "entry with rationale.",
                     mapper.getClass().getSimpleName(), tableName, missing));
         }

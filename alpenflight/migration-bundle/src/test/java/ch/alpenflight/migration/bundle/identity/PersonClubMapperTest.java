@@ -55,7 +55,7 @@ class PersonClubMapperTest extends AbstractMapperContractTest<PersonClubMapper> 
 
     @Test
     void declaresOnlyResolvedForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("member_state_id is orphan-nulled producer-side (MEMBER_STATE unmigrated), "
                         + "so MEMBER_STATE is not a resolved FK")
                 .containsExactly(EntityType.PERSON, EntityType.CLUB);
@@ -63,7 +63,7 @@ class PersonClubMapperTest extends AbstractMapperContractTest<PersonClubMapper> 
 
     @Test
     void columnsStartWithNaturalKeyPairAndOmitSurrogateId() {
-        assertThat(mapper.columns())
+        assertThat(mapper.wireColumns())
                 .as("PersonClub is a leaf junction — no legacy_id_map_person_club; "
                         + "S-141 mints UUID v7 for the surrogate id at INSERT.")
                 .startsWith(PersonClubMapper.PERSON_ID, PersonClubMapper.CLUB_ID)

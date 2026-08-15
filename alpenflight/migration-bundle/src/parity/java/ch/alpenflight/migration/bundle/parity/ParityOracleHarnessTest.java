@@ -151,7 +151,7 @@ class ParityOracleHarnessTest {
         assertThat(ingestOutcome.rowCountByEntity().get(EntityType.USER))
                 .as("Every seeded User must round-trip into t_user")
                 .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT * LegacyFixtureSeeder.USERS_PER_CLUB);
-        assertThat(ingestOutcome.legacyIdMaps().byEntity().keySet())
+        assertThat(ingestOutcome.legacyIdMaps().newIdByLegacyGuidByEntity().keySet())
                 .as("SYSTEM_GLOBAL FK resolution must populate legacy_id_map for "
                         + "every SYSTEM_GLOBAL mapper in the bundle")
                 .containsExactlyInAnyOrder(

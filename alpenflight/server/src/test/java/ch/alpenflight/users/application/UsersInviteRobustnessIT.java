@@ -85,7 +85,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void noKcUser_createsUser_grantsRoles_andSendsPasswordReset() {
         UUID newSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("new@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("new@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any())).thenReturn(newSub);
 
         UserResponse created = TenantTestContext.runAs(clubA, () ->
@@ -103,7 +103,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void unattachedExistingKcUser_bindsToTenant_skipsPasswordReset_sendsWelcomeAttached() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("google@example.com"))
+        when(directory.findUserByEmailRealmWide("google@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "de")));
 
         UserResponse bound = TenantTestContext.runAs(clubA, () ->
@@ -127,7 +127,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void attachedElsewhereKcUser_rejectedWith409_withoutLeakingOtherClubName() {
         UUID attachedSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("member@example.com"))
+        when(directory.findUserByEmailRealmWide("member@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(attachedSub, clubB, "en")));
         String clubBName = clubs.findActiveById(clubB).map(Club::getClubname).orElseThrow();
 
@@ -145,7 +145,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void invite_auditEvent_exposesBranchDiscriminator_notRedacted() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("audit@example.com"))
+        when(directory.findUserByEmailRealmWide("audit@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
 
         TenantTestContext.runAs(clubA, () ->
@@ -165,7 +165,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void mixedCaseEmail_isLowercasedForTheKeycloakLookup_soTheExistingKcUserBinds_not500() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("mixed@example.com"))
+        when(directory.findUserByEmailRealmWide("mixed@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
 
         UserResponse bound = TenantTestContext.runAs(clubA, () ->
@@ -181,7 +181,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void corruptedClubIdAttribute_treatedAsAttached_rejectedWith409_notBound() {
         UUID corruptedSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("corrupt@example.com"))
+        when(directory.findUserByEmailRealmWide("corrupt@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(
                         corruptedSub, DirectoryUser.CORRUPTED_CLUB_ID, "en")));
 
@@ -198,7 +198,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     @Test
     void bindFailingAfterTheClubIdAttributeWrite_clearsTheStrandedAttribute() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
-        when(directory.findUserByEmail("fail@example.com"))
+        when(directory.findUserByEmailRealmWide("fail@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
         doThrow(new UserDirectoryException("simulated KC grant failure"))
                 .when(directory).grantRealmRoles(any(), anyList());

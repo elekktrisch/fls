@@ -84,12 +84,12 @@ class BundleWriterStreamTest {
             }
 
             @Override
-            public String[] columns() {
+            public String[] wireColumns() {
                 return new String[] {"row"};
             }
 
             @Override
-            public List<EntityType> foreignKeys() {
+            public List<EntityType> foreignKeyTargets() {
                 return List.of();
             }
 

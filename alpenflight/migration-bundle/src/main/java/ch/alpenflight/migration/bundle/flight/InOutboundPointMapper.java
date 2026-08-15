@@ -18,8 +18,7 @@ public final class InOutboundPointMapper implements Mapper {
     static final String ID = "id";
     static final String LEGACY_GUID = "legacy_guid";
     static final String LOCATION_ID = "location_id";
-    // RENAME: CLUB_ID -> RESOLVER_ONLY_CLUB_ID
-    static final String CLUB_ID = "club_id";
+    static final String RESOLVER_ONLY_CLUB_ID = "club_id";
     static final String POINT_NAME = "point_name";
     static final String DIRECTION = "direction";
 
@@ -50,12 +49,12 @@ public final class InOutboundPointMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.LOCATION);
     }
 
@@ -69,7 +68,7 @@ public final class InOutboundPointMapper implements Mapper {
                 Coercions.deriveFanOutId(legacyIopId, legacyFanOutPartnerClubId).toString());
         target.writeStringField(LEGACY_GUID, legacyIopId.toString());
         target.writeStringField(LOCATION_ID, source.getString("LocationId"));
-        target.writeStringField(CLUB_ID, legacyFanOutPartnerClubId.toString());
+        target.writeStringField(RESOLVER_ONLY_CLUB_ID, legacyFanOutPartnerClubId.toString());
         target.writeStringField(POINT_NAME, source.getString("InOutboundPointName"));
         target.writeNullField(POINT_TYPE);
         Coercions.writeOptionalString(target, DIRECTION,

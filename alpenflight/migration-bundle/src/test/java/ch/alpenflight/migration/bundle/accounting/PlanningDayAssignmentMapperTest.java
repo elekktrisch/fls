@@ -46,7 +46,7 @@ class PlanningDayAssignmentMapperTest
 
     @Test
     void declaresClubPlanningDayPersonAndAssignmentTypeAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(
                         EntityType.CLUB,
                         EntityType.PLANNING_DAY,

@@ -8,8 +8,7 @@ public interface AccountingRuleFilterRepository {
 
     List<AccountingRuleFilter> findAllActiveOrderedBySort();
 
-    // RENAME: findActiveForEngineOrdered -> findActiveForEngineOrderedBySortIndicatorThenId
-    List<AccountingRuleFilter> findActiveForEngineOrdered();
+    List<AccountingRuleFilter> findActiveForEngineOrderedBySortIndicatorThenId();
 
     Optional<AccountingRuleFilter> findActiveById(UUID id);
 

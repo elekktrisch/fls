@@ -11,5 +11,5 @@ public interface JpaCountryRepository extends JpaRepository<Country, UUID>, Coun
 
     @Override
     @Query("SELECT c FROM Country c ORDER BY c.name")
-    List<Country> findAllOrdered();
+    List<Country> findAllOrderedByNameUnderIcuCollation();
 }

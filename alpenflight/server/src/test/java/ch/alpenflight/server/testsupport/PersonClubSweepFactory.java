@@ -20,6 +20,6 @@ final class PersonClubSweepFactory {
                 "Sweep" + COUNTER.incrementAndGet() + "-" + Long.toString(System.nanoTime(), 36),
                 "Person",
                 null);
-        return PersonClub.forSweepFixture(p, PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
+        return PersonClub.forSweepFixtureWithClubIdFromTenantResolver(p, PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
     }
 }

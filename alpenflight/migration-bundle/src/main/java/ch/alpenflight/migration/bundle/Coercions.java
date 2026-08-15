@@ -117,8 +117,7 @@ public final class Coercions {
     private static final String LEGACY_NO_RELATION_SENTINEL_GUID =
             "00000000-0000-0000-0000-000000000000";
 
-    // RENAME: writeOptionalGuidString -> writeOptionalGuidCollapsingNoRelationSentinelToNull
-    public static void writeOptionalGuidString(
+    public static void writeOptionalGuidCollapsingNoRelationSentinelToNull(
             JsonGenerator target, String fieldName, @Nullable String value)
             throws IOException {
         if (value == null || LEGACY_NO_RELATION_SENTINEL_GUID.equalsIgnoreCase(value)) {

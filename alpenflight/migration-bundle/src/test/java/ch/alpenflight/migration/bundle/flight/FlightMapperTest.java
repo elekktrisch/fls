@@ -54,7 +54,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
     @Test
     void doesNotDeclareSelfFkSinceTwoPassUpdateRunsAtIngest() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Flight.tow_flight_id self-FK is deferred to S-141 two-pass "
                         + "UPDATE (PersonCategory precedent). Declaring FLIGHT "
                         + "here would violate the ingest-order invariant.")
@@ -63,7 +63,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
 
     @Test
     void declaresEveryRequiredForeignKeyTarget() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactlyInAnyOrder(
                         EntityType.CLUB, EntityType.AIRCRAFT, EntityType.LOCATION,
                         EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
@@ -79,7 +79,7 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
                 .as("Flights.FlightTypeId carries verbatim as the scalar flight_type_id "
                         + "the FLIGHT_TYPE FK resolver maps to the migrated per-club FlightType")
                 .isEqualTo(legacyFlightTypeId);
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("flight_type_id resolves against legacy_id_map_FLIGHT_TYPE")
                 .contains(EntityType.FLIGHT_TYPE);
     }

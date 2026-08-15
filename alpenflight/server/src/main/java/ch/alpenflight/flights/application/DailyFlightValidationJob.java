@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @MeasuredJob(name = DailyFlightValidationJob.JOB_NAME,
-        cron = DailyFlightValidationJob.CRON,
+        cronShownInConsole = DailyFlightValidationJob.CRON,
         description = "Daily flight validation + lock")
 public class DailyFlightValidationJob implements BusinessJob {
 

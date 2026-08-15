@@ -100,7 +100,7 @@ class UsersServiceInviteTest {
     void invite_compensating_delete_fires_when_local_save_throws() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         doThrow(new RuntimeException("simulated DB failure"))
                 .when(users).save(any(User.class));
@@ -129,7 +129,7 @@ class UsersServiceInviteTest {
     void invite_happy_path_creates_kc_user_then_local_row_then_grants_roles() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
@@ -147,7 +147,7 @@ class UsersServiceInviteTest {
     void invite_kc_email_failure_does_not_roll_back_business_tx() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(

@@ -5,8 +5,7 @@ import java.util.UUID;
 
 public interface ClubStateRepository {
 
-    // RENAME: findAllOrdered -> findAllOrderedByNameUnderIcuCollation
-    List<ClubState> findAllOrdered();
+    List<ClubState> findAllOrderedByNameUnderIcuCollation();
 
     boolean existsById(UUID id);
 }

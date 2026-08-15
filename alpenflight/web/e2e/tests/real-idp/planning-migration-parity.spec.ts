@@ -26,7 +26,11 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
-import { waitForMessage, waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
+import {
+  waitForExactlyOneMessage,
+  waitForMessageWithSubject,
+  purgeMailpit,
+} from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
 
 const PLANNINGDAYS = '/api/v1/planning-days';
@@ -736,11 +740,11 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
         'the imminent club mail is the planningday-ok template (the day takes place)',
       ).toBe(SUBJECT_PLANNING_DAY_OK_TAKES_PLACE);
 
-      const instructorMail = await waitForMessage(masterdata.instructorEmail);
+      const instructorMail = await waitForExactlyOneMessage(masterdata.instructorEmail);
       expect(instructorMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
-      const towPilotMail = await waitForMessage(masterdata.towPilotEmail);
+      const towPilotMail = await waitForExactlyOneMessage(masterdata.towPilotEmail);
       expect(towPilotMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
-      const flightOpMail = await waitForMessage(masterdata.flightOpEmail);
+      const flightOpMail = await waitForExactlyOneMessage(masterdata.flightOpEmail);
       expect(flightOpMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
     } finally {
       await ctx.close();

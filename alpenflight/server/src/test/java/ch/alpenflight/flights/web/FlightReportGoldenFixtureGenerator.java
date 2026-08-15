@@ -16,7 +16,7 @@ public final class FlightReportGoldenFixtureGenerator {
         Path target = Path.of(args[0]);
         Files.createDirectories(target.toAbsolutePath().getParent());
         try (OutputStream out = Files.newOutputStream(target)) {
-            FlightReportGoldenFixture.write(out);
+            FlightReportGoldenFixture.writeContractByHandNotViaTheProductionWriter(out);
         }
         System.out.println("Wrote golden fixture: " + target.toAbsolutePath());
     }

@@ -34,7 +34,7 @@ import type {
   UserUpdateRequest,
   UserUpdateRequestRolesItem,
 } from '@api/generated/model';
-import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS, LocaleService } from '@shared/ui/locale';
+import { SEEDED_LANGUAGE_ID_BY_LOCALE, LANGUAGE_OPTIONS, LocaleService } from '@shared/ui/locale';
 import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
@@ -338,7 +338,9 @@ export class UsersEditPage {
     }),
     phoneNumber: this.fb.control('', { validators: [Validators.maxLength(30)] }),
     remarks: this.fb.control('', { validators: [Validators.maxLength(250)] }),
-    languageId: this.fb.control(LANGUAGE_BY_LOCALE[this.locale.current()] ?? LANGUAGE_BY_LOCALE.de),
+    languageId: this.fb.control(
+      SEEDED_LANGUAGE_ID_BY_LOCALE[this.locale.current()] ?? SEEDED_LANGUAGE_ID_BY_LOCALE.de,
+    ),
     CLUB_ADMINISTRATOR: this.fb.control(false),
     FLIGHT_OPERATOR: this.fb.control(false),
     PILOT: this.fb.control(false),

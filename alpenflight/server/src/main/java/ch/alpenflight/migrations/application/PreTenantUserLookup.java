@@ -39,7 +39,7 @@ public class PreTenantUserLookup {
         List<UUID> matches = jdbc.queryForList(SELECT_USER_ID, UUID.class, parsed);
         if (matches.size() == 1) {
             UUID userId = matches.get(0);
-            JitUserAttributeStamp.stampResolvedUserId(userId);
+            JitUserAttributeStamp.stampResolvedUserIdForAuditActor(userId);
             return Optional.of(userId);
         }
         return Optional.empty();

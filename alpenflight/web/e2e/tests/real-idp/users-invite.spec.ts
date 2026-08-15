@@ -9,7 +9,7 @@ import {
   getUserById,
   deleteUser,
 } from './_helpers/keycloak-admin';
-import { waitForMessage, purgeMailpit } from './_helpers/mailpit-client';
+import { waitForExactlyOneMessage, purgeMailpit } from './_helpers/mailpit-client';
 import {
   provisionTwoClubs,
   loginAsClubAdmin,
@@ -120,7 +120,7 @@ test.describe('Admin invite robustness — bind unattached existing KC user (rea
       const full = await getUserById(kcUser!.id);
       expect(full.attributes?.['clubId']).toEqual([twoClubs.clubA.clubId]);
 
-      const mail = await waitForMessage(invitee.email, { timeoutMs: 20_000 });
+      const mail = await waitForExactlyOneMessage(invitee.email, { timeoutMs: 20_000 });
       expect(mail.Subject).toBe(WELCOME_ATTACHED_SUBJECT);
       const body = mail.HTML ?? mail.Text ?? '';
       expect(body).toContain('an admin at');

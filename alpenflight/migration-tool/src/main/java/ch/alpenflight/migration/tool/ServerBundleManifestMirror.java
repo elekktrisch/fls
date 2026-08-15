@@ -9,12 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-// RENAME: ManifestModel -> ServerBundleManifestMirror
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
         "schemaVersion", "deploymentName", "clubs", "primaryClubId",
         "entityPolicies", "unmappedReason"})
-public record ManifestModel(
+public record ServerBundleManifestMirror(
         @JsonProperty("schemaVersion") int schemaVersion,
         @JsonProperty("deploymentName") String deploymentName,
         @JsonProperty("clubs") List<ClubDeclaration> clubs,

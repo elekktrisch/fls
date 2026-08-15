@@ -12,7 +12,7 @@ final class AccountingRuleFilterSweepFactory {
         if (ctx == null) {
             throw new IllegalStateException("SweepFixtureContext is required");
         }
-        UUID filterTypeId = ctx.firstAccountingRuleFilterTypeId();
+        UUID filterTypeId = ctx.seededRecipientFilterTypeId();
         return AccountingRuleFilter.create(
                 filterTypeId,
                 TenantScopedRowBuilders.SWEEP_PREFIX + "ARF_" + Long.toString(System.nanoTime(), 36),

@@ -15,8 +15,7 @@ class EmailTemplateResolverConfig {
             TemplatedMailService.EMAIL_TEMPLATE_PREFIX + "*";
 
     @Bean
-    // RENAME: emailTemplatesNonCacheable -> emailTemplatesNonCacheableSoDbOverrideIsReconsultedPerSend
-    BeanPostProcessor emailTemplatesNonCacheable() {
+    BeanPostProcessor emailTemplatesNonCacheableSoDbOverrideIsReconsultedPerSend() {
         return new BeanPostProcessor() {
             @Override
             public Object postProcessAfterInitialization(Object bean, String beanName) {

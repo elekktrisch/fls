@@ -14,7 +14,7 @@ import {
 } from '../public-registration/_helpers/public-registration-form';
 import { enterClubSettingsViaNav, enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
-import { waitForMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
+import { waitForExactlyOneMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 import {
   discoveryDayDate,
@@ -358,7 +358,7 @@ test.describe('discovery registration — real rows, real mail', () => {
         fullPage: true,
       });
 
-      const confirmation = await waitForMessage(candidate.email);
+      const confirmation = await waitForExactlyOneMessage(candidate.email);
       expect(confirmation.Subject).toBe(SUBJECT_DISCOVERY_CANDIDATE);
       const body = mailBody(confirmation);
       expect(body).toContain(seeded.clubName);
@@ -444,7 +444,7 @@ test.describe('discovery registration — real rows, real mail', () => {
       );
       expect(onTheDay, 'a club with no eligible glider blocks no slot').toHaveLength(0);
 
-      await waitForMessage(candidate.email);
+      await waitForExactlyOneMessage(candidate.email);
 
       const organiser = await waitForMessageWithBody(
         clubWithoutDoubleSeater.operatorEmail,
@@ -508,7 +508,7 @@ test.describe('scenic registration — no reservation, no day', () => {
         fullPage: true,
       });
 
-      const confirmation = await waitForMessage(passenger.email);
+      const confirmation = await waitForExactlyOneMessage(passenger.email);
       expect(confirmation.Subject).toBe(SUBJECT_SCENIC_CANDIDATE);
       const body = mailBody(confirmation);
       expect(body).toContain(seeded.clubName);
@@ -582,10 +582,10 @@ test.describe('registration recipients + organiser notification', () => {
         fullPage: true,
       });
 
-      const confirmation = await waitForMessage(payer.email);
+      const confirmation = await waitForExactlyOneMessage(payer.email);
       expect(confirmation.Subject).toBe(SUBJECT_DISCOVERY_CANDIDATE);
       await expect(
-        waitForMessage(candidate.email, { timeoutMs: 3_000 }),
+        waitForExactlyOneMessage(candidate.email, { timeoutMs: 3_000 }),
         "the registrant's own address is not written to when the invoice address differs",
       ).rejects.toThrow(/no message to:/);
 
@@ -621,9 +621,9 @@ test.describe('registration recipients + organiser notification', () => {
         },
       });
       expect(scenic.status()).toBe(201);
-      expect((await waitForMessage(scenicPayer)).Subject).toBe(SUBJECT_SCENIC_CANDIDATE);
+      expect((await waitForExactlyOneMessage(scenicPayer)).Subject).toBe(SUBJECT_SCENIC_CANDIDATE);
       await expect(
-        waitForMessage(scenicCandidate, { timeoutMs: 3_000 }),
+        waitForExactlyOneMessage(scenicCandidate, { timeoutMs: 3_000 }),
         'the scenic recipient branch is the same branch',
       ).rejects.toThrow(/no message to:/);
 

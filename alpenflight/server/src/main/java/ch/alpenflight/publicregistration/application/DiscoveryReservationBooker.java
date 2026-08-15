@@ -35,8 +35,7 @@ class DiscoveryReservationBooker {
         this.reservations = reservations;
     }
 
-    // RENAME: book -> blockDoubleSeaterAllDayDeliberatelyOverlappingOtherCandidates
-    DiscoveryReservationOutcome book(UUID clubId, UUID candidatePersonId, LocalDate selectedDay) {
+    DiscoveryReservationOutcome blockDoubleSeaterAllDayDeliberatelyOverlappingOtherCandidates(UUID clubId, UUID candidatePersonId, LocalDate selectedDay) {
         Club club = clubs.findActiveById(clubId)
                 .orElseThrow(() -> new IllegalStateException(
                         "Registration resolved a club that no longer exists: " + clubId));
@@ -66,7 +65,7 @@ class DiscoveryReservationBooker {
 
     private @Nullable UUID findClubDoubleSeaterPureGlider(UUID clubId) {
         return aircraft
-                .findActiveOwnedIdsByTypeCodeAndSeats(clubId,
+                .findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation(clubId,
                         PURE_GLIDER_TYPE_CODE_MOTOR_GLIDER_NOT_ELIGIBLE, DOUBLE_SEATER_SEATS)
                 .stream()
                 .findFirst()

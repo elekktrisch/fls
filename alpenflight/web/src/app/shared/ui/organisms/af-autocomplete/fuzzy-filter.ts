@@ -1,5 +1,4 @@
-// RENAME: fuzzyFilter -> substringFilter
-export function fuzzyFilter<T>(
+export function substringFilter<T>(
   items: readonly T[],
   searchFields: readonly (keyof T)[],
   query: string,

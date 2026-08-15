@@ -353,10 +353,10 @@ class MapperLegacyBindingsTest {
                 .as("FLIGHT_CREW (aggregate-internal) must be bound")
                 .isTrue();
         assertThat(MapperLegacyBindings.isRegistered(EntityType.START_TYPE))
-                .as("START_TYPE must be bound — it is a FlightMapper.foreignKeys() target")
+                .as("START_TYPE must be bound — it is a FlightMapper.foreignKeyTargets() target")
                 .isTrue();
         assertThat(MapperLegacyBindings.isRegistered(EntityType.FLIGHT_TYPE))
-                .as("FLIGHT_TYPE must be bound — it is a FlightMapper.foreignKeys() target")
+                .as("FLIGHT_TYPE must be bound — it is a FlightMapper.foreignKeyTargets() target")
                 .isTrue();
     }
 
@@ -471,7 +471,7 @@ class MapperLegacyBindingsTest {
     void startTypeClosureEnumeratesTheFullLegacyAircraftStartTypeEnum() {
         Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
 
-        assertThat(StartTypeMapper.LEGACY_ENUM_IDS)
+        assertThat(StartTypeMapper.LEGACY_AIRCRAFT_START_TYPE_ENUM_IDS)
                 .as("the START_TYPE closure must cover the full legacy "
                         + "AircraftStartType enum (1..5) — add a missing value here, "
                         + "do NOT weaken the ingest FK-leak guard")
@@ -517,7 +517,7 @@ class MapperLegacyBindingsTest {
                 .isTrue();
         assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT_RESERVATION_TYPE))
                 .as("AIRCRAFT_RESERVATION_TYPE must be bound — it is an "
-                        + "AircraftReservationMapper.foreignKeys() target")
+                        + "AircraftReservationMapper.foreignKeyTargets() target")
                 .isTrue();
     }
 
@@ -628,7 +628,7 @@ class MapperLegacyBindingsTest {
                 .isTrue();
         assertThat(MapperLegacyBindings.isRegistered(EntityType.PLANNING_DAY_ASSIGNMENT_TYPE))
                 .as("PLANNING_DAY_ASSIGNMENT_TYPE must be bound — it is a "
-                        + "PlanningDayAssignmentMapper.foreignKeys() target")
+                        + "PlanningDayAssignmentMapper.foreignKeyTargets() target")
                 .isTrue();
     }
 
@@ -903,7 +903,7 @@ class MapperLegacyBindingsTest {
             if (!MapperLegacyBindings.isRegistered(entity)) {
                 continue;
             }
-            for (EntityType fkTarget : mapper.foreignKeys()) {
+            for (EntityType fkTarget : mapper.foreignKeyTargets()) {
                 assertThat(MapperLegacyBindings.isRegistered(fkTarget))
                         .as("%s is bound but its FK target %s is NOT — authored-but-unwired "
                                 + "(J-0c T-21 class): bind %s or the bundle resolves an FK "

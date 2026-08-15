@@ -48,7 +48,7 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
 
     @Test
     void declaresParentLocationAsTheOnlyForeignKey() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("InOutboundPoint inherits tenancy through its parent Location "
                         + "(no own club_id), so its only structural FK is the parent "
                         + "Location — which must precede INOUTBOUND_POINT in the topo "
@@ -58,10 +58,10 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
 
     @Test
     void carriesNoOwnClubColumnEvenThoughTheWireRowDoes() {
-        assertThat(mapper.columns())
+        assertThat(mapper.wireColumns())
                 .as("club_id is a RESOLVER-ONLY wire field, not a destination column — "
                         + "t_inoutbound_point has no club_id (tenancy inherited via "
-                        + "location_id), so it must be absent from columns() while still "
+                        + "location_id), so it must be absent from wireColumns() while still "
                         + "being emitted on the wire for T-07's composite FK lookup")
                 .doesNotContain("club_id")
                 .contains("location_id");

@@ -60,7 +60,7 @@ class DeliveryMapperTest extends AbstractMapperContractTest<DeliveryMapper> {
 
     @Test
     void declaresClubFlightAndPersonAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.FLIGHT, EntityType.PERSON);
     }
 

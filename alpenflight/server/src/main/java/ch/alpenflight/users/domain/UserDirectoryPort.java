@@ -15,8 +15,7 @@ public interface UserDirectoryPort {
 
     void setEnabled(UUID sub, boolean enabled);
 
-    // RENAME: findUserByEmail -> findUserByEmailRealmWide
-    Optional<DirectoryUser> findUserByEmail(String lowercasedEmail);
+    Optional<DirectoryUser> findUserByEmailRealmWide(String lowercasedEmail);
 
     List<UserDirectoryRow> findUsersInClub(UUID clubId, int max);
 

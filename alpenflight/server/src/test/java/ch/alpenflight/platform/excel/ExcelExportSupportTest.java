@@ -23,7 +23,7 @@ class ExcelExportSupportTest {
 
         SXSSFWorkbook wb = support.workbook();
 
-        assertThat(wb.getRandomAccessWindowSize()).isEqualTo(ExcelExportSupport.DEFAULT_ROW_WINDOW);
+        assertThat(wb.getRandomAccessWindowSize()).isEqualTo(ExcelExportSupport.DEFAULT_IN_MEMORY_ROW_WINDOW);
         dispose(support);
     }
 
@@ -158,7 +158,7 @@ class ExcelExportSupportTest {
     void autoSize_tracksColumnsAndSizesWithoutThrowing() throws IOException {
         ExcelExportSupport support = ExcelExportSupport.streamingWorkbook();
         SXSSFSheet sheet = support.workbook().createSheet("Flights");
-        support.trackColumnsForAutoSizing(sheet);
+        support.trackColumnsForAutoSizingBeforeWritingRows(sheet);
         Row row = support.dataRow(sheet, 0);
         support.stringCell(row, 0, "a-wide-immatriculation-value");
         support.stringCell(row, 1, "x");

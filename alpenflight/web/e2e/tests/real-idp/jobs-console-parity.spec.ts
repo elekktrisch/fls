@@ -3,7 +3,7 @@ import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { seedDailyReportCrew } from './_helpers/daily-report-fixture';
 import { fillKcLogin } from './_helpers/kc-form';
-import { waitForMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
+import { waitForExactlyOneMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
 const JOBS_PATH = '/system/jobs';
@@ -195,7 +195,7 @@ test.describe('scheduled-jobs console (real chain)', () => {
 
       for (const address of [seed.optedIn.email, seed.optedOut.email]) {
         await expect(
-          waitForMessage(address, { timeoutMs: 2_000 }),
+          waitForExactlyOneMessage(address, { timeoutMs: 2_000 }),
           `${address} holds no mail before the console triggers the run`,
         ).rejects.toThrow(/no message to:/);
       }
@@ -230,7 +230,7 @@ test.describe('scheduled-jobs console (real chain)', () => {
       expect(body, 'and carries the day that flight was flown').toContain(seed.renderedFlightDate);
 
       await expect(
-        waitForMessage(seed.optedOut.email, { timeoutMs: 3_000 }),
+        waitForExactlyOneMessage(seed.optedOut.email, { timeoutMs: 3_000 }),
         'the crew member on the same flight whose membership opts out is not mailed',
       ).rejects.toThrow(/no message to:/);
     } finally {

@@ -20,7 +20,7 @@ public interface JpaAccountingRuleFilterRepository
     @Override
     @Query("select arf from AccountingRuleFilter arf where arf.deletedOn is null "
             + "order by arf.sortIndicator asc, arf.id asc")
-    List<AccountingRuleFilter> findActiveForEngineOrdered();
+    List<AccountingRuleFilter> findActiveForEngineOrderedBySortIndicatorThenId();
 
     @Override
     @Query("select arf from AccountingRuleFilter arf "

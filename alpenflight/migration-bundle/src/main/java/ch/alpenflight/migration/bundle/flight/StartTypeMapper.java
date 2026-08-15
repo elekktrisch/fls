@@ -32,12 +32,11 @@ public final class StartTypeMapper implements Mapper {
             4, "EXTERNAL_START",
             5, "MOTOR");
 
-    // RENAME: LEGACY_ENUM_IDS -> LEGACY_AIRCRAFT_START_TYPE_ENUM_IDS
-    public static final List<Integer> LEGACY_ENUM_IDS = List.of(1, 2, 3, 4, 5);
+    public static final List<Integer> LEGACY_AIRCRAFT_START_TYPE_ENUM_IDS = List.of(1, 2, 3, 4, 5);
 
     public static Map<UUID, UUID> legacyEnumIdToSeedPk() {
         Map<UUID, UUID> closure = new LinkedHashMap<>();
-        for (int legacyId : LEGACY_ENUM_IDS) {
+        for (int legacyId : LEGACY_AIRCRAFT_START_TYPE_ENUM_IDS) {
             String code = LEGACY_ID_TO_V2_CODE.get(legacyId);
             UUID seedPk = SeedReferenceUuids.startTypeByCode(code);
             if (seedPk == null) {
@@ -59,12 +58,12 @@ public final class StartTypeMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of();
     }
 

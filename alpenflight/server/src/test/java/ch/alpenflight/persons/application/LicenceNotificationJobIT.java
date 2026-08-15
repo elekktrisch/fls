@@ -23,10 +23,10 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
     private static final LocalDate INSIDE_THE_NOTIFICATION_WINDOW =
-            TODAY.plusDays(LicenceNotificationJob.WITHIN_DAYS - 30);
+            TODAY.plusDays(LicenceNotificationJob.EXPIRY_NOTICE_WINDOW_DAYS - 30);
 
     private static final LocalDate OUTSIDE_THE_NOTIFICATION_WINDOW =
-            TODAY.plusDays(LicenceNotificationJob.WITHIN_DAYS + 60);
+            TODAY.plusDays(LicenceNotificationJob.EXPIRY_NOTICE_WINDOW_DAYS + 60);
 
     @Autowired JdbcTemplate jdbc;
     @Autowired LicenceNotificationJob job;

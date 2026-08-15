@@ -180,7 +180,7 @@ class KeycloakAdminClientRoleMappingsIT {
                 [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"locale":["en"]}}]
                 """;
 
-        DirectoryUser user = client().findUserByEmail("absent@example.com").orElseThrow();
+        DirectoryUser user = client().findUserByEmailRealmWide("absent@example.com").orElseThrow();
 
         assertThat(user.clubId())
                 .as("an ABSENT clubId attribute is the genuinely-unattached bind case")
@@ -193,7 +193,7 @@ class KeycloakAdminClientRoleMappingsIT {
                 [{"id":"b365dc65-b93a-4d6e-8005-fc77377b418f","attributes":{"clubId":["not-a-uuid"]}}]
                 """;
 
-        DirectoryUser user = client().findUserByEmail("garbage@example.com").orElseThrow();
+        DirectoryUser user = client().findUserByEmailRealmWide("garbage@example.com").orElseThrow();
 
         assertThat(user.clubId())
                 .as("a present-but-unparseable clubId must fail closed to the corrupted sentinel (attached)")

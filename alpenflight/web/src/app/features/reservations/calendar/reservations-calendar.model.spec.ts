@@ -25,7 +25,7 @@ describe('reservations calendar model', () => {
   it('builds seven Monday→Sunday days with the selected one flagged', () => {
     const days = weekDays('2026-06-04', 'en-US');
     expect(days).toHaveLength(7);
-    expect(days.map((d) => d.key)).toEqual([
+    expect(days.map((d) => d.dayKey)).toEqual([
       '2026-06-01',
       '2026-06-02',
       '2026-06-03',
@@ -36,7 +36,7 @@ describe('reservations calendar model', () => {
     ]);
     expect(days[0]?.weekdayShort).toBe('Mon');
     expect(days[0]?.dayOfMonth).toBe(1);
-    expect(days.filter((d) => d.isSelected).map((d) => d.key)).toEqual(['2026-06-04']);
+    expect(days.filter((d) => d.isSelected).map((d) => d.dayKey)).toEqual(['2026-06-04']);
   });
 
   it('addDays crosses month boundaries', () => {

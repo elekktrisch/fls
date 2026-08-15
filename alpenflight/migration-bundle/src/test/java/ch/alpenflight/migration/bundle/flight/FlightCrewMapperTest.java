@@ -52,7 +52,7 @@ class FlightCrewMapperTest extends AbstractMapperContractTest<FlightCrewMapper> 
 
     @Test
     void declaresFlightAndPersonAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("flight_id is intra-aggregate to Flight; person_id rides "
                         + "TENANT_BYPASS_ALLOW_LIST to cross-tenant Person")
                 .containsExactlyInAnyOrder(EntityType.FLIGHT, EntityType.PERSON);

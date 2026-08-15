@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @MeasuredJob(name = LicenceNotificationJob.JOB_NAME,
-        cron = LicenceNotificationJob.CRON,
+        cronShownInConsole = LicenceNotificationJob.CRON,
         description = "Licence + medical expiry notifications")
 public class LicenceNotificationJob implements BusinessJob {
 
@@ -35,8 +35,7 @@ public class LicenceNotificationJob implements BusinessJob {
     static final String TEMPLATE = "licence-expiry";
     static final String SUBJECT = "Ablauf Lizenz / Medical";
 
-    // RENAME: WITHIN_DAYS -> EXPIRY_NOTICE_WINDOW_DAYS
-    static final int WITHIN_DAYS = 60;
+    static final int EXPIRY_NOTICE_WINDOW_DAYS = 60;
 
     private static final List<LicenceKind> LICENCE_KINDS = List.of(
             new LicenceKind("LAPL Medical", Person::getMedicalLaplExpireDate),
@@ -67,7 +66,7 @@ public class LicenceNotificationJob implements BusinessJob {
     @Override
     @Transactional(readOnly = true)
     public RunSummary runOnce() {
-        LocalDate cutoff = LocalDate.now(clock.withZone(ZoneOffset.UTC)).plusDays(WITHIN_DAYS);
+        LocalDate cutoff = LocalDate.now(clock.withZone(ZoneOffset.UTC)).plusDays(EXPIRY_NOTICE_WINDOW_DAYS);
         int sent = 0;
         int skipped = 0;
         for (Person person : persons.findWithLicenceExpiringOnOrBefore(cutoff)) {

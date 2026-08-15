@@ -5,8 +5,7 @@ import java.util.UUID;
 
 public interface CountryRepository {
 
-    // RENAME: findAllOrdered -> findAllOrderedByNameUnderIcuCollation
-    List<Country> findAllOrdered();
+    List<Country> findAllOrderedByNameUnderIcuCollation();
 
     boolean existsById(UUID id);
 }

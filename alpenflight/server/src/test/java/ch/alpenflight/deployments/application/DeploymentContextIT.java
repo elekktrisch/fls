@@ -95,15 +95,15 @@ class DeploymentContextIT extends PostgresIntegrationTest {
 
     @Test
     void findDeployment_filters_by_state() {
-        List<Deployment> activeOnly = deploymentContext.findDeployment(LifecycleState.ACTIVE);
+        List<Deployment> activeOnly = deploymentContext.findDeploymentsInLifecycleStates(LifecycleState.ACTIVE);
         assertThat(activeOnly).anyMatch(d -> activeDeploymentId.equals(d.getId()));
 
-        List<Deployment> trialOnly = deploymentContext.findDeployment(LifecycleState.TRIAL);
+        List<Deployment> trialOnly = deploymentContext.findDeploymentsInLifecycleStates(LifecycleState.TRIAL);
         assertThat(trialOnly).noneMatch(d -> activeDeploymentId.equals(d.getId()));
     }
 
     @Test
     void findDeployment_empty_filter_returns_empty_list() {
-        assertThat(deploymentContext.findDeployment()).isEmpty();
+        assertThat(deploymentContext.findDeploymentsInLifecycleStates()).isEmpty();
     }
 }

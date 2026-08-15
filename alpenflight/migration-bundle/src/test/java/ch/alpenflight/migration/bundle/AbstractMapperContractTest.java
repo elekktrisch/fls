@@ -47,7 +47,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
     }
 
     protected static int positionOf(Mapper mapper, String columnName) {
-        String[] columns = mapper.columns();
+        String[] columns = mapper.wireColumns();
         for (int index = 0; index < columns.length; index++) {
             if (columns[index].equals(columnName)) {
                 return index + 1;
@@ -65,22 +65,22 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
 
     @Test
     void columnsAreNotEmpty() {
-        assertThat(mapper().columns()).isNotEmpty();
+        assertThat(mapper().wireColumns()).isNotEmpty();
     }
 
     @Test
     void columnsAreUnique() {
-        assertThat(mapper().columns()).doesNotHaveDuplicates();
+        assertThat(mapper().wireColumns()).doesNotHaveDuplicates();
     }
 
     @Test
     void columnsAreCallerSafeMutation() {
         Mapper underTest = mapper();
-        String[] first = underTest.columns();
+        String[] first = underTest.wireColumns();
         String original = first[0];
         first[0] = "MUTATED";
-        assertThat(underTest.columns()[0])
-                .as("Mapper.columns() invariant — callers must not be able to mutate "
+        assertThat(underTest.wireColumns()[0])
+                .as("Mapper.wireColumns() invariant — callers must not be able to mutate "
                         + "the shared column list.")
                 .isEqualTo(original);
     }
@@ -88,7 +88,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
     @Test
     void foreignKeyTargetsPrecedeSelfInIngestOrder() {
         EntityType self = mapper().entityType();
-        for (EntityType target : mapper().foreignKeys()) {
+        for (EntityType target : mapper().foreignKeyTargets()) {
             if (target == self) {
                 continue;
             }
@@ -107,9 +107,9 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         assertThat(emitted.isObject())
                 .as("writeNdjson must emit a JSON object")
                 .isTrue();
-        for (String column : underTest.columns()) {
+        for (String column : underTest.wireColumns()) {
             assertThat(emitted.has(column))
-                    .as("JSON output is missing column %s declared by columns()", column)
+                    .as("JSON output is missing column %s declared by wireColumns()", column)
                     .isTrue();
         }
     }
@@ -128,7 +128,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
             assertThat(node)
                     .as("Mapper declared %s as a sparse-enum column but did not "
                             + "emit it — every permittedSparseEnumValues key must "
-                            + "appear in columns()", column)
+                            + "appear in wireColumns()", column)
                     .isNotNull();
             if (node == null || node.isNull()) {
                 continue;
@@ -171,7 +171,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
                 .as("readEntity must accept what writeNdjson emitted")
                 .doesNotThrowAnyException();
 
-        String[] columns = underTest.columns();
+        String[] columns = underTest.wireColumns();
         Set<String> parityIgnored = ParityMarkers.ignored(underTest.getClass());
         for (int i = 0; i < columns.length; i++) {
             int position = i + 1;

@@ -46,7 +46,7 @@ public class JobRegistry {
 
     private JobDescriptor descriptor(String name, BusinessJob job) {
         MeasuredJob measured = measuredOf(job);
-        return new JobDescriptor(name, measured.cron(), measured.description(),
+        return new JobDescriptor(name, measured.cronShownInConsole(), measured.description(),
                 jobRuns.findLatestByJobName(name).orElse(null));
     }
 

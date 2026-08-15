@@ -30,7 +30,7 @@ public interface JpaDeliveryRepository
 
     @Override
     @Query("select coalesce(max(d.batchId), 0) from Delivery d")
-    long findMaxBatchId();
+    long findMaxBatchIdIncludingSoftDeleted();
 
     @Override
     @Query("select count(d) from Delivery d where d.flightId = :flightId and d.deletedOn is null")

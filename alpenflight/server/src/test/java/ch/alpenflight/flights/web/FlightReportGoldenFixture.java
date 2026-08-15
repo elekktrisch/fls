@@ -25,8 +25,7 @@ final class FlightReportGoldenFixture {
 
     private FlightReportGoldenFixture() {}
 
-    // RENAME: write -> writeContractByHandNotViaTheProductionWriter
-    static void write(OutputStream out) throws IOException {
+    static void writeContractByHandNotViaTheProductionWriter(OutputStream out) throws IOException {
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             CreationHelper helper = wb.getCreationHelper();
             CellStyle title = titleStyle(wb, 20);

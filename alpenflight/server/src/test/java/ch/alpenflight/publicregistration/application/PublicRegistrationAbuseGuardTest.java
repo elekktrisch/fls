@@ -1,7 +1,7 @@
 package ch.alpenflight.publicregistration.application;
 
-import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.MAX_ATTEMPTS_PER_CLUB;
-import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.MAX_ATTEMPTS_PER_SOURCE;
+import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.MAX_SUBMITS_PER_SOURCE_AND_CLUB;
+import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS;
 import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.MAX_CLUBS_READ_PER_SOURCE;
 import static ch.alpenflight.publicregistration.application.PublicRegistrationAbuseGuard.WINDOW_MINUTES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,7 +82,7 @@ class PublicRegistrationAbuseGuardTest {
 
     @Test
     void probing_a_fresh_slug_every_time_still_hits_the_perSource_ceiling() {
-        for (int attempt = 0; attempt < MAX_ATTEMPTS_PER_SOURCE; attempt++) {
+        for (int attempt = 0; attempt < MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS; attempt++) {
             guard.recordSubmitAndCheck(IP_A, "probe-" + attempt);
         }
 
@@ -94,7 +94,7 @@ class PublicRegistrationAbuseGuardTest {
     @Test
     void slug_case_variants_share_one_bucket() {
         String shouted = CLUB_A.toUpperCase(Locale.ROOT);
-        for (int attempt = 0; attempt < MAX_ATTEMPTS_PER_CLUB; attempt++) {
+        for (int attempt = 0; attempt < MAX_SUBMITS_PER_SOURCE_AND_CLUB; attempt++) {
             guard.recordSubmitAndCheck(IP_A, attempt % 2 == 0 ? CLUB_A : shouted);
         }
 
@@ -160,7 +160,7 @@ class PublicRegistrationAbuseGuardTest {
     }
 
     private void exhaustClubLimit(String clientIp, String clubSlug) {
-        for (int attempt = 0; attempt < MAX_ATTEMPTS_PER_CLUB; attempt++) {
+        for (int attempt = 0; attempt < MAX_SUBMITS_PER_SOURCE_AND_CLUB; attempt++) {
             guard.recordSubmitAndCheck(clientIp, clubSlug);
         }
     }

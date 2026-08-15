@@ -83,7 +83,7 @@ public class ClubsService {
     public JoinCodeResponse rotateJoinCode(ClubId id) {
         Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
-        String newCode = club.rotateJoinCode(joinCodes, candidate -> !clubs.existsByJoinCode(candidate));
+        String newCode = club.rotateJoinCode(joinCodes, candidate -> !clubs.existsByJoinCodeIncludingDeleted(candidate));
         clubs.save(club);
         auditTrail.record(AuditAction.CLUB_JOIN_CODE_ROTATED,
                 new AuditedTarget(AUDIT_ENTITY_TYPE, id.value(), null, null));

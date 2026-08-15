@@ -6,8 +6,7 @@ public interface JoinCodeGenerator {
 
     int LENGTH = 8;
 
-    // RENAME: ALPHABET -> ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS
-    String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    String ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     String generate();
 
@@ -16,7 +15,7 @@ public interface JoinCodeGenerator {
         return () -> {
             char[] out = new char[LENGTH];
             for (int i = 0; i < LENGTH; i++) {
-                out[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));
+                out[i] = ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS.charAt(random.nextInt(ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS.length()));
             }
             return new String(out);
         };

@@ -13,8 +13,7 @@ public final class ParityValueRedactor {
 
     private ParityValueRedactor() { }
 
-    // RENAME: emit -> emitRedactedUnlessSentinelAndNotPii
-    public static String emit(
+    public static String emitRedactedUnlessSentinelAndNotPii(
             EntityType entity, String column, @Nullable String value, Set<String> sentinelColumns) {
         if (!sentinelColumns.contains(column) || isPii(entity, column)) {
             return REDACTED;

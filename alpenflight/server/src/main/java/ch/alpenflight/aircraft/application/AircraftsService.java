@@ -107,7 +107,7 @@ public class AircraftsService {
         validateAircraftType(req.aircraftTypeId().value());
         validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
         validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
-        String normalized = Immatriculation.of(req.immatriculation()).normalized();
+        String normalized = Immatriculation.of(req.immatriculation()).storedUppercaseKeepingHyphens();
         aircrafts.findActiveByImmatriculation(normalized)
                 .ifPresent(existing -> {
                     throw new DuplicateImmatriculationException(normalized);
@@ -160,7 +160,7 @@ public class AircraftsService {
         Aircraft a = loadOrThrow(id);
         AircraftDetail before = AircraftMapper.toDetail(a);
 
-        String normalized = Immatriculation.of(req.immatriculation()).normalized();
+        String normalized = Immatriculation.of(req.immatriculation()).storedUppercaseKeepingHyphens();
         aircrafts.findActiveByImmatriculation(normalized)
                 .filter(other -> !sameRow(other, id))
                 .ifPresent(other -> {

@@ -102,8 +102,7 @@ public class PersonClub {
         return pc;
     }
 
-    // RENAME: forSweepFixture -> forSweepFixtureWithClubIdFromTenantResolver
-    public static PersonClub forSweepFixture(Person parent,
+    public static PersonClub forSweepFixtureWithClubIdFromTenantResolver(Person parent,
                                              PersonRoleFlags roles,
                                              PersonNotificationPrefs prefs,
                                              boolean active) {

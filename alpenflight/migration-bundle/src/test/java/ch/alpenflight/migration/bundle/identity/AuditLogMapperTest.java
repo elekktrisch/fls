@@ -58,7 +58,7 @@ class AuditLogMapperTest extends AbstractMapperContractTest<AuditLogMapper> {
 
     @Test
     void declaresOnlyUserAsForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.USER);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.USER);
     }
 
     @Test

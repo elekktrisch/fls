@@ -320,7 +320,7 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     }
 
     private UUID firstCountryId() {
-        return Objects.requireNonNull(countries.findAllOrdered().getFirst().getId()).value();
+        return Objects.requireNonNull(countries.findAllOrderedByNameUnderIcuCollation().getFirst().getId()).value();
     }
 
     private UUID firstLocationTypeId() {

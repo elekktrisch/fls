@@ -19,10 +19,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class PublicRegistrationAbuseGuard {
 
-    // RENAME: MAX_ATTEMPTS_PER_CLUB -> MAX_SUBMITS_PER_SOURCE_AND_CLUB
-    static final int MAX_ATTEMPTS_PER_CLUB = 10;
-    // RENAME: MAX_ATTEMPTS_PER_SOURCE -> MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS
-    static final int MAX_ATTEMPTS_PER_SOURCE = 40;
+    static final int MAX_SUBMITS_PER_SOURCE_AND_CLUB = 10;
+    static final int MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS = 40;
     static final int MAX_CLUBS_READ_PER_SOURCE = 25;
     static final int WINDOW_MINUTES = 15;
 
@@ -88,11 +86,11 @@ public class PublicRegistrationAbuseGuard {
             Deque<Instant> clubWindow = submitsPerClub.computeIfAbsent(club, key -> new ArrayDeque<>());
             submitsAcrossAllClubs.addLast(now);
             clubWindow.addLast(now);
-            if (clubWindow.size() > MAX_ATTEMPTS_PER_CLUB) {
+            if (clubWindow.size() > MAX_SUBMITS_PER_SOURCE_AND_CLUB) {
                 throw throttled(clubWindow.peekFirst(), now,
                         "Too many registration attempts for this club");
             }
-            if (submitsAcrossAllClubs.size() > MAX_ATTEMPTS_PER_SOURCE) {
+            if (submitsAcrossAllClubs.size() > MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS) {
                 throw throttled(submitsAcrossAllClubs.peekFirst(), now,
                         "Too many registration attempts from this source");
             }

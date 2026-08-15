@@ -43,7 +43,7 @@ class MemberStateMapperTest extends AbstractMapperContractTest<MemberStateMapper
 
     @Test
     void declaresClubAsTheOnlyStructuralForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 
 }

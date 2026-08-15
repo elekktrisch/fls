@@ -12,8 +12,7 @@ public record TenantClassificationRecord(
         TenantScope targetScope,
         String tenantColumn,
         String rationaleRef,
-        // RENAME: via -> indirectTenantFkChain
-        @JsonProperty("via") String via,
+        @JsonProperty("via") String indirectTenantFkChain,
         List<String> preconditions,
         boolean piiBlob,
         boolean emitsAudit,

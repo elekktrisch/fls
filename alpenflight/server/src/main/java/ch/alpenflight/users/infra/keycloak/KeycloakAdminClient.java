@@ -194,7 +194,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     }
 
     @Override
-    public Optional<DirectoryUser> findUserByEmail(String email) {
+    public Optional<DirectoryUser> findUserByEmailRealmWide(String email) {
         Objects.requireNonNull(email, "email");
         String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
                 .queryParam("email", email)

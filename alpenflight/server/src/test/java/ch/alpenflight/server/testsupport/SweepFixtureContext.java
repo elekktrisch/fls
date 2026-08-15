@@ -120,14 +120,13 @@ public final class SweepFixtureContext {
     }
 
     public UUID firstCountryId() {
-        List<Country> rows = appContext.getBean(CountryRepository.class).findAllOrdered();
+        List<Country> rows = appContext.getBean(CountryRepository.class).findAllOrderedByNameUnderIcuCollation();
         return firstReferenceId(rows.isEmpty() ? null
                 : rows.getFirst().getId() == null ? null : rows.getFirst().getId().value(),
                 "t_country");
     }
 
-    // RENAME: firstAccountingRuleFilterTypeId -> seededRecipientFilterTypeId
-    public UUID firstAccountingRuleFilterTypeId() {
+    public UUID seededRecipientFilterTypeId() {
         return V4_SEEDED_RECIPIENT_FILTER_TYPE_ID;
     }
 

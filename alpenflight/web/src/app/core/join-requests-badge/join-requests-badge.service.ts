@@ -8,7 +8,7 @@ import { MeEventsService } from '../events';
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 import { SessionStore } from '../session/session.store';
 
-import { decrement, isPendingSubmit } from './join-requests-badge.logic';
+import { decrementClampedAtZero, isPendingSubmit } from './join-requests-badge.logic';
 
 // ext: server SSE `event:` name
 const JOIN_REQUEST_STATUS_CHANGED = 'join-request.status-changed';
@@ -29,7 +29,7 @@ export class JoinRequestsBadgeService {
   constructor() {
     this.bus.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((evt) => {
       if (evt.kind === 'join-request.decided') {
-        this._count.update(decrement);
+        this._count.update(decrementClampedAtZero);
       } else if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
         this._count.set(0);
         this.stop();

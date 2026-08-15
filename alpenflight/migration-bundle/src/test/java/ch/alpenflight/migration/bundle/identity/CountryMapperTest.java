@@ -33,7 +33,7 @@ class CountryMapperTest extends AbstractMapperContractTest<CountryMapper> {
 
     @Test
     void hasNoForeignKeysAsSystemGlobalRef() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Country is SYSTEM_GLOBAL — V2 seeds resolve by iso2_code, "
                         + "no per-bundle FK dependency")
                 .isEmpty();

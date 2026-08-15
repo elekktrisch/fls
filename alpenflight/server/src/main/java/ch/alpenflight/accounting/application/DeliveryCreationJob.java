@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @MeasuredJob(name = DeliveryCreationJob.JOB_NAME,
-        cron = DeliveryCreationJob.CRON,
+        cronShownInConsole = DeliveryCreationJob.CRON,
         description = "Delivery creation from eligible locked flights")
 public class DeliveryCreationJob implements BusinessJob {
 

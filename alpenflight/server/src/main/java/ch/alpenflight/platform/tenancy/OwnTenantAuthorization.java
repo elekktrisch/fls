@@ -19,7 +19,7 @@ public class OwnTenantAuthorization {
             return false;
         }
         UUID target = clubId.value();
-        return resolver.resolveForAuthenticatedPrincipal()
+        return resolver.resolveForAuthenticatedPrincipalIgnoringRunAsOverride()
                 .filter(tenant -> !ClubTenantIdentifierResolver.NO_TENANT.equals(tenant))
                 .filter(target::equals)
                 .isPresent();

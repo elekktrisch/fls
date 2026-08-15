@@ -14,7 +14,7 @@ import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
 import { SessionStore, type User } from '../session/session.store';
 
 import { JoinRequestsBadgeService } from './join-requests-badge.service';
-import { decrement, isPendingSubmit } from './join-requests-badge.logic';
+import { decrementClampedAtZero, isPendingSubmit } from './join-requests-badge.logic';
 
 const ADMIN: User = {
   id: 'a1',
@@ -76,10 +76,10 @@ describe('join-requests-badge.logic', () => {
     expect(isPendingSubmit(JSON.stringify({}))).toBe(false);
   });
 
-  it('decrement clamps at zero', () => {
-    expect(decrement(2)).toBe(1);
-    expect(decrement(1)).toBe(0);
-    expect(decrement(0)).toBe(0);
+  it('decrementClampedAtZero clamps at zero', () => {
+    expect(decrementClampedAtZero(2)).toBe(1);
+    expect(decrementClampedAtZero(1)).toBe(0);
+    expect(decrementClampedAtZero(0)).toBe(0);
   });
 });
 

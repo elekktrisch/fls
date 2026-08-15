@@ -44,7 +44,7 @@ public class PublicRegistrationTxWriter {
             PublicRegistrantDetails details, LocalDate selectedDay) {
         PublicRegistrationKind kind = PublicRegistrationKind.DISCOVERY_FLIGHT;
         RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
-        DiscoveryReservationOutcome reservation = reservationBooker.book(
+        DiscoveryReservationOutcome reservation = reservationBooker.blockDoubleSeaterAllDayDeliberatelyOverlappingOtherCandidates(
                 club.clubId(), registered.registrantPersonId(), selectedDay);
         audit(club, kind);
         return new DiscoveryRegistration(registered, reservation);

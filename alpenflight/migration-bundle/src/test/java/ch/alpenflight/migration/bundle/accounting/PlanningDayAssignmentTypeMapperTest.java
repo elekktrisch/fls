@@ -44,6 +44,6 @@ class PlanningDayAssignmentTypeMapperTest
 
     @Test
     void declaresOnlyClubAsForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 }

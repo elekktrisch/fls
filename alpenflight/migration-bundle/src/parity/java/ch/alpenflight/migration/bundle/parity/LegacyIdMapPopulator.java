@@ -80,11 +80,10 @@ public final class LegacyIdMapPopulator {
             String bundleLookupField) {
     }
 
-    // RENAME: byEntity -> newIdByLegacyGuidByEntity
-    public record Maps(Map<EntityType, Map<UUID, UUID>> byEntity) {
+    public record Maps(Map<EntityType, Map<UUID, UUID>> newIdByLegacyGuidByEntity) {
 
         public Map<UUID, UUID> requireFor(EntityType target) {
-            Map<UUID, UUID> map = byEntity.get(target);
+            Map<UUID, UUID> map = newIdByLegacyGuidByEntity.get(target);
             if (map == null) {
                 throw new IllegalStateException(
                         "No legacy_id_map populated for " + target

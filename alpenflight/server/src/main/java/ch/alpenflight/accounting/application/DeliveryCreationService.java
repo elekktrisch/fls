@@ -70,7 +70,7 @@ public class DeliveryCreationService {
 
     public List<DeliveryDetail> createFromEligibleFlights() {
         Instant now = clock.instant();
-        long nextBatchId = deliveries.findMaxBatchId() + 1;
+        long nextBatchId = deliveries.findMaxBatchIdIncludingSoftDeleted() + 1;
 
         List<DeliveryDetail> created = new ArrayList<>();
         for (Flight flight : eligibleFlights(now)) {

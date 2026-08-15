@@ -10,7 +10,11 @@ import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helper
 import { fillKcLogin } from './_helpers/kc-form';
 import { freshTestUser, type TestUser } from './_helpers/test-user';
 import { createUserWithAttributes, findUserByEmail, deleteUser } from './_helpers/keycloak-admin';
-import { waitForMessage, waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
+import {
+  waitForExactlyOneMessage,
+  waitForMessageWithSubject,
+  purgeMailpit,
+} from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
 const JOIN_PATH = '/join';
@@ -164,7 +168,7 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
       expect(pending.clubId).toBe('019e30c3-2c00-7001-8000-000000000001');
       await approve(ctx.request, adminBearer, pending.id);
 
-      await waitForMessage(user.email, { timeoutMs: 20_000 });
+      await waitForExactlyOneMessage(user.email, { timeoutMs: 20_000 });
 
       await page.waitForURL(/\/start$/, { timeout: 30_000 });
       await expect(page.getByTestId('start-variant-pilot')).toBeVisible();

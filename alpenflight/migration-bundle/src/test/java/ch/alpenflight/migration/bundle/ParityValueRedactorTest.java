@@ -9,21 +9,21 @@ class ParityValueRedactorTest {
 
     @Test
     void sentinelNonPiiColumnEmitsItsValue() {
-        String emitted = ParityValueRedactor.emit(
+        String emitted = ParityValueRedactor.emitRedactedUnlessSentinelAndNotPii(
                 EntityType.USER, "club_id", "c0ffee", Set.of("club_id"));
         assertThat(emitted).isEqualTo("c0ffee");
     }
 
     @Test
     void piiColumnRedactsEvenWhenMarkedSentinel() {
-        String emitted = ParityValueRedactor.emit(
+        String emitted = ParityValueRedactor.emitRedactedUnlessSentinelAndNotPii(
                 EntityType.USER, "username", "jdoe", Set.of("username"));
         assertThat(emitted).isEqualTo(ParityValueRedactor.REDACTED);
     }
 
     @Test
     void nonSentinelColumnRedactsByDefault() {
-        String emitted = ParityValueRedactor.emit(
+        String emitted = ParityValueRedactor.emitRedactedUnlessSentinelAndNotPii(
                 EntityType.USER, "remarks", "secret note", Set.of());
         assertThat(emitted).isEqualTo(ParityValueRedactor.REDACTED);
     }

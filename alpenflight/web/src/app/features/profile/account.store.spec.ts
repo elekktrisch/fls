@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MeService } from '@api/generated/me/me.service';
 import type { MeProfileUpdateRequest, MeResponse } from '@api/generated/model';
-import { type AppLocale, LANGUAGE_BY_LOCALE, LocaleService } from '@shared/ui/locale';
+import { type AppLocale, SEEDED_LANGUAGE_ID_BY_LOCALE, LocaleService } from '@shared/ui/locale';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 
@@ -23,7 +23,7 @@ const ME_BASE: MeResponse = {
   username: 'pilot1@example.com',
   friendlyName: 'Pia L.',
   phoneNumber: '+41 11 111',
-  languageId: LANGUAGE_BY_LOCALE.de,
+  languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.de,
   languageCode: 'de',
 };
 
@@ -87,7 +87,7 @@ describe('AccountStore', () => {
     expect(view?.friendlyName).toBe('Pia L.');
     expect(view?.notificationEmail).toBe('pia@club.example');
     expect(view?.phoneNumber).toBe('+41 11 111');
-    expect(view?.languageId).toBe(LANGUAGE_BY_LOCALE.de);
+    expect(view?.languageId).toBe(SEEDED_LANGUAGE_ID_BY_LOCALE.de);
     expect(view?.username).toBe('pilot1@example.com');
     expect(view?.clubId).toBe('clb-1');
     expect(store.canSave()).toBe(true);
@@ -121,7 +121,7 @@ describe('AccountStore', () => {
       friendlyName: 'New Name',
       notificationEmail: 'new@club.example',
       phoneNumber: '+41 22 222',
-      languageId: LANGUAGE_BY_LOCALE.de,
+      languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.de,
     });
 
     expect(sentReq).not.toBeNull();
@@ -135,7 +135,7 @@ describe('AccountStore', () => {
   it('flips the SPA locale when the saved language changes to a supported locale', () => {
     const savedFr: MeResponse = {
       ...ME_BASE,
-      languageId: LANGUAGE_BY_LOCALE.fr,
+      languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.fr,
       languageCode: 'fr',
     };
     const { store, setLocale, current } = configure({
@@ -146,7 +146,7 @@ describe('AccountStore', () => {
     store.save({
       friendlyName: 'Pia L.',
       notificationEmail: 'pia@club.example',
-      languageId: LANGUAGE_BY_LOCALE.fr,
+      languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.fr,
     });
 
     expect(setLocale).toHaveBeenCalledWith('fr');
@@ -158,7 +158,7 @@ describe('AccountStore', () => {
     store.save({
       friendlyName: 'Pia L.',
       notificationEmail: 'pia@club.example',
-      languageId: LANGUAGE_BY_LOCALE.de,
+      languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.de,
     });
     expect(setLocale).not.toHaveBeenCalled();
   });
@@ -172,7 +172,7 @@ describe('AccountStore', () => {
     store.save({
       friendlyName: 'X',
       notificationEmail: 'x@club.example',
-      languageId: LANGUAGE_BY_LOCALE.fr,
+      languageId: SEEDED_LANGUAGE_ID_BY_LOCALE.fr,
     });
     expect(store.hasError()).toBe(true);
     expect(store.isSaving()).toBe(false);

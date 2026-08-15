@@ -1,6 +1,6 @@
 package ch.alpenflight.audit.web;
 
-import static ch.alpenflight.audit.web.AuditTestSupport.truncateForTenant;
+import static ch.alpenflight.audit.web.AuditTestSupport.preCleanAuditRowsThatOutliveTestRollback;
 import static ch.alpenflight.audit.web.AuditTestSupport.withBearer;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -75,7 +75,7 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
         clubSlug = Objects.requireNonNull(club.getSlug(), "fixture club has no slug");
         TenantTestContext.runAs(clubId, () ->
                 discoveryDays.save(DiscoveryFlightDay.schedule(BOOKABLE_DAY, BOOKABLE_DAY)));
-        truncateForTenant(jdbc, clubId);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, clubId);
 
         adminSub = UUID.randomUUID();
         adminToken = jwts.mintJitReady(adminSub, clubId, c -> c

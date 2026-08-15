@@ -42,8 +42,7 @@ export interface WaitForMessageOptions {
   intervalMs?: number;
 }
 
-// RENAME: waitForMessage -> waitForExactlyOneMessage
-export async function waitForMessage(
+export async function waitForExactlyOneMessage(
   toAddress: string,
   options: WaitForMessageOptions = {},
 ): Promise<MailpitMessageDetail> {

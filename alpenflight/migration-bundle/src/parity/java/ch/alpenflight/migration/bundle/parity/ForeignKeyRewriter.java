@@ -14,7 +14,7 @@ public final class ForeignKeyRewriter {
 
     public static void rewrite(
             Mapper mapper, ObjectNode row, LegacyIdMapPopulator.Maps maps) {
-        for (EntityType target : mapper.foreignKeys()) {
+        for (EntityType target : mapper.foreignKeyTargets()) {
             if (!isSystemGlobalTarget(target)) {
                 continue;
             }

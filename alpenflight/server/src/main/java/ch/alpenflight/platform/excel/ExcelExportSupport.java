@@ -14,8 +14,7 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 public final class ExcelExportSupport {
 
-    // RENAME: DEFAULT_ROW_WINDOW -> DEFAULT_IN_MEMORY_ROW_WINDOW
-    public static final int DEFAULT_ROW_WINDOW = 100;
+    public static final int DEFAULT_IN_MEMORY_ROW_WINDOW = 100;
 
     private static final String TIME_OF_DAY_FORMAT = "HH:MM";
     private static final String ELAPSED_HOURS_FORMAT = "[H]:MM";
@@ -32,7 +31,7 @@ public final class ExcelExportSupport {
     }
 
     public static ExcelExportSupport streamingWorkbook() {
-        return new ExcelExportSupport(new SXSSFWorkbook(DEFAULT_ROW_WINDOW));
+        return new ExcelExportSupport(new SXSSFWorkbook(DEFAULT_IN_MEMORY_ROW_WINDOW));
     }
 
     public SXSSFWorkbook workbook() {
@@ -104,8 +103,7 @@ public final class ExcelExportSupport {
         }
     }
 
-    // RENAME: trackColumnsForAutoSizing -> trackColumnsForAutoSizingBeforeWritingRows
-    public void trackColumnsForAutoSizing(SXSSFSheet sheet) {
+    public void trackColumnsForAutoSizingBeforeWritingRows(SXSSFSheet sheet) {
         sheet.trackAllColumnsForAutoSizing();
     }
 

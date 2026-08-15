@@ -43,7 +43,7 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     @Override
     @Query("select case when count(c) > 0 then true else false end from Club c "
             + "where c.joinCode = :joinCode")
-    boolean existsByJoinCode(String joinCode);
+    boolean existsByJoinCodeIncludingDeleted(String joinCode);
 
     @Override
     @Query("select c.id from Club c where c.joinCode = :joinCode and c.deletedOn is null")

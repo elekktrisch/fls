@@ -41,7 +41,7 @@ class FlightReportGoldenFixtureTest {
 
     private static byte[] generate() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        FlightReportGoldenFixture.write(out);
+        FlightReportGoldenFixture.writeContractByHandNotViaTheProductionWriter(out);
         return out.toByteArray();
     }
 }

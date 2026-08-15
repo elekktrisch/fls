@@ -150,13 +150,13 @@ class ForeignKeyResolverColumnDeclarationTest {
             }
 
             @Override
-            public String[] columns() {
+            public String[] wireColumns() {
                 return new String[] {"managing_club_id", "owner_club_id", "owner_person_id",
                         "country_id"};
             }
 
             @Override
-            public List<EntityType> foreignKeys() {
+            public List<EntityType> foreignKeyTargets() {
                 return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.COUNTRY);
             }
 
@@ -188,12 +188,12 @@ class ForeignKeyResolverColumnDeclarationTest {
             }
 
             @Override
-            public String[] columns() {
+            public String[] wireColumns() {
                 return new String[] {"country_id"};
             }
 
             @Override
-            public List<EntityType> foreignKeys() {
+            public List<EntityType> foreignKeyTargets() {
                 return List.of(EntityType.COUNTRY);
             }
 

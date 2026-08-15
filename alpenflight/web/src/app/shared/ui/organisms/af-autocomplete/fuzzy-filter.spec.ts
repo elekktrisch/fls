@@ -1,4 +1,4 @@
-import { fuzzyFilter } from './fuzzy-filter';
+import { substringFilter } from './fuzzy-filter';
 
 interface Person {
   readonly id: string;
@@ -13,25 +13,25 @@ const people: readonly Person[] = [
   { id: '3', first: 'Charlie', last: 'Weber', city: 'Basel' },
 ];
 
-describe('fuzzyFilter', () => {
+describe('substringFilter', () => {
   it('returns all items when query is empty', () => {
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], '')).toEqual(people);
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], '   ')).toEqual(people);
+    expect(substringFilter(people, ['first', 'last', 'city'], '')).toEqual(people);
+    expect(substringFilter(people, ['first', 'last', 'city'], '   ')).toEqual(people);
   });
 
   it('matches case-insensitively on any search field', () => {
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], 'mül')).toEqual([people[0]]);
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], 'ZÜR')).toEqual([people[1]]);
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], 'we')).toEqual([people[2]]);
+    expect(substringFilter(people, ['first', 'last', 'city'], 'mül')).toEqual([people[0]]);
+    expect(substringFilter(people, ['first', 'last', 'city'], 'ZÜR')).toEqual([people[1]]);
+    expect(substringFilter(people, ['first', 'last', 'city'], 'we')).toEqual([people[2]]);
   });
 
   it('returns empty list when query matches nothing', () => {
-    expect(fuzzyFilter(people, ['first', 'last', 'city'], 'xyzzy')).toEqual([]);
+    expect(substringFilter(people, ['first', 'last', 'city'], 'xyzzy')).toEqual([]);
   });
 
   it('honours the searchFields restriction (city not searched)', () => {
-    expect(fuzzyFilter(people, ['first', 'last'], 'bern')).toEqual([]);
-    expect(fuzzyFilter(people, ['city'], 'bern')).toEqual([people[0]]);
+    expect(substringFilter(people, ['first', 'last'], 'bern')).toEqual([]);
+    expect(substringFilter(people, ['city'], 'bern')).toEqual([people[0]]);
   });
 
   it('completes within budget at 200 items × 3 fields', () => {
@@ -42,7 +42,7 @@ describe('fuzzyFilter', () => {
       city: `City${i}`,
     }));
     const start = performance.now();
-    fuzzyFilter(big, ['first', 'last', 'city'], 'last42');
+    substringFilter(big, ['first', 'last', 'city'], 'last42');
     const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(5);
   });

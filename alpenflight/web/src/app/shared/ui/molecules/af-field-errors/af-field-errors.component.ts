@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import type { ValidationErrors } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 
-import { errorsToKeys } from './field-errors';
+import { errorsToAbsoluteTranslationKeys } from './field-errors';
 
 @Component({
   selector: 'af-field-errors',
@@ -20,5 +20,5 @@ import { errorsToKeys } from './field-errors';
 })
 export class AfFieldErrorsComponent {
   readonly errors = input<ValidationErrors | null>(null);
-  protected readonly keys = computed(() => errorsToKeys(this.errors()));
+  protected readonly keys = computed(() => errorsToAbsoluteTranslationKeys(this.errors()));
 }

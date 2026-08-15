@@ -83,8 +83,8 @@ class MapperBindingContractTest {
             if (!MapperLegacyBindings.isRegistered(mapper.entityType())) {
                 continue;
             }
-            assertThat(mapper.columns())
-                    .as("%s is bound but declares no columns() — ingest would bind "
+            assertThat(mapper.wireColumns())
+                    .as("%s is bound but declares no wireColumns() — ingest would bind "
                             + "nothing", mapper.getClass().getSimpleName())
                     .isNotEmpty();
         }

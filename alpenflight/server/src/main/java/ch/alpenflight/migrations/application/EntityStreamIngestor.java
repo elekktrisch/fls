@@ -155,8 +155,8 @@ final class EntityStreamIngestor {
             throws SQLException, IOException {
         String insert = insertStatementFor(mapper.entityType());
         boolean mintsSurrogateId =
-                mintsSurrogateId(mapper.entityType(), mapper.columns());
-        int surrogateIdPosition = mapper.columns().length + 1;
+                mintsSurrogateId(mapper.entityType(), mapper.wireColumns());
+        int surrogateIdPosition = mapper.wireColumns().length + 1;
         List<String> deferredSelfFkColumns = mapper.deferredSelfFkColumns();
         DeferredSelfFkUpdates deferredUpdates = deferredSelfFkColumns.isEmpty()
                 ? null
@@ -293,7 +293,7 @@ final class EntityStreamIngestor {
 
     String insertStatementFor(EntityType entityType) {
         return buildInsertStatement(entityType,
-                destinationColumnNames(entityType, mapperFor(entityType).columns()));
+                destinationColumnNames(entityType, mapperFor(entityType).wireColumns()));
     }
 
     private static String[] destinationColumnNames(EntityType entityType, String[] wireColumns) {
@@ -331,7 +331,7 @@ final class EntityStreamIngestor {
     }
 
     private static void validateColumnAllowlist(Mapper mapper) {
-        for (String column : mapper.columns()) {
+        for (String column : mapper.wireColumns()) {
             assertSafeIdentifier(mapper, column);
         }
         for (String column : mapper.deferredSelfFkColumns()) {

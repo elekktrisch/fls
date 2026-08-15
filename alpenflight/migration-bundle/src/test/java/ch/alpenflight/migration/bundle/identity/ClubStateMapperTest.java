@@ -50,7 +50,7 @@ class ClubStateMapperTest extends AbstractMapperContractTest<ClubStateMapper> {
 
     @Test
     void hasNoForeignKeysAsSystemGlobalRef() {
-        assertThat(mapper.foreignKeys()).isEmpty();
+        assertThat(mapper.foreignKeyTargets()).isEmpty();
     }
 
     @Test

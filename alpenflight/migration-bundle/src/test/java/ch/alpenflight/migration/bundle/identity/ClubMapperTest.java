@@ -65,7 +65,7 @@ class ClubMapperTest extends AbstractMapperContractTest<ClubMapper> {
 
     @Test
     void declaresCountryAndClubStateAsStructuralFks() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.COUNTRY, EntityType.CLUB_STATE);
     }
 

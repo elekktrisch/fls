@@ -44,8 +44,7 @@ public final class UserMapper implements Mapper {
     static final String DELETED_ON = "deleted_on";
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
-    // RENAME: FORBIDDEN_LEGACY_COLUMNS -> LEGACY_COLUMNS_FORBIDDEN_IN_PRODUCER_SELECT
-    public static final Set<String> FORBIDDEN_LEGACY_COLUMNS = Set.of(
+    public static final Set<String> LEGACY_COLUMNS_FORBIDDEN_IN_PRODUCER_SELECT = Set.of(
             "Password",
             "PasswordHash",
             "LastPasswordChangeOn",
@@ -74,12 +73,12 @@ public final class UserMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.LANGUAGE);
     }
 

@@ -84,7 +84,7 @@ class PersonMapperTest extends AbstractMapperContractTest<PersonMapper> {
 
     @Test
     void declaresCountryAsTheOnlyStructuralForeignKey() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Person is cross-tenant — Club/PersonClub/User reference Person, "
                         + "not the other way around. Only outgoing structural FK is "
                         + "COUNTRY (SYSTEM_GLOBAL).")

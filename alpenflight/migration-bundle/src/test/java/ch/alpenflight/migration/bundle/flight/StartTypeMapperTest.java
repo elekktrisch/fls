@@ -42,7 +42,7 @@ class StartTypeMapperTest extends AbstractMapperContractTest<StartTypeMapper> {
 
     @Test
     void declaresNoForeignKeysSinceSystemGlobalResolveSkipsTopo() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("SYSTEM_GLOBAL_RESOLVE mappers resolve through V2 seeds, "
                         + "not through a per-bundle dependency declaration")
                 .isEmpty();

@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @MeasuredJob(name = AircraftDatabaseSyncJob.JOB_NAME,
-        cron = AircraftDatabaseSyncJob.CRON,
+        cronShownInConsole = AircraftDatabaseSyncJob.CRON,
         description = "Aircraft sync against the OGN device database")
 public class AircraftDatabaseSyncJob implements BusinessJob {
 
@@ -60,7 +60,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
                 unmatched++;
                 continue;
             }
-            if (craft.syncFromDeviceDatabase(
+            if (craft.applyNonBlankDeviceDatabaseValues(
                     device.deviceId(), device.aircraftModel(), device.competitionSign())) {
                 aircraft.save(craft);
                 updated++;
@@ -71,7 +71,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private Map<String, OgnDevice> indexByRegistration() {
         Map<String, OgnDevice> byRegistration = new HashMap<>();
-        for (OgnDevice device : ddb.fetchDevices()) {
+        for (OgnDevice device : ddb.fetchDevicesOrEmptyWhenRegistryUnreachable()) {
             String registration = normalise(device.registration());
             if (!registration.isEmpty()) {
                 byRegistration.putIfAbsent(registration, device);

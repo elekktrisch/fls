@@ -24,7 +24,7 @@ class EntityStreamIngestorFanOutKeyingTest {
         String columnList = insertColumnList(insert);
 
         assertThat(columnList)
-                .as("a fan-out mapper's columns() lead with the derived replica id, then the "
+                .as("a fan-out mapper's wireColumns() lead with the derived replica id, then the "
                         + "shared legacy_guid, then the club discriminator")
                 .startsWith("id, legacy_guid, club_id");
         List<String> columns = List.of(columnList.split(",\\s*"));

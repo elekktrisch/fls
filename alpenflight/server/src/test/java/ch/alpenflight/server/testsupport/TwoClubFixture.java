@@ -83,13 +83,13 @@ public final class TwoClubFixture {
     }
 
     private UUID firstCountryId() {
-        List<Country> rows = Objects.requireNonNull(countries).findAllOrdered();
+        List<Country> rows = Objects.requireNonNull(countries).findAllOrderedByNameUnderIcuCollation();
         return requireReferenceId(rows.isEmpty() || rows.getFirst().getId() == null
                 ? null : rows.getFirst().getId().value(), "t_country");
     }
 
     private UUID firstClubStateId() {
-        List<ClubState> rows = Objects.requireNonNull(clubStates).findAllOrdered();
+        List<ClubState> rows = Objects.requireNonNull(clubStates).findAllOrderedByNameUnderIcuCollation();
         return requireReferenceId(rows.isEmpty() || rows.getFirst().getId() == null
                 ? null : rows.getFirst().getId().value(), "t_club_state");
     }

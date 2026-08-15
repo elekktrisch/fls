@@ -62,7 +62,7 @@ class LocationMapperTest extends AbstractMapperContractTest<LocationMapper> {
 
     @Test
     void declaresClubAndCountryAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Location is tenant-scoped via club_id per V7; FK to "
                         + "Country is SYSTEM_GLOBAL — both EntityType members "
                         + "must precede LOCATION in the topo order")

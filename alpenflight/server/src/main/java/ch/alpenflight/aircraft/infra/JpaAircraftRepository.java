@@ -66,7 +66,7 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
             + "where a.deletedOn is null and a.ownerClubId = :ownerClubId "
             + "  and t.code = :typeCode and a.nrOfSeats = :nrOfSeats "
             + "order by a.immatriculation asc")
-    List<UUID> findActiveOwnedIdsByTypeCodeAndSeats(@Param("ownerClubId") UUID ownerClubId,
+    List<UUID> findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation(@Param("ownerClubId") UUID ownerClubId,
                                                     @Param("typeCode") String typeCode,
                                                     @Param("nrOfSeats") int nrOfSeats);
 

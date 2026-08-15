@@ -57,11 +57,11 @@ public class ReferenceDataService {
     }
 
     public List<CountryResponse> listCountries() {
-        return countries.findAllOrdered().stream().map(ReferenceDataMapper::toResponse).toList();
+        return countries.findAllOrderedByNameUnderIcuCollation().stream().map(ReferenceDataMapper::toResponse).toList();
     }
 
     public List<ClubStateResponse> listClubStates() {
-        return clubStates.findAllOrdered().stream().map(ReferenceDataMapper::toResponse).toList();
+        return clubStates.findAllOrderedByNameUnderIcuCollation().stream().map(ReferenceDataMapper::toResponse).toList();
     }
 
     public List<LocationTypeResponse> listLocationTypes() {

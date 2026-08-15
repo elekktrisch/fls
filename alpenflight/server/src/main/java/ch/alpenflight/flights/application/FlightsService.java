@@ -162,8 +162,7 @@ public class FlightsService {
     }
 
     @Transactional(readOnly = true)
-    // RENAME: countAllFlights -> countFlightsInCurrentTenant
-    public long countAllFlights() {
+    public long countFlightsInCurrentTenant() {
         return repository.countAll();
     }
 

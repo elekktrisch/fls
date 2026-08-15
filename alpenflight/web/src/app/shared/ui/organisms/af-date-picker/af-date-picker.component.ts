@@ -12,7 +12,7 @@ import { FormsModule, NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angu
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 
 import { DensityService } from '../../density';
-import { rangeArray, toRangeValue } from './date-value-bridge';
+import { stableRangeArray, toRangeValue } from './date-value-bridge';
 
 export type DateValue = Date | [Date, Date] | null;
 
@@ -82,7 +82,7 @@ export class AfDatePickerComponent implements ControlValueAccessor {
 
   protected readonly rangeValue = linkedSignal<DateValue, readonly Date[]>({
     source: () => this.value(),
-    computation: (value, prev) => rangeArray(value, prev?.value ?? []),
+    computation: (value, prev) => stableRangeArray(value, prev?.value ?? []),
     equal: (a, b) => a === b,
   });
 
@@ -109,7 +109,7 @@ export class AfDatePickerComponent implements ControlValueAccessor {
   }
   protected onRangeChange(next: readonly (Date | null)[]): void {
     const tuple = toRangeValue(next);
-    this.rangeValue.set(rangeArray(tuple, this.rangeValue()));
+    this.rangeValue.set(stableRangeArray(tuple, this.rangeValue()));
     this.value.set(tuple);
     this.onChange(tuple);
     this.onTouched();

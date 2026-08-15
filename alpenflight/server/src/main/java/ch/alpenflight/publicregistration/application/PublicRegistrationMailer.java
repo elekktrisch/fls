@@ -51,8 +51,7 @@ class PublicRegistrationMailer {
         this.locations = locations;
     }
 
-    // RENAME: sendDiscovery -> sendDiscoveryInsideClubTenantWindow
-    void sendDiscovery(PublicClub club, PublicRegistrantDetails registrant,
+    void sendDiscoveryInsideClubTenantWindow(PublicClub club, PublicRegistrantDetails registrant,
             LocalDate selectedDay, DiscoveryReservationOutcome reservation) {
         try {
             Club aggregate = requireClub(club.clubId());
@@ -74,8 +73,7 @@ class PublicRegistrationMailer {
         }
     }
 
-    // RENAME: sendScenic -> sendScenicInsideClubTenantWindow
-    void sendScenic(PublicClub club, PublicRegistrantDetails registrant) {
+    void sendScenicInsideClubTenantWindow(PublicClub club, PublicRegistrantDetails registrant) {
         try {
             Club aggregate = requireClub(club.clubId());
             Map<String, Object> model = model(club, registrant);

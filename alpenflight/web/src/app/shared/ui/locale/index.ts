@@ -1,6 +1,6 @@
 export { LocaleService, type AppLocale } from './locale.service';
 export {
-  LANGUAGE_BY_LOCALE,
+  SEEDED_LANGUAGE_ID_BY_LOCALE,
   LANGUAGE_OPTIONS,
   localeForLanguageId,
   type LanguageOption,

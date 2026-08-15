@@ -35,7 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @MeasuredJob(name = DailyReportJob.JOB_NAME,
-        cron = DailyReportJob.CRON,
+        cronShownInConsole = DailyReportJob.CRON,
         description = "Daily flight report mail to pilots and instructors")
 public class DailyReportJob implements BusinessJob {
 

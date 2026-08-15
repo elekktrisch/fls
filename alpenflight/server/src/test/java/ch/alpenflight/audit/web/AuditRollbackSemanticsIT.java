@@ -1,6 +1,6 @@
 package ch.alpenflight.audit.web;
 
-import static ch.alpenflight.audit.web.AuditTestSupport.truncateForTenant;
+import static ch.alpenflight.audit.web.AuditTestSupport.preCleanAuditRowsThatOutliveTestRollback;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.security.JwtTestFixture;
@@ -38,7 +38,7 @@ class AuditRollbackSemanticsIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
         sysadminToken = jwts.mint(c -> c
                 .claim("clubId", SYSADMIN_TENANT.toString())
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));

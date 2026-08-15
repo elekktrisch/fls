@@ -58,7 +58,7 @@ public class PublicRegistrationIntake {
         DiscoveryRegistration written = Tenants.runAs(club.clubId(), () -> {
             requireBookableDayPublishedByThisClub(selectedDay);
             DiscoveryRegistration registered = writer.registerDiscovery(club, registrant, selectedDay);
-            mailer.sendDiscovery(club, registrant, selectedDay, registered.reservation());
+            mailer.sendDiscoveryInsideClubTenantWindow(club, registrant, selectedDay, registered.reservation());
             return registered;
         });
         return new Accepted(club, written.persons(), written.reservation());
@@ -81,7 +81,7 @@ public class PublicRegistrationIntake {
         PublicClub club = resolver.resolve(clubSlug);
         RegisteredPersons registered = Tenants.runAs(club.clubId(), () -> {
             RegisteredPersons persons = writer.registerScenic(club, registrant);
-            mailer.sendScenic(club, registrant);
+            mailer.sendScenicInsideClubTenantWindow(club, registrant);
             return persons;
         });
         return new Accepted(club, registered, null);

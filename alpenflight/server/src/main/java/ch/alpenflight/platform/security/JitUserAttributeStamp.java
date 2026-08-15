@@ -10,8 +10,7 @@ public final class JitUserAttributeStamp {
 
     private JitUserAttributeStamp() {}
 
-    // RENAME: stampResolvedUserId -> stampResolvedUserIdForAuditActor
-    public static void stampResolvedUserId(UUID userId) {
+    public static void stampResolvedUserIdForAuditActor(UUID userId) {
         HttpServletRequest request = currentRequest();
         if (request != null) {
             request.setAttribute(JitUserMaterializationFilter.USER_ID_ATTRIBUTE, userId);

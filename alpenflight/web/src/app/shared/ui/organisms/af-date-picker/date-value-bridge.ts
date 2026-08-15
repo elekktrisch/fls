@@ -10,8 +10,7 @@ export function sameRange(a: DateValue, b: DateValue): boolean {
   return at[0].getTime() === bt[0].getTime() && at[1].getTime() === bt[1].getTime();
 }
 
-// RENAME: rangeArray -> stableRangeArray
-export function rangeArray(value: DateValue, prev: readonly Date[]): readonly Date[] {
+export function stableRangeArray(value: DateValue, prev: readonly Date[]): readonly Date[] {
   const tuple = asTuple(value);
   if (tuple === null) return STABLE_EMPTY_RANGE;
   if (

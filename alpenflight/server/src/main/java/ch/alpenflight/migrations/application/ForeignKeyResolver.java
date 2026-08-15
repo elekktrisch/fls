@@ -178,10 +178,10 @@ final class ForeignKeyResolver implements AutoCloseable {
         List<ForeignKeyBinding> bindings = new ArrayList<>(declared.size());
         EnumSet<EntityType> declaredTargets = EnumSet.noneOf(EntityType.class);
         for (ForeignKeyColumn fk : declared) {
-            bindings.add(new ForeignKeyBinding(fk.column(), fk.target(), fk.disambiguatorColumn()));
+            bindings.add(new ForeignKeyBinding(fk.column(), fk.target(), fk.referencerClubColumn()));
             declaredTargets.add(fk.target());
         }
-        for (EntityType target : mapper.foreignKeys()) {
+        for (EntityType target : mapper.foreignKeyTargets()) {
             if (!declaredTargets.contains(target)) {
                 bindings.add(new ForeignKeyBinding(conventionalForeignKeyField(target), target, null));
             }

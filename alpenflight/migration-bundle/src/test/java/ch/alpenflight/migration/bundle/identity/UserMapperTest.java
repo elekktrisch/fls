@@ -58,13 +58,13 @@ class UserMapperTest extends AbstractMapperContractTest<UserMapper> {
 
     @Test
     void declaresClubPersonLanguageAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.PERSON, EntityType.LANGUAGE);
     }
 
     @Test
     void columnsExcludeEveryPasswordAndKeycloakShadowColumn() {
-        assertThat(mapper.columns())
+        assertThat(mapper.wireColumns())
                 .as("Password material + Keycloak shadow account state never crosses "
                         + "the bundle boundary — Keycloak owns these per ADR 0007.")
                 .doesNotContain(
@@ -85,7 +85,7 @@ class UserMapperTest extends AbstractMapperContractTest<UserMapper> {
 
     @Test
     void forbiddenLegacyColumnSetCoversAspNetIdentityShadow() {
-        assertThat(UserMapper.FORBIDDEN_LEGACY_COLUMNS)
+        assertThat(UserMapper.LEGACY_COLUMNS_FORBIDDEN_IN_PRODUCER_SELECT)
                 .as("The producer-side SELECT must not project these legacy "
                         + "ASP.NET-Identity columns — defense-in-depth against "
                         + "accidental NDJSON leak.")

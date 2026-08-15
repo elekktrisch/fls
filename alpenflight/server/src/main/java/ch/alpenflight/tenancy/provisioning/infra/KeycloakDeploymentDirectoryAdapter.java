@@ -182,7 +182,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
     }
 
     @Override
-    public UUID provisionClubAdminIdentity(UUID clubId, String username, String email,
+    public UUID provisionClubAdminIdentityFailClosed(UUID clubId, String username, String email,
                                            String firstName, String lastName) {
         Objects.requireNonNull(clubId, "clubId");
         Objects.requireNonNull(username, "username");

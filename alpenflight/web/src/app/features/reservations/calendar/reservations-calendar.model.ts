@@ -1,8 +1,6 @@
 export interface CalendarDay {
-  // RENAME: iso -> localMidnightIso
-  iso: string;
-  // RENAME: key -> dayKey
-  key: string;
+  localMidnightIso: string;
+  dayKey: string;
   dayOfMonth: number;
   weekdayShort: string;
   isSelected: boolean;
@@ -21,9 +19,8 @@ export interface CalendarReservation {
 }
 
 export const DAY_HOURS_START = 8;
-// RENAME: DAY_HOURS_END -> DAY_HOURS_END_INCLUSIVE
-export const DAY_HOURS_END = 19;
-const DAY_WINDOW_HOURS = DAY_HOURS_END - DAY_HOURS_START + 1;
+export const DAY_HOURS_END_INCLUSIVE = 19;
+const DAY_WINDOW_HOURS = DAY_HOURS_END_INCLUSIVE - DAY_HOURS_START + 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -51,13 +48,13 @@ export function weekDays(selected: string | number | Date, locale?: string): Cal
   const fmt = new Intl.DateTimeFormat(locale, { weekday: 'short' });
   return Array.from({ length: 7 }, (_, i) => {
     const day = addDays(monday, i);
-    const key = isoDate(day);
+    const dayKey = isoDate(day);
     return {
-      iso: day.toISOString(),
-      key,
+      localMidnightIso: day.toISOString(),
+      dayKey,
       dayOfMonth: day.getDate(),
       weekdayShort: fmt.format(day),
-      isSelected: key === selectedKey,
+      isSelected: dayKey === selectedKey,
     };
   });
 }

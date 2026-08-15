@@ -27,8 +27,7 @@ public class DeploymentContext {
         this.clubs = clubs;
     }
 
-    // RENAME: findDeployment -> findDeploymentsInLifecycleStates
-    public List<Deployment> findDeployment(LifecycleState... states) {
+    public List<Deployment> findDeploymentsInLifecycleStates(LifecycleState... states) {
         if (states.length == 0) {
             return List.of();
         }
@@ -48,7 +47,7 @@ public class DeploymentContext {
                                BiFunction<T, Club, T> accumulator,
                                LifecycleState... states) {
         Object[] total = {identity};
-        for (Deployment deployment : findDeployment(states)) {
+        for (Deployment deployment : findDeploymentsInLifecycleStates(states)) {
             UUID deploymentId = deployment.getId();
             if (deploymentId == null) {
                 continue;

@@ -149,17 +149,15 @@ public class DeploymentProvisioningService {
         List<UUID> subs = new ArrayList<>(clubIds.size());
         for (UUID clubId : clubIds) {
             String username = migratedClubAdminUsername(clubId);
-            subs.add(directory.provisionClubAdminIdentity(clubId, username, username,
-                    MIGRATED_ADMIN_FIRST_NAME, MIGRATED_ADMIN_LAST_NAME));
+            subs.add(directory.provisionClubAdminIdentityFailClosed(clubId, username, username,
+                    VERIFY_PROFILE_PLACEHOLDER_FIRST_NAME, VERIFY_PROFILE_PLACEHOLDER_LAST_NAME));
         }
         return subs;
     }
 
-    // RENAME: MIGRATED_ADMIN_FIRST_NAME -> VERIFY_PROFILE_PLACEHOLDER_FIRST_NAME
-    static final String MIGRATED_ADMIN_FIRST_NAME = "Migrated";
+    static final String VERIFY_PROFILE_PLACEHOLDER_FIRST_NAME = "Migrated";
 
-    // RENAME: MIGRATED_ADMIN_LAST_NAME -> VERIFY_PROFILE_PLACEHOLDER_LAST_NAME
-    static final String MIGRATED_ADMIN_LAST_NAME = "Admin";
+    static final String VERIFY_PROFILE_PLACEHOLDER_LAST_NAME = "Admin";
 
     private static final String NON_ROUTABLE_MIGRATED_ADMIN_MAIL_DOMAIN =
             "@migrated.alpenflight.local";

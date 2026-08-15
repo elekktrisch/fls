@@ -46,10 +46,8 @@ public interface JpaAircraftReservationRepository
             @Param("end") Instant windowEnd);
 
 
-    // RENAME: MIN_INSTANT -> WINDOW_START_WHEN_UNBOUNDED
-    Instant MIN_INSTANT = Instant.parse("0001-01-01T00:00:00Z");
-    // RENAME: MAX_INSTANT -> WINDOW_END_WHEN_UNBOUNDED
-    Instant MAX_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
+    Instant WINDOW_START_WHEN_UNBOUNDED = Instant.parse("0001-01-01T00:00:00Z");
+    Instant WINDOW_END_WHEN_UNBOUNDED = Instant.parse("9999-12-31T23:59:59Z");
 
     String LIST_ITEM_SELECT =
             "select new ch.alpenflight.reservations.domain.AircraftReservationRepository$ListItemRow("
@@ -66,8 +64,8 @@ public interface JpaAircraftReservationRepository
     default List<AircraftReservationRepository.ListItemRow> findActiveListPage(
             @Nullable Instant from, @Nullable Instant to,
             boolean ascending, int pageStart, int pageSize) {
-        Instant fromOrUnbounded = from == null ? MIN_INSTANT : from;
-        Instant toOrUnbounded = to == null ? MAX_INSTANT : to;
+        Instant fromOrUnbounded = from == null ? WINDOW_START_WHEN_UNBOUNDED : from;
+        Instant toOrUnbounded = to == null ? WINDOW_END_WHEN_UNBOUNDED : to;
         var page = org.springframework.data.domain.PageRequest.of(
                 pageSize <= 0 ? 0 : pageStart / pageSize, Math.max(pageSize, 1));
         return ascending
@@ -89,8 +87,8 @@ public interface JpaAircraftReservationRepository
 
     @Override
     default long countActiveList(@Nullable Instant from, @Nullable Instant to) {
-        return countActiveListBetween(from == null ? MIN_INSTANT : from,
-                to == null ? MAX_INSTANT : to);
+        return countActiveListBetween(from == null ? WINDOW_START_WHEN_UNBOUNDED : from,
+                to == null ? WINDOW_END_WHEN_UNBOUNDED : to);
     }
 
     @Query("select count(r) from AircraftReservation r where r.deletedOn is null "

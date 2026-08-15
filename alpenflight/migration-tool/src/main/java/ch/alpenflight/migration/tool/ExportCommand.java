@@ -116,7 +116,7 @@ public final class ExportCommand implements Callable<Integer> {
             }
 
             String deploymentName = "legacy-export-" + timestamp();
-            ManifestModel manifest = ManifestBuilder.build(reader, entities, deploymentName);
+            ServerBundleManifestMirror manifest = ManifestBuilder.build(reader, entities, deploymentName);
             byte[] manifestBytes = new ObjectMapper().writeValueAsBytes(manifest);
 
             Path plaintext = Files.createTempFile(workDir, "alpf-bundle-", ".tar.gz");

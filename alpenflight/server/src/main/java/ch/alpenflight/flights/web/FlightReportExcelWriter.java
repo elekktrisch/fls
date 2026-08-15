@@ -105,7 +105,7 @@ final class FlightReportExcelWriter {
         ExcelExportSupport excel = ExcelExportSupport.streamingWorkbook();
         try (SXSSFWorkbook workbook = excel.workbook()) {
             SXSSFSheet sheet = workbook.createSheet(SHEET_NAME);
-            excel.trackColumnsForAutoSizing(sheet);
+            excel.trackColumnsForAutoSizingBeforeWritingRows(sheet);
 
             writeMetadata(excel, sheet, generatedAt);
             writeHeader(excel, sheet);

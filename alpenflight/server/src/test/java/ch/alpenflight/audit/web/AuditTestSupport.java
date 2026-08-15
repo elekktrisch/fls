@@ -51,8 +51,7 @@ final class AuditTestSupport {
         return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
 
-    // RENAME: truncateForTenant -> preCleanAuditRowsThatOutliveTestRollback
-    static void truncateForTenant(JdbcTemplate jdbc, UUID tenantClubId) {
+    static void preCleanAuditRowsThatOutliveTestRollback(JdbcTemplate jdbc, UUID tenantClubId) {
         jdbc.update("DELETE FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 tenantClubId.toString());
     }

@@ -28,7 +28,7 @@ public final class ManifestBuilder {
     private ManifestBuilder() {
     }
 
-    public static ManifestModel build(LegacyJdbcReader reader,
+    public static ServerBundleManifestMirror build(LegacyJdbcReader reader,
                                        List<EntityType> registeredEntities,
                                        String deploymentName) {
         Map<EntityType, EntityPolicy> policies = new EnumMap<>(EntityType.class);
@@ -41,10 +41,10 @@ public final class ManifestBuilder {
                 unmapped.put(entity, UNMAPPED_REASON);
             }
         }
-        List<ManifestModel.ClubDeclaration> clubs = readClubDeclarations(reader);
+        List<ServerBundleManifestMirror.ClubDeclaration> clubs = readClubDeclarations(reader);
         UUID arbitraryFirstClubAsPrimary =
                 clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
-        return new ManifestModel(SCHEMA_VERSION, deploymentName, clubs,
+        return new ServerBundleManifestMirror(SCHEMA_VERSION, deploymentName, clubs,
                 arbitraryFirstClubAsPrimary, policies, unmapped);
     }
 
@@ -63,11 +63,11 @@ public final class ManifestBuilder {
         };
     }
 
-    private static List<ManifestModel.ClubDeclaration> readClubDeclarations(
+    private static List<ServerBundleManifestMirror.ClubDeclaration> readClubDeclarations(
             LegacyJdbcReader reader) {
         Map<UUID, String> iso2ByCountryGuid = readCountryIso2ByGuid(reader);
         String sql = "SELECT ClubId, Clubname, ClubKey, CountryId, ClubStateId FROM Clubs";
-        List<ManifestModel.ClubDeclaration> clubs = new ArrayList<>();
+        List<ServerBundleManifestMirror.ClubDeclaration> clubs = new ArrayList<>();
         try (ResultSet rs = reader.openEntityCursor(sql)) {
             while (rs.next()) {
                 UUID legacyClubId = UUID.fromString(rs.getString("ClubId"));
@@ -77,7 +77,7 @@ public final class ManifestBuilder {
                 int legacyClubStateId = rs.getInt("ClubStateId");
                 UUID countryId = resolveCountrySeedPk(legacyCountryGuid, iso2ByCountryGuid);
                 UUID clubStateId = resolveClubStateSeedPk(legacyClubStateId);
-                clubs.add(new ManifestModel.ClubDeclaration(
+                clubs.add(new ServerBundleManifestMirror.ClubDeclaration(
                         legacyClubId, name, deriveSlug(clubKey, legacyClubId),
                         clubKey, PUBLIC_REGISTRATION_DISABLED_UNTIL_OPERATOR_REFINES,
                         countryId, clubStateId));

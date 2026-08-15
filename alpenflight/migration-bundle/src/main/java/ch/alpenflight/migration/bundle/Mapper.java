@@ -12,11 +12,9 @@ public interface Mapper {
 
     EntityType entityType();
 
-    // RENAME: columns -> wireColumns
-    String[] columns();
+    String[] wireColumns();
 
-    // RENAME: foreignKeys -> foreignKeyTargets
-    List<EntityType> foreignKeys();
+    List<EntityType> foreignKeyTargets();
 
     default List<ReferenceLookup> referenceLookups() {
         return List.of();

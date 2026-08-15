@@ -60,12 +60,12 @@ public final class DeliveryItemMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB, EntityType.DELIVERY, EntityType.ARTICLE);
     }
 

@@ -96,7 +96,7 @@ class ClubDomainTest {
         assertThat(code).isEqualTo("ABCD2345");
         assertThat(club.getJoinCode()).isEqualTo("ABCD2345");
         assertThat(code).hasSize(JoinCodeGenerator.LENGTH)
-                .matches("[" + JoinCodeGenerator.ALPHABET + "]+");
+                .matches("[" + JoinCodeGenerator.ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS + "]+");
     }
 
     @Test

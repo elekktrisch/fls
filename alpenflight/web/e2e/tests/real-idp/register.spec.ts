@@ -7,7 +7,11 @@ import {
   fillKcRegistration,
   fillKcRegistrationWithPassword,
 } from './_helpers/kc-form';
-import { waitForMessage, extractVerifyLink, purgeMailpit } from './_helpers/mailpit-client';
+import {
+  waitForExactlyOneMessage,
+  extractVerifyLink,
+  purgeMailpit,
+} from './_helpers/mailpit-client';
 import { E2E_CANNED_PASSWORD, E2E_OCCUPIED_EMAIL, freshTestUser } from './_helpers/test-user';
 
 const COLD_FIRST_SMTP_SEND_TIMEOUT_MS = 45_000;
@@ -41,7 +45,7 @@ test.describe('register — real-idp', () => {
     await fillKcRegistration(page, user);
     cleanupEmails.push(user.email);
 
-    const message = await waitForMessage(user.email, {
+    const message = await waitForExactlyOneMessage(user.email, {
       timeoutMs: COLD_FIRST_SMTP_SEND_TIMEOUT_MS,
     });
     const verifyHref = extractVerifyLink(message);

@@ -18,7 +18,7 @@ import {
   type BlockPlacement,
 } from '../scheduler/reservation-scheduler.placement';
 import {
-  DAY_HOURS_END,
+  DAY_HOURS_END_INCLUSIVE,
   DAY_HOURS_START,
   addDays,
   isoDate,
@@ -40,7 +40,7 @@ interface PlacedBlock {
 }
 
 const DAY_HOURS = Array.from(
-  { length: DAY_HOURS_END - DAY_HOURS_START + 1 },
+  { length: DAY_HOURS_END_INCLUSIVE - DAY_HOURS_START + 1 },
   (_, i) => DAY_HOURS_START + i,
 );
 const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
@@ -103,7 +103,7 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
               role="tablist"
               [attr.aria-label]="t('calendar.dayPicker')"
             >
-              @for (d of weekDayCells(); track d.key) {
+              @for (d of weekDayCells(); track d.dayKey) {
                 <button
                   type="button"
                   role="tab"
@@ -114,7 +114,7 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                   [class.bg-white]="!d.isSelected"
                   [class.!text-slate-500]="!d.isSelected"
                   (click)="selectDay(d)"
-                  [attr.data-testid]="'reservations-daypicker-' + d.key"
+                  [attr.data-testid]="'reservations-daypicker-' + d.dayKey"
                 >
                   <span class="caps text-[10px] opacity-70">{{ d.weekdayShort }}</span>
                   <span class="tabular text-sm">{{ d.dayOfMonth }}</span>
@@ -264,7 +264,7 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                 [style.grid-template-columns]="'140px repeat(' + weekDayCells().length + ', 1fr)'"
               >
                 <div class="caps muted px-3 py-2.5">{{ t('scheduler.aircraft') }}</div>
-                @for (d of weekDayCells(); track d.key) {
+                @for (d of weekDayCells(); track d.dayKey) {
                   <div class="flex items-baseline gap-1.5 border-l border-slate-200 px-2 py-2.5">
                     <span class="caps muted">{{ d.weekdayShort }}</span>
                     <span class="tabular text-xs font-medium">{{ d.dayOfMonth }}</span>
@@ -290,13 +290,15 @@ const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                       {{ lane.immatriculation }}
                     </span>
                   </div>
-                  @for (d of weekDayCells(); track d.key) {
+                  @for (d of weekDayCells(); track d.dayKey) {
                     <button
                       type="button"
                       class="flex flex-col gap-0.5 border-0 border-l border-slate-200 px-2 py-2 text-left cursor-pointer hover:bg-slate-50"
                       [class.bg-slate-50]="d.isSelected"
                       (click)="openDayCell(lane, d)"
-                      [attr.data-testid]="'reservations-week-cell-' + lane.aircraftId + '-' + d.key"
+                      [attr.data-testid]="
+                        'reservations-week-cell-' + lane.aircraftId + '-' + d.dayKey
+                      "
                     >
                       @let cell = cellFor(lane, d);
                       @if (cell.count > 0) {
@@ -343,7 +345,7 @@ export class ReservationsCalendarPage {
   protected readonly views = ['day', 'week'] as const;
   protected readonly dayHours = DAY_HOURS;
   protected readonly hoursStart = DAY_HOURS_START;
-  protected readonly hoursEndExclusive = DAY_HOURS_END + 1;
+  protected readonly hoursEndExclusive = DAY_HOURS_END_INCLUSIVE + 1;
 
   protected readonly view = signal<'day' | 'week'>('day');
   protected readonly selectedDayIso = signal<string>(startOfDay(new Date()).toISOString());
@@ -356,7 +358,7 @@ export class ReservationsCalendarPage {
   protected readonly weekDayCells = computed<CalendarDay[]>(() => weekDays(this.selectedDayIso()));
 
   private readonly dayHourWindow = computed(() =>
-    hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END + 1),
+    hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END_INCLUSIVE + 1),
   );
 
   protected readonly periodLabel = computed<string>(() =>
@@ -382,11 +384,11 @@ export class ReservationsCalendarPage {
   }
 
   protected cellFor(lane: SchedulerLane, day: CalendarDay): WeekCell {
-    return weekCell(lane.reservations, day.key);
+    return weekCell(lane.reservations, day.dayKey);
   }
 
   protected firstPilot(lane: SchedulerLane, day: CalendarDay): string {
-    const onDay = lane.reservations.filter((r) => startsOnDay(r, day.key));
+    const onDay = lane.reservations.filter((r) => startsOnDay(r, day.dayKey));
     const head = onDay.at(0);
     if (!head) return '';
     const first = this.pilot(head);
@@ -402,7 +404,7 @@ export class ReservationsCalendarPage {
   }
 
   protected selectDay(d: CalendarDay): void {
-    this.selectedDayIso.set(d.iso);
+    this.selectedDayIso.set(d.localMidnightIso);
   }
 
   protected shiftPeriod(delta: number): void {
@@ -416,7 +418,7 @@ export class ReservationsCalendarPage {
   }
 
   protected openDayCell(_lane: SchedulerLane, d: CalendarDay): void {
-    this.selectedDayIso.set(d.iso);
+    this.selectedDayIso.set(d.localMidnightIso);
     this.view.set('day');
   }
 

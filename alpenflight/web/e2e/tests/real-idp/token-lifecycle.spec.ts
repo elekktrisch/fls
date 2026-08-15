@@ -2,7 +2,7 @@ import { type Page, type Request } from '@playwright/test';
 import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import {
-  SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS,
+  ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS,
   createUser,
   deleteUser,
   pollUserDisabled,
@@ -18,9 +18,9 @@ const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4
 const KC_HOST = 'localhost:8090';
 
 const TWO_LIFESPANS_SO_A_FULL_SILENT_ROTATION_HAS_SETTLED_MS =
-  (SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS * 2 + 5) * 1000;
+  (ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS * 2 + 5) * 1000;
 const ONE_LIFESPAN_SO_THE_ACCESS_TOKEN_HAS_EXPIRED_MS =
-  (SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 5) * 1000;
+  (ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS + 5) * 1000;
 
 const alternatingWarmNavTestIdSoEachIterationIsARealUrlChange = (attempt: number): string =>
   attempt % 2 === 0 ? 'af-nav-section-/flights' : 'af-nav-section-/flightreports';
@@ -52,7 +52,7 @@ test.describe('token-lifecycle — realm-mutating', () => {
     page,
   }) => {
     await withRealmPatch(
-      { accessTokenLifespan: SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS },
+      { accessTokenLifespan: ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS },
       async () => {
         await loginAs(page, SEED_USER, SEED_PASSWORD);
         await page.waitForTimeout(TWO_LIFESPANS_SO_A_FULL_SILENT_ROTATION_HAS_SETTLED_MS);
@@ -76,7 +76,7 @@ test.describe('token-lifecycle — realm-mutating', () => {
     let userCtx: { user: TestUser; userId: string } | undefined;
     try {
       await withRealmPatch(
-        { accessTokenLifespan: SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS },
+        { accessTokenLifespan: ACCESS_TOKEN_LIFESPAN_BELOW_SPA_RENEW_WINDOW_SECONDS },
         async () => {
           userCtx = await loginAsEphemeral(page);
           await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);

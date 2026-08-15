@@ -45,7 +45,7 @@ class PlanningDayMapperTest extends AbstractMapperContractTest<PlanningDayMapper
 
     @Test
     void declaresClubAndLocationAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.LOCATION);
     }
 }

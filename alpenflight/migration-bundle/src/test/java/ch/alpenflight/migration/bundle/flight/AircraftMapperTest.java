@@ -76,7 +76,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void declaresClubPersonAndLocationAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Aircraft is cross-tenant; FKs to Club (owner/manager), "
                         + "Person (aircraft_owner_person_id), Location (homebase_id) "
                         + "ride through TENANT_BYPASS_ALLOW_LIST")

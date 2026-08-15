@@ -3,7 +3,7 @@ package ch.alpenflight.audit.web;
 import static ch.alpenflight.audit.web.AuditTestSupport.assertSingleEventForTarget;
 import static ch.alpenflight.audit.web.AuditTestSupport.findByTarget;
 import static ch.alpenflight.audit.web.AuditTestSupport.parseSnapshot;
-import static ch.alpenflight.audit.web.AuditTestSupport.truncateForTenant;
+import static ch.alpenflight.audit.web.AuditTestSupport.preCleanAuditRowsThatOutliveTestRollback;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.id.ClubId;
@@ -50,7 +50,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
         sysadminToken = jwts.mint(c -> c
                 .claim("clubId", SYSADMIN_TENANT.toString())
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
@@ -117,7 +117,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         ResponseEntity<String> created = post("/api/v1/clubs",
                 createPayload("Original", slug, "ORG" + shortSuffix()));
         UUID id = ClubId.parse(readJson(created).get("id").asText()).value();
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
 
         ResponseEntity<String> res = put("/api/v1/clubs/" + readJson(created).get("id").asText(),
                 updatePayload("Renamed", slug, true));
@@ -141,7 +141,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
                 createPayload("DoomedClub", slug, "DOM" + shortSuffix()));
         String externalId = readJson(created).get("id").asText();
         UUID id = ClubId.parse(externalId).value();
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
 
         ResponseEntity<Void> del = rest.exchange(authed(
                         RequestEntity.delete(URI.create("/api/v1/clubs/" + externalId))).build(),
@@ -249,7 +249,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
                 createPayload("FirstClub", slug, "FRC" + shortSuffix()));
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         UUID firstId = ClubId.parse(readJson(first).get("id").asText()).value();
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
 
         ResponseEntity<String> dup = post("/api/v1/clubs",
                 createPayload("DupClub", slug, "DUP" + shortSuffix()));

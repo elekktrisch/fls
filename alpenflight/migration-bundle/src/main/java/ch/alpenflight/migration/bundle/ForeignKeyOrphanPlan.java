@@ -11,7 +11,7 @@ public record ForeignKeyOrphanPlan(List<Check> checks) {
     public static ForeignKeyOrphanPlan from(List<Mapper> mappers) {
         List<Check> checks = new ArrayList<>();
         for (Mapper mapper : mappers) {
-            for (EntityType target : mapper.foreignKeys()) {
+            for (EntityType target : mapper.foreignKeyTargets()) {
                 checks.add(new Check(mapper.entityType(), target));
             }
         }

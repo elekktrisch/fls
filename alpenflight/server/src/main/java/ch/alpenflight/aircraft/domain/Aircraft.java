@@ -339,7 +339,7 @@ public class Aircraft extends SoftDeletableAggregate {
     }
 
     private void assignImmatriculation(String value) {
-        this.immatriculation = Immatriculation.of(value).normalized();
+        this.immatriculation = Immatriculation.of(value).storedUppercaseKeepingHyphens();
     }
 
     private void assignAircraftType(UUID newAircraftTypeId) {
@@ -451,8 +451,7 @@ public class Aircraft extends SoftDeletableAggregate {
         return aircraftTypeId;
     }
 
-    // RENAME: syncFromDeviceDatabase -> applyNonBlankDeviceDatabaseValues
-    public boolean syncFromDeviceDatabase(@Nullable String deviceId,
+    public boolean applyNonBlankDeviceDatabaseValues(@Nullable String deviceId,
                                           @Nullable String model,
                                           @Nullable String competitionSignValue) {
         boolean changed = false;
