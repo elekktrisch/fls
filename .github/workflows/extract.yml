@@ -1,19 +1,28 @@
 name: extract
 
-# Scoped to alpenflight/database/extract/ (the FLS legacy SQL Server metadata
-# extractor — see the module README). Kept separate from ci.yml so changes
-# to this subtree don't trigger the expensive legacy-e2e lane.
+# Scoped to the alpenflight/database/ extractor lane (the FLS legacy SQL Server
+# metadata extractor — see the module README). Kept separate from ci.yml so
+# changes to this subtree don't trigger the expensive legacy-e2e lane.
+#
+# The filter must cover every input the build READS, not just the module it
+# lives in. tenant-rules.yaml sits one directory above extract/ and is parsed
+# by TenantClassifier; a filter of extract/** alone let a classification flip
+# land unverified and sit red for three months (J-31 T-18). The two sibling
+# MDs are asserted by MetadataExtractorIntegrationTest, and the legacy
+# FLSTest schema is the fixture the integration test extracts from.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'alpenflight/database/extract/**'
+      - 'alpenflight/database/**'
+      - 'flsserver/database/FLSTest/**'
       - '.github/workflows/extract.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'alpenflight/database/extract/**'
+      - 'alpenflight/database/**'
+      - 'flsserver/database/FLSTest/**'
       - '.github/workflows/extract.yml'
   workflow_dispatch:
 

@@ -310,12 +310,26 @@ class MetadataExtractorIntegrationTest {
         JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
 
         assertScope(classification, "Persons", "CROSS_TENANT");
-        assertScope(classification, "PersonClub", "CROSS_TENANT");
+        assertScope(classification, "PersonClub", "TENANT_SCOPED");
         assertScope(classification, "Users", "PRINCIPAL_SUBJECT");
         assertScope(classification, "AuditLogs", "TENANT_SCOPED");
         assertScope(classification, "AuditLogDetails", "TENANT_SCOPED");
         assertScope(classification, "Countries", "REFERENCE_DATA");
         assertScope(classification, "LanguageTranslations", "REFERENCE_DATA");
+    }
+
+    @Test
+    void tenant_classification_person_club_is_the_membership_pivot_carrying_the_club_discriminator(@TempDir Path out)
+            throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        JsonNode personClub = findClassification(classification, "PersonClub");
+        assertThat(personClub.get("tenant_column").asText())
+                .as("PersonClub is the one row per (person, club) membership pivot — a multi-club pilot keeps one "
+                        + "row per club, each discriminated by club_id, while Persons stays CROSS_TENANT")
+                .isEqualTo("club_id");
+        assertThat(personClub.get("target_entity").asText()).isEqualTo("PersonClub");
     }
 
     @Test

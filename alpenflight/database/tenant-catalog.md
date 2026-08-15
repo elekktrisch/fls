@@ -91,17 +91,27 @@ their audit blobs need scrubbing in every club they touched — a cross-tenant
 operation requiring an `UnscopedTenantContext` (S-023). S-027 owns the
 redaction.
 
-### Person / PersonClub — cross-tenant by construction
+### Person — cross-tenant; PersonClub — the tenant-scoped membership pivot
 
 `Person` is `CROSS_TENANT`. A Person can belong to multiple Clubs via
 `PersonClub`; their direct-identifier columns
 (`Firstname`/`Lastname`/`Email*`/`Phone*`/`Birthday`/`AddressLine*`) exist
 once globally.
 
-`PersonClub` is also `CROSS_TENANT` — it's the join table that expresses
-N-to-N membership. Classifying it as `TENANT_SCOPED` would break multi-club
-pilots; classifying it as `REFERENCE_DATA` would lose the obvious tenant
-association in admin views.
+`PersonClub` is `TENANT_SCOPED`. It carries `ClubId` in legacy and `club_id`
+under an `@TenantId` discriminator in the target (`PersonClub.java`), so the
+structural rule in `TenantClassifier.computeLegacyScope` reaches the same
+answer with no override needed. Multi-club pilots survive because membership
+is one row per `(person, club)`: a pilot in three clubs has three
+`PersonClub` rows, each visible in exactly its own tenant, while the single
+`Person` behind them stays cross-tenant. `REFERENCE_DATA` would lose the
+tenant association in admin views.
+
+This is also why `PersonClub` is the pivot every indirect-tenancy read goes
+through — an entity scoped only via `Person` (`PersonFlightTimeCredit`) is
+tenant-invisible unless it joins through `PersonClub`, and a query rooted at
+`Person` returns cross-tenant rows because Hibernate applies `@TenantId` to a
+query's root entity, not to joined associations.
 
 **FK ride-throughs to Person** are inventoried per `ride_through_targets` in
 the YAML for S-024 to assert: `FlightCrew.PersonId`, every `*PilotPersonId`
