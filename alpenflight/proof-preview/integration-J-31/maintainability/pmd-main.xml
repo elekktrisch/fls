@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-15T04:04:14.285">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-08-15T04:36:56.136">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/AccountingRuleFilter.java">
 <violation beginline="70" endline="79" begincolumn="46" endcolumn="73" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.accounting.domain" class="AccountingRuleFilter" method="create" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (10 parameters - threshold is 8).
@@ -23,7 +23,7 @@ Too many fields
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/accounting/domain/DeliveryDiff.java">
 <violation beginline="16" endline="16" begincolumn="26" endcolumn="33" rule="NcssCount" ruleset="Design" package="ch.alpenflight.accounting.domain" class="DeliveryDiff" method="compare" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#ncsscount" priority="3">
-The method 'compare(DeliveryDetailsSnapshot, DeliveryDetailsSnapshot, boolean, IgnoreFlags)' has a NCSS line count of 64.
+The method 'compare(DeliveryDetailsSnapshot, DeliveryDetailsSnapshot, boolean, IgnoreFlags)' has a NCSS line count of 63.
 </violation>
 <violation beginline="16" endline="16" begincolumn="26" endcolumn="33" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.accounting.domain" class="DeliveryDiff" method="compare" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
 The method 'compare(DeliveryDetailsSnapshot, DeliveryDetailsSnapshot, boolean, IgnoreFlags)' has a cognitive complexity of 38, current threshold is 15
@@ -149,15 +149,15 @@ The method 'validateRequiredFields(Flight, List&lt;ValidationError&gt;)' has an 
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/infra/JpaFlightRepository.java">
-<violation beginline="130" endline="130" begincolumn="43" endcolumn="57" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="143" endline="143" begincolumn="43" endcolumn="57" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'findListWindow(LocalDate, LocalDate, LocalDate, UUID, int, UUID)' has a cyclomatic complexity of 12.
 </violation>
-<violation beginline="130" endline="130" begincolumn="43" endcolumn="57" rule="NPathComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#npathcomplexity" priority="3">
+<violation beginline="143" endline="143" begincolumn="43" endcolumn="57" rule="NPathComplexity" ruleset="Design" package="ch.alpenflight.flights.infra" class="JpaFlightRepositoryImpl" method="findListWindow" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#npathcomplexity" priority="3">
 The method 'findListWindow(LocalDate, LocalDate, LocalDate, UUID, int, UUID)' has an NPath complexity of 1152, current threshold is 200
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/flights/web/FlightsController.java">
-<violation beginline="122" endline="122" begincolumn="35" endcolumn="47" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.web" class="FlightsController" method="parseIfMatch" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="125" endline="125" begincolumn="35" endcolumn="47" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.flights.web" class="FlightsController" method="parseIfMatch" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'parseIfMatch(String)' has a cyclomatic complexity of 10.
 </violation>
 </file>
@@ -211,18 +211,18 @@ The method 'rewriteForeignKeys(Mapper, ObjectNode)' has a cyclomatic complexity 
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/migrations/application/MigrationBundleIngestService.java">
 <violation beginline="74" endline="74" begincolumn="14" endcolumn="42" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'MigrationBundleIngestService' has a total cyclomatic complexity of 83 (highest 14).
+The class 'MigrationBundleIngestService' has a total cyclomatic complexity of 84 (highest 14).
 </violation>
-<violation beginline="110" endline="129" begincolumn="40" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+<violation beginline="112" endline="131" begincolumn="40" endcolumn="65" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="MigrationBundleIngestService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (18 parameters - threshold is 8).
 </violation>
-<violation beginline="159" endline="159" begincolumn="26" endcolumn="32" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="ingest" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="162" endline="162" begincolumn="26" endcolumn="32" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="ingest" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'ingest(UUID, UUID, UUID, InputStream)' has a cyclomatic complexity of 13.
 </violation>
-<violation beginline="232" endline="232" begincolumn="27" endcolumn="47" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="runInsideTransaction" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
+<violation beginline="235" endline="235" begincolumn="27" endcolumn="47" rule="CognitiveComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="runInsideTransaction" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cognitivecomplexity" priority="3">
 The method 'runInsideTransaction(UUID, UUID, UUID, InputStream, AtomicReference&lt;UUID&gt;)' has a cognitive complexity of 17, current threshold is 15
 </violation>
-<violation beginline="336" endline="336" begincolumn="27" endcolumn="45" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="drainDecryptedBody" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="339" endline="339" begincolumn="27" endcolumn="45" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.migrations.application" class="MigrationBundleIngestService" method="drainDecryptedBody" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'drainDecryptedBody(Connection, MigrationUpload, UUID, MigrationRun, BundleHeader, InputStream, SecureBytes)' has a cyclomatic complexity of 14.
 </violation>
 </file>
@@ -237,8 +237,8 @@ The method 'isExactMatchShape()' has an NPath complexity of 600, current thresho
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/application/PersonsService.java">
-<violation beginline="311" endline="311" begincolumn="25" endcolumn="38" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.persons.application" class="PersonsService" method="hashLookupKey" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The method 'hashLookupKey(PersonLookupRequest)' has a cyclomatic complexity of 10.
+<violation beginline="315" endline="315" begincolumn="25" endcolumn="68" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.persons.application" class="PersonsService" method="correlatableMissTargetIdFromHashedLookupKey" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+The method 'correlatableMissTargetIdFromHashedLookupKey(PersonLookupRequest)' has a cyclomatic complexity of 10.
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/Person.java">
