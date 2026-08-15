@@ -120,7 +120,7 @@ test.describe('nav-bar visible on a post-auth route — the positive control for
   });
 });
 
-test.describe('landing renders on the public front door — J-16 proof', () => {
+test.describe("landing renders on the public front door — J-31's proof over J-16's screen", () => {
   test('[happy] the public landing renders anonymously at / under the real IdP', async ({
     browser,
   }, testInfo) => {
@@ -143,10 +143,12 @@ test.describe('landing renders on the public front door — J-16 proof', () => {
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
-        journey: 'J-16',
+        journey: 'J-31',
         caption:
-          'J-16 · public front door · the AlpenFlight landing renders anonymously at / under the ' +
-          'real IdP — wordmark topbar + hero — with no redirect to Keycloak',
+          'J-31 · comment sweep · the public landing still renders anonymously at / under the ' +
+          'real IdP — wordmark topbar + hero, no redirect to Keycloak, no console errors — over a ' +
+          'tree whose every human-written comment was deleted and whose understanding now lives ' +
+          'in the names',
         acTag: 'happy',
       });
     }
