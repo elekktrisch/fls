@@ -8,7 +8,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-
 @Entity
 @Table(name = "t_club_state")
 public class ClubState {
