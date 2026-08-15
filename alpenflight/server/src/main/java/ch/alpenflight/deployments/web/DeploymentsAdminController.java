@@ -18,24 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * System-administrator-only Deployment lifecycle management.
- *
- * <ul>
- *   <li>{@code GET /} surfaces a single Deployment by id.</li>
- *   <li>{@code POST /{id}/lifecycle} flips lifecycle state.</li>
- * </ul>
- *
- * <p>{@link AuditedBy} on the controller class is the
- * {@code ControllerAuditCoverageTest} declarative-escape — the audit
- * row is emitted via the
- * {@link ch.alpenflight.deployments.application.LifecycleTransitionAuditListener}
- * domain-event subscriber, which ArchUnit's bounded DFS doesn't
- * traverse (Spring's event publisher is the hand-off).
- *
- * <p>Cross-Deployment surface, no tenant gate. 404 on unknown id (per
- * the security plan: don't leak existence to token-leak probes).
- */
 @RestController
 @RequestMapping(path = "/api/v1/admin/deployments", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Admin Deployments",

@@ -23,56 +23,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Per-bundle FK resolver. Translates legacy GUIDs carried in
- * {@code <Entity>.ndjson} rows to the new-stack UUIDs the destination
- * table FKs reference, by joining each {@link Mapper#foreignKeys()}
- * target against {@code legacy_id_map_<entity>} (seeded earlier in the
- * ingest by the {@code legacy_id_map/<entity>.pgcopy} tar entries +
- * {@link EntityStreamIngestor#seedClubLegacyIdMap}).
- *
- * <p>SYSTEM_GLOBAL_RESOLVE FKs (per {@link BundleManifest#entityPolicies()})
- * are <em>required</em> to resolve — the bundle pgcopy entries are the
- * sole source of the legacy-to-V2-seed translation, and a missing entry
- * indicates the producer dropped a row the consumer relied on. Surface
- * {@link BundleIngestErrorCode#BUNDLE_CROSS_TENANT_FK_LEAK}.
- *
- * <p>FULL_PORT FKs (e.g. {@code User.club_id} → {@code CLUB}) translate
- * via {@code legacy_id_map_club} which the orchestrator pre-seeds in
- * {@code seedClubLegacyIdMap}. A missing entry there leaves the field
- * untouched and the downstream INSERT surfaces the FK violation
- * naturally — the orchestrator's per-mapper save and audit trail then
- * carries the failure cleanly.
- *
- * <p>Fan-out FKs (J-0b T-07 — target {@link EntityType#fansOut()}, e.g.
- * {@code InOutboundPoint.location_id} → {@code LOCATION}) cannot use the
- * single-key lookup: the fan-out target's {@code legacy_id_map_<target>}
- * holds N rows per shared {@code legacy_guid} (one per club). The lookup is
- * keyed composite {@code (legacy_guid, club_id)} on the referencer row's
- * OWN legacy {@code club_id} (a wire-only field the producer fans the
- * referencer out with), landing on that club's replica. A composite miss is
- * <em>fail-closed</em> (mirrors the SYSTEM_GLOBAL path) — never a verbatim FK.
- *
- * <p>Column-name convention (vertical-slice mappers, S-187): by default the
- * FK column is {@code <target.name().toLowerCase()>_id} — e.g.
- * {@code club_id}, {@code country_id}, {@code language_id}. A mapper that names
- * its FK columns off-convention, or references one target through several
- * columns (e.g. {@code Aircraft.managing_club_id} + {@code owner_club_id} →
- * CLUB, {@code Aircraft.homebase_id} → LOCATION), declares each
- * {@code (column, target)} pair via {@link Mapper#foreignKeyColumns()} (S-187a);
- * undeclared targets keep the convention.
- *
- * <p>Stateful — caches one prepared statement per target entity, scoped
- * to the ingest connection. Closed by {@link #close} when the per-entity
- * NDJSON drain completes.
- */
 final class ForeignKeyResolver implements AutoCloseable {
 
-    /**
-     * Wire-only field a fan-out referencer carries to name its OWN legacy club
-     * (T-05). Absent from the referencer's destination columns — consumed here
-     * only to disambiguate which fan-out replica its FK points at.
-     */
     private static final String REFERENCER_CLUB_FIELD = "club_id";
 
     private final Connection connection;
@@ -86,26 +38,7 @@ final class ForeignKeyResolver implements AutoCloseable {
         this.manifest = manifest;
     }
 
-    /**
-     * Walk the mapper's FK columns and rewrite each present legacy GUID to the
-     * resolved new-stack UUID. Mutates {@code row} in place.
-     *
-     * <p>Each {@code (column, target)} pair is resolved independently: a target
-     * declared via {@link Mapper#foreignKeyColumns()} uses its explicit column
-     * name(s) — so the SAME target referenced through MULTIPLE columns (e.g.
-     * AIRCRAFT's {@code managing_club_id} + {@code owner_club_id} → CLUB) resolves
-     * each column — while any {@link Mapper#foreignKeys()} target NOT declared
-     * falls back to the {@code <target>_id} convention. This generalises S-187's
-     * one-column-per-target convention without changing it (S-187a).
-     */
     void rewriteForeignKeys(Mapper mapper, ObjectNode row) throws SQLException {
-        // Snapshot every fan-out disambiguator column's LEGACY value before the
-        // loop rewrites any FK in place. A disambiguator can itself be a FK column
-        // (AIRCRAFT's homebase_id disambiguates on managing_club_id, which is ALSO
-        // a CLUB FK rewritten earlier in this same loop). The fan-out composite
-        // map legacy_id_map_<target> is keyed by the LEGACY club guid, so the
-        // lookup must use the pre-rewrite value — not the new-stack UUID the CLUB
-        // resolution already substituted.
         Map<String, UUID> legacyDisambiguators = snapshotDisambiguators(mapper, row);
         for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
             EntityType target = binding.target();
@@ -141,25 +74,9 @@ final class ForeignKeyResolver implements AutoCloseable {
                                 + " has no resolution; the SYSTEM_GLOBAL bundle entry must "
                                 + "enumerate every value the producer emitted");
             }
-            // Else: FULL_PORT target with no mapping yet — let the FK
-            // constraint surface the failure on INSERT.
         }
     }
 
-    /**
-     * Composite FK resolution for a {@link EntityType#fansOut()} target (J-0b
-     * T-07). The fan-out target's {@code legacy_id_map_<target>} carries N rows
-     * per shared {@code legacy_guid} — one per club — so the single-key lookup
-     * is ambiguous. Disambiguate on the referencer's OWN legacy club: the
-     * wire-only {@code club_id} field the producer fans the referencer out with
-     * (the IOP child carries its own club; a downstream Flight referencer would
-     * likewise). Read it from the PARSED row, not from a destination column.
-     *
-     * <p>Fail-closed on a composite miss — mirror the SYSTEM_GLOBAL path: a
-     * {@code (legacy_guid, club_id)} pair absent from the composite map aborts
-     * the ingest with a clear error rather than landing a verbatim FK that
-     * violates a constraint opaquely.
-     */
     private void resolveFanOutForeignKey(
             Mapper mapper,
             ObjectNode row,
@@ -171,9 +88,6 @@ final class ForeignKeyResolver implements AutoCloseable {
             throws SQLException {
         String clubField =
                 disambiguatorColumn != null ? disambiguatorColumn : REFERENCER_CLUB_FIELD;
-        // Use the pre-rewrite LEGACY value captured before the loop: clubField may
-        // itself be a FK column the loop already rewrote to a new-stack UUID, but
-        // the composite map is keyed by the LEGACY club guid.
         UUID referencerClubId = legacyDisambiguators.get(clubField);
         if (referencerClubId == null) {
             throw new BundleIngestException(
@@ -195,16 +109,6 @@ final class ForeignKeyResolver implements AutoCloseable {
         row.put(field, resolved.toString());
     }
 
-    /**
-     * Rewrite a FULL_PORT row's own legacy id (the {@code legacy_guid}
-     * carrier for the destination {@code id} per ADR 0019) to the new-stack
-     * UUID via {@code legacy_id_map_<self>}.
-     *
-     * <p>Unlike {@link #rewriteForeignKeys}, a miss is <em>fail-closed</em>:
-     * a row's own id has no downstream FK constraint to surface a dangling
-     * value, so an unmapped id would conflict with, or insert past, a row no
-     * upstream step provisioned.
-     */
     void rewriteSelfId(EntityType selfType, String idField, ObjectNode row) throws SQLException {
         JsonNode idValue = row.get(idField);
         if (idValue == null || idValue.isNull()) {
@@ -268,14 +172,6 @@ final class ForeignKeyResolver implements AutoCloseable {
                 && policy.portPolicy() == EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE;
     }
 
-    /**
-     * The effective ordered list of FK column bindings for a mapper: every
-     * {@link Mapper#foreignKeyColumns()} declaration verbatim, plus a
-     * convention-derived {@code <target>_id} binding for each
-     * {@link Mapper#foreignKeys()} target NOT already covered by a declaration.
-     * A target covered by one or more declared columns is resolved ONLY through
-     * those columns (never additionally by convention).
-     */
     private static List<ForeignKeyBinding> foreignKeyBindings(Mapper mapper) {
         List<ForeignKeyColumn> declared = mapper.foreignKeyColumns();
         List<ForeignKeyBinding> bindings = new ArrayList<>(declared.size());
@@ -296,15 +192,6 @@ final class ForeignKeyResolver implements AutoCloseable {
         return target.name().toLowerCase(Locale.ROOT) + "_id";
     }
 
-    /**
-     * Capture the LEGACY (pre-rewrite) value of every fan-out binding's
-     * disambiguator column, keyed by column name. Run before
-     * {@link #rewriteForeignKeys} mutates the row so a disambiguator that is
-     * itself a FK column (AIRCRAFT's {@code managing_club_id}) is read at its
-     * legacy value, matching the legacy-keyed composite fan-out map. A
-     * malformed value is left out and surfaces as a missing-disambiguator error
-     * at resolve time (same fail-closed message as a genuinely absent column).
-     */
     private static Map<String, UUID> snapshotDisambiguators(Mapper mapper, ObjectNode row) {
         Map<String, UUID> snapshot = new HashMap<>();
         for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
@@ -323,13 +210,11 @@ final class ForeignKeyResolver implements AutoCloseable {
             try {
                 snapshot.put(clubField, UUID.fromString(value.asText()));
             } catch (IllegalArgumentException ignored) {
-                // Leave unmapped: resolveFanOutForeignKey reports the miss.
             }
         }
         return snapshot;
     }
 
-    /** One resolved FK column → target pair (with optional fan-out disambiguator). */
     private record ForeignKeyBinding(
             String column, EntityType target, @Nullable String disambiguatorColumn) {}
 
@@ -344,7 +229,6 @@ final class ForeignKeyResolver implements AutoCloseable {
             try {
                 ps.close();
             } catch (SQLException ignored) {
-                // Connection close-time will release whatever leaked.
             }
         }
         statements.clear();

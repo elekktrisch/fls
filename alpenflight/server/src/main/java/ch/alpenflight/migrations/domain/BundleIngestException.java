@@ -4,13 +4,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Carrier for every failure the ingest pipeline surfaces to the caller.
- * Holds the bounded {@link BundleIngestErrorCode} + a free-form
- * {@code detail} string + a bag of {@code attributes} the exception handler
- * surfaces on the RFC 7807 ProblemDetail (e.g. {@code existingDeploymentId}
- * on a 409 {@code DEPLOYMENT_EXISTS}).
- */
 public class BundleIngestException extends RuntimeException {
 
     private final BundleIngestErrorCode errorCode;

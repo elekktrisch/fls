@@ -29,19 +29,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the User aggregate (per-club CLUB_ADMIN view).
- *
- * <p>The {@code notification_email} field is intentionally distinct from
- * Keycloak's login {@code email} — keeping them decoupled avoids
- * re-creating the entanglement ADR 0007 aimed to escape. The two fields
- * happen to share an initial value on invite, but the SPA edit surface
- * never re-syncs them.
- *
- * <p><strong>Tenant scoping</strong>: explicit {@code club_id} predicate in
- * every repo query plus {@code @userAccess.canView/Edit} SpEL guards. 404
- * not 403 for cross-tenant reads (IDOR contract).
- */
 @RestController
 @RequestMapping(path = "/api/v1/users", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Users", description = "User CRUD + role assignment (CLUB_ADMINISTRATOR cabin).")
@@ -69,10 +56,6 @@ public class UsersController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public UserResponse getUser(@PathVariable UserId id) {
-        // No @userAccess.canView SpEL gate: it would short-circuit
-        // cross-tenant reads at 403, breaking the documented S-051 404-not-403
-        // IDOR contract. Service-layer load enforces the tenant scope and
-        // throws UserNotFoundException → 404.
         return service.getUser(id);
     }
 

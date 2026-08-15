@@ -5,30 +5,6 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Wire payload for {@code PATCH /api/v1/me/person/licences} — the caller-scoped
- * Person licence/medical self-edit (J-4 T-08, the FADP-sensitive Pilot tab).
- * Carries ONLY the Person aggregate's licence flags, licence number, medical /
- * instructor / part-M expiry dates and glider start-permission flags.
- *
- * <p>The boolean flags are nullable {@code Boolean} (not primitives) so an
- * absent flag deserialises cleanly to {@code null} → coerced to {@code false}
- * in the controller ({@code Boolean.TRUE.equals(...)}, the same pattern
- * {@link MePersonUpdateRequest#preferMailToBusinessMail} uses). The tab POSTs
- * the full pilot-profile shape (every checkbox), so an unchecked box still
- * lands as {@code false} — "replace the whole licence set" semantics, matching
- * the legacy person form.
- *
- * <p>Deliberately absent: contact / address fields (their own
- * {@code PATCH /me/person} surface, T-06), the name fields (admin-only), and
- * membership / role fields (admin-only). Binding to this record rather than the
- * {@link ch.alpenflight.persons.domain.Person} aggregate makes mass-assignment
- * of those fields structurally impossible.
- *
- * <p>The {@code licenceNumber} size mirrors the {@code Person} column; the
- * aggregate's {@code updateLicences} re-validates so an out-of-range value that
- * slips past bean validation still surfaces as a clean 400.
- */
 @Schema(description = "Person licence/medical self-edit payload — caller's own pilot/medical fields only.")
 record MePersonLicencesUpdateRequest(
         @Schema(description = "Holds a motor-pilot licence (absent = false).")

@@ -7,23 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the FlightType REST surface. Records (immutable, explicit field
- * set); mass-assignment is structurally impossible because the controller
- * binds to the record, not to the
- * {@link ch.alpenflight.flighttypes.domain.FlightType} aggregate.
- *
- * <p>{@code operatingClubId} (the {@code @TenantId} discriminator) is
- * <strong>absent</strong> from {@link FlightTypeCreateRequest} and
- * {@link FlightTypeUpdateRequest}: it is set by Hibernate's
- * {@code @TenantId} resolver from the JWT on persist (A04 mass-assignment
- * defense).
- *
- * <p>{@code minNrOfAircraftSeatsRequired} accepts {@code null} ("no
- * constraint") or an integer {@code >= 1}. Legacy treated {@code null} and
- * {@code 0} identically; the new stack rejects 0 at the DTO boundary —
- * documented as a parity exclusion on S-053.
- */
 public final class FlightTypeDtos {
 
     private FlightTypeDtos() {}

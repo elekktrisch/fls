@@ -13,46 +13,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Spring Data JPA implementation of the {@link PlanningDayRepository} domain
- * port (J-6 T-03). Composes {@code JpaRepository<PlanningDay, UUID>}, the port,
- * and the {@link PlanningDayPersistenceProbe} custom fragment (the dedup-aware
- * save needs an injected {@code EntityManager}; the per-day reservation count
- * delegates to the {@code reservations} module's
- * {@link ch.alpenflight.reservations.api.ReservationCountPort} named interface,
- * J-26 T-16). The application layer depends only on the port (ADR 0023).
- *
- * <p><strong>Tenancy.</strong> {@code t_planning_day} is tenant-scoped via
- * Hibernate's {@code @TenantId} discriminator on {@code operating_club_id}
- * (ADR 0008). The JPQL list/find queries inherit the tenant predicate
- * automatically (cross-tenant rows invisible → GET 404). The per-day reservation
- * count is now plain JPA over {@code AircraftReservation} (also
- * {@code @TenantId}-filtered) behind the reservations named interface — no native
- * SQL (the {@code planning-day-reservation-count} register hatch is retired).
- *
- * <p><strong>Soft-delete.</strong> Every read filters {@code deleted_on IS
- * NULL}. The {@code ux_pln_club_date_loc} unique index is itself partial
- * ({@code WHERE deleted_on IS NULL}, V4), so a soft-deleted day never blocks
- * re-creating the same {@code (club, date, location)} tuple.
- *
- * <p>List rows are flat {@link PlanningDayRepository.ListRow} projections (the
- * SPA decorates display labels + resolves the 3 well-known crew roles from the
- * generic assignment rows at the service layer) — no cross-module joins (ADR
- * 0023), mirroring the J-5 reservation {@code ListRow} convention.
- */
 public interface JpaPlanningDayRepository
         extends JpaRepository<PlanningDay, UUID>,
                 PlanningDayRepository,
                 PlanningDayPersistenceProbe {
 
-    /** Base projection + tenant-implicit (@TenantId) + soft-delete + future filter. */
     String FUTURE_SELECT =
             "select new ch.alpenflight.planning.domain.PlanningDayRepository$ListRow("
                     + "d.id, d.planningDate, d.locationId, d.info) "
                     + "from PlanningDay d "
                     + "where d.deletedOn is null and d.planningDate >= :asOf ";
 
-    /** Dedup-aware save: routes through the fragment so the unique breach is catchable. */
     @Override
     default PlanningDay save(PlanningDay planningDay) {
         return saveDedup(planningDay);
@@ -62,11 +33,6 @@ public interface JpaPlanningDayRepository
     @Query("select d from PlanningDay d where d.id = :id and d.deletedOn is null")
     Optional<PlanningDay> findActiveById(@Param("id") UUID id);
 
-    /**
-     * Dedup existence check for the bulk rule-expand (T-05). Tenant-implicit
-     * ({@code @TenantId}) + soft-delete filtered, mirroring the partial
-     * {@code ux_pln_club_date_loc} index ({@code WHERE deleted_on IS NULL}).
-     */
     @Override
     @Query("select count(d) > 0 from PlanningDay d "
             + "where d.deletedOn is null and d.planningDate = :planningDate "
@@ -74,13 +40,6 @@ public interface JpaPlanningDayRepository
     boolean existsActiveForDay(@Param("planningDate") LocalDate planningDate,
                                @Param("locationId") UUID locationId);
 
-    /**
-     * Self-excluding dedup existence check for the non-mutating {@code …/validate}
-     * pre-check (J-6b T-05). Tenant-implicit ({@code @TenantId}) + soft-delete
-     * filtered, mirroring the partial {@code ux_pln_club_date_loc} index. A null
-     * {@code excludeId} matches no row (the {@code is null} branch short-circuits
-     * the id-not-equal), so a create check sees every (date, location) day.
-     */
     @Override
     @Query("select count(d) > 0 from PlanningDay d "
             + "where d.deletedOn is null and d.planningDate = :planningDate "
@@ -112,12 +71,6 @@ public interface JpaPlanningDayRepository
     @Query(FUTURE_SELECT + "order by d.planningDate asc, d.id asc")
     List<ListRow> findFutureListRows(@Param("asOf") LocalDate asOf);
 
-    /**
-     * Full aggregates dated exactly {@code planningDate} (J-6 T-10c notification
-     * passes). Tenant-implicit ({@code @TenantId}) + soft-delete filtered; the
-     * crew assignments load lazily through the returned aggregate's accessor
-     * under the same open transaction the job body runs in.
-     */
     @Override
     @Query("select d from PlanningDay d "
             + "where d.deletedOn is null and d.planningDate = :planningDate "

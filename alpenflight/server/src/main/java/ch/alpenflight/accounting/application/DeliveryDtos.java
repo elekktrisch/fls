@@ -9,22 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the read-only Delivery REST surface — the invoice-draft viewer.
- * Records (immutable, explicit field set); the controller binds to these, never
- * to the {@link ch.alpenflight.accounting.domain.Delivery} aggregate, so an
- * entity is never leaked through the wire.
- *
- * <p>{@code operatingClubId} (the {@code @TenantId} discriminator) is absent from
- * every shape — the tenant is structural, resolved from the JWT, never carried on
- * the wire. {@code processStateId} is the V4 sparse code (10/20/30/99), displayed
- * as a badge and never transitioned this iteration (the write side is deferred).
- *
- * <p>The flight reference is a bare {@link FlightId} (the SPA decorates date /
- * aircraft / pilot from its picker payloads — the no-cross-module-join convention,
- * ADR 0023); the recipient block is the nine frozen OR Art. 957a snapshot fields,
- * never re-resolved from {@code recipientPersonId}.
- */
 public final class DeliveryDtos {
 
     private DeliveryDtos() {}
@@ -85,19 +69,6 @@ public final class DeliveryDtos {
     public record DeliveryFlightSummary(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightId flightId) {}
 
-    /**
-     * SPA paged envelope for {@code POST .../page/{start}/{size}}. AlpenFlight
-     * house style — camelCase {@code items/pageStart/pageSize/totalRows} (NOT the
-     * legacy PascalCase); {@code totalRows} is the unpaged tenant-scoped count so
-     * the SPA renders pagination without a second round-trip.
-     */
-    /**
-     * Booking request for {@code POST .../delivered} — driven by the external
-     * (Proffix) booker. {@code deliveryNumber} is the free-text, externally-supplied
-     * invoice number (no counter / allocation); {@code deliveryDateTime} is the
-     * booking instant. Both the id and the datetime are required; the number may be
-     * absent.
-     */
     @Schema(description = "Book a Prepared delivery as delivered (external finance confirmation).")
     public record DeliveryBookingRequest(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) @NotNull UUID deliveryId,

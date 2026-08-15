@@ -7,18 +7,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Language reference row (BCP-47 code + display name). System-global; not
- * tenant-scoped. Mapped to the V2 {@code t_language} table; data lives in
- * the V2 Flyway seed (eight rows, never mutated at runtime). No setters,
- * no mutating methods — the API does not write here.
- *
- * <p>First JPA mapping of {@code t_language} (ADR 0027 per-touch JDBC
- * retirement; introduced for {@code me.application.MeService}'s
- * language-code projection, then adopted by
- * {@code platform.tenancy.LanguageCodeLookup}'s locale resolver at J-26
- * T-14, retiring its last JdbcTemplate site).
- */
 @Entity
 @Table(name = "t_language")
 public class Language {
@@ -33,14 +21,12 @@ public class Language {
     private String name = "";
 
     protected Language() {
-        // JPA.
     }
 
     public @Nullable UUID getId() {
         return id;
     }
 
-    /** BCP-47 code, e.g. {@code en}, {@code de}. Unique ({@code ux_language_code}). */
     public String getCode() {
         return code;
     }

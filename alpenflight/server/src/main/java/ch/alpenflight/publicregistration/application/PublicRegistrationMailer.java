@@ -20,37 +20,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * The two notification mails an accepted public registration sends: one
- * confirmation to the registrant, one notification to the club's organiser
- * address.
- *
- * <h2>Both mails are optional, the registration is not</h2>
- *
- * <p>A registrant who left the email field empty gets no confirmation, and a
- * club with no organiser address gets no notification — in both cases the
- * registration still stands ({@code RegistrationService.cs:222-255}, mirrored
- * for scenic at {@code :369-398}). Everything here is therefore best-effort and
- * post-commit: a mail or directory failure is logged, never propagated, because
- * a 500 over a committed registration invites a duplicate resubmission.
- *
- * <h2>Tenant window</h2>
- *
- * <p>Called from inside {@link PublicRegistrationIntake}'s
- * {@code Tenants.runAs} window. The club's {@code t_email_template} override is
- * looked up {@code @TenantId}-scoped by {@code EmailTemplateDbResolver}, so a
- * send outside the window silently falls back to the shipped file default.
- *
- * <h2>One model, four templates</h2>
- *
- * <p>All four templates bind the same flat model built from the submission.
- * Legacy's two scenic templates interpolate a {@code TrialFlightRegistrationModel}
- * namespace their send path never puts in the token dictionary
- * ({@code RegistrationEmailBuildService.cs:211-213,271-273}), so Velocity's
- * silent {@code $!} rendered email, all three phone numbers and the remarks
- * blank in every scenic mail legacy ever sent. A single shared model removes the
- * class of bug rather than fixing two strings.
- */
 @Component
 class PublicRegistrationMailer {
 
@@ -64,7 +33,6 @@ class PublicRegistrationMailer {
     static final String SUBJECT_SCENIC_CANDIDATE = "Anmeldung Mitflug erhalten";
     static final String SUBJECT_SCENIC_ORGANISER = "Neue Anmeldung Mitflug";
 
-    /** Legacy tells the candidate they hear back two days before the day. */
     private static final int CONTACT_LEAD_DAYS = 2;
 
     private static final DateTimeFormatter DAY_FORMAT =
@@ -131,12 +99,6 @@ class PublicRegistrationMailer {
         mail.send(recipient, subject, template, model);
     }
 
-    /**
-     * Legacy's recipient branch: the registrant's own address when the invoice
-     * address is theirs, otherwise the invoice block's notification address.
-     * Null means the submission named neither — the registrant reached the
-     * contact-channel invariant on a phone number alone.
-     */
     private static @Nullable String candidateRecipient(PublicRegistrantDetails registrant) {
         if (registrant.invoiceAddressIsSame()) {
             return registrant.privateEmail();
@@ -171,9 +133,6 @@ class PublicRegistrationMailer {
                 invoice == null ? registrant.addressLine1() : invoice.addressLine1());
         model.put("invoiceZip", invoice == null ? registrant.zip() : invoice.zip());
         model.put("invoiceCity", invoice == null ? registrant.city() : invoice.city());
-        // Legacy ships a role label ("Rechnungs-Empfänger" / "Schnupperflug-
-        // Kandidat"); the name says the same thing and spares the organiser the
-        // cross-reference.
         model.put("couponRecipientName",
                 registrant.sendCouponToInvoiceAddress() ? invoiceName : candidateName);
         return model;
@@ -194,7 +153,6 @@ class PublicRegistrationMailer {
                 .orElse("");
     }
 
-    /** {@code Club} stores the organiser opt-in comma-joined (Club.java:295-299). */
     private static List<String> recipients(@Nullable String commaJoined) {
         if (commaJoined == null) {
             return List.of();

@@ -13,25 +13,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Persons REST surface. Records (immutable; explicit field
- * set); mass-assignment is structurally impossible because the controller
- * binds to the record, not to the {@link ch.alpenflight.persons.domain.Person}
- * aggregate.
- *
- * <p>The {@code PersonResponse} shape carries the caller-tenant's
- * memberships only (Hibernate {@code @TenantId} on
- * {@link ch.alpenflight.persons.domain.PersonClub} has already scoped the
- * collection) plus an opaque {@code inOtherClubsCount} integer — no other-
- * club names. SYSTEM_ADMINISTRATOR's cross-cutting view (if and when
- * shipped under {@code /api/v1/admin/persons}) would replace the
- * {@code memberships} list with an exhaustive one.
- *
- * <p>{@code PersonClubRequest} sub-resource fields ({@code memberNumber},
- * {@code memberStateId}, role flags, notification prefs) are also reachable
- * via the inline {@code initialClubMembership} block on
- * {@link PersonCreateRequest} for the one-tx create flow.
- */
 public final class PersonDtos {
 
     private PersonDtos() {}
@@ -224,15 +205,6 @@ public final class PersonDtos {
             boolean hasGliderSelfStartPermission,
             boolean hasGliderWinchStartPermission) {}
 
-    /**
-     * Exact-match-only lookup payload. Prefix search is structurally banned —
-     * a bare {@code q=} parameter doesn't exist on the schema — because
-     * substring lookups against a cross-tenant Person directory turn any
-     * CLUB_ADMINISTRATOR into a global PII enumerator. The
-     * {@code isExactMatchShape} cross-field validator rejects partial
-     * triples: caller must provide {@code email} OR the full identity
-     * triple (firstname + lastname + birthday).
-     */
     @Schema(description = "Exact-match-only lookup payload. Either provide email, OR provide the full identity triple (firstname + lastname + birthday). Partial triples are rejected.")
     public record PersonLookupRequest(
             @Nullable @Email @Size(max = 256) String email,

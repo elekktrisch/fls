@@ -2,22 +2,6 @@ package ch.alpenflight.flights.domain;
 
 import java.util.UUID;
 
-/**
- * Flight process-state values. The aggregate persists a UUID FK to the
- * {@code t_flight_process_state} reference table; this enum carries the
- * canonical UUID + legacy SMALLINT code per row so the matrix, audit
- * payload, and API can all key off the enum constant.
- *
- * <p>The UUIDs are identity-bearing per ADR 0019 — generated once by
- * {@code GenerateCanonicalUuids} and pinned in V3 + the canonical-uuids
- * JSON ground truth. {@link FlightProcessStateSeedVerifier} asserts at
- * startup that the seeded rows match these constants, so a future
- * migration that drifts the UUIDs fails fast.
- *
- * <p>The {@code legacyCode} smallints mirror the legacy
- * {@code FLS.Data.WebApi.Flight.FlightProcessState} enum (0/28/30/40/45/
- * 50/60/99) and are stable input to e2e parity tests.
- */
 public enum FlightProcessState {
 
     NOT_PROCESSED("019e2e15-2c00-7a98-8000-000000003a98", 0),
@@ -45,7 +29,6 @@ public enum FlightProcessState {
         return legacyCode;
     }
 
-    /** Resolve an enum from a seeded {@code flight_process_state.id}. */
     public static FlightProcessState fromId(UUID id) {
         for (FlightProcessState s : values()) {
             if (s.id.equals(id)) {

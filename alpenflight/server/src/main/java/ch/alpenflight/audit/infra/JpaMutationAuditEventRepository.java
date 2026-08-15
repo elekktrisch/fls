@@ -17,24 +17,9 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Component;
 
-/**
- * Spring Data backing repository — provides {@code save} and {@code findById}
- * derived methods. Adapter to the {@link MutationAuditEventRepository}
- * domain port lives in {@link MutationAuditEventRepositoryAdapter}.
- */
 interface JpaMutationAuditEventRepository extends JpaRepository<MutationAuditEvent, UUID> {
 }
 
-/**
- * Adapter that turns the Spring Data repo + an {@link EntityManager} into
- * the domain-port shape. Bean discovery uses {@link Component} (vs.
- * {@code @Repository}) so the bean's type is unambiguously the port — the
- * application layer wires on {@code MutationAuditEventRepository}.
- *
- * <p>Page query uses Criteria API for dynamic-filter composition. The
- * Hibernate {@code @TenantId} discriminator is added automatically — no
- * {@code where tenant_club_id = ?} stanza here.
- */
 @Component
 class MutationAuditEventRepositoryAdapter implements MutationAuditEventRepository {
 

@@ -14,15 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code GET /api/v1/me} — authenticated-principal projection. Foundational
- * read surface consumed by the SPA (S-165 home page) and future
- * profile / settings / view-as / per-person-stats stories.
- *
- * <p>Authz: any authenticated principal. No tenant gate, no role gate —
- * the response is principal-scoped by construction (a caller can only
- * read their own {@code /me}).
- */
 @RestController
 @RequestMapping(path = "/api/v1/me", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "me", description = "Authenticated-principal view")
@@ -41,10 +32,6 @@ class MeController {
             + "unmapped federated users.")
     ResponseEntity<MeResponse> get(@AuthenticationPrincipal Jwt jwt) {
         MeView view = meService.resolve(jwt);
-        // Per-principal PII (email, firstName, lastName) on a bearer-bound
-        // endpoint — explicit no-store so intermediary caches don't persist
-        // it. Browser disk cache is already private to the user, but the
-        // header makes the contract loud + survives a future CDN.
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MeResponse.from(view));

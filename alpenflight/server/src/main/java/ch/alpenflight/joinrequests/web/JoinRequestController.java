@@ -25,25 +25,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the pilot self-serve join-request slice (S-178, T-05).
- * Three role bands:
- *
- * <ul>
- *   <li><b>Submit / withdraw / me-read</b> — any authenticated principal. The
- *       caller is a signed-up pilot with no {@code t_user} yet, so there is no
- *       tenant gate; the service resolves the tenant from the join code (submit)
- *       or the pilot's own request (withdraw / me) and enforces sub-ownership.</li>
- *   <li><b>Pending list</b> — CLUB_ADMINISTRATOR, tenant-scoped to the caller's
- *       own club via Hibernate's {@code @TenantId} discriminator.</li>
- * </ul>
- *
- * <p>Approve / deny are the CLUB_ADMINISTRATOR cross-system decision endpoints.
- * Submit is abuse-guarded: the brute-force rate limit + the 24h deny cooldown
- * surface as 429 + {@code Retry-After}. The transactional emails + the
- * {@code join-request.status-changed} SSE ride each transition as AFTER_COMMIT
- * side-effects of the application layer, not the controller.
- */
 @RestController
 @Tag(name = "join-requests", description = "Pilot self-serve club-join requests.")
 class JoinRequestController {
@@ -103,8 +84,6 @@ class JoinRequestController {
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     List<PendingJoinRequestResponse> listPending(
             @RequestParam(name = "status", defaultValue = "pending") String status) {
-        // Today only the pending list is served; a non-pending filter is a
-        // 400 rather than a silent empty list, so a typo surfaces.
         if (!"pending".equalsIgnoreCase(status)) {
             throw new UnsupportedJoinRequestStatusFilterException(status);
         }

@@ -13,17 +13,6 @@ import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Users REST surface. Records (immutable; explicit field set);
- * mass-assignment is structurally impossible because the controller binds
- * to the record, not to the {@link ch.alpenflight.users.domain.User}
- * aggregate.
- *
- * <p>The {@code roles} field on responses is read live from Keycloak (the
- * service issues a {@code GET role-mappings/realm} per request and filters
- * to {@link Role}'s catalogue). Writes go through the KC admin API as
- * grant/revoke deltas.
- */
 public final class UserDtos {
 
     private UserDtos() {}

@@ -43,38 +43,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Planning-day notification job (J-6 S-086) — mirrors legacy
- * {@code PlanningDayNotificationJob.cs}. Two exact-date passes per club:
- *
- * <ul>
- *   <li><strong>imminent = today + 1</strong> — for a club that opts in
- *       ({@link Club#wantsPlanningDayNotifications()} — a non-blank notification
- *       address), each planning day dated exactly tomorrow sends one mail to the
- *       club's notification address: {@code planningday-ok} when the day takes
- *       place ({@link Club#shouldSendPlanningDayOk(boolean)} — has ≥1 aircraft
- *       reservation OR the club allows reservation-less days), else
- *       {@code planningday-cancel} ({@code PlanningDayNotificationJob.cs:64-94}).</li>
- *   <li><strong>week-ahead = today + 7</strong> — for each planning day dated
- *       exactly +7, every assigned person (all three roles) is mailed a
- *       {@code planningday-assignment-notification} at their communication
- *       address; a blank address is skipped. The legacy per-person opt-out flag
- *       is deliberately ignored (parity — {@code :124-163}).</li>
- * </ul>
- *
- * <p><strong>Tenant scope.</strong> The job is per-club tenant-scoped, NOT
- * {@code @UnscopedScheduledJob}: it carries {@link LifecycleStateFilter} so the
- * {@code LifecycleStateFilterAspect} runs {@link #runForCurrentClub()} once per
- * Club under each {@code ACTIVE} Deployment, with the Club's tenant context
- * already established (so the tenant-scoped reads — planning days, the club's own
- * Location replica — resolve to that club). Only {@code ACTIVE} clubs get mail;
- * {@code SANDBOX} / {@code DELETING} are excluded.
- *
- * <p><strong>ADR-0022 §2.</strong> Template + recipient <em>selection</em> lives
- * here / on the {@code Club} aggregate ({@link Club#shouldSendPlanningDayOk}),
- * never in SQL. The repo only fetches by exact date; this service decides
- * ok-vs-cancel and which people to mail.
- */
 @Component
 @MeasuredJob(name = PlanningDayNotificationJob.JOB_NAME,
         cron = "0 0 6 * * *",
@@ -83,16 +51,12 @@ public class PlanningDayNotificationJob implements BusinessJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(PlanningDayNotificationJob.class);
 
-    /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "planning-day-notification";
 
-    /** Audit entity-type for the run summary (not a persisted entity → PII-safe). */
     static final String AUDIT_ENTITY_TYPE = "PlanningNotificationRun";
 
-    /** The imminent pass fires for days dated exactly {@value} day(s) out. */
     static final int IMMINENT_OFFSET_DAYS = 1;
 
-    /** The week-ahead pass fires for days dated exactly {@value} day(s) out. */
     static final int WEEK_AHEAD_OFFSET_DAYS = 7;
 
     static final String TEMPLATE_OK = "planningday-ok";
@@ -103,11 +67,6 @@ public class PlanningDayNotificationJob implements BusinessJob {
     static final String SUBJECT_CANCEL = "Flugbetriebstag abgesagt";
     static final String SUBJECT_ASSIGNMENT = "Erinnerung: Einteilung Flugbetriebstag";
 
-    /**
-     * Deep link the assignment reminder carries. No per-deployment public-URL
-     * config exists yet (ADR-0013 follow-up); a stable relative landing path is
-     * parity-adequate and avoids hardcoding a host.
-     */
     private static final String APP_LINK = "/planning";
 
     private final PlanningDayRepository planningDays;
@@ -149,31 +108,12 @@ public class PlanningDayNotificationJob implements BusinessJob {
         this.clock = clock;
     }
 
-    /**
-     * Scheduled tick (daily, early morning). The
-     * {@code LifecycleStateFilterAspect} wraps this and re-enters
-     * {@link #runForCurrentClub()} once per {@code ACTIVE} Club under that Club's
-     * tenant scope — so the method body itself runs per-club. The cron is a
-     * sensible default; prod cadence is deploy-config (J-6 oracle).
-     */
     @Scheduled(cron = "0 0 6 * * *")
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
         runForCurrentClub();
     }
 
-    /**
-     * Cross-tenant "Run now" entry for the {@code /system/jobs} console. Iterates
-     * every {@code ACTIVE} Deployment's Clubs under each Club's tenant scope (the
-     * same filter the scheduled path applies via {@code @LifecycleStateFilter})
-     * and runs the per-club passes, aggregating the mail counts. The
-     * {@code MeasuredJobAspect} wraps this call — the returned {@link RunSummary}
-     * becomes the console's last-run summary.
-     *
-     * <p>Not {@code @Scheduled}: this is the manual affordance, driven by a
-     * sysadmin with no tenant, so it opens each Club's window explicitly rather
-     * than relying on the scheduled-only lifecycle-filter aspect.
-     */
     @Override
     public RunSummary runOnce() {
         int imminent = 0;
@@ -192,15 +132,6 @@ public class PlanningDayNotificationJob implements BusinessJob {
         return new RunSummary(ClubTenantIdentifierResolver.NO_TENANT, imminent, weekAhead);
     }
 
-    /**
-     * Runs both passes for the club in the <em>current</em> tenant context. The
-     * scheduled path enters this once per club (via the aspect); the guarded
-     * run-now affordance ({@code POST .../notifications/run}, dev/test) calls it
-     * directly for the caller's own club. Idempotent against the data — it only
-     * reads + mails, never mutates planning rows.
-     *
-     * @return a non-PII summary of what was sent (counts + the club id)
-     */
     @Transactional
     public RunSummary runForCurrentClub() {
         UUID clubId = tenantResolver.resolveCurrentTenantIdentifier();
@@ -223,7 +154,6 @@ public class PlanningDayNotificationJob implements BusinessJob {
         return summary;
     }
 
-    // ----- imminent (day+1): one club-addressed ok/cancel mail per day -----
 
     private int runImminentPass(Club club, LocalDate dueDate) {
         if (!club.wantsPlanningDayNotifications()) {
@@ -256,8 +186,6 @@ public class PlanningDayNotificationJob implements BusinessJob {
             String name = personName(a.getAssignedPersonId());
             crew.add(new CrewLine(role, name));
         }
-        // The cancel mail lists no reservations (parity — only the takes-place
-        // mail enumerates them); a count > 0 is summarised as one display line.
         List<String> reservations = List.of();
         if (takesPlace) {
             long count = reservationCount(day);
@@ -269,7 +197,6 @@ public class PlanningDayNotificationJob implements BusinessJob {
                 requireDate(day), locationName(day.getLocationId()), day.getInfo(), crew, reservations);
     }
 
-    // ----- week-ahead (day+7): one mail per assigned person, all roles -----
 
     private int runWeekAheadPass(LocalDate dueDate) {
         Map<UUID, String> typeRoleLabels = roleLabelsByTypeId();
@@ -283,7 +210,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
                 }
                 String email = person.emailForCommunication();
                 if (email == null || email.isBlank()) {
-                    continue; // skip blank emails (legacy :136-137)
+                    continue;
                 }
                 String role = typeRoleLabels.getOrDefault(a.getAssignmentTypeId(), "");
                 PlanningDayAssignmentModel model = new PlanningDayAssignmentModel(
@@ -296,9 +223,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
         return sent;
     }
 
-    // ----- shared lookups -----
 
-    /** This club's assignment-type-id → display role label (the German type name). */
     private Map<UUID, String> roleLabelsByTypeId() {
         Map<UUID, String> map = new HashMap<>();
         for (PlanningDayAssignmentType type : assignmentTypes.findActiveTypes()) {
@@ -342,18 +267,12 @@ public class PlanningDayNotificationJob implements BusinessJob {
                 .orElseThrow(() -> new IllegalStateException("PlanningDay missing locationId"));
     }
 
-    /**
-     * Non-PII summary of one club's notification run — the audit {@code
-     * after_state} (and the run-now endpoint's response). No recipient addresses
-     * or names, just counts + the club id.
-     */
     public record RunSummary(UUID clubId, int imminentMailCount, int weekAheadMailCount) {
 
         static RunSummary empty(UUID clubId) {
             return new RunSummary(clubId, 0, 0);
         }
 
-        /** Folds another club's counts into this one; keeps the receiver's clubId. */
         RunSummary plus(RunSummary other) {
             return new RunSummary(clubId,
                     imminentMailCount + other.imminentMailCount,

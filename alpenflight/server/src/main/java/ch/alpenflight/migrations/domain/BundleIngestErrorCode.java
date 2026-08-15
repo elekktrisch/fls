@@ -1,14 +1,5 @@
 package ch.alpenflight.migrations.domain;
 
-/**
- * Bounded enum of every 4xx-mapped failure the S-141 ingest pipeline can
- * surface. The exception handler maps each value to a fixed HTTP status —
- * structured 4xx never 500. New codes added here MUST also be added to
- * the handler's status map and to the SPA's typed-error switch.
- *
- * <p>5xx surfaces are reserved for {@link #INGEST_INTERNAL_ERROR} —
- * unexpected programming faults inside the pipeline, not user-driven.
- */
 public enum BundleIngestErrorCode {
 
     BUNDLE_TOO_LARGE,

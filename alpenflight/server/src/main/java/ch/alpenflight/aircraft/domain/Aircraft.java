@@ -26,54 +26,6 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
 
-/**
- * Aircraft aggregate root. Per ADR 0018 the AR owns its airworthiness-state
- * history and operating-counter history as aggregate-internal entities.
- * Per ADR 0022 directive 2, business rules live on the aggregate, not the
- * schema:
- *
- * <ul>
- *   <li>{@link Immatriculation} format + length (VO at boundary; legacy was lax).</li>
- *   <li>Counter monotonicity (non-decreasing totals) — {@link #recordCounter}.</li>
- *   <li>State-history "exactly one open" — {@link #changeState} closes the
- *       previous open row; the V3 partial unique
- *       {@code ux_aas_current_state_per_aircraft} is the structural safety net.</li>
- * </ul>
- *
- * <p>Cross-tenant per S-058 (reverts S-159's {@code @TenantId} discriminator
- * but keeps the {@code managing_club_id} column): the day-1 charter case —
- * a glider club flying a tow plane owned by another club — requires that
- * any club may reference any active aircraft on a Flight. The aircraft
- * picker is therefore unscoped (any authenticated user reads).
- *
- * <p>Two ownership-axis columns:
- *
- * <ul>
- *   <li>{@code managing_club_id} (NOT NULL): operational manager — the
- *       club that may edit masterdata / state / counters via the
- *       {@code AircraftAccess} SpEL gate. Required even for external-owned
- *       aircraft (the "Club A operates an aircraft owned by an
- *       organisation not in the system" case — Club A is the manager,
- *       owner_club_id is NULL).</li>
- *   <li>{@code owner_club_id} (NULL OK): physical / regulatory owner
- *       metadata. May differ from manager. NULL when owned externally
- *       (not in the Clubs catalog) or by a private person. Does NOT
- *       gate edits.</li>
- *   <li>{@code aircraft_owner_person_id} (NULL OK): private-person owner
- *       metadata; orthogonal to {@code owner_club_id}. Today purely
- *       informational — person-edit predicate deferred to a follow-up
- *       when S-052 wires User→Person.</li>
- * </ul>
- *
- * <p>{@code AircraftAccess} gates writes:
- * CLUB_ADMINISTRATOR of {@code managing_club_id} for masterdata;
- * CLUB_ADMINISTRATOR or FLIGHT_OPERATOR of {@code managing_club_id} for
- * state + counter; SYSTEM_ADMINISTRATOR as the universal fallback.
- *
- * <p>Aggregate boundary: {@link AircraftStateHistoryEntry} +
- * {@link AircraftOperatingCounter} are managed via Aircraft mutation
- * methods only. No top-level CRUD endpoint for either.
- */
 @Entity
 @Table(name = "t_aircraft")
 public class Aircraft extends SoftDeletableAggregate {
@@ -182,22 +134,8 @@ public class Aircraft extends SoftDeletableAggregate {
     private List<AircraftOperatingCounter> operatingCounters = new ArrayList<>();
 
     protected Aircraft() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new Aircraft. Aircraft is cross-tenant (S-058 reversion
-     * of S-159) — reads are open, writes are gated by the
-     * {@code managing_club_id} via the {@code AircraftAccess} SpEL bean.
-     *
-     * @param managingClubId the operational manager — the club that may edit
-     *     this aircraft's masterdata, state, and counter records. Required.
-     *     Service layer defaults to the caller's club.
-     * @param ownerClubId    the physical owner club. NULL when the owner is
-     *     an external organisation not in the Clubs catalog, or when the
-     *     aircraft is privately owned (see {@code aircraftOwnerPersonId}).
-     *     {@code ownerClubId} is metadata only — it does NOT gate edits.
-     */
     public static Aircraft register(UUID managingClubId,
                                     @Nullable UUID ownerClubId,
                                     UUID aircraftTypeId,
@@ -307,15 +245,6 @@ public class Aircraft extends SoftDeletableAggregate {
         this.daecIndex = newDaecIndex;
     }
 
-    /**
-     * Closes the currently-open state period (if any) by setting its
-     * {@code validTo} to {@code closingValidTo}. Idempotent when no period
-     * is open. Split out from {@link #openStatePeriod} so the service can
-     * flush the UPDATE before the next INSERT — the partial-unique
-     * {@code ux_aas_current_state_per_aircraft} would otherwise reject the
-     * new row, since Hibernate's default flush order is insert-before-update
-     * (PostgreSQL doesn't support DEFERRABLE on partial unique indexes).
-     */
     public void closeCurrentStatePeriodAt(Instant closingValidTo) {
         if (closingValidTo == null) {
             throw new IllegalArgumentException("closingValidTo must not be null");
@@ -334,10 +263,6 @@ public class Aircraft extends SoftDeletableAggregate {
         current.closeAt(closingValidTo);
     }
 
-    /**
-     * Opens a new airworthiness state period. Requires that no other period
-     * is currently open — call {@link #closeCurrentStatePeriodAt} first.
-     */
     public AircraftStateHistoryEntry openStatePeriod(UUID newAircraftStateId,
                                                      Instant validFrom,
                                                      @Nullable UUID noticedByPersonId,
@@ -356,13 +281,6 @@ public class Aircraft extends SoftDeletableAggregate {
         return entry;
     }
 
-    /**
-     * Convenience facade for unit tests and in-memory callers: close the
-     * existing period (if any) and open a new one in one call. Persistence
-     * callers should use {@link #closeCurrentStatePeriodAt} +
-     * {@link #openStatePeriod} with a flush between to satisfy the partial
-     * unique invariant at the schema level.
-     */
     public AircraftStateHistoryEntry changeState(UUID newAircraftStateId,
                                                  Instant validFrom,
                                                  @Nullable UUID noticedByPersonId,
@@ -371,10 +289,6 @@ public class Aircraft extends SoftDeletableAggregate {
         return openStatePeriod(newAircraftStateId, validFrom, noticedByPersonId, remarks);
     }
 
-    /**
-     * Records a new operating-counter snapshot. Append-only; totals must
-     * be monotonic non-decreasing relative to the previous latest snapshot.
-     */
     public AircraftOperatingCounter recordCounter(Instant atDateTime,
                                                   @Nullable Integer totalTowedGliderStarts,
                                                   @Nullable Integer totalWinchLaunchStarts,
@@ -418,14 +332,6 @@ public class Aircraft extends SoftDeletableAggregate {
         this.aircraftOwnerPersonId = newOwnerPersonId;
     }
 
-    /**
-     * Spring Data publishes an {@link AircraftSaved} event on every
-     * {@code AircraftRepository.save} (the Flight {@code @DomainEvents}
-     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
-     * {@link #id}. Unconditional: the flight-report read-model keeps its
-     * denormalized immatriculation strings fresh by observing EVERY persisted
-     * state change (ADR 0027 §2).
-     */
     @DomainEvents
     Collection<Object> domainEvents() {
         return List.of(new AircraftSaved(Objects.requireNonNull(
@@ -545,18 +451,6 @@ public class Aircraft extends SoftDeletableAggregate {
         return aircraftTypeId;
     }
 
-    /**
-     * Applies one OGN device-database entry to this aircraft
-     * ({@code AircraftDatabaseSyncJob.cs:99-101}): FLARM device id, model, and
-     * competition sign.
-     *
-     * <p>Only non-blank incoming values are written. Legacy assigns the device
-     * fields unconditionally, so an entry that carries no competition sign wipes
-     * one an operator had maintained by hand; a registry that does not know a
-     * value is not the same as a value being cleared.
-     *
-     * @return true when the sync actually changed something
-     */
     public boolean syncFromDeviceDatabase(@Nullable String deviceId,
                                           @Nullable String model,
                                           @Nullable String competitionSignValue) {

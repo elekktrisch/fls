@@ -2,15 +2,6 @@ package ch.alpenflight.platform.mail;
 
 import java.util.List;
 
-/**
- * A fully-rendered outbound email, ready to hand to the {@link MailSender}
- * port. Immutable; the body is already-rendered HTML (the Thymeleaf step
- * happens in {@link TemplatedMailService}, before this crosses the port).
- *
- * @param to recipient addresses; at least one
- * @param subject the message subject
- * @param htmlBody the rendered HTML body
- */
 public record MailMessage(List<String> to, String subject, String htmlBody) {
 
     public MailMessage {
@@ -29,7 +20,6 @@ public record MailMessage(List<String> to, String subject, String htmlBody) {
         to = List.copyOf(to);
     }
 
-    /** Convenience factory for the common single-recipient case. */
     public static MailMessage to(String recipient, String subject, String htmlBody) {
         return new MailMessage(List.of(recipient), subject, htmlBody);
     }

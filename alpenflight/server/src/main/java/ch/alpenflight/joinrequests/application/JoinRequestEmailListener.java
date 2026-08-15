@@ -11,25 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-/**
- * Sends the join-request transactional emails on each committed transition
- * (S-178): {@code admin-new-request} to the club admins on a new submit,
- * {@code pilot-approved} / {@code pilot-denied} / {@code pilot-withdrawn} to the
- * pilot on the matching decision.
- *
- * <p><strong>AFTER_COMMIT = transactional-safe.</strong> A rolled-back
- * transition sends nothing — the mail fires only once the row is durable
- * (mirrors the SSE listener + the audit AFTER_COMMIT pattern). The pilot fields
- * travel on the event; the club admins are resolved here, inside a re-established
- * {@link Tenants#runAs} window for the club, so the live submit transaction made
- * no directory round-trip.
- *
- * <p><strong>DB-override-then-file resolution.</strong> Sending through
- * {@link TemplatedMailService} routes the template name through J-11's resolver
- * chain, so a club's {@code t_email_template} override wins over the shipped file
- * default with no redeploy. The override lookup is {@code @TenantId}-scoped, so
- * the render runs inside the same {@code Tenants.runAs} window.
- */
 @Component
 class JoinRequestEmailListener {
 
@@ -55,8 +36,6 @@ class JoinRequestEmailListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     void onStatusChanged(JoinRequestStatusChangedEvent event) {
-        // Best-effort, post-commit: a mail / directory outage must not surface as
-        // an error on the already-committed transition.
         try {
             Tenants.runAs(event.clubId(), () -> {
                 switch (event.status()) {

@@ -13,17 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Locations domain exceptions to RFC 7807 problem responses. Holds
- * the only Spring-web coupling of the Locations error vocabulary — the
- * exception types themselves stay in {@code locations.domain} free of
- * {@code @ResponseStatus} per ADR 0023.
- *
- * <p>{@code assignableTypes} pins the advice to {@link LocationsController}
- * so a future module that throws the same exception type by mistake does
- * not inherit Locations' HTTP status mapping. Module-local error vocabulary,
- * module-local advice.
- */
 @RestControllerAdvice(assignableTypes = {LocationsController.class})
 class LocationsExceptionHandler {
 
@@ -73,13 +62,6 @@ class LocationsExceptionHandler {
         return problem(pd);
     }
 
-    /**
-     * Translate a foreign-key violation on {@code fk_location_club_id} (the
-     * tenant FK) to a 404 — surfaces the rare case where the {@code @TenantId}
-     * resolver returns a {@code club_id} that does not have a {@code t_club}
-     * row (e.g. a stale JWT after a club was deleted). Other FK violations
-     * propagate as 500 (genuine server bugs).
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
         String message = String.valueOf(e.getMostSpecificCause().getMessage());

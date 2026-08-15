@@ -15,22 +15,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.Environment;
 
-/**
- * Standalone driver used by the Gradle tasks {@code generateOpenApiSnapshot} +
- * {@code compareOpenApiSnapshot}. Boots the application on a random port with
- * the {@code dev} profile (springdoc enabled), fetches {@code /v3/api-docs},
- * normalizes (sorted keys via Jackson, LF newlines, trailing newline), then:
- *
- * <ul>
- *   <li>{@code --write <path>} writes the spec to {@code <path>}.</li>
- *   <li>{@code --compare <path>} compares against {@code <path>}; exit 0 on
- *       match, exit 1 with a one-line diagnostic on mismatch.</li>
- * </ul>
- *
- * <p>Volatile field {@code $.info.version} is stripped before serialization /
- * comparison — keeping a literal {@code "0.0.1-SNAPSHOT"} in committed JSON
- * would churn on every release-version bump.
- */
 public final class OpenApiSnapshotMain {
 
     private OpenApiSnapshotMain() {}
@@ -43,9 +27,6 @@ public final class OpenApiSnapshotMain {
         System.setProperty("server.port", "0");
         System.setProperty("springdoc.api-docs.enabled", "true");
         System.setProperty("springdoc.swagger-ui.enabled", "false");
-        // Loopback defaults pinned in application-dev.yml — the snapshot run
-        // does not need a live Postgres; Flyway connects on startup though, so
-        // skip it for snapshot generation.
         System.setProperty("spring.flyway.enabled", "false");
         System.setProperty("spring.jpa.hibernate.ddl-auto", "none");
 

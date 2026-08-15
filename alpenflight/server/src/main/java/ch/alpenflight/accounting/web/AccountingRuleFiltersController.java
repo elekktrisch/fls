@@ -27,34 +27,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the {@code AccountingRuleFilter} aggregate (E-09, the billing
- * rules engine's config surface — S-072). Per ADR 0005 the path is plural
- * kebab-case {@code /api/v1/accounting-rule-filters}.
- *
- * <p>AccountingRuleFilter is <strong>tenant-scoped</strong> via Hibernate's
- * {@code @TenantId} discriminator on {@code AccountingRuleFilter.operatingClubId}
- * (ADR 0008). Reads and writes are filtered structurally to the caller's
- * operating tenant; a CLUB_ADMINISTRATOR of A asking for B's filter receives a
- * {@code 404 Not Found} — the row is invisible under A's tenant scope, not a
- * {@code 403} that would confirm it exists. This closes the legacy cross-tenant
- * Update/Delete tenant-leak bug (oracle); the IDOR gate is structural.
- *
- * <p>Role gate: CLUB_ADMINISTRATOR for every endpoint (S-072 — the rules config
- * is a club-admin masterdata surface; SYSTEM_ADMINISTRATOR has no tenant context
- * here). Unlike FlightTypes (whose list is open so pickers can read it), this
- * is a pure config screen, so even the reads are admin-gated.
- *
- * <p>Audit: every mutating method reaches {@code AuditTrail.record} transitively
- * through {@link AccountingRuleFiltersService} (CREATE / UPDATE / DELETE), so
- * {@code ControllerAuditCoverageTest} traces the call chain without an explicit
- * {@code @AuditedBy} escape (S-027 / S-072 — every rule change affects every
- * subsequent invoice).
- *
- * <p>The {@code @Operation(operationId=...)} on each endpoint pins a stable
- * generated-client method name (orval / S-004 codegen) instead of a positional
- * {@code getN} — the J-3 orval rider; T-08 finishes the project-wide pass.
- */
 @RestController
 @RequestMapping(path = "/api/v1/accounting-rule-filters", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "AccountingRuleFilters",

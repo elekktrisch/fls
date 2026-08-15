@@ -12,16 +12,6 @@ import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListRow;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.TypeListItem;
 import java.util.Objects;
 
-/**
- * Maps the {@link AircraftReservation} aggregate / projection rows to the REST
- * DTOs (J-5 T-05). The application-layer mapper — NOT the migration-bundle
- * {@code AircraftReservationMapper} (which keys the legacy MSSQL export).
- *
- * <p>The detail mapper reads the aggregate's stored {@code reservationStart} /
- * {@code reservationEnd} (for all-day these are the normalised full-day span
- * {@code [date 00:00, date+1 00:00)} the factory wrote — see T-03), so the wire
- * shape is self-consistent with the {@code isAllDay} flag.
- */
 final class AircraftReservationMapper {
 
     private AircraftReservationMapper() {}
@@ -51,12 +41,6 @@ final class AircraftReservationMapper {
     static AircraftReservationDetail toDetail(ListRow row) {
         return new AircraftReservationDetail(
                 row.id(),
-                // ListRow carries no operatingClubId (it's the tenant
-                // discriminator, implicit on every tenant-scoped read). The
-                // detail GET re-maps from the aggregate where it is populated;
-                // this overload is reserved for list views (T-06/T-08) that
-                // never surface the tenant id on the wire — emit the nil UUID
-                // placeholder rather than a cross-module lookup.
                 new java.util.UUID(0L, 0L),
                 AircraftId.of(row.aircraftId()),
                 PersonId.of(row.pilotPersonId()),

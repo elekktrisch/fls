@@ -9,13 +9,6 @@ import ch.alpenflight.platform.id.FlightCostBalanceTypeId;
 import ch.alpenflight.platform.id.FlightTypeId;
 import java.util.Objects;
 
-/**
- * Aggregate → DTO mapping. Pure functions; no Spring, no JPA. The mapper
- * relies on the entities having been hydrated (id non-null after persist),
- * so the {@code Objects.requireNonNull(...).value()} pattern surfaces a
- * coding bug as an NPE on the boundary rather than letting a partial DTO
- * propagate.
- */
 final class FlightTypeMapper {
 
     private FlightTypeMapper() {}

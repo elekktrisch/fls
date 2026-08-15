@@ -5,7 +5,6 @@ import ch.alpenflight.referencedata.domain.AccountingRuleFilterTypeRepository;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-/** Spring Data adapter for {@link AccountingRuleFilterTypeRepository}. V4 + V42-seeded; 10 rows. */
 public interface JpaAccountingRuleFilterTypeRepository
         extends JpaRepository<AccountingRuleFilterType, UUID>, AccountingRuleFilterTypeRepository {
 }

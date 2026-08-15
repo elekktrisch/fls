@@ -9,21 +9,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-/**
- * SpEL bean wired into {@code @PreAuthorize("@userAccess.canEdit(...)")} on
- * the Users controller's mutating endpoints. Mirrors {@code AircraftAccess}.
- *
- * <p>{@link #canEdit canEdit} is the tenant-scope gate — the controller's
- * {@code hasRole('CLUB_ADMINISTRATOR')} on the same {@code @PreAuthorize}
- * expression is the role-check half. We split the two so a future
- * "sysadmin shadow read" surface wouldn't need to re-implement the tenant
- * predicate.
- *
- * <p>GET endpoints intentionally do NOT use a SpEL gate — the service-layer
- * 404-not-403 IDOR contract requires that cross-tenant reads return 404,
- * but a {@code @PreAuthorize} failure raises 403. Tenant scoping for GETs
- * lives in {@code UsersService.loadInCurrentTenantOrThrow}.
- */
 @Component("userAccess")
 public class UserAccess {
 

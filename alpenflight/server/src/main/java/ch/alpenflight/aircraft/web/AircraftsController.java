@@ -39,37 +39,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the Aircraft aggregate. Per ADR 0005 the path is plural
- * {@code /api/v1/aircraft} (mass noun — no plural form).
- *
- * <p>Aircraft is <strong>cross-tenant</strong> (S-058 reversion of S-159).
- * Reads (list / picker / detail / state-history) require only
- * {@code isAuthenticated()} — the catalog is shared so a Club B user can
- * pick Club A's tow plane on a Flight. Counter-history reads are
- * manager-only (a foreign club's counter view isn't operationally useful;
- * most of that aircraft's flights live in another system).
- *
- * <p>Mutations are gated by the {@code AircraftAccess} SpEL bean:
- *
- * <ul>
- *   <li>{@code @aircraftAccess.canRegister(#jwt)} on register —
- *       CLUB_ADMINISTRATOR only. SYSTEM_ADMINISTRATOR has no {@code clubId}
- *       claim, so the service can't infer {@code managing_club_id}; a
- *       sysadmin-driven register variant is tracked separately (S-162).</li>
- *   <li>{@code @aircraftAccess.canEdit(#id, #jwt)} on update /
- *       soft-delete / transfer-ownership — CLUB_ADMINISTRATOR of the
- *       aircraft's {@code managing_club_id}, or SYSTEM_ADMINISTRATOR.</li>
- *   <li>{@code @aircraftAccess.canOperate(#id, #jwt)} on state /
- *       counter — same predicate, FLIGHT_OPERATOR also admitted.</li>
- * </ul>
- *
- * <p>{@code owner_club_id} / {@code aircraft_owner_person_id} are NOT
- * settable via {@link AircraftCreateRequest} or {@link AircraftUpdateRequest}
- * (A04 mass-assignment defense). Newly-registered aircraft default
- * {@code owner_club_id} to the caller's club; later changes go through
- * {@code POST /transfer-ownership}.
- */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Aircraft", description = "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id).")

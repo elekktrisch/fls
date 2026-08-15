@@ -6,25 +6,12 @@ import java.time.LocalDate;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Wire response for {@code GET /api/v1/me/person} — the caller's own editable
- * contact / address shape (J-4 T-18), so the Personal tab (T-07) hydrates with
- * real values instead of rendering empty.
- *
- * <p>Carries the editable contact / address fields (the
- * {@link MePersonUpdateRequest} field set — GET returns it, PATCH replaces it)
- * PLUS the read-only name fields (firstName / lastName / midName / companyName)
- * so the tab can display them. Rename stays admin-only, so the name fields are
- * display-only on this surface and are NOT on the PATCH request.
- */
 @Schema(description = "Caller's own Person contact / address fields (read shape for the Personal tab).")
 record MePersonResponse(
-        // Read-only identity (admin-owned rename) — display only.
         String firstName,
         String lastName,
         @Nullable String midName,
         @Nullable String companyName,
-        // Editable contact / address fields (mirror MePersonUpdateRequest).
         @Nullable String addressLine1,
         @Nullable String addressLine2,
         @Nullable String zip,

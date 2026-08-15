@@ -4,11 +4,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Application-layer projection returned by {@link MeService#resolve}. The
- * {@code web} layer maps this to the {@code MeResponse} DTO (external
- * id-strings, JSON shape).
- */
 public record MeView(
         @Nullable UUID userId,
         @Nullable UUID personId,
@@ -18,20 +13,8 @@ public record MeView(
         @Nullable String lastName,
         @Nullable String email,
         @Nullable String username,
-        // Account self-edit (J-4): the User aggregate's mutable self-fields,
-        // sourced from the t_user row. Null when no user row matches the JWT
-        // sub (sysadmin / unmapped federated principal) — the Account form
-        // falls back to the username/email JWT claims and disables save.
         @Nullable String friendlyName,
         @Nullable String phoneNumber,
         @Nullable UUID languageId,
-        // The BCP-47 code of {@code languageId} (joined from t_language) — lets
-        // the SPA flip its active locale on a saved language change without a
-        // second round-trip.
         @Nullable String languageCode,
-        // The caller's club homebase Location id (t_club.homebase_id, V3
-        // fk_club_homebase_id). Null when the club has no homebase set. The web
-        // reporting feature (J-7) uses it to scope LOCATION canned reports to
-        // the club's homebase; the backend location-branch summary only
-        // computes when a LocationId is set.
         @Nullable UUID homebaseLocationId) {}

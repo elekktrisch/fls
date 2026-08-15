@@ -5,36 +5,12 @@ import java.util.List;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The run-test field-by-field comparison — a pure, testable port of the legacy
- * {@code DeliveryService.RunTestDeliveryCreation} diff
- * ({@code flsserver/.../Accounting/DeliveryService.cs:549-766}). Given the
- * harness's stored EXPECTED snapshot, the engine's just-computed CREATED
- * snapshot, the {@code mustNotCreateDeliveryForFlight} assertion and the nine
- * {@link IgnoreFlags}, it accumulates every mismatch into one message and yields
- * success = AND of every check.
- *
- * <p>Ported line-by-line (the bit-exact bar): every comparison, the
- * {@code Environment.NewLine}-joined message accumulation, the keep-comparing
- * semantics after an item-count or per-item mismatch, and the extra-created-items
- * pass are preserved. Two intentional, non-behavioural divergences from the C#:
- * the engine's {@code quantity} is a {@link BigDecimal}, so equality is
- * {@code compareTo == 0} (scale-insensitive EXACT match) rather than {@code ==};
- * and the two delivery-level free-text fields plus the recipient fields read off
- * the typed {@link DeliveryDetailsSnapshot} rather than a deserialised DTO.
- *
- * <p>NOTE (J-9 T-12 deferral): the engine currently leaves
- * {@code deliveryInformation}/{@code additionalInformation} NULL
- * (DeliveryDetailsStage is J-10), so a green harness sets the two matching ignore
- * flags. The diff does not special-case this — it simply honours the flags.
- */
 public final class DeliveryDiff {
 
     private static final String NL = "\n";
 
     private DeliveryDiff() {}
 
-    /** The outcome of a run-test diff: pass/fail + the accumulated mismatch message. */
     public record Result(boolean successful, String message) {}
 
     public static Result compare(DeliveryDetailsSnapshot expected,
@@ -52,7 +28,6 @@ public final class DeliveryDiff {
         if (!flags.deliveryInformation()
                 && !Objects.equals(created.deliveryInformation(), expected.deliveryInformation())) {
             successful = false;
-            // Legacy ASSIGNS (does not append) the first delivery-level message.
             message.setLength(0);
             message.append("DeliveryInformation doesn't match");
         }
@@ -89,8 +64,6 @@ public final class DeliveryDiff {
             }
         }
 
-        // RecipientAddress: the engine resolves no address fields (J-10), so a
-        // green harness ignores this; honour the flag with nothing to compare.
 
         List<DeliveryItemDetails> createdItems = created.items();
         List<DeliveryItemDetails> expectedItems = expected.items();

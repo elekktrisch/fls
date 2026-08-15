@@ -33,31 +33,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Daily flight-report mail (S-084) — mirrors legacy {@code DailyReportJob.cs}:
- * per club, group the day's flights by the people who flew them (pilot, co-pilot,
- * instructor) and mail each opted-in person their own flights, then stamp the
- * flights so they are not reported twice.
- *
- * <p><strong>Opt-in.</strong> A person is mailed only when their membership in
- * <em>this</em> club carries {@code receiveFlightReports}
- * ({@code DailyReportJob.cs:79-88}); a blank communication address is skipped.
- *
- * <p><strong>Selection.</strong> Legacy takes flights "created today or modified
- * since the last report was sent". Nothing maintains {@code t_flight.modified_on}
- * here, so the modified-since half is not expressible; the pass takes flights
- * never reported ({@code flight_report_sent_on is null}) whose flying day falls in
- * the last {@value #REPORT_WINDOW_DAYS} days. The window is what keeps a flight
- * nobody opted in for from being rescanned forever — legacy got that for free from
- * its created-today predicate.
- */
 @Component
 @MeasuredJob(name = DailyReportJob.JOB_NAME,
         cron = DailyReportJob.CRON,
         description = "Daily flight report mail to pilots and instructors")
 public class DailyReportJob implements BusinessJob {
 
-    /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "daily-report";
 
     static final String CRON = "0 0 21 * * *";
@@ -65,10 +46,8 @@ public class DailyReportJob implements BusinessJob {
     static final String TEMPLATE = "flight-report";
     static final String SUBJECT = "Flugrapport";
 
-    /** How many days back an unreported flight is still worth mailing. */
     static final int REPORT_WINDOW_DAYS = 2;
 
-    /** Crew roles that receive a report of the flight ({@code :108-175}). */
     private static final Set<UUID> REPORTED_ROLES = Set.of(
             FlightCrewTypeIds.PILOT_OR_STUDENT,
             FlightCrewTypeIds.CO_PILOT,
@@ -101,18 +80,12 @@ public class DailyReportJob implements BusinessJob {
         this.clock = clock;
     }
 
-    /**
-     * Scheduled tick. {@code LifecycleStateFilterAspect} re-enters
-     * {@link #runForCurrentClub()} once per {@code ACTIVE} Club with that Club's
-     * tenant context established, so the body itself runs per-club.
-     */
     @Scheduled(cron = CRON)
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
         runForCurrentClub();
     }
 
-    /** Cross-tenant "Run now" for the {@code /system/jobs} console. */
     @Override
     public RunSummary runOnce() {
         return new RunSummary(deploymentContext.foldOverClubs(JOB_NAME, 0,
@@ -120,7 +93,6 @@ public class DailyReportJob implements BusinessJob {
                 LifecycleState.ACTIVE));
     }
 
-    /** Mails every opted-in person their unreported flights, for the current club. */
     @Transactional
     public RunSummary runForCurrentClub() {
         UUID clubId = tenantResolver.resolveCurrentTenantIdentifier();
@@ -158,7 +130,6 @@ public class DailyReportJob implements BusinessJob {
         return reportable;
     }
 
-    /** person id → the flights they were pilot, co-pilot, or instructor on. */
     private Map<UUID, List<Flight>> groupByCrewPerson(List<Flight> reportable) {
         Map<UUID, List<Flight>> byPerson = new LinkedHashMap<>();
         for (Flight flight : reportable) {
@@ -179,7 +150,6 @@ public class DailyReportJob implements BusinessJob {
         return people;
     }
 
-    /** @return true when a mail was actually sent to this person. */
     private boolean mailTo(UUID personId, UUID clubId, List<Flight> flown) {
         Person person = persons.findActiveById(personId).orElse(null);
         if (person == null || !receivesFlightReports(person, clubId)) {
@@ -203,11 +173,6 @@ public class DailyReportJob implements BusinessJob {
         return false;
     }
 
-    /**
-     * One display line per flight, read from the decorated report read-model so
-     * the mail carries the aircraft and locations without this job reaching into
-     * the aircraft module.
-     */
     private List<FlightLine> linesFor(List<Flight> flown) {
         List<FlightLine> lines = new ArrayList<>();
         for (Flight flight : flown) {
@@ -236,7 +201,6 @@ public class DailyReportJob implements BusinessJob {
         return (person.getFirstname() + " " + person.getLastname()).strip();
     }
 
-    /** One flight as the mail renders it. */
     public record FlightLine(@Nullable LocalDate date,
                              String immatriculation,
                              String startLocation,
@@ -245,13 +209,11 @@ public class DailyReportJob implements BusinessJob {
                              @Nullable Instant ldgTime,
                              @Nullable Long durationSeconds) {
 
-        /** Whole minutes aloft, for the mail's duration column. */
         public long durationMinutes() {
             return durationSeconds == null ? 0 : durationSeconds / 60;
         }
     }
 
-    /** Thymeleaf binding for {@code flight-report.html}. */
     public record FlightReportModel(String personName, List<FlightLine> flights) {
 
         Map<String, Object> asModel() {
@@ -259,7 +221,6 @@ public class DailyReportJob implements BusinessJob {
         }
     }
 
-    /** Non-PII run summary: how many report mails the pass sent. */
     public record RunSummary(int mailCount) {
 
         @Override

@@ -41,30 +41,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@code User} aggregate.
- *
- * <p>Two write paths:
- *
- * <ol>
- *   <li><strong>Admin invite</strong> ({@link #invite}) — Keycloak-first,
- *       DB-second inside one Spring transaction. KC create on failure
- *       throws; DB insert on failure compensates with a KC {@code DELETE}
- *       (best-effort — failure logs at {@code USER_INVITE_KC_ORPHAN} at
- *       error level for operator reconciliation).</li>
- *   <li><strong>First-login JIT</strong> ({@link #materializeFromJwt}) —
- *       invoked from the {@code JitUserMaterializationFilter} via the
- *       {@code JitUserMaterializer} port. Runs in its own
- *       {@code REQUIRES_NEW} transaction so a materialise failure rolls
- *       back independently of the inbound request's tx. Idempotent via
- *       {@code findActiveByKeycloakSub} + {@code save}; the DB partial
- *       unique on {@code keycloak_sub} is the structural net for the
- *       dual-request race.</li>
- * </ol>
- *
- * <p>Role reads + writes go through {@link UserDirectoryPort}; the
- * application never imports the Keycloak adapter directly (ADR 0023).
- */
 @Service
 @Transactional
 public class UsersService {
@@ -72,9 +48,6 @@ public class UsersService {
     private static final Logger LOG = LoggerFactory.getLogger(UsersService.class);
     private static final String AUDIT_USER = "User";
     private static final String AUDIT_USER_ROLE = "UserRole";
-    // The redactor keys its TOP-LEVEL allow-list on the entityType string, so an
-    // invite audit must be recorded under the payload type — otherwise the
-    // InvitedAuditPayload allow-block is unreachable and `branch`/`user` redact.
     private static final String AUDIT_INVITED = "InvitedAuditPayload";
     private static final int LIST_MAX = 200;
     private static final String BRANCH_NEW_KC_USER = "new_kc_user";
@@ -109,13 +82,6 @@ public class UsersService {
         this.clock = clock;
     }
 
-    /**
-     * Count of active users across ALL clubs — feeds the sysadmin dashboard's
-     * {@code totalUsers} tile (J-3 T-10). Deliberately cross-tenant (User has
-     * no {@code @TenantId}); the {@code me} module composes it via this
-     * published API rather than reaching into {@code users} internals. A
-     * pure DB count — no Keycloak round-trip.
-     */
     @Transactional(readOnly = true)
     public long countAllActiveUsers() {
         return users.countAllActive();
@@ -125,11 +91,6 @@ public class UsersService {
     public List<UserListItem> listInCurrentTenant() {
         UUID tenant = currentTenantOrThrow();
         List<UserRepository.ListRow> rows = users.findActiveInClub(tenant);
-        // One KC list call scoped to clubId gives enabled / requiredActions
-        // for every row in a single round-trip. Role mappings still cost
-        // one KC call per row (KC has no batch role-mapping endpoint);
-        // accepted at per-club user counts ≤ a few hundred — revisit when
-        // the perf plan promotes this endpoint to Page<>.
         Map<UUID, UserDirectoryRow> kcBySub = indexBySub(kc.findUsersInClub(tenant, LIST_MAX));
         if (kcBySub.size() >= LIST_MAX) {
             LOG.warn("Keycloak users-in-club list hit cap={} for club={} — list view may understate enabled/invitePending",
@@ -166,17 +127,11 @@ public class UsersService {
             throw new UserConflictException("username " + req.username() + " already in use in club " + existing.getClubId());
         });
 
-        // Keycloak stores + matches email lowercased (email=&exact=true), so a
-        // mixed-case invite email must be normalised for the lookup or it misses
-        // the pre-existing KC user and wrongly falls through to create.
         Optional<DirectoryUser> existingKc = kc.findUserByEmail(
                 req.notificationEmail().toLowerCase(java.util.Locale.ROOT));
         if (existingKc.isPresent()) {
             DirectoryUser kcUser = existingKc.get();
             if (kcUser.clubId() != null) {
-                // One-sub-one-club: the invitee is already attached to a club.
-                // The other club's name is NOT exposed — a generic message
-                // (cross-tenant disclosure guard); the specifics are audit-side.
                 LOG.warn("USER_INVITE_ATTACHED_ELSEWHERE email-sub={} attachedClub={} invitingClub={}",
                         kcUser.sub(), kcUser.clubId(), tenant);
                 throw new UserConflictException(
@@ -194,17 +149,12 @@ public class UsersService {
                 req.username(),
                 req.notificationEmail(),
                 req.friendlyName(),
-                /*lastName=*/ "",
+                "",
                 tenant,
                 req.languageId().toString(),
                 List.of("UPDATE_PASSWORD"),
-                /*enabled=*/ true));
+                true));
 
-        // Re-entry path: if a soft-deleted tombstone is still holding
-        // this KC sub, detach it so the partial UNIQUE on keycloak_sub
-        // admits the new row. The tombstone keeps its audit history;
-        // linkage between old + new is via username + KC user id, not a
-        // FK chain.
         users.findAnyByKeycloakSub(kcSub).ifPresent(existing -> {
             if (!existing.isActive()) {
                 existing.detachKeycloakSub();
@@ -217,9 +167,6 @@ public class UsersService {
         try {
             saved = registerUser(tenant, kcSub, req);
         } catch (RuntimeException e) {
-            // Compensating delete — best-effort. The audit row is critical
-            // so the operator can reconcile if both KC and the compensation
-            // fail.
             try {
                 kc.deleteUser(kcSub);
             } catch (RuntimeException kcDeleteFailure) {
@@ -234,7 +181,6 @@ public class UsersService {
         try {
             kc.sendExecuteActions(kcSub, List.of("UPDATE_PASSWORD"), Duration.ofHours(12));
         } catch (UserDirectoryException ex) {
-            // Don't roll back; the operator can re-send via resendInvite.
             LOG.warn("send invite email failed sub={} — operator can resend-invite", kcSub, ex);
         }
         UserResponse response = toResponse(saved);
@@ -243,21 +189,6 @@ public class UsersService {
         return response;
     }
 
-    /**
-     * Bind an UNATTACHED pre-existing KC user to the inviting tenant (S-181):
-     * set the KC {@code clubId} attribute, create the {@code t_user} with the
-     * existing sub, grant the requested roles, and send a welcome-attached
-     * email (NO password reset — the user already has a credential).
-     *
-     * <p>Tenant-leak compensation (security). The {@code clubId} attribute is
-     * set in KC BEFORE the {@code t_user} exists; the realm's
-     * {@code clubId-mapper} projects it into the user's next JWT, which the
-     * tenant resolver + JIT materializer trust with no {@code t_user}
-     * corroboration. So any failure after the attribute write deterministically
-     * clears it (catch → compensate → rethrow) before the DB transaction rolls
-     * back — a stranded attribute would silently grant tenant access. Mirrors
-     * the join-request approve half-join defence.
-     */
     private UserResponse bindExistingKcUser(UUID tenant, UserInviteRequest req, DirectoryUser kcUser) {
         UUID kcSub = kcUser.sub();
         kc.writeClubIdAttribute(kcSub, tenant);
@@ -283,13 +214,6 @@ public class UsersService {
         return response;
     }
 
-    /**
-     * Register + flush the {@code t_user} row both invite branches share — a
-     * fresh KC create and a bind to an unattached pre-existing KC user persist
-     * the identical aggregate (the branch differs only in the surrounding KC
-     * orchestration). Flushed here so the partial-unique constraints surface
-     * inside each branch's compensation try/catch.
-     */
     private User registerUser(UUID tenant, UUID kcSub, UserInviteRequest req) {
         User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),
                 req.notificationEmail(), req.languageId(), req.personId());
@@ -311,8 +235,6 @@ public class UsersService {
         try {
             mail.send(email, WELCOME_ATTACHED_SUBJECT, WELCOME_ATTACHED_TEMPLATE, model);
         } catch (RuntimeException ex) {
-            // Best-effort — same posture as the password-reset email on the
-            // create path: a mail outage must not roll the committed bind back.
             LOG.warn("welcome-attached email failed sub-email={} — bind committed", email, ex);
         }
     }
@@ -353,24 +275,6 @@ public class UsersService {
         return after;
     }
 
-    /**
-     * Account self-edit (J-4 T-04). The caller edits their OWN User row,
-     * resolved from the JWT {@code sub} via {@code keycloak_sub} — never from
-     * an id in the request, so cross-principal mutation is structurally
-     * impossible. Updates only the self-fields (friendlyName, notificationEmail,
-     * phoneNumber, languageId); {@code remarks} (admin-only) is read from the
-     * existing row and passed back through {@link User#updateProfile} unchanged,
-     * and identity-binding fields (username / clubId / keycloakSub) are not on
-     * the parameter list. No Keycloak round-trip and no role delta — this
-     * surface cannot touch roles.
-     *
-     * <p>Returns {@code void}: no Keycloak round-trip and no role read — the
-     * caller's {@code me} controller re-projects the persisted state through
-     * {@code MeService} (the same projection {@code GET /me} serves).
-     *
-     * @throws IllegalArgumentException if the caller resolves to no active user
-     *     row, or {@code languageId} is not a known language.
-     */
     public void updateOwnProfile(@Nullable Jwt callerJwt, SelfProfileUpdate cmd) {
         UUID sub = callerSubOrThrow(callerJwt);
         User u = users.findActiveByKeycloakSub(sub).orElseThrow(() ->
@@ -378,30 +282,15 @@ public class UsersService {
         if (!users.languageExists(cmd.languageId())) {
             throw new IllegalArgumentException("Unknown languageId: " + cmd.languageId());
         }
-        // Snapshot WITHOUT a Keycloak round-trip: this surface cannot touch
-        // roles, so the audit diff carries the empty role set on both sides —
-        // a `currentRoles(sub)` read here would be a needless KC call on the
-        // self-edit hot path (and would couple the self-edit to KC reachability).
         UserResponse before = selfEditSnapshot(u);
-        // Preserve the admin-only remarks: the self-edit surface never sets it.
         u.updateProfile(cmd.friendlyName(), cmd.notificationEmail(),
                 cmd.phoneNumber(), u.getRemarks(), cmd.languageId());
         User saved = users.save(u);
         users.flush();
-        // Audit the self-edit on the User aggregate the caller owns. Target id
-        // is the caller's own row (resolved from the JWT sub, not a request id),
-        // so the forensic trail attributes the mutation to the principal who
-        // made it. Same UPDATE-on-"User" shape as the admin update() path.
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_USER, requireId(saved), before, selfEditSnapshot(saved)));
     }
 
-    /**
-     * Audit snapshot for the self-edit path — projects the User's mutable
-     * self-fields with an empty role set (the self-edit surface cannot mutate
-     * roles, so they never enter the before/after diff) and so avoids the
-     * Keycloak round-trip {@link #toResponse} makes.
-     */
     private UserResponse selfEditSnapshot(User u) {
         return new UserResponse(
                 UserId.of(requireId(u)),
@@ -414,8 +303,8 @@ public class UsersService {
                 u.getLanguageId(),
                 u.getPersonId(),
                 List.of(),
-                /*enabled=*/ u.isActive(),
-                /*invitePending=*/ false);
+                u.isActive(),
+                false);
     }
 
     private static UUID callerSubOrThrow(@Nullable Jwt jwt) {
@@ -437,10 +326,6 @@ public class UsersService {
         User u = loadInCurrentTenantOrThrow(id);
         UUID rowId = requireId(u);
         if (callerUserId == null) {
-            // Fail-closed: a caller with a valid CLUB_ADMINISTRATOR JWT but
-            // no matching local row is an anomaly (the JIT projection should
-            // have run); refuse the delete rather than admit one that
-            // would skip the self-delete check.
             throw new UserConflictException("Refusing delete — caller has no resolved user row");
         }
         if (callerUserId.equals(rowId)) {
@@ -474,32 +359,11 @@ public class UsersService {
             throw new UserConflictException("User " + id + " is not linked to a Keycloak identity");
         }
         kc.sendExecuteActions(kcSub, List.of("UPDATE_PASSWORD"), Duration.ofHours(12));
-        // Audit the operator-initiated re-send so a compromised CLUB_ADMIN
-        // spamming password-reset emails is visible in the forensic trail.
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.created(AUDIT_USER_ROLE, requireId(u),
                         new UserRoleAuditPayload("RESEND_INVITE", "UPDATE_PASSWORD")));
     }
 
-    /**
-     * Materialise a local row from JWT claims when the lookup-by-sub misses.
-     * Invoked from {@code JitUserMaterializationFilter} via the
-     * {@code JitUserMaterializer} port.
-     *
-     * <p>{@code REQUIRES_NEW} so a materialise failure rolls back
-     * independently of the inbound request's transaction and the
-     * race-loser re-read runs in a fresh session after the winner's
-     * commit becomes visible.
-     *
-     * <p>Identity fields ({@code keycloakSub}, {@code clubId}) are taken
-     * authoritatively from the JWT — never from a caller-supplied value —
-     * so a caller can't mint a JIT row in a tenant the principal doesn't
-     * belong to. {@code languageId} comes from the caller because the JWT
-     * carries {@code locale} as an opaque BCP-47 string that the
-     * application has to map onto a row in the {@code t_language} table.
-     *
-     * @return the local {@code user.id} after materialise (or pre-existing match).
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID materializeFromJwt(Jwt jwt, UUID languageId) {
         if (jwt == null) {
@@ -541,15 +405,10 @@ public class UsersService {
                 .map(UsersService::requireId)
                 .orElseGet(() -> {
                     User u = User.register(finalClubId, finalSub, finalUsername, finalFriendly,
-                            finalEmail, languageId, /*personId=*/ null);
+                            finalEmail, languageId, null);
                     User saved = users.save(u);
                     users.flush();
                     UUID rowId = requireId(saved);
-                    // Audit snapshot reads roles from the JWT's
-                    // realm_access.roles claim — KC is the issuer, so the
-                    // JWT carries the same set of roles `kc.getRealmRoleMappings`
-                    // would return. Avoids one KC round-trip on the
-                    // first-login hot path.
                     UserResponse snapshot = toJitResponse(saved, rolesFromJwt(jwt));
                     auditTrail.record(AuditAction.CREATE,
                             AuditedTarget.created(AUDIT_USER, rowId, snapshot));
@@ -557,29 +416,6 @@ public class UsersService {
                 });
     }
 
-    /**
-     * JIT race / re-login recovery by USERNAME. Called by the materializer
-     * only after a {@code DataIntegrityViolationException} (the
-     * {@code ux_user_username_lower_alive} partial-unique) AND a by-sub
-     * re-read that still missed — i.e. the username is already held by an
-     * active row whose {@code keycloak_sub} differs from the presenting
-     * JWT's sub.
-     *
-     * <p>If that active row's {@code club_id} matches the JWT's {@code clubId}
-     * claim, it is the SAME person re-appearing under a fresh sub: re-bind
-     * the row's {@code keycloak_sub} to {@code keycloakSub} (in this method's
-     * own {@code REQUIRES_NEW} tx, after the winner's insert has committed)
-     * and return its id. JIT is now idempotent on username instead of
-     * leaving the loser permanently tenant-less.
-     *
-     * <p>Tenant guard: a username row in a DIFFERENT club is NOT re-bound —
-     * that would silently relocate the identity across tenants. Returns
-     * empty so the principal stays tenant-less (fail-closed) and the
-     * mismatch is logged for investigation rather than papered over.
-     *
-     * @return the reconciled row id, or empty if no active username row
-     *     exists or it belongs to another club.
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<UUID> reconcileSubByUsername(String username, UUID keycloakSub, UUID clubId) {
         return users.findActiveByUsernameLower(username)
@@ -613,8 +449,8 @@ public class UsersService {
                 u.getLanguageId(),
                 u.getPersonId(),
                 roles,
-                /*enabled=*/ u.isActive(),
-                /*invitePending=*/ false);
+                u.isActive(),
+                false);
     }
 
     private static List<Role> rolesFromJwt(Jwt jwt) {
@@ -663,12 +499,6 @@ public class UsersService {
         }
     }
 
-    /**
-     * Stable target-id for the rejection row so repeated rejections for the
-     * same (club, username, attempted-role) correlate in the audit trail
-     * without leaking the username verbatim. SHA-1 first 16 bytes folded
-     * into a UUID — same pattern as PersonsService.hashLookupKey.
-     */
     private void recordRoleGrantRejected(UUID clubId, String username, Set<Role> rejected) {
         for (Role r : rejected) {
             UUID stableTarget = stableRejectionId(clubId, username, r);
@@ -718,9 +548,6 @@ public class UsersService {
         if (excludingSub == null) {
             return false;
         }
-        // Read CLUB_ADMINISTRATOR's role-membership in one KC call rather
-        // than per-row. KC returns every user in the realm with the role;
-        // we intersect with the club's active users in the loop.
         Set<UUID> adminSubs = kc.findUsersByRoleName(Role.CLUB_ADMINISTRATOR.name())
                 .stream()
                 .map(UserDirectoryRow::id)
@@ -731,7 +558,7 @@ public class UsersService {
                 continue;
             }
             if (adminSubs.contains(rowSub)) {
-                return false; // another live CLUB_ADMINISTRATOR exists in this club
+                return false;
             }
         }
         return true;
@@ -767,8 +594,8 @@ public class UsersService {
                 u.getLanguageId(),
                 u.getPersonId(),
                 rolesForKcSub(u.getKeycloakSub()),
-                /*enabled=*/ u.isActive(),
-                /*invitePending=*/ false);
+                u.isActive(),
+                false);
     }
 
     private static UUID requireId(User u) {
@@ -779,19 +606,7 @@ public class UsersService {
         return id.value();
     }
 
-    /**
-     * Typed audit-event payload for the {@code UserRole} entity-type rows
-     * (grant / revoke / reject). Fields match the {@code UserRole} block
-     * in {@code application.yml}'s redaction allow-list — neither carries
-     * PII, both ride verbatim into the audit trail.
-     */
     private record UserRoleAuditPayload(String action, String targetRole) {}
 
-    /**
-     * Audit payload for the {@code user.invited} event (S-181). {@code branch}
-     * distinguishes a fresh KC create ({@code new_kc_user}) from a bind to a
-     * pre-existing unattached KC user ({@code attached_existing}); {@code user}
-     * carries the same redacted projection the create path recorded before.
-     */
     private record InvitedAuditPayload(String branch, UserResponse user) {}
 }

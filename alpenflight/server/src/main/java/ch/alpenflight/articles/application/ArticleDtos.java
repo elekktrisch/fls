@@ -7,21 +7,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Article REST surface. Records (immutable, explicit field set);
- * mass-assignment is structurally impossible because the controller binds to
- * the record, not to the {@link ch.alpenflight.articles.domain.Article}
- * aggregate.
- *
- * <p>{@code operatingClubId} (the {@code @TenantId} discriminator) is
- * <strong>absent</strong> from {@link ArticleCreateRequest} and {@link
- * ArticleUpdateRequest}: it is set by Hibernate's {@code @TenantId} resolver
- * from the JWT on persist (A04 mass-assignment defense).
- *
- * <p>{@code articleNumber} carries no regex on the wire — legacy uses
- * business-meaningful codes (Proffix-style); length + non-blank only. The
- * aggregate trims and re-validates on both register + renumber.
- */
 public final class ArticleDtos {
 
     private ArticleDtos() {}
@@ -49,8 +34,6 @@ public final class ArticleDtos {
             @NotBlank @Size(max = 250) String articleName,
             @Nullable @Size(max = 250) String articleInfo,
             @Nullable String description,
-            // Boxed + @NotNull — legacy [Required] semantics: a payload that
-            // omits the flag is a 400, not a silent inactive-by-default insert.
             @NotNull Boolean isActive) {}
 
     @Schema(description = "Payload to update an Article. operating_club_id is not settable here (A04 defense).")

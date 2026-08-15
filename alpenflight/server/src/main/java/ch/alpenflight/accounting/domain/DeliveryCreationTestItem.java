@@ -10,21 +10,6 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal expected-line entity owned by {@link DeliveryCreationTest}.
- * One row of the harness's expected {@code DeliveryItem} set, mapping the EXISTING
- * V4 table {@code t_delivery_creation_test_item}. It dies with its parent
- * ({@code ON DELETE CASCADE}; no soft-delete column) and is never loaded or
- * mutated independently — the parent rebuilds the whole set atomically on
- * {@link DeliveryCreationTest#captureExpected}.
- *
- * <p>NOT a tenant-discriminated aggregate root: the denormalized
- * {@code operating_club_id} is a plain column (the FlightCrew / PlanningDayAssignment
- * internal-child pattern), so it carries no {@code @TenantId} and is not an S-024
- * leakage-sweep participant — the parent's {@code @TenantId} scopes the whole
- * graph. The tenant is stamped from the parent on build, not by Hibernate's
- * resolver.
- */
 @Entity
 @Table(name = "t_delivery_creation_test_item")
 public class DeliveryCreationTestItem {
@@ -61,7 +46,6 @@ public class DeliveryCreationTestItem {
     private int discountInPercent;
 
     protected DeliveryCreationTestItem() {
-        // JPA.
     }
 
     static DeliveryCreationTestItem of(DeliveryItemDetails details, @Nullable BigDecimal unitPrice) {

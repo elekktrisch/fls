@@ -25,21 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Provisions a trial Deployment + Clubs + per-Club reference data + the
- * Keycloak group / role / attribute plumbing for a freshly-signed-up
- * user on the first successful bundle ingest. Two-phase: the DB-half
- * commits in the caller's transaction; the directory-half runs
- * post-commit (either inline by the caller or by the hourly reconcile
- * job), is idempotent, and flips {@code kc_state} to READY on success.
- *
- * <p>Caller contract: invoke {@link #reconcileKeycloak} only after
- * {@link #provision} has committed (the directory-half is
- * {@code REQUIRES_NEW} so it self-contains its own commit; calling it
- * inside a still-open caller transaction would commit the reconcile
- * before the caller's outer transaction finishes, defeating the
- * post-commit ordering).
- */
 @Service
 public class DeploymentProvisioningService {
 
@@ -66,21 +51,6 @@ public class DeploymentProvisioningService {
         this.clock = clock;
     }
 
-    /**
-     * Materialises the DB state for a new trial Deployment, or short-
-     * circuits to the existing Deployment when the idempotency key has
-     * been seen before. Throws {@link DeploymentExistsException} when
-     * the owner already holds a non-terminal Deployment from a different
-     * attempt — the structural partial UNIQUE
-     * {@code ux_deployment_owner_active} is the source of truth; the
-     * pre-check + flush exists so the exception surfaces with the
-     * existing Deployment's identifiers pre-populated for the 409 body.
-     *
-     * <p>On replay (same idempotency key), an owner-mismatch is treated
-     * as a not-found-shaped error rather than a 200 — defense in depth
-     * against a caller that forgets to re-assert the upload-vs-principal
-     * binding.
-     */
     @Transactional
     public ProvisioningResult provision(ProvisioningRequest request) {
         Objects.requireNonNull(request, "request");
@@ -89,9 +59,6 @@ public class DeploymentProvisioningService {
         if (alreadyProvisioned.isPresent()) {
             Deployment existing = alreadyProvisioned.get();
             if (!request.ownerKeycloakSub().equals(existing.getOwnerKeycloakSub())) {
-                // Surfacing the bound owner's sub here would confirm to a
-                // caller racing idempotency keys that one is in flight;
-                // 404 is the agreed shape for "I don't know this key".
                 throw new IdempotencyOwnerMismatchException();
             }
             return loadResult(existing);
@@ -137,9 +104,6 @@ public class DeploymentProvisioningService {
 
         UUID primaryClubId = resolvePrimaryClubId(request, clubIds);
 
-        // Funnel signal. Field set is the security-plan minimum:
-        // deploymentId + clubCount + plan only — never the operator's
-        // display name or any per-Club name.
         LOG.info(
                 "funnel event=deployment.provisioned deploymentId={} clubCount={} plan={}",
                 deploymentId, clubIds.size(), saved.getPlan());
@@ -147,13 +111,6 @@ public class DeploymentProvisioningService {
         return new ProvisioningResult(deploymentId, clubIds, primaryClubId, true);
     }
 
-    /**
-     * Idempotent directory-side reconcile. Runs in its own transaction so
-     * a failure does not roll back the provisioning commit; the caller
-     * MUST have committed {@link #provision} before invoking this.
-     * Re-running against a Deployment already in
-     * {@code kc_state = READY} short-circuits to a no-op.
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reconcileKeycloak(UUID deploymentId) {
         Deployment deployment = deployments.findById(deploymentId)
@@ -185,27 +142,8 @@ public class DeploymentProvisioningService {
         }
 
         deployment.markKeycloakReady();
-        // Hibernate dirty-checks the managed entity on commit; no
-        // explicit save needed.
     }
 
-    /**
-     * J-0c provision-on-migrate slice (a thin slice of S-028, NOT the
-     * full story). For each migrated Club, mints a fresh loginable
-     * Keycloak club-admin identity carrying that Club's id as the
-     * tenant user-attribute + the {@code CLUB_ADMINISTRATOR} realm role +
-     * {@code UPDATE_PASSWORD} required action. A later real Keycloak login
-     * lands in that Club and {@code JitUserMaterializer} (S-169) projects
-     * the {@code t_user} — no legacy User row crosses over (C14), so none
-     * is seeded here.
-     *
-     * <p>Username/email are deterministic per Club so a replayed migrate
-     * resolves the existing identity rather than colliding (the directory
-     * port is idempotent on username).
-     *
-     * @return the directory subs of the provisioned club admins, in
-     *     {@code clubIds} order.
-     */
     public List<UUID> provisionMigratedClubAdmins(List<UUID> clubIds) {
         Objects.requireNonNull(clubIds, "clubIds");
         List<UUID> subs = new ArrayList<>(clubIds.size());
@@ -217,30 +155,10 @@ public class DeploymentProvisioningService {
         return subs;
     }
 
-    /**
-     * Synthetic given/family name stamped on a migrated club admin's
-     * Keycloak user. The migrated admin is a per-Club <em>service identity</em>
-     * (synthetic username {@link #migratedClubAdminUsername}, non-routable
-     * email, {@code UPDATE_PASSWORD} on first login), NOT a projection of a
-     * legacy Person row — and the Person streams don't drain until after
-     * this provisioning runs ({@code MigrationBundleIngestService}), so no
-     * real name is available here. These names exist only to satisfy the
-     * realm's declarative user-profile so Keycloak's {@code VERIFY_PROFILE}
-     * required action does not fire on first login (J-1 T-06). The operator
-     * edits the display name once a real human owns the identity.
-     */
     static final String MIGRATED_ADMIN_FIRST_NAME = "Migrated";
 
     static final String MIGRATED_ADMIN_LAST_NAME = "Admin";
 
-    /**
-     * Deterministic synthetic identity for a migrated Club admin. The
-     * {@code +<clubId>} tag keys it to the provisioned Club so a replayed
-     * migrate resolves the same user; {@code @migrated.alpenflight.local}
-     * is a non-routable sentinel domain (migrated admins set their
-     * password via {@code UPDATE_PASSWORD} on first login, no mail is
-     * sent — S-082 is out of this slice's scope).
-     */
     static String migratedClubAdminUsername(UUID clubId) {
         return "migrated-admin+" + clubId + "@migrated.alpenflight.local";
     }
@@ -270,9 +188,6 @@ public class DeploymentProvisioningService {
         if (declared != null && clubIds.contains(declared)) {
             return declared;
         }
-        // Deterministic fallback: lowest UUID — matches the legacy
-        // single-tenant assumption until the ingest pipeline plumbs an
-        // explicit manifest primary through.
         return clubIds.stream().min(Comparator.naturalOrder()).orElseThrow();
     }
 }

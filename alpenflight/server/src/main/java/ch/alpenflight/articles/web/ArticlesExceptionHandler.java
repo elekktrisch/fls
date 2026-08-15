@@ -10,15 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Article domain exceptions to RFC 7807 problem responses. Scoped
- * to {@link ArticlesController} so a sibling module's NotFound / IllegalArgument
- * keeps its own handler.
- *
- * <p>{@link IllegalArgumentException} is intentionally NOT mapped here: the
- * default 500 is correct for "aggregate constructor rejected a bad value the
- * DTO validator should have caught" — a coding bug, not a client error.
- */
 @RestControllerAdvice(assignableTypes = ArticlesController.class)
 class ArticlesExceptionHandler {
 

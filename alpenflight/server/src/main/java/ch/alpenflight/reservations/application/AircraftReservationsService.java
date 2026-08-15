@@ -27,40 +27,12 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link AircraftReservation} aggregate (J-5
- * T-05). Mirrors {@code AircraftsService}: a {@code @Transactional} service over
- * the domain port, mapping aggregate ↔ DTO and emitting an {@link AuditTrail}
- * event per mutation.
- *
- * <p><strong>Conflict guard (net-new, J-5 assumption #1).</strong> Create +
- * update call {@link AircraftReservationRepository#existsActiveConflict} on the
- * effective span; on update the reservation's own id is passed as
- * {@code excludeId} so an edit-in-place does not conflict with itself. A hit
- * raises {@link ReservationConflictException} → 409.
- *
- * <p><strong>Duration guard (net-new, assumption #2).</strong> The aggregate's
- * {@code create} / {@code reschedule} run {@code validateDuration()} at
- * construction, so a timed reservation whose end is not after its start throws
- * {@code InvalidReservationDurationException} → 422 before the conflict probe.
- *
- * <p>The conflict probe resolves the tenant itself (T-04); the create path also
- * resolves the tenant here to stamp {@code operating_club_id} on the new
- * aggregate (legacy-open: the aircraft FK may cross tenants, the reservation is
- * stamped with the operating club).
- */
 @Service
 @Transactional
 public class AircraftReservationsService {
 
-    /**
-     * Audit entity-type string — keyed in {@code application.yml}
-     * {@code audit.redaction.entities.AircraftReservation} (default-deny for the
-     * free-text {@code remarks} / PII-adjacent person ids).
-     */
     private static final String AUDIT_ENTITY_TYPE = "AircraftReservation";
 
-    /** Paged-list guards: a {@code size ≤ 0} falls back to this; oversize is clamped. */
     private static final int DEFAULT_PAGE_SIZE = 25;
     private static final int MAX_PAGE_SIZE = 200;
 
@@ -87,7 +59,6 @@ public class AircraftReservationsService {
     public AircraftReservationDetail createReservation(AircraftReservationCreateRequest req) {
         requireTypeReference(req.reservationTypeId(), req.flightTypeId());
         UUID operatingClubId = resolveTenantOrThrow();
-        // validateDuration() runs at construction → InvalidReservationDurationException (422).
         AircraftReservation r = AircraftReservation.create(
                 operatingClubId,
                 req.aircraftId().value(),
@@ -119,11 +90,8 @@ public class AircraftReservationsService {
         r.reassignLocation(req.locationId().value());
         r.changeType(req.reservationTypeId(), req.flightTypeId());
         r.updateInfo(req.remarks());
-        // reschedule re-runs validateDuration() → InvalidReservationDurationException (422).
         r.reschedule(req.start(), req.end(), req.isAllDay());
 
-        // Self-excluded on update: the row being edited is excluded from the
-        // conflict probe so an in-place reschedule does not collide with itself.
         rejectIfConflicting(r, id);
         AircraftReservationDetail after = AircraftReservationMapper.toDetail(reservations.save(r));
         auditTrail.record(AuditAction.UPDATE,
@@ -140,13 +108,6 @@ public class AircraftReservationsService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
     }
 
-    /**
-     * One SPA page of the tenant's active reservations (J-5 T-06). Honours the
-     * legacy-shaped {@code sorting} (only {@code start: asc|desc} — default asc)
-     * + a basic {@code searchFilter} date-range on the reservation start. The
-     * {@code totalRows} is the unpaged count of the same predicate so the SPA
-     * can render pagination in one round-trip.
-     */
     @Transactional(readOnly = true)
     public AircraftReservationPage page(int pageStart, int pageSize,
                                         @Nullable AircraftReservationPageRequest request) {
@@ -164,7 +125,6 @@ public class AircraftReservationsService {
         return new AircraftReservationPage(items, safeStart, safeSize, total);
     }
 
-    /** Future reservations (start ≥ now) — the scheduler/table default ({@code /future}). */
     @Transactional(readOnly = true)
     public List<AircraftReservationListItem> listFuture() {
         return reservations.findFutureListRows(clock.instant()).stream()
@@ -172,7 +132,6 @@ public class AircraftReservationsService {
                 .toList();
     }
 
-    /** Reservations overlapping the UTC day {@code [date 00:00, date+1 00:00)} ({@code /day/{date}}). */
     @Transactional(readOnly = true)
     public List<AircraftReservationListItem> listForDay(java.time.LocalDate date) {
         Instant dayStart = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
@@ -187,7 +146,6 @@ public class AircraftReservationsService {
             return true;
         }
         String dir = request.sorting().get("start");
-        // Default asc; only an explicit "desc" flips it (case-insensitive).
         return dir == null || !"desc".equalsIgnoreCase(dir.trim());
     }
 
@@ -208,24 +166,6 @@ public class AircraftReservationsService {
                 .toList();
     }
 
-    /**
-     * Non-mutating overlap pre-check (J-6b T-04). Runs the SAME aircraft-slot
-     * overlap probe ({@link AircraftReservationRepository#existsActiveConflict})
-     * the save path uses ({@link #rejectIfConflicting}) over the candidate slot,
-     * but persists nothing and raises nothing — it returns a field-level
-     * {@link ReservationValidationResult} the FE surfaces inline while editing.
-     * The effective span is normalised by the aggregate's
-     * {@link AircraftReservation#effectiveSpan} so all-day vs timed compose
-     * exactly as on save (ADR 0022 — the rule stays on the aggregate). An edit
-     * passes its own id as {@code excludeReservationId} so it is not flagged
-     * against itself. Tenant-scoped: {@code existsActiveConflict} carries the
-     * {@code @TenantId} predicate, so another club's booking never conflicts.
-     *
-     * <p>A degenerate candidate span ({@code end ≤ start} on a timed slot) is
-     * reported as a {@code start}-field invalid rather than throwing — the FE
-     * surfaces it inline like any other field error (the save path's 422 is for
-     * the mutating call; the pre-check stays a 200 outcome).
-     */
     @Transactional(readOnly = true)
     public ReservationValidationResult validateOverlap(AircraftReservationValidateRequest req) {
         EffectiveSpan span = AircraftReservation.effectiveSpan(

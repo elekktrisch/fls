@@ -34,26 +34,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the {@code AircraftReservation} aggregate (J-5 T-05) — the
- * CRUD seam. The new kebab-case resource {@code /api/v1/aircraft-reservations}
- * (the T-01 spec drives this, NOT the legacy {@code aircraftreservations} URL
- * shape or the {@code X-HTTP-Method-Override: PUT} verb tunnel — journey
- * assumption #2). The reservation-type dropdown is served from the sibling
- * {@code /api/v1/aircraft-reservation-types} listitems path.
- *
- * <p>The paged-list ({@code POST .../page/{start}/{size}}) and the
- * {@code /future} / {@code /day/{date}} overview read endpoints are added here
- * by T-06 (read-shaped — the page POST carries {@code @ReadOnlyQuery}).
- *
- * <p><strong>Authz: legacy-open.</strong> Any authenticated tenant member may
- * CRUD reservations within their own tenant ({@code @TenantId} scopes every
- * read/write to the caller's club). Owner-or-admin edit/delete gating is a
- * deferred refinement (J-5 assumption #4), NOT shipped here.
- *
- * <p>Each endpoint carries an explicit {@code @Operation(operationId=...)} so
- * orval generates stable named client methods (not positional {@code getN}).
- */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft-reservations", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Aircraft reservations",
@@ -79,16 +59,6 @@ public class AircraftReservationsController {
         return service.getReservation(id);
     }
 
-    /**
-     * SPA paged list — the legacy {@code POST .../page/{start}/{size}} shape with
-     * a {@code PageableSearchFilter}-style body. Read-shaped POST (the legacy
-     * filter body doesn't fit a GET query string), so it carries
-     * {@link ReadOnlyQuery} to opt out of the mutating-verb audit guard and emits
-     * no audit event. Response is the camelCase {@code {items, pageStart,
-     * pageSize, totalRows}} envelope the T-01 spec stub locks (NOT legacy
-     * PascalCase). Rows are sorted by start (asc default; {@code sorting.start:
-     * desc} flips), tenant-scoped via {@code @TenantId}.
-     */
     @Operation(operationId = "pageAircraftReservations",
             summary = "Paged aircraft-reservation list (SPA-compat page shape). Body carries optional "
                     + "sorting (`start: asc|desc`) + a basic date-range search filter.")
@@ -124,18 +94,6 @@ public class AircraftReservationsController {
         return service.listForDay(date);
     }
 
-    /**
-     * Non-mutating overlap pre-check (J-6b T-04) — lets the edit form (T-06)
-     * surface the same aircraft-slot overlap the save path enforces (the J-5
-     * conflict-409) WHILE EDITING, inline on the offending field, without a save
-     * round-trip. Read-shaped POST (the candidate slot doesn't fit a GET query
-     * string), so it carries {@link ReadOnlyQuery} to opt out of the
-     * mutating-verb audit guard and emits no audit event — it persists nothing.
-     * Returns 200 with a {@code {valid, field, message}} outcome the FE maps onto
-     * {@code <af-field-errors>} (NOT a 409 problem — that stays the save path).
-     * Tenant-scoped via {@code @TenantId}; pass the reservation's own id as
-     * {@code excludeReservationId} on an edit so it does not self-conflict.
-     */
     @Operation(operationId = "validateAircraftReservationOverlap",
             summary = "Pre-check a candidate aircraft slot for overlap (non-mutating). 200 with "
                     + "{valid,field,message} — surfaces the save-path conflict inline before save.")

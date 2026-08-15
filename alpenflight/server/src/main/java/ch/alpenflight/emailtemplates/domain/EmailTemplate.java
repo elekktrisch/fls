@@ -12,31 +12,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * EmailTemplate aggregate root — a per-club override of a transactional-email
- * default. The AlpenFlight DB holds ONLY overrides; the system defaults are
- * S-082 Thymeleaf files, never rows. So the send-time resolver reads
- * file-default ∪ db-override, and reset is simply deleting the override row.
- *
- * <p>Tenant-scoped via Hibernate's {@code @TenantId} on {@code clubId}; every
- * read + write is filtered to the caller's tenant before the service sees the
- * row. Identity is {@code (clubId, templateKey, languageLocale)} — the
- * structural UNIQUE in V47.
- *
- * <p>Per ADR 0022 directive 2, business rules live here, not the schema:
- *
- * <ul>
- *   <li>{@code templateKey} is the transactional-email selector (e.g.
- *       {@code lostpassword} / {@code planningday-ok}); canonicalized
- *       lower-case so the override resolves case-insensitively regardless of
- *       how a caller cased the key.</li>
- *   <li>{@code languageLocale} is the locale string (e.g. {@code de}); a plain
- *       string (Language is not an FK aggregate), also lower-cased.</li>
- *   <li>{@code subject} and {@code body} (Thymeleaf source) are required,
- *       trimmed, non-blank — an override that renders nothing is a defect, not
- *       a valid customization.</li>
- * </ul>
- */
 @Entity
 @Table(name = "t_email_template")
 public class EmailTemplate {
@@ -66,16 +41,8 @@ public class EmailTemplate {
     private String body = "";
 
     protected EmailTemplate() {
-        // JPA.
     }
 
-    /**
-     * Builds a club override for ({@code templateKey}, {@code languageLocale})
-     * with the given subject + body. The tenant ({@link #clubId}) is set by
-     * Hibernate's {@code @TenantId} resolver on persist — do NOT pass it here.
-     * The clone-on-customize upsert chooses between this factory (no existing
-     * row) and {@link #revise(String, String)} (row exists).
-     */
     public static EmailTemplate customize(String templateKey,
                                           String languageLocale,
                                           String subject,
@@ -88,7 +55,6 @@ public class EmailTemplate {
         return t;
     }
 
-    /** Update-in-place of an existing override's content; identity is immutable. */
     public void revise(String newSubject, String newBody) {
         assignSubject(newSubject);
         assignBody(newBody);

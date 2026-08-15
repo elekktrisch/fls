@@ -18,23 +18,6 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Orchestrates Flight process-state transitions: loads the aggregate,
- * delegates legality + mutation to {@link Flight#transition}, persists,
- * emits a {@link AuditAction#STATE_TRANSITION} audit row.
- *
- * <p>The {@link #transitionWithTowCascade(FlightId, FlightProcessState, TransitionTrigger)}
- * variant additionally drives the paired tow flight through the same
- * transition in one transaction — matches legacy
- * {@code DeliveryService.cs:191-196} / {@code FlightService.cs:1008-1014}.
- * Operator-driven transitions use the plain {@link #transition} so the
- * caller sees exactly what they're changing.
- *
- * <p>Initial-state provider is referenced so the service participates in
- * the bean graph that owns the canonical UUIDs; the field isn't read
- * directly here but its presence keeps the design coherent with
- * {@link FlightsService}.
- */
 @Service
 @Transactional
 public class FlightStateTransitionService {
@@ -61,10 +44,6 @@ public class FlightStateTransitionService {
         this.initialState = initialState;
     }
 
-    /**
-     * Transition a single flight. Does not cascade to a linked tow —
-     * operator endpoints use this so each PATCH affects exactly one row.
-     */
     public Flight transition(FlightId id,
                              FlightProcessState target,
                              TransitionTrigger trigger) {
@@ -83,16 +62,6 @@ public class FlightStateTransitionService {
         return saved;
     }
 
-    /**
-     * Runs {@link FlightValidator} over one flight and records the outcome
-     * ({@code FlightService.ValidateFlight}) — the per-flight step of the daily
-     * validation pass. Loads with crew because the validator reads it.
-     *
-     * <p>An audit row is emitted only when the process state actually moved, so a
-     * repeated pass over a still-invalid flight doesn't inflate the trail.
-     *
-     * @return the flight's process state after the pass
-     */
     public FlightProcessState validateAndRecord(FlightId id) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
@@ -110,12 +79,6 @@ public class FlightStateTransitionService {
         return after;
     }
 
-    /**
-     * Transition a glider and its paired tow flight together. If no tow
-     * is linked, behaves identically to {@link #transition}. Used by
-     * system-driven paths (validator / lock job / delivery prep /
-     * booking) — not exposed via the operator HTTP surface.
-     */
     public void transitionWithTowCascade(FlightId gliderId,
                                          FlightProcessState target,
                                          TransitionTrigger trigger) {
@@ -149,13 +112,6 @@ public class FlightStateTransitionService {
                         new StateTransitionPayload(towBefore, target, trigger)));
     }
 
-    /**
-     * Enforces the S-061 time-gate on the two gated edges. Other
-     * transitions pass through untouched. The matrix legality check still
-     * runs inside {@link Flight#transition} — this only adds the calendar
-     * gate, so an illegal edge surfaces as {@code IllegalFlightTransition},
-     * a too-recent legal edge as {@link FlightGateNotReachedException}.
-     */
     private void assertTimeGate(Flight flight,
                                 FlightProcessState from,
                                 FlightProcessState target,
@@ -172,12 +128,6 @@ public class FlightStateTransitionService {
         }
     }
 
-    /**
-     * Audit payload for a state transition. Recorded as
-     * {@code AuditedTarget#after} so the change is visible without
-     * before / after entity diffs — the per-row mutation is the
-     * transition itself, not a content edit.
-     */
     public record StateTransitionPayload(FlightProcessState from,
                                          FlightProcessState to,
                                          TransitionTrigger trigger) {}

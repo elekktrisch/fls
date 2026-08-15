@@ -30,23 +30,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the Article aggregate. Per ADR 0005 the path is plural
- * kebab-case {@code /api/v1/articles}.
- *
- * <p>Article is <strong>tenant-scoped</strong> via Hibernate's
- * {@code @TenantId} discriminator on {@code Article.operatingClubId}.
- * Reads and writes are filtered structurally to the caller's operating
- * tenant; a CLUB_ADMINISTRATOR of A asking for B's Article receives a
- * {@code 404 Not Found} — the row is invisible under A's tenant scope,
- * not {@code 403}. This is the IDOR gate, and it is structural.
- *
- * <p>Role gates: CLUB_ADMINISTRATOR for register / update / soft-delete
- * (S-159 sacred cow — SYSTEM_ADMINISTRATOR has no rights here; sysadmins
- * lack a tenant context). Reads open to any authenticated principal so
- * pickers on future Flight / DeliveryItem forms can fetch the catalogue
- * without an elevated role.
- */
 @RestController
 @RequestMapping(path = "/api/v1/articles", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Articles", description = "Article CRUD (per-club tenant-scoped masterdata).")

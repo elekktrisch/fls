@@ -10,15 +10,6 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Anonymous error contract for the public-registration surface. Scoped to
- * {@link PublicRegistrationController}'s package so no other module inherits
- * the mapping.
- *
- * <p>Bodies are empty by design: the status is the only thing an unauthenticated
- * caller learns. The 404-vs-403 split itself is justified on
- * {@link PublicClubUnavailableException.Reason}.
- */
 @RestControllerAdvice(basePackageClasses = PublicRegistrationController.class)
 class PublicRegistrationExceptionHandler {
 
@@ -36,14 +27,6 @@ class PublicRegistrationExceptionHandler {
         return ResponseEntity.badRequest().build();
     }
 
-    /**
-     * The request records reject a missing member from their compact
-     * constructors, so a submission that fails the contract during
-     * deserialization arrives wrapped rather than as
-     * {@link PublicRegistrationInvalidException}. Same 400, same empty body —
-     * an anonymous caller learns no more from malformed JSON than from a
-     * malformed field.
-     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<Void> handleUnreadable(HttpMessageNotReadableException e) {
         return ResponseEntity.badRequest().build();

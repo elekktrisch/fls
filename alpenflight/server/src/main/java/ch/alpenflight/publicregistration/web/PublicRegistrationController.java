@@ -23,22 +23,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * The anonymous flight-experience registration surface. No {@code @PreAuthorize}
- * and no principal: the target tenant comes from {@code {clubSlug}}, which
- * {@link PublicRegistrationIntake} resolves and allowlist-checks before anything
- * tenant-scoped runs.
- *
- * <p>Both POSTs nest the same
- * {@link ch.alpenflight.publicregistration.application.PublicRegistrantDetails}:
- * the two forms differ only in the day selection, so the registrant contract is
- * one type and cannot drift between them.
- *
- * <p>{@code Location} on the 201 names the registrant's {@code Person} — the
- * durable resource an accepted submission creates. It is not anonymously
- * readable, and deliberately so: the header says where the row lives, the club
- * says who may read it.
- */
 @RestController
 @Tag(name = "public-registration",
         description = "Anonymous discovery- and scenic-flight registration.")

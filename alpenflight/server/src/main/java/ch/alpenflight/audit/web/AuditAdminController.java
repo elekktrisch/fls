@@ -18,13 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Admin read surface for the mutation-audit trail. Thin shim — delegates
- * to {@link AuditQueryService} for the query + DTO mapping. Per-tenant
- * scoping is structural via Hibernate's {@code @TenantId} discriminator
- * on {@link MutationAuditEvent}; cross-tenant SYSTEM_ADMINISTRATOR access
- * is deferred to S-023's {@code UnscopedTenantContext}.
- */
 @RestController
 @RequestMapping(path = "/api/v1/admin/audit-events", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Audit Events", description = "Mutation-audit trail (per-tenant, admin-only).")

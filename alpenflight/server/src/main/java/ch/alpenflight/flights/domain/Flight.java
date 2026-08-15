@@ -26,46 +26,6 @@ import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
 
-/**
- * Flight aggregate root. Single-table sacred-cow shape — glider / tow /
- * motor flights are discriminated by {@link FlightAircraftType}, never
- * split into separate tables.
- *
- * <p>Per ADR 0022 directive 2, business rules live on this aggregate, not
- * in the schema. The V3 migration deliberately stripped 14 CHECK
- * constraints (see {@code V3__flights_aircraft_locations.sql:429-440}); the
- * surviving invariants land here:
- *
- * <ul>
- *   <li>Tow-link rules ({@link #linkTow}) — GLIDER → TOW, distinct rows,
- *       same operating club.</li>
- *   <li>Pairwise temporal ordering — {@code block_start ≤ start_date_time
- *       ≤ ldg_date_time ≤ block_end} (nullable-aware; only checked between
- *       non-null pairs).</li>
- *   <li>{@code engine_start ≤ engine_end} (additional DB CHECK survives as
- *       structural safety net).</li>
- *   <li>{@code nr_of_ldgs_on_start_location ≤ nr_of_ldgs} (DB CHECK
- *       survives).</li>
- *   <li>Discriminator immutability post-create.</li>
- * </ul>
- *
- * <p>Tenant-scoped via {@code @TenantId} on {@link #operatingClubId}; Hibernate
- * appends the tenant predicate to every JPA query. Cross-tenant access on
- * {@code findById} returns {@link java.util.Optional#empty} (mapped to 404
- * by the controller advice).
- *
- * <p>State-machine columns ({@link #processStateId}, {@link #validatedOn},
- * {@link #deliveryCreatedOn}, {@link #flightReportSentOn},
- * {@link #validationErrors}) are package-private setters reserved for
- * S-059's validator. The service stamps initial state on create; no
- * transitions ship in S-058.
- *
- * <p>Air-state is the sacred-cow computed surface (S-060): never stored,
- * always derived by {@link #airState()} from timestamps + flags.
- * {@link #flightPlanOpenedOn} is the structural timestamp replacing the
- * legacy {@code AirStateId == FlightPlanOpen} branch; the setting workflow
- * is a future flight-plan-open story.
- */
 @Entity
 @Table(name = "t_flight")
 public class Flight {
@@ -154,14 +114,6 @@ public class Flight {
     @Column(name = "flight_plan_opened_on")
     private @Nullable Instant flightPlanOpenedOn;
 
-    /**
-     * When this flight transitioned into {@link FlightProcessState#LOCKED}.
-     * Net-new in S-061 (legacy has no such column) — drives the billing
-     * gate ({@code locked_at <= today - 3d}, J-2 parity decision). Stamped
-     * by {@link #transition(FlightProcessState, TransitionTrigger, Instant)}
-     * on the Valid → Locked edge; {@code created_on} stays for audit but no
-     * longer drives any gate.
-     */
     @Column(name = "locked_at")
     private @Nullable Instant lockedAt;
 
@@ -221,7 +173,6 @@ public class Flight {
     private long version;
 
     protected Flight() {
-        // JPA.
     }
 
     public static Flight createGlider(UUID aircraftId,
@@ -260,22 +211,10 @@ public class Flight {
         return f;
     }
 
-    /**
-     * Updates the editable operational surface — everything except the
-     * discriminator, the tenant column, and the state-machine columns
-     * (S-059 owns those). Crew is replaced separately via
-     * {@link #replaceCrew}.
-     */
     public void updateOperationalData(FlightOperationalData ops) {
         applyOperationalData(ops);
     }
 
-    /**
-     * Repoints this Flight at a different aircraft. Open at S-058 scope; the
-     * state-machine gate (block once the Flight is booked / invoiced) lands
-     * in S-059. The cross-tenant FK is also allowed by design — the charter
-     * case (operating club references another club's aircraft) is first-class.
-     */
     public void repointAircraft(UUID newAircraftId) {
         if (newAircraftId == null) {
             throw new IllegalArgumentException("aircraftId must not be null");
@@ -334,24 +273,6 @@ public class Flight {
         this.soloFlight = ops.soloFlight();
     }
 
-    /**
-     * Replaces the crew list. Aggregate-internal mutation — callers go through
-     * this method, never the JPA collection directly. Duplicates on
-     * {@code (personId, flightCrewTypeId)} are rejected per the partial-unique
-     * {@code ux_flight_crew_unique}.
-     *
-     * <p>Reconciles IN PLACE rather than clear-and-recreate: rows whose
-     * {@code (personId, flightCrewTypeId)} identity is unchanged are MUTATED
-     * (operational fields only); rows no longer present are orphan-removed; only
-     * genuinely new keys are inserted. The naive {@code crew.clear()} +
-     * re-add tripped {@code ux_flight_crew_unique} (SQLState 23505) on an
-     * update that re-asserts an existing crew row — Hibernate orders the
-     * re-INSERT of the identical key BEFORE the orphan DELETE within one flush,
-     * so the partial unique index (WHERE deleted_on IS NULL) momentarily sees
-     * two live rows with the same key. Reconciling in place never re-inserts an
-     * unchanged key, closing that window. (J-2 T-21: the paired glider↔tow link
-     * PUT re-asserts the glider's PILOT crew row.)
-     */
     public void replaceCrew(List<CrewMemberSpec> newCrew) {
         if (newCrew == null) {
             throw new IllegalArgumentException("newCrew must not be null");
@@ -364,15 +285,12 @@ public class Flight {
                         "Duplicate crew row (personId, flightCrewTypeId)=" + key);
             }
         }
-        // Index the existing live rows by the same identity key.
         Map<String, FlightCrew> existing = new LinkedHashMap<>();
         for (FlightCrew c : this.crew) {
             existing.put(c.getPersonId() + "|" + c.getFlightCrewTypeId(), c);
         }
-        // Orphan-remove rows no longer desired (hard delete via orphanRemoval).
         this.crew.removeIf(c -> !desired.containsKey(
                 c.getPersonId() + "|" + c.getFlightCrewTypeId()));
-        // Mutate kept rows in place; insert only genuinely new keys.
         for (Map.Entry<String, CrewMemberSpec> e : desired.entrySet()) {
             CrewMemberSpec spec = e.getValue();
             FlightCrew kept = existing.get(e.getKey());
@@ -398,11 +316,6 @@ public class Flight {
         }
     }
 
-    /**
-     * Links a tow flight to this glider flight. Per ADR 0022 directive 2,
-     * the V3 CHECK constraints encoding these rules were stripped — the
-     * aggregate enforces them.
-     */
     public void linkTow(Flight tow) {
         if (tow == null) {
             throw new IllegalArgumentException("tow must not be null");
@@ -427,37 +340,14 @@ public class Flight {
         this.towFlightId = tow.id;
     }
 
-    /** Clears any tow-flight link. */
     public void unlinkTow() {
         this.towFlightId = null;
     }
 
-    /**
-     * Apply a process-state transition. Validates legality against the
-     * {@link FlightTransitionMatrix} and mutates {@link #processStateId}
-     * on success.
-     *
-     * <p>Per the bulk-job convention this method throws on illegality;
-     * bulk callers wrap iterate-collect-log around it so one bad flight
-     * does not abort the batch (legacy {@code FlightService.cs:1180-1183}).
-     *
-     * <p>The audit row is emitted by the application service —
-     * the aggregate stays free of cross-module dependencies. The caller
-     * is responsible for any cross-aggregate side effects (e.g.
-     * delivery-row deletion on DeliveryPrepared → Locked), per the
-     * contract documented in the S-059 design notes.
-     */
     public void transition(FlightProcessState target, TransitionTrigger trigger) {
         transition(target, trigger, null);
     }
 
-    /**
-     * Apply a process-state transition, stamping {@link #lockedAt} from
-     * {@code at} when this is the Valid → Locked edge (S-061's billing gate
-     * keys on it). {@code at} may be null for transitions that don't touch
-     * the lock edge — the two-arg overload uses that. The caller derives
-     * {@code at} from the injected {@link java.time.Clock} so tests pin it.
-     */
     public void transition(FlightProcessState target,
                            TransitionTrigger trigger,
                            @Nullable Instant at) {
@@ -481,18 +371,6 @@ public class Flight {
         this.processStateId = target.id();
     }
 
-    /**
-     * Records the outcome of a validation pass ({@code FlightService.cs:1041-1050}):
-     * stamps {@link #validatedOn}, replaces {@link #validationErrors} with the
-     * {@code ;}-joined error codes (empty string when the flight validates), and
-     * moves the flight to {@link FlightProcessState#VALID} or
-     * {@link FlightProcessState#INVALID} under {@link TransitionTrigger#VALIDATOR}.
-     *
-     * <p>A flight already in the outcome state is left where it is rather than
-     * re-transitioned: {@code Invalid → Invalid} is not an edge the
-     * {@link FlightTransitionMatrix} carries, and re-validating a still-invalid
-     * flight is the common case of a repeated nightly pass.
-     */
     public void recordValidation(Instant at, List<FlightValidator.ValidationError> errors) {
         if (at == null) {
             throw new IllegalArgumentException("at must not be null");
@@ -511,11 +389,6 @@ public class Flight {
         }
     }
 
-    /**
-     * Marks the flight as covered by a daily report mail
-     * ({@code FlightService.SetFlightReportSent}) — what keeps the next run from
-     * reporting it again.
-     */
     public void markFlightReportSent(Instant at) {
         if (at == null) {
             throw new IllegalArgumentException("at must not be null");
@@ -535,15 +408,6 @@ public class Flight {
         return validationErrors;
     }
 
-    /**
-     * Transitions a Locked flight into {@link FlightProcessState#DELIVERY_PREPARED}
-     * and stamps {@link #deliveryCreatedOn} — the delivery-create side effect
-     * ({@code DeliveryService.cs:187-188}). Applied to the billed flight AND its
-     * tow (the legacy {@code FlightService.cs:1457-1493} bugs that left the tow
-     * falsely Prepared and never persisted are corrected: this stamps the real
-     * transition on the aggregate). Illegal from any non-Locked state per the
-     * {@link FlightTransitionMatrix} ({@link TransitionTrigger#DELIVERY_PREP}).
-     */
     public void prepareForDelivery(Instant at) {
         if (at == null) {
             throw new IllegalArgumentException("at must not be null");
@@ -552,34 +416,10 @@ public class Flight {
         this.deliveryCreatedOn = at;
     }
 
-    /**
-     * Transitions a {@link FlightProcessState#DELIVERY_PREPARED} flight into
-     * {@link FlightProcessState#DELIVERY_BOOKED} when its delivery is booked
-     * ({@code DeliveryService.cs:349}). Applied to the billed flight AND its tow
-     * (the accounting pair books together). {@code DeliveryBooked} is the terminal
-     * billing state — no further transition is legal from it per the
-     * {@link FlightTransitionMatrix} ({@link TransitionTrigger#BOOKING}), so an
-     * already-booked flight rejects re-booking.
-     */
     public void bookDelivery() {
         transition(FlightProcessState.DELIVERY_BOOKED, TransitionTrigger.BOOKING);
     }
 
-    /**
-     * Resets a {@link FlightProcessState#DELIVERY_PREPARED} flight back to
-     * {@link FlightProcessState#LOCKED} when its delivery is deleted, so the next
-     * delivery-create run re-bills it ({@code Flight.cs:640}
-     * {@code DeletedDeliveryForFlight}). Applied to the billed flight AND its tow.
-     *
-     * <p>Persisting this transition on the aggregate corrects the two reachable
-     * legacy bugs in {@code FlightService.DeleteDeliveriesAndUpdateProcessStatesOfFlight}
-     * ({@code :1457-1493}): the tow reset wrote the wrong flight's state
-     * ({@code :1482}) and the whole batch was never {@code SaveChanges()}d. The
-     * clean delete path ({@code DeliveryService.DeleteDelivery:1226}) does persist
-     * and reset the correct flights — this method ports that, not the buggy sibling.
-     *
-     * <p>{@code at} stamps {@code locked_at} (the billing gate keys on it, S-061).
-     */
     public void resetFromDeliveryPrepared(Instant at) {
         if (at == null) {
             throw new IllegalArgumentException("at must not be null");
@@ -587,21 +427,10 @@ public class Flight {
         transition(FlightProcessState.LOCKED, TransitionTrigger.OPERATOR, at);
     }
 
-    /**
-     * Moves a Locked flight to {@link FlightProcessState#DELIVERY_PREPARATION_ERROR}
-     * — the per-flight failure outcome of a delivery-create batch (a flight that
-     * yields no items / no recipient, {@code DeliveryService.cs}). The batch
-     * swallows this so one bad flight never aborts the run.
-     */
     public void markDeliveryPreparationError() {
         transition(FlightProcessState.DELIVERY_PREPARATION_ERROR, TransitionTrigger.DELIVERY_PREP);
     }
 
-    /**
-     * Excludes a Locked flight from the delivery process
-     * ({@link FlightProcessState#EXCLUDED_FROM_DELIVERY_PROCESS}) — the outcome
-     * when a {@code DoNotInvoiceFlightRule} matches, so no delivery is produced.
-     */
     public void excludeFromDeliveryProcess() {
         transition(FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS, TransitionTrigger.DELIVERY_PREP);
     }
@@ -610,7 +439,6 @@ public class Flight {
         return deliveryCreatedOn;
     }
 
-    /** Marks this flight as soft-deleted. Idempotent. */
     public void softDelete(Instant at) {
         if (this.deletedOn != null) {
             return;
@@ -622,26 +450,13 @@ public class Flight {
     }
 
     private void assertTemporalOrdering() {
-        // Pairwise nullable-aware ordering: block_start ≤ start ≤ ldg ≤ block_end.
         assertOrder("blockStartDateTime", blockStartDateTime, "startDateTime", startDateTime);
         assertOrder("startDateTime", startDateTime, "ldgDateTime", ldgDateTime);
         assertOrder("ldgDateTime", ldgDateTime, "blockEndDateTime", blockEndDateTime);
     }
 
-    /**
-     * Spring Data publishes a {@link FlightSaved} event on every
-     * {@link FlightRepository#save} (the Deployment-module {@code @DomainEvents}
-     * precedent) — at which point JPA's UUID generator has populated
-     * {@link #id}. Unconditional: the flight-report read-model projector
-     * (ADR 0027 §2) must observe EVERY persisted state change, including
-     * saves issued directly against the repository by integration-test
-     * seeding (ADR 0027 §3) and the showcase seeder's state transitions.
-     */
     @DomainEvents
     Collection<Object> domainEvents() {
-        // Save-before-publication is the Spring Data contract; a null id means
-        // the event pipeline was driven outside the repository — fail loud
-        // rather than project a read-model row without a key.
         return List.of(new FlightSaved(Objects.requireNonNull(
                 this.id, "Flight.id null at domain-event publication — save() runs first")));
     }
@@ -817,22 +632,11 @@ public class Flight {
         return lockedAt;
     }
 
-    /**
-     * Computes the air-state per legacy {@code Flight.cs:175-206}. Never
-     * stored — recomputed on every read / serialisation.
-     */
     public FlightAirState airState() {
         return FlightAirState.compute(ldgDateTime, startDateTime,
                 noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
     }
 
-    /**
-     * Resolves the persisted {@link #processStateId} to the corresponding
-     * enum constant. Convenience for callers that prefer the enum surface
-     * (the matrix, audit payload, and DTOs). Throws if the id doesn't
-     * map to a known seed — broken constraint that should be impossible
-     * given the FK.
-     */
     public FlightProcessState getProcessState() {
         return FlightProcessState.fromId(processStateId);
     }

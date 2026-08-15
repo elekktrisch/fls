@@ -32,25 +32,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the Person aggregate (per-club view).
- *
- * <p><strong>Tenant scoping</strong>: the list query JOINs through
- * {@code t_person_club} so Hibernate's {@code @TenantId} filters the result
- * to the caller's tenant. Detail / update / delete reads load by PK
- * (cross-tenant) but the service refuses with 404 if the caller's tenant
- * has no alive PersonClub for the Person — 404, not 403, so the row's
- * existence stays opaque to other tenants (IDOR contract).
- *
- * <p><strong>Authorization</strong>: per S-159, SYSTEM_ADMINISTRATOR is
- * stripped from tenant-scoped HTTP endpoints. {@code CLUB_ADMINISTRATOR}
- * is the role for every endpoint here; cross-cutting sysadmin Person
- * operations would live under {@code /api/v1/admin/persons/**} (deferred
- * until cutover demands it).
- *
- * <p>Audit emission is in the service; controller methods do not call
- * {@code AuditTrail} directly.
- */
 @RestController
 @RequestMapping(path = "/api/v1/persons", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Persons", description = "Person CRUD (cross-tenant root with tenant-scoped PersonClub child).")

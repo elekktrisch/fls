@@ -4,16 +4,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Input to {@link DeploymentProvisioningService#provision}. The
- * {@code idempotencyKey} is a durable cross-attempt identifier bound by
- * the caller (e.g. the upstream migration-run id); a retry of the same
- * attempt short-circuits to the existing Deployment.
- *
- * <p>{@code primaryClubId} is the manifest-declared primary Club.
- * {@code null} triggers the deterministic fallback in
- * {@link DeploymentProvisioningService}.
- */
 public record ProvisioningRequest(
         UUID idempotencyKey,
         UUID ownerKeycloakSub,

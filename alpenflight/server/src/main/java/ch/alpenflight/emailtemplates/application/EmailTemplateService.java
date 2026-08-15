@@ -16,24 +16,6 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link EmailTemplate} override aggregate.
- * Tenant scoping is structural via Hibernate's {@code @TenantId} discriminator
- * on {@code EmailTemplate.clubId}; role-within-tenant gates live on the
- * controller as {@code @PreAuthorize("hasRole(...)")}.
- *
- * <p>The read is a UNION: the S-082 file defaults seeded from
- * {@link EmailTemplateCatalog}, with each own-club override row replacing the
- * file default at the same {@code (templateKey, languageLocale)} — the override
- * wins. The repository read is already tenant-filtered, so another club's
- * overrides are never in the result set.
- *
- * <p>Clone-on-customize is an upsert: insert if no override exists for the
- * identity, else update-in-place via {@link EmailTemplate#revise}. Reset deletes
- * the override row so the file default re-surfaces. Mutations emit
- * {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
- * {@link AuditAction#DELETE} via {@link AuditTrail}.
- */
 @Service
 @Transactional
 public class EmailTemplateService {

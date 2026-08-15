@@ -8,11 +8,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * ISO-3166 country reference row. System-global; not tenant-scoped.
- * Mapped to the V2 {@code t_country} table; data lives in the V2 Flyway
- * seed. No setters, no mutating methods — the API does not write here.
- */
 @Entity
 @Table(name = "t_country")
 public class Country {
@@ -33,7 +28,6 @@ public class Country {
     private @Nullable String fullName;
 
     protected Country() {
-        // JPA.
     }
 
     public @Nullable CountryId getId() {

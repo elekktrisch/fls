@@ -8,16 +8,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * One-shot lookup of the reference-data UUID the Flight aggregate stamps
- * on create — {@code flight_process_state.code='NOT_PROCESSED'}. Cached
- * at {@code @PostConstruct} so every create is a pure in-memory call; the
- * canonical UUID is seeded by V3 and never changes at runtime (identity-
- * bearing per ADR 0019).
- *
- * <p>S-060 dropped the parallel air-state lookup — air-state is computed
- * by {@code Flight.airState()}, never stored.
- */
 @Component
 public class FlightInitialState implements FlightInitialStateProvider {
 
@@ -35,9 +25,6 @@ public class FlightInitialState implements FlightInitialStateProvider {
 
     @PostConstruct
     void resolveSeeds() {
-        // Resolve inside an explicit transaction so the EntityManager has a
-        // bound JDBC session — outside Spring's @Transactional, the EM's
-        // ResultSet would be closed before we read the row.
         tx.executeWithoutResult(status -> initialProcessStateId = lookup());
     }
 

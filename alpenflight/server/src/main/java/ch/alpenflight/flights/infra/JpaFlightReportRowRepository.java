@@ -11,12 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-/**
- * Spring Data JPA implementation of {@link FlightReportRowRepository}.
- * Plain JPA per ADR 0027 §1 — every query rides the {@code @TenantId}
- * discriminator on {@link FlightReportRow#getOperatingClubId()} (ADR 0008);
- * no native SQL, nothing to register.
- */
 @Repository
 public interface JpaFlightReportRowRepository
         extends JpaRepository<FlightReportRow, UUID>, FlightReportRowRepository {

@@ -29,20 +29,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the Locations aggregate. Per ADR 0005 the path is plural
- * {@code /api/v1/locations}. Since S-049b Locations are TENANT_SCOPED
- * masterdata: reads return only the caller's own club's Locations
- * (Hibernate's {@code @TenantId} discriminator filter); writes are open to
- * CLUB_ADMINISTRATOR of the caller's tenant. SYSTEM_ADMINISTRATOR has no
- * tenant context and therefore no rights on this surface (S-159 strip).
- *
- * <p>{@code @PathVariable LocationId id} resolves through
- * {@code LocationIdPathConverter} so callers send the prefixed external form
- * {@code loc-<uuid>}. A CLUB_ADMIN of A targeting an id owned by club B
- * receives a {@code 404 Not Found} — the row is invisible under A's tenant
- * scope, not a {@code 403}. This is the IDOR gate, and it is structural.
- */
 @RestController
 @RequestMapping(path = "/api/v1/locations", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Locations", description = "Locations CRUD (per-club masterdata).")
@@ -108,13 +94,6 @@ public class LocationsController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Resolves the internal {@code user.id} for the audit trail.
-     * {@code jwt.getSubject()} (OIDC {@code sub}) maps to {@code user.id} via
-     * {@link UserPrincipalLookup#resolveUserIdFor(Jwt)}; federated subs that
-     * don't match the {@code keycloak_sub} mapping yield null until those
-     * IdPs onboard.
-     */
     private @Nullable UUID principalUserId(@Nullable Jwt jwt) {
         if (jwt == null) {
             return null;

@@ -5,45 +5,6 @@ import com.fasterxml.jackson.annotation.Nulls;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The registrant an anonymous submission describes, shared by both public
- * flows — the scenic form is the discovery form minus the day selection, so
- * the registrant contract is one type.
- *
- * <h2>The field contract is enforced here, not only in the browser</h2>
- *
- * <p>Legacy required only club key, firstname and lastname server-side while
- * its HTML required far more ({@code tryflight.html:25,35,47,59,69,101,111}),
- * so a direct API caller could post a registration with no address and no way
- * to reach the registrant back. Per ADR 0022 directive 2 those rules belong on
- * the aggregate, so they are invariants of this command: address, zip and city
- * are required, and at least one of mobile phone / private email must be
- * present — a registration nobody can be contacted about is worthless to the
- * club that receives it.
- *
- * <p>Length caps and email shape are deliberately NOT re-checked here; the
- * {@code Person} aggregate already rejects both, and duplicating them would
- * fork the limit.
- *
- * <p>{@code remarks} is the one field that is never persisted: legacy carries
- * it straight into the two notification mails and stores nothing
- * ({@code RegistrationService.cs:109-131}), so it lives on the command rather
- * than on {@code Person}.
- *
- * <p>{@code sendCouponToInvoiceAddress} is likewise mail-only: it picks which
- * of the two people the club posts the voucher to, which only exists as a
- * choice while the invoice address differs. Because the choice does not exist
- * otherwise, the form posts no such key at all while the addresses match
- * ({@code registrant-form.ts}, {@code toRegistrantDetails}) — and an absent
- * creator property arrives as null, which
- * {@code DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES} (a Jackson 3
- * default) turns into a body-less 400 on a primitive. {@link Nulls#AS_EMPTY}
- * makes the omission mean the legacy default instead, and is deliberately per
- * field: relaxing the feature globally would hide the same trap on every other
- * primitive in the application, where an absent key is a genuine error.
- * {@link Nulls#SKIP} does not work here — it never reaches a record's primitive
- * creator parameter.
- */
 public record PublicRegistrantDetails(
         String firstname,
         String lastname,
@@ -75,17 +36,8 @@ public record PublicRegistrantDetails(
             throw new PublicRegistrationInvalidException(
                     "at least one of mobilePhone / privateEmail is required");
         }
-        // The flag is the switch, matching legacy: a browser that hid the
-        // invoice block may still post whatever was typed into it before the
-        // registrant ticked "same address". Dropping it here makes "no second
-        // Person when the addresses match" structural rather than a branch the
-        // writer has to remember.
         if (invoiceAddressIsSame) {
             invoiceRecipient = null;
-            // There is no second recipient to post the voucher to, so the flag
-            // cannot mean anything — legacy re-tests InvoiceAddressIsSame at
-            // every read site (RegistrationEmailBuildService.cs:71,135,199,259)
-            // instead, which is the same rule spelled four times.
             sendCouponToInvoiceAddress = false;
         } else if (invoiceRecipient == null) {
             throw new PublicRegistrationInvalidException(
@@ -93,12 +45,6 @@ public record PublicRegistrantDetails(
         }
     }
 
-    /**
-     * Where the invoice goes when it is not the registrant's own address. The
-     * notification email doubles as this person's private email, as legacy has
-     * it ({@code RegistrationService.cs:143}), and is the address the
-     * confirmation mail is sent to.
-     */
     public record InvoiceRecipient(
             String firstname,
             String lastname,

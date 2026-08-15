@@ -20,17 +20,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Per-bundle ingest run (S-141). One row per POST /bundle attempt. The
- * caller drives the FSM via the mutator methods; the schema only stores
- * the structural columns (PK, FK, identity-bearing partial UNIQUE) per
- * ADR 0022 directive 2.
- *
- * <p>The {@code warnings} jsonb column carries a serialized
- * {@link MigrationRunWarning} array; the application-layer
- * {@code MigrationRunWarnings} codec owns the (de)serialization (Jackson
- * is banned in {@code domain/} per ADR 0023).
- */
 @Entity
 @Table(name = "t_migration_run")
 public class MigrationRun {
@@ -79,17 +68,10 @@ public class MigrationRun {
     @Column(name = "error_code", length = 64)
     private @Nullable String errorCode;
 
-    /**
-     * Free-form failure context. May echo a failing legacy row's column —
-     * redacted on the audit walk; the application-layer audit emitter
-     * uses {@code MigrationIngestAuditSnapshot} which doesn't carry this
-     * field at all.
-     */
     @AuditRedact
     @Column(name = "error_detail", columnDefinition = "text")
     private @Nullable String errorDetail;
 
-    /** Serialized {@link MigrationRunWarning} array. */
     @AuditRedact
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "warnings", nullable = false, columnDefinition = "jsonb")
@@ -129,11 +111,6 @@ public class MigrationRun {
         state = target;
     }
 
-    /**
-     * Records the entity + Club the ingest pipeline is currently writing.
-     * Called once per (entity, club) transition — not per row — to keep
-     * the status-poll endpoint cheap.
-     */
     public void noteCurrent(String entityType, @Nullable UUID clubId) {
         if (state != MigrationRunState.INGESTING) {
             throw new IllegalRunStateException(
@@ -168,11 +145,6 @@ public class MigrationRun {
         this.completedAt = clock.instant();
     }
 
-    /**
-     * Overwrites the serialized warnings. Callers in the application layer
-     * own the (de)serialization through {@code MigrationRunWarnings}; the
-     * aggregate keeps Jackson out of the domain package per ADR 0023.
-     */
     public void replaceWarningsJson(String json) {
         if (json == null || json.isBlank()) {
             this.warningsJson = "[]";

@@ -4,16 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code FlightCostBalanceType} aggregate root.
- * Wraps a {@link UUID} so service / controller / DTO signatures cannot
- * accidentally accept a {@code FlightType} or other UUID in an FCBT slot.
- *
- * <p>External form is {@code fcb-<uuid>} per ADR 0019. The 4-char prefix
- * (vs. the usual 3-char convention) disambiguates FCBT from
- * {@link FlightTypeId} {@code ft-} so an `f`-prefix typo in a payload is
- * caught at the boundary.
- */
 @Schema(
         type = "string",
         pattern = "^fcb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

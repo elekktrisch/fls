@@ -15,25 +15,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * The tenant-scoped transactional unit for an accepted public registration. A
- * separate bean so the {@code @Transactional} boundary nests INSIDE
- * {@link ch.alpenflight.platform.tenancy.Tenants#runAs}: the tenant carrier must
- * stay set across open, flush AND commit, and self-invocation would not apply
- * the proxy advice. Audit emission lives here so the AFTER_COMMIT event carries
- * the same tenant as the write.
- *
- * <p>The actor resolves to anonymous — no {@code JwtAuthenticationToken} in the
- * security context — so the row lands with {@code system_actor=true} and both
- * actor identifiers null, scoped to the club the URL named.
- *
- * <h2>What a registrant becomes</h2>
- *
- * <p>An anonymous registrant is a prospect, not a member. The membership is
- * therefore opened with no member number, no member state, notification
- * preferences all off and {@code active = false} — see
- * {@link #joinTargetClub}.
- */
 @Component
 public class PublicRegistrationTxWriter {
 
@@ -50,11 +31,6 @@ public class PublicRegistrationTxWriter {
         this.reservationBooker = reservationBooker;
     }
 
-    /**
-     * The scenic flow: the shared registrant write and nothing else. The kind is
-     * fixed here rather than passed in, so no caller can route a discovery
-     * submission down a path that silently books no slot.
-     */
     @Transactional
     public RegisteredPersons registerScenic(PublicClub club, PublicRegistrantDetails details) {
         PublicRegistrationKind kind = PublicRegistrationKind.SCENIC_FLIGHT;
@@ -63,13 +39,6 @@ public class PublicRegistrationTxWriter {
         return registered;
     }
 
-    /**
-     * The discovery flow: the same registrant write, then the candidate's all-day
-     * glider slot on the day they picked. The booking is best-effort — a club
-     * without a double-seater or without a homebase still gets the registration,
-     * and the organiser mail carries the reason (see
-     * {@link DiscoveryReservationOutcome}).
-     */
     @Transactional
     public DiscoveryRegistration registerDiscovery(PublicClub club,
             PublicRegistrantDetails details, LocalDate selectedDay) {
@@ -118,25 +87,6 @@ public class PublicRegistrationTxWriter {
         return idOf(persons.save(person));
     }
 
-    /**
-     * Opens the club membership an anonymous registrant gets. Every optional
-     * argument is deliberately empty:
-     *
-     * <ul>
-     *   <li>no member number / member state — the club assigns those when it
-     *       decides to take the prospect on, and inventing one here would put a
-     *       fabricated identity in the members list;</li>
-     *   <li>notification preferences all off — {@code receiveFlightReports}
-     *       would enrol a stranger who filled in a web form into the club's
-     *       nightly flight-report mail ({@code DailyReportJob:197});</li>
-     *   <li>{@code active = false} — the membership exists so the flight can be
-     *       booked and billed against a real person, not because a member
-     *       joined.</li>
-     * </ul>
-     *
-     * <p>This matches legacy, which added a {@code PersonClub} carrying nothing
-     * but the club id and the trainee role ({@code RegistrationService.cs:124-128}).
-     */
     private static void joinTargetClub(Person person, UUID clubId, boolean gliderTrainee) {
         PersonRoleFlags roles = new PersonRoleFlags(
                 false, false, false, false, gliderTrainee, false, false, false);
@@ -156,13 +106,10 @@ public class PublicRegistrationTxWriter {
         return saved.getId().value();
     }
 
-    /** Non-PII audit snapshot: which flow, which club. */
     public record AcceptedRegistration(PublicRegistrationKind kind, UUID clubId) {}
 
-    /** The Persons an accepted submission created. */
     public record RegisteredPersons(UUID registrantPersonId, @Nullable UUID invoicePersonId) {}
 
-    /** What a discovery submission wrote: the Persons plus the reservation attempt. */
     public record DiscoveryRegistration(RegisteredPersons persons,
                                         DiscoveryReservationOutcome reservation) {}
 }

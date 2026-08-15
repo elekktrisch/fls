@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** Spring Data implementation of {@link MigrationRunRepository}. */
 public interface JpaMigrationRunRepository
         extends JpaRepository<MigrationRun, UUID>, MigrationRunRepository {
 

@@ -11,33 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data JPA implementation of the {@link AircraftReservationRepository}
- * domain port (J-5 T-04). Extends the port, {@code JpaRepository
- * <AircraftReservation, UUID>}, and the {@link AircraftReservationConflictProbe}
- * custom fragment (so Spring Data composes the GiST native query, which needs an
- * injected tenant resolver a default method can't reach) — the application layer
- * depends only on the port (ADR 0023).
- *
- * <p><strong>Tenancy.</strong> {@code t_aircraft_reservation} is tenant-scoped
- * via Hibernate's {@code @TenantId} discriminator on {@code operating_club_id}
- * (ADR 0008). The JPQL list/find queries inherit the tenant predicate
- * automatically. {@link #existsActiveConflict} is the exception: it is native
- * SQL (the Postgres {@code &&} range-overlap operator against the generated
- * {@code reservation_range tstzrange} column has no JPQL form), so the tenant
- * discriminator does NOT apply — the fragment carries an explicit
- * {@code operating_club_id = ?} predicate and is registered in
- * {@code native-sql-register.md} ({@code NativeSqlRegisterTest} gate).
- *
- * <p><strong>Soft-delete.</strong> Every query filters {@code deleted_on IS
- * NULL}; the conflict probe additionally rides the partial GiST index
- * {@code ix_arv_aircraft_range_gist} on {@code (aircraft_id, reservation_range)
- * WHERE deleted_on IS NULL}.
- *
- * <p>List rows are flat projection DTOs (the SPA decorates display labels from
- * picker payloads) — no cross-module joins, mirroring the Flight/Aircraft
- * {@code ListRow} convention.
- */
 public interface JpaAircraftReservationRepository
         extends JpaRepository<AircraftReservation, UUID>,
                 AircraftReservationRepository,
@@ -59,12 +32,6 @@ public interface JpaAircraftReservationRepository
         return findActiveListRowsByAircraftInRange(aircraftId, window.start(), window.end());
     }
 
-    /**
-     * Half-open overlap on a single aircraft: a row overlaps {@code [start,end)}
-     * iff {@code reservationStart < end && start < reservationEnd}. JPQL
-     * (tenant-filtered) — no native range type needed for the list view; the
-     * GiST native probe is reserved for the hot conflict check.
-     */
     @Query("select new ch.alpenflight.reservations.domain.AircraftReservationRepository$ListRow("
             + "r.id, r.aircraftId, r.reservationStart, r.reservationEnd, r.allDay, "
             + "r.pilotPersonId, r.secondCrewPersonId, r.locationId, "
@@ -78,20 +45,10 @@ public interface JpaAircraftReservationRepository
             @Param("start") Instant windowStart,
             @Param("end") Instant windowEnd);
 
-    // ----- T-06: paged-list + future/day overview projections -----
-    //
-    // The enriched ListItemRow left-joins AircraftReservationType (same module)
-    // for the type name; cross-module labels stay client-decorated (ADR 0023).
-    // Sort direction can't be parameterised in JPQL, so asc/desc are two methods
-    // selected by a default-method dispatcher. The optional [from,to) window is
-    // applied with sentinel bounds (Instant.MIN/MAX) when a bound is absent —
-    // a single typed query, avoiding the Hibernate-6 `:param is null` type-
-    // inference pitfall on an Instant parameter.
 
     Instant MIN_INSTANT = Instant.parse("0001-01-01T00:00:00Z");
     Instant MAX_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
 
-    /** Base projection + tenant-implicit (@TenantId) + soft-delete filter; callers append their window. */
     String LIST_ITEM_SELECT =
             "select new ch.alpenflight.reservations.domain.AircraftReservationRepository$ListItemRow("
                     + "r.id, r.aircraftId, r.reservationStart, r.reservationEnd, r.allDay, "
@@ -101,7 +58,6 @@ public interface JpaAircraftReservationRepository
                     + "left join AircraftReservationType t on t.id = r.reservationTypeId "
                     + "where r.deletedOn is null ";
 
-    /** Half-open [from,to) window on the reservation start, appended by the paged-list queries. */
     String LIST_ITEM_WINDOW = "and r.reservationStart >= :from and r.reservationStart < :to ";
 
     @Override
@@ -169,18 +125,6 @@ public interface JpaAircraftReservationRepository
             + "order by t.reservationTypeName asc")
     List<AircraftReservationRepository.TypeListItem> findActiveTypeListItems();
 
-    /**
-     * Per-day count backing the cross-module
-     * {@link ch.alpenflight.reservations.api.ReservationCountPort} (J-26 T-16):
-     * non-deleted reservations within the caller's tenant whose start falls in
-     * the half-open day window {@code [dayStart, dayEnd)} at {@code locationId}.
-     * Plain JPQL — tenant-implicit ({@code @TenantId}) + soft-delete filtered;
-     * the half-open {@code reservationStart >= dayStart AND reservationStart <
-     * dayEnd} range is the JPA equivalent of the retired native
-     * {@code date(reservation_start) = :planningDate} cast (the caller passes the
-     * UTC day bounds). No native SQL — this replaces the
-     * {@code planning-day-reservation-count} register hatch.
-     */
     @Query("select count(r) from AircraftReservation r "
             + "where r.deletedOn is null "
             + "and r.locationId = :locationId "

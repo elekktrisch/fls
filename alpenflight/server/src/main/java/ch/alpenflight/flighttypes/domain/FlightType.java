@@ -16,37 +16,6 @@ import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
 
-/**
- * FlightType aggregate root. Per-club masterdata describing a kind of flight
- * (Schulflug, Streckenflug, Schleppflug, …). Tenant-scoped via Hibernate's
- * {@code @TenantId} on {@code operatingClubId} (S-159 / S-013 reclassification);
- * every read + write is filtered to the caller's managing tenant by Hibernate
- * before the service ever sees the row.
- *
- * <p>Per ADR 0022 directive 2, business rules live on the aggregate, not the
- * schema:
- *
- * <ul>
- *   <li>{@code flightTypeName} is non-blank + length-capped at 100 chars
- *       (matches V3 column width).</li>
- *   <li>{@code minNrOfAircraftSeatsRequired} is {@code null} ("no constraint")
- *       or {@code >= 1}. Legacy treated 0 and NULL identically; the new stack
- *       rejects 0 at the DTO boundary and the aggregate enforces the same
- *       invariant for direct callers.</li>
- *   <li>{@code instructorRequired} and
- *       {@code observerPilotOrInstructorRequired} are mutually exclusive
- *       (legacy CHECK {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired}
- *       forbids {@code (1,1)}); see {@link #updateFlags}. All other boolean
- *       flags are independently composable. The V3 schema carries no CHECK —
- *       the rule lives here.</li>
- * </ul>
- *
- * <p>Identity-bearing partial UNIQUE on
- * {@code (operating_club_id, flight_type_name) WHERE deleted_on IS NULL}
- * (V11) lets a tenant soft-delete and recreate the same name; the
- * structural UNIQUE catches concurrent INSERT races the service-layer
- * pre-check can't.
- */
 @Entity
 @Table(name = "t_flight_type")
 public class FlightType extends SoftDeletableAggregate {
@@ -105,14 +74,8 @@ public class FlightType extends SoftDeletableAggregate {
     private @Nullable Integer minNrOfAircraftSeatsRequired;
 
     protected FlightType() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new FlightType. The tenant ({@link #operatingClubId}) is
-     * set by Hibernate's {@code @TenantId} resolver on persist — do NOT pass
-     * it here.
-     */
     public static FlightType register(String name,
                                       @Nullable String flightCode,
                                       boolean instructorRequired,
@@ -153,18 +116,6 @@ public class FlightType extends SoftDeletableAggregate {
         assignFlightCode(newFlightCode);
     }
 
-    /**
-     * Replaces all eleven flags atomically. Rejects the contradictory
-     * combination {@code instructorRequired && observerPilotOrInstructorRequired}
-     * — "observer pilot OR instructor" is the weaker requirement, so pairing
-     * it with the strict "instructor required" is meaningless (legacy CHECK
-     * {@code CK_FlightTypes_InstructorRequiredXORObserverPilotRequired});
-     * the guard fires before any assignment, so a rejected update leaves the
-     * aggregate unchanged. Covers create too ({@link #register} delegates here).
-     *
-     * @throws InstructorObserverExclusionException when both crew-requirement
-     *         flags are set
-     */
     public void updateFlags(boolean newInstructorRequired,
                             boolean newObserverPilotOrInstructorRequired,
                             boolean newCheckFlight,
@@ -196,14 +147,6 @@ public class FlightType extends SoftDeletableAggregate {
         assignMinSeats(newMinNrOfAircraftSeatsRequired);
     }
 
-    /**
-     * Spring Data publishes a {@link FlightTypeSaved} event on every
-     * {@code FlightTypeRepository.save} (the Flight {@code @DomainEvents}
-     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
-     * {@link #id}. Unconditional: the flight-report read-model keeps its
-     * denormalized flight-type name / code strings fresh by observing EVERY
-     * persisted state change (ADR 0027 §2).
-     */
     @DomainEvents
     Collection<Object> domainEvents() {
         return List.of(new FlightTypeSaved(Objects.requireNonNull(

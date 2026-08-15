@@ -13,10 +13,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Read-only service backing {@code GET /api/v1/migrations/{uploadId}/status}.
- * PK fetches only; p95 budget &lt; 100 ms per the perf plan.
- */
 @Service
 public class MigrationBundleStatusService {
 

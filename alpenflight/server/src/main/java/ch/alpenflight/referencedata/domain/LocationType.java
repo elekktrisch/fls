@@ -8,12 +8,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Location-type reference row (WAYPOINT, GRASS_RUNWAY, GLIDER_AIRFIELD, …).
- * System-global; not tenant-scoped. Mapped to the V3 {@code t_location_type}
- * table; data lives in the V3 Flyway seed. Read-only — no setters, no
- * mutating methods.
- */
 @Entity
 @Table(name = "t_location_type")
 public class LocationType {
@@ -34,7 +28,6 @@ public class LocationType {
     private boolean isAirfield;
 
     protected LocationType() {
-        // JPA.
     }
 
     public @Nullable LocationTypeId getId() {

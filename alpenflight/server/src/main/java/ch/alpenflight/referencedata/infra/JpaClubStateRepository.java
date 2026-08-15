@@ -7,10 +7,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-/**
- * Spring Data adapter for {@link ClubStateRepository}. See {@link
- * JpaCountryRepository} for the ICU-collation rationale.
- */
 public interface JpaClubStateRepository extends JpaRepository<ClubState, UUID>, ClubStateRepository {
 
     @Override

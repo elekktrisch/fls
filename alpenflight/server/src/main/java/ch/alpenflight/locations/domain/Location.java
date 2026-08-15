@@ -21,24 +21,6 @@ import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
 
-/**
- * Location aggregate root. Per ADR 0022 directive 2 business rules
- * (ICAO format, blank-name rejection, soft-delete) live on the aggregate;
- * the schema enforces only structure (PKs, FKs, NOT NULL, per-club partial
- * UNIQUE on {@code (club_id, icao_code)} where {@code deleted_on IS NULL}).
- *
- * <p>TENANT_SCOPED masterdata since S-049b. The discriminator column
- * {@code club_id} wears {@link TenantId}; Hibernate appends
- * {@code WHERE club_id = ?} on every read and write driven by the
- * {@code ClubTenantIdentifierResolver}. The same physical airport may exist
- * multiple times across clubs (once per club).
- *
- * <p>{@link InOutboundPoint} children inherit tenancy through the parent's
- * FK — no own {@code @TenantId} column. Aggregate-internal mutators are
- * package-private; {@link #replaceInOutboundPoints(List)} is the only
- * external mutator, exploiting {@code orphanRemoval=true} for
- * upsert-with-orphan-cleanup semantics on PUT.
- */
 @Entity
 @Table(name = "t_location")
 public class Location extends SoftDeletableAggregate {
@@ -55,9 +37,6 @@ public class Location extends SoftDeletableAggregate {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    // Populated reflectively by Hibernate from the resolver. Never read by
-    // domain or service code — the discriminator filter rides on every JPA
-    // query implicitly.
     @TenantId
     @Column(nullable = false, updatable = false)
     private @Nullable UUID clubId;
@@ -122,7 +101,6 @@ public class Location extends SoftDeletableAggregate {
     private List<InOutboundPoint> inOutboundPoints = new ArrayList<>();
 
     protected Location() {
-        // JPA.
     }
 
     public static Location create(String locationName,
@@ -250,14 +228,6 @@ public class Location extends SoftDeletableAggregate {
         }
     }
 
-    /**
-     * Spring Data publishes a {@link LocationSaved} event on every
-     * {@code LocationRepository.save} (the Flight {@code @DomainEvents}
-     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
-     * {@link #id}. Unconditional: the flight-report read-model keeps its
-     * denormalized location-name strings fresh by observing EVERY persisted
-     * state change (ADR 0027 §2).
-     */
     @DomainEvents
     Collection<Object> domainEvents() {
         return List.of(new LocationSaved(Objects.requireNonNull(

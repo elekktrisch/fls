@@ -11,16 +11,6 @@ import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.ValueSerializer;
 import tools.jackson.databind.module.SimpleModule;
 
-/**
- * Wires the typed-id family ({@link ClubId} and future {@code PersonId} /
- * {@code UserId} / …) into Spring Boot's auto-configured Jackson 3
- * {@code ObjectMapper}. Spring Boot registers every {@code JacksonModule}
- * bean with the default mapper, so this component drives both inbound
- * deserialisation and outbound serialisation without per-record annotations.
- *
- * <p>Each id type contributes one line to the constructor; the record itself
- * stays a pure data class with no Jackson dependency in source.
- */
 @Component
 public class TypedIdJacksonModule extends SimpleModule {
 

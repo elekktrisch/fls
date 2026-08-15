@@ -4,15 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code Country} reference row. Unlike
- * {@link ClubId} (aggregate root, prefixed external form), system-global
- * reference lookups travel as plain UUID strings on the wire — ADR 0019
- * reserves the 3-letter prefix for aggregate roots, and reference rows
- * are not aggregates per ADR 0018. The wrapper exists for compile-time
- * safety so a {@code CountryId} cannot be passed where a
- * {@link ClubStateId} is expected.
- */
 @Schema(
         type = "string",
         format = "uuid",

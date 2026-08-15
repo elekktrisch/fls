@@ -22,12 +22,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Read-only orchestration for the reference-data catalogs. One service
- * for the whole module is enough at the slim-slice scale — there are no
- * write paths, no domain rules to encode, and the two GET endpoints
- * share the same shape (load + map).
- */
 @Service
 @Transactional(readOnly = true)
 public class ReferenceDataService {

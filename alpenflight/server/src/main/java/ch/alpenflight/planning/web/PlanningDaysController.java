@@ -30,25 +30,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the {@code PlanningDay} aggregate (J-6 T-04) — the CRUD seam.
- * The new kebab-case resource {@code /api/v1/planning-days} mirrors legacy
- * {@code /api/v1/planningdays} but adapts to AlpenFlight REST conventions (real
- * verbs, NOT the legacy {@code X-HTTP-Method-Override} tunnel — same call as the
- * J-5 reservations resource).
- *
- * <p><strong>Authz.</strong> Reads are open to any authenticated tenant member
- * ({@code @TenantId} scopes every read to the caller's club → cross-tenant 404).
- * Create is open to authenticated members; update + delete are gated in the
- * service to {@code CLUB_ADMINISTRATOR} OR the record's creator (legacy
- * {@code PlanningDayService.cs:407-425}) — a non-admin non-creator gets a 403.
- * The {@code canUpdate/canDeleteRecord} flags on every detail DTO surface the
- * same gate to the UI.
- *
- * <p>Each endpoint carries an explicit {@code @Operation(operationId=...)} so
- * orval generates stable named client methods (not positional {@code getN}) —
- * the J-6 orval-stability rider (J-3 T-10/T-11 lesson).
- */
 @RestController
 @RequestMapping(path = "/api/v1/planning-days", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Planning days",
@@ -62,14 +43,6 @@ public class PlanningDaysController {
         this.service = service;
     }
 
-    /**
-     * SPA paged list — the legacy {@code POST .../page/{start}/{size}} shape with
-     * a {@code PageableSearchFilter}-style body (the {@code Day.From} date
-     * filter). Read-shaped POST (the filter body doesn't fit a GET query string),
-     * so it carries {@link ReadOnlyQuery} to opt out of the mutating-verb audit
-     * guard. Response is the camelCase {@code {items, pageStart, pageSize,
-     * totalRows}} envelope; rows are future days sorted {@code planning_date asc}.
-     */
     @Operation(operationId = "pagePlanningDays",
             summary = "Paged future planning-day list (SPA-compat page shape). Body carries the optional "
                     + "`Day.From` date filter (default today) + sorting.")
@@ -94,19 +67,6 @@ public class PlanningDaysController {
         return service.overviewFuture();
     }
 
-    /**
-     * Non-mutating uniqueness pre-check (J-6b T-05) — lets the edit form (T-07)
-     * surface the same {@code (club, date, location)} duplicate the save path
-     * enforces (the J-6 {@code ux_pln_club_date_loc} 409) WHILE EDITING, inline on
-     * the offending field, without a save round-trip. Read-shaped POST (the
-     * candidate (date, location) doesn't fit a GET query string), so it carries
-     * {@link ReadOnlyQuery} to opt out of the mutating-verb audit guard and emits
-     * no audit event — it persists nothing. Returns 200 with a {@code {valid,
-     * field, message}} outcome the FE maps onto {@code <af-field-errors>} (NOT a
-     * 409 problem — that stays the save path). Tenant-scoped via {@code @TenantId};
-     * pass the day's own id as {@code excludePlanningDayId} on an edit so it does
-     * not self-conflict.
-     */
     @Operation(operationId = "validatePlanningDayUniqueness",
             summary = "Pre-check a candidate (date, location) for a duplicate planning day (non-mutating). "
                     + "200 with {valid,field,message} — surfaces the save-path 409 inline before save.")
@@ -145,14 +105,6 @@ public class PlanningDaysController {
                 .body(created);
     }
 
-    /**
-     * Bulk weekday-expansion (T-05; legacy {@code POST .../create/rule},
-     * {@code PlanningDayCreatorRule}). Expands the inclusive date range to one
-     * bare day (no crew) per selected weekday at the location, skipping
-     * already-existing (club, date, location) days idempotently. Empty weekday
-     * flags → empty result, no error; a range wider than the domain cap → 422.
-     * Returns the list of days actually created (skipped days are not included).
-     */
     @Operation(operationId = "bulkCreatePlanningDays",
             summary = "Bulk-create planning days by weekday over an inclusive date range. Empty weekday "
                     + "flags → empty result; existing (club, date, location) days are skipped idempotently.")

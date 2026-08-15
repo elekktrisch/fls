@@ -4,14 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code FlightType} aggregate root. Wraps a
- * {@link UUID} so service / controller / DTO signatures cannot accidentally
- * accept a {@code FlightCostBalanceType} or other UUID in a {@code FlightType}
- * slot.
- *
- * <p>External form is {@code ft-<uuid>} per ADR 0019.
- */
 @Schema(
         type = "string",
         pattern = "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

@@ -34,23 +34,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * The delivery-create write path — the AlpenFlight port of legacy
- * {@code DeliveryService.CreateDeliveriesFromFlights} ({@code DeliveryService.cs:48-218}).
- * For every eligible flight in the caller's tenant it runs the J-9 rules engine
- * ({@link AccountingDeliveryEngine}), turns the computed output into a persisted
- * {@link Delivery} (the aggregate owns that mapping), flips the flight AND its tow
- * into {@code DeliveryPrepared}, and draws down any prepaid flight-time credit the
- * engine consumed.
- *
- * <p>Eligibility (oracle-pinned): {@code ProcessState = Locked} AND aircraft type
- * is GLIDER or MOTOR AND {@code created_on <= today - 3d}, ordered by start time.
- *
- * <p>Per-flight failures are swallowed — a {@code DoNotInvoiceFlightRule} match
- * excludes the flight ({@code ExcludedFromDeliveryProcess}); an engine output with
- * no recipient / no items / an unresolved article is a {@code DeliveryPreparationError}
- * — so one bad flight never aborts the batch (legacy {@code FlightService.cs:1180-1183}).
- */
 @Service
 @Transactional
 public class DeliveryCreationService {
@@ -85,10 +68,6 @@ public class DeliveryCreationService {
         this.clock = clock;
     }
 
-    /**
-     * Creates one delivery per eligible flight and returns the created deliveries.
-     * Empty when no flight is eligible. Each created delivery is audited.
-     */
     public List<DeliveryDetail> createFromEligibleFlights() {
         Instant now = clock.instant();
         long nextBatchId = deliveries.findMaxBatchId() + 1;
@@ -135,8 +114,6 @@ public class DeliveryCreationService {
         }
     }
 
-    // Flips the billed flight and (correcting the legacy never-persisted /
-    // wrong-target bugs, FlightService.cs:1457-1493) its tow into DeliveryPrepared.
     private void prepareFlights(Flight flight, Instant now) {
         flight.prepareForDelivery(now);
         flights.save(flight);
@@ -161,9 +138,6 @@ public class DeliveryCreationService {
                 boolean wasUnlimited = credit.hasCurrentBalance()
                         ? credit.currentTransaction().orElseThrow().isNoFlightTimeLimit()
                         : credit.isNoFlightTimeLimit();
-                // Flush the un-current of the prior row before inserting the new
-                // current one — the partial UNIQUE forbids two live current rows and
-                // Hibernate would otherwise order the INSERT before the UPDATE.
                 if (credit.releaseCurrent()) {
                     credits.save(credit);
                     credits.flush();
@@ -193,7 +167,6 @@ public class DeliveryCreationService {
                 .toList();
     }
 
-    // CreatedOn <= today - 3d (oracle-pinned: created_on, NOT start/locked time).
     private static boolean isOldEnough(@Nullable Instant createdOn, Instant cutoff) {
         return createdOn != null && !createdOn.isAfter(cutoff);
     }

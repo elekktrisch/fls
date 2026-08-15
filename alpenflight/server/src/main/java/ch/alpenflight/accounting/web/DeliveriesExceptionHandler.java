@@ -11,20 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Delivery read-surface exceptions to RFC 7807 problem responses,
- * scoped to {@link DeliveriesController}.
- *
- * <p>{@link DeliveryNotFoundException} → {@code 404} — also the cross-tenant case:
- * the {@code @TenantId} filter makes another club's row invisible, so a
- * cross-tenant id is a uniform 404, never a 403 that would confirm the row exists.
- * {@link DeliveryDeletionConflictException} → {@code 409} — the {@code >1-delivery-
- * per-flight} delete guard (legacy's unmapped 500 modernized to a clean conflict).
- * {@link DeliveryBookedTerminalException} → {@code 409} — booked is terminal, so a
- * delete or re-book of a booked delivery is a conflict (legacy's 400 / un-guarded
- * paths modernized). The exception types stay free of {@code @ResponseStatus}
- * (ADR 0023) — the web-layer coupling lives only here.
- */
 @RestControllerAdvice(assignableTypes = DeliveriesController.class)
 class DeliveriesExceptionHandler {
 

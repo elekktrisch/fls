@@ -14,40 +14,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Article aggregate root. Per-club catalogue entry — a billable line-item
- * shape (article number + name + optional info / long-form description) that
- * the E-09 DeliveryItem flow will reference via FK. Tenant-scoped via
- * Hibernate's {@code @TenantId} on {@code operatingClubId}; every read +
- * write is filtered to the caller's tenant by Hibernate before the service
- * ever sees the row.
- *
- * <p>Column names are derived from field names by Spring Boot's default
- * {@code SpringPhysicalNamingStrategy} (camelCase → snake_case); no field
- * needs an explicit {@code @Column(name = ...)}.
- *
- * <p>Per ADR 0022 directive 2, business rules live on the aggregate, not the
- * schema:
- *
- * <ul>
- *   <li>{@code articleNumber} is non-blank, trimmed, length ≤ 50 (matches V3
- *       column width). No regex — legacy carries business-meaningful codes
- *       (Proffix-style); length + non-blank only.</li>
- *   <li>{@code articleName} is non-blank, trimmed, length ≤ 250.</li>
- *   <li>{@code articleInfo} (≤ 250) and {@code description} (long-form TEXT)
- *       are both nullable free-text fields with no further structure.</li>
- * </ul>
- *
- * <p>Identity-bearing partial UNIQUE on
- * {@code (operating_club_id, article_number) WHERE deleted_on IS NULL}
- * (V3) lets a tenant soft-delete and recreate the same number; the structural
- * UNIQUE catches concurrent INSERT races the service-layer pre-check can't.
- *
- * <p>Renumber is safe post-create — {@code delivery_item.article_number} is
- * a frozen snapshot at booking (Swiss OR Art. 957a), never re-resolved from
- * {@code article_id}. The aggregate exposes {@link #renumber(String)} but
- * does NOT block on existing FK references.
- */
 @Entity
 @Table(name = "t_article")
 public class Article {
@@ -85,14 +51,8 @@ public class Article {
     private @Nullable UUID deletedByUserId;
 
     protected Article() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new Article. The tenant ({@link #operatingClubId}) is set
-     * by Hibernate's {@code @TenantId} resolver on persist — do NOT pass it
-     * here.
-     */
     public static Article register(String articleNumber,
                                    String articleName,
                                    @Nullable String articleInfo,

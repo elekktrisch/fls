@@ -13,25 +13,9 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
-/**
- * Resolves the club admins who should hear about a new PENDING request — the
- * {@code admin-new-request} mail audience + the SSE targets whose pending list
- * just gained a row.
- *
- * <p>Called by the AFTER_COMMIT notification listeners inside a
- * {@code Tenants.runAs} window for the joining club, so the local-user read is
- * tenant-scoped and the live submit transaction makes no directory round-trip.
- * The CLUB_ADMINISTRATOR role lives in Keycloak, not a {@code t_user} column, so
- * the admin set is the intersection of the directory's realm-wide role holders
- * with this club's local rows: the directory call gives the admin subs, the
- * local rows give the per-recipient email + locale for the send loop (S-178 —
- * admins are mailed at {@code User.languageId}). One directory round-trip, not an
- * N+1 over the club's users.
- */
 @Component
 class JoinRequestAdminRecipients {
 
-    /** A club admin to notify: SSE target {@code sub} + mail address + locale. */
     record AdminRecipient(UUID sub, String email, String locale) {}
 
     private final UserDirectoryPort directory;

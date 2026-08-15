@@ -13,12 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Aircraft domain exceptions to RFC 7807 problem responses.
- * Holds the only Spring-web coupling of the Aircraft error vocabulary —
- * the exception types themselves stay in {@code aircraft.domain} free of
- * {@code @ResponseStatus} per ADR 0023.
- */
 @RestControllerAdvice(assignableTypes = AircraftsController.class)
 class AircraftsExceptionHandler {
 

@@ -16,15 +16,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Seed orchestration for the flight-time-credit e2e — the only write path for
- * {@link PersonFlightTimeCredit} (no production credit-CRUD surface exists). The
- * clean-seed parity spec grants a credit matched to a freshly-minted flight
- * immatriculation that no static SQL seed could reference.
- * {@code @Profile({"dev","test"})} keeps it out of production (the real-idp e2e
- * backend boots {@code dev}). Audited (financial credit) like every accounting
- * mutation; the owning Person scopes the credit to the caller's tenant.
- */
 @Service
 @Profile({"dev", "test"})
 public class PersonFlightTimeCreditSeedService {

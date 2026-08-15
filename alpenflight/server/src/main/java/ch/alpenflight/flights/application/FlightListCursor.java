@@ -7,17 +7,6 @@ import java.util.Base64;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Opaque keyset-cursor for {@code GET /api/v1/flights}. Encodes
- * {@code (flightDate, id)} of the last-returned row as URL-safe base64;
- * the next page request returns rows strictly less than this pair under
- * {@code ORDER BY flight_date DESC, id DESC}.
- *
- * <p>Wire form: {@code base64url(flightDate.toString() + "|" + id.toString())}.
- * {@code flightDate} may be {@code null} (Flight allows NULL flight_date);
- * encoded as {@code "null"} sentinel — pages past the NULL block reset to
- * no cursor on the FE side.
- */
 public record FlightListCursor(@Nullable LocalDate flightDate, UUID id) {
 
     private static final String NULL_DATE = "null";

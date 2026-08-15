@@ -16,32 +16,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the S-140 per-upload keypair handshake.
- *
- * <p>Both endpoints gated on {@code isAuthenticated() and
- * principal.claims['email_verified'] == true}:
- *
- * <ul>
- *   <li>{@code POST /api/v1/migrations/handshake} — mint a fresh
- *       RSA-4096 keypair, persist the wrapped private key, return the
- *       public PEM + expiry. Silent supersede of any prior in-flight
- *       row for the same user.</li>
- *   <li>{@code GET /api/v1/migrations/handshake/current} — SPA mount
- *       restore. Returns the caller's current {@code awaiting_upload}
- *       row (sans private key) or 404.</li>
- * </ul>
- */
 @RestController
 @RequestMapping(path = "/api/v1/migrations/handshake", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Migration handshake",
         description = "Per-upload keypair handshake — public-key surface for the legacy export JAR (S-140).")
 public class MigrationHandshakeController {
 
-    /**
-     * SpEL gate shared by both endpoints. Declared as a constant so the
-     * predicate (and its rationale) lives in one place.
-     */
     private static final String EMAIL_VERIFIED =
             "isAuthenticated() and principal.claims['email_verified'] == true";
 

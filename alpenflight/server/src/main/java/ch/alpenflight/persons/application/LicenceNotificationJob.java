@@ -20,20 +20,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Licence-expiry notifications (S-085) — mirrors legacy
- * {@code LicenceNotificationJob.cs}: every person holding a licence or medical
- * that expires within the next {@value #WITHIN_DAYS} days gets <em>one mail per
- * expiring licence</em>, at their communication address.
- *
- * <p><strong>Window.</strong> {@code expiry <= today + 60}, inclusive and with no
- * lower bound — an already-expired licence keeps being notified, which is legacy's
- * behaviour and the useful one (the holder has not renewed yet).
- *
- * <p><strong>Scope.</strong> Cross-tenant like its legacy counterpart: a licence
- * belongs to the Person, not to a club membership, so the job scans people rather
- * than iterating clubs.
- */
 @Component
 @MeasuredJob(name = LicenceNotificationJob.JOB_NAME,
         cron = LicenceNotificationJob.CRON,
@@ -42,7 +28,6 @@ public class LicenceNotificationJob implements BusinessJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(LicenceNotificationJob.class);
 
-    /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "licence-notification";
 
     static final String CRON = "0 0 5 1 * *";
@@ -50,13 +35,8 @@ public class LicenceNotificationJob implements BusinessJob {
     static final String TEMPLATE = "licence-expiry";
     static final String SUBJECT = "Ablauf Lizenz / Medical";
 
-    /** Notification window, in days ahead of expiry ({@code :35}). */
     static final int WITHIN_DAYS = 60;
 
-    /**
-     * The six notified licences, in legacy's evaluation order, each with the
-     * display name its mail carries ({@code :47-77}).
-     */
     private static final List<LicenceKind> LICENCE_KINDS = List.of(
             new LicenceKind("LAPL Medical", Person::getMedicalLaplExpireDate),
             new LicenceKind("Class 1 Medical", Person::getMedicalClass1ExpireDate),
@@ -77,14 +57,12 @@ public class LicenceNotificationJob implements BusinessJob {
         this.clock = clock;
     }
 
-    /** Scheduled tick — monthly, matching legacy's monthly workflow slot. */
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
         runOnce();
     }
 
-    /** Cross-tenant "Run now" for the {@code /system/jobs} console. */
     @Override
     @Transactional(readOnly = true)
     public RunSummary runOnce() {
@@ -138,13 +116,8 @@ public class LicenceNotificationJob implements BusinessJob {
 
     private record ExpiringLicence(String name, LocalDate expiresOn) {}
 
-    /** Thymeleaf binding for {@code licence-expiry.html}. */
     public record LicenceExpiryModel(String personName, String licenceName, LocalDate expiresOn) {}
 
-    /**
-     * Non-PII run summary: mails sent, and how many candidate people were skipped
-     * for having no address.
-     */
     public record RunSummary(int mailCount, int noAddressCount) {
 
         @Override

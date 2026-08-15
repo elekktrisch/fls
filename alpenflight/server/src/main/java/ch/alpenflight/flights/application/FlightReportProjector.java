@@ -18,41 +18,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Synchronous flight-report read-model sync (ADR 0027 §2). Listens to
- * {@link FlightSaved} — published by Spring Data on EVERY
- * {@link FlightRepository#save} via {@code @DomainEvents} — and refreshes the
- * affected {@link FlightReportRow}s in the SAME transaction (plain
- * {@code @EventListener}, deliberately NOT {@code AFTER_COMMIT}: the
- * read-model must commit or roll back atomically with the write model — no
- * eventual-consistency window).
- *
- * <p>One save can affect up to four rows: the saved flight's own row, its
- * newly-linked tow flight's row (reverse {@code towed_glider_flight_id}), and
- * any rows still carrying a now-stale link to the saved flight (found via the
- * read-model's own reverse columns — the only place the PREVIOUS link
- * survives once the aggregate has moved on). Each affected row is rebuilt
- * from the current aggregate state, so the repair is idempotent.
- *
- * <p>A flight invisible to the tenant-scoped repository (soft-deleted) has
- * its row deleted — read-model rows exist only for live flights.
- *
- * <p>Tenant: row inserts are stamped by Hibernate's {@code @TenantId}
- * resolver exactly like the Flight insert in the same session; the crew
- * children copy the resolved tenant explicitly (they are aggregate-internal
- * and carry no own discriminator).
- *
- * <p><strong>Known limitation — cross-club Location names decorate as
- * {@code null}.</strong> {@code Location} rides {@code @TenantId}, so a
- * flight referencing another club's location (possible only through the
- * structural FK — no production write path validates club-locality, and
- * migrated data always lands on the operating club's own fan-out replica)
- * projects a null {@code start/ldg_location_name} while keeping the location
- * ID. The native-SQL oracle joined {@code t_location} unfiltered; no
- * legitimate JPA-side cross-tenant Location read seam exists, and per
- * ADR 0027 §1 no native-SQL escape hatch is added for it. Re-checked in
- * RM-2: accepted, documented here, surfaced in the RM-2 report.
- */
 @Component
 public class FlightReportProjector {
 
@@ -71,46 +36,26 @@ public class FlightReportProjector {
         this.tenantResolver = tenantResolver;
     }
 
-    /**
-     * {@code REQUIRED}: joins the surrounding service transaction on every
-     * production path (same-transaction sync per ADR 0027); test-side
-     * repository-direct saves without an outer transaction get a dedicated
-     * one so the multi-row repair stays atomic.
-     */
     @EventListener
     @Transactional(propagation = Propagation.REQUIRED)
     public void onFlightSaved(FlightSaved event) {
         repairAround(event.flightId());
     }
 
-    /**
-     * Repairs the saved flight's own row plus every row reachable through a
-     * (current or stale) tow link — the full blast radius of one flight-state
-     * change. Package-private seam shared with the rebuild service and the
-     * rename-propagation listener (J-7 RM-2) so all read-model writes flow
-     * through ONE projection path.
-     */
     void repairAround(UUID savedId) {
         Set<UUID> affected = new LinkedHashSet<>();
         affected.add(savedId);
-        // Forward: the saved flight's current tow link → that tow's row
-        // carries the towed_glider back-reference.
         flights.findByIdWithCrew(FlightId.of(savedId)).ifPresent(flight -> {
             if (flight.getTowFlightId() != null) {
                 affected.add(flight.getTowFlightId());
             }
         });
-        // Forward-reverse: gliders currently linking the saved flight as
-        // their tow → their rows carry the saved flight's tow block.
         for (Flight glider : flights.findByTowFlightId(FlightId.of(savedId))) {
             UUID gliderId = glider.getId();
             if (gliderId != null) {
                 affected.add(gliderId);
             }
         }
-        // Stale-link repair: rows that STILL reference the saved flight from
-        // a previous state (unlink, re-link, soft-delete) — only the
-        // read-model remembers the old link.
         affected.addAll(rows.findFlightIdsByTowFlightId(savedId));
         affected.addAll(rows.findFlightIdsByTowedGliderFlightId(savedId));
 
@@ -119,18 +64,9 @@ public class FlightReportProjector {
         }
     }
 
-    /**
-     * Rebuilds (or deletes) the read-model row for one flight id. Idempotent:
-     * a live flight gets its row created / refreshed in place; a flight
-     * invisible to the tenant-scoped repository (soft-deleted / gone) gets
-     * its row deleted. Package-private seam shared with
-     * {@code FlightReportRebuildService} (J-7 RM-2).
-     */
     void refresh(UUID flightId) {
         Optional<Flight> loaded = flights.findByIdWithCrew(FlightId.of(flightId));
         if (loaded.isEmpty()) {
-            // Soft-deleted (or otherwise invisible) — the read-model carries
-            // live flights only.
             rows.findByFlightId(flightId).ifPresent(rows::delete);
             return;
         }
@@ -144,7 +80,6 @@ public class FlightReportProjector {
                         flight, tow, towedGliderFlightId, decorations, resolveTenant())));
     }
 
-    /** Oracle parity: the (first) live glider whose tow link points here. */
     private @Nullable UUID firstTowedGliderId(UUID flightId) {
         for (Flight glider : flights.findByTowFlightId(FlightId.of(flightId))) {
             if (glider.getId() != null) {
@@ -154,12 +89,6 @@ public class FlightReportProjector {
         return null;
     }
 
-    /**
-     * The effective tenant for crew-child stamping — same resolver Hibernate's
-     * {@code @TenantId} discriminator consults in this session, so the copied
-     * value can never diverge from the row's stamped discriminator. Under the
-     * {@code NO_TENANT} sentinel the insert fails closed at the club FK.
-     */
     private UUID resolveTenant() {
         return tenantResolver.resolveCurrentTenantIdentifier();
     }

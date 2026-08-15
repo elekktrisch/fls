@@ -16,21 +16,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * Wraps the {@code runOnce} method of every {@link MeasuredJob}-annotated bean.
- * On each run it opens a {@link JobRun} record ({@code RUNNING}), proceeds, then
- * stamps {@code COMPLETED} (with the body's return value as summary) or
- * {@code FAILED} (with the throwable message). It also times the run into the
- * {@code fls_job_duration_seconds{job=…}} Micrometer histogram.
- *
- * <p>A job whose body throws is recorded {@code FAILED} and the throwable is
- * <strong>swallowed</strong> — the scheduler tick (or the "Run now" endpoint)
- * survives one bad job (J-15 AC-edge #8). The {@link JobRun} writes run in their
- * own {@code REQUIRES_NEW} transaction so the FAILED record commits even though
- * the body's transaction rolls back; programmatic {@link TransactionTemplate}
- * (not {@code @Transactional}) sidesteps the AOP self-invocation trap that would
- * otherwise ride the writes on the doomed transaction.
- */
 @Aspect
 @Component
 public class MeasuredJobAspect {
@@ -67,8 +52,6 @@ public class MeasuredJobAspect {
         } catch (Throwable failure) {
             sample.stop(timer(jobName, "failed"));
             recordFailed(runId, jobName, failure);
-            // Swallow: one failing job must not crash the scheduler tick or the
-            // "Run now" caller. The FAILED JobRun is the durable signal.
             return null;
         }
     }

@@ -23,28 +23,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Use-case service for the /handshake endpoints. Owns:
- *
- * <ul>
- *   <li>Per-upload RSA-4096 keypair generation.</li>
- *   <li>Wrapping the private key under the master Tink keyset.</li>
- *   <li>Inserting the row in {@code awaiting_upload}, racing against the
- *       partial UNIQUE — the loser of a two-tab race catches the
- *       constraint violation and replays (supersede prior + insert new)
- *       in the same transaction.</li>
- *   <li>Audit-trail emission (ISSUED + SUPERSEDED) and funnel-telemetry
- *       signals.</li>
- * </ul>
- *
- * <p>{@link #findCurrent} is the SPA mount-restore path — pure read of the
- * caller's current in-flight row (sans private key, surfaced as the
- * application-layer {@link MigrationUploadView}).
- */
 @Service
 public class MigrationHandshakeService {
 
-    /** Vision C28: the public key is valid for 24 hours after issuance. */
     public static final Duration HANDSHAKE_TTL = Duration.ofHours(24);
 
     private static final int RSA_KEY_BITS = 4096;
@@ -54,12 +35,6 @@ public class MigrationHandshakeService {
     private final HandshakeFunnelTelemetry telemetry;
     private final AuditTrail audit;
     private final PreTenantUserLookup userLookup;
-    // EntityManager dep is the only concession this layer makes to JPA: the
-    // race-loser recovery path needs to detach the locally-built row before
-    // the txn commit re-tries the INSERT. Adding a repository port for
-    // detach() is awkward because Spring Data JPA's fragment auto-detection
-    // doesn't pick up package-private fragments cleanly across module
-    // boundaries — kept inline rather than building infra around one call.
     private final EntityManager entityManager;
     private final Clock clock;
     private final SecureRandom secureRandom;
@@ -78,9 +53,6 @@ public class MigrationHandshakeService {
         this.userLookup = userLookup;
         this.entityManager = entityManager;
         this.clock = clock;
-        // Pre-warm SecureRandom at construction time so the first
-        // handshake doesn't pay the entropy-source initialisation cost
-        // (~100ms on a cold JVM).
         this.secureRandom = strongRandom();
     }
 
@@ -113,15 +85,9 @@ public class MigrationHandshakeService {
             repository.flush();
             return saved;
         } catch (DataIntegrityViolationException race) {
-            // Two-tab race: the loser sees the partial UNIQUE violation.
-            // Re-read the now-committed sibling row and supersede it in
-            // the same txn.
             MigrationUpload other = repository.findAwaitingByUser(userId)
                     .orElseThrow(() -> new IllegalStateException(
                             "Constraint violation on insert but no awaiting row to supersede", race));
-            // Drop the loser's local entity from the persistence context
-            // before re-issuing — Hibernate would otherwise try to flush
-            // it again at txn commit.
             entityManager.detach(fresh);
             return supersedeAndPersist(other, mintFreshRow(userId));
         }
@@ -146,14 +112,7 @@ public class MigrationHandshakeService {
 
     private MigrationUpload mintFreshRow(UUID userId) {
         KeyPair keyPair = generateKeyPair();
-        // Encoded bytes hold the secret material; crypto.wrap zeroizes the
-        // input array in finally. The JCE RSAPrivateKey object retains the
-        // modulus/exponent BigIntegers — there is no portable in-process
-        // zeroize hook for those without BouncyCastle (out of scope).
         byte[] pkcs8 = keyPair.getPrivate().getEncoded();
-        // Generate the row's id locally so the Tink AEAD wrap can bind
-        // uploadId.bytes as associatedData. UUID v7 keeps us on the
-        // project's time-ordered B-tree-friendly convention.
         UUID uploadId = UuidCreator.getTimeOrderedEpoch();
         byte[] wrapped = crypto.wrap(uploadId, pkcs8);
         return MigrationUpload.issue(uploadId, userId,
@@ -184,9 +143,6 @@ public class MigrationHandshakeService {
         try {
             return SecureRandom.getInstanceStrong();
         } catch (NoSuchAlgorithmException e) {
-            // Practically impossible on a supported JRE — surface as
-            // IllegalStateException at bean construction rather than
-            // silently degrading to the default SecureRandom.
             throw new IllegalStateException("SecureRandom.getInstanceStrong() unavailable", e);
         }
     }

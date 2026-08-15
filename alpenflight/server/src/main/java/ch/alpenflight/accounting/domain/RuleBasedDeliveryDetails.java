@@ -9,18 +9,6 @@ import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The mutable accumulator the rules engine threads through its pipeline. Each
- * stage may emit {@link DeliveryItemDetails}, decrement the remaining active
- * time, set a suppression flag, or record a matched filter id.
- *
- * <p>Two distinct field groups, mirroring the legacy split (its working fields
- * carried {@code [JsonIgnore]}): the <em>emitted</em> output the harness compares
- * ({@link #deliveryItems()}, {@link #recipient()}, the two information texts) and
- * the engine's <em>internal working state</em> (active times, no-landing-tax
- * flags, do-not-invoice short-circuit, club, matched filter ids) which never
- * appears in the compared payload.
- */
 public final class RuleBasedDeliveryDetails {
 
     private final UUID clubId;
@@ -47,12 +35,6 @@ public final class RuleBasedDeliveryDetails {
         return new RuleBasedDeliveryDetails(clubId);
     }
 
-    /**
-     * Appends an emitted line, assigning the next sequential position. When a
-     * line for the same article already exists the quantity is folded into it
-     * instead (legacy multi-rule-match coalescing); the returned item is the
-     * resulting line in either case.
-     */
     public DeliveryItemDetails addItem(DeliveryItemDetails item) {
         for (int i = 0; i < deliveryItems.size(); i++) {
             DeliveryItemDetails existing = deliveryItems.get(i);
@@ -67,21 +49,12 @@ public final class RuleBasedDeliveryDetails {
         return positioned;
     }
 
-    /**
-     * Appends an emitted line at the next sequential position WITHOUT the
-     * by-article coalescing {@link #addItem} does. The legacy InstructorFeeRule
-     * always builds a brand-new line (it never checks for an existing same-article
-     * line the way the other single-pass fee rules do), so two matching
-     * instructor-fee filters with the same article must yield two distinct lines —
-     * a non-derivable quirk this bypass preserves.
-     */
     public DeliveryItemDetails addLineWithoutCoalesce(DeliveryItemDetails item) {
         DeliveryItemDetails positioned = item.withPosition(deliveryItems.size() + 1);
         deliveryItems.add(positioned);
         return positioned;
     }
 
-    /** Whether an emitted line already carries {@code articleNumber}. */
     public boolean hasItemForArticle(String articleNumber) {
         return deliveryItems.stream().anyMatch(item -> item.articleNumber().equals(articleNumber));
     }
@@ -90,13 +63,6 @@ public final class RuleBasedDeliveryDetails {
         matchedFilterIds.add(filterId);
     }
 
-    /**
-     * Records that the FlightTime stage drew {@code seconds} from the credit
-     * {@code creditId} for this delivery. Accumulated per credit across the
-     * glider AND its tow recursion (the legacy single-transaction object
-     * overwrites and so under-consumes a glider+tow pair — a reachable money
-     * bug; summing the passes is the corrected AlpenFlight behavior, ADR 0026).
-     */
     public void recordCreditConsumption(UUID creditId, long seconds) {
         if (seconds <= 0) {
             return;
@@ -104,7 +70,6 @@ public final class RuleBasedDeliveryDetails {
         consumedSecondsByCreditId.merge(creditId, seconds, Long::sum);
     }
 
-    /** The seconds drawn from each credit this delivery, the create-time ledger input. */
     public List<CreditConsumption> creditConsumptions() {
         return consumedSecondsByCreditId.entrySet().stream()
                 .map(e -> new CreditConsumption(e.getKey(), e.getValue()))
@@ -195,16 +160,10 @@ public final class RuleBasedDeliveryDetails {
         return Set.copyOf(matchedFilterIds);
     }
 
-    /** Matched filter ids in match (insertion) order — the harness persists this list. */
     public List<UUID> matchedFilterIdsInOrder() {
         return List.copyOf(matchedFilterIds);
     }
 
-    /**
-     * The invoice recipient a {@code Recipient} rule resolves to — the
-     * member-number + name subset of the legacy {@code RecipientDetails} the
-     * engine actually sets (address fields are a J-10 concern).
-     */
     public record Recipient(
             @Nullable UUID personId,
             @Nullable String personClubMemberNumber,
@@ -212,6 +171,5 @@ public final class RuleBasedDeliveryDetails {
             @Nullable String firstname,
             @Nullable String lastname) {}
 
-    /** Seconds the FlightTime stage drew from one {@code PersonFlightTimeCredit} this delivery. */
     public record CreditConsumption(UUID creditId, long consumedSeconds) {}
 }

@@ -38,29 +38,6 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link Flight} aggregate. Tenant scoping
- * is structural via Hibernate's {@code @TenantId} discriminator on
- * {@link Flight#getOperatingClubId()}; role-within-tenant gates live on
- * the controller.
- *
- * <p>S-058 (reverts S-159): Aircraft is cross-tenant — any active aircraft
- * may be referenced on a Flight (charter case: Club B flies Club A's tow
- * plane). The FK constraint at the DB rejects unknown aircraftIds with a
- * generic data-integrity violation; pre-validation isn't needed for the
- * tenant gate (Aircraft has no @TenantId), only for friendlier error
- * messages, which we defer.
- *
- * <p>State-machine columns ({@code process_state_id}, {@code validated_on},
- * etc.) are stamped at create from {@link FlightInitialStateProvider};
- * transitions are owned by S-059. Air-state is computed (S-060), never
- * stored.
- *
- * <p>Audit emission: every mutation calls {@link AuditTrail#record}. Flight
- * + FlightCrew are in {@code audit.redaction.deny-all} for now — the
- * editable surface includes PII (comment / route / incident); an allow-list
- * is a follow-up security-engineer story.
- */
 @Service
 @Transactional
 public class FlightsService {
@@ -107,16 +84,6 @@ public class FlightsService {
         UUID flightId = Objects.requireNonNull(saved.getId());
         audit.record(AuditAction.CREATE,
                 AuditedTarget.created("Flight", flightId, saved));
-        // S-176 live-update nudge (J-3 T-05): publish the flights module's
-        // FlightCreatedEvent so the me-module listener fans a "flight.created"
-        // SSE to the creating principal's open dashboards once this
-        // transaction commits (AFTER_COMMIT — matching the audit listener, so
-        // the SSE only fires on a durably-committed flight). The Keycloak sub
-        // is captured here on the request thread because AFTER_COMMIT runs
-        // after the SecurityContext may have been cleared. The operating club
-        // comes from the live tenant carrier, not saved.getOperatingClubId():
-        // the @TenantId discriminator is stamped by Hibernate at flush and is
-        // not reliably populated back onto the in-memory entity post-save.
         UUID operatingClub = TenantContextCarrier.current().orElse(null);
         events.publishEvent(new FlightCreatedEvent(flightId, operatingClub, currentSub()));
         return detail;
@@ -147,7 +114,6 @@ public class FlightsService {
         FlightListCursor decoded = cursor == null ? null : FlightListCursor.decode(cursor);
         LocalDate cursorDate = decoded == null ? null : decoded.flightDate();
         UUID cursorId = decoded == null ? null : decoded.id();
-        // limit + 1 sentinel to compute nextCursor cheaply.
         List<FlightRepository.ListRow> rows = repository.findListWindow(
                 effectiveFrom, effectiveTo, cursorDate, cursorId, limit + 1, personId);
         boolean hasMore = rows.size() > limit;
@@ -186,16 +152,6 @@ public class FlightsService {
         return after;
     }
 
-    /**
-     * Club-admin dashboard counts (J-3 T-08): today's club flights +
-     * flights-pending-validation, both tenant-scoped to the caller's club by
-     * the {@code @TenantId} discriminator (ADR 0008 — the counts cannot cross
-     * clubs). "Today" is derived from the injected {@link Clock} (same source
-     * as {@link #newTemplate} / {@link #listFlights}) so the boundary is
-     * testable with {@link Clock#fixed}; pending = {@code NotProcessed} +
-     * {@code Invalid}. Counts ride {@code @TenantId} via JPQL {@code count}
-     * queries — no native SQL, nothing to register.
-     */
     @Transactional(readOnly = true)
     public ClubFlightCounts clubFlightCounts() {
         long today = repository.countByFlightDate(LocalDate.now(clock));
@@ -205,20 +161,11 @@ public class FlightsService {
         return new ClubFlightCounts(today, pending);
     }
 
-    /**
-     * Count of all non-deleted flights within the current effective tenant
-     * (J-3 T-10). Tenant-scoped per call by the {@code @TenantId} discriminator
-     * — it counts exactly the active tenant's flights. The sysadmin dashboard's
-     * cross-tenant {@code totalFlights} is built by the {@code me} module
-     * calling this once per club under {@code Tenants.runAs(clubId)} and summing
-     * — the sanctioned cross-tenant read path (no native SQL).
-     */
     @Transactional(readOnly = true)
     public long countAllFlights() {
         return repository.countAll();
     }
 
-    /** Per-club defaults remain a future story; this stamps today's date + the discriminator. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse newTemplate(FlightAircraftType type) {
         return new FlightTemplateResponse(
@@ -239,7 +186,6 @@ public class FlightsService {
                 List.of());
     }
 
-    /** See {@link FlightTemplateResponse}; cross-tenant source → 404. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse copyTemplate(FlightId sourceId) {
         Flight flight = repository.findByIdWithCrew(sourceId)
@@ -247,7 +193,6 @@ public class FlightsService {
         return mapper.toCopyTemplate(flight);
     }
 
-    /** AC-DIR-1; times are deliberately NOT returned. */
     @Transactional(readOnly = true)
     public Optional<FlightLastContextResponse> lastContext(UUID aircraftId,
                                                            LocalDate flightDate) {
@@ -276,11 +221,6 @@ public class FlightsService {
                 AuditedTarget.deleted("Flight",
                         Objects.requireNonNull(flight.getId()),
                         before));
-        // Legacy FlightService.cs:1314-1319. Application-layer only (no DB
-        // cascade on the self-FK by design); each tow row gets its own audit
-        // event sharing the request's actor + timestamp. Class-level
-        // @Transactional means an exception in the tow leg rolls back the
-        // glider delete too — caller sees an atomic outcome.
         if (flight.getFlightAircraftType() == FlightAircraftType.GLIDER
                 && flight.getTowFlightId() != null) {
             FlightId towId = FlightId.of(flight.getTowFlightId());
@@ -288,9 +228,6 @@ public class FlightsService {
                 if (tow.isDeleted()) {
                     return;
                 }
-                // The tow row may be in a terminal / admin-locked state
-                // independent of the glider; cascade must honour the same
-                // gate. Throwing here rolls back the glider delete too.
                 assertMutationAllowed(tow);
                 FlightDetail towBefore = mapper.toDetail(tow);
                 tow.softDelete(clock.instant());
@@ -303,19 +240,6 @@ public class FlightsService {
         }
     }
 
-    /**
-     * S-063 partial-PUT contract:
-     * <ul>
-     *   <li>{@code unlinkTowFlight=true} — unlink, regardless of any {@code
-     *       towFlightId} value also sent (the explicit choice wins).</li>
-     *   <li>{@code towFlightId} non-null — link to the resolved tow. Rejects
-     *       if another non-deleted glider already references that tow row
-     *       (cascade-delete would otherwise orphan the second link).</li>
-     *   <li>Both absent / null — preserve the existing link. This is the
-     *       partial-PUT fix: clients editing crew on a paired glider no
-     *       longer have to re-echo the link to keep it.</li>
-     * </ul>
-     */
     private void applyTowLink(Flight flight, FlightUpdateRequest req) {
         if (Boolean.TRUE.equals(req.unlinkTowFlight())) {
             flight.unlinkTow();
@@ -351,12 +275,6 @@ public class FlightsService {
                 || state == FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS;
     }
 
-    /**
-     * MVC-thread-bound — reads the request's authentication from Spring's
-     * thread-local {@link SecurityContextHolder}. Reactive or {@code @Async}
-     * call sites would see a {@code null} authentication and fail-closed
-     * (returning {@code false} keeps the gate restrictive).
-     */
     private static boolean callerIsClubAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {
@@ -366,14 +284,6 @@ public class FlightsService {
                 .anyMatch(a -> "ROLE_CLUB_ADMINISTRATOR".equals(a.getAuthority()));
     }
 
-    /**
-     * The creating principal's Keycloak {@code sub} off the request thread's
-     * {@link SecurityContextHolder} (same source as {@link #callerIsClubAdmin}).
-     * Captured at publish time onto {@link FlightCreatedEvent} so the
-     * AFTER_COMMIT SSE listener delivers to the right stream even after the
-     * context is cleared. Null for a non-JWT / system create (no dashboard to
-     * nudge); the listener then no-ops.
-     */
     private static @Nullable String currentSub() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth instanceof JwtAuthenticationToken jwtAuth && auth.isAuthenticated()) {

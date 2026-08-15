@@ -24,42 +24,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link DeliveryCreationTest} aggregate (J-9, the
- * rules-engine regression harness). Tenant scoping (ADR 0008) is structural via
- * Hibernate's {@code @TenantId} discriminator on
- * {@code DeliveryCreationTest.operatingClubId}; role-within-tenant gates live on
- * the controller as {@code @PreAuthorize}.
- *
- * <p>The service <em>orchestrates</em>; it does not re-implement domain rules
- * (ADR 0022 §2 — testName non-blank + flightId present are re-validated by the
- * aggregate's {@code create}/{@code update}). What lives here is wire-shape
- * translation:
- *
- * <ul>
- *   <li><b>Optional-boolean coercion</b>: the write request carries
- *       {@code @Nullable Boolean} for every flag the SPA may omit; the service
- *       coerces each to its legacy default ({@code active} → true, the rest →
- *       false) and assembles the {@link IgnoreFlags} VO before the aggregate sees
- *       primitives.</li>
- *   <li><b>Tenant stamp</b>: {@link DeliveryCreationTest#create} needs the
- *       operating club as an explicit param (its child items denormalize it), so
- *       create resolves the current tenant; Hibernate re-confirms it on INSERT.</li>
- *   <li><b>Cross-tenant 404</b>: every read/mutate loads via
- *       {@code findActiveById}, which the {@code @TenantId} filter scopes to the
- *       caller's club — a cross-tenant id is invisible →
- *       {@link DeliveryCreationTestNotFoundException}.</li>
- * </ul>
- *
- * <p>The dry-run / run-test endpoints + diff are T-15; they extend this
- * service/controller. The detail DTO already round-trips the captured
- * {@code expectedDelivery} + the {@code lastTest*} run-state read-only.
- *
- * <p>Mutations emit {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
- * {@link AuditAction#DELETE} via {@link AuditTrail} (every rules-config change
- * drives every subsequent invoice). The two jsonb delivery payloads are redacted
- * in the snapshot ({@code @AuditRedact} on the entity fields).
- */
 @Service
 @Transactional
 public class DeliveryCreationTestsService {
@@ -138,12 +102,6 @@ public class DeliveryCreationTestsService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
     }
 
-    /**
-     * Dry-runs the engine for a flight and returns the would-be delivery WITHOUT
-     * persisting anything (legacy {@code generateExampleDelivery}) — the SPA fills
-     * a new harness's expected set from this. A missing / cross-tenant flight is
-     * invisible under {@code @TenantId} → {@code FlightNotFoundException} (404).
-     */
     @Transactional(readOnly = true)
     public ExampleDeliveryResult exampleDeliveryForFlight(UUID flightId) {
         RuleBasedDeliveryDetails computed = engine.computeForFlight(flightId);
@@ -152,12 +110,6 @@ public class DeliveryCreationTestsService {
                 computed.matchedFilterIdsInOrder());
     }
 
-    /**
-     * Runs the engine against the harness's stored flight, diffs the output
-     * against the expected set (gated by the nine {@link IgnoreFlags} +
-     * {@code mustNotCreateDeliveryForFlight}), records the run-state on the
-     * aggregate and returns the result. A MUTATION → audited.
-     */
     public RunTestResult runTest(UUID id) {
         DeliveryCreationTest test = loadOrThrow(id);
         DeliveryCreationTestDetail before = toDetail(test);
@@ -181,7 +133,6 @@ public class DeliveryCreationTestsService {
         return new RunTestResult(diff.successful(), diff.message(), created, matchedIds);
     }
 
-    // -- loading / persistence --------------------------------------------------
 
     private DeliveryCreationTest loadOrThrow(UUID id) {
         return tests.findActiveById(id)
@@ -190,8 +141,6 @@ public class DeliveryCreationTestsService {
 
     private DeliveryCreationTest persist(DeliveryCreationTest test) {
         DeliveryCreationTest saved = tests.save(test);
-        // Flush so the partial-UNIQUE (ux_dct_club_flight_partial) race surfaces
-        // synchronously here rather than at tx commit.
         tests.flush();
         return saved;
     }
@@ -205,14 +154,7 @@ public class DeliveryCreationTestsService {
         return tenant;
     }
 
-    // -- request → VO -----------------------------------------------------------
 
-    /**
-     * Persists the captured dry-run output as the harness's expected set when the
-     * write request carries one. A harness saved without a prior dry-run omits the
-     * payload (legal) — its expected set then stays whatever it already held, so a
-     * round-trip without re-capturing never clears a previously captured set.
-     */
     private static void captureExpectedIfSupplied(DeliveryCreationTest test,
                                                   DeliveryCreationTestWriteRequest req) {
         if (req.expectedDelivery() == null) {
@@ -237,7 +179,6 @@ public class DeliveryCreationTestsService {
                 orDefault(req.ignoreItemAdditionalInformation(), false));
     }
 
-    // -- aggregate → DTO --------------------------------------------------------
 
     private static DeliveryCreationTestDetail toDetail(DeliveryCreationTest test) {
         IgnoreFlags flags = test.getIgnoreFlags();
@@ -286,7 +227,6 @@ public class DeliveryCreationTestsService {
                 "DeliveryCreationTest.flightId must be non-null");
     }
 
-    /** Coerce an optional wire boolean to its default when the field was omitted (null). */
     private static boolean orDefault(@Nullable Boolean value, boolean fallback) {
         return value == null ? fallback : value;
     }

@@ -7,15 +7,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Accounting-unit-type catalog (MINUTES, SECONDS, LANDINGS, START_OR_FLIGHT).
- * System-global; not tenant-scoped. Mapped to the V4 {@code t_accounting_unit_type}
- * table; data lives in the V4 Flyway seed (4 rows). Read-only.
- *
- * <p>Drives the {@code AccountingUnitType} picker on the article-target section
- * of the accounting rule-filter edit form. {@code legacyIntId} (legacy
- * {@code AccountingUnitTypeId} — 10/20/30/40) is exposed alongside the UUID id.
- */
 @Entity
 @Table(name = "t_accounting_unit_type")
 public class AccountingUnitType {
@@ -36,7 +27,6 @@ public class AccountingUnitType {
     private @Nullable String shortName;
 
     protected AccountingUnitType() {
-        // JPA.
     }
 
     public @Nullable UUID getId() {

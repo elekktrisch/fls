@@ -1,21 +1,5 @@
 package ch.alpenflight.flights.domain;
 
-/**
- * Thrown when a flight is otherwise eligible for a transition but the
- * S-061 <em>time-gate</em> has not yet elapsed:
- *
- * <ul>
- *   <li>{@link Gate#LOCK} — Valid → Locked attempted before
- *       {@code flight_date <= today - 2 days}.</li>
- *   <li>{@link Gate#BILL} — Locked → DeliveryPrepared attempted before
- *       {@code locked_at <= today - 3 days}.</li>
- * </ul>
- *
- * <p>Mapped to HTTP 409 Conflict by {@code FlightsExceptionHandler},
- * mirroring {@link IllegalFlightTransitionException}: the transition is
- * legal by the matrix but not yet permitted by the calendar gate, so the
- * client should surface "not yet — too recent" rather than "never".
- */
 public class FlightGateNotReachedException extends RuntimeException {
 
     public enum Gate { LOCK, BILL }

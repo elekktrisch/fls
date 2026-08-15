@@ -12,14 +12,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 
-/**
- * Caches the service-account access token for {@code alpenflight-backend-admin}.
- *
- * <p>The token is fetched lazily on first use and rotated when the cached
- * value is within {@link KeycloakAdminProperties#refreshSkewSeconds()} of
- * expiry. A {@link ReentrantLock} serialises concurrent rotations so a burst
- * of admin calls produces one token-endpoint hit, not N.
- */
 @Component
 public class KeycloakAdminTokenSupplier {
 
@@ -75,8 +67,6 @@ public class KeycloakAdminTokenSupplier {
             }
             return body;
         } catch (HttpStatusCodeException e) {
-            // Status only; never the response body — it may carry the
-            // service-account-client error grant context.
             throw new KeycloakAdminTokenException(
                     "Keycloak token endpoint refused client-credentials grant (status "
                             + e.getStatusCode().value() + ")", e);

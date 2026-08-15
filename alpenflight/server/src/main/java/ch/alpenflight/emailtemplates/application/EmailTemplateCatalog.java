@@ -13,20 +13,6 @@ import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
-/**
- * Enumerates the S-082 Thymeleaf FILE defaults — the system templates that ship
- * with the app rather than living in {@code t_email_template}. The union read
- * starts from this set and lets a club override suppress the matching file
- * default.
- *
- * <p>The derivable key set is the bare file stem of every product template
- * under {@code classpath*:templates/email/*.html}. The {@code smoke} template is
- * a render-seam test artifact, not a product template, so it is excluded.
- *
- * <p>Keys are canonicalized lower-case to match the aggregate, so a file named
- * {@code Foo.html} and an override keyed {@code foo} resolve to the same union
- * entry regardless of case.
- */
 @Component
 public class EmailTemplateCatalog {
 
@@ -44,16 +30,10 @@ public class EmailTemplateCatalog {
         this.fileDefaults = scan(resolver);
     }
 
-    /** The file defaults that seed the union read, one per product template stem. */
     public List<FileDefault> fileDefaults() {
         return fileDefaults;
     }
 
-    /**
-     * The locale every shipped file default is keyed under. The single-locale
-     * send path resolves a DB override against this same locale, so a file
-     * default and its override share one identity.
-     */
     public static String defaultLocale() {
         return DEFAULT_LOCALE;
     }
@@ -88,6 +68,5 @@ public class EmailTemplateCatalog {
         }
     }
 
-    /** A system/file default: its key, default locale, and the raw Thymeleaf source. */
     public record FileDefault(String templateKey, String languageLocale, String body) {}
 }

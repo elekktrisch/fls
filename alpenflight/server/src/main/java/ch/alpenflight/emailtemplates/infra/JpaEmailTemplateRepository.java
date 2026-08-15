@@ -8,17 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data JPA implementation of {@link EmailTemplateRepository}. Extends
- * both the abstract port and {@code JpaRepository<EmailTemplate, UUID>} so the
- * application layer depends on the port (ADR 0023) while Spring Data generates
- * the runtime bean.
- *
- * <p>EmailTemplate is tenant-scoped via {@code @TenantId} on
- * {@code EmailTemplate.clubId}; Hibernate appends the tenant predicate to every
- * query automatically, so {@code findAll()} returns only the caller's overrides
- * and the key+locale lookup never crosses a tenant boundary.
- */
 public interface JpaEmailTemplateRepository
         extends JpaRepository<EmailTemplate, UUID>, EmailTemplateRepository {
 

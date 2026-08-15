@@ -20,21 +20,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Flight REST surface. Records (immutable, explicit field
- * set); mass-assignment is structurally impossible because the controller
- * binds to the record, not to the {@link ch.alpenflight.flights.domain.Flight}
- * aggregate.
- *
- * <p>{@code FlightCreateRequest} / {@code FlightUpdateRequest} explicitly
- * exclude the state-machine columns ({@code processStateId},
- * {@code validatedOn}, {@code deliveryCreatedOn}, {@code flightReportSentOn},
- * {@code validationErrors}) and tenant/audit metadata. Air-state is computed
- * (S-060) and response-only — {@code FlightDetail.airState} carries the
- * enum-name string; it never appears on a create/update request.
- * The discriminator {@code flightAircraftType} is required on create and
- * immutable post-create (absent from {@code FlightUpdateRequest}).
- */
 public final class FlightDtos {
 
     private FlightDtos() {}
@@ -142,7 +127,6 @@ public final class FlightDtos {
             @Nullable FlightCostBalanceTypeId flightCostBalanceTypeId,
             FlightLastContextResponse.@Nullable TowContext tow) {
 
-        /** Tow-specific context populated only when the last flight was towed. */
         public record TowContext(
                 @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
                 @Nullable PersonId pilotPersonId,

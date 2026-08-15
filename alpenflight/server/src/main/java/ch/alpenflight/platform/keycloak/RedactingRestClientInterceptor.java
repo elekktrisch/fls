@@ -9,14 +9,6 @@ import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
 
-/**
- * Debug-log every outbound call to the Keycloak admin REST with the
- * {@code Authorization} header redacted. The admin bearer token is
- * sensitive; any sidecar log forwarder would otherwise surface it.
- *
- * <p>Public so adapters in sibling business modules can attach the
- * same redaction interceptor to their own admin RestClient builders.
- */
 public final class RedactingRestClientInterceptor implements ClientHttpRequestInterceptor {
 
     public static final RedactingRestClientInterceptor INSTANCE = new RedactingRestClientInterceptor();

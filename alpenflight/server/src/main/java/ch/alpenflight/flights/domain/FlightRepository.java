@@ -9,29 +9,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Domain port for {@link Flight} persistence. Implemented by
- * {@code ch.alpenflight.flights.infra.JpaFlightRepository}.
- *
- * <p>Flight is tenant-scoped via Hibernate's {@code @TenantId} discriminator
- * on {@code Flight.operatingClubId} (ADR 0008); every read + write query
- * carries the tenant predicate automatically. {@link #findByIdWithCrew}
- * therefore returns empty for cross-tenant ids — the caller's tenant scope
- * makes the row invisible.
- *
- * <p>Soft-delete ({@code deleted_on}) is filtered at the query layer.
- */
 public interface FlightRepository {
 
-    /**
-     * Slim projection for {@code GET /api/v1/flights}. S-058 scope is basic
-     * CRUD — decoration columns (aircraft immatriculation, pilot display
-     * name) are intentionally NOT in this row to keep the list query a
-     * single-table JPQL projection that crosses no module boundary
-     * (ADR 0023). The web layer joins decorations from the
-     * {@code /api/v1/aircraft/picker} payload client-side, or a future
-     * story adds a per-row enrichment pass.
-     */
     record ListRow(UUID id,
                    FlightAircraftType flightAircraftType,
                    @Nullable LocalDate flightDate,
@@ -44,7 +23,6 @@ public interface FlightRepository {
                    boolean noLdgTimeInformation,
                    @Nullable Instant flightPlanOpenedOn) {
 
-        /** Cross-view parity: same compute as {@link Flight#airState()}. */
         public FlightAirState airState() {
             return FlightAirState.compute(ldgDateTime, startDateTime,
                     noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
@@ -53,33 +31,8 @@ public interface FlightRepository {
 
     Flight save(Flight flight);
 
-    /**
-     * Detail load. Eagerly fetches the crew collection via {@code @EntityGraph}
-     * so the detail GET serves in one query.
-     */
     Optional<Flight> findByIdWithCrew(FlightId id);
 
-    /**
-     * Keyset-cursor list. Returns rows where the (flight_date, id) pair is
-     * strictly less than the cursor, filtered by the date window (both
-     * bounds optional). Soft-deleted rows excluded. Tenant filter applied
-     * structurally by {@code @TenantId}.
-     *
-     * <p>Callers request {@code limit + 1} rows; the service trims to
-     * {@code limit} and emits a {@code nextCursor} only when the sentinel
-     * row was returned.
-     *
-     * <p>When {@code personId} is non-null, rows are filtered to flights
-     * with a non-deleted FlightCrew row whose {@code person_id} matches.
-     * Sort under the filter is {@code flight_date DESC NULLS LAST,
-     * start_date_time DESC NULLS LAST, id DESC} (S-165 AC; UUIDv7 id
-     * stand-in for the {@code created_on} tie-breaker). The default sort
-     * (no {@code personId}) remains {@code flight_date DESC NULLS LAST,
-     * id DESC} so the keyset cursor — encoded as {@code (flight_date, id)}
-     * — remains strictly monotonic with the order; paginating past the
-     * limit-1 dashboard call under {@code personId} is best-effort within
-     * same-day ties (S-165 only consumes {@code limit=1}).
-     */
     List<ListRow> findListWindow(@Nullable LocalDate from,
                                  @Nullable LocalDate to,
                                  @Nullable LocalDate cursorFlightDate,
@@ -87,86 +40,25 @@ public interface FlightRepository {
                                  int limit,
                                  @Nullable UUID personId);
 
-    /**
-     * Findall gliders linked to the given tow flight (sacred-cow 1:N
-     * pairing per S-013 + S-058 design notes). Soft-deleted glider rows
-     * excluded; tenant filter structural.
-     */
     List<Flight> findByTowFlightId(FlightId towFlightId);
 
-    /**
-     * Findall flights in the given process state. Soft-deleted excluded;
-     * tenant filter structural.
-     */
     List<Flight> findByProcessStateId(UUID processStateId);
 
-    /**
-     * Flights the daily report has never covered ({@code flight_report_sent_on is
-     * null}), newest flying day first. Soft-deleted excluded; tenant filter
-     * structural.
-     */
     List<Flight> findUnreported();
 
-    /**
-     * Count of non-deleted flights flown on {@code flightDate} within the
-     * caller's tenant — feeds the club-admin dashboard "today's flights" tile
-     * (J-3 T-08). Tenant filter structural via {@code @TenantId}; "today" is
-     * resolved by the caller from the injected {@link java.time.Clock}.
-     */
     long countByFlightDate(LocalDate flightDate);
 
-    /**
-     * Count of all non-deleted flights within the caller's tenant — feeds the
-     * sysadmin dashboard's {@code totalFlights} tile (J-3 T-10). Tenant filter
-     * structural via {@code @TenantId}: per call this counts exactly one
-     * club's flights, so the sysadmin total is built by the {@code me} module
-     * summing this across every club under {@code Tenants.runAs(clubId)} — the
-     * sanctioned cross-tenant read path (no native SQL, nothing to register).
-     */
     long countAll();
 
-    /**
-     * Count of non-deleted flights in any of the given process states within
-     * the caller's tenant — feeds the club-admin "pending validation" tile
-     * (NotProcessed + Invalid, J-3 T-08). Tenant filter structural. An empty
-     * collection returns {@code 0} without hitting the DB.
-     */
     long countByProcessStateIdIn(Collection<UUID> processStateIds);
 
-    /**
-     * Returns the most recently created flight for the given (aircraft,
-     * flight_date) tuple within the caller's tenant — feeds the SPA's
-     * last-flight-context pre-fill per AC-DIR-1. Soft-deleted excluded;
-     * tenant filter structural via {@code @TenantId}.
-     */
     Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate);
 
-    /**
-     * Ids of ALL non-deleted flights within the caller's tenant — the
-     * iteration set of the flight-report read-model rebuild (J-7 RM-2,
-     * ADR 0027 §2). Tenant filter structural via {@code @TenantId}.
-     */
     List<UUID> findAllLiveIds();
 
-    /**
-     * Ids of non-deleted flights flying the given aircraft within the
-     * caller's tenant — the affected-flight lookup when an Aircraft rename
-     * must refresh denormalized read-model immatriculations (J-7 RM-2).
-     */
     List<UUID> findIdsByAircraftId(UUID aircraftId);
 
-    /**
-     * Ids of non-deleted flights whose start OR landing location is the
-     * given location, within the caller's tenant — the affected-flight
-     * lookup when a Location rename must refresh denormalized read-model
-     * location names (J-7 RM-2).
-     */
     List<UUID> findIdsByLocationId(UUID locationId);
 
-    /**
-     * Ids of non-deleted flights of the given flight type within the
-     * caller's tenant — the affected-flight lookup when a FlightType rename
-     * must refresh denormalized read-model type names / codes (J-7 RM-2).
-     */
     List<UUID> findIdsByFlightTypeId(UUID flightTypeId);
 }

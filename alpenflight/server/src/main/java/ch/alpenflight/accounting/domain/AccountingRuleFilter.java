@@ -14,53 +14,6 @@ import org.hibernate.annotations.TenantId;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
-/**
- * AccountingRuleFilter aggregate root. A club admin's billing-rule predicate
- * row: it decides which flights a billing rule matches and what article /
- * recipient the rule produces. The rules engine (J-9, S-073–077) instantiates
- * runtime {@code Rule} objects from these rows; J-8 is the CONFIG surface that
- * creates / edits them. Maps the EXISTING V4 table {@code t_accounting_rule_filter}
- * (substrate built ahead in V4, never wired until this journey).
- *
- * <p>Tenant-scoped via Hibernate's {@code @TenantId} on {@code operatingClubId}
- * (ADR 0008): every read + write is auto-filtered to the caller's managing
- * tenant before the service sees the row. Legacy cross-tenant Update/Delete was
- * a tenant-leak BUG (oracle); the new stack scopes by {@code @TenantId} so a
- * cross-tenant mutation surfaces as 404 (the row is invisible).
- *
- * <p>Per ADR 0022 directive 2, business rules live on the aggregate, not the
- * schema. The aggregate owns exactly two invariants
- * ({@link InvalidAccountingRuleFilterException}):
- *
- * <ul>
- *   <li>{@code ruleFilterName} non-blank (legacy enforced client-side only).</li>
- *   <li>{@code filterTypeId} present (the discriminator driving the form +
- *       rules engine).</li>
- * </ul>
- *
- * Per-{@code filterType} target requirements are intentionally NOT enforced —
- * legacy permits empty targets (oracle); type-specific field rules belong to
- * the rules engine (J-9), not this config aggregate.
- *
- * <p>The variable predicate set is held as the typed {@link FilterConfig}
- * value object, persisted to the {@code filter_config jsonb} column via
- * {@code @JdbcTypeCode(SqlTypes.JSON)} (the audit-module jsonb pattern, but a
- * typed record rather than a raw String). {@code articleTarget} carries the
- * bare ArticleNumber string (≤50) and {@code recipientTarget} the PersonClub
- * member-number string (≤50); their descriptive text
- * ({@code deliveryLineText} / {@code recipientName}) rides inside
- * {@link FilterConfig} so the form round-trips every field.
- *
- * <p>Identity-bearing partial UNIQUE {@code ux_arf_club_sort_partial} on
- * {@code (operating_club_id, sort_indicator) WHERE deleted_on IS NULL} (V4)
- * is the structural collision guard — the service-layer next-sort pre-check
- * can't catch a concurrent INSERT race. {@code sort_indicator} order is owned
- * by the repository/service (T-04/T-05), not this aggregate.
- *
- * <p>No {@code @DomainEvents} saved-event hook: unlike FlightType (whose
- * flight-report read-model re-projects on save), this aggregate has no
- * read-model consumer in J-8 — the rules engine (J-9) reads the rows directly.
- */
 @Entity
 @Table(name = "t_accounting_rule_filter")
 public class AccountingRuleFilter extends SoftDeletableAggregate {
@@ -106,32 +59,14 @@ public class AccountingRuleFilter extends SoftDeletableAggregate {
     @Column(name = "recipient_target", length = MAX_TARGET_LENGTH)
     private @Nullable String recipientTarget;
 
-    // The V4 schema COMMENT marks filter_config pii_blob: true — the predicate
-    // bag can carry club-member numbers, recipient names, delivery-line text.
-    // @AuditRedact redacts it unconditionally in the audit snapshot (the same
-    // jsonb/PII pattern as MigrationUpload.privateKeyCiphertext /
-    // MigrationRunWarning); the AccountingRuleFilter redaction allow-list in
-    // application.yml covers the remaining (non-PII) fields. Together they
-    // satisfy AuditRedactionCoverageTest once accounting.domain is in its roots.
     @AuditRedact
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "filter_config", nullable = false, columnDefinition = "jsonb")
     private FilterConfig filterConfig = FilterConfig.empty();
 
     protected AccountingRuleFilter() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new AccountingRuleFilter. The tenant
-     * ({@link #operatingClubId}) is set by Hibernate's {@code @TenantId}
-     * resolver on persist — do NOT pass it here. {@code sortIndicator} is
-     * assigned by the service (next free slot per club, T-05) — do NOT pass it
-     * here either; it defaults to 0 until the service stamps it.
-     *
-     * @throws InvalidAccountingRuleFilterException when {@code ruleFilterName}
-     *     is blank or {@code filterTypeId} is null
-     */
     public static AccountingRuleFilter create(UUID filterTypeId,
                                               String ruleFilterName,
                                               @Nullable UUID accountingUnitTypeId,
@@ -149,16 +84,6 @@ public class AccountingRuleFilter extends SoftDeletableAggregate {
         return arf;
     }
 
-    /**
-     * Replaces every mutable field atomically and re-validates the two
-     * invariants. The guards fire before any assignment, so a rejected update
-     * leaves the aggregate unchanged. {@code operatingClubId} and
-     * {@code sortIndicator} are NOT touched here — tenancy is immutable and
-     * sort order is the service's concern.
-     *
-     * @throws InvalidAccountingRuleFilterException when {@code ruleFilterName}
-     *     is blank or {@code filterTypeId} is null
-     */
     public void update(UUID filterTypeId,
                        String ruleFilterName,
                        @Nullable UUID accountingUnitTypeId,
@@ -174,12 +99,6 @@ public class AccountingRuleFilter extends SoftDeletableAggregate {
                 articleTarget, recipientTarget, filterConfig);
     }
 
-    /**
-     * Service-owned sort position (next free slot per club / dedupe-renumber —
-     * T-05). Kept off the create/update signatures so callers can't set it by
-     * accident; the partial UNIQUE {@code ux_arf_club_sort_partial} is the
-     * structural backstop.
-     */
     public void assignSortIndicator(int sortIndicator) {
         this.sortIndicator = sortIndicator;
     }
@@ -194,7 +113,6 @@ public class AccountingRuleFilter extends SoftDeletableAggregate {
                        @Nullable String newArticleTarget,
                        @Nullable String newRecipientTarget,
                        FilterConfig newFilterConfig) {
-        // Guards first — a rejected mutation leaves the aggregate untouched.
         if (newFilterTypeId == null) {
             throw new InvalidAccountingRuleFilterException("filterTypeId is required");
         }

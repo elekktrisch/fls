@@ -23,45 +23,12 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Planning-day aggregate root (J-6). Fixes who is on duty (instructor, tow
- * pilot, flight operator) at a {@code location} for a {@code planningDate}, and
- * carries free-text {@code info} (legacy {@code Remarks}). Owns its child
- * {@link PlanningDayAssignment} rows (cascade + orphan-removal, mirroring the
- * V4 {@code fk_pda_planning_day_id … ON DELETE CASCADE}).
- *
- * <p>Storage is the <em>generic</em> typed-assignment model: each crew slot is
- * a {@link PlanningDayAssignment} keyed by a per-club
- * {@link PlanningDayAssignmentType}. The three well-known {@link PlanningRole}s
- * are upserted/cleared via {@link #assignRole} (null person clears the row),
- * mirroring legacy {@code MappingExtensions.cs:3302/3325/3348} upsert-or-delete.
- *
- * <p>Per ADR 0022 directive 2 the business rules live here, NOT the schema:
- * <ul>
- *   <li>{@link #validatePlanningDate(LocalDate)} — a planning-date sanity range
- *       runs at construction (V4 drops {@code ck_pln_planning_date_reasonable}).</li>
- *   <li>The duplicate-{@code (club,date,location)} rule is enforced at the
- *       repository/unique-index layer ({@code ux_pln_club_date_loc}, T-03); the
- *       aggregate exposes {@link #dedupKey()} so that layer + callers share one
- *       identity tuple.</li>
- * </ul>
- *
- * <p>Tenant-scoped on {@code operating_club_id} (ADR 0008); {@code location_id}
- * references the cross-tenant Location catalog by raw UUID.
- */
 @Entity
 @Table(name = "t_planning_day")
 public class PlanningDay {
 
-    /**
-     * Lower sanity bound for a planning date — far enough back to admit any
-     * legitimately migrated historical day, but rejecting an obviously
-     * garbage/zero date. Mirrors the intent of the dropped
-     * {@code ck_pln_planning_date_reasonable} (V4 comment).
-     */
     private static final LocalDate MIN_PLANNING_DATE = LocalDate.of(1900, 1, 1);
 
-    /** Upper sanity bound — rejects an obviously garbage far-future date. */
     private static final LocalDate MAX_PLANNING_DATE = LocalDate.of(2100, 12, 31);
 
     private static final int MAX_INFO_LENGTH = 4000;
@@ -99,19 +66,8 @@ public class PlanningDay {
     private List<PlanningDayAssignment> assignments = new ArrayList<>();
 
     protected PlanningDay() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new planning day. {@link #validatePlanningDate(LocalDate)}
-     * runs at construction so an out-of-range date never reaches persistence.
-     * The day starts with no crew — assign roles via {@link #assignRole}.
-     *
-     * @param operatingClubId the tenant stamp — the operating club
-     * @param planningDate the day this plan is for (pure DATE, no tz shift)
-     * @param locationId the Location this plan is at (cross-tenant catalog FK)
-     * @param info free-text remarks (legacy {@code Remarks}), nullable
-     */
     public static PlanningDay create(UUID operatingClubId,
                                      LocalDate planningDate,
                                      UUID locationId,
@@ -131,12 +87,6 @@ public class PlanningDay {
         return d;
     }
 
-    /**
-     * Rejects a planning date outside the sanity range
-     * {@code [1900-01-01, 2100-12-31]} (or null). The bounds are deliberately
-     * wide — this guards against a garbage/zero date, not against scheduling
-     * policy, which the wizard's range check owns (T-05).
-     */
     public static void validatePlanningDate(@Nullable LocalDate date) {
         if (date == null) {
             throw new IllegalArgumentException("planningDate must not be null");
@@ -148,40 +98,8 @@ public class PlanningDay {
         }
     }
 
-    /**
-     * Maximum span (inclusive, in days) the bulk weekday-expansion rule (T-05)
-     * may cover. Legacy is unbounded ({@code PlanningDayService.cs:304}); V4's
-     * {@code ux_pln_club_date_loc} + the dedup-aware save make an unbounded rule
-     * an expensive way to insert thousands of rows. Capped at ~one year + a
-     * leap-day margin so a full-season weekend rule is fine but an absurd range
-     * (e.g. 1900→2100) is rejected ({@link PlanningRuleRangeException} → 422).
-     */
     public static final long MAX_RULE_SPAN_DAYS = 366;
 
-    /**
-     * Expands a bulk-creation rule (T-05) to the inclusive list of dates whose
-     * weekday is selected, in ascending order — the legacy
-     * {@code CreatePlanningDays} weekday loop ({@code PlanningDayService.cs:304-324})
-     * as a domain rule (ADR 0022 directive 2: the expansion + range bound live
-     * here, not the controller/SQL).
-     *
-     * <ul>
-     *   <li>Empty {@code weekdays} → empty list (legacy returns an empty list, no
-     *       error — {@code PlanningDayService.cs:290-300}).</li>
-     *   <li>{@code endDate} before {@code startDate} → empty list (the loop never
-     *       enters — parity with the legacy {@code for} condition).</li>
-     *   <li>Span exceeding {@link #MAX_RULE_SPAN_DAYS} → {@link
-     *       PlanningRuleRangeException} (the bound legacy lacks).</li>
-     * </ul>
-     *
-     * <p>The caller (service) then skips dates that already have a day at the
-     * location (idempotent re-run) and persists the rest as bare days — no crew.
-     *
-     * @param startDate inclusive range start
-     * @param endDate inclusive range end
-     * @param weekdays the selected weekdays (an empty set yields no dates)
-     * @return the matching dates, ascending; never null
-     */
     public static List<LocalDate> expandRuleDates(LocalDate startDate,
                                                   LocalDate endDate,
                                                   Set<DayOfWeek> weekdays) {
@@ -194,7 +112,6 @@ public class PlanningDay {
         if (weekdays == null) {
             throw new IllegalArgumentException("weekdays must not be null");
         }
-        // Validate the endpoints with the same sanity range a single create uses.
         validatePlanningDate(startDate);
         validatePlanningDate(endDate);
         if (weekdays.isEmpty() || endDate.isBefore(startDate)) {
@@ -215,7 +132,6 @@ public class PlanningDay {
         return List.copyOf(dates);
     }
 
-    /** Moves the day to a different date, re-running the sanity range check. */
     public void reschedule(LocalDate newPlanningDate) {
         validatePlanningDate(newPlanningDate);
         this.planningDate = newPlanningDate;
@@ -232,21 +148,6 @@ public class PlanningDay {
         setInfo(newInfo);
     }
 
-    /**
-     * Upserts-or-clears the crew assignment for {@code role}, mirroring legacy
-     * upsert-or-delete ({@code MappingExtensions.cs:3302/3325/3348}). With a
-     * non-null {@code personId}: reuse the existing row for the role's type
-     * (re-point its person) or add a new one. With a null {@code personId}:
-     * remove the role's row if present (orphan-removal cascades the DELETE).
-     *
-     * <p>{@code assignmentTypeId} is the caller-resolved per-club
-     * {@link PlanningDayAssignmentType} id for {@code role} — the role→type-id
-     * resolution is per-club and lives outside the aggregate (the type
-     * repository, T-04). The {@code role} parameter documents intent + lets the
-     * aggregate stay parity-faithful to the legacy 3-field write.
-     *
-     * @return {@code true} if the assignment set changed
-     */
     public boolean assignRole(PlanningRole role, UUID assignmentTypeId, @Nullable UUID personId) {
         if (role == null) {
             throw new IllegalArgumentException("role must not be null");
@@ -274,20 +175,10 @@ public class PlanningDay {
         return true;
     }
 
-    /**
-     * Clears the crew assignment for {@code role} (convenience for
-     * {@link #assignRole}{@code (role, typeId, null)}).
-     *
-     * @return {@code true} if a row was removed
-     */
     public boolean clearRole(PlanningRole role, UUID assignmentTypeId) {
         return assignRole(role, assignmentTypeId, null);
     }
 
-    /**
-     * The active person assigned for {@code assignmentTypeId}, or empty when
-     * the role is unassigned.
-     */
     public Optional<UUID> assignedPersonForType(UUID assignmentTypeId) {
         return activeAssignmentForType(assignmentTypeId)
                 .map(PlanningDayAssignment::getAssignedPersonId);
@@ -300,28 +191,16 @@ public class PlanningDay {
                 .findFirst();
     }
 
-    /**
-     * The {@code (club, date, location)} identity the {@code ux_pln_club_date_loc}
-     * unique index keys on — shared with the repository's dedup check (T-03) so
-     * one tuple definition backs both layers.
-     */
     public DedupKey dedupKey() {
         return new DedupKey(requireClub(),
                 Objects.requireNonNull(planningDate, "planningDate not set"),
                 Objects.requireNonNull(locationId, "locationId not set"));
     }
 
-    /**
-     * Stamps the internal {@code user.id} that created this day, used by the
-     * permission gate ({@code ClubAdministrator} OR record creator may
-     * update/delete — legacy {@code PlanningDayService.cs:407-425}). Set once at
-     * creation by the service; the column is {@code updatable = false}.
-     */
     public void recordCreatedBy(@Nullable UUID userId) {
         this.createdByUserId = userId;
     }
 
-    /** The internal {@code user.id} that created this day, or {@code null}. */
     public @Nullable UUID getCreatedByUserId() {
         return createdByUserId;
     }
@@ -361,7 +240,6 @@ public class PlanningDay {
         return info;
     }
 
-    /** Live (non-deleted) child assignment rows, read-only. */
     public List<PlanningDayAssignment> getAssignments() {
         return assignments.stream().filter(a -> !a.isDeleted()).toList();
     }
@@ -370,6 +248,5 @@ public class PlanningDay {
         return deletedOn != null;
     }
 
-    /** Identity tuple for the {@code ux_pln_club_date_loc} unique constraint. */
     public record DedupKey(UUID operatingClubId, LocalDate planningDate, UUID locationId) {}
 }

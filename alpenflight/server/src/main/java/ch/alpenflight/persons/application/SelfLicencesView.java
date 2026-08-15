@@ -4,21 +4,6 @@ import ch.alpenflight.persons.domain.Person;
 import java.time.LocalDate;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Read projection of a Person's editable licence/medical shape — returned by
- * the caller-scoped {@code GET /api/v1/me/person/licences} (so the Pilot tab,
- * J-4 T-09, hydrates) and ALSO used as the lean, Keycloak-free before/after
- * snapshot handed to the audit trail on the licence self-edit (J-4 T-08, AC4).
- *
- * <p>Projects exactly the fields {@link Person#updateLicences} can mutate. The
- * audit listener keys redaction off the {@code entityType} string the service
- * passes ({@code "PersonLicences"}); that entity type carries an explicit
- * allow-list in {@code audit.redaction.entities} so the before/after diff is
- * READABLE by a sysadmin (AC4) rather than {@code [redacted]} — distinct from
- * the {@code Person} entity type, which stays in {@code audit.redaction.deny-all}.
- * Medical-field PII-redaction (which dates emitted vs hashed) is deferred per
- * S-182's open questions; for now the dates emit verbatim in the diff.
- */
 public record SelfLicencesView(
         boolean hasMotorPilotLicence,
         boolean hasTowPilotLicence,

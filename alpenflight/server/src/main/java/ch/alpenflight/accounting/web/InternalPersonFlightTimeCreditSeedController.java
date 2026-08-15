@@ -23,18 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Seed affordance for the flight-time-credit e2e: there is no production
- * credit-CRUD surface, so the clean-seed parity spec grants a
- * {@code PersonFlightTimeCredit} (its single {@code IsCurrent} transaction)
- * through this endpoint, matched to a freshly-minted flight immatriculation that
- * no static SQL seed could reference. Mirrors {@code InternalProvisioningController}:
- * {@code @Profile({"dev","test"})} keeps the bean out of production (the real-idp
- * e2e backend boots {@code dev}); {@code @Hidden} keeps it out of the OpenAPI
- * snapshot; the {@code /internal/} prefix lets a future gateway deny it wholesale.
- * CLUB_ADMINISTRATOR-gated; the audited mutation lives in the application service.
- * The dev/test-only affordance pattern is sanctioned by ADR 0029.
- */
 @RestController
 @RequestMapping(path = "/api/v1/internal/person-flight-time-credits")
 @Profile({"dev", "test"})

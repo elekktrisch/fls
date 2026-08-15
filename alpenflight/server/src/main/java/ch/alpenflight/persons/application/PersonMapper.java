@@ -139,11 +139,6 @@ final class PersonMapper {
                 req.receivePlanningDayRoleReminder());
     }
 
-    /**
-     * Applies the licence-flag block to the aggregate. Nullable input keeps
-     * current values — useful when a partial Person form omits the licence
-     * section entirely (e.g. the modal-create flow).
-     */
     static void applyLicences(Person p, @Nullable LicenceFlags l) {
         if (l == null) {
             return;
@@ -172,7 +167,6 @@ final class PersonMapper {
                 p.isReceiveOwnedAircraftStatisticReports());
     }
 
-    /** Tiny SAM for resolving member_state name → display string in the response builder. */
     interface MemberStateNameLookup {
         @Nullable String nameOf(java.util.UUID memberStateId);
 

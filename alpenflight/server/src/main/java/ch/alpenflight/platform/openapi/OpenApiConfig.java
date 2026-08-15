@@ -31,10 +31,6 @@ class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).")))
-                // Global requirement so every operation inherits bearerAuth in
-                // the generated spec; permit-listed paths (actuator, springdoc
-                // itself) ignore it because the filter chain admits them
-                // anonymously. Per-operation overrides not used yet.
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }

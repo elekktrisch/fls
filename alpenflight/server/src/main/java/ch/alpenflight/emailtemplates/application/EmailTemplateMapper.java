@@ -5,9 +5,6 @@ import ch.alpenflight.emailtemplates.application.EmailTemplateDtos.EmailTemplate
 import ch.alpenflight.emailtemplates.application.EmailTemplateDtos.TemplateSource;
 import ch.alpenflight.emailtemplates.domain.EmailTemplate;
 
-/**
- * Aggregate / file-default → DTO mapping. Pure functions; no Spring, no JPA.
- */
 final class EmailTemplateMapper {
 
     private EmailTemplateMapper() {}

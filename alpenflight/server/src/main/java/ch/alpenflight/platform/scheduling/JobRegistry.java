@@ -10,18 +10,6 @@ import org.springframework.aop.support.AopUtils;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 
-/**
- * Collects every {@link BusinessJob} bean (each annotated {@link MeasuredJob})
- * and backs the {@code /system/jobs} admin console: {@link #list()} projects
- * each job's stable name + cron + latest {@link JobRun}, and {@link #runOnce}
- * invokes one by name.
- *
- * <p>Invocation goes through the bean proxy so {@link MeasuredJobAspect} wraps
- * the run (opens the {@link JobRun}, records completed/failed, times it). The
- * aspect swallows a job-body throw and writes the {@code FAILED} record in its
- * own transaction, so this method re-reads the latest run afterwards rather
- * than trusting the (possibly {@code null}) return value.
- */
 @Component
 public class JobRegistry {
 
@@ -38,7 +26,6 @@ public class JobRegistry {
         this.byName = Map.copyOf(map);
     }
 
-    /** Every registered job with its declared cron + latest run, name-ordered. */
     public List<JobDescriptor> list() {
         return byName.entrySet().stream()
                 .map(e -> descriptor(e.getKey(), e.getValue()))
@@ -46,12 +33,6 @@ public class JobRegistry {
                 .toList();
     }
 
-    /**
-     * Runs the named job once (aspect-instrumented) and returns the resulting
-     * {@link JobRun}. An unknown name is a {@link JobNotFoundException} the web
-     * layer maps to 404 — the console never offers a name that isn't listed, so
-     * this only fires on a stale client or a probe.
-     */
     public JobRun runOnce(String name) {
         BusinessJob job = byName.get(name);
         if (job == null) {
@@ -79,12 +60,10 @@ public class JobRegistry {
         return measured;
     }
 
-    /** One registered job's console projection: identity + last-run snapshot. */
     public record JobDescriptor(String name, String cron, String description,
                                 @Nullable JobRun lastRun) {
     }
 
-    /** Thrown when {@link #runOnce} is asked for a name no bean registers. */
     public static final class JobNotFoundException extends RuntimeException {
         public JobNotFoundException(String name) {
             super("No registered job named '" + name + "'");

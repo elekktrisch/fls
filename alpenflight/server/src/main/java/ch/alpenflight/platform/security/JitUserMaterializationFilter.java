@@ -23,39 +23,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Runs after JWT decode + {@code SecurityContextHolder} population, before
- * controller dispatch. Translates a Keycloak realm-token principal into a
- * local {@code t_user} row when one doesn't already exist (JIT) — the
- * other half of S-052's KC-driven invite flow, which seeds the local
- * projection eagerly. Both flows depend on a single local row per
- * principal for tenant-scoped operations.
- *
- * <p>Short-circuits, in order:
- * <ol>
- *   <li>No {@link JwtAuthenticationToken} on the security context (permitted
- *       endpoints, anonymous paths) → forward untouched.</li>
- *   <li>JWT lacks parseable UUID {@code sub} or parseable UUID
- *       {@code clubId} claim — covers sysadmin tokens (no {@code clubId})
- *       and federated baseline tokens (non-UUID sub from Google /
- *       Auth0). Forward untouched.</li>
- *   <li>Delegate to the {@link JitUserMaterializer} port. The
- *       implementation in {@code users.application} handles the existing-row
- *       fast path, the JIT insert (inside its own transaction), and the
- *       soft-delete gate.</li>
- * </ol>
- *
- * <p>On {@link UserDeactivatedException} the filter writes RFC 7807
- * problem+json directly — the chain is upstream of every
- * {@code @RestControllerAdvice}, so a global handler can't see it.
- */
 public class JitUserMaterializationFilter extends OncePerRequestFilter {
 
-    /**
-     * Sentinel for "JIT decided no row applies to this principal" — set as
-     * a request attribute so downstream lookups can short-circuit without
-     * re-running the JWT-claim shape check.
-     */
     public static final String USER_ID_ATTRIBUTE =
             JitUserMaterializationFilter.class.getName() + ".userId";
 
@@ -105,9 +74,6 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
             writeDeactivated(response);
             return;
         } catch (RuntimeException e) {
-            // Timer.recordCallable's `throws Exception` forces a checked
-            // catch; preserve RuntimeException identity for the chain's
-            // resolver rather than wrapping in ServletException.
             throw e;
         } catch (Exception e) {
             throw new ServletException("Unexpected checked exception from JIT materialise", e);
@@ -117,12 +83,6 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /**
-     * Pure JWT-claim predicate — DB-free. Tested in
-     * {@code JitUserMaterializerShouldMaterialiseTest}. Aligns with skip
-     * conditions 1+2 from the design notes; condition 3 (existing-row
-     * lookup) lives in the materializer impl.
-     */
     public static boolean shouldMaterialise(@Nullable Jwt jwt) {
         if (jwt == null) {
             return false;
@@ -146,8 +106,6 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     }
 
     private void writeDeactivated(HttpServletResponse response) throws IOException {
-        // Detail mirrors the title — never echo the JWT sub back in the
-        // body. Forensics keep the sub in the materializer's WARN log.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
         pd.setType(PROBLEM_TYPE_DEACTIVATED);
         pd.setTitle("User account is deactivated");

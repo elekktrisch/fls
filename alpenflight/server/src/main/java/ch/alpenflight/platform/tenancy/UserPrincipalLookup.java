@@ -14,31 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-/**
- * Resolves the authenticated user's tenant ({@code club_id}) and internal
- * user id ({@code user.id}) by looking them up on {@code keycloak_sub}.
- * Used by:
- *
- * <ul>
- *   <li>{@link ClubTenantIdentifierResolver} — when the JWT lacks a
- *       {@code clubId} claim (Keycloak realm tokens carry the claim,
- *       federated Google / Auth0 baseline tokens do not).</li>
- *   <li>Audit-trail emitters — translating the JWT subject to the internal
- *       {@code user.id} so the soft-delete / mutation trail records the
- *       same identity across realm-token and federated-token paths.</li>
- * </ul>
- *
- * <p>{@link JdbcTemplate}, not JPA — the calling resolver runs inside
- * Hibernate's session-open path, so opening another JPA session would
- * recurse. {@code user} carries no {@code @TenantId} (it's a cross-tenant
- * identity row per V2), so the raw JDBC path doesn't bypass any filter
- * it should have honored.
- *
- * <p>Lookup is keyed on {@code keycloak_sub} (UNIQUE per S-012) and is
- * only meaningful when the JWT subject is a UUID literal — Keycloak's
- * default sub shape. Non-UUID subjects (Google's numeric IDs) currently
- * return empty; the lookup story for those IdPs ships when they onboard.
- */
 @Component
 public class UserPrincipalLookup {
 
@@ -61,19 +36,6 @@ public class UserPrincipalLookup {
         return querySingleUuid(jwt, SELECT_CLUB_ID, "club_id");
     }
 
-    /**
-     * Returns the internal {@code user.id} for the JWT subject, or empty if
-     * no active {@code user} row matches the sub. Distinct from
-     * {@code jwt.getSubject()}: callers wanting "who did this" for audit
-     * should prefer this method so federated-IdP paths resolve consistently
-     * with realm-token paths.
-     *
-     * <p>Consults the {@link JitUserMaterializationFilter#USER_ID_ATTRIBUTE}
-     * request attribute first so the realm-token cheap path doesn't
-     * double-query {@code t_user} (JIT filter + downstream audit /
-     * controller). Falls through to JDBC when no attribute is present
-     * (non-HTTP context, filter skipped, federated baseline).
-     */
     public Optional<UUID> resolveUserIdFor(Jwt jwt) {
         Object stashed = stashedUserIdOnRequest();
         if (stashed == JitUserMaterializationFilter.ABSENT) {
@@ -85,19 +47,6 @@ public class UserPrincipalLookup {
         return querySingleUuid(jwt, SELECT_USER_ID, "user_id");
     }
 
-    /**
-     * Returns the linked {@code person_id} for the JWT subject's active
-     * {@code user} row, or empty when no active row matches the sub, the
-     * subject is not a UUID literal, or the matched row carries no
-     * {@code person_id} link.
-     *
-     * <p>Cross-module caller-Person resolution seam: lets feature modules
-     * (e.g. {@code aircraft}'s owner-person edit gate, S-163) resolve the
-     * caller's Person without depending on {@code users.domain} internals —
-     * the same JWT-sub → {@code t_user} raw-JDBC lookup the {@code me} module
-     * uses for its read projection. Fail-closed by construction: a null
-     * person link or an unbound sub yields empty.
-     */
     public Optional<UUID> resolvePersonIdFor(Jwt jwt) {
         String sub = jwt.getSubject();
         if (sub == null || sub.isBlank()) {
@@ -110,21 +59,12 @@ public class UserPrincipalLookup {
             return Optional.empty();
         }
         List<UUID> matches = jdbc.queryForList(SELECT_PERSON_ID, UUID.class, parsed.toString());
-        // A matched active row with a NULL person_id yields a single null
-        // element — that's "user exists but unlinked", which is empty for our
-        // purposes (and keeps the Optional non-null).
         if (matches.size() == 1 && matches.get(0) != null) {
             return Optional.of(matches.get(0));
         }
         return Optional.empty();
     }
 
-    /**
-     * @return {@link JitUserMaterializationFilter#ABSENT} when the filter
-     *         decided no row applies, a {@link UUID} when it resolved one,
-     *         or {@code null} when no decision is on the current request
-     *         (non-HTTP context, filter skipped path).
-     */
     private static @Nullable Object stashedUserIdOnRequest() {
         HttpServletRequest req = currentRequest();
         if (req == null) {

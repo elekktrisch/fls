@@ -12,18 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global FlightCostBalanceType
- * catalogue. Rows are Flyway-managed (V3 seed — 5 rows: PILOT_PAYS_ALL,
- * FIFTY_FIFTY_PILOT_COPILOT, TOW_PILOT_PAYS_TOW, NO_INSTRUCTOR_FEE,
- * INVOICE_TO_PERSON).
- *
- * <p>Open to any authenticated principal (S-047 cross-tenant reference
- * pattern) — needed by the FE picker on the FlightType edit screen and by
- * S-058 Flight / S-072 AccountingRuleFilter creation forms. Sysadmin admin
- * CRUD at {@code /api/v1/admin/flight-cost-balance-types/**} is deferred
- * per S-053 design notes; no current consumer demands it.
- */
 @RestController
 @RequestMapping(path = "/api/v1/flight-cost-balance-types",
         produces = MediaType.APPLICATION_JSON_VALUE)

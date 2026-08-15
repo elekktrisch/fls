@@ -70,52 +70,17 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * S-141 streaming decrypt + ingest pipeline. Reads the encrypted ALPF
- * bundle off the servlet input stream, unwraps the per-upload session key,
- * provisions the Deployment + Clubs through S-138, and writes every
- * entity stream into the new-schema tables via S-183's {@link Mapper}
- * contract. Single Postgres transaction; per ADR 0022 directive 2 the FSM
- * lives on the {@link MigrationRun} aggregate.
- *
- * <p>S-141b factored the parsing + ingest details into
- * {@link BundleStreamReader} (header, manifest, tar safety) and
- * {@link EntityStreamIngestor} (NDJSON, COPY, INSERT builder, column
- * allow-list). This orchestrator keeps the transaction boundary, the
- * concurrency gate, principal/upload-row gating, provisioning, FSM
- * transitions, and the post-commit synchronization.
- *
- * <p>Concurrency: {@link IngestConcurrencyGate} bounds in-flight ingests
- * (default 1 — single-VPS heap cap). A second caller surfaces as
- * {@link BundleIngestErrorCode#DATABASE_CAPACITY_EXCEEDED} (429). The
- * per-upload race surfaces separately as {@code BUNDLE_INGEST_IN_PROGRESS}
- * (409) via the {@code PESSIMISTIC_WRITE} row lock.
- *
- * <p>Plaintext-leak posture: every byte read off the encrypted body flows
- * through {@code StreamingAead → gzip → tar → JsonNode} in-memory; the
- * only persisted output is the Postgres rows. Disk sinks are
- * structurally banned inside this package via ArchUnit (see
- * {@code MigrationIngestNoDiskSinkTest}).
- */
 @Service
 public class MigrationBundleIngestService {
 
     private static final Logger LOG = LoggerFactory.getLogger(MigrationBundleIngestService.class);
 
-    /** Cap on the encrypted-body byte count we accept (Vision §2 NFR). */
     public static final long MAX_BUNDLE_BYTES = 2L * 1024 * 1024 * 1024;
 
     private static final String NDJSON_ENTRY_SUFFIX = ".ndjson";
     private static final String LEGACY_ID_MAP_ENTRY_PREFIX = "legacy_id_map/";
     private static final String LEGACY_ID_MAP_ENTRY_SUFFIX = ".pgcopy";
 
-    /**
-     * Error codes that signal "client-side retry is safe with the same
-     * upload row" — recording a failure on these would burn a still-valid
-     * handshake. {@code DATABASE_CAPACITY_EXCEEDED} = the global gate
-     * throttled this caller; {@code BUNDLE_TOO_LARGE} = the controller
-     * pre-check rejected the body before the txn opened.
-     */
     private static final Set<BundleIngestErrorCode> RETRYABLE_PRE_TRANSACTION_CODES =
             EnumSet.of(
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
@@ -181,47 +146,15 @@ public class MigrationBundleIngestService {
                     "alpenflight.migration.bundle-timeout must be a positive Duration, got " + bundleTimeout);
         }
         this.bundleTimeout = bundleTimeout;
-        // statement_timeout drains SQL ~1 minute (clamped to half of the wall
-        // cap for sub-2-minute test budgets) BEFORE the orTimeout fires +
-        // interrupts the worker — so a long SELECT aborts at the SQL layer
-        // and the JDBC SQLException unwinds the txn cleanly, instead of the
-        // interrupt racing the SQL driver.
         long timeoutMs = bundleTimeout.toMillis();
         this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = entityStreamIngestor;
         this.flightReportRebuild = flightReportRebuild;
-        // Un-mask the violated constraint name in the ingest error detail under
-        // the dev/test profiles only (J-6 retro rider). In prod the raw
-        // constraint name stays out of the response body — it can leak schema
-        // internals — but a dev/test/fanout failure needs to name the breached
-        // constraint (e.g. ux_pda_composite) so the next red is diagnosable
-        // without a backend.log dig (the dig that diagnosed the J-7 T-17 23505).
         this.unmaskConstraintNames =
                 environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "test"));
     }
 
-    /**
-     * Top-level orchestration. Acquires the global ingest gate, opens the
-     * ingest transaction via {@link TransactionTemplate}, and — only after
-     * the transaction has fully rolled back — flips the {@code MigrationRun}
-     * and {@code MigrationUpload} rows to {@code FAILED} via the
-     * {@link MigrationFailureRecorder}'s {@code REQUIRES_NEW} writer.
-     *
-     * <p>Why not {@code @Transactional} on this method:
-     * {@code @Transactional} would keep the outer connection's row locks
-     * alive across the {@code recordFailure} call. {@code recordFailure}
-     * runs in {@code REQUIRES_NEW} and would try to UPDATE the same
-     * upload row the suspended outer txn already locked with
-     * {@code PESSIMISTIC_WRITE} — a Postgres-invisible Spring deadlock
-     * that hung CI for 20 min before the lock_timeout default kicked in
-     * (it never did, because {@code SET LOCAL lock_timeout = '30s'} only
-     * applied to the outer connection, not the {@code REQUIRES_NEW}
-     * connection). Using {@code TransactionTemplate.execute} guarantees the
-     * txn has committed-or-rolled-back before we hand to the recorder.
-     *
-     * @return the {@link IngestOutcome} with the new Deployment + Clubs.
-     */
     @SuppressWarnings("UnnecessaryAsync")
     public IngestOutcome ingest(UUID uploadId,
                                 UUID principalUserId,
@@ -238,15 +171,7 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
                     "Another ingest is in flight; retry once the global gate frees");
         }
-        // runIdRef escapes the worker so the post-rollback failure recorder
-        // can stamp the run row when the ingest aborted after the
-        // MigrationRun was already persisted.
         AtomicReference<UUID> runIdRef = new AtomicReference<>();
-        // Wall-clock cap: the servlet thread blocks on the executor up to
-        // bundleTimeout, then interrupts the worker. Defense-in-depth on
-        // top of Postgres statement_timeout (the SQL layer kills long
-        // queries first; the orTimeout + interrupt catches non-SQL hangs
-        // — gzip / tar / NDJSON parsing on a hostile payload).
         Future<IngestOutcome> future = ingestExecutor.submit(() ->
                 runInsideTransaction(uploadId, principalUserId, principalKeycloakSub,
                         encryptedBody, runIdRef));
@@ -263,12 +188,6 @@ public class MigrationBundleIngestService {
         } catch (ExecutionException wrapper) {
             Throwable cause = wrapper.getCause() == null ? wrapper : wrapper.getCause();
             if (cause instanceof BundleIngestException be) {
-                // txTemplate.execute already rolled back; locks released. Safe
-                // to call recordFailure (REQUIRES_NEW) without deadlocking on
-                // the upload row — but only when the failure mode is one the
-                // upload row should reflect. Pre-txn rejections that signal
-                // "client retry with the same handshake is safe" stay clear of
-                // the recorder so they don't burn the upload.
                 if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(be.getErrorCode())) {
                     tryRecordFailure(uploadId, runIdRef.get(), be);
                 }
@@ -297,13 +216,6 @@ public class MigrationBundleIngestService {
         }
     }
 
-    /**
-     * Calls the REQUIRES_NEW failure recorder but never lets a secondary
-     * failure (deadlock, lost connection mid-commit) shadow the original
-     * ingest exception — the caller's surface stays the bundle-ingest
-     * outcome the client experienced, while the recorder's own failure
-     * lands as a server log line.
-     */
     private void tryRecordFailure(UUID uploadId,
                                   @Nullable UUID runId,
                                   BundleIngestException original) {
@@ -317,12 +229,6 @@ public class MigrationBundleIngestService {
         }
     }
 
-    /**
-     * Opens the single-txn ingest pipeline inside a {@link TransactionTemplate}.
-     * Returns the outcome on success; throws on failure — the caller
-     * ({@link #ingest}) translates the failure into a {@code recordFailure}
-     * call after the txn has rolled back.
-     */
     private IngestOutcome runInsideTransaction(UUID uploadId,
                                                UUID principalUserId,
                                                UUID principalKeycloakSub,
@@ -330,10 +236,6 @@ public class MigrationBundleIngestService {
                                                AtomicReference<UUID> runIdRef) {
         telemetry.ingestStarted(uploadId, clock.instant());
         IngestOutcome result = txTemplate.execute(status -> {
-            // Pre-decrypt Deployment-existence guard: per Security plan, refuse
-            // 409 BEFORE allocating RSA + StreamingAead. ux_deployment_owner_active
-            // is the structural source of truth; this is just the fail-fast
-            // signal so a returning caller doesn't pay the crypto cost.
             Optional<Deployment> activeOwner = deployments.findActiveByOwner(principalKeycloakSub);
             if (activeOwner.isPresent()) {
                 Deployment existing = activeOwner.get();
@@ -386,12 +288,6 @@ public class MigrationBundleIngestService {
                         BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                         "Ingest pipeline returned no outcome and no failure");
             }
-            // Post-commit audit + funnel emission: TransactionTemplate.execute
-            // commits this lambda's outcome on normal return. The after-commit
-            // hook fires AFTER the rows + Deployment land, so an audit-write
-            // failure does NOT roll the ingest back; log + swallow so the
-            // caller sees a clean 200 (the data is committed; reconciling a
-            // missing audit / funnel event is an ops job, not the user's).
             UUID resolvedDeploymentId = outcome.deploymentId();
             int resolvedClubCount = outcome.clubIds().size();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -415,9 +311,6 @@ public class MigrationBundleIngestService {
             });
             return outcome;
         });
-        // TransactionTemplate.execute may return null only if the callback
-        // returns null, which it cannot here — the throw-path is the only
-        // null-out. Surface the impossible-null defensively.
         if (result == null) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
@@ -427,27 +320,6 @@ public class MigrationBundleIngestService {
         return result;
     }
 
-    /**
-     * J-7 RM-2: backfill the flight-report read-model for every ingested
-     * club. The bundle's FLIGHT / FLIGHT_CREW rows land via JDBC inside the
-     * ingest transaction and never pass {@code FlightRepository.save}, so the
-     * synchronous projector never sees them.
-     *
-     * <p>Runs IMMEDIATELY AFTER the ingest transaction commits (not inside
-     * it): the ingest session is opened tenant-less, and Hibernate fixes the
-     * {@code @TenantId} at session-open — an in-transaction rebuild would
-     * read zero flights under {@code NO_TENANT}, while a {@code REQUIRES_NEW}
-     * per-club transaction could not see the still-uncommitted ingest rows.
-     * Post-commit on the same worker thread keeps the work inside the
-     * {@code bundleTimeout} envelope; the rebuild service opens one fresh
-     * tenant-scoped transaction per club.
-     *
-     * <p>A rebuild failure is logged loudly but does NOT fail the request:
-     * the migrated data IS committed, the run row is already COMPLETED, and
-     * flipping it to FAILED would lie about the ingest. The rebuild is
-     * idempotent and re-runnable (ops job), and the report-parity e2e gate
-     * catches a silently missing read-model.
-     */
     private void rebuildFlightReportReadModel(IngestOutcome outcome) {
         for (UUID clubId : outcome.clubIds()) {
             try {
@@ -487,22 +359,12 @@ public class MigrationBundleIngestService {
                         BundleIngestErrorCode.MANIFEST_EMPTY_CLUBS,
                         "Bundle manifest must declare at least one Club; provisioning requires 1..N");
             }
-            // Constructor invokes the entity-policy allow-list validator on
-            // the bundle-module side (S-183 Manifest). Side-effect only —
-            // throws IllegalArgumentException on a violating tenantBypassFks
-            // entry.
             new Manifest(manifest.schemaVersion(), manifest.entityPolicies(), manifest.unmappedReason());
 
             run.transitionTo(MigrationRunState.PROVISIONING);
             ProvisioningResult provisioned = provisionDeployment(upload, principalKeycloakSub, manifest);
             run.attachDeployment(provisioned.deploymentId());
 
-            // J-0c provision-on-migrate slice: each migrated Club gets a
-            // loginable Keycloak club-admin identity (clubId attr +
-            // CLUB_ADMINISTRATOR realm role + UPDATE_PASSWORD), so a real
-            // Keycloak login lands in that Club and JitUserMaterializer
-            // (S-169) projects the t_user. Thin slice of S-028 — no bulk
-            // endpoint / UI / mail / role-map / audit here.
             provisioning.provisionMigratedClubAdmins(provisioned.clubIds());
 
             entityStreamIngestor.createTemporaryIdMapTables(connection);
@@ -524,33 +386,13 @@ public class MigrationBundleIngestService {
 
             return new IngestOutcome(provisioned.deploymentId(), provisioned.clubIds(), provisioned.primaryClubId());
         } catch (BundleCipherException cipherFailure) {
-            // The cipher lives in the shared bundle library and speaks its own
-            // crypto-local vocabulary (BundleCipherException.Failure). Map it
-            // back onto the ingest error code the exception handler + the
-            // negative-path ITs expect, preserving the original cause + message.
-            // Only the two cipher resource-acquisitions above (unwrapSessionKey /
-            // newDecryptingStream) can raise this; every other failure surfaces
-            // as its own BundleIngestException untouched.
             throw toIngestException(cipherFailure);
         } catch (IOException tarFailure) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
                     "Bundle tar / gzip read failed", tarFailure);
         } catch (SQLException sql) {
-            // SQLState is a bounded enum-shaped identifier — safe for the
-            // response body. The raw sql.getMessage() can echo failing
-            // column values verbatim (e.g. attacker-influenced manifest
-            // deploymentName on a constraint violation), so it stays in
-            // the server-side log only — the BundleIngestException's
-            // cause carries it through the exception handler's LOG.warn.
             String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
-            // Un-mask the violated constraint NAME in dev/test (J-6 retro
-            // rider). The constraint name (e.g. ux_pda_composite) is a
-            // schema identifier, NOT row data — but it can leak schema
-            // internals, so prod stays masked and only dev/test/fanout adds
-            // it. Postgres reports it on PSQLException.getServerErrorMessage()
-            // .getConstraint(); a non-Postgres / non-constraint SQLException
-            // yields null and the detail stays the bare sqlstate.
             String constraint = unmaskConstraintNames ? violatedConstraintName(sql) : null;
             String detail = constraint == null
                     ? "Database error during ingest [sqlstate=" + state + "]"
@@ -563,11 +405,6 @@ public class MigrationBundleIngestService {
         }
     }
 
-    /**
-     * Map a crypto-local {@link BundleCipherException} onto the server-side
-     * {@link BundleIngestException} so the RFC 7807 surface is unchanged.
-     * Preserves the original message + cause.
-     */
     private static BundleIngestException toIngestException(BundleCipherException cipherFailure) {
         BundleIngestErrorCode code = switch (cipherFailure.failure()) {
             case RSA_UNWRAP_FAILED -> BundleIngestErrorCode.BUNDLE_DECRYPT_RSA_UNWRAP_FAILED;
@@ -654,9 +491,6 @@ public class MigrationBundleIngestService {
                 continue;
             }
             String name = entry.getName();
-            // First statement in the loop body — name-safety check runs
-            // BEFORE any prefix dispatch so a hostile entry name like
-            // legacy_id_map/../etc/passwd.pgcopy cannot reach the COPY path.
             BundleStreamReader.rejectUnsafeTarName(name);
             if (name.startsWith(LEGACY_ID_MAP_ENTRY_PREFIX)
                     && name.endsWith(LEGACY_ID_MAP_ENTRY_SUFFIX)) {
@@ -685,14 +519,6 @@ public class MigrationBundleIngestService {
         }
     }
 
-    /**
-     * Per-entity Club hint stamped on the run row for SPA progress polling.
-     * Save frequency stays per-entity (28 writes/bundle) — per-row would
-     * thrash the run table for invisible-to-SPA fidelity (poll cadence ~1s).
-     * {@link EntityPolicy.PortPolicy#SYSTEM_GLOBAL_RESOLVE} entries write
-     * into reference tables shared across all Clubs, so the Club hint is
-     * {@code null} for those; tenant-scoped entities show {@code primaryClubId}.
-     */
     private static @Nullable UUID currentClubFor(EntityType entityType,
                                                  BundleManifest manifest,
                                                  ProvisioningResult provisioned) {
@@ -704,30 +530,14 @@ public class MigrationBundleIngestService {
     }
 
     private void applySingleTxnSettings(Connection connection) throws SQLException {
-        // statement_timeout / lock_timeout protect other tenants from a
-        // runaway ingest at the SQL layer; failing to apply them silently
-        // would leave Postgres on defaults (typically unbounded), so
-        // surface the SQLException to the orchestrator's wrapping catch
-        // — INGEST_INTERNAL_ERROR aborts the txn before any heavy work.
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute("SET LOCAL idle_in_transaction_session_timeout = 0");
-            // SQL-layer cap fires ~1 minute before the orTimeout wall-clock
-            // (see sqlStatementTimeoutMs computation) — a runaway query
-            // aborts at the JDBC layer and the txn unwinds cleanly, ahead
-            // of the worker-interrupt path.
             stmt.execute("SET LOCAL statement_timeout = " + sqlStatementTimeoutMs);
             stmt.execute("SET LOCAL synchronous_commit = OFF");
             stmt.execute("SET LOCAL lock_timeout = '30s'");
         }
     }
 
-    /**
-     * The violated constraint name from a Postgres {@link SQLException} (or a
-     * cause), or {@code null} when none is available. Walks the cause chain so
-     * a wrapped {@code PSQLException} is still found, and reads the constraint
-     * off the server error message — the structured field, not the free-text
-     * message (which can echo row values).
-     */
     private static @Nullable String violatedConstraintName(Throwable failure) {
         for (Throwable t = failure; t != null; t = t.getCause()) {
             if (t instanceof org.postgresql.util.PSQLException psql) {
@@ -748,6 +558,5 @@ public class MigrationBundleIngestService {
         return msg.length() > 500 ? msg.substring(0, 500) + "…" : msg;
     }
 
-    /** Outcome of a successful ingest — returned to the controller. */
     public record IngestOutcome(UUID deploymentId, List<UUID> clubIds, UUID primaryClubId) { }
 }

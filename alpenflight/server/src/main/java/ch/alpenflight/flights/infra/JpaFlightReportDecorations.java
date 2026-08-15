@@ -6,28 +6,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/**
- * JPA implementation of {@link FlightReportDecorations} (ADR 0027 §1 —
- * JPA-first; replaces what would otherwise be native decoration joins).
- * Queries are JPQL by ENTITY NAME ({@code Aircraft}, {@code Person},
- * {@code FlightType}, {@code Location}) — the projection reads single scalar
- * columns of other modules' aggregates without importing their classes, so
- * the flights module's compile-time surface stays inside its own boundary
- * (Spring Modulith) while the reads still run through Hibernate:
- *
- * <ul>
- *   <li>{@code Person} / {@code Aircraft} carry no {@code @TenantId}
- *       (sacred-cow cross-tenant ride-throughs, S-051 / S-058) — plain reads
- *       resolve regardless of tenant, matching the oracle's decoration
- *       joins;</li>
- *   <li>{@code FlightType} / {@code Location} are tenant-scoped — the
- *       {@code @TenantId} filter of the projecting session applies
- *       structurally. A cross-club Location decorates as null name; the row
- *       keeps the location ID so a rebuild can recover it (RM-2).</li>
- *   <li>{@code t_start_type} is tenant-free reference data, read via the
- *       module-local {@link StartTypeProjection}.</li>
- * </ul>
- */
 @Component
 class JpaFlightReportDecorations implements FlightReportDecorations {
 
@@ -50,7 +28,6 @@ class JpaFlightReportDecorations implements FlightReportDecorations {
         if (personId == null) {
             return null;
         }
-        // "Lastname Firstname" — oracle parity (t_person lastname || ' ' || firstname).
         Object[] name = row("select p.lastname, p.firstname from Person p where p.id = :id",
                 personId);
         if (name == null) {

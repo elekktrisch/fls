@@ -9,21 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * HTTP mapping for {@link MeNotificationPrefsController}.
- *
- * <ul>
- *   <li>{@link IllegalArgumentException} → 400. The aggregate's
- *       {@code updateNotificationPrefs} throws it for a null prefs object;
- *       without this advice it would surface as 500. Bean-validation failures
- *       ({@code @Valid} on the request DTO) are already 400 via Spring's default
- *       handler.</li>
- *   <li>{@link NoLinkedPersonException} / {@link PersonNotFoundException} → 409.
- *       The caller is authenticated but has no linked Person, or no alive
- *       membership in the current club — a clean conflict (the no-membership
- *       banner case), not a 500.</li>
- * </ul>
- */
 @RestControllerAdvice(assignableTypes = MeNotificationPrefsController.class)
 class MeNotificationPrefsExceptionHandler {
 

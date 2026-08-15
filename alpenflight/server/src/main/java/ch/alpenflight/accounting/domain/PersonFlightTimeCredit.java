@@ -18,22 +18,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Pre-paid flight-time credit held by a {@link Person}. <strong>Cross-tenant by
- * design</strong> (no {@code @TenantId}) — a credit is per-person and applies in
- * every club the person flies for; legacy scopes the load via
- * {@code Person -> PersonClubs.ClubId = currentTenant}
- * ({@code DeliveryService.cs:142-146}), so the row carries no {@code club_id}.
- * The repo's current-balance read JOINs the owning Person's {@code PersonClub}
- * rows filtered to the caller's tenant (the cross-tenant {@link Person} pattern).
- *
- * <p>Per ADR 0022 directive 2 the credit-branch math (immatriculation activation,
- * over-credit split, discount stamping) lives on the engine as Java, not in the
- * schema. The aggregate holds the current balance as the single
- * {@code IsCurrent} {@link PersonFlightTimeCreditTransaction}
- * ({@code AircraftFlightTimeRule.cs:61}); {@link #currentBalanceInSeconds()}
- * returns it ({@code null} ⇒ unlimited).
- */
 @Entity
 @Table(name = "t_person_flight_time_credit")
 public class PersonFlightTimeCredit {
@@ -74,15 +58,8 @@ public class PersonFlightTimeCredit {
     private List<PersonFlightTimeCreditTransaction> transactions = new ArrayList<>();
 
     protected PersonFlightTimeCredit() {
-        // JPA.
     }
 
-    /**
-     * Grants a credit to {@code person}. The current balance is recorded as a
-     * single {@code IsCurrent} transaction — {@code unlimited == true} mirrors
-     * {@code NoFlightTimeLimit} (a {@code null} balance), otherwise
-     * {@code balanceInSeconds} is the prepaid balance.
-     */
     public static PersonFlightTimeCredit grant(Person person,
                                                Instant validUntil,
                                                boolean useRuleForAllAircraftsExceptListed,
@@ -105,30 +82,12 @@ public class PersonFlightTimeCredit {
         return credit;
     }
 
-    /**
-     * Flips the prior {@code IsCurrent} balance row to {@code IsCurrent=false} and
-     * returns whether one was flipped — the first half of recording a consumption.
-     * It is kept separate from {@link #appendConsumption} so the caller can flush
-     * the flip before the insert: the partial UNIQUE {@code ux_pftc_transaction_current}
-     * on {@code (credit_id) WHERE is_current} forbids two live current rows, and
-     * Hibernate orders the INSERT before the UPDATE within one flush.
-     */
     public boolean releaseCurrent() {
         Optional<PersonFlightTimeCreditTransaction> current = currentTransaction();
         current.ifPresent(PersonFlightTimeCreditTransaction::clearCurrent);
         return current.isPresent();
     }
 
-    /**
-     * Appends the new {@code IsCurrent} balance row for {@code consumedSeconds}
-     * drawn down by {@code deliveryId} (the legacy create-time append-only ledger,
-     * {@code DeliveryService.cs:201-216} — the prior row is kept, only un-currented,
-     * so a later delete can reverse it). For a limited credit the new balance is
-     * {@code old - consumed} floored at 0; an unlimited credit
-     * ({@code NoFlightTimeLimit}) keeps null running balances and records only the
-     * negated delta. Call {@link #releaseCurrent} + flush FIRST. A no-op when
-     * {@code consumedSeconds <= 0}.
-     */
     public void appendConsumption(long consumedSeconds,
                                   @Nullable Long oldBalanceSeconds,
                                   boolean wasUnlimited,
@@ -145,19 +104,6 @@ public class PersonFlightTimeCredit {
                 this, unlimited, oldBalanceSeconds, newBalance, consumedSeconds, deliveryId, balanceDateTime));
     }
 
-    /**
-     * Reverses the consumption {@code deliveryId} balanced against this credit — the
-     * inverse of {@link #appendConsumption}, the delivery-delete compensating path
-     * ({@code DeliveryService.cs:1257-1269}). It is <strong>append-only</strong>: the
-     * original consumption row is KEPT (the audit trail needs it), the prior current
-     * row is un-currented, and a NEW current row is appended that adds the consumed
-     * seconds back. The restored delta negates whatever create applied (the original
-     * row's negated delta), so it is correct regardless of how create summed the
-     * glider + tow passes. Call {@link #releaseCurrent} + flush FIRST. A no-op when no
-     * transaction is balanced by {@code deliveryId} (an unconsumed delivery).
-     *
-     * @return whether a reversal row was appended
-     */
     public boolean appendReversal(UUID deliveryId, @Nullable Long currentBalanceSeconds, Instant balanceDateTime) {
         Optional<PersonFlightTimeCreditTransaction> balanced = transactions.stream()
                 .filter(t -> t.balances(deliveryId))
@@ -175,22 +121,12 @@ public class PersonFlightTimeCredit {
         return true;
     }
 
-    /**
-     * The current balance in seconds — the single {@code IsCurrent} transaction's
-     * {@code CurrentFlightTimeBalanceInSeconds} ({@code AircraftFlightTimeRule.cs:61}).
-     * {@code null} ⇒ unlimited ({@code NoFlightTimeLimit}). Distinguish "unlimited"
-     * (this returns {@code null} AND {@link #hasCurrentBalance()} is {@code true})
-     * from "no current transaction" via {@link #hasCurrentBalance()} — a raw nullable
-     * is returned rather than an {@code Optional} so a null balance isn't collapsed to
-     * empty.
-     */
     public @Nullable Long currentBalanceInSeconds() {
         return currentTransaction()
                 .map(PersonFlightTimeCreditTransaction::currentFlightTimeBalanceInSeconds)
                 .orElse(null);
     }
 
-    /** Whether a single {@code IsCurrent} transaction exists (the partial UNIQUE guarantees at most one). */
     public boolean hasCurrentBalance() {
         return currentTransaction().isPresent();
     }

@@ -8,11 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * Default {@link IngestFunnelTelemetry} adapter — emits one structured
- * log line per event. S-147 will swap this for the structured-logging
- * pipeline.
- */
 @Component
 class LoggingIngestFunnelTelemetry implements IngestFunnelTelemetry {
 

@@ -16,12 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates join-request domain / application exceptions to HTTP responses
- * (S-178). Scoped to {@link JoinRequestController}'s package so another module
- * throwing the same Spring exception type inherits no status mapping. The
- * domain/application exception types stay free of Spring-web imports (ADR 0023).
- */
 @RestControllerAdvice(basePackageClasses = JoinRequestController.class)
 class JoinRequestExceptionHandler {
 
@@ -40,19 +34,16 @@ class JoinRequestExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    /** Re-approve / decide-on-a-terminal request — the FSM rejects it (T-06). */
     @ExceptionHandler(IllegalJoinRequestStateException.class)
     ResponseEntity<Void> handleIllegalState(IllegalJoinRequestStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    /** Approve picked a Person from another club (T-06). */
     @ExceptionHandler(CrossTenantPersonLinkException.class)
     ResponseEntity<Void> handleCrossTenantPerson(CrossTenantPersonLinkException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    /** Approve tried to grant a role the CLUB_ADMINISTRATOR may not (T-06). */
     @ExceptionHandler(ForbiddenRoleGrantException.class)
     ResponseEntity<Void> handleForbiddenRole(ForbiddenRoleGrantException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -68,10 +59,6 @@ class JoinRequestExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
 
-    /**
-     * Submit hit the brute-force rate limit or the 24h deny cooldown (T-07) —
-     * 429 with a {@code Retry-After} the pilot SPA renders as a countdown.
-     */
     @ExceptionHandler(SubmitThrottledException.class)
     ResponseEntity<Void> handleThrottled(SubmitThrottledException e) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
@@ -84,12 +71,6 @@ class JoinRequestExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
 
-    /**
-     * The partial UNIQUE {@code ux_join_request_alive} wins the race for a
-     * second open request per (sub, club): Hibernate surfaces it as a
-     * {@link DataIntegrityViolationException} at flush — map it to 409. A
-     * violation of any other constraint propagates (a real bug keeps its 500).
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<Void> handleDataIntegrity(DataIntegrityViolationException e) {
         String message = String.valueOf(e.getMostSpecificCause().getMessage());

@@ -15,24 +15,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal child of {@link Person}: a single club-membership row.
- * Tenant-scoped via Hibernate's {@code @TenantId} discriminator on
- * {@link #clubId} — even though the parent {@link Person} is cross-tenant,
- * Hibernate automatically restricts the {@code personClubs} collection to
- * rows whose {@code club_id} matches the caller's tenant.
- *
- * <p>Surrogate-PK reshape (V2): legacy carried a composite PK
- * ({@code person_id}, {@code club_id}); the new schema gives every row a UUID
- * surrogate {@code id} plus partial UNIQUE {@code ux_person_club_alive} on
- * ({@code person_id}, {@code club_id}) WHERE {@code deleted_on IS NULL} —
- * which is the structural safety net for the "max one alive membership per
- * pair" invariant {@link Person#joinClub} enforces in the aggregate.
- *
- * <p>No top-level CRUD endpoint exists. Mutators are package-private; only
- * {@link Person} drives them via {@code joinClub} / {@code leaveClub} /
- * {@code updateClubMembership}.
- */
 @Entity
 @Table(name = "t_person_club")
 public class PersonClub {
@@ -45,11 +27,6 @@ public class PersonClub {
 
     @ManyToOne(optional = false, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "person_id", nullable = false)
-    // The back-reference walks into the cross-tenant Person aggregate; Person
-    // is in audit.redaction.deny-all so the redactor would scrub it anyway,
-    // but @AuditRedact here makes the decision explicit + survives a future
-    // policy relax. Also satisfies AuditRedactionCoverageTest's "every field
-    // gets an explicit decision" contract.
     @AuditRedact
     @SuppressWarnings("UnusedVariable")
     private @Nullable Person person;
@@ -108,7 +85,6 @@ public class PersonClub {
     private @Nullable UUID deletedByUserId;
 
     protected PersonClub() {
-        // JPA.
     }
 
     static PersonClub open(UUID clubId,
@@ -126,21 +102,6 @@ public class PersonClub {
         return pc;
     }
 
-    /**
-     * Test-fixture factory: build a PersonClub <strong>without setting</strong>
-     * the {@code clubId} field, attached to {@code parent}. Hibernate's
-     * {@code @TenantId} resolver populates {@code club_id} on save —
-     * matching the {@link MemberState}-style "transient construction, fill
-     * tenant on flush" pattern. Production code goes through
-     * {@link Person#joinClub} which sets the proposed {@code clubId} for
-     * the in-memory duplicate check; this factory bypasses that because
-     * sweep fixtures intentionally don't deduplicate.
-     *
-     * <p>The returned child is attached to {@code parent}. Save via
-     * {@code JpaPersonClubRepository.save(...)} — {@code CascadeType.PERSIST}
-     * on {@link #person} cascade-inserts the transient {@code parent} at
-     * flush.
-     */
     public static PersonClub forSweepFixture(Person parent,
                                              PersonRoleFlags roles,
                                              PersonNotificationPrefs prefs,
@@ -185,23 +146,6 @@ public class PersonClub {
         this.active = newActive;
     }
 
-    /**
-     * Focused notification-prefs self-edit (J-4 T-10, the Notifications tab).
-     * Changes ONLY the three notification booleans
-     * ({@link #receiveFlightReports},
-     * {@link #receiveAircraftReservationNotifications},
-     * {@link #receivePlanningDayRoleReminder}); the admin-only membership
-     * identity fields — {@link #memberNumber}, {@link #memberStateId}, the role
-     * flags ({@code motorPilot} … {@code motorInstructor}) and {@link #active}
-     * — are deliberately left untouched. Unlike {@link #applyMembership} (which
-     * replaces the WHOLE membership shape, driven by the admin
-     * {@code updateClubMembership} flow), this is the narrow business rule the
-     * caller may apply to their own membership.
-     *
-     * <p>Package-private: only {@link Person#updateNotificationPrefs} drives it,
-     * mirroring how {@code applyMembership} is reached only via the aggregate
-     * root.
-     */
     void updateNotificationPrefs(PersonNotificationPrefs prefs) {
         if (prefs == null) {
             throw new IllegalArgumentException("prefs must not be null");

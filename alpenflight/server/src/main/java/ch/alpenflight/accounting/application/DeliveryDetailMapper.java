@@ -13,7 +13,6 @@ import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/** Maps the {@link Delivery} aggregate to its read DTO projections (read + write surfaces share it). */
 final class DeliveryDetailMapper {
 
     private DeliveryDetailMapper() {}
@@ -62,11 +61,6 @@ final class DeliveryDetailMapper {
         return flightId == null ? null : new DeliveryFlightSummary(FlightId.of(flightId));
     }
 
-    /**
-     * The list-row recipient label: the company {@code name} when present, else
-     * {@code lastname firstname} (the legacy {@code RecipientName} fallback), else
-     * empty when the snapshot is blank (a not-yet-booked delivery).
-     */
     private static String recipientDisplayName(DeliveryRecipient r) {
         String name = r.name();
         if (name != null && !name.isBlank()) {

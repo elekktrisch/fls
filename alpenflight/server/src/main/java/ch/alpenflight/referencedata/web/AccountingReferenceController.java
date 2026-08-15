@@ -13,22 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the accounting rule-filter edit form's dropdowns:
- * the filter-type, accounting-unit-type, and flight-crew-type reference
- * catalogs. All three are system-global Flyway-seeded reference tables
- * (filter-types + unit-types from V4, crew-types from V3); the API never writes
- * here.
- *
- * <p>Gated {@code isAuthenticated()} to match the reference-endpoint convention
- * (Country / FlightCostBalanceType) — dropdown fuel is read-by-everyone, not
- * admin-only (unlike the {@code AccountingRuleFilter} CRUD surface itself).
- *
- * <p>Each method carries a stable {@code @Operation(operationId=…)} so the
- * orval-generated SPA client gets named methods the J-8 accounting store
- * consumes ({@code listAccountingRuleFilterTypes} / {@code listAccountingUnitTypes}
- * / {@code listFlightCrewTypes}).
- */
 @RestController
 @Tag(name = "AccountingReferenceData",
         description = "Reference catalogs for the accounting rule-filter edit form (cross-tenant).")

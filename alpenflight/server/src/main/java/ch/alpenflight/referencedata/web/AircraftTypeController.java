@@ -12,14 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global AircraftType catalog. Rows are
- * Flyway-managed (V3 seed — 8 rows). The {@code hasEngine /
- * requiresTowingInfo / mayBeTowingAircraft} boolean shape replaces the
- * legacy bitmask-int comparison and drives the type-filter slices on the
- * aircraft list. AircraftType admin UI is deferred (parallels S-049
- * LocationType deferral).
- */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft-types", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "AircraftTypes", description = "Aircraft-type reference catalog.")

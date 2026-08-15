@@ -19,10 +19,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Flight domain exceptions to RFC 7807 problem responses.
- * Scoped to {@link FlightsController}.
- */
 @RestControllerAdvice(assignableTypes = FlightsController.class)
 class FlightsExceptionHandler {
 
@@ -80,10 +76,6 @@ class FlightsExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
-        // Unknown FK references (unknown aircraftId, unknown flightTypeId, …)
-        // surface as DB integrity violations. Map to 400 — the client supplied
-        // a syntactically valid id that doesn't resolve. We don't echo the SQL
-        // detail to avoid leaking schema names.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         pd.setType(INVALID_REFERENCE);
         pd.setTitle("Invalid reference");
@@ -117,9 +109,6 @@ class FlightsExceptionHandler {
 
     @ExceptionHandler(FlightGateNotReachedException.class)
     ResponseEntity<ProblemDetail> handleGateNotReached(FlightGateNotReachedException e) {
-        // The transition is legal by the matrix but the S-061 calendar
-        // time-gate has not yet elapsed (too-recent flight / lock). 409,
-        // mirroring IllegalFlightTransition — "not yet", not "never".
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
         pd.setType(GATE_NOT_REACHED);
         pd.setTitle("Flight time-gate not yet reached");
@@ -153,9 +142,6 @@ class FlightsExceptionHandler {
         pd.setTitle("If-Match version does not match");
         pd.setDetail(e.getMessage());
         pd.setProperty("expected", e.expected());
-        // `serverVersion` is the wire-stable property the SPA reads to
-        // populate the S-062h inline-diff conflict dialog without an
-        // extra GET. Single source of truth — no `actual` alias.
         pd.setProperty("serverVersion", e.actual());
         return problem(pd);
     }
@@ -171,7 +157,6 @@ class FlightsExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> handleUnreadable(HttpMessageNotReadableException e) {
-        // Jackson rejects unknown enum values (e.g. processState=WHO_KNOWS) here.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         pd.setType(INVALID_REQUEST);
         pd.setTitle("Invalid request");
@@ -181,9 +166,6 @@ class FlightsExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
-        // The aggregate throws IllegalArgumentException for runway / coupon /
-        // temporal-ordering / non-negative invariants. The DTO validator
-        // catches most before this fires, but the aggregate is authoritative.
         return ProblemResponses.badRequest(e);
     }
 

@@ -24,34 +24,6 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.DomainEvents;
 
-/**
- * Person aggregate root. <strong>Cross-tenant by design</strong> (no
- * {@code @TenantId}) — a single Person row may belong to multiple clubs via
- * the {@link PersonClub} junction. A {@code Flight}'s crew (S-058) loads a
- * Person by PK; the load must succeed even when the Person's tenants don't
- * overlap with the flight's tenant.
- *
- * <p>Per ADR 0022 directive 2, business rules live here on the aggregate
- * and not in the schema:
- *
- * <ul>
- *   <li>{@link #joinClub} — at most one alive {@link PersonClub} per
- *       {@code (person, club)} pair; the partial unique
- *       {@code ux_person_club_alive} is the structural safety net.</li>
- *   <li>Re-join (calling {@code joinClub} for a {@code (person, club)} pair
- *       that has a soft-deleted PersonClub) <strong>reactivates</strong> the
- *       prior row rather than inserting a fresh one — preserves history and
- *       satisfies the partial unique without DELETE-then-INSERT.</li>
- *   <li>{@link #softDelete} refuses when the Person has active PersonClub
- *       rows in tenants other than the caller's; CLUB_ADMIN can only delete
- *       a Person whose only tenant-visible membership is in their own club
- *       (Hibernate's {@code @TenantId} filter scopes the collection
- *       automatically).</li>
- *   <li>Email shape — the two existing {@code ck_person_email_*_shape}
- *       constraints stay as input-shape defense-in-depth; the Email VO at
- *       the application boundary is the authoritative gate.</li>
- * </ul>
- */
 @Entity
 @Table(name = "t_person")
 public class Person {
@@ -212,13 +184,8 @@ public class Person {
     private List<PersonClub> personClubs = new ArrayList<>();
 
     protected Person() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new Person. Identity-bearing fields only — contact /
-     * licence updates go through dedicated mutators.
-     */
     public static Person register(String firstname, String lastname, @Nullable String midname) {
         Person p = new Person();
         p.rename(firstname, lastname, midname, null);
@@ -314,23 +281,6 @@ public class Person {
         this.receiveOwnedAircraftStatisticReports = newReceiveOwnedAircraftStatisticReports;
     }
 
-    /**
-     * Add (or reactivate) a club membership for this Person.
-     *
-     * <ul>
-     *   <li>If an alive {@link PersonClub} already exists for the (person,
-     *       club) pair → {@link DuplicateClubMembershipException}.</li>
-     *   <li>If a soft-deleted {@link PersonClub} exists for the same pair →
-     *       it's reactivated in place (cleared {@code deleted_on}) and its
-     *       membership fields replaced.</li>
-     *   <li>Otherwise → a fresh {@link PersonClub} is appended to the
-     *       collection.</li>
-     * </ul>
-     *
-     * <p>Caller must hold {@code @TenantId} = {@code clubId}; the Hibernate
-     * resolver carries this through automatically when the persist flush
-     * executes.
-     */
     public PersonClub joinClub(UUID clubId,
                                @Nullable String memberNumber,
                                @Nullable UUID memberStateId,
@@ -357,12 +307,6 @@ public class Person {
         return pc;
     }
 
-    /**
-     * Mutate the alive membership for the caller's tenant. Throws
-     * {@link PersonNotFoundException} (404) if the caller has no alive
-     * membership for this Person — the {@code @TenantId} filter has already
-     * trimmed the collection, so absence here means "not in caller's tenant".
-     */
     public PersonClub updateClubMembership(UUID clubId,
                                            @Nullable String memberNumber,
                                            @Nullable UUID memberStateId,
@@ -376,19 +320,6 @@ public class Person {
         return pc;
     }
 
-    /**
-     * Notification-prefs self-edit (J-4 T-10, the Notifications tab). Applies
-     * the three notification booleans to the caller-tenant alive membership and
-     * leaves the admin-only membership identity fields (memberNumber,
-     * memberStateId, role flags, isActive) untouched — the narrow
-     * {@link PersonClub#updateNotificationPrefs} business rule, distinct from
-     * the full-shape {@link #updateClubMembership} an admin drives.
-     *
-     * <p>Throws {@link PersonNotFoundException} (→ 409) if the caller has no
-     * alive membership for {@code clubId} — the {@code @TenantId} filter has
-     * already trimmed the collection, so absence here means "the caller's
-     * Person has no membership in their current tenant".
-     */
     public PersonClub updateNotificationPrefs(UUID clubId, PersonNotificationPrefs prefs) {
         if (clubId == null) {
             throw new IllegalArgumentException("clubId must not be null");
@@ -400,7 +331,6 @@ public class Person {
         return pc;
     }
 
-    /** Soft-delete the alive membership for the given club. */
     public void leaveClub(UUID clubId, @Nullable UUID userId, Clock clock) {
         PersonClub pc = aliveMembershipIn(clubId).orElseThrow(
                 () -> new PersonNotFoundException(
@@ -408,13 +338,6 @@ public class Person {
         pc.softDelete(userId, Instant.now(clock));
     }
 
-    /**
-     * Soft-delete the Person. CLUB_ADMIN-initiated delete: refused if the
-     * caller-tenant-scoped collection has fewer alive memberships than the
-     * Person actually has globally — i.e. another tenant still references
-     * this Person. The repository's {@code findActiveByIdUnscoped} surfaces
-     * the cross-tenant truth; the service calls it before invoking this.
-     */
     public void softDelete(@Nullable UUID userId, Clock clock, boolean hasOtherTenantMemberships) {
         if (hasOtherTenantMemberships) {
             throw new CrossTenantMembershipBlockedException(
@@ -430,21 +353,12 @@ public class Person {
         }
     }
 
-    /**
-     * Spring Data publishes a {@link PersonSaved} event on every
-     * {@code PersonRepository.save} (the Flight {@code @DomainEvents}
-     * precedent, J-7 RM-2) — at which point JPA's UUID generator has populated
-     * {@link #id}. Unconditional: the flight-report read-model keeps its
-     * denormalized crew-name strings fresh by observing EVERY persisted state
-     * change (ADR 0027 §2).
-     */
     @DomainEvents
     Collection<Object> domainEvents() {
         return List.of(new PersonSaved(Objects.requireNonNull(
                 this.id, "Person.id null at domain-event publication — save() runs first")));
     }
 
-    /** Caller-tenant-scoped lookup of an alive PersonClub for the given clubId. */
     private Optional<PersonClub> aliveMembershipIn(UUID clubId) {
         return personClubs.stream()
                 .filter(pc -> clubId.equals(pc.getClubId()) && !pc.isDeleted())
@@ -529,15 +443,6 @@ public class Person {
         return preferMailToBusinessMail;
     }
 
-    /**
-     * The address this person should be mailed at — parity with legacy
-     * {@code Person.EmailAddressForCommunication}
-     * ({@code FLS.Server.Data/DbEntities/Person.cs:205-228}). Honours
-     * {@link #isPreferMailToBusinessMail()} but falls back to the other address
-     * when the preferred one is blank, so a person with only one address on file
-     * is still reachable. Returns {@code null} when neither address is set (the
-     * caller skips a blank recipient — J-6 notification job).
-     */
     public @Nullable String emailForCommunication() {
         if (preferMailToBusinessMail) {
             return blankToNull(emailBusiness) != null ? emailBusiness : blankToNull(emailPrivate);
@@ -653,7 +558,6 @@ public class Person {
         return Collections.unmodifiableList(personClubs);
     }
 
-    /** Caller-tenant-visible alive memberships (Hibernate has scoped the collection). */
     public List<PersonClub> getActivePersonClubs() {
         return personClubs.stream().filter(pc -> !pc.isDeleted()).toList();
     }
