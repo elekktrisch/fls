@@ -70,7 +70,7 @@ class LeakageSweepIT extends PostgresIntegrationTest {
                     .isEmpty();
             assertThat(repo.findAll())
                     .as("findAll under B must not see A's row for %s", entityClass.getSimpleName())
-                    .extracting(LeakageSweepIT::idOfQuiet)
+                    .extracting(LeakageSweepIT::idOfTypedForAssertJExtracting)
                     .doesNotContain(id);
         });
     }
@@ -87,7 +87,7 @@ class LeakageSweepIT extends PostgresIntegrationTest {
             assertThat(repo.findAll())
                     .as("positive baseline — findAll under A must include A's row for %s",
                             entityClass.getSimpleName())
-                    .extracting(LeakageSweepIT::idOfQuiet)
+                    .extracting(LeakageSweepIT::idOfTypedForAssertJExtracting)
                     .contains(id);
             assertThat(repo.findById(id))
                     .as("positive baseline — findById under A must return A's row for %s",
@@ -122,8 +122,10 @@ class LeakageSweepIT extends PostgresIntegrationTest {
 
         assertThatThrownBy(() -> TenantTestContext.runUnscoped(() ->
                 repo.save(builder.apply(ctx))))
-                .as("Save under NO_TENANT on %s must fail at %s", entityClass.getSimpleName(),
-                        expectedFkName)
+                .as("Save under NO_TENANT on %s must fail at %s specifically — pinning the FK "
+                        + "name rather than accepting any DataIntegrityViolation means a resolver "
+                        + "that returns null instead of the sentinel cannot pass by tripping some "
+                        + "other constraint", entityClass.getSimpleName(), expectedFkName)
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining(expectedFkName);
     }
@@ -166,7 +168,7 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         }
     }
 
-    private static Object idOfQuiet(Object entity) {
+    private static Object idOfTypedForAssertJExtracting(Object entity) {
         return idOf(entity);
     }
 

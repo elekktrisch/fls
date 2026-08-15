@@ -122,8 +122,11 @@ class PublicRegistrationAbuseGuardTest {
                         ((PublicRegistrationThrottledException) thrown).retryAfterSeconds())
                         .isPositive()
                         .isLessThanOrEqualTo(Duration.ofMinutes(WINDOW_MINUTES).toSeconds()));
-        assertThatCode(() -> guard.recordReadAndCheck(IP_A, "probe-0")).doesNotThrowAnyException();
+        assertThatCode(() -> guard.recordReadAndCheck(IP_A, "probe-0"))
+                .as("a club already inside this source's window is still free")
+                .doesNotThrowAnyException();
         assertThatCode(() -> guard.recordReadAndCheck(IP_B, "probe-last"))
+                .as("a second source inherits nothing — the refusal is this source's reach")
                 .doesNotThrowAnyException();
     }
 

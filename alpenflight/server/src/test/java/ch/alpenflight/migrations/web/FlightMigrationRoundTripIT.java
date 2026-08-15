@@ -58,6 +58,11 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
     private static final int LEGACY_AIRCRAFT_TYPE_TOW = 2;
     private static final int LEGACY_AIRCRAFT_TYPE_MOTOR = 4;
+    private static final int LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES = LEGACY_AIRCRAFT_TYPE_GLIDER;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW = 2;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR = 4;
+    private static final String NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER = null;
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
@@ -115,12 +120,12 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         legacyCountryId = UUID.randomUUID();
         legacyPilotPersonId = UUID.randomUUID();
         legacyCoPilotPersonId = UUID.randomUUID();
-        String tag = userSub.toString().substring(0, 5);
-        testClubKey = "FLM-" + tag;
-        testClubSlug = "flm-" + tag;
-        gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
-        towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
-        motorImmat = ("HB-M" + tag).toUpperCase(Locale.ROOT);
+        String perRunNamespaceForGloballyUniqueKeysAndImmats = userSub.toString().substring(0, 5);
+        testClubKey = "FLM-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        testClubSlug = "flm-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        gliderImmat = ("HB-G" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
+        towImmat = ("HB-T" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
+        motorImmat = ("HB-M" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -244,15 +249,17 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("FLIGHT.ndjson", concat(
                 flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
                         legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(),
-                        1, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
                         LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
                 flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
-                        legacyLocationId, legacyFlightTypeId, null,
-                        2, LEGACY_AIR_STATE_LANDED,
+                        legacyLocationId, legacyFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-01"),
                 flightNdjson(legacyMotorFlightId, legacyClubId, legacyMotorAircraftId,
-                        legacyLocationId, legacyFlightTypeId, null,
-                        4, LEGACY_AIR_STATE_NEW,
+                        legacyLocationId, legacyFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-02")));
         tarEntries.put("legacy_id_map/FLIGHT.pgcopy", pgcopyMap2(
                 new MapRow(legacyTowFlightId, legacyTowFlightId),
@@ -314,7 +321,7 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 glider.get("tow_flight_id").toString());
         assertThat(((Number) linkedTow.get("flight_aircraft_type_id")).shortValue())
                 .as("the glider's tow_flight_id resolves to a real migrated TOW flight")
-                .isEqualTo((short) 2);
+                .isEqualTo((short) LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW);
         assertThat(UUID.fromString(glider.get("process_state_id").toString()))
                 .as("process_state_id resolved to the real V3 LOCKED seed PK")
                 .isEqualTo(SEED_PROCESS_STATE_LOCKED);
@@ -366,11 +373,12 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 "SELECT tow_flight_id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
                 legacyMotorFlightId.toString());
         assertThat(motor.get("tow_flight_id"))
-                .as("empty-guid (00000000-…) tow FK ports as null")
+                .as("a non-towed flight lands with tow_flight_id null (the producer already "
+                        + "collapsed the legacy empty-guid 00000000-… sentinel)")
                 .isNull();
         assertThat(((Number) motor.get("flight_aircraft_type_id")).shortValue())
                 .as("MOTOR sparse-enum (4) passed through verbatim")
-                .isEqualTo((short) 4);
+                .isEqualTo((short) LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR);
 
         Integer reportRows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_report_row WHERE operating_club_id = ?::uuid",
@@ -517,14 +525,15 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     }
 
     private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId,
-                                  String immatriculation, int legacyAircraftTypeForImmat)
+                                  String immatriculation,
+                                  int legacyAirframeTypeDecidingIsTowingAircraft)
             throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
         row.put("aircraft_type_id",
-                Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
+                Coercions.legacyIntIdToUuidString(LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES));
         row.put("manufacturer_name", "Schleicher");
         row.put("aircraft_model", "ASK 21");
         row.put("immatriculation", immatriculation);
@@ -544,7 +553,8 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         row.put("is_towing_or_winch_required", false);
         row.put("is_towing_start_allowed", true);
         row.put("is_winch_start_allowed", true);
-        row.put("is_towing_aircraft", legacyAircraftTypeForImmat == LEGACY_AIRCRAFT_TYPE_TOW);
+        row.put("is_towing_aircraft",
+                legacyAirframeTypeDecidingIsTowingAircraft == LEGACY_AIRCRAFT_TYPE_TOW);
         row.put("is_fast_entry_record", false);
         row.putNull("comment");
         row.putNull("daec_index");

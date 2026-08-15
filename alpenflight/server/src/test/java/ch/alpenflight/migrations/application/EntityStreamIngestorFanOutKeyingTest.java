@@ -23,10 +23,18 @@ class EntityStreamIngestorFanOutKeyingTest {
         String insert = ingestor.insertStatementFor(EntityType.LOCATION);
         String columnList = insertColumnList(insert);
 
-        assertThat(columnList).startsWith("id, legacy_guid, club_id");
+        assertThat(columnList)
+                .as("a fan-out mapper's columns() lead with the derived replica id, then the "
+                        + "shared legacy_guid, then the club discriminator")
+                .startsWith("id, legacy_guid, club_id");
         List<String> columns = List.of(columnList.split(",\\s*"));
-        assertThat(columns).contains("legacy_guid");
-        assertThat(columns.stream().filter("id"::equals).count()).isEqualTo(1L);
+        assertThat(columns)
+                .as("the shared key survives — a legacy_guid → id alias would have dropped it")
+                .contains("legacy_guid");
+        assertThat(columns.stream().filter("id"::equals).count())
+                .as("exactly one id column — the alias would have emitted a duplicate that "
+                        + "PK-collides on the second replica")
+                .isEqualTo(1L);
     }
 
     @Test
@@ -35,8 +43,13 @@ class EntityStreamIngestorFanOutKeyingTest {
         String insert = ingestor.insertStatementFor(EntityType.COUNTRY);
         String columnList = insertColumnList(insert);
 
-        assertThat(columnList).startsWith("id");
-        assertThat(columnList).doesNotContain("legacy_guid");
+        assertThat(columnList)
+                .as("a non-fan-out mapper emits legacy_guid as the carrier for the "
+                        + "destination id, so the INSERT's first column is the single id")
+                .startsWith("id");
+        assertThat(columnList)
+                .as("the legacy_guid → id alias is kept for non-fan-out entities")
+                .doesNotContain("legacy_guid");
     }
 
     @Test

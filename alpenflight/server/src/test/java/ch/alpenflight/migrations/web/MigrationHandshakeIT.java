@@ -200,14 +200,7 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
 
     @Test
     void expiry_job_sweeps_rows_past_ttl_and_wipes_key() throws Exception {
-        UUID expiredId = UUID.randomUUID();
-        byte[] wrapped = crypto.wrap(expiredId, new byte[] {1, 2, 3, 4, 5});
-        jdbc.update("""
-                INSERT INTO t_migration_upload
-                  (id, user_id, state, public_key_pem, private_key_ciphertext, created_at, updated_at, expires_at)
-                VALUES (?::uuid, ?::uuid, 'AWAITING_UPLOAD', 'pem', ?, now() - interval '48h',
-                        now() - interval '48h', now() - interval '24h')
-                """, expiredId.toString(), userId.toString(), wrapped);
+        UUID expiredId = seedAlreadyExpiredRowDirectlySoTheSweepIsDeterministic();
 
         int swept = expiryJob.runOnce();
         assertThat(swept).isGreaterThanOrEqualTo(1);
@@ -236,7 +229,23 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
                 "SELECT COUNT(*) FROM t_mutation_audit_event "
                         + "WHERE target_entity_id = ?::uuid AND action = 'MIGRATION_HANDSHAKE_EXPIRED'",
                 Integer.class, expiredId.toString());
-        assertThat(expiredAuditRows).isEqualTo(1);
+        assertThat(expiredAuditRows)
+                .as("re-running the sweep is idempotent — no further work on the same row and "
+                        + "still exactly one MIGRATION_HANDSHAKE_EXPIRED audit row")
+                .isEqualTo(1);
+    }
+
+    private UUID seedAlreadyExpiredRowDirectlySoTheSweepIsDeterministic() {
+        UUID expiredId = UUID.randomUUID();
+        byte[] wrapped = crypto.wrap(expiredId, new byte[] {1, 2, 3, 4, 5});
+        jdbc.update("""
+                INSERT INTO t_migration_upload
+                  (id, user_id, state, public_key_pem, private_key_ciphertext,
+                   created_at, updated_at, expires_at)
+                VALUES (?::uuid, ?::uuid, 'AWAITING_UPLOAD', 'pem', ?, now() - interval '48h',
+                        now() - interval '48h', now() - interval '24h')
+                """, expiredId.toString(), userId.toString(), wrapped);
+        return expiredId;
     }
 
     private ResponseEntity<String> postHandshake(String token) {

@@ -46,7 +46,9 @@ class AccountingReferenceControllerIT extends PostgresIntegrationTest {
     void filterTypes_returns_seedRows_each_with_legacyId_populated() {
         JsonNode body = readJson(get("/api/v1/accounting-rule-filter-types"));
         assertThat(body.isArray()).isTrue();
-        assertThat(body.size()).isGreaterThanOrEqualTo(10);
+        assertThat(body.size())
+                .as("a floor, not a pin — V4 seeded eight filter types and V42 added two more")
+                .isGreaterThanOrEqualTo(10);
 
         JsonNode first = body.get(0);
         assertThat(first.has("id")).isTrue();
@@ -64,8 +66,13 @@ class AccountingReferenceControllerIT extends PostgresIntegrationTest {
 
         List<Integer> legacyIds = new ArrayList<>();
         body.forEach(n -> legacyIds.add(n.get("legacyId").asInt()));
-        assertThat(legacyIds).contains(5, 10, 20, 30, 55);
-        assertThat(first.get("legacyId").asInt()).isEqualTo(5);
+        assertThat(legacyIds)
+                .as("the legacy ints the SPA drives its conditional sections off, "
+                        + "plus the two V42 types")
+                .contains(5, 10, 20, 30, 55);
+        assertThat(first.get("legacyId").asInt())
+                .as("ordered by legacy_int_id, so V42's DO_NOT_INVOICE (5) now leads")
+                .isEqualTo(5);
         assertThat(first.get("code").asText()).isEqualTo("DO_NOT_INVOICE");
     }
 

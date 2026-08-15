@@ -29,6 +29,12 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private static final int LEGACY_SELF_START_ENUM_ID = 3;
+    private static final List<Integer> EVERY_LEGACY_AIRCRAFT_START_TYPE_ENUM_ID =
+            List.of(1, 2, 3, 4, 5);
+    private static final List<Integer> EVERY_LEGACY_START_TYPE_EXCEPT_SELF_START =
+            List.of(1, 2, 4, 5);
+
     @Autowired DataSource dataSource;
 
     @Test
@@ -39,7 +45,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
         UUID replicaA = UUID.randomUUID();
         UUID replicaB = UUID.randomUUID();
 
-        try (Connection connection = txConnection()) {
+        try (Connection connection = manualCommitConnectionSoTempTablesDropOnCommit()) {
             createCompositeIdMap(connection, EntityType.LOCATION);
             seedComposite(connection, EntityType.LOCATION, sharedLocationGuid, clubA, replicaA);
             seedComposite(connection, EntityType.LOCATION, sharedLocationGuid, clubB, replicaB);
@@ -47,11 +53,16 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
             try (ForeignKeyResolver resolver = new ForeignKeyResolver(connection, manifest())) {
                 ObjectNode childA = iopRow(sharedLocationGuid, clubA);
                 resolver.rewriteForeignKeys(new InOutboundPointMapper(), childA);
-                assertThat(UUID.fromString(childA.get("location_id").asText())).isEqualTo(replicaA);
+                assertThat(UUID.fromString(childA.get("location_id").asText()))
+                        .as("club A's referencer lands on club A's replica of the shared "
+                                + "legacy Location, not club B's")
+                        .isEqualTo(replicaA);
 
                 ObjectNode childB = iopRow(sharedLocationGuid, clubB);
                 resolver.rewriteForeignKeys(new InOutboundPointMapper(), childB);
-                assertThat(UUID.fromString(childB.get("location_id").asText())).isEqualTo(replicaB);
+                assertThat(UUID.fromString(childB.get("location_id").asText()))
+                        .as("a different club's referencer lands on a DIFFERENT replica")
+                        .isEqualTo(replicaB);
             }
             connection.commit();
         }
@@ -63,7 +74,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
         UUID provisionedClub = UUID.randomUUID();
         UUID unprovisionedClub = UUID.randomUUID();
 
-        try (Connection connection = txConnection()) {
+        try (Connection connection = manualCommitConnectionSoTempTablesDropOnCommit()) {
             createCompositeIdMap(connection, EntityType.LOCATION);
             seedComposite(connection, EntityType.LOCATION, sharedLocationGuid, provisionedClub,
                     UUID.randomUUID());
@@ -87,7 +98,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
         UUID legacyCountry = UUID.randomUUID();
         UUID newCountry = UUID.randomUUID();
 
-        try (Connection connection = txConnection()) {
+        try (Connection connection = manualCommitConnectionSoTempTablesDropOnCommit()) {
             createSingleKeyIdMap(connection, EntityType.CLUB);
             createSingleKeyIdMap(connection, EntityType.COUNTRY);
             seedSingleKey(connection, EntityType.CLUB, legacyClub, newClub);
@@ -111,7 +122,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
     void start_type_self_start_resolves_against_the_enum_complete_closure() throws Exception {
         Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
 
-        try (Connection connection = txConnection()) {
+        try (Connection connection = manualCommitConnectionSoTempTablesDropOnCommit()) {
             createSingleKeyIdMap(connection, EntityType.START_TYPE);
             for (Map.Entry<UUID, UUID> e : closure.entrySet()) {
                 seedSingleKey(connection, EntityType.START_TYPE, e.getKey(), e.getValue());
@@ -119,7 +130,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
 
             try (ForeignKeyResolver resolver =
                     new ForeignKeyResolver(connection, startTypeManifest())) {
-                for (int legacyId : List.of(1, 2, 3, 4, 5)) {
+                for (int legacyId : EVERY_LEGACY_AIRCRAFT_START_TYPE_ENUM_ID) {
                     UUID synthetic = new UUID(0L, legacyId);
                     ObjectNode flight = JSON.createObjectNode();
                     flight.put("start_type_id", synthetic.toString());
@@ -132,12 +143,14 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
                             .isEqualTo(closure.get(synthetic));
                 }
 
+                UUID syntheticSelfStart = new UUID(0L, LEGACY_SELF_START_ENUM_ID);
                 ObjectNode selfStart = JSON.createObjectNode();
-                selfStart.put("start_type_id", new UUID(0L, 3L).toString());
+                selfStart.put("start_type_id", syntheticSelfStart.toString());
                 resolver.rewriteForeignKeys(new FlightMapper(), selfStart);
                 assertThat(UUID.fromString(selfStart.get("start_type_id").asText()))
-                        .as("SelfStart(3) resolves (no BUNDLE_CROSS_TENANT_FK_LEAK)")
-                        .isEqualTo(closure.get(new UUID(0L, 3L)));
+                        .as("SelfStart(3), the value the real export 400'd on, resolves "
+                                + "(no BUNDLE_CROSS_TENANT_FK_LEAK)")
+                        .isEqualTo(closure.get(syntheticSelfStart));
             }
             connection.commit();
         }
@@ -145,10 +158,10 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
 
     @Test
     void start_type_missing_from_the_closure_fails_closed() throws Exception {
-        try (Connection connection = txConnection()) {
+        try (Connection connection = manualCommitConnectionSoTempTablesDropOnCommit()) {
             createSingleKeyIdMap(connection, EntityType.START_TYPE);
             Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
-            for (int legacyId : List.of(1, 2, 4, 5)) {
+            for (int legacyId : EVERY_LEGACY_START_TYPE_EXCEPT_SELF_START) {
                 UUID synthetic = new UUID(0L, legacyId);
                 seedSingleKey(connection, EntityType.START_TYPE, synthetic, closure.get(synthetic));
             }
@@ -156,9 +169,11 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
             try (ForeignKeyResolver resolver =
                     new ForeignKeyResolver(connection, startTypeManifest())) {
                 ObjectNode flight = JSON.createObjectNode();
-                flight.put("start_type_id", new UUID(0L, 3L).toString());
+                flight.put("start_type_id", new UUID(0L, LEGACY_SELF_START_ENUM_ID).toString());
                 assertThatThrownBy(() ->
                         resolver.rewriteForeignKeys(new FlightMapper(), flight))
+                        .as("an incomplete START_TYPE map still fails closed rather than "
+                                + "resolving SelfStart to a wrong PK")
                         .isInstanceOf(BundleIngestException.class)
                         .extracting(e -> ((BundleIngestException) e).getErrorCode())
                         .isEqualTo(BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK);
@@ -178,7 +193,7 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
                 Map.of(EntityType.START_TYPE, systemGlobal), Map.of());
     }
 
-    private Connection txConnection() throws Exception {
+    private Connection manualCommitConnectionSoTempTablesDropOnCommit() throws Exception {
         Connection connection = dataSource.getConnection();
         connection.setAutoCommit(false);
         return connection;

@@ -56,6 +56,9 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
+    private static final long TREE_SCAN_WALL_CAP_NANOS = 5_000_000_000L;
+    private static final long LARGEST_FILE_WORTH_SCANNING_BYTES = 50L * 1024L * 1024L;
+
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
@@ -174,7 +177,7 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
         }
         byte[] markerBytes = marker.getBytes(StandardCharsets.UTF_8);
         List<Path> hits = new ArrayList<>();
-        long deadline = System.nanoTime() + 5_000_000_000L;
+        long deadline = System.nanoTime() + TREE_SCAN_WALL_CAP_NANOS;
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
@@ -182,7 +185,7 @@ class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
                     return FileVisitResult.TERMINATE;
                 }
                 if (!attrs.isRegularFile() || attrs.size() == 0
-                        || attrs.size() > 50L * 1024L * 1024L) {
+                        || attrs.size() > LARGEST_FILE_WORTH_SCANNING_BYTES) {
                     return FileVisitResult.CONTINUE;
                 }
                 try {

@@ -78,7 +78,7 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
     private UUID actorUserId;
 
     @BeforeEach
-    void seedActor() {
+    void seedMigrationPrincipalUserSoTheJitFirstLoginFilterResolvesIt() {
         userSub = UUID.randomUUID();
         userId = UUID.randomUUID();
         actorUserId = UUID.randomUUID();
@@ -115,14 +115,18 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
-        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
+        deletePerClubMasterdataSeededByProvisioning(clubsByOwner);
         jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
+    }
+
+    private void deletePerClubMasterdataSeededByProvisioning(String clubsByOwner) {
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
     }
 
     @Test
@@ -179,7 +183,10 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
         assertThat(res.getStatusCode())
-                .as("Location migrate round-trip ingest failed; body=%s", res.getBody())
+                .as("Location migrate round-trip ingest failed (the composite LOCATION "
+                        + "id-map must be drained BEFORE INOUTBOUND_POINT.ndjson, else the "
+                        + "child FK resolve fails closed with BUNDLE_CROSS_TENANT_FK_LEAK); "
+                        + "body=%s", res.getBody())
                 .isEqualTo(HttpStatus.OK);
 
         JsonNode body = JSON.readTree(res.getBody());

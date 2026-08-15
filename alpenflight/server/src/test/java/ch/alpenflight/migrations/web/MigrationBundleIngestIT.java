@@ -66,9 +66,9 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     void seedUser() {
         userSub = UUID.randomUUID();
         userId = UUID.randomUUID();
-        String tag = userSub.toString().substring(0, 5);
-        testClubKey = "IT-" + tag;
-        testClubSlug = "aero-it-" + tag;
+        String perTestUniqueSuffixWithinTheTenCharClubKeyCap = userSub.toString().substring(0, 5);
+        testClubKey = "IT-" + perTestUniqueSuffixWithinTheTenCharClubKeyCap;
+        testClubSlug = "aero-it-" + perTestUniqueSuffixWithinTheTenCharClubKeyCap;
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -97,14 +97,18 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         String clubsByOwner =
                 "SELECT id FROM t_club WHERE deployment_id IN "
                         + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
-        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
-        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
+        deletePerClubMasterdataSeededByProvisioning(clubsByOwner);
         jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
+    }
+
+    private void deletePerClubMasterdataSeededByProvisioning(String clubsByOwner) {
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
     }
 
     @Test
@@ -169,7 +173,8 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void two_club_bundle_provisions_a_keycloak_club_admin_identity_per_club() throws Exception {
+    void two_club_bundle_provisions_a_keycloak_club_admin_per_provisioned_club_with_non_blank_profile_names()
+            throws Exception {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());

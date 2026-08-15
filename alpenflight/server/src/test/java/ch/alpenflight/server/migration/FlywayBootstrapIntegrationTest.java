@@ -143,18 +143,18 @@ class FlywayBootstrapIntegrationTest {
         Path v1 = migrationsDir.resolve("V1__drift.sql");
         Files.writeString(v1, "CREATE TABLE drift_marker (id INT PRIMARY KEY);", StandardCharsets.UTF_8);
 
-        String schema = "drift_" + System.nanoTime();
+        String disposableSchemaKeepingTheSharedHistoryUntouched = "drift_" + System.nanoTime();
         try (var conn = DriverManager.getConnection(
                 POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password());
                 var stmt = conn.createStatement()) {
-            stmt.execute("CREATE SCHEMA " + schema);
+            stmt.execute("CREATE SCHEMA " + disposableSchemaKeepingTheSharedHistoryUntouched);
         }
 
         Flyway firstRun = Flyway.configure()
                 .dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password())
                 .locations("filesystem:" + migrationsDir.toAbsolutePath())
-                .schemas(schema)
-                .defaultSchema(schema)
+                .schemas(disposableSchemaKeepingTheSharedHistoryUntouched)
+                .defaultSchema(disposableSchemaKeepingTheSharedHistoryUntouched)
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
                 .load();
@@ -168,8 +168,8 @@ class FlywayBootstrapIntegrationTest {
         Flyway secondRun = Flyway.configure()
                 .dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password())
                 .locations("filesystem:" + migrationsDir.toAbsolutePath())
-                .schemas(schema)
-                .defaultSchema(schema)
+                .schemas(disposableSchemaKeepingTheSharedHistoryUntouched)
+                .defaultSchema(disposableSchemaKeepingTheSharedHistoryUntouched)
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
                 .load();

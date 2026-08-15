@@ -18,16 +18,24 @@ class EntityStreamIngestorClubUpsertTest {
         assertThat(sql).contains("ON CONFLICT (id) DO UPDATE SET");
         assertThat(sql).contains("clubname = EXCLUDED.clubname");
         assertThat(sql).contains("address = EXCLUDED.address");
-        assertThat(sql).doesNotContain("id = EXCLUDED.id");
+        assertThat(sql)
+                .as("id is the conflict target, never a SET assignment")
+                .doesNotContain("id = EXCLUDED.id");
     }
 
     @Test
     void club_upsert_cannot_touch_provisioning_owned_columns() {
         String sql = ingestor.insertStatementFor(EntityType.CLUB);
 
-        assertThat(sql).doesNotContain("slug");
-        assertThat(sql).doesNotContain("public_registration_enabled");
-        assertThat(sql).doesNotContain("deployment_id");
+        assertThat(sql)
+                .as("slug is minted by provisioning — a bundle cannot rename a Club's slug")
+                .doesNotContain("slug");
+        assertThat(sql)
+                .as("a bundle cannot flip a Club's public registration")
+                .doesNotContain("public_registration_enabled");
+        assertThat(sql)
+                .as("a bundle cannot move a Club to another deployment")
+                .doesNotContain("deployment_id");
     }
 
     @Test

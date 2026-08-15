@@ -34,6 +34,9 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
     private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-0000000000f2";
+    private static final String V31_DEV_SEED_ID_BAND = "019e30c3-%";
+    private static final String IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST = "HB-RV";
+    private static final int UNPROCESSABLE_CONTENT_422 = 422;
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -50,17 +53,29 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         token = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", OTHER_CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid "
-                + "AND id::text NOT LIKE '019e30c3-%'", CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
-                + "AND immatriculation LIKE 'HB-RV%'", CLUB_ID);
+        clearBothClubsReservationsBeforeTheAircraftTheyRestrict();
+        clearThisTestsReservationTypesLeavingTheV31DevSeedBandIntact();
+        clearAircraftOwnedByThisTest();
 
         aircraftId = seedAircraft();
         pilotId = seedPerson();
         locationId = seedLocation();
         reservationTypeId = seedReservationType();
+    }
+
+    private void clearBothClubsReservationsBeforeTheAircraftTheyRestrict() {
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", OTHER_CLUB_ID);
+    }
+
+    private void clearThisTestsReservationTypesLeavingTheV31DevSeedBandIntact() {
+        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid "
+                + "AND id::text NOT LIKE '" + V31_DEV_SEED_ID_BAND + "'", CLUB_ID);
+    }
+
+    private void clearAircraftOwnedByThisTest() {
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
+                + "AND immatriculation LIKE '" + IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST + "%'", CLUB_ID);
     }
 
     @Test
@@ -102,7 +117,7 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     void create_timedEndBeforeStart_returns_422() {
         ResponseEntity<String> res = post("/api/v1/aircraft-reservations",
                 timedPayload("2026-07-01T11:00:00Z", "2026-07-01T10:00:00Z"));
-        assertThat(res.getStatusCode().value()).isEqualTo(422);
+        assertThat(res.getStatusCode().value()).isEqualTo(UNPROCESSABLE_CONTENT_422);
         assertThat(readJson(res).get("key").asText()).isEqualTo("aircraft.reservation.duration");
     }
 
@@ -141,7 +156,7 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void validate_overlappingSlot_returnsInvalidWithField() {
+    void validate_overlappingSlot_returnsInvalidOnStartField_withoutPersistingAnything() {
         ResponseEntity<String> created = post("/api/v1/aircraft-reservations",
                 timedPayload("2026-08-02T10:00:00Z", "2026-08-02T11:00:00Z"));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -156,7 +171,9 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid "
                         + "AND deleted_on IS NULL", Integer.class, CLUB_ID);
-        assertThat(count).isEqualTo(1);
+        assertThat(count)
+                .as("validate is a probe: only the booking created above may exist")
+                .isEqualTo(1);
     }
 
     @Test
@@ -198,7 +215,7 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void future_excludesPastReservations_sortedByStart() {
+    void future_excludesPastReservations() {
         post("/api/v1/aircraft-reservations",
                 timedPayload("2000-01-01T10:00:00Z", "2000-01-01T11:00:00Z"));
         post("/api/v1/aircraft-reservations",
@@ -270,7 +287,8 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         UUID id = UUID.randomUUID();
         UUID aircraftTypeId = jdbc.queryForObject(
                 "SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
-        String immat = ("HB-RV" + Long.toString(System.nanoTime(), 36).substring(0, 6))
+        String immat = (IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST
+                + Long.toString(System.nanoTime(), 36).substring(0, 6))
                 .toUpperCase(java.util.Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,

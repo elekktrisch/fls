@@ -354,11 +354,20 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         assertThat(reconciled.get("clubname")).isEqualTo("Legacy Aero Club");
         assertThat(reconciled.get("address")).isEqualTo("Flugplatzstrasse 1");
         assertThat(reconciled.get("send_aircraft_statistic_report_to"))
+                .as("the bundle wins on a config column provisioning leaves NULL — so the "
+                        + "parity holds on legacy values, not on values that match a default")
                 .isEqualTo("ops-" + testClubKey);
-        assertThat(reconciled.get("run_delivery_creation_job")).isEqualTo(true);
-        assertThat(reconciled.get("slug")).isEqualTo(testClubSlug);
+        assertThat(reconciled.get("run_delivery_creation_job"))
+                .as("the bundle wins on a boolean that diverges from the schema DEFAULT false")
+                .isEqualTo(true);
+        assertThat(reconciled.get("slug"))
+                .as("provisioning-owned columns absent from ClubMapper survive the UPSERT")
+                .isEqualTo(testClubSlug);
         assertThat(reconciled.get("public_registration_enabled")).isEqualTo(false);
-        assertThat(reconciled.get("club_key")).isEqualTo(testClubKey);
+        assertThat(reconciled.get("club_key"))
+                .as("manifest and bundle carry the same club_key — the UPSERT must not mint "
+                        + "a second row and trip ux_club_key")
+                .isEqualTo(testClubKey);
 
         Map<String, Object> childUser = jdbc.queryForMap(
                 "SELECT club_id FROM t_user WHERE id = ?::uuid", legacyUserId.toString());
@@ -372,7 +381,7 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
         UUID manifestClubId = UUID.randomUUID();
-        UUID strayClubId = UUID.randomUUID();
+        UUID clubIdNeverDeclaredInTheManifest = UUID.randomUUID();
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
                 manifestClubId, "Parity Club", testClubSlug, testClubKey, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
@@ -386,7 +395,7 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
         tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson", clubNdjson(strayClubId, testClubKey, "Stray Club",
+        tarEntries.put("CLUB.ndjson", clubNdjson(clubIdNeverDeclaredInTheManifest, testClubKey, "Stray Club",
                 "Nowhere 0", legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
@@ -434,12 +443,12 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
         tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        byte[] both = concatNdjson(
+        byte[] clubNdjsonInReverseOfManifestOrder = concatNdjson(
                 clubNdjson(legacyClubIdB, keyB, "Club B Legacy", "Addr B",
                         legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC),
                 clubNdjson(legacyClubIdA, keyA, "Club A Legacy", "Addr A",
                         legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC));
-        tarEntries.put("CLUB.ndjson", both);
+        tarEntries.put("CLUB.ndjson", clubNdjsonInReverseOfManifestOrder);
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Multi Club Deployment",
@@ -457,12 +466,18 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
                 Integer.class, deploymentId.toString());
         assertThat(clubCount).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
-                String.class, keyA)).isEqualTo("Addr A");
+                String.class, keyA))
+                .as("club A kept its OWN legacy address — the NDJSON pairs by club_key, not "
+                        + "by position (it arrives reversed from the manifest order)")
+                .isEqualTo("Addr A");
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
                 String.class, keyB)).isEqualTo("Addr B");
         assertThat(jdbc.queryForObject(
                 "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
-                String.class, keyA)).isEqualTo("ops-" + keyA);
+                String.class, keyA))
+                .as("a second per-club sentinel column, so a 'both rows got club B's "
+                        + "columns' bug cannot hide behind one matching column")
+                .isEqualTo("ops-" + keyA);
         assertThat(jdbc.queryForObject(
                 "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
                 String.class, keyB)).isEqualTo("ops-" + keyB);
@@ -530,10 +545,11 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         return sink.toByteArray();
     }
 
-    private static byte[] pgcopyMapMulti(UUID[]... pairs) throws IOException {
+    private static byte[] pgcopyMapMulti(UUID[]... legacyGuidAndNewUuidPairs)
+            throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
-            for (UUID[] pair : pairs) {
+            for (UUID[] pair : legacyGuidAndNewUuidPairs) {
                 writer.write(pair[0], pair[1]);
             }
         }

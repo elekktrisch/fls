@@ -274,13 +274,14 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(360000L);
     }
 
-    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId, UUID ownerPersonId,
+    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyAircraftOwnerClubId,
+                                  UUID ownerPersonId,
                                   UUID homebaseLocationId, String immatriculation)
             throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
-        row.put("managing_club_id", legacyClubId.toString());
-        row.put("owner_club_id", legacyClubId.toString());
+        row.put("managing_club_id", legacyAircraftOwnerClubId.toString());
+        row.put("owner_club_id", legacyAircraftOwnerClubId.toString());
         row.put("aircraft_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
         row.put("manufacturer_name", "Schleicher");

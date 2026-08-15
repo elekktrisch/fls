@@ -21,7 +21,10 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
-    private static final UUID SEED_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final UUID STABLE_READ_ONLY_SEED_CLUB =
+            UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final int ARTICLE_LIVE = 0;
+    private static final int ARTICLE_SOFT_DELETED = 1;
     private static final UUID GLIDER_AIRCRAFT_TYPE =
             UUID.fromString("019e2e15-2c00-7af9-8000-000000002af9");
     private static final UUID FLIGHT_PROCESS_STATE_VALID =
@@ -87,14 +90,16 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 deliveryId, clubId);
 
         jdbc.update("INSERT INTO Articles (ArticleId, ClubId, ArticleNumber, IsDeleted) "
-                + "VALUES (?, ?, ?, 0)", liveArticleId, clubId, resolvableNumber);
+                + "VALUES (?, ?, ?, ?)",
+                liveArticleId, clubId, resolvableNumber, ARTICLE_LIVE);
         jdbc.update("INSERT INTO Articles (ArticleId, ClubId, ArticleNumber, IsDeleted) "
-                + "VALUES (?, ?, ?, 1)", softDeletedArticleId, clubId, orphanNumber);
+                + "VALUES (?, ?, ?, ?)",
+                softDeletedArticleId, clubId, orphanNumber, ARTICLE_SOFT_DELETED);
 
         insertItem(resolvableItemId, 1, resolvableNumber);
         insertItem(orphanItemId, 2, orphanNumber);
 
-        seedOwnFlight();
+        seedOwnFlightRatherThanTheSiblingMutatedDevSeedFlight();
     }
 
     @AfterEach
@@ -108,7 +113,7 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_aircraft WHERE id = ?::uuid", ownAircraftId.toString());
     }
 
-    private void seedOwnFlight() {
+    private void seedOwnFlightRatherThanTheSiblingMutatedDevSeedFlight() {
         jdbc.update("""
                 INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
                                       immatriculation, is_towing_or_winch_required,
@@ -117,7 +122,8 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?,
                         false, false, false, false, false, 2)
                 """,
-                ownAircraftId.toString(), SEED_CLUB.toString(), SEED_CLUB.toString(),
+                ownAircraftId.toString(),
+                STABLE_READ_ONLY_SEED_CLUB.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(),
                 GLIDER_AIRCRAFT_TYPE.toString(),
                 "HB-DLV" + Long.toString(ownAircraftId.getLeastSignificantBits() & 0xFFFF, 36));
         jdbc.update("""
@@ -127,7 +133,7 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, ?::uuid, ?::uuid, 1, CURRENT_DATE - 7,
                         false, false, false, ?::uuid)
                 """,
-                ownFlightId.toString(), SEED_CLUB.toString(), ownAircraftId.toString(),
+                ownFlightId.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(), ownAircraftId.toString(),
                 FLIGHT_PROCESS_STATE_VALID.toString());
     }
 
@@ -199,6 +205,6 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                      created_on, modified_on)
                 VALUES (?::uuid, ?::uuid, 10, ?::uuid, 0, now(), now())
                 """,
-                id.toString(), SEED_CLUB.toString(), ownFlightId.toString());
+                id.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(), ownFlightId.toString());
     }
 }

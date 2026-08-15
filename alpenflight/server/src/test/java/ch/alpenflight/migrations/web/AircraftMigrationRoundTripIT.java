@@ -170,33 +170,33 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID homebaseReplicaId =
                 Coercions.deriveFanOutId(legacyHomebaseLocationId, legacyClubId);
 
-        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
-        tarEntries.put("legacy_id_map/COUNTRY.pgcopy",
+        Map<String, byte[]> tarEntriesInIngestResolveOrder = new LinkedHashMap<>();
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/COUNTRY.pgcopy",
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
-        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson",
+        tarEntriesInIngestResolveOrder.put("CLUB.ndjson",
                 clubNdjson(legacyClubId, key, "ACM Club Legacy", "Addr"));
-        tarEntries.put("legacy_id_map/PERSON.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/PERSON.pgcopy",
                 pgcopyMap(legacyPersonId, legacyPersonId));
-        tarEntries.put("PERSON.ndjson",
+        tarEntriesInIngestResolveOrder.put("PERSON.ndjson",
                 personNdjson(legacyPersonId, legacyCountryId, "Owner", "Aircraft"));
-        tarEntries.put("LOCATION.ndjson",
+        tarEntriesInIngestResolveOrder.put("LOCATION.ndjson",
                 locationNdjson(legacyHomebaseLocationId, legacyClubId, legacyCountryId, "LSZH"));
-        tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(legacyHomebaseLocationId, legacyClubId, homebaseReplicaId)));
-        tarEntries.put("AIRCRAFT.ndjson", aircraftNdjson(
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT.ndjson", aircraftNdjson(
                 legacyAircraftId, legacyClubId, legacyPersonId, legacyHomebaseLocationId, "HB-3000"));
-        tarEntries.put("legacy_id_map/AIRCRAFT.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/AIRCRAFT.pgcopy",
                 pgcopyMap(legacyAircraftId, legacyAircraftId));
-        tarEntries.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
                 aircraftStateNdjson(legacyAircraftId, "Annual inspection passed"));
-        tarEntries.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
                 operatingCounterNdjson(legacyOperatingCounterId, legacyAircraftId, 360000L));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Aircraft Migrate IT Deployment",
-                List.of(club), entityPolicies, tarEntries);
+                List.of(club), entityPolicies, tarEntriesInIngestResolveOrder);
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
         assertThat(res.getStatusCode())
@@ -263,13 +263,14 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(360000L);
     }
 
-    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId, UUID ownerPersonId,
+    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyAircraftOwnerClubId,
+                                  UUID ownerPersonId,
                                   UUID homebaseLocationId, String immatriculation)
             throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
-        row.put("managing_club_id", legacyClubId.toString());
-        row.put("owner_club_id", legacyClubId.toString());
+        row.put("managing_club_id", legacyAircraftOwnerClubId.toString());
+        row.put("owner_club_id", legacyAircraftOwnerClubId.toString());
         row.put("aircraft_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
         row.put("manufacturer_name", "Schleicher");

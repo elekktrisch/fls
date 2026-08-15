@@ -149,6 +149,7 @@ class ExcelExportSupportTest {
         Row row = read.getSheet("Flights").getRow(0);
 
         assertThat(row.getCell(0).getCellStyle().getIndex())
+                .as("the same format string reuses one cached style — guards the 64k cell-style cap")
                 .isEqualTo(row.getCell(1).getCellStyle().getIndex());
         read.close();
     }

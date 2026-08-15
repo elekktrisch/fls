@@ -68,10 +68,16 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
         assertThat(body.get("friendlyName").asText()).isEqualTo("New Name");
         assertThat(body.get("phoneNumber").asText()).isEqualTo("+41 22 222");
         assertThat(body.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
-        assertThat(body.get("languageCode").asText()).isEqualTo("en");
+        assertThat(body.get("languageCode").asText())
+                .as("the PATCH response reuses the /me projection, which carries the Account "
+                        + "self-fields (languageCode = BCP-47 of the chosen language) so the "
+                        + "SPA form reflects the round-trip without a second endpoint")
+                .isEqualTo("en");
 
         JsonNode reread = readJson(get("/api/v1/me", token));
-        assertThat(reread.get("email").asText()).isEqualTo("new@example.com");
+        assertThat(reread.get("email").asText())
+                .as("a fresh GET /me reflects the persisted change")
+                .isEqualTo("new@example.com");
         assertThat(reread.get("friendlyName").asText()).isEqualTo("New Name");
         assertThat(reread.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
 
@@ -110,7 +116,10 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
         Map<String, Object> rowB = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email FROM t_user WHERE id = ?::uuid",
                 userB.toString());
-        assertThat(rowB.get("friendly_name")).isEqualTo("B Name");
+        assertThat(rowB.get("friendly_name"))
+                .as("principal B's row is untouched — the endpoint carries no :id, so the "
+                        + "row to edit can only ever be the caller's own")
+                .isEqualTo("B Name");
         assertThat(rowB.get("notification_email")).isEqualTo("b@example.com");
     }
 
@@ -136,7 +145,9 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email FROM t_user WHERE keycloak_sub = ?::uuid",
                 kcSub.toString());
-        assertThat(row.get("friendly_name")).isEqualTo("Val Name");
+        assertThat(row.get("friendly_name"))
+                .as("nothing persisted from either rejected request")
+                .isEqualTo("Val Name");
         assertThat(row.get("notification_email")).isEqualTo("val@example.com");
     }
 

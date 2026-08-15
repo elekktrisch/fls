@@ -27,7 +27,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class OpenApiOffByDefaultIT {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void overrideDatasourceAndFlywayCredsToTheContainer(DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);
@@ -44,12 +44,16 @@ class OpenApiOffByDefaultIT {
     @Test
     void apiDocsReturns404UnderProdProfile() {
         ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode())
+                .as("a 200 here would disclose the whole API surface in prod")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
     void swaggerUiReturns404UnderProdProfile() {
         ResponseEntity<String> response = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode())
+                .as("no SPRINGDOC_* env var is set here, so relaxed binding cannot flip the UI on")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

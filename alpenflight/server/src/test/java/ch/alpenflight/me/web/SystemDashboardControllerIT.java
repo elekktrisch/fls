@@ -42,6 +42,9 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
+    private static final String FIXTURE_PREFIX_UNIQUE_TO_THIS_IT = "sdash";
+    private static final String CLUB_KEY_PREFIX_UNIQUE_TO_THIS_IT = "SDSH";
+
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
@@ -57,7 +60,8 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
     @BeforeEach
     void seed() {
         TwoClubFixture fixture =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, "sdash", "SDSH");
+                new TwoClubFixture(jdbc, clubs, countries, clubStates,
+                        FIXTURE_PREFIX_UNIQUE_TO_THIS_IT, CLUB_KEY_PREFIX_UNIQUE_TO_THIS_IT);
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();
@@ -77,11 +81,11 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         createFlight(adminB, aircraftBExternal);
         createFlight(adminB, aircraftBExternal);
 
-        seedUser(clubA, "sdash-a");
-        seedUser(clubB, "sdash-b1");
-        seedUser(clubB, "sdash-b2");
+        seedUser(clubA, FIXTURE_PREFIX_UNIQUE_TO_THIS_IT + "-a");
+        seedUser(clubB, FIXTURE_PREFIX_UNIQUE_TO_THIS_IT + "-b1");
+        seedUser(clubB, FIXTURE_PREFIX_UNIQUE_TO_THIS_IT + "-b2");
 
-        JsonNode body = get(sysadminToken());
+        JsonNode body = get(tenantLessSysadminTokenCarryingNoClubIdClaim());
 
         assertThat(body.get("totalClubs").asLong())
                 .as("at least the two seeded clubs (shared DB may hold more)")
@@ -90,7 +94,8 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
                 .as("at least the three seeded users, spanning both clubs")
                 .isGreaterThanOrEqualTo(3L);
         assertThat(body.get("totalFlights").asLong())
-                .as("spans both clubs (A's 2 + B's 3), not just the caller's slice")
+                .as("spans both clubs (A's 2 + B's 3) — a count scoped to the calling "
+                        + "sysadmin's own club A would report only 2")
                 .isGreaterThanOrEqualTo(5L);
     }
 
@@ -111,7 +116,7 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
 
     @Test
     void tenant_less_sysadmin_principal_can_call_it() {
-        ResponseEntity<String> res = rawGet(sysadminToken());
+        ResponseEntity<String> res = rawGet(tenantLessSysadminTokenCarryingNoClubIdClaim());
         assertThat(res.getStatusCode())
                 .as("a tenant-less sysadmin principal is served, not rejected")
                 .isEqualTo(HttpStatus.OK);
@@ -121,7 +126,7 @@ class SystemDashboardControllerIT extends PostgresIntegrationTest {
         assertThat(body.has("totalFlights")).isTrue();
     }
 
-    private String sysadminToken() {
+    private String tenantLessSysadminTokenCarryingNoClubIdClaim() {
         return jwts.mint(c -> c
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
     }

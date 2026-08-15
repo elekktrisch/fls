@@ -22,9 +22,11 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
-    private static final LocalDate SOON = TODAY.plusDays(30);
+    private static final LocalDate INSIDE_THE_NOTIFICATION_WINDOW =
+            TODAY.plusDays(LicenceNotificationJob.WITHIN_DAYS - 30);
 
-    private static final LocalDate FAR_OFF = TODAY.plusDays(120);
+    private static final LocalDate OUTSIDE_THE_NOTIFICATION_WINDOW =
+            TODAY.plusDays(LicenceNotificationJob.WITHIN_DAYS + 60);
 
     @Autowired JdbcTemplate jdbc;
     @Autowired LicenceNotificationJob job;
@@ -32,28 +34,29 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
     @Autowired PersonRepository persons;
 
     private String holderMail;
-    private String farOffMail;
+    private String outsideWindowMail;
 
     @BeforeEach
     void clean() {
         outbox.clear();
         String run = UUID.randomUUID().toString().substring(0, 8);
         holderMail = "licence.holder." + run + "@example.com";
-        farOffMail = "licence.faroff." + run + "@example.com";
+        outsideWindowMail = "licence.outside-window." + run + "@example.com";
     }
 
     @Test
     void runOnce_mailsOncePerExpiringLicence_andSkipsWhatIsNotDue() {
-        seedPerson(holderMail, SOON, SOON, FAR_OFF);
-        seedPerson(farOffMail, null, null, FAR_OFF);
-        seedPerson(null, SOON, null, null);
+        seedPerson(holderMail, INSIDE_THE_NOTIFICATION_WINDOW,
+                INSIDE_THE_NOTIFICATION_WINDOW, OUTSIDE_THE_NOTIFICATION_WINDOW);
+        seedPerson(outsideWindowMail, null, null, OUTSIDE_THE_NOTIFICATION_WINDOW);
+        seedPerson(null, INSIDE_THE_NOTIFICATION_WINDOW, null, null);
 
         LicenceNotificationJob.RunSummary summary = job.runOnce();
 
         assertThat(mailsTo(holderMail))
                 .as("one mail per expiring licence, not one per person")
                 .isEqualTo(2);
-        assertThat(mailsTo(farOffMail))
+        assertThat(mailsTo(outsideWindowMail))
                 .as("a licence outside the 60-day window is not notified")
                 .isZero();
         assertThat(summary.mailCount()).isGreaterThanOrEqualTo(2);
@@ -64,7 +67,7 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_namesTheExpiringLicenceInTheSubjectAndBody() {
-        seedPerson(holderMail, SOON, null, null);
+        seedPerson(holderMail, INSIDE_THE_NOTIFICATION_WINDOW, null, null);
 
         job.runOnce();
 

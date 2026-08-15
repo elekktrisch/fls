@@ -83,7 +83,11 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
 
         withPerson(existingMemberId, person -> {
             PersonClub membership = onlyMembership(person);
-            assertThat(membership.getMemberNumber()).isEqualTo("M-1");
+            assertThat(membership.getMemberNumber())
+                    .as("joinClub dedupes on the (person, club) pair, so a stranger's membership "
+                            + "in the same club neither collides with the registrant's nor is "
+                            + "mutated by it")
+                    .isEqualTo("M-1");
             assertThat(membership.isActive()).isTrue();
         });
     }

@@ -23,7 +23,7 @@ class SeedReferenceUuidsSeedParityTest {
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z]{2})'");
     private static final Pattern CLUB_STATE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
-    private static final Pattern LANGUAGE_ROW = Pattern.compile(
+    private static final Pattern LANGUAGE_ROW_WITH_BCP47_CODE = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([a-zA-Z-]+)'");
     private static final Pattern START_TYPE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
@@ -51,7 +51,7 @@ class SeedReferenceUuidsSeedParityTest {
 
     @Test
     void recomputed_language_seed_pks_equal_the_flyway_seed() throws Exception {
-        Map<String, UUID> seeded = parseSeed("t_language", LANGUAGE_ROW);
+        Map<String, UUID> seeded = parseSeed("t_language", LANGUAGE_ROW_WITH_BCP47_CODE);
         Map<String, UUID> recomputed = SeedReferenceUuids.languagesByCode();
 
         assertThat(recomputed.keySet())

@@ -67,6 +67,8 @@ class AircraftReservationDomainTest {
         assertThat(allDay.effectiveStart())
                 .isEqualTo(Instant.parse("2026-06-06T00:00:00Z"));
         assertThat(allDay.effectiveEnd())
+                .as("an all-day row is stored start == end; it normalises to the half-open full "
+                        + "day rather than legacy's zero-length span")
                 .isEqualTo(Instant.parse("2026-06-07T00:00:00Z"));
 
         AircraftReservation lateSlot = timed(

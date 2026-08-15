@@ -44,15 +44,15 @@ public final class AircraftOwnerLinkSeeder {
                 ps.executeUpdate();
             }
 
-            int updated;
+            int existingJitUserRowsReboundToThePerson;
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE t_user SET person_id = ?::uuid "
                             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL")) {
                 ps.setString(1, personId.toString());
                 ps.setString(2, ownerSub.toString());
-                updated = ps.executeUpdate();
+                existingJitUserRowsReboundToThePerson = ps.executeUpdate();
             }
-            if (updated == 0) {
+            if (existingJitUserRowsReboundToThePerson == 0) {
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO t_user (id, club_id, username, friendly_name, person_id, "
                                 + "notification_email, language_id, keycloak_sub) "

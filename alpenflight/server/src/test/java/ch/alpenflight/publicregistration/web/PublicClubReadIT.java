@@ -33,12 +33,13 @@ class PublicClubReadIT extends PostgresIntegrationTest {
     private static final String UNKNOWN_SLUG = "no-such-club-it-pcr";
     private static final String MALFORMED_SLUG = "NotALowercaseSlug";
 
-    private static final int READ_REACH_BUDGET = 25;
+    private static final int READ_REACH_BUDGET_RESTATED_NOT_IMPORTED = 25;
 
     private static final String DISCOVERY_OPERATOR_EMAIL = "discovery-ops-pcr@example.com";
     private static final String SCENIC_OPERATOR_EMAIL = "scenic-ops-pcr@example.com";
 
-    private static final String CLUB_NAME = "Segelfluggruppe Alpennordrand";
+    private static final String CLUB_NAME_SHARING_NO_SUBSTRING_WITH_THE_CLUB_KEY =
+            "Segelfluggruppe Alpennordrand";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -60,7 +61,7 @@ class PublicClubReadIT extends PostgresIntegrationTest {
         openClubId = fixture.clubA();
 
         Club open = clubs.findActiveById(openClubId).orElseThrow();
-        open.rename(CLUB_NAME);
+        open.rename(CLUB_NAME_SHARING_NO_SUBSTRING_WITH_THE_CLUB_KEY);
         open.enablePublicRegistration();
         open.setRegistrationOperatorEmails(DISCOVERY_OPERATOR_EMAIL, SCENIC_OPERATOR_EMAIL);
         clubs.save(open);
@@ -77,15 +78,17 @@ class PublicClubReadIT extends PostgresIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(Objects.requireNonNull(response.getBody()).get("clubName"))
-                .isEqualTo(CLUB_NAME);
+                .isEqualTo(CLUB_NAME_SHARING_NO_SUBSTRING_WITH_THE_CLUB_KEY);
     }
 
     @Test
     void the_read_exposes_the_display_name_and_nothing_else() {
-        String source = "203.0.113.21";
-        Map<String, Object> body = Objects.requireNonNull(getClub(source, openSlug).getBody());
+        String sourceOwnedByThisCase = "203.0.113.21";
+        Map<String, Object> body =
+                Objects.requireNonNull(getClub(sourceOwnedByThisCase, openSlug).getBody());
         String raw = Objects.requireNonNull(
-                rest.exchange(request(source, clubPath(openSlug)), String.class).getBody());
+                rest.exchange(request(sourceOwnedByThisCase, clubPath(openSlug)), String.class)
+                        .getBody());
 
         assertThat(body).containsOnlyKeys("clubName");
         assertThat(raw)
@@ -98,15 +101,18 @@ class PublicClubReadIT extends PostgresIntegrationTest {
 
     @Test
     void the_read_keeps_the_slug_contract() {
-        String source = "203.0.113.22";
-        assertThat(getClub(source, UNKNOWN_SLUG).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(getClub(source, MALFORMED_SLUG).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(getClub(source, closedSlug).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        String sourceOwnedByThisCase = "203.0.113.22";
+        assertThat(getClub(sourceOwnedByThisCase, UNKNOWN_SLUG).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(getClub(sourceOwnedByThisCase, MALFORMED_SLUG).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(getClub(sourceOwnedByThisCase, closedSlug).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
     void repeating_the_read_never_throttles_the_visitor() {
-        for (int attempt = 0; attempt < READ_REACH_BUDGET + 5; attempt++) {
+        for (int attempt = 0; attempt < READ_REACH_BUDGET_RESTATED_NOT_IMPORTED + 5; attempt++) {
             assertThat(getClub("203.0.113.23", openSlug).getStatusCode())
                     .isEqualTo(HttpStatus.OK);
         }
@@ -115,19 +121,25 @@ class PublicClubReadIT extends PostgresIntegrationTest {
     @Test
     void enumerating_fresh_slugs_from_one_source_is_refused() {
         String prober = "203.0.113.24";
-        for (int probe = 0; probe < READ_REACH_BUDGET; probe++) {
+        for (int probe = 0; probe < READ_REACH_BUDGET_RESTATED_NOT_IMPORTED; probe++) {
             String slug = UNKNOWN_SLUG + "-" + probe;
             ResponseEntity<Void> answered = probe % 2 == 0
                     ? read(prober, clubPath(slug))
                     : read(prober, discoveryDaysPath(slug));
-            assertThat(answered.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(answered.getStatusCode())
+                    .as("both anonymous reads answer the club-existence oracle, so the probe "
+                            + "alternates between them and both must be charged")
+                    .isEqualTo(HttpStatus.NOT_FOUND);
         }
 
         ResponseEntity<Void> refused = read(prober, clubPath(UNKNOWN_SLUG + "-past"));
 
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(refused.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isNotNull();
-        assertThat(getClub("203.0.113.25", openSlug).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getClub("203.0.113.25", openSlug).getStatusCode())
+                .as("a visitor arriving from anywhere else is untouched — the refusal is the "
+                        + "prober's reach, not a global stop")
+                .isEqualTo(HttpStatus.OK);
     }
 
     private ResponseEntity<Map<String, Object>> getClub(String source, String slug) {

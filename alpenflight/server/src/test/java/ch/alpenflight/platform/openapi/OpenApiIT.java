@@ -31,7 +31,7 @@ import org.springframework.test.context.TestPropertySource;
 class OpenApiIT {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void overrideDatasourceAndFlywayCredsToTheContainer(DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);
@@ -84,7 +84,11 @@ class OpenApiIT {
         JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
         JsonNode security = spec.path("security");
         assertThat(security.isArray()).as("top-level security requirement must be present").isTrue();
-        assertThat(security.toString()).contains("bearerAuth");
+        assertThat(security.toString())
+                .as("a top-level security block applies to every operation unless one overrides it "
+                        + "with security: [], so springdoc emits the bearer requirement once here "
+                        + "rather than per-operation")
+                .contains("bearerAuth");
     }
 
     @Test

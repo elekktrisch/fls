@@ -65,12 +65,8 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
     @Test
     void cross_tenant_get_returns_404_not_403() {
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000aaaa");
-        UUID personClubId = UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb");
-        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
-                personId.toString(), "OnlyInB", "Smith");
-        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
-                        + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                personClubId.toString(), personId.toString(), clubB.toString());
+        seedViaRawJdbcAPersonWhoseOnlyMembershipIsIn(clubB, personId,
+                UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb"), "OnlyInB", "Smith");
 
         ResponseEntity<String> res = get("/api/v1/persons/pn-" + personId);
         assertThat(res.getStatusCode())
@@ -80,21 +76,12 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
 
     @Test
     void list_excludes_persons_not_in_callers_tenant() {
-        UUID personA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a01a");
-        UUID pcA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a02a");
-        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
-                personA.toString(), "AnnaA", "Smith");
-        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
-                        + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcA.toString(), personA.toString(), clubA.toString());
-
-        UUID personB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b01b");
-        UUID pcB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b02b");
-        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
-                personB.toString(), "BobB", "Jones");
-        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
-                        + "VALUES (?::uuid, ?::uuid, ?::uuid)",
-                pcB.toString(), personB.toString(), clubB.toString());
+        seedViaRawJdbcAPersonWhoseOnlyMembershipIsIn(clubA,
+                UUID.fromString("019e30c3-2c00-7001-8000-00000000a01a"),
+                UUID.fromString("019e30c3-2c00-7001-8000-00000000a02a"), "AnnaA", "Smith");
+        seedViaRawJdbcAPersonWhoseOnlyMembershipIsIn(clubB,
+                UUID.fromString("019e30c3-2c00-7001-8000-00000000b01b"),
+                UUID.fromString("019e30c3-2c00-7001-8000-00000000b02b"), "BobB", "Jones");
 
         ResponseEntity<String> res = get("/api/v1/persons");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -111,6 +98,15 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
                 RequestEntity.get(URI.create("/api/v1/persons")).build(),
                 String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    private void seedViaRawJdbcAPersonWhoseOnlyMembershipIsIn(
+            UUID clubId, UUID personId, UUID personClubId, String firstName, String lastName) {
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+                personId.toString(), firstName, lastName);
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
+                        + "VALUES (?::uuid, ?::uuid, ?::uuid)",
+                personClubId.toString(), personId.toString(), clubId.toString());
     }
 
     private ResponseEntity<String> get(String path) {

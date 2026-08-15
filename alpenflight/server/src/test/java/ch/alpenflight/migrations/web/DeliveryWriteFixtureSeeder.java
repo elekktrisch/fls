@@ -23,6 +23,7 @@ public final class DeliveryWriteFixtureSeeder {
     private static final UUID UNIT_MINUTES =
             UUID.fromString("019e2e15-2c00-7a38-8000-000000004a38");
     private static final short PREPARED = 10;
+    private static final int DEFAULT_AGED_DAYS_CLEARING_THE_CREATE_ELIGIBILITY_WINDOW = 4;
 
     private DeliveryWriteFixtureSeeder() { }
 
@@ -36,9 +37,12 @@ public final class DeliveryWriteFixtureSeeder {
         switch (args[0]) {
             case "lock-and-age" -> lockAndAge(
                     UUID.fromString(args[1]),
-                    args.length > 2 ? Integer.parseInt(args[2]) : 4);
-            case "prepare-flight" -> prepareFlight(UUID.fromString(args[1]));
-            case "reset-flight" -> resetFlight(UUID.fromString(args[1]));
+                    args.length > 2 ? Integer.parseInt(args[2])
+                            : DEFAULT_AGED_DAYS_CLEARING_THE_CREATE_ELIGIBILITY_WINDOW);
+            case "prepare-flight" ->
+                    prepareFlightSoTheBookingWriteIsALegalTransition(UUID.fromString(args[1]));
+            case "reset-flight" ->
+                    resetFlightSoTheNextCreateBatchCannotReprocessIt(UUID.fromString(args[1]));
             case "link-tow" -> linkTow(UUID.fromString(args[1]), UUID.fromString(args[2]));
             case "rule-filter" -> ruleFilter(UUID.fromString(args[1]), args[2]);
             case "delivery" -> delivery(
@@ -77,7 +81,8 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    private static void prepareFlight(UUID flightId) throws Exception {
+    private static void prepareFlightSoTheBookingWriteIsALegalTransition(UUID flightId)
+            throws Exception {
         try (Connection conn = connect()) {
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE t_flight SET process_state_id = ?::uuid, modified_on = ? "
@@ -94,7 +99,8 @@ public final class DeliveryWriteFixtureSeeder {
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    private static void resetFlight(UUID flightId) throws Exception {
+    private static void resetFlightSoTheNextCreateBatchCannotReprocessIt(UUID flightId)
+            throws Exception {
         try (Connection conn = connect()) {
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE t_flight SET process_state_id = ?::uuid, tow_flight_id = NULL, "
@@ -132,10 +138,12 @@ public final class DeliveryWriteFixtureSeeder {
         String filterName = "Delivery write fixture FlightTime " + articleNumber;
         UUID filterId = UUID.randomUUID();
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        String filterConfig = "{\"isRuleForGliderFlights\":true,\"deliveryLineText\":\"Flight time\"}";
+        String filterConfigJsonWhoseKeysMustAllBeFilterConfigComponents =
+                "{\"isRuleForGliderFlights\":true,\"deliveryLineText\":\"Flight time\"}";
         try (Connection conn = connect()) {
             conn.setAutoCommit(false);
-            upsertArticle(conn, clubId, articleNumber, now);
+            ensureTheRuleTargetArticleExistsElseTheCreatePathErrors(
+                    conn, clubId, articleNumber, now);
             UUID resolved = resolveFilterId(conn, clubId, filterName);
             if (resolved == null) {
                 int sort = nextSortIndicator(conn, clubId);
@@ -151,7 +159,7 @@ public final class DeliveryWriteFixtureSeeder {
                     ps.setString(5, filterName);
                     ps.setInt(6, sort);
                     ps.setString(7, articleNumber);
-                    ps.setString(8, filterConfig);
+                    ps.setString(8, filterConfigJsonWhoseKeysMustAllBeFilterConfigComponents);
                     ps.setObject(9, now);
                     ps.setObject(10, now);
                     ps.executeUpdate();
@@ -268,6 +276,12 @@ public final class DeliveryWriteFixtureSeeder {
         ObjectNode result = JSON.createObjectNode();
         result.put("deletedFilterId", filterId.toString());
         System.out.println(JSON.writeValueAsString(result));
+    }
+
+    private static void ensureTheRuleTargetArticleExistsElseTheCreatePathErrors(
+            Connection conn, UUID clubId, String articleNumber, OffsetDateTime now)
+            throws Exception {
+        upsertArticle(conn, clubId, articleNumber, now);
     }
 
     private static UUID resolveFilterId(Connection conn, UUID clubId, String filterName)

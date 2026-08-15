@@ -28,7 +28,8 @@ import org.springframework.test.context.TestPropertySource;
 class OpenApiSnapshotIT {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void datasourceAndFlywayPropsPointedAtTheContainerNotTheMigratorRole(
+            DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);

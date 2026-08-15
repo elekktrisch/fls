@@ -11,6 +11,7 @@ import ch.alpenflight.migration.bundle.identity.ClubMapper;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migration.tool.BundleWriter;
 import ch.alpenflight.migration.tool.EntityStreamResult;
+import ch.alpenflight.migration.tool.LegacyJdbcReader;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
@@ -78,6 +79,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
+    private static final LegacyJdbcReader NO_LEGACY_JDBC_READER = null;
+
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
@@ -92,7 +95,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     private String testClubSlug;
     private UUID legacyCountryId;
     private UUID actorUserId;
-    private UUID legacyPersonId;
+    private UUID crossTenantLegacyPersonId;
 
     @BeforeEach
     void seedActor() {
@@ -100,7 +103,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         userId = UUID.randomUUID();
         actorUserId = UUID.randomUUID();
         legacyCountryId = UUID.randomUUID();
-        legacyPersonId = UUID.randomUUID();
+        crossTenantLegacyPersonId = UUID.randomUUID();
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "RLP-" + tag;
         testClubSlug = "rlp-" + tag;
@@ -141,7 +144,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
-        jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", legacyPersonId.toString());
+        jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", crossTenantLegacyPersonId.toString());
     }
 
     @Test
@@ -192,8 +195,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("real-producer-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes, List.of(clubStream, locationStream, iopStream),
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes, List.of(clubStream, locationStream, iopStream),
                 producerTarGz);
 
         Map<String, byte[]> systemGlobalMaps = new LinkedHashMap<>();
@@ -318,8 +321,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("t15-real-producer-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, clubStream), producerTarGz);
 
         byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
@@ -391,8 +394,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("t20-language-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, languageStream, clubStream, userStream),
                 producerTarGz);
 
@@ -451,10 +454,10 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
                 clubNdjson(legacyClubId, key, "T21 Club Legacy", "Addr"), 1);
         EntityStreamResult personStream = ndjsonStream(EntityType.PERSON,
-                personNdjson(legacyPersonId, legacyCountryId, "Otheradmin", "Other"), 1);
+                personNdjson(crossTenantLegacyPersonId, legacyCountryId, "Otheradmin", "Other"), 1);
         EntityStreamResult userStream = ndjsonStream(EntityType.USER,
                 userNdjson(legacyUserId, legacyClubId, "t21-user",
-                        syntheticLanguageGuid, legacyPersonId), 1);
+                        syntheticLanguageGuid, crossTenantLegacyPersonId), 1);
 
         BundleManifest manifest = new BundleManifest(
                 Manifest.CURRENT_SCHEMA_VERSION,
@@ -466,8 +469,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("t21-person-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, languageStream, clubStream,
                         personStream, userStream),
                 producerTarGz);
@@ -489,7 +492,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
 
         Map<String, Object> person = jdbc.queryForMap(
                 "SELECT id, lastname, firstname, country_id FROM t_person WHERE id = ?::uuid",
-                legacyPersonId.toString());
+                crossTenantLegacyPersonId.toString());
         assertThat(person.get("lastname")).isEqualTo("Otheradmin");
         assertThat(person.get("firstname")).isEqualTo("Other");
         assertThat(UUID.fromString(person.get("country_id").toString()))
@@ -502,7 +505,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
                 newClub.toString(), "t21-user");
         assertThat(UUID.fromString(userRow.get("person_id").toString()))
                 .as("USER.person_id resolved to the migrated t_person row")
-                .isEqualTo(legacyPersonId);
+                .isEqualTo(crossTenantLegacyPersonId);
     }
 
     @Test
@@ -544,8 +547,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("t16-system-club-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, clubStream), producerTarGz);
 
         byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
@@ -607,8 +610,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("t19-never-modified-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, clubStream), producerTarGz);
 
         byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
@@ -677,8 +680,8 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("organiser-recipients-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(countryStream, clubStateStream, clubStream), producerTarGz);
 
         byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(

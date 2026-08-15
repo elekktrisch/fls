@@ -78,6 +78,10 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
         });
         setDiscoveryFlightType(discoveryFlightTypeId);
 
+        seedDecoysEachFailingOneClauseOfTheOwnerSeatsAndPureGliderPredicate();
+    }
+
+    private void seedDecoysEachFailingOneClauseOfTheOwnerSeatsAndPureGliderPredicate() {
         registerAircraft(otherClubId, otherClubId, "GLIDER", 2, "HB-DRB1");
         registerAircraft(clubId, clubId, "GLIDER", 1, "HB-DRB2");
         registerAircraft(clubId, clubId, "GLIDER_WITH_MOTOR", 2, "HB-DRB3");

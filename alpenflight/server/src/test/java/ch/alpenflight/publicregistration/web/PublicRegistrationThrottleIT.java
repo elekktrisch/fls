@@ -70,16 +70,16 @@ class PublicRegistrationThrottleIT extends PostgresIntegrationTest {
             assertThat(submitDiscovery(source, openSlug).getStatusCode())
                     .isEqualTo(HttpStatus.CREATED);
         }
-        long personsBefore = count("t_person");
-        long membershipsBefore = count("t_person_club");
+        long personsAfterTheAcceptedRuns = count("t_person");
+        long membershipsAfterTheAcceptedRuns = count("t_person_club");
 
         ResponseEntity<Void> refused = submitDiscovery(source, openSlug);
 
         assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         assertThat(retryAfterSeconds(refused)).isPositive().isLessThanOrEqualTo(WINDOW_SECONDS);
         assertThat(acceptedRegistrations(openClubId)).isEqualTo(PER_CLUB_LIMIT);
-        assertThat(count("t_person")).isEqualTo(personsBefore);
-        assertThat(count("t_person_club")).isEqualTo(membershipsBefore);
+        assertThat(count("t_person")).isEqualTo(personsAfterTheAcceptedRuns);
+        assertThat(count("t_person_club")).isEqualTo(membershipsAfterTheAcceptedRuns);
     }
 
     @Test

@@ -145,7 +145,10 @@ class MigrationBundleConcurrencyIT extends PostgresIntegrationTest {
             Integer deploymentCount = jdbc.queryForObject(
                     "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
                     Integer.class, userSub.toString());
-            assertThat(deploymentCount).isZero();
+            assertThat(deploymentCount)
+                    .as("the contended POST rolled back inside its transaction — no partially "
+                            + "provisioned Deployment survives the 409")
+                    .isZero();
         } finally {
             releaseLock.countDown();
             lockHolder.join(15_000);

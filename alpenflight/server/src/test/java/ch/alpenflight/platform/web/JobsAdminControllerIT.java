@@ -72,7 +72,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void club_administrator_cannot_run_a_job() {
+    void club_administrator_cannot_run_a_job_because_jobs_run_cross_tenant() {
         ResponseEntity<Void> response = rest.exchange(
                 post("/api/v1/admin/jobs/" + TEST_JOB + "/run", clubAdminToken()), Void.class);
 
@@ -80,7 +80,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void club_administrator_cannot_list_jobs() {
+    void club_administrator_cannot_list_jobs_because_jobs_run_cross_tenant() {
         ResponseEntity<Void> response = rest.exchange(
                 get("/api/v1/admin/jobs", clubAdminToken()), Void.class);
 

@@ -76,8 +76,8 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
     void both_passes_send_ok_cancel_and_assignment_mails_to_the_right_recipients() {
         UUID dayWithReservation = seedPlanningDay(CLUB_A, DAY_PLUS_1, locationA);
         seedReservation(CLUB_A, locationA, DAY_PLUS_1);
-        UUID location2 = seedLocation(CLUB_A, "Thun");
-        seedPlanningDay(CLUB_A, DAY_PLUS_1, location2);
+        UUID locationWhoseDayHasNoReservation = seedLocation(CLUB_A, "Thun");
+        seedPlanningDay(CLUB_A, DAY_PLUS_1, locationWhoseDayHasNoReservation);
         UUID weekAheadDay = seedPlanningDay(CLUB_A, DAY_PLUS_7, locationA);
         seedAssignment(weekAheadDay, CLUB_A, instructorTypeId, assignedPersonId);
 
@@ -118,7 +118,10 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
         assertThat(summary.imminentMailCount()).isEqualTo(1);
         List<MailMessage> sent = outbox.sent();
         assertThat(sent).hasSize(1);
-        assertThat(sent.get(0).subject()).isEqualTo("Flugbetriebstag findet statt");
+        assertThat(sent.get(0).subject())
+                .as("the club allows reservation-less days, so the day+1 without a reservation "
+                        + "sends OK instead of the cancel")
+                .isEqualTo("Flugbetriebstag findet statt");
         assertThat(sent.get(0).to()).containsExactly(CLUB_MAIL);
     }
 

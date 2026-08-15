@@ -10,6 +10,7 @@ import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migration.tool.BundleWriter;
 import ch.alpenflight.migration.tool.EntityStreamResult;
+import ch.alpenflight.migration.tool.LegacyJdbcReader;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
@@ -68,6 +69,11 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final int LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES = LEGACY_AIRCRAFT_TYPE_GLIDER;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW = 2;
+    private static final String NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER = null;
+    private static final LegacyJdbcReader NO_LEGACY_JDBC_READER = null;
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
@@ -110,11 +116,11 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         actorUserId = UUID.randomUUID();
         legacyCountryId = UUID.randomUUID();
         legacyPilotPersonId = UUID.randomUUID();
-        String tag = userSub.toString().substring(0, 5);
-        testClubKey = "FRP-" + tag;
-        testClubSlug = "frp-" + tag;
-        gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
-        towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
+        String perRunNamespaceForGloballyUniqueKeysAndImmats = userSub.toString().substring(0, 5);
+        testClubKey = "FRP-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        testClubSlug = "frp-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        gliderImmat = ("HB-G" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
+        towImmat = ("HB-T" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -210,10 +216,13 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                         aircraftNdjson(legacyTowAircraftId, legacyClubId, towImmat, true)), 2);
         EntityStreamResult flightStream = ndjsonStream(EntityType.FLIGHT, concat(
                 flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
-                        legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(), 1,
+                        legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(),
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER,
                         LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
                 flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
-                        legacyLocationId, legacyFlightTypeId, null, 2,
+                        legacyLocationId, legacyFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-01")), 2);
         EntityStreamResult crewStream = ndjsonStream(EntityType.FLIGHT_CREW,
                 flightCrewNdjson(legacyCrewId, legacyGliderFlightId, legacyPilotPersonId,
@@ -229,8 +238,8 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         Path producerTarGz = workDir.resolve("flight-real-producer-bundle.tar.gz");
-        BundleWriter writer = new BundleWriter( null, workDir, false);
-        writer.assembleTarGz(manifestBytes,
+        BundleWriter realProducer = new BundleWriter(NO_LEGACY_JDBC_READER, workDir, false);
+        realProducer.assembleTarGz(manifestBytes,
                 List.of(clubStream, personStream, locationStream, flightTypeStream,
                         aircraftStream, flightStream, crewStream),
                 producerTarGz);
@@ -285,7 +294,7 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(legacyTowFlightId);
         assertThat(((Number) linkedTow.get("flight_aircraft_type_id")).shortValue())
                 .as("the linked row is a TOW flight (flight_aircraft_type_id=2)")
-                .isEqualTo((short) 2);
+                .isEqualTo((short) LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW);
         assertThat(UUID.fromString(glider.get("process_state_id").toString()))
                 .isEqualTo(SEED_PROCESS_STATE_LOCKED);
         assertThat(glider.get("locked_at"))
@@ -420,7 +429,7 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
         row.put("aircraft_type_id",
-                Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
+                Coercions.legacyIntIdToUuidString(LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES));
         row.put("manufacturer_name", "Schleicher");
         row.put("aircraft_model", "ASK 21");
         row.put("immatriculation", immatriculation);

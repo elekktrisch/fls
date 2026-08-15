@@ -23,21 +23,30 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private static final int LEGACY_LOCATION_TYPE_GRASS_RUNWAY = 2;
+    private static final int LEGACY_ELEVATION_UNIT_METER = 1;
+    private static final int LEGACY_RUNWAY_LENGTH_UNIT_FEET = 2;
+    private static final int UNSEEDED_LEGACY_LOCATION_TYPE_ID = 9999;
+
     @Autowired DataSource dataSource;
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    void rewrites_synthetic_lookup_uuids_to_real_seed_pks() throws Exception {
+    void synthetic_lookup_uuids_resolve_to_real_seed_pks_across_three_distinct_tables()
+            throws Exception {
         LocationMapper mapper = new LocationMapper();
 
         ObjectNode row = JSON.createObjectNode();
-        row.put(locationTypeColumn(), Coercions.legacyIntIdToUuidString(2));
-        row.put(elevationColumn(), Coercions.legacyIntIdToUuidString(1));
-        row.put(runwayLengthColumn(), Coercions.legacyIntIdToUuidString(2));
+        row.put(locationTypeColumn(),
+                Coercions.legacyIntIdToUuidString(LEGACY_LOCATION_TYPE_GRASS_RUNWAY));
+        row.put(elevationColumn(),
+                Coercions.legacyIntIdToUuidString(LEGACY_ELEVATION_UNIT_METER));
+        row.put(runwayLengthColumn(),
+                Coercions.legacyIntIdToUuidString(LEGACY_RUNWAY_LENGTH_UNIT_FEET));
 
-        UUID expectedLocationType = seedPk("t_location_type", 2);
-        UUID expectedElevation = seedPk("t_elevation_unit_type", 1);
-        UUID expectedRunwayLength = seedPk("t_length_unit_type", 2);
+        UUID expectedLocationType = seedPk("t_location_type", LEGACY_LOCATION_TYPE_GRASS_RUNWAY);
+        UUID expectedElevation = seedPk("t_elevation_unit_type", LEGACY_ELEVATION_UNIT_METER);
+        UUID expectedRunwayLength = seedPk("t_length_unit_type", LEGACY_RUNWAY_LENGTH_UNIT_FEET);
 
         try (Connection connection = dataSource.getConnection();
                 ReferenceLookupResolver resolver = new ReferenceLookupResolver(connection)) {
@@ -53,7 +62,10 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
         assertThat(UUID.fromString(row.get(runwayLengthColumn()).asText()))
                 .as("runway_length_unit_type_id must resolve to t_length_unit_type.id")
                 .isEqualTo(expectedRunwayLength);
-        assertThat(expectedLocationType).isNotEqualTo(new UUID(0L, 2L));
+        assertThat(expectedLocationType)
+                .as("the seed PK differs from the verbatim synthetic UUID, so the three "
+                        + "assertions above can only pass on a real resolve")
+                .isNotEqualTo(new UUID(0L, LEGACY_LOCATION_TYPE_GRASS_RUNWAY));
     }
 
     @Test
@@ -77,13 +89,14 @@ class ReferenceLookupResolverIT extends PostgresIntegrationTest {
     void unknown_legacy_int_id_fails_closed() throws Exception {
         LocationMapper mapper = new LocationMapper();
         ObjectNode row = JSON.createObjectNode();
-        row.put(locationTypeColumn(), Coercions.legacyIntIdToUuidString(9999));
+        row.put(locationTypeColumn(),
+                Coercions.legacyIntIdToUuidString(UNSEEDED_LEGACY_LOCATION_TYPE_ID));
 
         try (Connection connection = dataSource.getConnection();
                 ReferenceLookupResolver resolver = new ReferenceLookupResolver(connection)) {
             assertThatThrownBy(() -> resolver.rewriteReferenceLookups(mapper, row))
                     .isInstanceOf(BundleIngestException.class)
-                    .hasMessageContaining("legacy_int_id 9999")
+                    .hasMessageContaining("legacy_int_id " + UNSEEDED_LEGACY_LOCATION_TYPE_ID)
                     .extracting(e -> ((BundleIngestException) e).getErrorCode())
                     .isEqualTo(BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK);
         }

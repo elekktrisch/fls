@@ -74,7 +74,7 @@ class PlanningDayMigrationRoundTripIT extends PostgresIntegrationTest {
     private String testClubSlug;
     private UUID legacyCountryId;
     private UUID actorUserId;
-    private UUID legacyPersonId;
+    private UUID crossTenantLegacyPersonId;
 
     @BeforeEach
     void seedActor() {
@@ -82,7 +82,7 @@ class PlanningDayMigrationRoundTripIT extends PostgresIntegrationTest {
         userId = UUID.randomUUID();
         actorUserId = UUID.randomUUID();
         legacyCountryId = UUID.randomUUID();
-        legacyPersonId = UUID.randomUUID();
+        crossTenantLegacyPersonId = UUID.randomUUID();
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "PLN-" + tag;
         testClubSlug = "pln-" + tag;
@@ -126,7 +126,7 @@ class PlanningDayMigrationRoundTripIT extends PostgresIntegrationTest {
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
-        jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", legacyPersonId.toString());
+        jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", crossTenantLegacyPersonId.toString());
     }
 
     @Test
@@ -164,36 +164,36 @@ class PlanningDayMigrationRoundTripIT extends PostgresIntegrationTest {
                 EntityType.COUNTRY, systemGlobalPolicy(),
                 EntityType.CLUB_STATE, systemGlobalPolicy());
 
-        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
-        tarEntries.put("legacy_id_map/COUNTRY.pgcopy",
+        Map<String, byte[]> tarEntriesInDependencyOrder = new LinkedHashMap<>();
+        tarEntriesInDependencyOrder.put("legacy_id_map/COUNTRY.pgcopy",
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
-        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+        tarEntriesInDependencyOrder.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson", concat(
+        tarEntriesInDependencyOrder.put("CLUB.ndjson", concat(
                 clubNdjson(legacyClubIdA, keyA, "Pln Club A Legacy"),
                 clubNdjson(legacyClubIdB, keyB, "Pln Club B Legacy")));
-        tarEntries.put("LOCATION.ndjson", concat(
+        tarEntriesInDependencyOrder.put("LOCATION.ndjson", concat(
                 locationNdjson(sharedLocationId, legacyClubIdA),
                 locationNdjson(sharedLocationId, legacyClubIdB)));
-        tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
+        tarEntriesInDependencyOrder.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(sharedLocationId, legacyClubIdA,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdA)),
                 new FanOutMapRow(sharedLocationId, legacyClubIdB,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdB))));
-        tarEntries.put("PERSON.ndjson", personNdjson(legacyPersonId, "Duty", "Crew"));
-        tarEntries.put("PLANNING_DAY_ASSIGNMENT_TYPE.ndjson", concat(concat(
+        tarEntriesInDependencyOrder.put("PERSON.ndjson", personNdjson(crossTenantLegacyPersonId, "Duty", "Crew"));
+        tarEntriesInDependencyOrder.put("PLANNING_DAY_ASSIGNMENT_TYPE.ndjson", concat(concat(
                 assignmentTypeNdjson(legacyTypeFlightOperator, legacyClubIdA, "Segelflugleiter"),
                 assignmentTypeNdjson(legacyTypeTowingPilot, legacyClubIdA, "Schlepppilot")),
                 assignmentTypeNdjson(legacyTypeInstructor, legacyClubIdA, "Fluglehrer")));
-        tarEntries.put("PLANNING_DAY.ndjson",
+        tarEntriesInDependencyOrder.put("PLANNING_DAY.ndjson",
                 planningDayNdjson(legacyDayId, legacyClubIdA, sharedLocationId));
-        tarEntries.put("PLANNING_DAY_ASSIGNMENT.ndjson", planningDayAssignmentNdjson(
-                legacyAssignmentId, legacyClubIdA, legacyDayId, legacyPersonId,
+        tarEntriesInDependencyOrder.put("PLANNING_DAY_ASSIGNMENT.ndjson", planningDayAssignmentNdjson(
+                legacyAssignmentId, legacyClubIdA, legacyDayId, crossTenantLegacyPersonId,
                 legacyTypeFlightOperator));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "PlanningDay Migrate IT Deployment",
-                List.of(clubA, clubB), entityPolicies, tarEntries);
+                List.of(clubA, clubB), entityPolicies, tarEntriesInDependencyOrder);
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
         assertThat(res.getStatusCode())
@@ -258,7 +258,7 @@ class PlanningDayMigrationRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(legacyDayId);
         assertThat(UUID.fromString(assignment.get("assigned_person_id").toString()))
                 .as("assigned_person_id is the preserved legacy PersonId (PERSON FULL_PORT)")
-                .isEqualTo(legacyPersonId);
+                .isEqualTo(crossTenantLegacyPersonId);
         assertThat(UUID.fromString(assignment.get("assignment_type_id").toString()))
                 .as("the assignment resolves to the migrated segelflugleiter type "
                         + "(role↔type-name: segelflugleiter → FLIGHT_OPERATOR)")

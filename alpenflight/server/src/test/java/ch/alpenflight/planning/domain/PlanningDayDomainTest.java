@@ -27,8 +27,12 @@ class PlanningDayDomainTest {
     @Test
     void roleUpsert_roundTrips_addsThenRepointsTheSameRow() {
         assertThat(PlanningRole.fromTypeName("Segelflugleiter")).isEqualTo(PlanningRole.FLIGHT_OPERATOR);
-        assertThat(PlanningRole.fromTypeName("SCHLEPPPILOT")).isEqualTo(PlanningRole.TOWING_PILOT);
-        assertThat(PlanningRole.fromTypeName("  fluglehrer  ")).isEqualTo(PlanningRole.INSTRUCTOR);
+        assertThat(PlanningRole.fromTypeName("SCHLEPPPILOT"))
+                .as("role resolution is name-based over the German legacy type names, case-insensitive")
+                .isEqualTo(PlanningRole.TOWING_PILOT);
+        assertThat(PlanningRole.fromTypeName("  fluglehrer  "))
+                .as("and whitespace-tolerant")
+                .isEqualTo(PlanningRole.INSTRUCTOR);
         assertThat(PlanningRole.fromTypeName("kassier")).isNull();
 
         PlanningDay day = day();
@@ -41,7 +45,10 @@ class PlanningDayDomainTest {
         assertThat(day.getAssignments()).hasSize(1);
 
         assertThat(day.assignRole(PlanningRole.FLIGHT_OPERATOR, TYPE_FLIGHT_OP, PERSON_2)).isTrue();
-        assertThat(day.getAssignments()).hasSize(1);
+        assertThat(day.getAssignments())
+                .as("a different person re-points the existing row rather than adding a second "
+                        + "— one row per (day, type), mirroring legacy and the ux_pda_composite key")
+                .hasSize(1);
         assertThat(day.assignedPersonForType(TYPE_FLIGHT_OP)).contains(PERSON_2);
 
         assertThat(day.assignRole(PlanningRole.TOWING_PILOT, TYPE_TOW, PERSON_1)).isTrue();
@@ -82,11 +89,12 @@ class PlanningDayDomainTest {
 
     @Test
     void expandRuleDates_emitsOneDatePerMatchingWeekday_ascending() {
-        LocalDate start = LocalDate.of(2026, 6, 6);
-        LocalDate end = LocalDate.of(2026, 6, 19);
+        LocalDate saturday = LocalDate.of(2026, 6, 6);
+        LocalDate fridayClosingTheInclusiveTwoWeekWindow = saturday.plusWeeks(2).minusDays(1);
         Set<DayOfWeek> weekend = EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
 
-        List<LocalDate> dates = PlanningDay.expandRuleDates(start, end, weekend);
+        List<LocalDate> dates =
+                PlanningDay.expandRuleDates(saturday, fridayClosingTheInclusiveTwoWeekWindow, weekend);
 
         assertThat(dates).containsExactly(
                 LocalDate.of(2026, 6, 6), LocalDate.of(2026, 6, 7),
@@ -96,11 +104,11 @@ class PlanningDayDomainTest {
 
     @Test
     void expandRuleDates_emptyFlags_orInvertedRange_returnEmpty() {
-        LocalDate start = LocalDate.of(2026, 6, 6);
-        LocalDate end = LocalDate.of(2026, 6, 19);
+        LocalDate earlier = LocalDate.of(2026, 6, 6);
+        LocalDate later = LocalDate.of(2026, 6, 19);
 
-        assertThat(PlanningDay.expandRuleDates(start, end, Set.of())).isEmpty();
-        assertThat(PlanningDay.expandRuleDates(end, start, EnumSet.of(DayOfWeek.SATURDAY))).isEmpty();
+        assertThat(PlanningDay.expandRuleDates(earlier, later, Set.of())).isEmpty();
+        assertThat(PlanningDay.expandRuleDates(later, earlier, EnumSet.of(DayOfWeek.SATURDAY))).isEmpty();
     }
 
     @Test

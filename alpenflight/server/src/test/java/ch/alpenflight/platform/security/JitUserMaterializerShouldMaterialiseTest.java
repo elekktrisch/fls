@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 class JitUserMaterializerShouldMaterialiseTest {
 
     private static final UUID CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final String FEDERATED_GOOGLE_IDP_NUMERIC_SUB = "117412394827338472301";
 
     @Test
     void shouldMaterialise_jwtWithSubAndClubId_returnsTrue() {
@@ -42,7 +43,7 @@ class JitUserMaterializerShouldMaterialiseTest {
 
     @Test
     void shouldMaterialise_nonUuidSub_returnsFalse() {
-        Jwt jwt = realmJwt("117412394827338472301", CLUB.toString(), Map.of());
+        Jwt jwt = realmJwt(FEDERATED_GOOGLE_IDP_NUMERIC_SUB, CLUB.toString(), Map.of());
         assertThat(JitUserMaterializationFilter.shouldMaterialise(jwt)).isFalse();
     }
 

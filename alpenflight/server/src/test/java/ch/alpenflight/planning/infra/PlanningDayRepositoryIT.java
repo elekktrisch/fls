@@ -113,7 +113,10 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
             planningDays.flush();
             PlanningDay reinserted = planningDays.save(
                     PlanningDay.create(clubA, DAY_1, locationA, "reinserted"));
-            assertThat(reinserted.getId()).isNotNull();
+            assertThat(reinserted.getId())
+                    .as("soft-deleting the first frees the (club,date,location) tuple — "
+                            + "ux_pln_club_date_loc is partial on deleted_on IS NULL")
+                    .isNotNull();
             return null;
         });
     }
@@ -157,8 +160,10 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
         Instant earlyOnDay2 = DAY_2.atStartOfDay(java.time.ZoneOffset.UTC)
                 .plusMinutes(30).toInstant();
 
-        seedTimedReservation(aircraftA, pilot, locationA, lateOnDay1);
-        seedTimedReservation(aircraftA, pilot, locationA, earlyOnDay2);
+        seedReservationThroughTheProductionSavePathSoTheInstantStaysExact(
+                aircraftA, pilot, locationA, lateOnDay1);
+        seedReservationThroughTheProductionSavePathSoTheInstantStaysExact(
+                aircraftA, pilot, locationA, earlyOnDay2);
 
         Tenants.runAs(clubA, () -> {
             assertThat(planningDays.countReservationsForDay(DAY_1, locationA))
@@ -238,8 +243,8 @@ class PlanningDayRepositoryIT extends PostgresIntegrationTest {
                 java.sql.Timestamp.from(start), java.sql.Timestamp.from(end));
     }
 
-    private void seedTimedReservation(UUID aircraftId, UUID pilotId, UUID locationId,
-                                      Instant start) {
+    private void seedReservationThroughTheProductionSavePathSoTheInstantStaysExact(
+            UUID aircraftId, UUID pilotId, UUID locationId, Instant start) {
         Instant end = start.plus(2, ChronoUnit.HOURS);
         Tenants.runAs(clubA, () -> reservations.save(AircraftReservation.create(
                 clubA, aircraftId, pilotId, locationId, null, null,

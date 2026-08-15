@@ -37,10 +37,13 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
     private static final int LEGACY_AIRCRAFT_TYPE_TOW = 2;
     private static final int LEGACY_AIRCRAFT_TYPE_MOTOR = 4;
+    private static final int LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES = LEGACY_AIRCRAFT_TYPE_GLIDER;
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
     private static final int LEGACY_START_TYPE_AEROTOW = 1;
+    private static final UUID SEED_START_TYPE_AEROTOW =
+            UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1");
     private static final int LEGACY_FCBT_PILOT_PAYS_ALL = 1;
 
     private static final int LEGACY_PROCESS_STATE_VALID = 30;
@@ -58,10 +61,13 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
     private static final int LEGACY_AIR_STATE_LANDED = 20;
 
-    private static final int LOCKABLE_OFFSET_DAYS = 5;
-    private static final int MOTOR_OFFSET_DAYS = 3;
-    private static final int DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS = 10;
-    private static final int BILLABLE_LOCKED_OFFSET_DAYS = 5;
+    private static final String NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER = null;
+    private static final String NOT_LOCKED = null;
+
+    private static final int DAYS_BEFORE_SEED_TODAY_PAST_THE_LOCK_GATE = 5;
+    private static final int DAYS_BEFORE_SEED_TODAY_INSIDE_THE_FLIGHT_LIST_WINDOW = 3;
+    private static final int DAYS_BEFORE_SEED_TODAY_FOR_THE_DELIVERY_BOOKED_FLIGHT = 10;
+    private static final int DAYS_BEFORE_SEED_TODAY_PAST_THE_BILL_GATE = 5;
 
     private FlightParityBundleSeeder() { }
 
@@ -109,7 +115,7 @@ public final class FlightParityBundleSeeder {
         UUID crossLocationId = UUID.randomUUID();
         UUID crossFlightTypeId = UUID.randomUUID();
         UUID crossAircraftId = UUID.randomUUID();
-        UUID crossFlightId = UUID.randomUUID();
+        UUID crossTenantFlightTheOwningAdminMustNotRead = UUID.randomUUID();
 
         String ownerSlug = clubKey.toLowerCase(Locale.ROOT);
         String crossSlug = crossTenantClubKey.toLowerCase(Locale.ROOT);
@@ -144,8 +150,7 @@ public final class FlightParityBundleSeeder {
         tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
         tarEntries.put("legacy_id_map/START_TYPE.pgcopy",
-                pgcopyMap(new UUID(0L, LEGACY_START_TYPE_AEROTOW),
-                        UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1")));
+                pgcopyMap(new UUID(0L, LEGACY_START_TYPE_AEROTOW), SEED_START_TYPE_AEROTOW));
 
         tarEntries.put("CLUB.ndjson", concat(
                 clubNdjson(ownerClubId, clubKey, "J2 Flight Parity Club Legacy",
@@ -193,45 +198,51 @@ public final class FlightParityBundleSeeder {
                 new MapRow(motorAircraftId, motorAircraftId),
                 new MapRow(crossAircraftId, crossAircraftId)));
 
-        LocalDate seedNow = LocalDate.now(ZoneOffset.UTC);
-        String lockableFlightDate = seedNow.minusDays(LOCKABLE_OFFSET_DAYS).toString();
-        String motorFlightDate = seedNow.minusDays(MOTOR_OFFSET_DAYS).toString();
-        String deliveryBookedFlightDate =
-                seedNow.minusDays(DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS).toString();
-        String billableLockedAt = seedNow.minusDays(BILLABLE_LOCKED_OFFSET_DAYS).toString();
+        LocalDate todayUtcAtSeedTimeMatchingTheBackendSystemClock = LocalDate.now(ZoneOffset.UTC);
+        String lockableFlightDate = todayUtcAtSeedTimeMatchingTheBackendSystemClock
+                .minusDays(DAYS_BEFORE_SEED_TODAY_PAST_THE_LOCK_GATE).toString();
+        String motorFlightDate = todayUtcAtSeedTimeMatchingTheBackendSystemClock
+                .minusDays(DAYS_BEFORE_SEED_TODAY_INSIDE_THE_FLIGHT_LIST_WINDOW).toString();
+        String deliveryBookedFlightDate = todayUtcAtSeedTimeMatchingTheBackendSystemClock
+                .minusDays(DAYS_BEFORE_SEED_TODAY_FOR_THE_DELIVERY_BOOKED_FLIGHT).toString();
+        String billableLockedAt = todayUtcAtSeedTimeMatchingTheBackendSystemClock
+                .minusDays(DAYS_BEFORE_SEED_TODAY_PAST_THE_BILL_GATE).toString();
 
         tarEntries.put("FLIGHT.ndjson", concat(
                 flightNdjson(towFlightId, ownerClubId, towAircraftId, ownerLocationId,
-                        ownerFlightTypeId, null,
+                        ownerFlightTypeId, NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        null, "J2 tow " + freshnessToken),
+                        NOT_LOCKED, "J2 tow " + freshnessToken),
                 flightNdjson(gliderFlightId, ownerClubId, gliderAircraftId, ownerLocationId,
                         ownerFlightTypeId, towFlightId.toString(),
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        null, "J2 glider " + freshnessToken),
+                        NOT_LOCKED, "J2 glider " + freshnessToken),
                 flightNdjson(motorFlightId, ownerClubId, motorAircraftId, ownerLocationId,
-                        ownerFlightTypeId, null,
+                        ownerFlightTypeId, NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, motorFlightDate,
-                        null, "J2 motor " + freshnessToken),
+                        NOT_LOCKED, "J2 motor " + freshnessToken),
                 flightNdjson(deliveryBookedFlightId, ownerClubId, gliderAircraftId,
-                        ownerLocationId, ownerFlightTypeId, null,
+                        ownerLocationId, ownerFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_DELIVERY_BOOKED, deliveryBookedFlightDate,
                         billableLockedAt, "J2 delivery-booked " + freshnessToken),
-                flightNdjson(crossFlightId, crossClubId, crossAircraftId, crossLocationId,
-                        crossFlightTypeId, null,
+                flightNdjson(crossTenantFlightTheOwningAdminMustNotRead, crossClubId,
+                        crossAircraftId, crossLocationId,
+                        crossFlightTypeId, NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
-                        null, "J2 cross-tenant " + freshnessToken)));
+                        NOT_LOCKED, "J2 cross-tenant " + freshnessToken)));
         tarEntries.put("legacy_id_map/FLIGHT.pgcopy", pgcopyMap3(
                 new MapRow(towFlightId, towFlightId),
                 new MapRow(gliderFlightId, gliderFlightId),
                 new MapRow(motorFlightId, motorFlightId),
                 new MapRow(deliveryBookedFlightId, deliveryBookedFlightId),
-                new MapRow(crossFlightId, crossFlightId)));
+                new MapRow(crossTenantFlightTheOwningAdminMustNotRead,
+                        crossTenantFlightTheOwningAdminMustNotRead)));
 
         tarEntries.put("FLIGHT_CREW.ndjson", concat(
                 flightCrewNdjson(gliderPilotCrewId, gliderFlightId, ownerPilotId,
@@ -257,7 +268,8 @@ public final class FlightParityBundleSeeder {
                                        UUID locationId, UUID flightTypeId, String towFlightId,
                                        int flightAircraftType, int legacyAirStateId,
                                        int legacyProcessStateId, String flightDate,
-                                       String lockedAtDate, String comment)
+                                       String lockedAtDateCarriedAsLegacyModifiedOn,
+                                       String comment)
             throws IOException {
         ObjectNode row = JSON.createObjectNode();
         row.put("legacy_guid", legacyFlightId.toString());
@@ -307,8 +319,8 @@ public final class FlightParityBundleSeeder {
         row.putNull("flight_report_sent_on");
         row.put("created_on", Instant.parse(flightDate + "T06:00:00Z").toString());
         row.put("created_by_user_id", "00000000-0000-0000-0000-000000000000");
-        String modifiedOn = lockedAtDate != null
-                ? Instant.parse(lockedAtDate + "T12:00:00Z").toString()
+        String modifiedOn = lockedAtDateCarriedAsLegacyModifiedOn != null
+                ? Instant.parse(lockedAtDateCarriedAsLegacyModifiedOn + "T12:00:00Z").toString()
                 : Instant.parse(flightDate + "T12:00:00Z").toString();
         row.put("modified_on", modifiedOn);
         row.putNull("modified_by_user_id");
@@ -378,7 +390,7 @@ public final class FlightParityBundleSeeder {
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
         row.put("aircraft_type_id",
-                Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
+                Coercions.legacyIntIdToUuidString(LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES));
         row.put("manufacturer_name", "Schleicher");
         row.put("aircraft_model", "ASK 21");
         row.put("immatriculation", immatriculation);

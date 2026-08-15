@@ -60,7 +60,7 @@ class SecurityFilterChainIT {
     }
 
     @Test
-    void expired_token_returns_401() throws Exception {
+    void expired_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mint(c -> c
                 .issueTime(Date.from(Instant.now().minusSeconds(120)))
                 .expirationTime(Date.from(Instant.now().minusSeconds(60))));
@@ -69,14 +69,14 @@ class SecurityFilterChainIT {
     }
 
     @Test
-    void wrong_issuer_token_returns_401() throws Exception {
+    void wrong_issuer_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mint(c -> c.issuer("http://other-issuer"));
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void alg_none_token_returns_401() throws Exception {
+    void alg_none_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mintWithoutSignature(c -> { });
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());

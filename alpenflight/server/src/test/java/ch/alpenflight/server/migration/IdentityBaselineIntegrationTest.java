@@ -85,7 +85,9 @@ class IdentityBaselineIntegrationTest {
         expectedRequired.addAll(expected);
         expectedRequired.addAll(frameworkTables);
         assertThat(actual)
-                .as("V2 migration must create all 19 identity + reference tables + the framework tables")
+                .as("V2 migration must create every S-012 identity + reference table + the framework "
+                        + "tables; role / user_role are deliberately absent — Keycloak owns role "
+                        + "assignment (S-052), a local catalogue would be parallel truth")
                 .containsAll(expectedRequired);
     }
 
@@ -367,14 +369,20 @@ class IdentityBaselineIntegrationTest {
     }
 
     @Test
-    void v2_does_not_seed_member_state_or_person_category() throws Exception {
+    void v2_migration_text_does_not_seed_member_state_or_person_category() throws Exception {
         Path v2 = Path.of("src/main/resources/db/migration/V2__identity_and_reference.sql");
         if (!Files.isRegularFile(v2)) {
             v2 = Path.of("alpenflight/server/src/main/resources/db/migration/V2__identity_and_reference.sql");
         }
         String body = Files.readString(v2);
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_member_state\\b");
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_person_category\\b");
+        assertThat(body)
+                .as("member states are per-club S-016 cutover seeds; asserted on V2's text because "
+                        + "later ITs legitimately leave rows in the table (ADR 0021 pre-clean, no teardown)")
+                .doesNotContainPattern("(?im)^\\s*INSERT INTO t_member_state\\b");
+        assertThat(body)
+                .as("person categories are per-club S-016 cutover seeds; asserted on V2's text because "
+                        + "later ITs legitimately leave rows in the table (ADR 0021 pre-clean, no teardown)")
+                .doesNotContainPattern("(?im)^\\s*INSERT INTO t_person_category\\b");
     }
 
     @Test
@@ -481,9 +489,10 @@ class IdentityBaselineIntegrationTest {
 
     @Test
     void audit_columns_present_on_mutable_tables() throws Exception {
-        List<String> mutables = List.of("t_person", "t_club", "t_user", "t_person_club");
+        List<String> aggregateRootsPlusPersonClubMutatedOutsideItsRoot =
+                List.of("t_person", "t_club", "t_user", "t_person_club");
         try (Connection conn = dataSource.getConnection()) {
-            for (String t : mutables) {
+            for (String t : aggregateRootsPlusPersonClubMutatedOutsideItsRoot) {
                 for (String col : List.of("created_on", "created_by_user_id", "modified_on", "modified_by_user_id")) {
                     try (var stmt = conn.prepareStatement(
                             "SELECT data_type FROM information_schema.columns "

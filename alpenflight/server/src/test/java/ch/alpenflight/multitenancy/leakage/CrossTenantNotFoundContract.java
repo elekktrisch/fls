@@ -64,21 +64,22 @@ abstract class CrossTenantNotFoundContract extends PostgresIntegrationTest {
 
     @Test
     void controller_get_with_other_tenant_id_returns_404() {
-        String foreignId = createUnderTenant(clubA);
+        String foreignExternalId = createUnderTenant(clubA);
         String tokenAsB = jwts.mint(c -> c
                 .claim("clubId", clubB.toString())
                 .claim("realm_access", Map.of("roles", List.of(roleClaim()))));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(tokenAsB);
-        RequestEntity<Void> req = RequestEntity.get(pathToReadById(foreignId))
+        RequestEntity<Void> req = RequestEntity.get(pathToReadById(foreignExternalId))
                 .headers(headers)
                 .build();
         ResponseEntity<String> res = rest.exchange(req, String.class);
 
         assertThat(res.getStatusCode())
-                .as("IDOR gate is structural: cross-tenant GET on /%s must be 404, not 403",
-                        pathToReadById(foreignId))
+                .as("IDOR gate is structural: cross-tenant GET on /%s must be 404, not 403 — "
+                        + "a 403 would leak that the row exists",
+                        pathToReadById(foreignExternalId))
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

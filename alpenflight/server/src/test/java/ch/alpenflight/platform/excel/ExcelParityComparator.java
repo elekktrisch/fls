@@ -19,6 +19,8 @@ public final class ExcelParityComparator {
 
     private static final double NUMERIC_EPSILON = 1e-9;
 
+    private static final String UNSTYLED_DEFAULT_NUMBER_FORMAT = "General";
+
     private ExcelParityComparator() {}
 
     public static Diff compareFiles(Path expected, Path actual) throws IOException {
@@ -132,16 +134,17 @@ public final class ExcelParityComparator {
             default -> { }
         }
 
-        String eFmt = formatString(expected);
-        String aFmt = formatString(actual);
-        if (!eFmt.equals(aFmt)) {
-            mismatches.add(addr + ": number-format expected='" + eFmt + "' actual='" + aFmt + "'");
+        String expectedNumberFormat = formatString(expected);
+        String actualNumberFormat = formatString(actual);
+        if (!expectedNumberFormat.equals(actualNumberFormat)) {
+            mismatches.add(addr + ": number-format expected='" + expectedNumberFormat
+                    + "' actual='" + actualNumberFormat + "'");
         }
     }
 
     private static String formatString(Cell cell) {
         String fmt = cell.getCellStyle().getDataFormatString();
-        return fmt == null ? "General" : fmt;
+        return fmt == null ? UNSTYLED_DEFAULT_NUMBER_FORMAT : fmt;
     }
 
     private static boolean isPopulated(Cell cell) {
@@ -149,7 +152,7 @@ public final class ExcelParityComparator {
             return false;
         }
         if (cell.getCellType() == CellType.BLANK) {
-            return !"General".equals(formatString(cell));
+            return !UNSTYLED_DEFAULT_NUMBER_FORMAT.equals(formatString(cell));
         }
         if (cell.getCellType() == CellType.STRING) {
             return !cell.getStringCellValue().isEmpty();

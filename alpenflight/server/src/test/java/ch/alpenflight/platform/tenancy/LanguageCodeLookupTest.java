@@ -27,7 +27,7 @@ class LanguageCodeLookupTest {
     }
 
     @Test
-    void resolve_unknownLocale_returnsEnFallback_andDoesNotPoisonCache() {
+    void resolve_unknownLocale_returnsEnFallback_andKeepsQueryingSoALateSeedTakesEffect() {
         when(languages.findIdByCodeIgnoreCase("xx")).thenReturn(Optional.empty());
 
         assertThat(lookup.resolve("xx")).isEqualTo(LanguageCodeLookup.FALLBACK_EN_ID);

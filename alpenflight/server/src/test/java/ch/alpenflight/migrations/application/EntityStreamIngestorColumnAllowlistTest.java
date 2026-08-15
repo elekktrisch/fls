@@ -19,7 +19,11 @@ class EntityStreamIngestorColumnAllowlistTest {
 
     @Test
     void known_mappers_all_pass_the_column_allowlist() {
-        assertThat(new EntityStreamIngestor(KnownMappers.all())).isNotNull();
+        assertThat(new EntityStreamIngestor(KnownMappers.all()))
+                .as("the shipped mapper registry clears the constructor's column allow-list — "
+                        + "a violation would also refuse Spring boot in production, caught "
+                        + "here at unit speed")
+                .isNotNull();
     }
 
     @Test

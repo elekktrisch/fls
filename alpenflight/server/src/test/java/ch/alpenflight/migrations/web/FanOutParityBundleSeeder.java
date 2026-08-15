@@ -45,8 +45,8 @@ public final class FanOutParityBundleSeeder {
         }
         Path publicKeyPemPath = Path.of(args[0]);
         UUID uploadId = UUID.fromString(args[1]);
-        String locationName = args[2];
-        String clubKeyPrefix = args[3];
+        String perRunFreshnessTokenLocationName = args[2];
+        String perRunUniqueClubKeyPrefix = args[3];
         Path outputPath = Path.of(args[4]);
 
         String pem = Files.readString(publicKeyPemPath, StandardCharsets.UTF_8);
@@ -56,15 +56,15 @@ public final class FanOutParityBundleSeeder {
 
         UUID legacyClubIdA = UUID.randomUUID();
         UUID legacyClubIdB = UUID.randomUUID();
-        String keyA = clubKeyPrefix + "A";
-        String keyB = clubKeyPrefix + "B";
-        String slugBase = clubKeyPrefix.toLowerCase(java.util.Locale.ROOT);
+        String keyA = perRunUniqueClubKeyPrefix + "A";
+        String keyB = perRunUniqueClubKeyPrefix + "B";
+        String perRunUniqueSlugBase = perRunUniqueClubKeyPrefix.toLowerCase(java.util.Locale.ROOT);
 
         BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
-                legacyClubIdA, "J0C Parity Club A", slugBase + "-a", keyA, false,
+                legacyClubIdA, "J0C Parity Club A", perRunUniqueSlugBase + "-a", keyA, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         BundleManifest.ClubDeclaration clubB = new BundleManifest.ClubDeclaration(
-                legacyClubIdB, "J0C Parity Club B", slugBase + "-b", keyB, false,
+                legacyClubIdB, "J0C Parity Club B", perRunUniqueSlugBase + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
         UUID sharedLocationId = UUID.randomUUID();
@@ -87,8 +87,10 @@ public final class FanOutParityBundleSeeder {
                 clubNdjson(legacyClubIdB, keyB, "J0C Parity Club B Legacy",
                         legacyCountryId)));
         tarEntries.put("LOCATION.ndjson", concat(
-                locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, locationName),
-                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, locationName)));
+                locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId,
+                        perRunFreshnessTokenLocationName),
+                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId,
+                        perRunFreshnessTokenLocationName)));
         tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(sharedLocationId, legacyClubIdA,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdA)),
@@ -104,7 +106,7 @@ public final class FanOutParityBundleSeeder {
         ObjectNode result = JSON.createObjectNode();
         result.put("clubKeyA", keyA);
         result.put("clubKeyB", keyB);
-        result.put("locationName", locationName);
+        result.put("locationName", perRunFreshnessTokenLocationName);
         result.put("bundlePath", outputPath.toAbsolutePath().toString());
         System.out.println(JSON.writeValueAsString(result));
     }
@@ -158,7 +160,7 @@ public final class FanOutParityBundleSeeder {
         row.put("country_id", countryId.toString());
         row.put("location_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_LOCATION_TYPE_GRASS));
-        row.put("icao_code", "J" + Integer.toHexString(legacyClubId.hashCode()).substring(0, 3).toUpperCase(java.util.Locale.ROOT));
+        row.put("icao_code", distinctIcaoPerClubReplica(legacyClubId));
         row.put("latitude", "47.46");
         row.put("longitude", "8.55");
         row.put("elevation", 1416);
@@ -180,6 +182,12 @@ public final class FanOutParityBundleSeeder {
         row.putNull("deleted_on");
         row.putNull("deleted_by_user_id");
         return ndjsonLine(row);
+    }
+
+    private static String distinctIcaoPerClubReplica(UUID legacyClubId) {
+        return "J" + Integer.toHexString(legacyClubId.hashCode())
+                .substring(0, 3)
+                .toUpperCase(java.util.Locale.ROOT);
     }
 
     private static byte[] ndjsonLine(ObjectNode row) throws IOException {

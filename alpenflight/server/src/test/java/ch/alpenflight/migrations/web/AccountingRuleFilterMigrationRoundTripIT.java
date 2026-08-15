@@ -113,14 +113,19 @@ class AccountingRuleFilterMigrationRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
         jdbc.update("DELETE FROM t_user WHERE club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
-        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
-        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
-                userSub.toString());
+        deleteProvisioningSeededPerClubRowsThatWouldFkBlockTheClubDelete(clubsByOwner);
         jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
+    }
+
+    private void deleteProvisioningSeededPerClubRowsThatWouldFkBlockTheClubDelete(
+            String clubsByOwner) {
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
     }
 
     @Test

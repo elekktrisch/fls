@@ -71,7 +71,9 @@ class PlanningDevSeedIT extends PostgresIntegrationTest {
                 .isEqualTo("loc-019e30c3-2c00-7001-8000-00000000c001");
 
         assertThat(weekend.path("instructorPersonId").isNull()
-                || weekend.path("instructorPersonId").isMissingNode()).isTrue();
+                || weekend.path("instructorPersonId").isMissingNode())
+                .as("the seeded weekend day is bare — no crew, exercising the empty-crew render path")
+                .isTrue();
         assertThat(weekend.path("towingPilotPersonId").isNull()
                 || weekend.path("towingPilotPersonId").isMissingNode()).isTrue();
         assertThat(weekend.path("flightOperatorPersonId").isNull()

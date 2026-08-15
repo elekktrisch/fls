@@ -28,6 +28,14 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
+    private static final int LIVE = 0;
+    private static final int SOFT_DELETED = 1;
+    private static final int COLLIDING_LEGACY_SORT_INDICATOR = 5;
+    private static final String DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER = "";
+    private static final long LEGACY_MIN_FLIGHT_TIME_SECONDS_BILLS_FROM_ZERO = 0L;
+    private static final long LEGACY_UNBOUNDED_MAX_FLIGHT_TIME_SENTINEL = Long.MAX_VALUE;
+    private static final int MINIMUM_SUPPORTED_POSTGRES_MAJOR_FOR_SQL_JSON_VALUE = 17;
+
     private final UUID clubA = UUID.randomUUID();
     private final UUID clubB = UUID.randomUUID();
 
@@ -43,7 +51,7 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
     void seedLegacyShapedStagingTable() {
         Integer pgMajor = jdbc.queryForObject(
                 "SELECT current_setting('server_version_num')::int / 10000", Integer.class);
-        assumeTrue(pgMajor != null && pgMajor >= 17,
+        assumeTrue(pgMajor != null && pgMajor >= MINIMUM_SUPPORTED_POSTGRES_MAJOR_FOR_SQL_JSON_VALUE,
                 "AccountingRuleFilter producer SELECT uses SQL/JSON JSON_VALUE — "
                         + "requires PostgreSQL 17 (CI container + the real MSSQL producer); "
                         + "current major = " + pgMajor);
@@ -107,18 +115,23 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 """);
         jdbc.update("DELETE FROM AccountingRuleFilters");
 
-        insertRow(dupEarlier, clubA, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+        insertRow(dupEarlier, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2020-01-01 08:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(dupLater, clubA, 5, Timestamp.valueOf("2021-06-15 09:30:00"), 0,
+        insertRow(dupLater, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2021-06-15 09:30:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), 0,
+        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(softDeletedRow, clubA, 5, Timestamp.valueOf("2018-01-01 00:00:00"), 1,
+        insertRow(softDeletedRow, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2018-01-01 00:00:00"), SOFT_DELETED,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(otherClubRow, clubB, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+        insertRow(otherClubRow, clubB, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2020-01-01 08:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), 0,
-                "", "");
+        insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), LIVE,
+                DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER,
+                DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER);
         insertGliderFlightTimeRow(gliderFlightTimeRow, clubB, 9,
                 Timestamp.valueOf("2020-03-01 08:00:00"));
     }
@@ -348,7 +361,7 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         false, false, false,
                         false, false,
                         false, NULL,
-                        0, 9223372036854775807,
+                        ?, ?,
                         NULL, NULL,
                         true, '[]',
                         true, '[]',
@@ -364,6 +377,8 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         NULL, NULL, 0)
                 """,
                 id, club, sortIndicator, GLIDER_ARTICLE_TARGET_JSON,
+                LEGACY_MIN_FLIGHT_TIME_SECONDS_BILLS_FROM_ZERO,
+                LEGACY_UNBOUNDED_MAX_FLIGHT_TIME_SENTINEL,
                 createdOn, createdOn);
     }
 }

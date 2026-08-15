@@ -76,7 +76,10 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
                         + "FROM t_mutation_audit_event "
                         + "WHERE target_entity_type = ? AND tenant_club_id = ?::uuid",
                 AUDIT_ENTITY_TYPE, openClubId.toString());
-        assertThat(row.get("system_actor")).isEqualTo(true);
+        assertThat(row.get("system_actor"))
+                .as("system_actor is the flag that classifies an anonymous write; actor_kind is "
+                        + "'NORMAL' on every non-migrated row, so it says nothing here")
+                .isEqualTo(true);
         assertThat(row.get("actor_user_id")).isNull();
         assertThat(row.get("actor_keycloak_sub")).isNull();
         assertThat(row.get("failed")).isEqualTo(false);
@@ -141,6 +144,7 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
                 .getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(anonymousPost("/api/v1/public/clubs/" + openSlug + "/members").getStatusCode())
+                .as("an unenumerated POST under the same public prefix is not anonymous-writable")
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 

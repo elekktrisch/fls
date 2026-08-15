@@ -34,21 +34,30 @@ class MapperVsSchemaCompatibilityTest {
             EntityType.CLUB_STATE,
             EntityType.START_TYPE);
 
-    private static final Set<String> GLOBAL_SKIP = Set.of(
-            "legacy_int_id",
-            "operating_club_id");
+    private static final String SEED_POPULATED_SHADOW_COLUMN = "legacy_int_id";
+    private static final String TENANT_DISCRIMINATOR_POPULATED_BY_THE_APPLICATION_LAYER =
+            "operating_club_id";
+
+    private static final Set<String> COLUMNS_POPULATED_OUTSIDE_ANY_MAPPER = Set.of(
+            SEED_POPULATED_SHADOW_COLUMN,
+            TENANT_DISCRIMINATOR_POPULATED_BY_THE_APPLICATION_LAYER);
 
     private static final Map<EntityType, String> DESTINATION_TABLE_OVERRIDE = Map.of(
             EntityType.AUDIT_LOG, "t_mutation_audit_event");
 
-    private static final Map<String, Set<String>> PER_TABLE_SKIP = Map.of(
-            "t_user", Set.of("keycloak_sub"),
-            "t_mutation_audit_event", Set.of(
-                    "legacy_orphan_actor_id",
-                    "legacy_actor_user_id",
-                    "actor_kind"));
+    private static final Set<String> KEYCLOAK_OWNED_SINGLE_WRITER_COLUMNS =
+            Set.of("keycloak_sub");
+    private static final Set<String> COLUMNS_SYNTHESISED_BY_THE_AUDIT_LOG_MAPPER = Set.of(
+            "legacy_orphan_actor_id",
+            "legacy_actor_user_id",
+            "actor_kind");
 
-    private static final Set<EntityType> APPLICATION_GENERATED_PK = Set.of(
+    private static final Map<String, Set<String>> PER_TABLE_COLUMNS_POPULATED_OUTSIDE_THE_MAPPER =
+            Map.of(
+                    "t_user", KEYCLOAK_OWNED_SINGLE_WRITER_COLUMNS,
+                    "t_mutation_audit_event", COLUMNS_SYNTHESISED_BY_THE_AUDIT_LOG_MAPPER);
+
+    private static final Set<EntityType> MAPPERS_WHOSE_PK_IS_MINTED_AT_INGEST = Set.of(
             EntityType.PERSON_CLUB,
             EntityType.PERSON_CATEGORY_ASSIGNMENT,
             EntityType.AIRCRAFT_AIRCRAFT_STATE);
@@ -69,11 +78,12 @@ class MapperVsSchemaCompatibilityTest {
                             mapper.getClass().getSimpleName(), tableName));
                     continue;
                 }
-                Set<String> mapperColumns = mapperColumnsResolved(mapper);
+                Set<String> mapperColumns =
+                        mapperColumnsWithLegacyGuidResolvedToDestinationPk(mapper);
                 checkSubsetOfSchema(mapper, tableName, mapperColumns, tableSchema, failures);
                 if (!SYSTEM_GLOBAL_REFERENCE_MAPPERS.contains(mapper.entityType())) {
                     Set<String> perTableSkip = new LinkedHashSet<>(perTableSkip(tableName));
-                    if (APPLICATION_GENERATED_PK.contains(mapper.entityType())) {
+                    if (MAPPERS_WHOSE_PK_IS_MINTED_AT_INGEST.contains(mapper.entityType())) {
                         perTableSkip.add(DESTINATION_PK_COLUMN);
                     }
                     checkNonNullableCoverage(
@@ -91,7 +101,7 @@ class MapperVsSchemaCompatibilityTest {
                 .isEmpty();
     }
 
-    private static Set<String> mapperColumnsResolved(Mapper mapper) {
+    private static Set<String> mapperColumnsWithLegacyGuidResolvedToDestinationPk(Mapper mapper) {
         Set<String> resolved = new LinkedHashSet<>();
         for (String column : Arrays.asList(mapper.columns())) {
             resolved.add(LEGACY_GUID_WIRE_COLUMN.equals(column)
@@ -136,7 +146,7 @@ class MapperVsSchemaCompatibilityTest {
             if (column.isGenerated()) {
                 continue;
             }
-            if (GLOBAL_SKIP.contains(column.name())) {
+            if (COLUMNS_POPULATED_OUTSIDE_ANY_MAPPER.contains(column.name())) {
                 continue;
             }
             if (perTableSkip.contains(column.name())) {
@@ -156,7 +166,7 @@ class MapperVsSchemaCompatibilityTest {
     }
 
     private static Set<String> perTableSkip(String tableName) {
-        return PER_TABLE_SKIP.getOrDefault(tableName, Set.of());
+        return PER_TABLE_COLUMNS_POPULATED_OUTSIDE_THE_MAPPER.getOrDefault(tableName, Set.of());
     }
 
     private static String destinationTableName(EntityType entity) {
@@ -191,11 +201,13 @@ class MapperVsSchemaCompatibilityTest {
 
     private static Connection openConnection() throws SQLException {
         var pg = SharedPostgresContainer.INSTANCE;
-        ensureSchemaMigrated(pg.jdbcUrl(), pg.username(), pg.password());
+        ensureSchemaMigratedSinceNoSpringContextDrivesFlywayHere(
+                pg.jdbcUrl(), pg.username(), pg.password());
         return DriverManager.getConnection(pg.jdbcUrl(), pg.username(), pg.password());
     }
 
-    private static void ensureSchemaMigrated(String jdbcUrl, String user, String password) {
+    private static void ensureSchemaMigratedSinceNoSpringContextDrivesFlywayHere(
+            String jdbcUrl, String user, String password) {
         org.flywaydb.core.Flyway.configure()
                 .dataSource(jdbcUrl, user, password)
                 .locations("filesystem:src/main/resources/db/migration")

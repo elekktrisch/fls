@@ -45,6 +45,8 @@ class MigrationBundleTimeoutIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    private static final long PROVISIONING_SLEEP_FAR_PAST_THE_TWO_SECOND_CAP_MS = 30_000L;
+
     private static final UUID SEED_COUNTRY_CH = UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID SEED_CLUB_STATE_ACTIVE = UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8");
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
@@ -107,7 +109,7 @@ class MigrationBundleTimeoutIT extends PostgresIntegrationTest {
     void bundle_timeout_interrupts_in_flight_worker_and_records_failure() throws Exception {
         doAnswer(inv -> {
             try {
-                Thread.sleep(30_000);
+                Thread.sleep(PROVISIONING_SLEEP_FAR_PAST_THE_TWO_SECOND_CAP_MS);
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 throw interrupted;
@@ -148,13 +150,18 @@ class MigrationBundleTimeoutIT extends PostgresIntegrationTest {
         Integer deploymentCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
                 Integer.class, userSub.toString());
-        assertThat(deploymentCount).isZero();
+        assertThat(deploymentCount)
+                .as("nothing was provisioned — the worker's transaction rolled back when the "
+                        + "cancel interrupted it")
+                .isZero();
 
         Map<String, Object> upload = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
         assertThat(upload.get("state")).isEqualTo("FAILED");
-        assertThat(upload.get("private_key_ciphertext")).isNull();
+        assertThat(upload.get("private_key_ciphertext"))
+                .as("the private key is wiped even on the timeout path")
+                .isNull();
     }
 
     private JsonNode mintHandshake() throws Exception {

@@ -12,21 +12,28 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class FixtureTableNamingConventionTest {
 
-    private static final Set<String> ALLOW_LIST = Set.of(
+    private static final Set<String> POSTGRES_CATALOG_AND_FLYWAY_TABLES = Set.of(
             "flyway_schema_history",
             "pg_indexes", "pg_index", "pg_attribute", "pg_constraint",
             "pg_namespace", "pg_class", "pg_type", "pg_proc", "pg_extension",
             "pg_tables", "pg_database", "pg_roles", "pg_stat_user_tables",
-            "information_schema",
+            "information_schema");
+
+    private static final Set<String> SQL_KEYWORDS_AND_FIXTURE_QUERY_ALIASES = Set.of(
             "row", "rows",
             "t", "u", "c", "k", "col", "tc", "p", "rs", "kc", "tg",
-            "a", "b", "i",
-            "legacy", "scratch", "source", "target", "above", "below",
+            "a", "b", "i");
+
+    private static final Set<String> ENGLISH_PROSE_WORDS_IN_ASSERTION_MESSAGES = Set.of(
+            "legacy", "scratch", "source", "target", "above", "below");
+
+    private static final Set<String> LEGACY_MSSQL_SOURCE_TABLES_MIGRATION_ITS_SEED_VERBATIM = Set.of(
             "planningdays",
             "planningdayassignments",
             "accountingrulefilters",
@@ -34,6 +41,14 @@ class FixtureTableNamingConventionTest {
             "personflighttimecredits", "personflighttimecredittransactions", "deliveries",
             "deliveryitems", "articles",
             "personclub");
+
+    private static final Set<String> ALLOW_LIST = Stream.of(
+                    POSTGRES_CATALOG_AND_FLYWAY_TABLES,
+                    SQL_KEYWORDS_AND_FIXTURE_QUERY_ALIASES,
+                    ENGLISH_PROSE_WORDS_IN_ASSERTION_MESSAGES,
+                    LEGACY_MSSQL_SOURCE_TABLES_MIGRATION_ITS_SEED_VERBATIM)
+            .flatMap(Set::stream)
+            .collect(Collectors.toUnmodifiableSet());
 
     private static final Pattern FROM_LIKE = Pattern.compile(
             "(?i)\\b(?:"
@@ -119,11 +134,15 @@ class FixtureTableNamingConventionTest {
         if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("import ")) {
             return true;
         }
-        if (identifier.isEmpty() || !Character.isUpperCase(identifier.charAt(0))) {
+        if (!startsUppercaseLikeAJpqlEntityName(identifier)) {
             return false;
         }
         String prefix = line.substring(0, matchStart).toLowerCase();
         return prefix.endsWith("from") || prefix.endsWith("join")
                 || prefix.endsWith("from ") || prefix.endsWith("join ");
+    }
+
+    private static boolean startsUppercaseLikeAJpqlEntityName(String identifier) {
+        return !identifier.isEmpty() && Character.isUpperCase(identifier.charAt(0));
     }
 }

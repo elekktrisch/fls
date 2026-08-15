@@ -47,8 +47,8 @@ public final class AircraftParityBundleSeeder {
         }
         Path publicKeyPemPath = Path.of(args[0]);
         UUID uploadId = UUID.fromString(args[1]);
-        String immatriculation = args[2];
-        String clubKey = args[3];
+        String freshnessTokenImmatriculation = args[2];
+        String perRunUniqueClubKey = args[3];
         Path outputPath = Path.of(args[4]);
 
         String pem = Files.readString(publicKeyPemPath, StandardCharsets.UTF_8);
@@ -63,10 +63,11 @@ public final class AircraftParityBundleSeeder {
         UUID legacyHomebaseLocationId = UUID.randomUUID();
         UUID legacyOperatingCounterId = UUID.randomUUID();
         UUID actorUserId = UUID.randomUUID();
-        String slug = clubKey.toLowerCase(java.util.Locale.ROOT);
+        String perRunUniqueSlug = perRunUniqueClubKey.toLowerCase(java.util.Locale.ROOT);
 
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
-                legacyClubId, "J1 Aircraft Parity Club", slug, clubKey, false,
+                legacyClubId, "J1 Aircraft Parity Club", perRunUniqueSlug, perRunUniqueClubKey,
+                false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
         Map<EntityType, EntityPolicy> entityPolicies = Map.of(
@@ -82,55 +83,55 @@ public final class AircraftParityBundleSeeder {
         UUID homebaseReplicaId =
                 Coercions.deriveFanOutId(legacyHomebaseLocationId, legacyClubId);
 
-        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
-        tarEntries.put("legacy_id_map/COUNTRY.pgcopy",
+        Map<String, byte[]> tarEntriesInIngestResolveOrder = new LinkedHashMap<>();
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/COUNTRY.pgcopy",
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
-        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson",
-                clubNdjson(legacyClubId, clubKey, "J1 Aircraft Parity Club Legacy",
+        tarEntriesInIngestResolveOrder.put("CLUB.ndjson",
+                clubNdjson(legacyClubId, perRunUniqueClubKey, "J1 Aircraft Parity Club Legacy",
                         legacyCountryId));
-        tarEntries.put("legacy_id_map/PERSON.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/PERSON.pgcopy",
                 pgcopyMap(legacyPersonId, legacyPersonId));
-        tarEntries.put("PERSON.ndjson",
+        tarEntriesInIngestResolveOrder.put("PERSON.ndjson",
                 personNdjson(legacyPersonId, legacyCountryId, "Owner", "Aircraft"));
-        tarEntries.put("LOCATION.ndjson",
+        tarEntriesInIngestResolveOrder.put("LOCATION.ndjson",
                 locationNdjson(legacyHomebaseLocationId, legacyClubId, legacyCountryId,
                         "LSZH", actorUserId));
-        tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(legacyHomebaseLocationId, legacyClubId, homebaseReplicaId)));
-        tarEntries.put("AIRCRAFT.ndjson", aircraftNdjson(
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT.ndjson", aircraftNdjson(
                 legacyAircraftId, legacyClubId, legacyPersonId, legacyHomebaseLocationId,
-                immatriculation, actorUserId));
-        tarEntries.put("legacy_id_map/AIRCRAFT.pgcopy",
+                freshnessTokenImmatriculation, actorUserId));
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/AIRCRAFT.pgcopy",
                 pgcopyMap(legacyAircraftId, legacyAircraftId));
-        tarEntries.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
                 aircraftStateNdjson(legacyAircraftId, "Annual inspection passed", actorUserId));
-        tarEntries.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
                 operatingCounterNdjson(legacyOperatingCounterId, legacyAircraftId, 360000L,
                         actorUserId));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "J1 Aircraft Parity Deployment",
-                List.of(club), entityPolicies, tarEntries);
+                List.of(club), entityPolicies, tarEntriesInIngestResolveOrder);
 
         Files.write(outputPath, java.util.Base64.getEncoder().encode(bundle));
 
         ObjectNode result = JSON.createObjectNode();
-        result.put("clubKey", clubKey);
-        result.put("immatriculation", immatriculation);
+        result.put("clubKey", perRunUniqueClubKey);
+        result.put("immatriculation", freshnessTokenImmatriculation);
         result.put("bundlePath", outputPath.toAbsolutePath().toString());
         System.out.println(JSON.writeValueAsString(result));
     }
 
-    private static byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId,
+    private static byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyAircraftOwnerClubId,
                                          UUID ownerPersonId, UUID homebaseLocationId,
                                          String immatriculation, UUID actorUserId)
             throws IOException {
         ObjectNode row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
-        row.put("managing_club_id", legacyClubId.toString());
-        row.put("owner_club_id", legacyClubId.toString());
+        row.put("managing_club_id", legacyAircraftOwnerClubId.toString());
+        row.put("owner_club_id", legacyAircraftOwnerClubId.toString());
         row.put("aircraft_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
         row.put("manufacturer_name", "Schleicher");

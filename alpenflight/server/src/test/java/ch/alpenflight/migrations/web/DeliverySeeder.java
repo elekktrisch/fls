@@ -12,6 +12,7 @@ import java.util.UUID;
 public final class DeliverySeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final short PREPARED_SO_NO_DELIVERY_NUMBER_IS_ASSIGNED_YET = 10;
 
     private DeliverySeeder() { }
 
@@ -59,20 +60,21 @@ public final class DeliverySeeder {
                             + "recipient_firstname, recipient_lastname, recipient_address_line1, "
                             + "recipient_zip_code, recipient_city, recipient_country_name, "
                             + "recipient_person_club_member_number, batch_id, created_on, modified_on) "
-                            + "VALUES (?::uuid, ?::uuid, 10, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                            + "VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                 ps.setString(1, deliveryId.toString());
                 ps.setString(2, clubId.toString());
-                ps.setString(3, flightId.toString());
-                ps.setString(4, "Test");
-                ps.setString(5, recipientLastName);
-                ps.setString(6, "Flugplatzstrasse 1");
-                ps.setString(7, "8000");
-                ps.setString(8, "Zürich");
-                ps.setString(9, "CH");
-                ps.setString(10, "1234");
-                ps.setLong(11, batchId);
-                ps.setObject(12, now);
+                ps.setShort(3, PREPARED_SO_NO_DELIVERY_NUMBER_IS_ASSIGNED_YET);
+                ps.setString(4, flightId.toString());
+                ps.setString(5, "Test");
+                ps.setString(6, recipientLastName);
+                ps.setString(7, "Flugplatzstrasse 1");
+                ps.setString(8, "8000");
+                ps.setString(9, "Zürich");
+                ps.setString(10, "CH");
+                ps.setString(11, "1234");
+                ps.setLong(12, batchId);
                 ps.setObject(13, now);
+                ps.setObject(14, now);
                 ps.executeUpdate();
             }
 

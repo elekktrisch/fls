@@ -35,10 +35,12 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final UUID CLUB =
+    private static final UUID DEV_SEED_CLUB =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID OTHER_CLUB =
             UUID.fromString("019e30c6-2c00-7001-8000-0000000000f1");
+
+    private static final String DEV_SEED_ID_BAND = "019e30c3-%";
 
     private static final LocalDate DAY = LocalDate.now(ZoneOffset.UTC).plusDays(3);
 
@@ -56,22 +58,15 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     @BeforeEach
     void seedAndAuth() {
         adminToken = jwts.mint(c -> c
-                .claim("clubId", CLUB.toString())
+                .claim("clubId", DEV_SEED_CLUB.toString())
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
 
-        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id = ?::uuid "
-                + "AND id::text NOT LIKE '019e30c3-%'", CLUB.toString());
-        jdbc.update("DELETE FROM t_planning_day_assignment_type WHERE operating_club_id = ?::uuid "
-                + "AND assignment_type_name IN ('fluglehrer','schlepppilot','segelflugleiter') "
-                + "AND id::text NOT LIKE '019e30c3-%'",
-                CLUB.toString());
-        jdbc.update("DELETE FROM t_location WHERE club_id = ?::uuid AND location_name LIKE 'PLN-IT-%'",
-                CLUB.toString());
+        deleteOwnRowsLeavingTheDevSeedBandIntact();
 
-        locationId = seedLocation(CLUB);
-        seedAssignmentType(CLUB, "fluglehrer");
-        seedAssignmentType(CLUB, "schlepppilot");
-        seedAssignmentType(CLUB, "segelflugleiter");
+        locationId = seedLocation(DEV_SEED_CLUB);
+        seedAssignmentType(DEV_SEED_CLUB, "fluglehrer");
+        seedAssignmentType(DEV_SEED_CLUB, "schlepppilot");
+        seedAssignmentType(DEV_SEED_CLUB, "segelflugleiter");
         instructorId = seedPerson("Instr");
         towingPilotId = seedPerson("Tow");
         flightOperatorId = seedPerson("Ops");
@@ -121,7 +116,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void delete_asNonAdminNonCreator_returns403() {
+    void delete_asNonAdminNonCreator_returns403_butTheCreatorThemselvesMayDelete() {
         UUID creatorSub = freshSub();
         String creatorToken = pilotToken(creatorSub);
         ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY), creatorToken);
@@ -142,43 +137,60 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         UUID id = UUID.fromString(readJson(created).get("id").asText());
-        assertThat(countAssignments(id)).isEqualTo(3L);
+        assertThat(countAssignmentRowsBypassingEveryReadFilter(id))
+                .as("a day with all 3 crew slots owns 3 child t_planning_day_assignment rows")
+                .isEqualTo(3L);
 
         ResponseEntity<String> deleted = delete("/api/v1/planning-days/" + id, adminToken);
         assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-
         ResponseEntity<String> got = get("/api/v1/planning-days/" + id, adminToken);
-        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(got.getStatusCode())
+                .as("the deleted day is unreadable, so its crew slots are never returned")
+                .isEqualTo(HttpStatus.NOT_FOUND);
 
-        assertThat(listFutureDayIds(adminToken)).doesNotContain(id.toString());
+        assertThat(listFutureDayIds(adminToken))
+                .as("no leaked crew row decorates any surviving day in the future overview")
+                .doesNotContain(id.toString());
 
         ResponseEntity<String> recreated = post("/api/v1/planning-days", fullCrewPayload(DAY));
-        assertThat(recreated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(recreated.getStatusCode())
+                .as("the soft-delete freed the (club, date, location) slot on the partial unique index")
+                .isEqualTo(HttpStatus.CREATED);
         UUID newId = UUID.fromString(readJson(recreated).get("id").asText());
         assertThat(newId).isNotEqualTo(id);
-        assertThat(countAssignments(newId)).isEqualTo(3L);
-        assertThat(countAssignments(id)).isEqualTo(3L);
+        assertThat(countAssignmentRowsBypassingEveryReadFilter(newId))
+                .as("the re-created day owns a FRESH crew set, never inherited from the dead day")
+                .isEqualTo(3L);
+        assertThat(countAssignmentRowsBypassingEveryReadFilter(id))
+                .as("soft-delete leaves the child rows physically present — the V4 ON DELETE CASCADE "
+                        + "never fires — so only the parent's deleted_on IS NULL filter hides them")
+                .isEqualTo(3L);
 
         ResponseEntity<String> liveGot = get("/api/v1/planning-days/" + newId, adminToken);
         assertThat(liveGot.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode liveDetail = readJson(liveGot);
         assertThat(liveDetail.get("instructorPersonId").asText()).isEqualTo("pn-" + instructorId);
         assertThat(liveDetail.get("towingPilotPersonId").asText()).isEqualTo("pn-" + towingPilotId);
-        assertThat(liveDetail.get("flightOperatorPersonId").asText()).isEqualTo("pn-" + flightOperatorId);
+        assertThat(liveDetail.get("flightOperatorPersonId").asText())
+                .as("the live day exposes only its OWN crew, not the orphaned dead rows")
+                .isEqualTo("pn-" + flightOperatorId);
     }
 
     @Test
     void ruleExpand_weekendOverTwoWeeks_createsExpectedDays_andReRunSkipsExisting() {
-        LocalDate firstSat = nextOrSame(LocalDate.now(ZoneOffset.UTC).plusDays(10), java.time.DayOfWeek.SATURDAY);
-        LocalDate end = firstSat.plusDays(13);
+        LocalDate firstSaturdayClearOfTheSingleCreateTestsDay =
+                nextOrSame(DAY.plusDays(7), java.time.DayOfWeek.SATURDAY);
+        LocalDate lastDayOfTheInclusiveTwoWeekWindow =
+                firstSaturdayClearOfTheSingleCreateTestsDay.plusWeeks(2).minusDays(1);
+        int twoSaturdaysAndTwoSundays = 4;
 
         ResponseEntity<String> res = post("/api/v1/planning-days/create/rule",
-                weekendRule(firstSat, end));
+                weekendRule(firstSaturdayClearOfTheSingleCreateTestsDay, lastDayOfTheInclusiveTwoWeekWindow));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         JsonNode created = readJson(res);
         assertThat(created.isArray()).isTrue();
-        assertThat(created).hasSize(4);
+        assertThat(created).hasSize(twoSaturdaysAndTwoSundays);
         for (JsonNode day : created) {
             assertThat(day.get("locationId").asText()).isEqualTo("loc-" + locationId);
             assertThat(day.path("instructorPersonId").isNull() || day.path("instructorPersonId").isMissingNode())
@@ -188,24 +200,24 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
             assertThat(day.path("flightOperatorPersonId").isNull() || day.path("flightOperatorPersonId").isMissingNode())
                     .isTrue();
         }
-        assertThat(countPlanningDays()).isEqualTo(4);
+        assertThat(countOwnPlanningDaysExcludingTheDevSeedBand()).isEqualTo(twoSaturdaysAndTwoSundays);
 
         ResponseEntity<String> rerun = post("/api/v1/planning-days/create/rule",
-                weekendRule(firstSat, end));
+                weekendRule(firstSaturdayClearOfTheSingleCreateTestsDay, lastDayOfTheInclusiveTwoWeekWindow));
         assertThat(rerun.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(readJson(rerun)).hasSize(0);
-        assertThat(countPlanningDays()).isEqualTo(4);
+        assertThat(countOwnPlanningDaysExcludingTheDevSeedBand()).isEqualTo(twoSaturdaysAndTwoSundays);
     }
 
     @Test
     void ruleExpand_noWeekdayFlags_createsNothing() {
         LocalDate start = LocalDate.now(ZoneOffset.UTC).plusDays(10);
-        Map<String, Object> rule = ruleBase(start, start.plusDays(14));
+        Map<String, Object> rule = ruleWithAllSevenWeekdayFlagsPresentAndFalse(start, start.plusDays(14));
 
         ResponseEntity<String> res = post("/api/v1/planning-days/create/rule", rule);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(readJson(res)).hasSize(0);
-        assertThat(countPlanningDays()).isZero();
+        assertThat(countOwnPlanningDaysExcludingTheDevSeedBand()).isZero();
     }
 
     @Test
@@ -216,7 +228,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         ResponseEntity<String> res = post("/api/v1/planning-days/create/rule", rule);
         assertThat(res.getStatusCode().value()).isEqualTo(422);
         assertThat(readJson(res).get("key").asText()).isEqualTo("planning.rule.range");
-        assertThat(countPlanningDays()).isZero();
+        assertThat(countOwnPlanningDaysExcludingTheDevSeedBand()).isZero();
     }
 
     @Test
@@ -237,7 +249,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         assertThat(result.get("valid").asBoolean()).isFalse();
         assertThat(result.get("field").asText()).isEqualTo("planningDate");
         assertThat(result.get("message").asText()).isNotBlank();
-        assertThat(countPlanningDays()).isEqualTo(1);
+        assertThat(countOwnPlanningDaysExcludingTheDevSeedBand()).isEqualTo(1);
     }
 
     @Test
@@ -254,24 +266,13 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
 
     @Test
     void validate_otherClubsDay_doesNotConflict_tenantScoped() {
-        jdbc.update("""
-                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
-                        slug, public_registration_enabled)
-                SELECT ?::uuid, 'Foil Club', 'FOILP', country_id, club_state_id,
-                        'foil-club-pln-f1', false
-                FROM t_club WHERE id = ?::uuid
-                ON CONFLICT (id) DO NOTHING
-                """, OTHER_CLUB.toString(), CLUB.toString());
-        UUID otherDayId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO t_planning_day (id, operating_club_id, planning_date, location_id)
-                VALUES (?::uuid, ?::uuid, ?::date, ?::uuid)
-                """,
-                otherDayId.toString(), OTHER_CLUB.toString(), DAY.toString(), locationId.toString());
+        UUID otherDayId = provisionOtherClubThenSeedItsDayAtTheSameDateAndLocation();
 
         ResponseEntity<String> res = post("/api/v1/planning-days/validate", validatePayload(DAY, null));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(readJson(res).get("valid").asBoolean()).isTrue();
+        assertThat(readJson(res).get("valid").asBoolean())
+                .as("the other club's day is invisible to the caller's tenant-scoped uniqueness probe")
+                .isTrue();
 
         jdbc.update("DELETE FROM t_planning_day WHERE id = ?::uuid", otherDayId.toString());
     }
@@ -289,6 +290,35 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+
+    private void deleteOwnRowsLeavingTheDevSeedBandIntact() {
+        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id = ?::uuid "
+                + "AND id::text NOT LIKE '" + DEV_SEED_ID_BAND + "'", DEV_SEED_CLUB.toString());
+        jdbc.update("DELETE FROM t_planning_day_assignment_type WHERE operating_club_id = ?::uuid "
+                + "AND assignment_type_name IN ('fluglehrer','schlepppilot','segelflugleiter') "
+                + "AND id::text NOT LIKE '" + DEV_SEED_ID_BAND + "'",
+                DEV_SEED_CLUB.toString());
+        jdbc.update("DELETE FROM t_location WHERE club_id = ?::uuid AND location_name LIKE 'PLN-IT-%'",
+                DEV_SEED_CLUB.toString());
+    }
+
+    private UUID provisionOtherClubThenSeedItsDayAtTheSameDateAndLocation() {
+        jdbc.update("""
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
+                        slug, public_registration_enabled)
+                SELECT ?::uuid, 'Foil Club', 'FOILP', country_id, club_state_id,
+                        'foil-club-pln-f1', false
+                FROM t_club WHERE id = ?::uuid
+                ON CONFLICT (id) DO NOTHING
+                """, OTHER_CLUB.toString(), DEV_SEED_CLUB.toString());
+        UUID otherDayId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_planning_day (id, operating_club_id, planning_date, location_id)
+                VALUES (?::uuid, ?::uuid, ?::date, ?::uuid)
+                """,
+                otherDayId.toString(), OTHER_CLUB.toString(), DAY.toString(), locationId.toString());
+        return otherDayId;
+    }
 
     private Map<String, Object> fullCrewPayload(LocalDate day) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -311,7 +341,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         return m;
     }
 
-    private Map<String, Object> ruleBase(LocalDate start, LocalDate end) {
+    private Map<String, Object> ruleWithAllSevenWeekdayFlagsPresentAndFalse(LocalDate start, LocalDate end) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("startDate", start.toString());
         m.put("endDate", end.toString());
@@ -328,7 +358,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     private Map<String, Object> weekendRule(LocalDate start, LocalDate end) {
-        Map<String, Object> m = ruleBase(start, end);
+        Map<String, Object> m = ruleWithAllSevenWeekdayFlagsPresentAndFalse(start, end);
         m.put("everySaturday", true);
         m.put("everySunday", true);
         return m;
@@ -342,15 +372,15 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         return d;
     }
 
-    private long countPlanningDays() {
+    private long countOwnPlanningDaysExcludingTheDevSeedBand() {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_planning_day WHERE operating_club_id = ?::uuid "
-                + "AND deleted_on IS NULL AND id::text NOT LIKE '019e30c3-%'",
-                Long.class, CLUB.toString());
+                + "AND deleted_on IS NULL AND id::text NOT LIKE '" + DEV_SEED_ID_BAND + "'",
+                Long.class, DEV_SEED_CLUB.toString());
         return n == null ? 0L : n;
     }
 
-    private long countAssignments(UUID dayId) {
+    private long countAssignmentRowsBypassingEveryReadFilter(UUID dayId) {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_planning_day_assignment WHERE planning_day_id = ?::uuid",
                 Long.class, dayId.toString());
@@ -368,7 +398,7 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
 
     private String pilotToken(UUID sub) {
         mintedSubs.add(sub);
-        return jwts.mintJitReady(sub, CLUB, c -> c
+        return jwts.mintJitReady(sub, DEV_SEED_CLUB, c -> c
                 .claim("locale", "en")
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
     }

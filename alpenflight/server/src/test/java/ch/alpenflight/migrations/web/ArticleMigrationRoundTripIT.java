@@ -54,6 +54,8 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
+    private static final String ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS = "A-1";
+
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
@@ -149,9 +151,12 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
                 clubNdjson(legacyClubIdA, keyA, "Art Club A Legacy"),
                 clubNdjson(legacyClubIdB, keyB, "Art Club B Legacy")));
         tarEntries.put("ARTICLE.ndjson", concat(concat(
-                articleNdjson(liveArticleA, legacyClubIdA, "A-1", "Landing fee", false),
-                articleNdjson(softDeletedArticleA, legacyClubIdA, "A-1", "Old landing fee", true)),
-                articleNdjson(articleB, legacyClubIdB, "A-1", "Club B landing fee", false)));
+                articleNdjson(liveArticleA, legacyClubIdA,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Landing fee", false),
+                articleNdjson(softDeletedArticleA, legacyClubIdA,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Old landing fee", true)),
+                articleNdjson(articleB, legacyClubIdB,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Club B landing fee", false)));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Article Migrate IT Deployment",
@@ -194,7 +199,8 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
         Map<String, Object> clubBArticle = jdbc.queryForMap(
                 "SELECT operating_club_id FROM t_article WHERE id = ?::uuid", articleB.toString());
         assertThat(UUID.fromString(clubBArticle.get("operating_club_id").toString()))
-                .as("club B's article is tenant-scoped on club B")
+                .as("club B's article is tenant-scoped on club B — the same article_number "
+                        + "in a DIFFERENT club is no collision, the UNIQUE is per club")
                 .isEqualTo(newClubB);
 
         assertThat(jdbc.queryForObject(

@@ -150,8 +150,7 @@ class MigrationFolderConventionsTest {
 
         var violations = new ArrayList<String>();
         for (Path m : listMigrations()) {
-            String stripped = Files.readString(m, StandardCharsets.UTF_8)
-                    .replaceAll("(?m)--[^\\n]*", "");
+            String stripped = executableSqlOnly(Files.readString(m, StandardCharsets.UTF_8));
 
             Set<String> retained = new HashSet<>();
             Matcher rm = retainMarker.matcher(stripped);
@@ -189,7 +188,7 @@ class MigrationFolderConventionsTest {
     void no_business_logic_check_constraints_test_catches_synthetic_violation() {
         Pattern checkClause = Pattern.compile("\\bCHECK\\s*\\(", Pattern.CASE_INSENSITIVE);
         String synthetic = "ALTER TABLE foo ADD CONSTRAINT ck_bar CHECK (x > 0);";
-        String stripped = synthetic.replaceAll("(?m)--[^\\n]*", "");
+        String stripped = executableSqlOnly(synthetic);
         assertThat(checkClause.matcher(stripped).find())
                 .as("CHECK scanner must catch a synthetic violation")
                 .isTrue();
@@ -203,8 +202,11 @@ class MigrationFolderConventionsTest {
             "\\bCREATE\\s+USER\\b",
             "\\bCREATE\\s+ROLE\\b");
 
+    private static final String SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION = "V54__";
+
     private static boolean isRoleProvisioningException(String filename, String patternText) {
-        return filename.startsWith("V54__") && ROLE_PROVISIONING_PATTERNS.contains(patternText);
+        return filename.startsWith(SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION)
+                && ROLE_PROVISIONING_PATTERNS.contains(patternText);
     }
 
     @Test
@@ -213,8 +215,7 @@ class MigrationFolderConventionsTest {
         List<Path> migrations = listMigrations();
         var violations = new ArrayList<String>();
         for (Path m : migrations) {
-            String content = Files.readString(m, StandardCharsets.UTF_8);
-            String stripped = content.replaceAll("(?m)--[^\\n]*", "");
+            String stripped = executableSqlOnly(Files.readString(m, StandardCharsets.UTF_8));
             String filename = m.getFileName().toString();
             for (Pattern p : forbidden) {
                 if (isRoleProvisioningException(filename, p.pattern())) {
@@ -273,6 +274,10 @@ class MigrationFolderConventionsTest {
             });
         }
         return patterns;
+    }
+
+    private static String executableSqlOnly(String migrationBody) {
+        return migrationBody.replaceAll("(?m)--[^\\n]*", "");
     }
 
     private static Path urlToPath(URL url) throws IOException {

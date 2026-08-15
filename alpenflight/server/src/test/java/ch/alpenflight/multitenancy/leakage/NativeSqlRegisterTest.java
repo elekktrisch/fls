@@ -46,8 +46,10 @@ class NativeSqlRegisterTest {
             String relPath = relativize(srcMain, javaFile);
             Matcher lit = STRING_LITERAL.matcher(body);
             while (lit.find()) {
-                String literal = lit.group(1) != null ? lit.group(1) : lit.group(2);
-                String sql = literal.toLowerCase(Locale.ROOT);
+                String textBlockBody = lit.group(1);
+                String quotedBody = lit.group(2);
+                String sql = (textBlockBody != null ? textBlockBody : quotedBody)
+                        .toLowerCase(Locale.ROOT);
                 for (String table : tenantScopedTables) {
                     if (!containsTableReference(sql, table)) {
                         continue;
@@ -162,9 +164,9 @@ class NativeSqlRegisterTest {
             return LocalDate.parse(value);
         } catch (DateTimeParseException ex) {
             int space = value.indexOf(' ');
-            String head = space > 0 ? value.substring(0, space) : value;
+            String dateBeforeAnyTrailingNote = space > 0 ? value.substring(0, space) : value;
             try {
-                return LocalDate.parse(head);
+                return LocalDate.parse(dateBeforeAnyTrailingNote);
             } catch (DateTimeParseException ignored) {
                 return null;
             }

@@ -449,7 +449,8 @@ class FlightBaselineIntegrationTest {
     }
 
     @Test
-    void club_default_glider_with_motor_flight_type_id_present() throws Exception {
+    void club_default_glider_with_motor_flight_type_id_present_although_legacy_club_has_no_such_column()
+            throws Exception {
         assertColumnNullable("t_club", "default_glider_with_motor_flight_type_id", "uuid");
     }
 
@@ -619,7 +620,9 @@ class FlightBaselineIntegrationTest {
                         "SELECT legacy_int_id FROM t_flight_crew_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
-            assertThat(ids).containsExactly(1, 2, 3, 4, 5, 6, 10);
+            assertThat(ids)
+                    .as("legacy crew-type ints are sparse — 10 follows 6 with no 7..9")
+                    .containsExactly(1, 2, 3, 4, 5, 6, 10);
         }
     }
 
@@ -658,7 +661,7 @@ class FlightBaselineIntegrationTest {
     @Test
     void every_load_bearing_fk_has_supporting_index() throws Exception {
         record Fk(String table, String column) {}
-        List<Fk> required = List.of(
+        List<Fk> hotPathFksThatMustBeIndexedUnlikeAlwaysJoinedReferenceFks = List.of(
                 new Fk("t_flight",                     "operating_club_id"),
                 new Fk("t_flight",                     "aircraft_id"),
                 new Fk("t_flight",                     "start_location_id"),
@@ -675,7 +678,7 @@ class FlightBaselineIntegrationTest {
                 new Fk("t_flight_type",                "operating_club_id"),
                 new Fk("t_article",                    "operating_club_id"),
                 new Fk("t_inoutbound_point",           "location_id"));
-        for (Fk fk : required) {
+        for (Fk fk : hotPathFksThatMustBeIndexedUnlikeAlwaysJoinedReferenceFks) {
             List<String> defs = indexDefs(fk.table());
             String col = fk.column();
             boolean covered = defs.stream()

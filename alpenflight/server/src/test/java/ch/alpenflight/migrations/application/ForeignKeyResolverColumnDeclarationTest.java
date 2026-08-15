@@ -61,10 +61,18 @@ class ForeignKeyResolverColumnDeclarationTest {
             resolver.rewriteForeignKeys(mapper, row);
         }
 
-        assertThat(row.get("managing_club_id").asText()).isEqualTo(MANAGING_CLUB_NEW.toString());
-        assertThat(row.get("owner_club_id").asText()).isEqualTo(OWNER_CLUB_NEW.toString());
-        assertThat(row.get("owner_person_id").asText()).isEqualTo(OWNER_PERSON_NEW.toString());
-        assertThat(row.get("country_id").asText()).isEqualTo(COUNTRY_NEW.toString());
+        assertThat(row.get("managing_club_id").asText())
+                .as("two declared non-canonical columns pointing at ONE target both resolve")
+                .isEqualTo(MANAGING_CLUB_NEW.toString());
+        assertThat(row.get("owner_club_id").asText())
+                .isEqualTo(OWNER_CLUB_NEW.toString());
+        assertThat(row.get("owner_person_id").asText())
+                .as("a declared non-canonical column to a distinct target resolves")
+                .isEqualTo(OWNER_PERSON_NEW.toString());
+        assertThat(row.get("country_id").asText())
+                .as("a target absent from the declaration still resolves via the "
+                        + "<target>_id convention fallback")
+                .isEqualTo(COUNTRY_NEW.toString());
     }
 
     @Test
@@ -123,6 +131,10 @@ class ForeignKeyResolverColumnDeclarationTest {
         assertThat(row.get("aircraft_owner_person_id").asText())
                 .isEqualTo(ownerPersonNew.toString());
         assertThat(row.get("homebase_id").asText())
+                .as("the fan-out homebase resolves through the composite "
+                        + "(legacy_guid, club_id) map keyed on managing_club_id's PRE-REWRITE "
+                        + "legacy value, even though the same pass also rewrites "
+                        + "managing_club_id itself to the new club id")
                 .isEqualTo(homebaseNewForManagingClub.toString());
     }
 
@@ -204,8 +216,10 @@ class ForeignKeyResolverColumnDeclarationTest {
             String sql = "SELECT new_uuid FROM "
                     + LegacyIdMapTables.temporaryTableName(entry.getKey())
                     + " WHERE legacy_guid = ?";
-            PreparedStatement ps = stubStatement(entry.getValue());
-            when(connection.prepareStatement(eq(sql))).thenReturn(ps);
+            PreparedStatement statementStubBuiltBeforeTheEnclosingWhen =
+                    stubStatement(entry.getValue());
+            when(connection.prepareStatement(eq(sql)))
+                    .thenReturn(statementStubBuiltBeforeTheEnclosingWhen);
         }
         return connection;
     }
@@ -219,8 +233,10 @@ class ForeignKeyResolverColumnDeclarationTest {
             String sql = "SELECT new_uuid FROM "
                     + LegacyIdMapTables.temporaryTableName(entry.getKey())
                     + " WHERE legacy_guid = ? AND club_id = ?";
-            PreparedStatement ps = stubCompositeStatement(entry.getValue());
-            when(connection.prepareStatement(eq(sql))).thenReturn(ps);
+            PreparedStatement statementStubBuiltBeforeTheEnclosingWhen =
+                    stubCompositeStatement(entry.getValue());
+            when(connection.prepareStatement(eq(sql)))
+                    .thenReturn(statementStubBuiltBeforeTheEnclosingWhen);
         }
         return connection;
     }
@@ -232,13 +248,13 @@ class ForeignKeyResolverColumnDeclarationTest {
         PreparedStatement ps = mock(PreparedStatement.class);
         ResultSet rs = mock(ResultSet.class);
 
-        UUID[] bound = new UUID[2];
+        UUID[] boundLegacyGuidAndClubId = new UUID[2];
         boolean[] cursorConsumed = {false};
 
         org.mockito.Mockito.doAnswer(invocation -> {
             int index = invocation.getArgument(0);
             if (index == 1 || index == 2) {
-                bound[index - 1] = invocation.getArgument(1);
+                boundLegacyGuidAndClubId[index - 1] = invocation.getArgument(1);
             }
             return null;
         }).when(ps).setObject(anyInt(), org.mockito.ArgumentMatchers.any());
@@ -248,13 +264,15 @@ class ForeignKeyResolverColumnDeclarationTest {
             return rs;
         });
         when(rs.next()).thenAnswer(invocation -> {
-            CompositeKey key = new CompositeKey(bound[0], bound[1]);
+            CompositeKey key =
+                    new CompositeKey(boundLegacyGuidAndClubId[0], boundLegacyGuidAndClubId[1]);
             boolean hasRow = idMap.containsKey(key) && !cursorConsumed[0];
             cursorConsumed[0] = true;
             return hasRow;
         });
         when(rs.getObject(1, UUID.class))
-                .thenAnswer(invocation -> idMap.get(new CompositeKey(bound[0], bound[1])));
+                .thenAnswer(invocation -> idMap.get(new CompositeKey(
+                        boundLegacyGuidAndClubId[0], boundLegacyGuidAndClubId[1])));
         return ps;
     }
 

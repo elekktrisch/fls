@@ -21,6 +21,9 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
+    private static final int IS_CURRENT = 1;
+    private static final int NOT_CURRENT = 0;
+
     private final UUID personId = UUID.randomUUID();
 
     private final UUID multiCurrentCreditId = UUID.randomUUID();
@@ -83,14 +86,14 @@ class PersonFlightTimeCreditProducerDedupeIT extends PostgresIntegrationTest {
         insertCredit(orphanDeliveryCreditId);
 
         insertTx(currentNewerTxId, multiCurrentCreditId, null,
-                Timestamp.valueOf("2024-03-01 10:00:00"), 1, 7200L);
+                Timestamp.valueOf("2024-03-01 10:00:00"), IS_CURRENT, 7200L);
         insertTx(currentOlderTxId, multiCurrentCreditId, null,
-                Timestamp.valueOf("2023-01-01 09:00:00"), 1, 3600L);
+                Timestamp.valueOf("2023-01-01 09:00:00"), IS_CURRENT, 3600L);
         insertTx(historicalTxId, multiCurrentCreditId, null,
-                Timestamp.valueOf("2022-01-01 08:00:00"), 0, 1800L);
+                Timestamp.valueOf("2022-01-01 08:00:00"), NOT_CURRENT, 1800L);
 
         insertTx(orphanTxId, orphanDeliveryCreditId, unmigratedDeliveryId,
-                Timestamp.valueOf("2024-05-01 12:00:00"), 1, 5400L);
+                Timestamp.valueOf("2024-05-01 12:00:00"), IS_CURRENT, 5400L);
     }
 
     @AfterEach
