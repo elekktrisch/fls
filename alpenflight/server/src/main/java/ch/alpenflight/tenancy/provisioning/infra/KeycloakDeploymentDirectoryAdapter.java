@@ -61,7 +61,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("group create", e);
+                throw transportFailureStatusOnly("group create", e);
             }
         }
         UUID afterRace = findGroupIdByName(name);
@@ -88,7 +88,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("read user groups", e);
+            throw transportFailureStatusOnly("read user groups", e);
         }
         try {
             http.put()
@@ -99,7 +99,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             if (e.getStatusCode().value() == 409) {
                 return;
             }
-            throw transportFailure("add-user-to-group", e);
+            throw transportFailureStatusOnly("add-user-to-group", e);
         }
     }
 
@@ -122,7 +122,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("realm-role create", e);
+                throw transportFailureStatusOnly("realm-role create", e);
             }
         }
         UUID afterRace = findRealmRoleIdByName(name);
@@ -150,7 +150,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("read realm role-mappings", e);
+            throw transportFailureStatusOnly("read realm role-mappings", e);
         }
         try {
             http.post()
@@ -160,7 +160,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("grant realm role", e);
+            throw transportFailureStatusOnly("grant realm role", e);
         }
     }
 
@@ -177,7 +177,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("set user attribute", e);
+            throw transportFailureStatusOnly("set user attribute", e);
         }
     }
 
@@ -221,7 +221,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("club-admin user create", e);
+                throw transportFailureStatusOnly("club-admin user create", e);
             }
         }
         UUID existing = findUserIdByUsername(username);
@@ -263,7 +263,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             List<KeycloakNamedRef> matches = readListOf(responseBody);
             return matches.isEmpty() ? null : matches.get(0).id();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("club-admin user lookup", e);
+            throw transportFailureStatusOnly("club-admin user lookup", e);
         }
     }
 
@@ -286,7 +286,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
             return null;
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("group search", e);
+            throw transportFailureStatusOnly("group search", e);
         }
     }
 
@@ -302,7 +302,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             if (e.getStatusCode().value() == 404) {
                 return null;
             }
-            throw transportFailure("realm-role lookup", e);
+            throw transportFailureStatusOnly("realm-role lookup", e);
         }
     }
 
@@ -316,7 +316,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     body,
                     objectMapper.getTypeFactory()
                             .constructCollectionType(List.class, KeycloakNamedRef.class));
-        } catch (Exception ignored) {
+        } catch (Exception causeWithheldSoRealmPayloadCannotReachTheLogs) {
             throw new KeycloakProvisioningException("malformed JSON list from directory");
         }
     }
@@ -327,12 +327,12 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
         try {
             return objectMapper.readValue(body, KeycloakNamedRef.class);
-        } catch (Exception ignored) {
+        } catch (Exception causeWithheldSoRealmPayloadCannotReachTheLogs) {
             throw new KeycloakProvisioningException("malformed JSON object from directory");
         }
     }
 
-    private static KeycloakProvisioningException transportFailure(
+    private static KeycloakProvisioningException transportFailureStatusOnly(
             String action, HttpStatusCodeException source) {
         return new KeycloakProvisioningException(
                 "directory " + action + " refused (status " + source.getStatusCode().value() + ")");

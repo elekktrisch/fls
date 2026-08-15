@@ -54,6 +54,9 @@ public class UsersService {
     private static final String BRANCH_ATTACHED_EXISTING = "attached_existing";
     private static final String WELCOME_ATTACHED_TEMPLATE = "users/welcome-attached";
     private static final String WELCOME_ATTACHED_SUBJECT = "Welcome to AlpenFlight";
+    private static final String NO_LAST_NAME = "";
+    private static final boolean KC_USER_ENABLED_ON_CREATE = true;
+    private static final boolean INVITE_PENDING_NOT_PROJECTED = false;
 
     private final UserRepository users;
     private final UserDirectoryPort kc;
@@ -127,8 +130,9 @@ public class UsersService {
             throw new UserConflictException("username " + req.username() + " already in use in club " + existing.getClubId());
         });
 
-        Optional<DirectoryUser> existingKc = kc.findUserByEmail(
-                req.notificationEmail().toLowerCase(java.util.Locale.ROOT));
+        String lowercasedEmailAsKeycloakStoresIt =
+                req.notificationEmail().toLowerCase(java.util.Locale.ROOT);
+        Optional<DirectoryUser> existingKc = kc.findUserByEmail(lowercasedEmailAsKeycloakStoresIt);
         if (existingKc.isPresent()) {
             DirectoryUser kcUser = existingKc.get();
             if (kcUser.clubId() != null) {
@@ -149,11 +153,11 @@ public class UsersService {
                 req.username(),
                 req.notificationEmail(),
                 req.friendlyName(),
-                "",
+                NO_LAST_NAME,
                 tenant,
                 req.languageId().toString(),
                 List.of("UPDATE_PASSWORD"),
-                true));
+                KC_USER_ENABLED_ON_CREATE));
 
         users.findAnyByKeycloakSub(kcSub).ifPresent(existing -> {
             if (!existing.isActive()) {
@@ -282,16 +286,17 @@ public class UsersService {
         if (!users.languageExists(cmd.languageId())) {
             throw new IllegalArgumentException("Unknown languageId: " + cmd.languageId());
         }
-        UserResponse before = selfEditSnapshot(u);
+        UserResponse before = selfEditSnapshotWithoutKeycloakRoleRead(u);
         u.updateProfile(cmd.friendlyName(), cmd.notificationEmail(),
                 cmd.phoneNumber(), u.getRemarks(), cmd.languageId());
         User saved = users.save(u);
         users.flush();
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_USER, requireId(saved), before, selfEditSnapshot(saved)));
+                AuditedTarget.updated(AUDIT_USER, requireId(saved), before,
+                        selfEditSnapshotWithoutKeycloakRoleRead(saved)));
     }
 
-    private UserResponse selfEditSnapshot(User u) {
+    private UserResponse selfEditSnapshotWithoutKeycloakRoleRead(User u) {
         return new UserResponse(
                 UserId.of(requireId(u)),
                 u.getClubId(),
@@ -304,7 +309,7 @@ public class UsersService {
                 u.getPersonId(),
                 List.of(),
                 u.isActive(),
-                false);
+                INVITE_PENDING_NOT_PROJECTED);
     }
 
     private static UUID callerSubOrThrow(@Nullable Jwt jwt) {
@@ -450,7 +455,7 @@ public class UsersService {
                 u.getPersonId(),
                 roles,
                 u.isActive(),
-                false);
+                INVITE_PENDING_NOT_PROJECTED);
     }
 
     private static List<Role> rolesFromJwt(Jwt jwt) {
@@ -501,7 +506,7 @@ public class UsersService {
 
     private void recordRoleGrantRejected(UUID clubId, String username, Set<Role> rejected) {
         for (Role r : rejected) {
-            UUID stableTarget = stableRejectionId(clubId, username, r);
+            UUID stableTarget = stableHashedRejectionTargetId(clubId, username, r);
             auditTrail.recordFailed(AuditAction.UPDATE,
                     AuditedTarget.created(AUDIT_USER_ROLE, stableTarget,
                             new UserRoleAuditPayload("REJECT_GRANT", r.name())),
@@ -509,7 +514,7 @@ public class UsersService {
         }
     }
 
-    private static UUID stableRejectionId(UUID clubId, String username, Role role) {
+    private static UUID stableHashedRejectionTargetId(UUID clubId, String username, Role role) {
         String canonical = clubId + "|" + username.toLowerCase(java.util.Locale.ROOT) + "|" + role.name();
         return UUID.nameUUIDFromBytes(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
@@ -595,7 +600,7 @@ public class UsersService {
                 u.getPersonId(),
                 rolesForKcSub(u.getKeycloakSub()),
                 u.isActive(),
-                false);
+                INVITE_PENDING_NOT_PROJECTED);
     }
 
     private static UUID requireId(User u) {

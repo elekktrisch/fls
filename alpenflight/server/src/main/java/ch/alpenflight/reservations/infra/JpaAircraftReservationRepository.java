@@ -46,7 +46,9 @@ public interface JpaAircraftReservationRepository
             @Param("end") Instant windowEnd);
 
 
+    // RENAME: MIN_INSTANT -> WINDOW_START_WHEN_UNBOUNDED
     Instant MIN_INSTANT = Instant.parse("0001-01-01T00:00:00Z");
+    // RENAME: MAX_INSTANT -> WINDOW_END_WHEN_UNBOUNDED
     Instant MAX_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
 
     String LIST_ITEM_SELECT =
@@ -64,13 +66,13 @@ public interface JpaAircraftReservationRepository
     default List<AircraftReservationRepository.ListItemRow> findActiveListPage(
             @Nullable Instant from, @Nullable Instant to,
             boolean ascending, int pageStart, int pageSize) {
-        Instant lo = from == null ? MIN_INSTANT : from;
-        Instant hi = to == null ? MAX_INSTANT : to;
+        Instant fromOrUnbounded = from == null ? MIN_INSTANT : from;
+        Instant toOrUnbounded = to == null ? MAX_INSTANT : to;
         var page = org.springframework.data.domain.PageRequest.of(
                 pageSize <= 0 ? 0 : pageStart / pageSize, Math.max(pageSize, 1));
         return ascending
-                ? findActiveListPageAsc(lo, hi, page)
-                : findActiveListPageDesc(lo, hi, page);
+                ? findActiveListPageAsc(fromOrUnbounded, toOrUnbounded, page)
+                : findActiveListPageDesc(fromOrUnbounded, toOrUnbounded, page);
     }
 
     @Query(LIST_ITEM_SELECT + LIST_ITEM_WINDOW + "order by r.reservationStart asc, r.id asc")

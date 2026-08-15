@@ -32,7 +32,8 @@ class ProvisioningExceptionHandler {
     }
 
     @ExceptionHandler(IdempotencyOwnerMismatchException.class)
-    ResponseEntity<Void> handleOwnerMismatch(IdempotencyOwnerMismatchException e) {
+    ResponseEntity<Void> handleOwnerMismatchAsIndistinguishableUnknownKey(
+            IdempotencyOwnerMismatchException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 }

@@ -8,8 +8,10 @@ public final class KeycloakDeploymentNames {
     private static final String CLUB_INFIX = "-club-";
     private static final String ADMIN_SUFFIX = "-admin";
 
+    // ext: Keycloak user-attribute name; realm-export.json maps it to the clubId claim
     public static final String CLUB_ID_USER_ATTRIBUTE = "clubId";
 
+    // ext: realm role fixture in realm-export.json, asserted by check-realm-shape.sh
     public static final String CLUB_ADMINISTRATOR_REALM_ROLE = "CLUB_ADMINISTRATOR";
 
     private KeycloakDeploymentNames() {}

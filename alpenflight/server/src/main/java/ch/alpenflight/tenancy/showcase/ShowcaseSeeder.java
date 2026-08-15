@@ -93,6 +93,8 @@ public class ShowcaseSeeder {
     private static final UUID START_TYPE_MOTOR =
             UUID.fromString("019e2e15-2c00-7fa2-8000-000000000fa2");
 
+    private static final int BILL_GATE_CLEARING_BACKDATE_DAYS = 5;
+
 
     private static final UUID PERSON_PILOT1 =
             UUID.fromString("019e30c3-2c00-7601-8000-000000000601");
@@ -109,7 +111,7 @@ public class ShowcaseSeeder {
     private record ShowcasePrincipal(
             UUID userId, UUID keycloakSub, UUID clubId, String username, String friendlyName) {}
 
-    private static final List<ShowcasePrincipal> PRINCIPALS = List.of(
+    private static final List<ShowcasePrincipal> NET_NEW_PRINCIPALS = List.of(
             new ShowcasePrincipal(
                     UUID.fromString("019e30c3-2c00-7100-8000-000000000020"),
                     UUID.fromString("019e30c3-2c00-7200-8000-000000000020"),
@@ -150,23 +152,27 @@ public class ShowcaseSeeder {
             referenceDataSeeder.seedDefaults(CLUB_2);
             seedPrincipals();
             seedLocations();
-            seedAircraft();
+            seedAircraftScopedByManagingClub();
             seedPersonsAndLinks();
             seedFlightBaseRows();
         });
 
-        driveFlightTransitions();
+        driveFlightTransitionsAfterSeedTxCommit();
 
-        flightReportRebuild.rebuildForClub(CLUB_1);
-        flightReportRebuild.rebuildForClub(CLUB_2);
+        backfillFlightReportRowsBypassedByJdbcInsert();
 
         LOG.info("showcase-seed: done — clubs=[seed-club-1, showcase-club-2], "
                 + "reference-data seeded per club, {} net-new principal(s): {}, "
                 + "6 locations (3/club) + 5 aircraft (glider/tow/TMG/charter), "
                 + "14 flights (8 club-1 + 6 club-2; aerotow/winch/motor variants across "
                 + "NotProcessed/Valid/Invalid/Locked/DeliveryBooked via real domain transitions)",
-                PRINCIPALS.size(),
-                PRINCIPALS.stream().map(ShowcasePrincipal::username).toList());
+                NET_NEW_PRINCIPALS.size(),
+                NET_NEW_PRINCIPALS.stream().map(ShowcasePrincipal::username).toList());
+    }
+
+    private void backfillFlightReportRowsBypassedByJdbcInsert() {
+        flightReportRebuild.rebuildForClub(CLUB_1);
+        flightReportRebuild.rebuildForClub(CLUB_2);
     }
 
     private void seedShowcaseClub() {
@@ -181,7 +187,7 @@ public class ShowcaseSeeder {
     }
 
     private void seedPrincipals() {
-        for (ShowcasePrincipal p : PRINCIPALS) {
+        for (ShowcasePrincipal p : NET_NEW_PRINCIPALS) {
             jdbc.update("""
                     INSERT INTO t_user (id, club_id, username, friendly_name,
                             notification_email, language_id, keycloak_sub)
@@ -235,7 +241,7 @@ public class ShowcaseSeeder {
     }
 
 
-    private void seedAircraft() {
+    private void seedAircraftScopedByManagingClub() {
         insertAircraft(AIRCRAFT_C1_GLIDER, CLUB_1, AC_TYPE_GLIDER, "HB-3001",
                 "Schleicher", "ASK 21", "X1", false);
         insertAircraft(AIRCRAFT_C1_TOW, CLUB_1, AC_TYPE_MOTOR_AIRCRAFT, "HB-TOW1",
@@ -419,7 +425,7 @@ public class ShowcaseSeeder {
         club.forEach(this::linkTowIfPaired);
     }
 
-    private void driveFlightTransitions() {
+    private void driveFlightTransitionsAfterSeedTxCommit() {
         List<FlightSpec> club1 = club1Matrix();
         List<FlightSpec> club2 = club2Matrix();
         Tenants.runAs(CLUB_1, () ->
@@ -543,7 +549,7 @@ public class ShowcaseSeeder {
             case DELIVERY_BOOKED -> {
                 transition(id, cascade, FlightProcessState.VALID, TransitionTrigger.VALIDATOR);
                 transition(id, cascade, FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB);
-                backdateLockedAt(spec);
+                backdateLockedAtToClearBillGate(spec);
                 transition(id, cascade, FlightProcessState.DELIVERY_PREPARED, TransitionTrigger.DELIVERY_PREP);
                 transition(id, cascade, FlightProcessState.DELIVERY_BOOKED, TransitionTrigger.BOOKING);
             }
@@ -575,8 +581,9 @@ public class ShowcaseSeeder {
         }
     }
 
-    private void backdateLockedAt(FlightSpec spec) {
-        Instant lockedDay = LocalDate.now(ZoneOffset.UTC).minusDays(5)
+    private void backdateLockedAtToClearBillGate(FlightSpec spec) {
+        Instant lockedDay = LocalDate.now(ZoneOffset.UTC)
+                .minusDays(BILL_GATE_CLEARING_BACKDATE_DAYS)
                 .atStartOfDay().toInstant(ZoneOffset.UTC);
         jdbc.update(
                 "UPDATE t_flight SET locked_at = ? WHERE id = ?::uuid AND locked_at IS NOT NULL",

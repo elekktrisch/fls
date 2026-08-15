@@ -30,6 +30,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Component
 public class KeycloakAdminClient implements UserDirectoryPort {
 
+    private static final List<UserDirectoryRow> NO_USERS_FOR_UNKNOWN_REALM_ROLE = List.of();
+    private static final List<RealmRoleRef> NO_REALM_ROLES_FOR_MISSING_KC_IDENTITY = List.of();
+
     private final RestClient http;
     private final KeycloakAdminProperties props;
     private final ObjectMapper objectMapper;
@@ -120,7 +123,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         UserMutableWire current = readUserForMerge(sub);
         Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         attrs.put("clubId", List.of(clubId.toString()));
-        putMergedUser(sub, current, attrs, "write clubId attribute");
+        putUserResendingFieldsKeycloakWouldClear(sub, current, attrs, "write clubId attribute");
     }
 
     @Override
@@ -131,10 +134,10 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         if (attrs.remove("clubId") == null) {
             return;
         }
-        putMergedUser(sub, current, attrs, "clear clubId attribute");
+        putUserResendingFieldsKeycloakWouldClear(sub, current, attrs, "clear clubId attribute");
     }
 
-    private void putMergedUser(
+    private void putUserResendingFieldsKeycloakWouldClear(
             UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
         Map<String, Object> body = new HashMap<>();
         if (current.username() != null) {
@@ -243,7 +246,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             return readListOf(body, UserWire.class).stream().map(UserWire::toRow).toList();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 404) {
-                return List.of();
+                return NO_USERS_FOR_UNKNOWN_REALM_ROLE;
             }
             throw new UserDirectoryException(
                     "Keycloak users-by-role (status " + e.getStatusCode().value() + ")", e);
@@ -260,7 +263,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             return readListOf(body, RealmRoleWire.class).stream().map(RealmRoleWire::toRef).toList();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 404) {
-                return List.of();
+                return NO_REALM_ROLES_FOR_MISSING_KC_IDENTITY;
             }
             throw new UserDirectoryException(
                     "Keycloak read role-mappings (status " + e.getStatusCode().value() + ")", e);

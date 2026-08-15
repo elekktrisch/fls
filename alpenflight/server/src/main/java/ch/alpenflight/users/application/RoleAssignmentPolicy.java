@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class RoleAssignmentPolicy {
 
-    private static final Set<Role> CLUB_ADMIN_GRANTABLE = Set.of(
+    private static final Set<Role> CLUB_ADMIN_GRANTABLE_NEVER_SYSTEM_ADMINISTRATOR = Set.of(
             Role.CLUB_ADMINISTRATOR,
             Role.FLIGHT_OPERATOR,
             Role.PILOT,
@@ -28,7 +28,7 @@ public class RoleAssignmentPolicy {
         if (!callerRoles.contains(Role.CLUB_ADMINISTRATOR)) {
             return false;
         }
-        return targetRoles.stream().allMatch(CLUB_ADMIN_GRANTABLE::contains);
+        return targetRoles.stream().allMatch(CLUB_ADMIN_GRANTABLE_NEVER_SYSTEM_ADMINISTRATOR::contains);
     }
 
     public Set<Role> rejectedRoles(@org.jspecify.annotations.Nullable Jwt callerJwt, Collection<Role> targetRoles) {
@@ -36,7 +36,7 @@ public class RoleAssignmentPolicy {
         if (callerRoles.contains(Role.CLUB_ADMINISTRATOR)
                 && !callerRoles.contains(Role.SYSTEM_ADMINISTRATOR)) {
             return targetRoles.stream()
-                    .filter(r -> !CLUB_ADMIN_GRANTABLE.contains(r))
+                    .filter(r -> !CLUB_ADMIN_GRANTABLE_NEVER_SYSTEM_ADMINISTRATOR.contains(r))
                     .collect(Collectors.toUnmodifiableSet());
         }
         return Set.copyOf(targetRoles);

@@ -11,8 +11,11 @@ import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListItem
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListRow;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.TypeListItem;
 import java.util.Objects;
+import java.util.UUID;
 
 final class AircraftReservationMapper {
+
+    private static final UUID OPERATING_CLUB_ID_ABSENT_FROM_LIST_ROW = new UUID(0L, 0L);
 
     private AircraftReservationMapper() {}
 
@@ -41,7 +44,7 @@ final class AircraftReservationMapper {
     static AircraftReservationDetail toDetail(ListRow row) {
         return new AircraftReservationDetail(
                 row.id(),
-                new java.util.UUID(0L, 0L),
+                OPERATING_CLUB_ID_ABSENT_FROM_LIST_ROW,
                 AircraftId.of(row.aircraftId()),
                 PersonId.of(row.pilotPersonId()),
                 PersonId.ofNullable(row.secondCrewPersonId()),

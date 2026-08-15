@@ -155,12 +155,17 @@ public class DeploymentProvisioningService {
         return subs;
     }
 
+    // RENAME: MIGRATED_ADMIN_FIRST_NAME -> VERIFY_PROFILE_PLACEHOLDER_FIRST_NAME
     static final String MIGRATED_ADMIN_FIRST_NAME = "Migrated";
 
+    // RENAME: MIGRATED_ADMIN_LAST_NAME -> VERIFY_PROFILE_PLACEHOLDER_LAST_NAME
     static final String MIGRATED_ADMIN_LAST_NAME = "Admin";
 
+    private static final String NON_ROUTABLE_MIGRATED_ADMIN_MAIL_DOMAIN =
+            "@migrated.alpenflight.local";
+
     static String migratedClubAdminUsername(UUID clubId) {
-        return "migrated-admin+" + clubId + "@migrated.alpenflight.local";
+        return "migrated-admin+" + clubId + NON_ROUTABLE_MIGRATED_ADMIN_MAIL_DOMAIN;
     }
 
     private ProvisioningResult loadResult(Deployment deployment) {
