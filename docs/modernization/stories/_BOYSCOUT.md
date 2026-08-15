@@ -17,6 +17,89 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
+
+- **[SCHEMA-DECISIONS-NOTE]** T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
+  other batch this one had **no rescue move**: an applied index/constraint cannot be renamed to carry its reason
+  (that needs `ALTER … RENAME TO` in a NEW migration — a schema change), and an applied migration's DDL must not
+  be edited. So the rationale below now lives only in git. **111 `COMMENT ON` DDL statements survive** (string
+  literals, untouchable by the stripper), so the column-level contracts they carry — e.g. the aircraft
+  ownership-exclusivity XOR on `t_aircraft.aircraft_owner_person_id` — are still in the DB catalog; everything
+  below is what was in `--` prose only. Proposal: one `docs/modernization/schema-decisions.md`, sourced from the
+  106 above-threshold entries reviewed at T-12, covering:
+  - **Partial-UNIQUE predicates and what each one's identity claim is.** `ux_location_legacy_guid_club` (V23:32) /
+    `ux_iop_legacy_guid_location` (V24:34) — one fan-out replica per (shared legacy row, club / parent replica);
+    re-ingest UPSERTs onto this index instead of colliding on the `id` PK (the J-0 23505); predicate excludes both
+    soft-deleted AND non-migrated (`legacy_guid IS NULL`) rows. `ux_deployment_owner_active` (V14:34) — sandbox +
+    deleting deliberately excluded (shared-fixed singleton; mid-cascade users may legitimately re-ingest).
+    `ux_migration_run_upload_active` (V20:31) and `ux_join_request_alive` (V49:31) — the uppercase state literal in
+    the predicate is load-bearing (`@Enumerated(STRING)` writes `name()`). `ux_pftc_transaction_current` (V46:58) —
+    structural backstop for the mapper's keep-first dedupe. V11 flight-type name + V7 location ICAO — active-only so
+    soft-delete-then-recreate-same-name works; V7 also retired the S-049 "null out icao_code on soft-delete"
+    workaround that had traded audit fidelity for it.
+  - **Tenant-FK constraint NAMES are a guard contract.** `LeakageSweepIT` reconstructs `fk_<t_-stripped-table>_<tenant-col>`
+    and pins its fail-closed write to that exact string. V32/V33/V41/V43/V44 exist solely to realign ad-hoc V4 names.
+    Renaming a tenant FK off that shape silently disarms the leakage guard for that aggregate — nothing states this now.
+  - **Deliberately absent CHECK constraints, with the Java owner that replaced each.** V3: 14 flight CHECKs →
+    Flight aggregate / TimeWindow / FlightDate / RunwayCode / CouponNumber VOs; aircraft + location + counter CHECKs →
+    their VOs. V4:239 `ck_arv_end_after_start` → `AircraftReservation.validateDuration()` **because the degenerate
+    lower==upper case yields an empty `tstzrange` that GiST silently misses** — the DB cannot catch it. V4: `EXCLUDE
+    USING gist` deliberately NOT applied (maintenance-vs-flight / multi-pilot / charter overlaps are legitimate).
+    V4:493 `delivery_item.total_amount` GENERATED removed, and the named future answer is a denormalised
+    `delivery.total_amount_chf` written by `Delivery.book()`, never a re-introduced GENERATED column. V13: air state
+    is computed, never stored (sacred cow). V38: read-model rows written by `FlightReportProjector` via `@DomainEvents`,
+    never triggers.
+  - **Columns nullable on purpose, and what NOT NULL would break.** V23/V24 `legacy_guid` (clean-seed + API rows have
+    no legacy origin). V25 `counter_unit_type.legacy_int_id` — LANDINGS/STARTS are AlpenFlight-canonical with no legacy
+    equivalent and fabricating a key would be a **false entry in the reversible id-map**; the UNIQUE still works because
+    Postgres treats NULLs as distinct. V15 `idempotency_key` UNIQUE-but-nullable (multiple NULLs allowed → no synthetic
+    backfill needed). V50 `club.logo_url` and V48 `join_code`'s DEFAULT — both shaped so the cutover CLUB reconcile
+    (`INSERT … ON CONFLICT (id) DO UPDATE`, `EntityStreamIngestor#buildInsertStatement`) leaves the provisioning-owned
+    column intact because the candidate tuple omits it. V53 `delivery_item.article_id` (a free-typed legacy
+    ArticleNumber must be KEPT with NULL, not 23503 the whole bundle). V21, V57, V9 `tenant_club_id`.
+  - **Backfill ordering + guards.** V7 add-nullable → backfill → SET NOT NULL → FK, with the backfill *defensive only*
+    (V3 seeds no locations, so a fresh DB hits zero rows). V10's owner→managing fallback to seed-club-1. V14's
+    `deployment_id` DEFAULT catches direct-JDBC test fixtures predating the column. **V54:29** — the whole app-role
+    split is guarded on the migrator holding CREATEROLE and NO-OPs with a NOTICE on this LAN dev cluster; roles are
+    cluster-global while Flyway history is per-DB, so every step must stay create-if-not-exists.
+  - **Index-shape debt that was recorded in prose.** V4:254 `ix_arv_location` carried a literal `covers tombstones:
+    deferred-perf-tuning S-108` marker (DESC ordering + partial predicate pending production-scale plan analysis).
+    V38's read-model tables have no `deleted_on`, so every index covers all rows by construction. CONVENTIONS.md
+    (as amended by T-02) now wants that reason in the index NAME, which an applied index cannot carry.
+  - **Immutability + forensic anchors.** "Never amend a shipped migration — ship V<n+1>" (V1/V2/V3/V4 headers) — the
+    exact rule this journey just paid for with a `flyway repair`. Canonical UUIDv7 seed literals: generator
+    `server/src/test/resources/scripts/GenerateCanonicalUuids.java`, ground truth `reference-seeds-canonical-uuids.json`,
+    "DO NOT regenerate after ship" (V42 continues the family at offset 18_000). `legacy_int_id … UNIQUE` retained
+    forever for the `ReferenceLookupResolver` point lookup (V22/V25 backfill the tables V2 missed). V18's forensic
+    triple, and its `legacy_orphan_actor_id` with **intentionally no FK to `t_user`** (ADR 0007 forbids the shadow).
+  - **Hard do-not-add fences.** V2's AUTH-ARTIFACTS block — never add `password_hash` / `refresh_token` / `mfa_secret`
+    / `lockout_enabled` / `email_confirmed` to `t_user`; Keycloak owns them, and a local `role`/`user_role` table would
+    be parallel truth. That block was a PR-review tripwire and is now gone. V3: `flight_aircraft_type_id` is SMALLINT
+    (1,2,4; 3 skipped) and deliberately not an FK — ~70 MB saved at ~5M rows. V4: `tstzrange` not `tsrange` because the
+    implicit `::timestamp` cast is session-TZ-dependent hence NOT IMMUTABLE and Postgres rejects it in a generation
+    expression; `reservation_range` is GENERATED and must never be inserted.
+  - **Dev-seed-in-prod posture** (V31/V34/V36 headers, the most-repeated block in the batch). V5 inserts seed-club-1
+    **unconditionally, no profile guard**, and Flyway runs one `classpath:db/migration` location across every profile —
+    so every dev seed lands in production too. It is inert there **only** because reads are `@TenantId`-filtered and
+    real tenants get distinct UUIDs; the guarantee is NOT a Flyway location fence and NOT "seed-club-1 is absent in
+    prod". Accepted cross-cutting debt with no other written home. Same block carries the **seed-band rule**: controller
+    ITs must scope pre-clean to `id::text NOT LIKE '019e30c3-%'` or they wipe the seeds (J-5 T-34 wiped V31), plus the
+    reasons behind V36's VALID process_state (NotProcessed leaked into the J-3 pending tile, 4→5), V34's LSPL-not-LSZW
+    ICAO, "HB-SEED", and V39/V45's relative-date pinning.
+  - **Tenancy classifications that no code states.** V46 PersonFlightTimeCredit is INDIRECTLY tenant-scoped (no
+    `club_id`; the repo joins the owning Person's PersonClub). V16 `t_migration_upload` is pre-tenant, so the
+    `@TenantId`-driven S-024 sweep does not touch it. V55/V56 + `t_deployment` / `t_migration_run` are platform tables
+    with deliberately no tenant column. V3/V4: Aircraft cross-tenant (2026-05-16 amendment), Flight tenant-scoped by
+    per-flight `operating_club_id` **not** denormalised from aircraft (charter case).
+  - **Security posture.** V54's INSERT,SELECT-only app-role grant on `t_mutation_audit_event` (and V9:76 flagging it as
+    the security-reviewed exception to the GRANT/REVOKE ban); V16's Tink AEAD with `uploadId` bound as `associatedData`;
+    V4's 9 frozen `recipient_*` columns per Swiss OR Art. 957a with DSAR exemption at `process_state_id >= 20`.
+  - **Supersession chains** (why V52 undid V4+V19's delivery-number model, why V53 dropped the never-wired counter, why
+    V47 dropped V2's email-template table, why V43's `ALTER TYPE` was safe, why V58 is DATE not TIMESTAMPTZ, why V56
+    ships ShedLock's table with `@EnableSchedulerLock` off). Recoverable from git, expensive to reconstruct.
+  *(seam: one new `docs/modernization/schema-decisions.md`; source = `.comment-strip/manifest/migrations-sql.jsonl`,
+  106 entries at score ≥ 8, all reviewed at T-12)*
+
 ## Pending (filed by /do-ship J-31 T-11, 2026-08-15)
 
 - **[MONEY-PROOF-CAPTION-OVERCLAIMS]** `deliveries-write-parity.spec.ts`'s `[money-proof]` **gallery caption**
