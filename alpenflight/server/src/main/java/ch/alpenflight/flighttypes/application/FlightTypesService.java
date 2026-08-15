@@ -74,7 +74,8 @@ public class FlightTypesService {
                 req.isCouponNumberRequired(),
                 req.isForAircraftReservationType(),
                 req.minNrOfAircraftSeatsRequired());
-        FlightTypeDetail created = FlightTypeMapper.toDetail(persist(ft, name));
+        FlightTypeDetail created =
+                FlightTypeMapper.toDetail(saveAndFlushTranslatingDuplicateName(ft, name));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -108,7 +109,8 @@ public class FlightTypesService {
                 req.isForAircraftReservationType());
         ft.changeMinSeats(req.minNrOfAircraftSeatsRequired());
 
-        FlightTypeDetail after = FlightTypeMapper.toDetail(persist(ft, name));
+        FlightTypeDetail after =
+                FlightTypeMapper.toDetail(saveAndFlushTranslatingDuplicateName(ft, name));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -128,7 +130,7 @@ public class FlightTypesService {
                 .orElseThrow(() -> new FlightTypeNotFoundException(id));
     }
 
-    private FlightType persist(FlightType ft, String name) {
+    private FlightType saveAndFlushTranslatingDuplicateName(FlightType ft, String name) {
         try {
             FlightType saved = flightTypes.save(ft);
             flightTypes.flush();
@@ -144,7 +146,8 @@ public class FlightTypesService {
         }
     }
 
-    private void requireCodeAvailable(@Nullable String rawCode, @Nullable FlightTypeId self) {
+    private void requireCodeAvailable(@Nullable String rawCode,
+                                      @Nullable FlightTypeId updatedRowIdOrNullOnCreate) {
         if (rawCode == null) {
             return;
         }
@@ -153,7 +156,8 @@ public class FlightTypesService {
             return;
         }
         flightTypes.findActiveByCode(code)
-                .filter(other -> self == null || !sameRow(other, self))
+                .filter(other -> updatedRowIdOrNullOnCreate == null
+                        || !sameRow(other, updatedRowIdOrNullOnCreate))
                 .ifPresent(other -> {
                     throw new DuplicateFlightTypeCodeException(code);
                 });

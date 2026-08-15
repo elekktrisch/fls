@@ -47,12 +47,12 @@ public class LifecycleStateFilterAspect {
                 continue;
             }
             deploymentContext.forEachClub(deploymentId, club ->
-                    invokeJobBody(pjp));
+                    invokeJobBodyInCurrentClubTenantScope(pjp));
         }
         return null;
     }
 
-    private static void invokeJobBody(ProceedingJoinPoint pjp) {
+    private static void invokeJobBodyInCurrentClubTenantScope(ProceedingJoinPoint pjp) {
         try {
             pjp.proceed();
         } catch (Throwable t) {

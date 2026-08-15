@@ -24,8 +24,12 @@ public class HttpOgnDeviceDatabase implements OgnDeviceDatabase {
 
     public HttpOgnDeviceDatabase(@Value("${alpenflight.ogn.ddb-url:" + DEFAULT_URL + "}")
                                  String ddbUrl) {
-        this.restClient = RestClient.create();
+        this.restClient = newRestClientWithoutTheTestClasspathOnlyAutoConfiguredBuilder();
         this.ddbUrl = ddbUrl;
+    }
+
+    private static RestClient newRestClientWithoutTheTestClasspathOnlyAutoConfiguredBuilder() {
+        return RestClient.create();
     }
 
     @Override

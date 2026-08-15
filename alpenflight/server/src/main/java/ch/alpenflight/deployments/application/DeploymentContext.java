@@ -27,6 +27,7 @@ public class DeploymentContext {
         this.clubs = clubs;
     }
 
+    // RENAME: findDeployment -> findDeploymentsInLifecycleStates
     public List<Deployment> findDeployment(LifecycleState... states) {
         if (states.length == 0) {
             return List.of();

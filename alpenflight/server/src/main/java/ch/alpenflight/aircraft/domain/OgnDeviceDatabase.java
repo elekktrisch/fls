@@ -5,6 +5,7 @@ import org.jspecify.annotations.Nullable;
 
 public interface OgnDeviceDatabase {
 
+    // RENAME: fetchDevices -> fetchDevicesOrEmptyWhenRegistryUnreachable
     List<OgnDevice> fetchDevices();
 
     record OgnDevice(@Nullable String deviceType,

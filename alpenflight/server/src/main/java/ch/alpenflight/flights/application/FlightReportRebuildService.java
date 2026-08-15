@@ -43,16 +43,16 @@ public class FlightReportRebuildService {
             List<UUID> live = flights.findAllLiveIds();
             Set<UUID> affected = new LinkedHashSet<>(live);
             List<UUID> existingRows = rows.findAllFlightIds();
-            int orphans = 0;
+            int orphanRowsWithoutLiveFlight = 0;
             for (UUID rowId : existingRows) {
                 if (affected.add(rowId)) {
-                    orphans++;
+                    orphanRowsWithoutLiveFlight++;
                 }
             }
             for (UUID flightId : affected) {
                 projector.refresh(flightId);
             }
-            return new RebuildResult(clubId, live.size(), orphans);
+            return new RebuildResult(clubId, live.size(), orphanRowsWithoutLiveFlight);
         }));
         if (result == null) {
             throw new IllegalStateException(

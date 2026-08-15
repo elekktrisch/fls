@@ -142,7 +142,7 @@ public class FlightsService {
         flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
-        applyTowLink(flight, req);
+        applyTowLinkPreservingLinkWhenRequestOmitsIt(flight, req);
         Flight saved = repository.save(flight);
         FlightDetail after = mapper.toDetail(saved);
         audit.record(AuditAction.UPDATE,
@@ -162,6 +162,7 @@ public class FlightsService {
     }
 
     @Transactional(readOnly = true)
+    // RENAME: countAllFlights -> countFlightsInCurrentTenant
     public long countAllFlights() {
         return repository.countAll();
     }
@@ -240,12 +241,15 @@ public class FlightsService {
         }
     }
 
-    private void applyTowLink(Flight flight, FlightUpdateRequest req) {
-        if (Boolean.TRUE.equals(req.unlinkTowFlight())) {
+    private void applyTowLinkPreservingLinkWhenRequestOmitsIt(Flight flight,
+                                                              FlightUpdateRequest req) {
+        boolean explicitUnlinkWinsOverAnyTowFlightId = Boolean.TRUE.equals(req.unlinkTowFlight());
+        if (explicitUnlinkWinsOverAnyTowFlightId) {
             flight.unlinkTow();
             return;
         }
-        if (req.towFlightId() == null) {
+        boolean requestOmitsTowLink = req.towFlightId() == null;
+        if (requestOmitsTowLink) {
             return;
         }
         FlightId towId = req.towFlightId();

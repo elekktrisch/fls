@@ -332,11 +332,12 @@ public class Deployment {
     }
 
     List<DeploymentLifecycleTransitioned> domainEventsForTest() {
-        UUID effectiveId = this.id == null ? SANDBOX_ID : this.id;
+        UUID idOrSandboxSentinel = this.id == null ? SANDBOX_ID : this.id;
         List<DeploymentLifecycleTransitioned> snapshots = new ArrayList<>(pendingTransitions.size());
         for (PendingTransition pending : pendingTransitions) {
             snapshots.add(new DeploymentLifecycleTransitioned(
-                    effectiveId, pending.fromState(), pending.toState(), pending.occurredAt()));
+                    idOrSandboxSentinel, pending.fromState(), pending.toState(),
+                    pending.occurredAt()));
         }
         return List.copyOf(snapshots);
     }

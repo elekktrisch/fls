@@ -36,6 +36,7 @@ public final class Immatriculation {
         return new Immatriculation(upper);
     }
 
+    // RENAME: normalized -> storedUppercaseKeepingHyphens
     public String normalized() {
         return stored;
     }

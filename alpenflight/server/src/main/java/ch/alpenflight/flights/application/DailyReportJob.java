@@ -119,11 +119,12 @@ public class DailyReportJob implements BusinessJob {
     }
 
     private List<Flight> reportableFlights(Instant now) {
-        LocalDate from = LocalDate.ofInstant(now, ZoneOffset.UTC).minusDays(REPORT_WINDOW_DAYS);
+        LocalDate oldestStillReportableFlightDate =
+                LocalDate.ofInstant(now, ZoneOffset.UTC).minusDays(REPORT_WINDOW_DAYS);
         List<Flight> reportable = new ArrayList<>();
         for (Flight flight : flights.findUnreported()) {
             LocalDate date = flight.getFlightDate();
-            if (date != null && !date.isBefore(from)) {
+            if (date != null && !date.isBefore(oldestStillReportableFlightDate)) {
                 reportable.add(flight);
             }
         }

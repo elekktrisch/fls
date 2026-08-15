@@ -90,7 +90,7 @@ public class JoinRequestDecisionsService {
             UUID personId = cmd.personId() == null
                     ? autoCreatePerson(clubId, request)
                     : linkExistingPerson(cmd.personId());
-            User user = User.register(clubId, sub, friendlyToUsername(request), request.getFriendlyName(),
+            User user = User.register(clubId, sub, usernameFromSignupEmail(request), request.getFriendlyName(),
                     request.getEmail(), languages.resolve(null), personId);
             User savedUser = users.save(user);
             users.flush();
@@ -130,7 +130,7 @@ public class JoinRequestDecisionsService {
     }
 
     private UUID autoCreatePerson(UUID clubId, JoinRequest request) {
-        Person p = Person.register(firstNameOf(request), lastNameOf(request), null);
+        Person p = Person.register(firstNameOf(request), nonBlankLastNameOf(request), null);
         p.joinClub(clubId, null, null, PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
         Person saved = persons.save(p);
         persons.flush();
@@ -163,7 +163,7 @@ public class JoinRequestDecisionsService {
                         "Approving admin has no resolved user row — refusing decision"));
     }
 
-    private static String friendlyToUsername(JoinRequest request) {
+    private static String usernameFromSignupEmail(JoinRequest request) {
         return request.getEmail();
     }
 
@@ -173,7 +173,7 @@ public class JoinRequestDecisionsService {
         return space > 0 ? name.substring(0, space) : name;
     }
 
-    private static String lastNameOf(JoinRequest request) {
+    private static String nonBlankLastNameOf(JoinRequest request) {
         String name = request.getFriendlyName().strip();
         int space = name.indexOf(' ');
         return space > 0 && space + 1 < name.length() ? name.substring(space + 1).strip() : name;

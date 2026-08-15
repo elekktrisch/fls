@@ -277,25 +277,25 @@ public class Flight {
         if (newCrew == null) {
             throw new IllegalArgumentException("newCrew must not be null");
         }
-        Map<String, CrewMemberSpec> desired = new LinkedHashMap<>();
+        Map<String, CrewMemberSpec> desiredByUniqueCrewKey = new LinkedHashMap<>();
         for (CrewMemberSpec spec : newCrew) {
-            String key = spec.personId() + "|" + spec.flightCrewTypeId();
-            if (desired.putIfAbsent(key, spec) != null) {
+            String uniqueCrewKey = spec.personId() + "|" + spec.flightCrewTypeId();
+            if (desiredByUniqueCrewKey.putIfAbsent(uniqueCrewKey, spec) != null) {
                 throw new DuplicateCrewMemberException(
-                        "Duplicate crew row (personId, flightCrewTypeId)=" + key);
+                        "Duplicate crew row (personId, flightCrewTypeId)=" + uniqueCrewKey);
             }
         }
-        Map<String, FlightCrew> existing = new LinkedHashMap<>();
+        Map<String, FlightCrew> liveRowsByUniqueCrewKey = new LinkedHashMap<>();
         for (FlightCrew c : this.crew) {
-            existing.put(c.getPersonId() + "|" + c.getFlightCrewTypeId(), c);
+            liveRowsByUniqueCrewKey.put(c.getPersonId() + "|" + c.getFlightCrewTypeId(), c);
         }
-        this.crew.removeIf(c -> !desired.containsKey(
+        this.crew.removeIf(c -> !desiredByUniqueCrewKey.containsKey(
                 c.getPersonId() + "|" + c.getFlightCrewTypeId()));
-        for (Map.Entry<String, CrewMemberSpec> e : desired.entrySet()) {
+        for (Map.Entry<String, CrewMemberSpec> e : desiredByUniqueCrewKey.entrySet()) {
             CrewMemberSpec spec = e.getValue();
-            FlightCrew kept = existing.get(e.getKey());
-            if (kept != null) {
-                kept.updateOperationalFields(
+            FlightCrew keptRowMutatedInPlaceNeverReinserted = liveRowsByUniqueCrewKey.get(e.getKey());
+            if (keptRowMutatedInPlaceNeverReinserted != null) {
+                keptRowMutatedInPlaceNeverReinserted.updateOperationalFields(
                         spec.beginFlightDatetime(),
                         spec.endFlightDatetime(),
                         spec.beginInstructionDatetime(),

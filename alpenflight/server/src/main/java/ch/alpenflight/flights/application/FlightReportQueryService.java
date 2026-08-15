@@ -30,9 +30,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FlightReportQueryService {
 
-    private static final short TYPE_GLIDER = 1;
-    private static final short TYPE_TOW = 2;
-    private static final short TYPE_MOTOR = 4;
+    private static final short LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final short LEGACY_AIRCRAFT_TYPE_TOW = 2;
+    private static final short LEGACY_AIRCRAFT_TYPE_MOTOR = 4;
+
+    private static final int LEGACY_START_TYPE_TOWING_BY_AIRCRAFT = 1;
+    private static final int LEGACY_START_TYPE_WINCH_LAUNCH = 2;
+    private static final int LEGACY_START_TYPE_SELF_START = 3;
+    private static final int LEGACY_START_TYPE_EXTERNAL_START = 4;
+    private static final int LEGACY_START_TYPE_MOTOR_FLIGHT_START = 5;
 
     public static final int DEFAULT_PAGE_SIZE = 100;
     public static final int MAX_PAGE_SIZE = 500;
@@ -98,9 +104,9 @@ public class FlightReportQueryService {
         for (SummaryRow r : rows) {
             if (r.isPilotOrStudent()) {
                 switch (r.aircraftType()) {
-                    case TYPE_GLIDER -> pilotGlider.addPerson(r);
-                    case TYPE_MOTOR -> pilotMotor.addPerson(r);
-                    case TYPE_TOW -> pilotTow.addPerson(r);
+                    case LEGACY_AIRCRAFT_TYPE_GLIDER -> pilotGlider.addPerson(r);
+                    case LEGACY_AIRCRAFT_TYPE_MOTOR -> pilotMotor.addPerson(r);
+                    case LEGACY_AIRCRAFT_TYPE_TOW -> pilotTow.addPerson(r);
                     default -> { }
                 }
             }
@@ -168,45 +174,52 @@ public class FlightReportQueryService {
         private long seconds;
 
         void addPerson(SummaryRow r) {
-            int onStart = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
-            ldgs += ldgBase(r, r.noLdgTimeInformation()) + onStart;
-            starts += ldgBase(r, r.noStartTimeInformation()) + onStart;
+            int ldgsOnStartLocation = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
+            ldgs += ldgBaseAlsoUsedForStarts(r, r.noLdgTimeInformation()) + ldgsOnStartLocation;
+            starts += ldgBaseAlsoUsedForStarts(r, r.noStartTimeInformation()) + ldgsOnStartLocation;
             flights++;
             seconds += r.durationSeconds();
         }
 
-        void addLocation(SummaryRow r, UUID loc) {
-            boolean startHere = Objects.equals(r.startLocationId(), loc);
-            boolean ldgHere = Objects.equals(r.ldgLocationId(), loc);
-            int onStart = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
+        void addLocation(SummaryRow r, UUID reportLocationId) {
+            boolean startedAtReportLocation = Objects.equals(r.startLocationId(), reportLocationId);
+            boolean landedAtReportLocation = Objects.equals(r.ldgLocationId(), reportLocationId);
+            int ldgsOnStartLocation = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
 
-            ldgs += (ldgHere ? ldgBase(r, r.noLdgTimeInformation()) : 0)
-                    + (startHere ? onStart : 0);
-            starts += locationStarts(r, startHere, ldgHere) + (startHere ? onStart : 0);
+            ldgs += (landedAtReportLocation ? ldgBaseAlsoUsedForStarts(r, r.noLdgTimeInformation()) : 0)
+                    + (startedAtReportLocation ? ldgsOnStartLocation : 0);
+            starts += locationStarts(r, startedAtReportLocation, landedAtReportLocation)
+                    + (startedAtReportLocation ? ldgsOnStartLocation : 0);
             flights++;
             seconds += r.durationSeconds();
         }
 
-        private static int locationStarts(SummaryRow r, boolean startHere, boolean ldgHere) {
+        private static int locationStarts(SummaryRow r,
+                                          boolean startedAtReportLocation,
+                                          boolean landedAtReportLocation) {
             boolean hasNr = r.nrOfLdgs() != null;
             int nr = hasNr ? r.nrOfLdgs() : 0;
-            if (startHere && ldgHere) {
+            boolean sameAirfield = startedAtReportLocation && landedAtReportLocation;
+            boolean flewIn = !startedAtReportLocation && landedAtReportLocation;
+            boolean flewOut = startedAtReportLocation && !landedAtReportLocation;
+            if (sameAirfield) {
                 return hasNr ? nr : (r.noStartTimeInformation() ? 1 : 0);
             }
-            if (ldgHere) {
+            if (flewIn) {
                 return hasNr ? nr - 1 : 0;
             }
-            if (startHere) {
+            if (flewOut) {
                 return nr;
             }
             return 0;
         }
 
-        private static int ldgBase(SummaryRow r, boolean fallbackFlag) {
+        private static int ldgBaseAlsoUsedForStarts(SummaryRow r,
+                                                    boolean countsAsOneWhenNoTimeInformation) {
             if (r.nrOfLdgs() != null) {
                 return r.nrOfLdgs();
             }
-            return fallbackFlag ? 1 : 0;
+            return countsAsOneWhenNoTimeInformation ? 1 : 0;
         }
 
         FlightReportSummary toSummary(String label) {
@@ -288,11 +301,11 @@ public class FlightReportQueryService {
             return null;
         }
         return switch (code) {
-            case "AEROTOW" -> 1;
-            case "WINCH_LAUNCH" -> 2;
-            case "SELF_START" -> 3;
-            case "EXTERNAL_START" -> 4;
-            case "MOTOR" -> 5;
+            case "AEROTOW" -> LEGACY_START_TYPE_TOWING_BY_AIRCRAFT;
+            case "WINCH_LAUNCH" -> LEGACY_START_TYPE_WINCH_LAUNCH;
+            case "SELF_START" -> LEGACY_START_TYPE_SELF_START;
+            case "EXTERNAL_START" -> LEGACY_START_TYPE_EXTERNAL_START;
+            case "MOTOR" -> LEGACY_START_TYPE_MOTOR_FLIGHT_START;
             default -> null;
         };
     }

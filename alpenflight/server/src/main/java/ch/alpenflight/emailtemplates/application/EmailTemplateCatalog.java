@@ -16,7 +16,7 @@ import org.springframework.util.StreamUtils;
 @Component
 public class EmailTemplateCatalog {
 
-    private static final String LOCATION = "classpath*:templates/email/*.html";
+    private static final String FILE_DEFAULT_LOCATION_PATTERN = "classpath*:templates/email/*.html";
     private static final String DEFAULT_LOCALE = "de";
     private static final Set<String> NON_PRODUCT_STEMS = Set.of("smoke");
 
@@ -40,9 +40,9 @@ public class EmailTemplateCatalog {
 
     private static List<FileDefault> scan(ResourcePatternResolver resolver) {
         try {
-            Resource[] resources = resolver.getResources(LOCATION);
+            Resource[] resources = resolver.getResources(FILE_DEFAULT_LOCATION_PATTERN);
             return java.util.Arrays.stream(resources)
-                    .map(EmailTemplateCatalog::toStem)
+                    .map(EmailTemplateCatalog::toCanonicalLowerCaseStem)
                     .filter(stem -> !NON_PRODUCT_STEMS.contains(stem))
                     .distinct()
                     .sorted()
@@ -53,7 +53,7 @@ public class EmailTemplateCatalog {
         }
     }
 
-    private static String toStem(Resource resource) {
+    private static String toCanonicalLowerCaseStem(Resource resource) {
         String name = Objects.requireNonNull(resource.getFilename(), "email template resource has no filename");
         String withoutSuffix = name.substring(0, name.length() - ".html".length());
         return withoutSuffix.toLowerCase(Locale.ROOT);

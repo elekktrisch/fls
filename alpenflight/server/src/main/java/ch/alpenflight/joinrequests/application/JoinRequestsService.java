@@ -68,7 +68,8 @@ public class JoinRequestsService {
         UUID sub = subjectOf(jwt);
         return tenantLookup.findLatestClubIdBySub(sub)
                 .flatMap(clubId -> Tenants.runAs(clubId,
-                        () -> requests.findLatestBySub(sub).map(this::toResponseWithClub)));
+                        () -> requests.findLatestBySub(sub)
+                                .map(this::withClubDisplayAlreadyInTenantScope)));
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +85,7 @@ public class JoinRequestsService {
         return JoinRequestResponse.from(request, club);
     }
 
-    private JoinRequestResponse toResponseWithClub(JoinRequest request) {
+    private JoinRequestResponse withClubDisplayAlreadyInTenantScope(JoinRequest request) {
         Club club = clubs.findActiveById(request.getClubId()).orElse(null);
         return JoinRequestResponse.from(request, club);
     }

@@ -26,7 +26,11 @@ public final class FlightReportDtos {
             boolean towFlights) {
 
         public static FlightReportFilter defaults() {
-            return new FlightReportFilter(null, null, null, null, true, true, false);
+            boolean gliderFlightsOnByDefault = true;
+            boolean motorFlightsOnByDefault = true;
+            boolean towFlightsOffByDefault = false;
+            return new FlightReportFilter(null, null, null, null,
+                    gliderFlightsOnByDefault, motorFlightsOnByDefault, towFlightsOffByDefault);
         }
     }
 

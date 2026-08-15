@@ -25,7 +25,7 @@ public class JoinRequestSubmitGuard {
     private final JoinRequestRepository requests;
     private final Clock clock;
 
-    private final Map<UUID, Deque<Instant>> attemptsBySub = new ConcurrentHashMap<>();
+    private final Map<UUID, Deque<Instant>> perProcessAttemptsBySub = new ConcurrentHashMap<>();
 
     public JoinRequestSubmitGuard(JoinRequestRepository requests, Clock clock) {
         this.requests = requests;
@@ -34,7 +34,7 @@ public class JoinRequestSubmitGuard {
 
     public void recordAndCheckRateLimit(UUID sub) {
         Instant now = clock.instant();
-        Deque<Instant> window = attemptsBySub.computeIfAbsent(sub, k -> new ArrayDeque<>());
+        Deque<Instant> window = perProcessAttemptsBySub.computeIfAbsent(sub, k -> new ArrayDeque<>());
         synchronized (window) {
             pruneExpired(window, now);
             window.addLast(now);

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class FlightGatePolicy {
 
-    private static final ZoneOffset ZONE = ZoneOffset.UTC;
+    private static final ZoneOffset CALENDAR_DAY_ZONE = ZoneOffset.UTC;
 
     private static final long LOCK_AFTER_DAYS = 2;
     private static final long BILL_AFTER_DAYS = 3;
@@ -28,12 +28,12 @@ public class FlightGatePolicy {
         if (lockedAt == null) {
             return false;
         }
-        LocalDate lockedDay = LocalDate.ofInstant(lockedAt, ZONE);
+        LocalDate lockedDay = LocalDate.ofInstant(lockedAt, CALENDAR_DAY_ZONE);
         LocalDate gate = today(now).minusDays(BILL_AFTER_DAYS);
         return !lockedDay.isAfter(gate);
     }
 
     private static LocalDate today(Instant now) {
-        return LocalDate.ofInstant(now, ZONE);
+        return LocalDate.ofInstant(now, CALENDAR_DAY_ZONE);
     }
 }

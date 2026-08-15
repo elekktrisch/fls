@@ -64,7 +64,8 @@ public class ArticlesService {
                 req.articleInfo(),
                 req.description(),
                 Boolean.TRUE.equals(req.isActive()));
-        ArticleDetail created = ArticleMapper.toDetail(persist(a, number));
+        ArticleDetail created = ArticleMapper.toDetail(
+                saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(a, number));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -91,7 +92,8 @@ public class ArticlesService {
             a.deactivate();
         }
 
-        ArticleDetail after = ArticleMapper.toDetail(persist(a, number));
+        ArticleDetail after = ArticleMapper.toDetail(
+                saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(a, number));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -111,7 +113,7 @@ public class ArticlesService {
                 .orElseThrow(() -> new ArticleNotFoundException(id));
     }
 
-    private Article persist(Article a, String number) {
+    private Article saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(Article a, String number) {
         try {
             Article saved = articles.save(a);
             articles.flush();

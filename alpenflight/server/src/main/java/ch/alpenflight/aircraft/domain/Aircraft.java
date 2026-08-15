@@ -451,6 +451,7 @@ public class Aircraft extends SoftDeletableAggregate {
         return aircraftTypeId;
     }
 
+    // RENAME: syncFromDeviceDatabase -> applyNonBlankDeviceDatabaseValues
     public boolean syncFromDeviceDatabase(@Nullable String deviceId,
                                           @Nullable String model,
                                           @Nullable String competitionSignValue) {

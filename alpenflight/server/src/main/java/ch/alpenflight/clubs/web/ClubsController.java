@@ -53,7 +53,8 @@ public class ClubsController {
             + "or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) "
             + "and @tenant.isOwnClub(#id))")
     public ClubResponse getClub(@PathVariable ClubId id, Authentication authentication) {
-        return service.getClub(id, hasRole(authentication, "ROLE_CLUB_ADMINISTRATOR"));
+        boolean joinCodeVisibleToCaller = hasRole(authentication, "ROLE_CLUB_ADMINISTRATOR");
+        return service.getClub(id, joinCodeVisibleToCaller);
     }
 
     @Operation(summary = "Create a new club. Slug must be unique.")

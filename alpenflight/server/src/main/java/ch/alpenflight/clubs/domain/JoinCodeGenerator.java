@@ -6,6 +6,7 @@ public interface JoinCodeGenerator {
 
     int LENGTH = 8;
 
+    // RENAME: ALPHABET -> ALPHABET_WITHOUT_AMBIGUOUS_GLYPHS
     String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     String generate();
