@@ -19,14 +19,14 @@ public final class EngineTimeStage {
         accumulator.setActiveEngineTimeInSeconds(engineRunningTimeSeconds);
 
         while (accumulator.getActiveEngineTimeInSeconds() > 0) {
-            boolean anyApplied = false;
+            boolean anyTierCoveredRemainingTime = false;
             for (RuleFilterInput filter : engineTimeFilters) {
                 if (applies(accumulator, flight, filter)) {
                     apply(accumulator, flight, filter);
-                    anyApplied = true;
+                    anyTierCoveredRemainingTime = true;
                 }
             }
-            if (!anyApplied) {
+            if (!anyTierCoveredRemainingTime) {
                 break;
             }
         }

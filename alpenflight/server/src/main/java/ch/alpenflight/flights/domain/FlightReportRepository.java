@@ -51,7 +51,7 @@ public interface FlightReportRepository {
     List<ReportRow> findReportPage(ReportCriteria criteria,
                                    int offset,
                                    int limit,
-                                   boolean sortBySeconds,
+                                   boolean sortByDurationSeconds,
                                    boolean sortAsc);
 
     long countReport(ReportCriteria criteria);

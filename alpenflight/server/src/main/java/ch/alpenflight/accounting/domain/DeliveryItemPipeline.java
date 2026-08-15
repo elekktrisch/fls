@@ -47,9 +47,7 @@ public final class DeliveryItemPipeline {
         engineTime.run(accumulator, flight, engineRunningTimeSeconds, filters.engineTime());
         instructorFee.run(accumulator, flight, filters.instructorFee());
 
-        if (tow != null) {
-            run(accumulator, tow.flight(), filters, tow.flightSeconds(), tow.engineSeconds(), null, credits);
-        }
+        appendTowLinesBeforeThisFlightsFuelAndTaxLines(accumulator, filters, tow, credits);
 
         additionalFuelFee.run(accumulator, flight, filters.additionalFuelFee());
         startTax.run(accumulator, flight, filters.startTax());
@@ -57,6 +55,15 @@ public final class DeliveryItemPipeline {
         landingTax.runOnStartLocation(accumulator, flight, filters.landingTax());
         vsfFee.run(accumulator, flight, filters.vsfFee());
         vsfFee.runOnStartLocation(accumulator, flight, filters.vsfFee());
+    }
+
+    private void appendTowLinesBeforeThisFlightsFuelAndTaxLines(RuleBasedDeliveryDetails accumulator,
+                                                                RuleFilters filters,
+                                                                @Nullable TowInput tow,
+                                                                List<PersonFlightTimeCredit> credits) {
+        if (tow != null) {
+            run(accumulator, tow.flight(), filters, tow.flightSeconds(), tow.engineSeconds(), null, credits);
+        }
     }
 
     public record RuleFilters(

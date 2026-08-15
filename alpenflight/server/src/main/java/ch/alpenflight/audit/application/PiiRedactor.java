@@ -26,6 +26,8 @@ public class PiiRedactor {
     private static final int MAX_SERIALIZED_BYTES = 64 * 1024;
     private static final String OVERSIZE_FALLBACK_JSON =
             "{\"_audit\":\"[oversize-snapshot-elided]\"}";
+    private static final String SERIALIZE_FAILED_FALLBACK_JSON =
+            "{\"_audit\":\"[serialize-failed]\"}";
 
     private final AuditRedactionProperties policy;
     private final ObjectMapper mapper;
@@ -49,7 +51,7 @@ public class PiiRedactor {
             }
             return json;
         } catch (JacksonException e) {
-            return "{\"_audit\":\"[serialize-failed]\"}";
+            return SERIALIZE_FAILED_FALLBACK_JSON;
         }
     }
 
@@ -71,7 +73,7 @@ public class PiiRedactor {
                     out.put(name, REDACTED_SENTINEL);
                 } else {
                     Object value = f.get(snapshot);
-                    out.put(name, processValue(value));
+                    out.put(name, redactedValue(value));
                 }
             } catch (IllegalAccessException ignored) {
                 out.put(name, REDACTED_SENTINEL);
@@ -80,14 +82,14 @@ public class PiiRedactor {
         return out;
     }
 
-    private @Nullable Object processValue(@Nullable Object value) {
+    private @Nullable Object redactedValue(@Nullable Object value) {
         if (value == null || isLeafType(value)) {
             return value;
         }
         if (value instanceof Collection<?> coll) {
             List<Object> mapped = new ArrayList<>(coll.size());
             for (Object element : coll) {
-                mapped.add(processValue(element));
+                mapped.add(redactedValue(element));
             }
             return mapped;
         }

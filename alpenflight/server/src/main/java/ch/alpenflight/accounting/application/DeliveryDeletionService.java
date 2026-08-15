@@ -94,13 +94,17 @@ public class DeliveryDeletionService {
     private void reverseCredit(UUID deliveryId, Instant now) {
         credits.findByBalancedDeliveryId(deliveryId).ifPresent(credit -> {
             Long currentBalance = credit.currentBalanceInSeconds();
-            if (credit.releaseCurrent()) {
-                credits.save(credit);
-                credits.flush();
-            }
+            releaseCurrentBalanceRowBeforeInsertingItsSuccessor(credit);
             credit.appendReversal(deliveryId, currentBalance, now);
             credits.save(credit);
             credits.flush();
         });
+    }
+
+    private void releaseCurrentBalanceRowBeforeInsertingItsSuccessor(PersonFlightTimeCredit credit) {
+        if (credit.releaseCurrent()) {
+            credits.save(credit);
+            credits.flush();
+        }
     }
 }

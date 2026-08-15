@@ -329,7 +329,6 @@ public class Club {
         return deletedOn != null;
     }
 
-
     public @Nullable String getPlanningDayInfoMailTo() {
         return sendPlanningDayInfoMailTo;
     }

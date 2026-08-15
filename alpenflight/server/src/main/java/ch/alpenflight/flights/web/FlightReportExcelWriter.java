@@ -20,9 +20,16 @@ final class FlightReportExcelWriter {
     static final String SHEET_NAME = "Flights";
     private static final int TITLE_FONT_SIZE = 20;
     private static final String TIMESTAMP_FORMAT = "dd.mm.yyyy HH:MM:ss";
-    private static final int HEADER_ROW = 4;
-    private static final int FIRST_DATA_ROW = 5;
+    private static final int TITLE_ROW_INDEX = 0;
+    private static final int GENERATED_AT_ROW_INDEX = 2;
+    private static final int GENERATED_AT_LABEL_COLUMN_INDEX = 0;
+    private static final int GENERATED_AT_VALUE_COLUMN_INDEX = 2;
+    private static final int HEADER_ROW_INDEX = 4;
+    private static final int FIRST_DATA_ROW_INDEX = 5;
     private static final int COLUMN_COUNT = 30;
+
+    private static final String LDG_TIME_HEADER_KEEPING_THE_LEGACY_UCT_TYPO = "LdgTime UCT";
+    private static final String NO_HEADER_LEGACY_LEAVES_THIS_COLUMN_EMPTY = "";
 
     private static final String[] HEADERS = {
         "Flight ID",
@@ -35,13 +42,13 @@ final class FlightReportExcelWriter {
         "FlightCode",
         "FlightTypeName",
         "StartTime UTC",
-        "LdgTime UCT",
+        LDG_TIME_HEADER_KEEPING_THE_LEGACY_UCT_TYPO,
         "FlightDuration",
         "IsSoloFlight",
         "StartType",
         "StartLocation",
         "LdgLocation",
-        "",
+        NO_HEADER_LEGACY_LEAVES_THIS_COLUMN_EMPTY,
         "FlightComment",
         "TowFlight-FlightId",
         "TowFlight-Immatriculation",
@@ -56,6 +63,40 @@ final class FlightReportExcelWriter {
         "TowFlight-AirState",
         "TowFlight-ProcessState",
     };
+
+    private static final class Col {
+        static final int FLIGHT_ID = 0;
+        static final int FLIGHT_DATE = 1;
+        static final int IMMATRICULATION = 2;
+        static final int PILOT_NAME = 3;
+        static final int SECOND_CREW_NAME = 4;
+        static final int AIR_STATE = 5;
+        static final int PROCESS_STATE = 6;
+        static final int FLIGHT_CODE = 7;
+        static final int FLIGHT_TYPE_NAME = 8;
+        static final int START_TIME = 9;
+        static final int LDG_TIME = 10;
+        static final int FLIGHT_DURATION = 11;
+        static final int IS_SOLO_FLIGHT = 12;
+        static final int START_TYPE = 13;
+        static final int START_LOCATION = 14;
+        static final int LDG_LOCATION = 15;
+        static final int FLIGHT_COMMENT = 17;
+        static final int TOW_FLIGHT_ID = 18;
+        static final int TOW_IMMATRICULATION = 19;
+        static final int TOW_PILOT_NAME = 20;
+        static final int TOW_START_TIME = 21;
+        static final int TOW_LDG_TIME = 22;
+        static final int TOW_FLIGHT_DURATION = 23;
+        static final int TOW_START_LOCATION = 24;
+        static final int TOW_LDG_LOCATION = 25;
+        static final int TOW_FLIGHT_CODE = 26;
+        static final int TOW_FLIGHT_TYPE_NAME = 27;
+        static final int TOW_AIR_STATE = 28;
+        static final int TOW_PROCESS_STATE = 29;
+
+        private Col() {}
+    }
 
     private FlightReportExcelWriter() {}
 
@@ -76,46 +117,46 @@ final class FlightReportExcelWriter {
     }
 
     private static void writeMetadata(ExcelExportSupport excel, SXSSFSheet sheet, Instant generatedAt) {
-        Row title = excel.dataRow(sheet, 0);
+        Row title = excel.dataRow(sheet, TITLE_ROW_INDEX);
         excel.titleCell(title, 0, SHEET_NAME, TITLE_FONT_SIZE);
-        Row meta = excel.dataRow(sheet, 2);
-        excel.stringCell(meta, 0, "Excel Erstellt:");
-        excel.dateCell(meta, 2, utcWallClock(generatedAt), TIMESTAMP_FORMAT);
+        Row meta = excel.dataRow(sheet, GENERATED_AT_ROW_INDEX);
+        excel.stringCell(meta, GENERATED_AT_LABEL_COLUMN_INDEX, "Excel Erstellt:");
+        excel.dateCell(meta, GENERATED_AT_VALUE_COLUMN_INDEX, utcWallClock(generatedAt), TIMESTAMP_FORMAT);
     }
 
     private static void writeHeader(ExcelExportSupport excel, SXSSFSheet sheet) {
-        excel.headerRow(sheet, HEADER_ROW, HEADERS);
+        excel.headerRow(sheet, HEADER_ROW_INDEX, HEADERS);
     }
 
     private static void writeDataRows(ExcelExportSupport excel, SXSSFSheet sheet, FlightReportResult result) {
-        int rowIndex = FIRST_DATA_ROW;
+        int rowIndex = FIRST_DATA_ROW_INDEX;
         for (FlightReportDataRecord item : result.items()) {
             writeDataRow(excel, excel.dataRow(sheet, rowIndex++), item);
         }
     }
 
     private static void writeDataRow(ExcelExportSupport excel, Row row, FlightReportDataRecord item) {
-        excel.stringCell(row, 0, idText(item.flightId()));
+        excel.stringCell(row, Col.FLIGHT_ID, idText(item.flightId()));
         if (item.flightDate() != null) {
-            row.createCell(1).setCellValue(item.flightDate().atStartOfDay());
+            row.createCell(Col.FLIGHT_DATE).setCellValue(item.flightDate().atStartOfDay());
         }
-        stringIfPresent(excel, row, 2, item.immatriculation());
-        stringIfPresent(excel, row, 3, item.pilotName());
-        stringIfPresent(excel, row, 4, item.secondCrewName());
-        excel.intCell(row, 5, item.airState());
-        excel.intCell(row, 6, item.processState());
-        stringIfPresent(excel, row, 7, item.flightCode());
-        stringIfPresent(excel, row, 8, item.flightTypeName());
-        timeIfPresent(excel, row, 9, item.startDateTime());
-        timeIfPresent(excel, row, 10, item.ldgDateTime());
-        durationIfPresent(excel, row, 11, item.flightDuration());
-        excel.intCell(row, 12, item.isSoloFlight() ? 1 : 0);
+        stringIfPresent(excel, row, Col.IMMATRICULATION, item.immatriculation());
+        stringIfPresent(excel, row, Col.PILOT_NAME, item.pilotName());
+        stringIfPresent(excel, row, Col.SECOND_CREW_NAME, item.secondCrewName());
+        excel.intCell(row, Col.AIR_STATE, item.airState());
+        excel.intCell(row, Col.PROCESS_STATE, item.processState());
+        stringIfPresent(excel, row, Col.FLIGHT_CODE, item.flightCode());
+        stringIfPresent(excel, row, Col.FLIGHT_TYPE_NAME, item.flightTypeName());
+        timeIfPresent(excel, row, Col.START_TIME, item.startDateTime());
+        timeIfPresent(excel, row, Col.LDG_TIME, item.ldgDateTime());
+        durationIfPresent(excel, row, Col.FLIGHT_DURATION, item.flightDuration());
+        excel.intCell(row, Col.IS_SOLO_FLIGHT, item.isSoloFlight() ? 1 : 0);
         if (item.startType() != null) {
-            excel.intCell(row, 13, item.startType());
+            excel.intCell(row, Col.START_TYPE, item.startType());
         }
-        stringIfPresent(excel, row, 14, item.startLocation());
-        stringIfPresent(excel, row, 15, item.ldgLocation());
-        stringIfPresent(excel, row, 17, item.flightComment());
+        stringIfPresent(excel, row, Col.START_LOCATION, item.startLocation());
+        stringIfPresent(excel, row, Col.LDG_LOCATION, item.ldgLocation());
+        stringIfPresent(excel, row, Col.FLIGHT_COMMENT, item.flightComment());
 
         writeTowColumns(excel, row, item.towFlight());
     }
@@ -124,18 +165,18 @@ final class FlightReportExcelWriter {
         if (tow == null) {
             return;
         }
-        excel.stringCell(row, 18, idText(tow.towFlightId()));
-        stringIfPresent(excel, row, 19, tow.immatriculation());
-        stringIfPresent(excel, row, 20, tow.pilotName());
-        timeIfPresent(excel, row, 21, tow.startDateTime());
-        timeIfPresent(excel, row, 22, tow.ldgDateTime());
-        durationIfPresent(excel, row, 23, tow.flightDuration());
-        stringIfPresent(excel, row, 24, tow.startLocation());
-        stringIfPresent(excel, row, 25, tow.ldgLocation());
-        stringIfPresent(excel, row, 26, tow.flightCode());
-        stringIfPresent(excel, row, 27, tow.flightTypeName());
-        excel.intCell(row, 28, tow.airState());
-        excel.intCell(row, 29, tow.processState());
+        excel.stringCell(row, Col.TOW_FLIGHT_ID, idText(tow.towFlightId()));
+        stringIfPresent(excel, row, Col.TOW_IMMATRICULATION, tow.immatriculation());
+        stringIfPresent(excel, row, Col.TOW_PILOT_NAME, tow.pilotName());
+        timeIfPresent(excel, row, Col.TOW_START_TIME, tow.startDateTime());
+        timeIfPresent(excel, row, Col.TOW_LDG_TIME, tow.ldgDateTime());
+        durationIfPresent(excel, row, Col.TOW_FLIGHT_DURATION, tow.flightDuration());
+        stringIfPresent(excel, row, Col.TOW_START_LOCATION, tow.startLocation());
+        stringIfPresent(excel, row, Col.TOW_LDG_LOCATION, tow.ldgLocation());
+        stringIfPresent(excel, row, Col.TOW_FLIGHT_CODE, tow.flightCode());
+        stringIfPresent(excel, row, Col.TOW_FLIGHT_TYPE_NAME, tow.flightTypeName());
+        excel.intCell(row, Col.TOW_AIR_STATE, tow.airState());
+        excel.intCell(row, Col.TOW_PROCESS_STATE, tow.processState());
     }
 
     private static void stringIfPresent(ExcelExportSupport excel, Row row, int column, @Nullable String value) {

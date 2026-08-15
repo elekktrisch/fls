@@ -28,13 +28,13 @@ public final class FlightTimeStage {
                     List<RuleFilterInput> flightTimeFilters,
                     List<PersonFlightTimeCredit> credits) {
         accumulator.setActiveFlightTimeInSeconds(flightDurationZeroBasedSeconds);
-        CreditLedger ledger = new CreditLedger(credits);
+        OriginalCreditBalances creditBalances = new OriginalCreditBalances(credits);
 
         while (accumulator.getActiveFlightTimeInSeconds() > 0) {
             boolean anyApplied = false;
             for (RuleFilterInput filter : flightTimeFilters) {
                 if (applies(accumulator, flight, filter)) {
-                    apply(accumulator, flight, filter, ledger);
+                    apply(accumulator, flight, filter, creditBalances);
                     anyApplied = true;
                 }
             }
@@ -59,7 +59,7 @@ public final class FlightTimeStage {
     private void apply(RuleBasedDeliveryDetails accumulator,
                        MatchableFlight flight,
                        RuleFilterInput filter,
-                       CreditLedger ledger) {
+                       OriginalCreditBalances creditBalances) {
         String articleNumber = Objects.requireNonNull(filter.articleNumber(),
                 "FlightTime filter must carry an articleNumber");
         AccountingUnitType unit = Objects.requireNonNull(filter.accountingUnitType(),
@@ -85,7 +85,7 @@ public final class FlightTimeStage {
             return;
         }
 
-        CreditLedger.Match credit = ledger.match(flight.immatriculation());
+        OriginalCreditBalances.Match credit = creditBalances.match(flight.immatriculation());
 
         if (credit == null) {
             emit(accumulator, articleNumber, itemText, lineSeconds, 0, unit, false);
@@ -103,7 +103,7 @@ public final class FlightTimeStage {
     }
 
     private static void recordConsumption(RuleBasedDeliveryDetails accumulator,
-                                          CreditLedger.Match credit,
+                                          OriginalCreditBalances.Match credit,
                                           long seconds) {
         UUID creditId = credit.creditId();
         if (creditId != null) {
@@ -143,11 +143,11 @@ public final class FlightTimeStage {
         return text.toString();
     }
 
-    private static final class CreditLedger {
+    private static final class OriginalCreditBalances {
 
         private final List<PersonFlightTimeCredit> credits;
 
-        CreditLedger(List<PersonFlightTimeCredit> credits) {
+        OriginalCreditBalances(List<PersonFlightTimeCredit> credits) {
             this.credits = new ArrayList<>(credits);
         }
 
@@ -171,12 +171,14 @@ public final class FlightTimeStage {
 
         private static boolean matchesImmatriculation(PersonFlightTimeCredit credit,
                                                       @Nullable String immatriculation) {
-            String list = credit.getMatchedAircraftImmatriculations();
+            String matchedImmatriculationsCsv = credit.getMatchedAircraftImmatriculations();
             String immat = immatriculation == null ? "" : immatriculation;
             if (credit.isUseRuleForAllAircraftsExceptListed()) {
-                return list != null && !list.isEmpty() && !list.contains(immat);
+                return matchedImmatriculationsCsv != null
+                        && !matchedImmatriculationsCsv.isEmpty()
+                        && !matchedImmatriculationsCsv.contains(immat);
             }
-            return list != null && list.contains(immat);
+            return matchedImmatriculationsCsv != null && matchedImmatriculationsCsv.contains(immat);
         }
 
         static final class Match {

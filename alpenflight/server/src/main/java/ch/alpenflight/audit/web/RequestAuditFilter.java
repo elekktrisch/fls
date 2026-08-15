@@ -58,10 +58,14 @@ class RequestAuditFilter extends OncePerRequestFilter {
         if (thrown != null) {
             return true;
         }
-        if (status == 401 || status == 403) {
+        if (isAuthStatusOwnedByActuatorAuditTrail(status)) {
             return false;
         }
         return isFailureStatus(status);
+    }
+
+    private static boolean isAuthStatusOwnedByActuatorAuditTrail(int status) {
+        return status == 401 || status == 403;
     }
 
     private void recordSyntheticFailure(HttpServletRequest request,
@@ -73,10 +77,11 @@ class RequestAuditFilter extends OncePerRequestFilter {
                 ? thrown.getClass().getSimpleName()
                 : "http-" + status;
         AuditAction action = inferAction(request.getMethod());
-        UUID hint = RequestTenantHint.currentForRequest(request);
+        UUID targetTenantHint = RequestTenantHint.currentForRequest(request);
         try {
-            if (hint != null && !ClubTenantIdentifierResolver.NO_TENANT.equals(hint)) {
-                Tenants.runAs(hint, () -> {
+            if (targetTenantHint != null
+                    && !ClubTenantIdentifierResolver.NO_TENANT.equals(targetTenantHint)) {
+                Tenants.runAs(targetTenantHint, () -> {
                     auditTrail.recordFailed(
                             action,
                             new AuditedTarget(entityType, null, null, null),
@@ -129,10 +134,10 @@ class RequestAuditFilter extends OncePerRequestFilter {
         if (segment.isEmpty()) {
             return "Unknown";
         }
-        return capitalize(segment);
+        return capitalizedSingular(segment);
     }
 
-    private static String capitalize(String s) {
+    private static String capitalizedSingular(String s) {
         StringBuilder out = new StringBuilder(s.length());
         out.append(Character.toUpperCase(s.charAt(0)));
         if (s.length() > 1) {

@@ -20,6 +20,7 @@ public interface ClubRepository {
 
     boolean existsBySlugExcluding(String slug, UUID excludeId);
 
+    // RENAME: existsByJoinCode -> existsByJoinCodeIncludingDeleted
     boolean existsByJoinCode(String joinCode);
 
     Optional<UUID> findActiveIdByJoinCode(String joinCode);

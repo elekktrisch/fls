@@ -219,7 +219,7 @@ public class AircraftsService {
             String causeMessage = e.getMostSpecificCause() == null
                     ? ""
                     : String.valueOf(e.getMostSpecificCause().getMessage());
-            if (causeMessage.contains("fk_aircraft_owner_club_id")) {
+            if (causeMessage.contains(OWNER_CLUB_FOREIGN_KEY_CONSTRAINT)) {
                 throw new InvalidAircraftReferenceException("newOwnerClubId");
             }
             throw e;
@@ -236,7 +236,7 @@ public class AircraftsService {
         AircraftStateHistoryEntry entry;
         try {
             a.closeCurrentStatePeriodAt(req.validFrom());
-            aircrafts.flush();
+            flushSoNoTwoStatePeriodsAreOpenAtOnce();
             entry = a.openStatePeriod(
                     req.aircraftStateId().value(),
                     req.validFrom(),
@@ -288,12 +288,18 @@ public class AircraftsService {
         return AircraftMapper.toCounterHistory(loadOrThrow(id));
     }
 
+    private void flushSoNoTwoStatePeriodsAreOpenAtOnce() {
+        aircrafts.flush();
+    }
+
     private Aircraft loadOrThrow(AircraftId id) {
         return aircrafts.findActiveById(id.value())
                 .orElseThrow(() -> new AircraftNotFoundException(id));
     }
 
     private static final String IMMATRICULATION_UNIQUE_CONSTRAINT = "ux_aircraft_immatriculation";
+
+    private static final String OWNER_CLUB_FOREIGN_KEY_CONSTRAINT = "fk_aircraft_owner_club_id";
 
     private Aircraft persist(Aircraft a, String normalizedImmatriculation) {
         try {

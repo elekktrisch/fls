@@ -26,14 +26,14 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
     public List<ReportRow> findReportPage(ReportCriteria c,
                                           int offset,
                                           int limit,
-                                          boolean sortBySeconds,
+                                          boolean sortByDurationSeconds,
                                           boolean sortAsc) {
         List<FlightAircraftType> types = selectedTypes(c);
         if (types.isEmpty()) {
             return List.of();
         }
         String dir = sortAsc ? "asc" : "desc";
-        String orderBy = sortBySeconds
+        String orderBy = sortByDurationSeconds
                 ? " order by r.durationSeconds " + dir + " nulls last, r.immatriculation asc"
                 : " order by r.startDateTime " + dir + " nulls last, r.immatriculation asc";
         TypedQuery<FlightReportRow> q = query(
@@ -64,11 +64,12 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
         if (types.isEmpty()) {
             return List.of();
         }
-        String select = c.personId() != null
+        String selectWithCrewWhenRoleFlagsNeeded = c.personId() != null
                 ? "select r from FlightReportRow r left join fetch r.crew"
                 : "select r from FlightReportRow r";
         List<FlightReportRow> rows =
-                query(select, "", c, types, FlightReportRow.class).getResultList();
+                query(selectWithCrewWhenRoleFlagsNeeded, "", c, types, FlightReportRow.class)
+                        .getResultList();
 
         List<SummaryRow> out = new ArrayList<>(rows.size());
         for (FlightReportRow row : rows) {
@@ -78,11 +79,11 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
     }
 
     private <T> TypedQuery<T> query(String selectFrom,
-                                    String suffix,
+                                    String orderBy,
                                     ReportCriteria c,
                                     List<FlightAircraftType> types,
                                     Class<T> resultType) {
-        TypedQuery<T> q = em.createQuery(selectFrom + where(c) + suffix, resultType);
+        TypedQuery<T> q = em.createQuery(selectFrom + where(c) + orderBy, resultType);
         q.setParameter("types", types);
         if (c.from() != null) {
             q.setParameter("from", c.from());
@@ -170,7 +171,7 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
                 r.getTowLdgLocationName());
     }
 
-    private static SummaryRow toSummaryRow(FlightReportRow r, @Nullable UUID personId) {
+    private static SummaryRow toSummaryRow(FlightReportRow r, @Nullable UUID filterPersonId) {
         Long duration = r.getDurationSeconds();
         return new SummaryRow(
                 r.getFlightAircraftType().legacyId(),
@@ -183,19 +184,19 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
                 r.getLdgLocationId(),
                 duration == null ? 0L : duration,
                 r.getFlightTypeName(),
-                hasRole(r, personId, FlightCrewTypeIds.PILOT_OR_STUDENT),
-                hasRole(r, personId, FlightCrewTypeIds.CO_PILOT),
-                hasRole(r, personId, FlightCrewTypeIds.FLIGHT_INSTRUCTOR));
+                hasRole(r, filterPersonId, FlightCrewTypeIds.PILOT_OR_STUDENT),
+                hasRole(r, filterPersonId, FlightCrewTypeIds.CO_PILOT),
+                hasRole(r, filterPersonId, FlightCrewTypeIds.FLIGHT_INSTRUCTOR));
     }
 
     private static boolean hasRole(FlightReportRow row,
-                                   @Nullable UUID personId,
+                                   @Nullable UUID filterPersonId,
                                    UUID crewTypeId) {
-        if (personId == null) {
+        if (filterPersonId == null) {
             return false;
         }
         for (FlightReportCrewEntry entry : row.getCrew()) {
-            if (personId.equals(entry.getPersonId())
+            if (filterPersonId.equals(entry.getPersonId())
                     && crewTypeId.equals(entry.getFlightCrewTypeId())) {
                 return true;
             }

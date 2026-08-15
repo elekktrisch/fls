@@ -28,8 +28,7 @@ public final class DeliveryDiff {
         if (!flags.deliveryInformation()
                 && !Objects.equals(created.deliveryInformation(), expected.deliveryInformation())) {
             successful = false;
-            message.setLength(0);
-            message.append("DeliveryInformation doesn't match");
+            assignReplacingAnyPriorMessage(message, "DeliveryInformation doesn't match");
         }
 
         if (!flags.additionalInformation()
@@ -155,6 +154,11 @@ public final class DeliveryDiff {
             }
         }
         return null;
+    }
+
+    private static void assignReplacingAnyPriorMessage(StringBuilder message, String line) {
+        message.setLength(0);
+        message.append(line);
     }
 
     private static void append(StringBuilder message, String line) {

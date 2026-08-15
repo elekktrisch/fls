@@ -17,5 +17,6 @@ public interface DeliveryRepository {
 
     long countActiveByFlightId(UUID flightId);
 
+    // RENAME: findMaxBatchId -> findMaxBatchIdIncludingSoftDeleted
     long findMaxBatchId();
 }

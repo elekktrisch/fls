@@ -138,15 +138,19 @@ public class DeliveryCreationService {
                 boolean wasUnlimited = credit.hasCurrentBalance()
                         ? credit.currentTransaction().orElseThrow().isNoFlightTimeLimit()
                         : credit.isNoFlightTimeLimit();
-                if (credit.releaseCurrent()) {
-                    credits.save(credit);
-                    credits.flush();
-                }
+                releaseCurrentBalanceRowBeforeInsertingItsSuccessor(credit);
                 credit.appendConsumption(
                         consumption.consumedSeconds(), oldBalance, wasUnlimited, deliveryId, now);
                 credits.save(credit);
                 credits.flush();
             });
+        }
+    }
+
+    private void releaseCurrentBalanceRowBeforeInsertingItsSuccessor(PersonFlightTimeCredit credit) {
+        if (credit.releaseCurrent()) {
+            credits.save(credit);
+            credits.flush();
         }
     }
 

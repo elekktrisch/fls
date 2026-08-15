@@ -120,6 +120,19 @@ interface CustomListQuery {
 @Repository
 class JpaFlightRepositoryImpl implements CustomListQuery {
 
+    private static final String UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC = " f.id desc";
+
+    private static final String ORDER_BY_FLIGHT_DATE_THEN_ID =
+            " order by f.flightDate desc nulls last," + UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC;
+
+    private static final String ORDER_BY_FLIGHT_DATE_THEN_START_TIME_THEN_ID =
+            " order by f.flightDate desc nulls last, f.startDateTime desc nulls last,"
+                    + UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC;
+
+    private static final String STRICTLY_BEFORE_CURSOR_PAIR_SKIPPING_NULL_FLIGHT_DATES =
+            " and (   f.flightDate < :cursorDate"
+                    + "   or (f.flightDate = :cursorDate and f.id < :cursorId) )";
+
     private final EntityManager em;
 
     JpaFlightRepositoryImpl(EntityManager em) {
@@ -155,16 +168,12 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
               .append(" )");
         }
         if (cursorFlightDate != null && cursorId != null) {
-            sb.append(" and (")
-              .append("   f.flightDate < :cursorDate")
-              .append("   or (f.flightDate = :cursorDate and f.id < :cursorId)")
-              .append(" )");
+            sb.append(STRICTLY_BEFORE_CURSOR_PAIR_SKIPPING_NULL_FLIGHT_DATES);
         }
         if (personId != null) {
-            sb.append(" order by f.flightDate desc nulls last,"
-                    + " f.startDateTime desc nulls last, f.id desc");
+            sb.append(ORDER_BY_FLIGHT_DATE_THEN_START_TIME_THEN_ID);
         } else {
-            sb.append(" order by f.flightDate desc nulls last, f.id desc");
+            sb.append(ORDER_BY_FLIGHT_DATE_THEN_ID);
         }
 
         TypedQuery<FlightRepository.ListRow> q =

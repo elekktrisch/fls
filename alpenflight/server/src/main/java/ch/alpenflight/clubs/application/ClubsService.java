@@ -142,11 +142,11 @@ public class ClubsService {
         try {
             return clubs.save(club);
         } catch (DataIntegrityViolationException e) {
-            throw discriminate(e, club.getClubKey(), slug);
+            throw discriminateByViolatedConstraint(e, club.getClubKey(), slug);
         }
     }
 
-    private static RuntimeException discriminate(
+    private static RuntimeException discriminateByViolatedConstraint(
             DataIntegrityViolationException e, String clubKey, String slug) {
         String message = String.valueOf(e.getMostSpecificCause().getMessage());
         if (message.contains("ux_club_key")) {

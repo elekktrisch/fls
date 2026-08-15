@@ -20,9 +20,11 @@ public final class LandingTaxStage {
             if (suppressed(accumulator, flight)) {
                 continue;
             }
-            boolean inWindow = flight.noStartTimeInformation() || flight.noLdgTimeInformation()
+            boolean inWindowOrTimesUnknownSoAssumedInTheAir =
+                    flight.noStartTimeInformation() || flight.noLdgTimeInformation()
                     || durationInWindow(flight.flightDurationSeconds(), filter.filterConfig());
-            if (!inWindow || !matcher.matches(flight, filter.filterConfig())) {
+            if (!inWindowOrTimesUnknownSoAssumedInTheAir
+                    || !matcher.matches(flight, filter.filterConfig())) {
                 continue;
             }
             emit(accumulator, filter, quantityOrDefault(flight.nrOfLdgs()));

@@ -13,7 +13,7 @@ public enum AccountingUnitType {
 
     private static final BigDecimal SECONDS_PER_MINUTE = new BigDecimal(60);
 
-    private static final MathContext DECIMAL_DIVISION =
+    private static final MathContext CSHARP_DECIMAL_DIVISION =
             new MathContext(28, RoundingMode.HALF_EVEN);
 
     private final int code;
@@ -41,7 +41,7 @@ public enum AccountingUnitType {
         }
         return switch (this) {
             case MIN -> switch (baseUnit) {
-                case SEC -> quantity.divide(SECONDS_PER_MINUTE, DECIMAL_DIVISION);
+                case SEC -> quantity.divide(SECONDS_PER_MINUTE, CSHARP_DECIMAL_DIVISION);
                 default -> throw timeCountMismatch(baseUnit);
             };
             case SEC -> switch (baseUnit) {

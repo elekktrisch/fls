@@ -3,6 +3,7 @@ package ch.alpenflight.accounting.domain;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
+// ext: filter_config jsonb keys — component names mirrored in AccountingRuleFilterMapper
 public record FilterConfig(
         boolean isRuleForGliderFlights,
         boolean isRuleForTowingFlights,

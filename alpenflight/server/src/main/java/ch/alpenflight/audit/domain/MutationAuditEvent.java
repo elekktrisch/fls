@@ -116,7 +116,6 @@ public class MutationAuditEvent {
         return new Builder();
     }
 
-
     public UUID getId() {
         return Objects.requireNonNull(id, "id is non-null on loaded rows");
     }

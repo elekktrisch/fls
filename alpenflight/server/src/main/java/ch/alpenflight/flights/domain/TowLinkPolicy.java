@@ -9,9 +9,9 @@ public final class TowLinkPolicy {
     private TowLinkPolicy() {}
 
     public static void verifyExclusiveLink(FlightId towId,
-                                           List<Flight> existingLinkers,
+                                           List<Flight> liveGlidersAlreadyLinkingThisTow,
                                            Flight self) {
-        for (Flight other : existingLinkers) {
+        for (Flight other : liveGlidersAlreadyLinkingThisTow) {
             if (!Objects.equals(other.getId(), self.getId())) {
                 throw new InvalidTowLinkException(
                         "Tow flight " + towId.toExternal()

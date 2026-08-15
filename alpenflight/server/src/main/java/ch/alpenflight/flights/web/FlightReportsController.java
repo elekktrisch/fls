@@ -95,20 +95,23 @@ class FlightReportsController {
                     Map<String, String> sorting,
             @Nullable FlightReportSearchFilter searchFilter) {
 
+        private static final String ONLY_HONOURED_SORT_KEY = "FlightDuration";
+        private static final String DESCENDING_DIRECTION = "desc";
+
         static FlightReportPageRequest empty() {
             return new FlightReportPageRequest(null, null);
         }
 
         boolean sortByDuration() {
-            return sorting != null && sorting.containsKey("FlightDuration");
+            return sorting != null && sorting.containsKey(ONLY_HONOURED_SORT_KEY);
         }
 
         boolean sortAscending() {
             if (sorting == null) {
                 return true;
             }
-            String dir = sorting.get("FlightDuration");
-            return dir == null || !"desc".equalsIgnoreCase(dir.trim());
+            String dir = sorting.get(ONLY_HONOURED_SORT_KEY);
+            return dir == null || !DESCENDING_DIRECTION.equalsIgnoreCase(dir.trim());
         }
 
         FlightReportFilter toFilter() {

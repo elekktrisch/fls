@@ -42,6 +42,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "flights", description = "Flight CRUD")
 class FlightsController {
 
+    private static final String IF_MATCH_ANY_REPRESENTATION = "*";
+    private static final String WEAK_ETAG_PREFIX = "W/";
+
     private final FlightsService flights;
     private final FlightStateTransitionService stateService;
 
@@ -124,11 +127,11 @@ class FlightsController {
             return null;
         }
         String trimmed = header.trim();
-        if (trimmed.isEmpty() || "*".equals(trimmed)) {
+        if (trimmed.isEmpty() || IF_MATCH_ANY_REPRESENTATION.equals(trimmed)) {
             return null;
         }
-        if (trimmed.startsWith("W/")) {
-            trimmed = trimmed.substring(2).trim();
+        if (trimmed.startsWith(WEAK_ETAG_PREFIX)) {
+            trimmed = trimmed.substring(WEAK_ETAG_PREFIX.length()).trim();
         }
         if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
             trimmed = trimmed.substring(1, trimmed.length() - 1);
