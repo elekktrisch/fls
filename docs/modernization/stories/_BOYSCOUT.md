@@ -19,6 +19,14 @@ stragglers each ceremony so the file shrinks.
 
 ## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
 
+- **[DEAD-BUT-WIRED-IMPERSONATION-INTERCEPTOR — needs a security decision]** `@AuditTargetTenant` has **zero
+  usages repo-wide**, yet `AuditTargetTenantInterceptor` **is wired onto `/api/v1/**`** by `TenancyWebMvcConfig`.
+  The comment the sweep deleted said there is no production caller (the S-049c impersonation surface was
+  withdrawn in S-159) and, verbatim, **"DO NOT WIRE WITHOUT SECURITY REVIEW"**. That warning now exists
+  nowhere in the code. Decide: delete the annotation + interceptor + config registration, or wire it
+  deliberately with the review the comment demanded. Related: `Tenants.runAs` has **no HTTP entry point** by
+  design — `TenantBypassGuardTest` guards the carrier, but nothing guards the *absence* of an impersonation
+  controller. *(seam: `@AuditTargetTenant` + `AuditTargetTenantInterceptor` + `TenancyWebMvcConfig`)*
 - **[LOST-INVARIANTS-NEED-GUARDS]** The comments this sweep could NOT convert into names were
   disproportionately **warnings against plausible future changes** — each an invariant a well-meaning
   refactor breaks *silently*, and for which a comment was already a weak guard. Give the load-bearing ones
