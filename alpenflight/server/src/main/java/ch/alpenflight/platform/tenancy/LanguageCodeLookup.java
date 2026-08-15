@@ -16,7 +16,8 @@ public class LanguageCodeLookup {
             UUID.fromString("019e2e15-2c00-77d3-8000-0000000007d3");
 
     private final LanguageRepository languages;
-    private final ConcurrentMap<String, UUID> cache = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, UUID> neverEvictedCacheOfStaticLanguageSeed =
+            new ConcurrentHashMap<>();
 
     public LanguageCodeLookup(LanguageRepository languages) {
         this.languages = languages;
@@ -27,12 +28,12 @@ public class LanguageCodeLookup {
             return FALLBACK_EN_ID;
         }
         String key = locale.toLowerCase(Locale.ROOT);
-        UUID cached = cache.get(key);
+        UUID cached = neverEvictedCacheOfStaticLanguageSeed.get(key);
         if (cached != null) {
             return cached;
         }
         return queryFor(key).map(uuid -> {
-            cache.put(key, uuid);
+            neverEvictedCacheOfStaticLanguageSeed.put(key, uuid);
             return uuid;
         }).orElse(FALLBACK_EN_ID);
     }

@@ -15,9 +15,13 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "springdoc.api-docs.enabled", havingValue = "true")
 class OpenApiConfig {
 
+    private static final String BEARER_AUTH_SCHEME = "bearerAuth";
+
     @Bean
     OpenAPI alpenflightOpenAPI(
             @Value("${alpenflight.openapi.server-url:http://localhost:8080}") String serverUrl) {
+        SecurityRequirement bearerAuthInheritedByEveryOperation =
+                new SecurityRequirement().addList(BEARER_AUTH_SCHEME);
         return new OpenAPI()
                 .info(new Info()
                         .title("AlpenFlight API")
@@ -25,12 +29,12 @@ class OpenApiConfig {
                         .description("Glider club operations platform. "
                                 + "Source of truth for the SPA-generated TS client."))
                 .addServersItem(new Server().url(serverUrl))
-                .components(new Components().addSecuritySchemes("bearerAuth",
+                .components(new Components().addSecuritySchemes(BEARER_AUTH_SCHEME,
                         new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).")))
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
+                .addSecurityItem(bearerAuthInheritedByEveryOperation);
     }
 }

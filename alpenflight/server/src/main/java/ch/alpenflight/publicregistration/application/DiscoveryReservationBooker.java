@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Component
 class DiscoveryReservationBooker {
 
-    private static final String GLIDER_TYPE_CODE = "GLIDER";
+    private static final String PURE_GLIDER_TYPE_CODE_MOTOR_GLIDER_NOT_ELIGIBLE = "GLIDER";
 
     private static final int DOUBLE_SEATER_SEATS = 2;
 
@@ -35,12 +35,13 @@ class DiscoveryReservationBooker {
         this.reservations = reservations;
     }
 
+    // RENAME: book -> blockDoubleSeaterAllDayDeliberatelyOverlappingOtherCandidates
     DiscoveryReservationOutcome book(UUID clubId, UUID candidatePersonId, LocalDate selectedDay) {
         Club club = clubs.findActiveById(clubId)
                 .orElseThrow(() -> new IllegalStateException(
                         "Registration resolved a club that no longer exists: " + clubId));
         UUID homebaseId = club.getHomebaseId();
-        UUID gliderId = findClubDoubleSeaterGlider(clubId);
+        UUID gliderId = findClubDoubleSeaterPureGlider(clubId);
         if (gliderId == null || homebaseId == null) {
             return DiscoveryReservationOutcome.skipped(gliderId == null, homebaseId == null);
         }
@@ -63,9 +64,10 @@ class DiscoveryReservationBooker {
                 Objects.requireNonNull(saved.getId(), "saved reservation has no id"));
     }
 
-    private @Nullable UUID findClubDoubleSeaterGlider(UUID clubId) {
+    private @Nullable UUID findClubDoubleSeaterPureGlider(UUID clubId) {
         return aircraft
-                .findActiveOwnedIdsByTypeCodeAndSeats(clubId, GLIDER_TYPE_CODE, DOUBLE_SEATER_SEATS)
+                .findActiveOwnedIdsByTypeCodeAndSeats(clubId,
+                        PURE_GLIDER_TYPE_CODE_MOTOR_GLIDER_NOT_ELIGIBLE, DOUBLE_SEATER_SEATS)
                 .stream()
                 .findFirst()
                 .orElse(null);

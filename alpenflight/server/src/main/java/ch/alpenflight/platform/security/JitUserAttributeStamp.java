@@ -10,6 +10,7 @@ public final class JitUserAttributeStamp {
 
     private JitUserAttributeStamp() {}
 
+    // RENAME: stampResolvedUserId -> stampResolvedUserIdForAuditActor
     public static void stampResolvedUserId(UUID userId) {
         HttpServletRequest request = currentRequest();
         if (request != null) {

@@ -26,7 +26,7 @@ public class MeasuredJobAspect {
     private final JobRunRepository jobRuns;
     private final MeterRegistry meters;
     private final Clock clock;
-    private final TransactionTemplate requiresNew;
+    private final TransactionTemplate ownTxSoRunRecordSurvivesRollback;
 
     public MeasuredJobAspect(JobRunRepository jobRuns,
                              MeterRegistry meters,
@@ -35,8 +35,8 @@ public class MeasuredJobAspect {
         this.jobRuns = jobRuns;
         this.meters = meters;
         this.clock = clock;
-        this.requiresNew = new TransactionTemplate(txManager);
-        this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.ownTxSoRunRecordSurvivesRollback = new TransactionTemplate(txManager);
+        this.ownTxSoRunRecordSurvivesRollback.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Around("@within(measured) && execution(* runOnce(..))")
@@ -57,7 +57,7 @@ public class MeasuredJobAspect {
     }
 
     private UUID openRun(String jobName) {
-        JobRun run = requiresNew.execute(status -> jobRuns.save(JobRun.start(jobName, clock)));
+        JobRun run = ownTxSoRunRecordSurvivesRollback.execute(status -> jobRuns.save(JobRun.start(jobName, clock)));
         UUID id = run == null ? null : run.getId();
         if (id == null) {
             throw new IllegalStateException("JobRun id null after save for job " + jobName);
@@ -77,7 +77,7 @@ public class MeasuredJobAspect {
     }
 
     private void transition(UUID runId, Consumer<JobRun> mutation) {
-        requiresNew.executeWithoutResult(status ->
+        ownTxSoRunRecordSurvivesRollback.executeWithoutResult(status ->
                 jobRuns.findById(runId).ifPresent(run -> {
                     mutation.accept(run);
                     jobRuns.save(run);

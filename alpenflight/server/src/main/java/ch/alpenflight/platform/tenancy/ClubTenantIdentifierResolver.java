@@ -27,6 +27,7 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
                 .orElse(NO_TENANT);
     }
 
+    // RENAME: resolveForAuthenticatedPrincipal -> resolveForAuthenticatedPrincipalIgnoringRunAsOverride
     public Optional<UUID> resolveForAuthenticatedPrincipal() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (!(auth instanceof JwtAuthenticationToken jwtAuth) || !auth.isAuthenticated()) {

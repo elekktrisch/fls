@@ -15,13 +15,15 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 @Configuration
 class JwtDecoderConfig {
 
+    private static final Duration IDP_TO_JVM_CLOCK_DRIFT_TOLERANCE = Duration.ofSeconds(60);
+
     @Bean
     JwtDecoder jwtDecoder(
             @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri,
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator(Duration.ofSeconds(60)),
+                new JwtTimestampValidator(IDP_TO_JVM_CLOCK_DRIFT_TOLERANCE),
                 new JwtIssuerValidator(issuerUri));
         decoder.setJwtValidator(validator);
         return decoder;

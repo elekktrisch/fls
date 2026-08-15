@@ -17,6 +17,25 @@ import tools.jackson.databind.ObjectMapper;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final String[] ANONYMOUS_DOC_AND_PROBE_PATHS_WILDCARD_MISSES_BASE_AND_DOTTED_SUFFIX = {
+            "/v3/api-docs",
+            "/v3/api-docs/**",
+            "/v3/api-docs.yaml",
+            "/swagger-ui",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/actuator/health",
+            "/actuator/health/**",
+            "/actuator/info",
+            "/error"};
+
+    private static final String ANONYMOUS_PUBLIC_READS_ANY_GET_UNDER_THE_PUBLIC_SEGMENT =
+            "/api/v1/public/**";
+
+    private static final String[] ANONYMOUS_PUBLIC_WRITES_ENUMERATED_SO_A_NEW_ONE_STAYS_AUTHENTICATED = {
+            "/api/v1/public/clubs/*/discovery-flight-registrations",
+            "/api/v1/public/clubs/*/scenic-flight-registrations"};
+
     private final ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter;
     private final LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint;
     private final JitUserMaterializer jitUserMaterializer;
@@ -44,22 +63,13 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(STATELESS))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(
-                                "/v3/api-docs",
-                                "/v3/api-docs/**",
-                                "/v3/api-docs.yaml",
-                                "/swagger-ui",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/actuator/info",
-                                "/error")
+                                ANONYMOUS_DOC_AND_PROBE_PATHS_WILDCARD_MISSES_BASE_AND_DOTTED_SUFFIX)
                         .permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/public/**")
+                        .requestMatchers(HttpMethod.GET,
+                                ANONYMOUS_PUBLIC_READS_ANY_GET_UNDER_THE_PUBLIC_SEGMENT)
                         .permitAll()
                         .requestMatchers(HttpMethod.POST,
-                                "/api/v1/public/clubs/*/discovery-flight-registrations",
-                                "/api/v1/public/clubs/*/scenic-flight-registrations")
+                                ANONYMOUS_PUBLIC_WRITES_ENUMERATED_SO_A_NEW_ONE_STAYS_AUTHENTICATED)
                         .permitAll()
                         .anyRequest()
                         .authenticated())

@@ -37,11 +37,11 @@ public class UserPrincipalLookup {
     }
 
     public Optional<UUID> resolveUserIdFor(Jwt jwt) {
-        Object stashed = stashedUserIdOnRequest();
-        if (stashed == JitUserMaterializationFilter.ABSENT) {
+        Object jitDecision = jitFilterUserIdDecisionOnRequest();
+        if (jitDecision == JitUserMaterializationFilter.ABSENT) {
             return Optional.empty();
         }
-        if (stashed instanceof UUID uuid) {
+        if (jitDecision instanceof UUID uuid) {
             return Optional.of(uuid);
         }
         return querySingleUuid(jwt, SELECT_USER_ID, "user_id");
@@ -58,14 +58,15 @@ public class UserPrincipalLookup {
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
-        List<UUID> matches = jdbc.queryForList(SELECT_PERSON_ID, UUID.class, parsed.toString());
-        if (matches.size() == 1 && matches.get(0) != null) {
-            return Optional.of(matches.get(0));
+        List<UUID> personIdsNullIfUnlinked =
+                jdbc.queryForList(SELECT_PERSON_ID, UUID.class, parsed.toString());
+        if (personIdsNullIfUnlinked.size() == 1 && personIdsNullIfUnlinked.get(0) != null) {
+            return Optional.of(personIdsNullIfUnlinked.get(0));
         }
         return Optional.empty();
     }
 
-    private static @Nullable Object stashedUserIdOnRequest() {
+    private static @Nullable Object jitFilterUserIdDecisionOnRequest() {
         HttpServletRequest req = currentRequest();
         if (req == null) {
             return null;

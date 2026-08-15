@@ -19,7 +19,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class PublicRegistrationAbuseGuard {
 
+    // RENAME: MAX_ATTEMPTS_PER_CLUB -> MAX_SUBMITS_PER_SOURCE_AND_CLUB
     static final int MAX_ATTEMPTS_PER_CLUB = 10;
+    // RENAME: MAX_ATTEMPTS_PER_SOURCE -> MAX_SUBMITS_PER_SOURCE_ACROSS_CLUBS
     static final int MAX_ATTEMPTS_PER_SOURCE = 40;
     static final int MAX_CLUBS_READ_PER_SOURCE = 25;
     static final int WINDOW_MINUTES = 15;
@@ -28,7 +30,8 @@ public class PublicRegistrationAbuseGuard {
 
     private final Clock clock;
 
-    private final Map<String, SourceWindows> bySource = new ConcurrentHashMap<>();
+    private final Map<String, SourceWindowsGuardedByComputeBinLock> bySource =
+            new ConcurrentHashMap<>();
 
     private final AtomicReference<Instant> nextSweep = new AtomicReference<>(Instant.EPOCH);
 
@@ -37,11 +40,11 @@ public class PublicRegistrationAbuseGuard {
     }
 
     public void recordSubmitAndCheck(String clientIp, String clubSlug) {
-        record(clientIp, clubSlug, SourceWindows::recordSubmit);
+        record(clientIp, clubSlug, SourceWindowsGuardedByComputeBinLock::recordSubmit);
     }
 
     public void recordReadAndCheck(String clientIp, String clubSlug) {
-        record(clientIp, clubSlug, SourceWindows::recordRead);
+        record(clientIp, clubSlug, SourceWindowsGuardedByComputeBinLock::recordRead);
     }
 
     private void record(String clientIp, String clubSlug, WindowUpdate update) {
@@ -49,7 +52,8 @@ public class PublicRegistrationAbuseGuard {
         sweepIdleSources(now);
         String club = clubSlug.toLowerCase(Locale.ROOT);
         bySource.compute(clientIp, (key, existing) -> {
-            SourceWindows windows = existing == null ? new SourceWindows() : existing;
+            SourceWindowsGuardedByComputeBinLock windows =
+                    existing == null ? new SourceWindowsGuardedByComputeBinLock() : existing;
             update.apply(windows, club, now);
             return windows;
         });
@@ -57,7 +61,7 @@ public class PublicRegistrationAbuseGuard {
 
     @FunctionalInterface
     private interface WindowUpdate {
-        void apply(SourceWindows windows, String club, Instant now);
+        void apply(SourceWindowsGuardedByComputeBinLock windows, String club, Instant now);
     }
 
     private void sweepIdleSources(Instant now) {
@@ -72,43 +76,44 @@ public class PublicRegistrationAbuseGuard {
         }
     }
 
-    private static final class SourceWindows {
+    private static final class SourceWindowsGuardedByComputeBinLock {
 
-        private final Deque<Instant> allClubs = new ArrayDeque<>();
-        private final Map<String, Deque<Instant>> perClub = new HashMap<>();
+        private final Deque<Instant> submitsAcrossAllClubs = new ArrayDeque<>();
+        private final Map<String, Deque<Instant>> submitsPerClub = new HashMap<>();
 
-        private final Map<String, Instant> clubsRead = new HashMap<>();
+        private final Map<String, Instant> distinctClubsReachedByReads = new HashMap<>();
 
         void recordSubmit(String club, Instant now) {
             pruneExpired(now.minus(WINDOW));
-            Deque<Instant> clubWindow = perClub.computeIfAbsent(club, key -> new ArrayDeque<>());
-            allClubs.addLast(now);
+            Deque<Instant> clubWindow = submitsPerClub.computeIfAbsent(club, key -> new ArrayDeque<>());
+            submitsAcrossAllClubs.addLast(now);
             clubWindow.addLast(now);
             if (clubWindow.size() > MAX_ATTEMPTS_PER_CLUB) {
                 throw throttled(clubWindow.peekFirst(), now,
                         "Too many registration attempts for this club");
             }
-            if (allClubs.size() > MAX_ATTEMPTS_PER_SOURCE) {
-                throw throttled(allClubs.peekFirst(), now,
+            if (submitsAcrossAllClubs.size() > MAX_ATTEMPTS_PER_SOURCE) {
+                throw throttled(submitsAcrossAllClubs.peekFirst(), now,
                         "Too many registration attempts from this source");
             }
         }
 
         void recordRead(String club, Instant now) {
             pruneExpired(now.minus(WINDOW));
-            if (!clubsRead.containsKey(club) && clubsRead.size() >= MAX_CLUBS_READ_PER_SOURCE) {
-                throw throttled(oldest(clubsRead.values()), now,
+            if (!distinctClubsReachedByReads.containsKey(club)
+                    && distinctClubsReachedByReads.size() >= MAX_CLUBS_READ_PER_SOURCE) {
+                throw throttled(oldest(distinctClubsReachedByReads.values()), now,
                         "Too many clubs looked up from this source");
             }
-            clubsRead.put(club, now);
+            distinctClubsReachedByReads.put(club, now);
         }
 
         boolean pruneExpired(Instant cutoff) {
-            prune(allClubs, cutoff);
-            perClub.values().forEach(window -> prune(window, cutoff));
-            perClub.values().removeIf(Deque::isEmpty);
-            clubsRead.values().removeIf(seen -> !seen.isAfter(cutoff));
-            return allClubs.isEmpty() && clubsRead.isEmpty();
+            prune(submitsAcrossAllClubs, cutoff);
+            submitsPerClub.values().forEach(window -> prune(window, cutoff));
+            submitsPerClub.values().removeIf(Deque::isEmpty);
+            distinctClubsReachedByReads.values().removeIf(seen -> !seen.isAfter(cutoff));
+            return submitsAcrossAllClubs.isEmpty() && distinctClubsReachedByReads.isEmpty();
         }
 
         private static void prune(Deque<Instant> window, Instant cutoff) {

@@ -61,7 +61,7 @@ public class PublicRegistrationTxWriter {
 
     private UUID createRegistrant(UUID clubId,
             PublicRegistrationKind kind, PublicRegistrantDetails details) {
-        boolean trainee = kind.marksGliderTrainee();
+        boolean gliderTraineeOnPersonAndMembership = kind.marksGliderTrainee();
         Person person = Person.register(details.firstname(), details.lastname(), null);
         person.updateContact(
                 details.addressLine1(), null, details.zip(), details.city(), null,
@@ -69,10 +69,11 @@ public class PublicRegistrationTxWriter {
                 details.privatePhone(), details.mobilePhone(), details.businessPhone(), null,
                 details.privateEmail(), null, false, null, null, false);
         person.updateLicences(
-                false, false, false, false, trainee, false, false, false, false, false,
+                false, false, false, false, gliderTraineeOnPersonAndMembership,
+                false, false, false, false, false,
                 null, null, null, null, null, null, null,
                 false, false, false, false);
-        joinTargetClub(person, clubId, trainee);
+        joinTargetClubAsInactiveProspect(person, clubId, gliderTraineeOnPersonAndMembership);
         return idOf(persons.save(person));
     }
 
@@ -83,11 +84,12 @@ public class PublicRegistrationTxWriter {
                 invoice.countryId(),
                 null, null, null, null,
                 invoice.notificationEmail(), null, false, null, null, false);
-        joinTargetClub(person, clubId, false);
+        joinTargetClubAsInactiveProspect(person, clubId, false);
         return idOf(persons.save(person));
     }
 
-    private static void joinTargetClub(Person person, UUID clubId, boolean gliderTrainee) {
+    private static void joinTargetClubAsInactiveProspect(Person person, UUID clubId,
+            boolean gliderTrainee) {
         PersonRoleFlags roles = new PersonRoleFlags(
                 false, false, false, false, gliderTrainee, false, false, false);
         person.joinClub(clubId, null, null, roles, PersonNotificationPrefs.none(), false);

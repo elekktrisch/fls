@@ -15,19 +15,19 @@ class ClientIpResolver {
 
     private static final String FORWARDED_FOR = "X-Forwarded-For";
 
-    private static final Pattern IPV4_LITERAL = Pattern.compile(
+    private static final Pattern STRICT_IPV4_DOTTED_QUAD = Pattern.compile(
             "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}");
 
     String resolve(HttpServletRequest request) {
         String peer = request.getRemoteAddr();
         String peerAddress = peer == null ? "" : peer;
-        InetAddress peerIp = parseLiteral(peerAddress);
+        InetAddress peerIp = parseIpLiteralWithoutDnsLookup(peerAddress);
         if (peerIp == null || !isInfrastructure(peerIp)) {
             return peerIp == null ? peerAddress : peerIp.getHostAddress();
         }
         List<String> hops = forwardedHops(request);
         for (int i = hops.size() - 1; i >= 0; i--) {
-            InetAddress hop = parseLiteral(hops.get(i));
+            InetAddress hop = parseIpLiteralWithoutDnsLookup(hops.get(i));
             if (hop != null && !isInfrastructure(hop)) {
                 return hop.getHostAddress();
             }
@@ -62,8 +62,9 @@ class ClientIpResolver {
         return ipv4WithPort ? hop.substring(0, colon) : hop;
     }
 
-    private static @Nullable InetAddress parseLiteral(String candidate) {
-        boolean literal = IPV4_LITERAL.matcher(candidate).matches() || candidate.indexOf(':') >= 0;
+    private static @Nullable InetAddress parseIpLiteralWithoutDnsLookup(String candidate) {
+        boolean literal =
+                STRICT_IPV4_DOTTED_QUAD.matcher(candidate).matches() || candidate.indexOf(':') >= 0;
         if (!literal) {
             return null;
         }

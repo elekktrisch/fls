@@ -35,6 +35,8 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     static final URI PROBLEM_TYPE_DEACTIVATED =
             URI.create("urn:alpenflight:problem:user-deactivated");
 
+    private static final String PII_FREE_DEACTIVATED_MESSAGE = "User account is deactivated";
+
     @SuppressWarnings("unused")
     private static final Logger LOG = LoggerFactory.getLogger(JitUserMaterializationFilter.class);
 
@@ -78,8 +80,8 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             throw new ServletException("Unexpected checked exception from JIT materialise", e);
         }
-        Object stash = (userId != null && userId.isPresent()) ? userId.get() : ABSENT;
-        request.setAttribute(USER_ID_ATTRIBUTE, stash);
+        Object userIdOrAbsent = (userId != null && userId.isPresent()) ? userId.get() : ABSENT;
+        request.setAttribute(USER_ID_ATTRIBUTE, userIdOrAbsent);
         chain.doFilter(request, response);
     }
 
@@ -108,8 +110,8 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     private void writeDeactivated(HttpServletResponse response) throws IOException {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
         pd.setType(PROBLEM_TYPE_DEACTIVATED);
-        pd.setTitle("User account is deactivated");
-        pd.setDetail("User account is deactivated");
+        pd.setTitle(PII_FREE_DEACTIVATED_MESSAGE);
+        pd.setDetail(PII_FREE_DEACTIVATED_MESSAGE);
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setHeader("Cache-Control", "no-store");

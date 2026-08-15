@@ -27,8 +27,7 @@ public final class OpenApiSnapshotMain {
         System.setProperty("server.port", "0");
         System.setProperty("springdoc.api-docs.enabled", "true");
         System.setProperty("springdoc.swagger-ui.enabled", "false");
-        System.setProperty("spring.flyway.enabled", "false");
-        System.setProperty("spring.jpa.hibernate.ddl-auto", "none");
+        skipDatabaseStartupBecauseSnapshotRunHasNoLivePostgres();
 
         try (ConfigurableApplicationContext ctx = SpringApplication.run(AlpenFlightApplication.class)) {
             int port = Integer.parseInt(ctx.getEnvironment().getProperty("local.server.port", "0"));
@@ -42,6 +41,11 @@ public final class OpenApiSnapshotMain {
                 case COMPARE -> compareSnapshot(target, normalized);
             }
         }
+    }
+
+    private static void skipDatabaseStartupBecauseSnapshotRunHasNoLivePostgres() {
+        System.setProperty("spring.flyway.enabled", "false");
+        System.setProperty("spring.jpa.hibernate.ddl-auto", "none");
     }
 
     private static String fetchLiveSpec(int port) throws Exception {

@@ -56,7 +56,7 @@ public class PublicRegistrationIntake {
         guard.recordSubmitAndCheck(clientIp, clubSlug);
         PublicClub club = resolver.resolve(clubSlug);
         DiscoveryRegistration written = Tenants.runAs(club.clubId(), () -> {
-            requireBookableDay(selectedDay);
+            requireBookableDayPublishedByThisClub(selectedDay);
             DiscoveryRegistration registered = writer.registerDiscovery(club, registrant, selectedDay);
             mailer.sendDiscovery(club, registrant, selectedDay, registered.reservation());
             return registered;
@@ -64,7 +64,7 @@ public class PublicRegistrationIntake {
         return new Accepted(club, written.persons(), written.reservation());
     }
 
-    private void requireBookableDay(LocalDate selectedDay) {
+    private void requireBookableDayPublishedByThisClub(LocalDate selectedDay) {
         LocalDate today = LocalDate.now(clock);
         boolean bookable = discoveryDays.findActiveByEventDate(selectedDay)
                 .filter(day -> day.isBookableOn(today))

@@ -12,6 +12,8 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 @Configuration
 public class ClubAwareJwtAuthenticationConverter extends JwtAuthenticationConverter {
 
+    private static final String SPRING_HAS_ROLE_PREFIX = "ROLE_";
+
     public ClubAwareJwtAuthenticationConverter() {
         setJwtGrantedAuthoritiesConverter(ClubAwareJwtAuthenticationConverter::extractAuthorities);
     }
@@ -27,7 +29,7 @@ public class ClubAwareJwtAuthenticationConverter extends JwtAuthenticationConver
         }
         return raw.stream()
                 .filter(r -> r instanceof String)
-                .map(r -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + r))
+                .map(r -> (GrantedAuthority) new SimpleGrantedAuthority(SPRING_HAS_ROLE_PREFIX + r))
                 .toList();
     }
 }

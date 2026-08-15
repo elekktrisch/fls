@@ -18,7 +18,7 @@ public class KeycloakAdminTokenSupplier {
     private final RestClient http = RestClient.create();
     private final KeycloakAdminProperties props;
     private final Clock clock;
-    private final ReentrantLock lock = new ReentrantLock();
+    private final ReentrantLock oneRotationPerBurstLock = new ReentrantLock();
 
     private @Nullable String cachedToken;
     private Instant expiresAt = Instant.EPOCH;
@@ -34,11 +34,12 @@ public class KeycloakAdminTokenSupplier {
         if (snapshot != null && now.isBefore(expiresAt.minusSeconds(props.refreshSkewSeconds()))) {
             return snapshot;
         }
-        lock.lock();
+        oneRotationPerBurstLock.lock();
         try {
             snapshot = cachedToken;
-            Instant after = clock.instant();
-            if (snapshot != null && after.isBefore(expiresAt.minusSeconds(props.refreshSkewSeconds()))) {
+            Instant nowAfterAcquiringLock = clock.instant();
+            if (snapshot != null
+                    && nowAfterAcquiringLock.isBefore(expiresAt.minusSeconds(props.refreshSkewSeconds()))) {
                 return snapshot;
             }
             TokenResponse fresh = fetchToken();
@@ -46,7 +47,7 @@ public class KeycloakAdminTokenSupplier {
             this.expiresAt = clock.instant().plus(Duration.ofSeconds(fresh.expiresIn));
             return fresh.accessToken;
         } finally {
-            lock.unlock();
+            oneRotationPerBurstLock.unlock();
         }
     }
 
@@ -67,10 +68,13 @@ public class KeycloakAdminTokenSupplier {
             }
             return body;
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakAdminTokenException(
-                    "Keycloak token endpoint refused client-credentials grant (status "
-                            + e.getStatusCode().value() + ")", e);
+            throw new KeycloakAdminTokenException(refusalMessageWithoutResponseBody(e), e);
         }
+    }
+
+    private static String refusalMessageWithoutResponseBody(HttpStatusCodeException e) {
+        return "Keycloak token endpoint refused client-credentials grant (status "
+                + e.getStatusCode().value() + ")";
     }
 
     public record TokenResponse(
