@@ -17,6 +17,24 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
+
+- **[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]** `MapperVsSchemaCompatibilityTest` has been **red since J-13**
+  (`f042781de`), not since this journey — T-14 proved it by stashing its own diff and re-running the test red
+  identically. `MapperVsSchemaCompatibilityTest.java:213`'s placeholder map is missing `${app_role_password}`,
+  which `V54__split_app_role_append_only_audit.sql:48` needs. One-line fix. Worth asking how it stayed red
+  across several journeys without anyone noticing. *(seam: that test's Flyway placeholder map)*
+- **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
+  TypeScript 6 rejects as deprecated (TS5107), so `npx tsc -p e2e/tsconfig.json` cannot run at all on the
+  top-level suite. Pre-existing and unrelated to the sweep, but it means that suite has **no typecheck gate**
+  — alongside the finding that `angular.json`'s `lintFilePatterns` is `src/**` only, so `e2e/` has no lint gate
+  either. J-31's `--check` is currently the only automated guard covering that directory.
+  *(seam: `e2e/tsconfig.json` + an `e2e` lint/typecheck lane)*
+- **[INLINE-ANGULAR-TEMPLATES-ARE-NOT-TYPECHECKED]** A rename inside an inline `template:` literal compiles
+  clean and breaks at runtime — `tsc` never checks it. T-14 hit this on `CalendarDay.iso/key` and updated five
+  template sites by hand. This is a standing rename hazard for the whole `web/src` codebase, not a J-31 artifact;
+  worth a lint rule or a note in `web/CLAUDE.md` §4. *(seam: inline-template type checking)*
+
 ## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
 
 - **[SCHEMA-DECISIONS-NOTE]** T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
