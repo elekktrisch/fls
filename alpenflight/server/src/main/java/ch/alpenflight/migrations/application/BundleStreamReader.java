@@ -16,7 +16,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 final class BundleStreamReader {
 
     private static final String MANIFEST_ENTRY_NAME = "manifest.json";
-    private static final ObjectMapper JSON = buildHardenedJsonMapper();
+    private static final ObjectMapper JSON = buildHardenedNonClosingJsonMapper();
 
     BundleStreamReader() { }
 
@@ -104,7 +104,7 @@ final class BundleStreamReader {
         return buffer;
     }
 
-    private static ObjectMapper buildHardenedJsonMapper() {
+    private static ObjectMapper buildHardenedNonClosingJsonMapper() {
         ObjectMapper mapper = new ObjectMapper();
         StreamReadConstraints hardened = StreamReadConstraints.builder()
                 .maxStringLength(1_000_000)

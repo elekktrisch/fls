@@ -108,16 +108,16 @@ public class PersonsService {
     }
 
     @Transactional(readOnly = true)
-    public SelfContactView getOwnContact(UUID personId) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+    public SelfContactView getOwnContact(UUID callerOwnPersonId) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
         return SelfContactView.of(p);
     }
 
-    public void updateOwnContact(UUID personId, SelfContactUpdate cmd) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
-        ContactSnapshot before = ContactSnapshot.of(p);
+    public void updateOwnContact(UUID callerOwnPersonId, SelfContactUpdate cmd) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
+        ContactSnapshot beforeSnapshot = ContactSnapshot.of(p);
         p.updateContact(
                 cmd.addressLine1(), cmd.addressLine2(), cmd.zip(), cmd.city(), cmd.region(),
                 cmd.countryId(),
@@ -127,7 +127,8 @@ public class PersonsService {
                 p.getSpotLink(), p.isEnableAddress());
         Person saved = persistPerson(p);
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_PERSON, personId, before, ContactSnapshot.of(saved)));
+                AuditedTarget.updated(AUDIT_PERSON, callerOwnPersonId, beforeSnapshot,
+                        ContactSnapshot.of(saved)));
     }
 
     private record ContactSnapshot(
@@ -157,16 +158,16 @@ public class PersonsService {
     }
 
     @Transactional(readOnly = true)
-    public SelfLicencesView getOwnLicences(UUID personId) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+    public SelfLicencesView getOwnLicences(UUID callerOwnPersonId) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
         return SelfLicencesView.of(p);
     }
 
-    public void updateOwnLicences(UUID personId, SelfLicencesUpdate cmd) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
-        SelfLicencesView before = SelfLicencesView.of(p);
+    public void updateOwnLicences(UUID callerOwnPersonId, SelfLicencesUpdate cmd) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
+        SelfLicencesView beforeSnapshot = SelfLicencesView.of(p);
         p.updateLicences(
                 cmd.motorPilot(), cmd.towPilot(), cmd.gliderInstructor(), cmd.gliderPilot(),
                 cmd.gliderTrainee(), cmd.gliderPax(), cmd.tmg(), cmd.winchOperator(),
@@ -181,24 +182,27 @@ public class PersonsService {
                 cmd.receiveOwnedAircraftStatisticReports());
         Person saved = persistPerson(p);
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_PERSON_LICENCES, personId, before,
+                AuditedTarget.updated(AUDIT_PERSON_LICENCES, callerOwnPersonId, beforeSnapshot,
                         SelfLicencesView.of(saved)));
     }
 
     @Transactional(readOnly = true)
-    public SelfNotificationPrefsView getOwnNotificationPrefs(UUID personId, UUID clubId) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
-        PersonClub pc = aliveMembershipInOrThrow(p, clubId);
+    public SelfNotificationPrefsView getOwnNotificationPrefs(UUID callerOwnPersonId,
+                                                            UUID callerTenantClubId) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
+        PersonClub pc = aliveMembershipInOrThrow(p, callerTenantClubId);
         return SelfNotificationPrefsView.of(pc);
     }
 
-    public void updateOwnNotificationPrefs(UUID personId, UUID clubId, SelfNotificationPrefsUpdate cmd) {
-        Person p = persons.findActiveById(personId)
-                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
-        PersonClub before = aliveMembershipInOrThrow(p, clubId);
-        SelfNotificationPrefsView beforeSnapshot = SelfNotificationPrefsView.of(before);
-        PersonClub pc = p.updateNotificationPrefs(clubId, new PersonNotificationPrefs(
+    public void updateOwnNotificationPrefs(UUID callerOwnPersonId, UUID callerTenantClubId,
+                                           SelfNotificationPrefsUpdate cmd) {
+        Person p = persons.findActiveById(callerOwnPersonId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(callerOwnPersonId)));
+        PersonClub membershipBeforeUpdate = aliveMembershipInOrThrow(p, callerTenantClubId);
+        SelfNotificationPrefsView beforeSnapshot =
+                SelfNotificationPrefsView.of(membershipBeforeUpdate);
+        PersonClub pc = p.updateNotificationPrefs(callerTenantClubId, new PersonNotificationPrefs(
                 cmd.receiveFlightReports(),
                 cmd.receiveAircraftReservationNotifications(),
                 cmd.receivePlanningDayRoleReminder()));
@@ -262,7 +266,7 @@ public class PersonsService {
     public void leaveCurrentClub(PersonId id, @Nullable UUID userId) {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
-        UUID pcId = p.getActivePersonClubs().stream()
+        UUID personClubIdCapturedBeforeLeave = p.getActivePersonClubs().stream()
                 .filter(pc -> tenant.equals(pc.getClubId()))
                 .findFirst()
                 .map(PersonsService::requirePersonClubId)
@@ -271,7 +275,7 @@ public class PersonsService {
         p.leaveClub(tenant, userId, clock);
         persistPerson(p);
         auditTrail.record(AuditAction.DELETE,
-                AuditedTarget.deleted(AUDIT_PERSON_CLUB, pcId, p));
+                AuditedTarget.deleted(AUDIT_PERSON_CLUB, personClubIdCapturedBeforeLeave, p));
     }
 
     @Transactional(readOnly = true)
@@ -298,7 +302,7 @@ public class PersonsService {
 
         AuditAction action = matches.isEmpty() ? AuditAction.LOOKUP_MISS : AuditAction.LOOKUP_HIT;
         UUID targetId = matches.isEmpty()
-                ? hashLookupKey(req)
+                ? correlatableMissTargetIdFromHashedLookupKey(req)
                 : idValueOrThrow(matches.get(0));
         auditTrail.record(action,
                 AuditedTarget.created("PersonLookup", targetId,
@@ -308,7 +312,7 @@ public class PersonsService {
 
     record LookupAuditPayload(UUID tenant, boolean byEmail, int matchCount) {}
 
-    private static UUID hashLookupKey(PersonLookupRequest req) {
+    private static UUID correlatableMissTargetIdFromHashedLookupKey(PersonLookupRequest req) {
         String canonical;
         if (req.email() != null && !req.email().isBlank()) {
             canonical = "e|" + req.email().trim().toLowerCase(Locale.ROOT);

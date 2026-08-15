@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
 
 final class ForeignKeyResolver implements AutoCloseable {
 
-    private static final String REFERENCER_CLUB_FIELD = "club_id";
+    private static final String REFERENCER_OWN_LEGACY_CLUB_WIRE_FIELD = "club_id";
 
     private final Connection connection;
     private final BundleManifest manifest;
@@ -39,7 +39,7 @@ final class ForeignKeyResolver implements AutoCloseable {
     }
 
     void rewriteForeignKeys(Mapper mapper, ObjectNode row) throws SQLException {
-        Map<String, UUID> legacyDisambiguators = snapshotDisambiguators(mapper, row);
+        Map<String, UUID> legacyDisambiguators = snapshotDisambiguatorsBeforeRewrite(mapper, row);
         for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
             EntityType target = binding.target();
             String field = binding.column();
@@ -86,8 +86,9 @@ final class ForeignKeyResolver implements AutoCloseable {
             Map<String, UUID> legacyDisambiguators,
             UUID legacyGuid)
             throws SQLException {
-        String clubField =
-                disambiguatorColumn != null ? disambiguatorColumn : REFERENCER_CLUB_FIELD;
+        String clubField = disambiguatorColumn != null
+                ? disambiguatorColumn
+                : REFERENCER_OWN_LEGACY_CLUB_WIRE_FIELD;
         UUID referencerClubId = legacyDisambiguators.get(clubField);
         if (referencerClubId == null) {
             throw new BundleIngestException(
@@ -192,14 +193,16 @@ final class ForeignKeyResolver implements AutoCloseable {
         return target.name().toLowerCase(Locale.ROOT) + "_id";
     }
 
-    private static Map<String, UUID> snapshotDisambiguators(Mapper mapper, ObjectNode row) {
+    private static Map<String, UUID> snapshotDisambiguatorsBeforeRewrite(Mapper mapper,
+                                                                         ObjectNode row) {
         Map<String, UUID> snapshot = new HashMap<>();
         for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
             if (!binding.target().fansOut()) {
                 continue;
             }
             String clubField = binding.disambiguatorColumn() != null
-                    ? binding.disambiguatorColumn() : REFERENCER_CLUB_FIELD;
+                    ? binding.disambiguatorColumn()
+                    : REFERENCER_OWN_LEGACY_CLUB_WIRE_FIELD;
             if (snapshot.containsKey(clubField)) {
                 continue;
             }

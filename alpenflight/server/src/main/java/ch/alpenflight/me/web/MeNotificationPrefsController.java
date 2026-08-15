@@ -68,16 +68,16 @@ class MeNotificationPrefsController {
         Resolved r = resolveOwn(jwt);
         personsService.updateOwnNotificationPrefs(r.personId(), r.clubId(),
                 new SelfNotificationPrefsUpdate(
-                        f(req.receiveFlightReports()),
-                        f(req.receiveAircraftReservationNotifications()),
-                        f(req.receivePlanningDayRoleReminder())));
+                        flagOrFalse(req.receiveFlightReports()),
+                        flagOrFalse(req.receiveAircraftReservationNotifications()),
+                        flagOrFalse(req.receivePlanningDayRoleReminder())));
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MeNotificationPrefsResponse.from(
                         personsService.getOwnNotificationPrefs(r.personId(), r.clubId())));
     }
 
-    private static boolean f(@org.jspecify.annotations.Nullable Boolean b) {
+    private static boolean flagOrFalse(@org.jspecify.annotations.Nullable Boolean b) {
         return Boolean.TRUE.equals(b);
     }
 

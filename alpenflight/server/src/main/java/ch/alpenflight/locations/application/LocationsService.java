@@ -90,7 +90,8 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        LocationDetail created = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail created = LocationMapper.toDetail(
+                saveTranslatingIcaoUniqueViolationToConflict(loc, req.icaoCode()));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -127,7 +128,8 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        LocationDetail after = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail after = LocationMapper.toDetail(
+                saveTranslatingIcaoUniqueViolationToConflict(loc, req.icaoCode()));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -143,7 +145,8 @@ public class LocationsService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id.value(), before));
     }
 
-    private Location persist(Location loc, @Nullable String icaoCode) {
+    private Location saveTranslatingIcaoUniqueViolationToConflict(Location loc,
+                                                                  @Nullable String icaoCode) {
         try {
             return locations.save(loc);
         } catch (DataIntegrityViolationException e) {

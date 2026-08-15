@@ -14,7 +14,12 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 public final class ExcelExportSupport {
 
+    // RENAME: DEFAULT_ROW_WINDOW -> DEFAULT_IN_MEMORY_ROW_WINDOW
     public static final int DEFAULT_ROW_WINDOW = 100;
+
+    private static final String TIME_OF_DAY_FORMAT = "HH:MM";
+    private static final String ELAPSED_HOURS_FORMAT = "[H]:MM";
+    private static final double SECONDS_PER_EXCEL_SERIAL_DAY = 86_400.0d;
 
     private final SXSSFWorkbook workbook;
     private final CreationHelper creationHelper;
@@ -66,13 +71,13 @@ public final class ExcelExportSupport {
     }
 
     public Cell timeCell(Row row, int column, LocalDateTime value) {
-        return dateCell(row, column, value, "HH:MM");
+        return dateCell(row, column, value, TIME_OF_DAY_FORMAT);
     }
 
     public Cell durationCell(Row row, int column, long durationSeconds) {
         Cell cell = row.createCell(column);
-        cell.setCellValue(durationSeconds / 86_400.0d);
-        cell.setCellStyle(formatStyle("[H]:MM"));
+        cell.setCellValue(durationSeconds / SECONDS_PER_EXCEL_SERIAL_DAY);
+        cell.setCellStyle(formatStyle(ELAPSED_HOURS_FORMAT));
         return cell;
     }
 
@@ -99,6 +104,7 @@ public final class ExcelExportSupport {
         }
     }
 
+    // RENAME: trackColumnsForAutoSizing -> trackColumnsForAutoSizingBeforeWritingRows
     public void trackColumnsForAutoSizing(SXSSFSheet sheet) {
         sheet.trackAllColumnsForAutoSizing();
     }

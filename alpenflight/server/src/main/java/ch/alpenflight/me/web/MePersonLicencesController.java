@@ -66,25 +66,27 @@ class MePersonLicencesController {
             @AuthenticationPrincipal Jwt jwt) {
         UUID personId = resolveOwnPersonId(jwt);
         personsService.updateOwnLicences(personId, new SelfLicencesUpdate(
-                f(req.hasMotorPilotLicence()), f(req.hasTowPilotLicence()),
-                f(req.hasGliderInstructorLicence()), f(req.hasGliderPilotLicence()),
-                f(req.hasGliderTraineeLicence()), f(req.hasGliderPaxLicence()), f(req.hasTmgLicence()),
-                f(req.hasWinchOperatorLicence()), f(req.hasMotorInstructorLicence()),
-                f(req.hasPartMLicence()),
+                flagOrFalse(req.hasMotorPilotLicence()), flagOrFalse(req.hasTowPilotLicence()),
+                flagOrFalse(req.hasGliderInstructorLicence()), flagOrFalse(req.hasGliderPilotLicence()),
+                flagOrFalse(req.hasGliderTraineeLicence()), flagOrFalse(req.hasGliderPaxLicence()),
+                flagOrFalse(req.hasTmgLicence()), flagOrFalse(req.hasWinchOperatorLicence()),
+                flagOrFalse(req.hasMotorInstructorLicence()),
+                flagOrFalse(req.hasPartMLicence()),
                 req.licenceNumber(),
                 req.medicalClass1ExpireDate(), req.medicalClass2ExpireDate(),
                 req.medicalLaplExpireDate(),
                 req.gliderInstructorLicenceExpireDate(), req.motorInstructorLicenceExpireDate(),
                 req.partMLicenceExpireDate(),
-                f(req.hasGliderTowingStartPermission()), f(req.hasGliderSelfStartPermission()),
-                f(req.hasGliderWinchStartPermission()),
-                f(req.receiveOwnedAircraftStatisticReports())));
+                flagOrFalse(req.hasGliderTowingStartPermission()),
+                flagOrFalse(req.hasGliderSelfStartPermission()),
+                flagOrFalse(req.hasGliderWinchStartPermission()),
+                flagOrFalse(req.receiveOwnedAircraftStatisticReports())));
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MePersonLicencesResponse.from(personsService.getOwnLicences(personId)));
     }
 
-    private static boolean f(@org.jspecify.annotations.Nullable Boolean b) {
+    private static boolean flagOrFalse(@org.jspecify.annotations.Nullable Boolean b) {
         return Boolean.TRUE.equals(b);
     }
 

@@ -81,6 +81,8 @@ public class MigrationBundleIngestService {
     private static final String LEGACY_ID_MAP_ENTRY_PREFIX = "legacy_id_map/";
     private static final String LEGACY_ID_MAP_ENTRY_SUFFIX = ".pgcopy";
 
+    private static final long SQL_TIMEOUT_HEADROOM_BEFORE_WALL_CLOCK_MS = 60_000L;
+
     private static final Set<BundleIngestErrorCode> RETRYABLE_PRE_TRANSACTION_CODES =
             EnumSet.of(
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
@@ -105,7 +107,7 @@ public class MigrationBundleIngestService {
     private final BundleStreamReader bundleStreamReader;
     private final EntityStreamIngestor entityStreamIngestor;
     private final FlightReportRebuildService flightReportRebuild;
-    private final boolean unmaskConstraintNames;
+    private final boolean unmaskConstraintNamesInDevAndTest;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
                                         MigrationRunRepository runs,
@@ -146,12 +148,13 @@ public class MigrationBundleIngestService {
                     "alpenflight.migration.bundle-timeout must be a positive Duration, got " + bundleTimeout);
         }
         this.bundleTimeout = bundleTimeout;
-        long timeoutMs = bundleTimeout.toMillis();
-        this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
+        long wallClockCapMs = bundleTimeout.toMillis();
+        this.sqlStatementTimeoutMs = Math.max(
+                wallClockCapMs - SQL_TIMEOUT_HEADROOM_BEFORE_WALL_CLOCK_MS, wallClockCapMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = entityStreamIngestor;
         this.flightReportRebuild = flightReportRebuild;
-        this.unmaskConstraintNames =
+        this.unmaskConstraintNamesInDevAndTest =
                 environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "test"));
     }
 
@@ -183,13 +186,13 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.BUNDLE_TIMEOUT,
                     "Bundle ingest exceeded " + bundleTimeout + " wall-clock cap; worker interrupted",
                     timeout);
-            tryRecordFailure(uploadId, runIdRef.get(), timeoutError);
+            recordFailureAfterRollbackReleasedLocks(uploadId, runIdRef.get(), timeoutError);
             throw timeoutError;
         } catch (ExecutionException wrapper) {
             Throwable cause = wrapper.getCause() == null ? wrapper : wrapper.getCause();
             if (cause instanceof BundleIngestException be) {
                 if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(be.getErrorCode())) {
-                    tryRecordFailure(uploadId, runIdRef.get(), be);
+                    recordFailureAfterRollbackReleasedLocks(uploadId, runIdRef.get(), be);
                 }
                 throw be;
             }
@@ -200,7 +203,7 @@ public class MigrationBundleIngestService {
                     "Unexpected ingest failure: " + cause.getClass().getSimpleName()
                             + ": " + cause.getMessage(),
                     cause);
-            tryRecordFailure(uploadId, runIdRef.get(), wrapped);
+            recordFailureAfterRollbackReleasedLocks(uploadId, runIdRef.get(), wrapped);
             throw wrapped;
         } catch (InterruptedException interrupted) {
             future.cancel(true);
@@ -209,16 +212,16 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest interrupted while awaiting worker completion",
                     interrupted);
-            tryRecordFailure(uploadId, runIdRef.get(), wrapped);
+            recordFailureAfterRollbackReleasedLocks(uploadId, runIdRef.get(), wrapped);
             throw wrapped;
         } finally {
             concurrencyGate.release();
         }
     }
 
-    private void tryRecordFailure(UUID uploadId,
-                                  @Nullable UUID runId,
-                                  BundleIngestException original) {
+    private void recordFailureAfterRollbackReleasedLocks(UUID uploadId,
+                                                        @Nullable UUID runId,
+                                                        BundleIngestException original) {
         try {
             failureRecorder.recordFailure(uploadId, runId,
                     original.getErrorCode(), shortDetail(original));
@@ -316,11 +319,11 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest pipeline returned no outcome and no failure");
         }
-        rebuildFlightReportReadModel(result);
+        rebuildFlightReportReadModelAfterCommit(result);
         return result;
     }
 
-    private void rebuildFlightReportReadModel(IngestOutcome outcome) {
+    private void rebuildFlightReportReadModelAfterCommit(IngestOutcome outcome) {
         for (UUID clubId : outcome.clubIds()) {
             try {
                 flightReportRebuild.rebuildForClub(clubId);
@@ -359,7 +362,7 @@ public class MigrationBundleIngestService {
                         BundleIngestErrorCode.MANIFEST_EMPTY_CLUBS,
                         "Bundle manifest must declare at least one Club; provisioning requires 1..N");
             }
-            new Manifest(manifest.schemaVersion(), manifest.entityPolicies(), manifest.unmappedReason());
+            rejectEntityPoliciesOutsideAllowList(manifest);
 
             run.transitionTo(MigrationRunState.PROVISIONING);
             ProvisioningResult provisioned = provisionDeployment(upload, principalKeycloakSub, manifest);
@@ -392,17 +395,22 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
                     "Bundle tar / gzip read failed", tarFailure);
         } catch (SQLException sql) {
-            String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
-            String constraint = unmaskConstraintNames ? violatedConstraintName(sql) : null;
+            String bodySafeSqlState = sql.getSQLState() == null ? "?" : sql.getSQLState();
+            String constraint =
+                    unmaskConstraintNamesInDevAndTest ? violatedConstraintName(sql) : null;
             String detail = constraint == null
-                    ? "Database error during ingest [sqlstate=" + state + "]"
-                    : "Database error during ingest [sqlstate=" + state
+                    ? "Database error during ingest [sqlstate=" + bodySafeSqlState + "]"
+                    : "Database error during ingest [sqlstate=" + bodySafeSqlState
                             + ", constraint=" + constraint + "]";
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     detail,
                     sql);
         }
+    }
+
+    private static void rejectEntityPoliciesOutsideAllowList(BundleManifest manifest) {
+        new Manifest(manifest.schemaVersion(), manifest.entityPolicies(), manifest.unmappedReason());
     }
 
     private static BundleIngestException toIngestException(BundleCipherException cipherFailure) {

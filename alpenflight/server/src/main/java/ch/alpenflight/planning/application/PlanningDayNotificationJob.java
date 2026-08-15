@@ -67,7 +67,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
     static final String SUBJECT_CANCEL = "Flugbetriebstag abgesagt";
     static final String SUBJECT_ASSIGNMENT = "Erinnerung: Einteilung Flugbetriebstag";
 
-    private static final String APP_LINK = "/planning";
+    private static final String HOST_RELATIVE_APP_LINK = "/planning";
 
     private final PlanningDayRepository planningDays;
     private final PlanningDayAssignmentTypeRepository assignmentTypes;
@@ -215,7 +215,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
                 String role = typeRoleLabels.getOrDefault(a.getAssignmentTypeId(), "");
                 PlanningDayAssignmentModel model = new PlanningDayAssignmentModel(
                         requireDate(day), locationName, day.getInfo(),
-                        displayName(person), role, APP_LINK, mailSettings.from());
+                        displayName(person), role, HOST_RELATIVE_APP_LINK, mailSettings.from());
                 mail.send(email, SUBJECT_ASSIGNMENT, TEMPLATE_ASSIGNMENT, model.asModel());
                 sent++;
             }

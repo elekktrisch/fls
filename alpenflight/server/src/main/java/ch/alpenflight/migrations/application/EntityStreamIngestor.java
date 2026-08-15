@@ -209,7 +209,7 @@ final class EntityStreamIngestor {
             }
         }
         if (deferredUpdates != null) {
-            deferredUpdates.apply(connection);
+            deferredUpdates.applyAfterAllRowsInserted(connection);
         }
     }
 
@@ -243,7 +243,7 @@ final class EntityStreamIngestor {
             }
         }
 
-        void apply(Connection connection) throws SQLException {
+        void applyAfterAllRowsInserted(Connection connection) throws SQLException {
             if (edges.isEmpty()) {
                 return;
             }

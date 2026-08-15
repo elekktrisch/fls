@@ -96,7 +96,7 @@ public class MigrationUpload {
             throw new IllegalUploadStateException(
                     "Cannot supersede a row in state " + state);
         }
-        terminalTransition(MigrationUploadState.SUPERSEDED, clock);
+        terminalTransitionWipingPrivateKey(MigrationUploadState.SUPERSEDED, clock);
     }
 
     public void markExpired(Clock clock) {
@@ -104,7 +104,7 @@ public class MigrationUpload {
             throw new IllegalUploadStateException(
                     "Cannot expire a row in state " + state);
         }
-        terminalTransition(MigrationUploadState.EXPIRED, clock);
+        terminalTransitionWipingPrivateKey(MigrationUploadState.EXPIRED, clock);
     }
 
     public void markFailed(Clock clock) {
@@ -112,7 +112,7 @@ public class MigrationUpload {
             throw new IllegalUploadStateException(
                     "Cannot fail a row in state " + state);
         }
-        terminalTransition(MigrationUploadState.FAILED, clock);
+        terminalTransitionWipingPrivateKey(MigrationUploadState.FAILED, clock);
     }
 
     public void markConsumed(Clock clock) {
@@ -121,10 +121,10 @@ public class MigrationUpload {
                     "Cannot consume a row in state " + state);
         }
         consumedAt = clock.instant();
-        terminalTransition(MigrationUploadState.CONSUMED, clock);
+        terminalTransitionWipingPrivateKey(MigrationUploadState.CONSUMED, clock);
     }
 
-    private void terminalTransition(MigrationUploadState target, Clock clock) {
+    private void terminalTransitionWipingPrivateKey(MigrationUploadState target, Clock clock) {
         state = target;
         updatedAt = clock.instant();
         privateKeyCiphertext = null;

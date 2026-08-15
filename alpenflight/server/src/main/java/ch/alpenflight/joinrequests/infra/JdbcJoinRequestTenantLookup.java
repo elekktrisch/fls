@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 @Component
 class JdbcJoinRequestTenantLookup implements JoinRequestTenantLookup {
 
-    private static final String LATEST_CLUB_BY_SUB =
+    private static final String LATEST_CLUB_BY_SUB_ACROSS_ALL_TENANTS =
             "SELECT club_id FROM t_join_request WHERE keycloak_sub = ?::uuid "
                     + "ORDER BY created_on DESC LIMIT 1";
 
-    private static final String CLUB_BY_ID =
+    private static final String CLUB_BY_ID_ACROSS_ALL_TENANTS =
             "SELECT club_id FROM t_join_request WHERE id = ?::uuid";
 
     private final JdbcTemplate jdbc;
@@ -25,12 +25,12 @@ class JdbcJoinRequestTenantLookup implements JoinRequestTenantLookup {
 
     @Override
     public Optional<UUID> findLatestClubIdBySub(UUID keycloakSub) {
-        return single(LATEST_CLUB_BY_SUB, keycloakSub);
+        return single(LATEST_CLUB_BY_SUB_ACROSS_ALL_TENANTS, keycloakSub);
     }
 
     @Override
     public Optional<UUID> findClubIdById(UUID id) {
-        return single(CLUB_BY_ID, id);
+        return single(CLUB_BY_ID_ACROSS_ALL_TENANTS, id);
     }
 
     private Optional<UUID> single(String sql, UUID key) {

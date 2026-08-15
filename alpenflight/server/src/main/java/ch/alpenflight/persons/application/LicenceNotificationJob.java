@@ -35,6 +35,7 @@ public class LicenceNotificationJob implements BusinessJob {
     static final String TEMPLATE = "licence-expiry";
     static final String SUBJECT = "Ablauf Lizenz / Medical";
 
+    // RENAME: WITHIN_DAYS -> EXPIRY_NOTICE_WINDOW_DAYS
     static final int WITHIN_DAYS = 60;
 
     private static final List<LicenceKind> LICENCE_KINDS = List.of(

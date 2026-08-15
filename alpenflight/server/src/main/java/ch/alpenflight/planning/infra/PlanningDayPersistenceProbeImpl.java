@@ -11,22 +11,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 class PlanningDayPersistenceProbeImpl implements PlanningDayPersistenceProbe {
 
+    private static final String DUPLICATE_DAY_UNIQUE_INDEX = "ux_pln_club_date_loc";
+
     private final EntityManager entityManager;
     private final ReservationCountPort reservationCounts;
-    private final TransactionTemplate tx;
+    private final TransactionTemplate joinOrStartTransaction;
 
     PlanningDayPersistenceProbeImpl(EntityManager entityManager,
                                     ReservationCountPort reservationCounts,
-                                    TransactionTemplate tx) {
+                                    TransactionTemplate joinOrStartTransaction) {
         this.entityManager = entityManager;
         this.reservationCounts = reservationCounts;
-        this.tx = tx;
+        this.joinOrStartTransaction = joinOrStartTransaction;
     }
 
     @Override
     public PlanningDay saveDedup(PlanningDay planningDay) {
         try {
-            return tx.execute(status -> {
+            return joinOrStartTransaction.execute(status -> {
                 PlanningDay managed;
                 if (planningDay.getId() == null) {
                     entityManager.persist(planningDay);
@@ -38,10 +40,10 @@ class PlanningDayPersistenceProbeImpl implements PlanningDayPersistenceProbe {
                 return managed;
             });
         } catch (RuntimeException e) {
-            if (isDuplicateDay(e)) {
+            if (anyCauseBreachesDuplicateDayIndex(e)) {
                 throw new PlanningDayConflictException(
                         "A planning day already exists for this club, date and location "
-                                + "(ux_pln_club_date_loc)", e);
+                                + "(" + DUPLICATE_DAY_UNIQUE_INDEX + ")", e);
             }
             throw e;
         }
@@ -52,17 +54,17 @@ class PlanningDayPersistenceProbeImpl implements PlanningDayPersistenceProbe {
         return reservationCounts.countActiveOnDateAtLocation(planningDate, locationId);
     }
 
-    private static boolean isDuplicateDay(Throwable e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
+    private static boolean anyCauseBreachesDuplicateDayIndex(Throwable thrown) {
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
             if (t instanceof ConstraintViolationException cve
                     && cve.getConstraintName() != null
                     && cve.getConstraintName().toLowerCase(java.util.Locale.ROOT)
-                            .contains("ux_pln_club_date_loc")) {
+                            .contains(DUPLICATE_DAY_UNIQUE_INDEX)) {
                 return true;
             }
             String msg = t.getMessage();
             if (msg != null && msg.toLowerCase(java.util.Locale.ROOT)
-                    .contains("ux_pln_club_date_loc")) {
+                    .contains(DUPLICATE_DAY_UNIQUE_INDEX)) {
                 return true;
             }
         }

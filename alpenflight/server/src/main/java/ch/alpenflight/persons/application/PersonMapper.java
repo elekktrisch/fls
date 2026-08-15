@@ -139,31 +139,31 @@ final class PersonMapper {
                 req.receivePlanningDayRoleReminder());
     }
 
-    static void applyLicences(Person p, @Nullable LicenceFlags l) {
-        if (l == null) {
+    static void applyLicences(Person p, @Nullable LicenceFlags licences) {
+        if (licences == null) {
             return;
         }
         p.updateLicences(
-                l.hasMotorPilotLicence(),
-                l.hasTowPilotLicence(),
-                l.hasGliderInstructorLicence(),
-                l.hasGliderPilotLicence(),
-                l.hasGliderTraineeLicence(),
-                l.hasGliderPaxLicence(),
-                l.hasTmgLicence(),
-                l.hasWinchOperatorLicence(),
-                l.hasMotorInstructorLicence(),
-                l.hasPartMLicence(),
-                l.licenceNumber(),
-                l.medicalClass1ExpireDate(),
-                l.medicalClass2ExpireDate(),
-                l.medicalLaplExpireDate(),
-                l.gliderInstructorLicenceExpireDate(),
-                l.motorInstructorLicenceExpireDate(),
-                l.partMLicenceExpireDate(),
-                l.hasGliderTowingStartPermission(),
-                l.hasGliderSelfStartPermission(),
-                l.hasGliderWinchStartPermission(),
+                licences.hasMotorPilotLicence(),
+                licences.hasTowPilotLicence(),
+                licences.hasGliderInstructorLicence(),
+                licences.hasGliderPilotLicence(),
+                licences.hasGliderTraineeLicence(),
+                licences.hasGliderPaxLicence(),
+                licences.hasTmgLicence(),
+                licences.hasWinchOperatorLicence(),
+                licences.hasMotorInstructorLicence(),
+                licences.hasPartMLicence(),
+                licences.licenceNumber(),
+                licences.medicalClass1ExpireDate(),
+                licences.medicalClass2ExpireDate(),
+                licences.medicalLaplExpireDate(),
+                licences.gliderInstructorLicenceExpireDate(),
+                licences.motorInstructorLicenceExpireDate(),
+                licences.partMLicenceExpireDate(),
+                licences.hasGliderTowingStartPermission(),
+                licences.hasGliderSelfStartPermission(),
+                licences.hasGliderWinchStartPermission(),
                 p.isReceiveOwnedAircraftStatisticReports());
     }
 
