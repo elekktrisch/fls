@@ -468,7 +468,7 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
                 String.class, keyA))
                 .as("club A kept its OWN legacy address — the NDJSON pairs by club_key, not "
-                        + "by position (it arrives reversed from the manifest order)")
+                        + "by position (it arrives in reverse of the manifest order)")
                 .isEqualTo("Addr A");
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
                 String.class, keyB)).isEqualTo("Addr B");
