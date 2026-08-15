@@ -37,6 +37,8 @@ in legacy code beat context paragraphs. Per [[feedback-derive-before-asking]]:
 `AskUserQuestion` is a last resort; uncertainty becomes an `## Assumptions made`
 line, not a blocking question.
 
+**Operator-facing text uses ASD-STE100** (`CLAUDE.md` §"Operator-facing language") — chat, PR bodies, commit messages, journey files, gallery captions. Active voice, ≤20-word instructions, one word one meaning, no idioms.
+
 **Search posture.** Default to MCP servers over raw grep: use the IntelliJ MCP
 (`search_in_files_by_regex`, `search_in_files_by_text`, `find_files_by_glob`,
 `search_symbol`) for code/backlog search and the **codebase-memory-mcp** for

@@ -7,6 +7,37 @@
 1. **Working software over comprehensive documentation.** Skills, agent prompts, story bodies, and review prose exist to enable shipping behavior — not as deliverables. Doc drift is a nudge unless it actively misleads. Skill files target ≤ 300 lines, agent files ≤ 150.
 2. **Business logic in the DDD domain, not the database.** The schema enforces only structural invariants (PKs, FKs, structural NOT NULL, identity-bearing partial UNIQUE, performance indexes). State machines, ranges, calculations, and business rules go on aggregates as Java methods.
 
+## Operator-facing language — ASD-STE100
+
+Write every text the operator reads in **ASD-STE100 Simplified Technical English**. This is an
+aviation project. The operator uses the aerospace standard for the same reason the industry does:
+one meaning per word, and no ambiguity.
+
+**Where the rule applies:** chat replies, PR titles and bodies, commit messages, journey and story
+files, ADR prose you author, proof-gallery captions, and report output.
+
+**Where it does not apply:** code identifiers, quoted log or command output, legacy source, and
+documents that already shipped. Do not rewrite shipped text to comply.
+
+**The rules:**
+
+1. Use the active voice. Write "the gate rejects the push", not "the push is rejected".
+2. Keep sentences short. Use a maximum of 20 words for an instruction, 25 for a description.
+3. Give one instruction in one sentence. Start an instruction with the verb.
+4. Use one word for one meaning. Do not use a synonym for a term you used before. If you write
+   "gate", never write "check" or "guard" for the same thing.
+5. Use articles. Write "the manager pushes the commit", not "manager pushes commit".
+6. Use simple tenses only: present, past, future.
+7. Do not use idioms, slang, metaphors, or humour. "The gate is red" is correct. "The gate blew up"
+   is not.
+8. Do not use a noun cluster of more than three words.
+9. Use a maximum of 6 sentences in an instruction paragraph, and 10 in a description paragraph.
+10. Write a warning or a caution before the step it applies to, never after.
+
+**Honest limit:** full compliance needs the ASD-STE100 approved-word dictionary of approximately 900
+words. Apply the rules above and the one-word-one-meaning principle. Do not claim full dictionary
+compliance.
+
 ## First action — triage
 
 Before reading anything else, decide which lane you're in:
