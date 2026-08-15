@@ -62,10 +62,11 @@ stragglers each ceremony so the file shrinks.
     `deployment_id` DEFAULT catches direct-JDBC test fixtures predating the column. **V54:29** — the whole app-role
     split is guarded on the migrator holding CREATEROLE and NO-OPs with a NOTICE on this LAN dev cluster; roles are
     cluster-global while Flyway history is per-DB, so every step must stay create-if-not-exists.
-  - **Index-shape debt that was recorded in prose.** V4:254 `ix_arv_location` carried a literal `covers tombstones:
-    deferred-perf-tuning S-108` marker (DESC ordering + partial predicate pending production-scale plan analysis).
-    V38's read-model tables have no `deleted_on`, so every index covers all rows by construction. CONVENTIONS.md
-    (as amended by T-02) now wants that reason in the index NAME, which an applied index cannot carry.
+  - **Index-shape debt — ALREADY COVERED, do not re-document.** V4:254 `ix_arv_location` carried a literal
+    `covers tombstones: deferred-perf-tuning S-108` marker. `alpenflight/server/CONVENTIONS.md:266-279` already
+    names all three tombstone-coverage reasons, points at each index by search string, and states outright that
+    renaming an applied index needs a new `ALTER INDEX … RENAME TO`. The three applied indexes still carry their
+    pre-convention names; the debt is the rename migration, not a missing note.
   - **Immutability + forensic anchors.** "Never amend a shipped migration — ship V<n+1>" (V1/V2/V3/V4 headers) — the
     exact rule this journey just paid for with a `flyway repair`. Canonical UUIDv7 seed literals: generator
     `server/src/test/resources/scripts/GenerateCanonicalUuids.java`, ground truth `reference-seeds-canonical-uuids.json`,

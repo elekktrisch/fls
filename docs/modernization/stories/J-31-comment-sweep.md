@@ -78,7 +78,18 @@ later backend gate depends on — the repair follows immediately.
 - [x] **T-11** — batch `web-e2e` + `e2e/` + `web/scripts` (6,736 / 149 — densest)
 - [x] **T-11b** — `strip.mjs` drops a line from some multi-line `//` runs: `self-edit.spec.ts:56` survived the T-11 strip AND `--check` reported the batch clean, so the same defect blinds the detector T-15 is about to wire into CI. Repro saved at `.comment-strip/repro/dropped-line.ts.txt` (4-line run, reports 3). Not the arrow char, not the apostrophes, not run length — bisect it. Then re-run `--check alpenflight e2e` tree-wide and re-strip whatever surfaces; today's 2,003 residual is 1,946 unstripped migrations (T-12) + 55 intentional RENAME markers, so the blind spot is small but real
 - [x] **T-12** — batch `migrations-sql` (1,946 / 58) — checksums change here
-- [ ] **T-13** — `flyway repair` the LAN Postgres; backend boots, `flyway validate` passes, whole server suite green against the repaired history
+- [x] **T-13** — `flyway repair` the LAN Postgres; backend boots, `flyway validate` passes, whole server suite green against the repaired history
+
+  **Repair recipe** (dev box + CI, in order — never `flywayClean`, `clean-disabled: true` is deliberate and the LAN DB is shared):
+  ```
+  cd alpenflight/server
+  source ~/.bashrc                       # DATASOURCE_URL / _USER / _PASSWORD
+  ./gradlew flywayRepair                 # rewrites flyway_schema_history checksums only
+  ./gradlew flywayValidate                # must print "Successfully validated 58 migrations"
+  ```
+  The `flyway` block (`build.gradle.kts:298`) prefers `MIGRATOR_DB_*` over `DATASOURCE_*`; CI sets the former.
+  A running backend also validates on boot, so a repaired DB is proven by `Successfully validated 58 migrations`
+  in the startup log.
 - [ ] **T-14** — serial rename pass: collect every `RENAME:` marker, dedup, apply in ~20-groups, regenerate the OpenAPI snapshot + orval client in the SAME commit
 - [ ] **T-15** — wire `--check` into `ci.yml` (every push, no path filter) + a `preflight.sh` stage — LAST, so the gate lands green instead of sitting red for the whole journey. ALSO correct the skill's batch table from what shipping it taught: `database`'s gate is a bare task in the standalone `alpenflight/database/extract` build (`rootProject.name = alpenflight-legacy-extract`), NOT `:extract:compileJava`; per-module `build.gradle.kts` belong to their module's batch, not batch 10; shard `web-e2e` on comment count (~200), not file count; the table needs a **module-root config** clause — `alpenflight/web/orval.config.ts` and `eslint.config.mjs` sit outside every glob yet the final `--check alpenflight e2e` gate reds on them
 - [ ] **T-16** — re-tag the landing proof video `journey:J-31` in `public-routes.spec.ts`; verify the deployed preview bookmark renders it
