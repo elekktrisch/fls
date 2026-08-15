@@ -24,7 +24,6 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 
-
 const DCT = '/api/v1/deliverycreationtests';
 const FILTERS = '/api/v1/accounting-rule-filters';
 const FLIGHTS = '/api/v1/flights';
@@ -40,6 +39,7 @@ const CREW_TYPE_PILOT = '019e2e15-2c00-76b0-8000-0000000036b0';
 
 const FT_ARTICLE = 'ART-FT';
 const LT_ARTICLE = 'ART-LT';
+const LT_ARTICLE_AFTER_RULE_CHANGE = 'ART-LT-CHANGED';
 
 interface DeliveryItem {
   position?: number;
@@ -337,7 +337,7 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
 
       const putRes = await ctx.request.put(`${FILTERS}/${scenario.ltFilterId}`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
-        data: { ...scenario.ltWrite, articleNumber: 'ART-LT-CHANGED' },
+        data: { ...scenario.ltWrite, articleNumber: LT_ARTICLE_AFTER_RULE_CHANGE },
       });
       expect(putRes.status(), `filter PUT must 200 — got ${putRes.status()}`).toBe(200);
 
@@ -346,7 +346,7 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
       await page.getByTestId('dct-run').locator('button').click();
       await expect(page.getByTestId('dct-result')).toContainText('Failure');
       await expect(page.getByTestId('dct-diff')).toBeVisible();
-      await expect(page.getByTestId('dct-diff')).toContainText('ART-LT-CHANGED');
+      await expect(page.getByTestId('dct-diff')).toContainText(LT_ARTICLE_AFTER_RULE_CHANGE);
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-dct-run-failure-diff.png`,
@@ -601,7 +601,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     }
   });
 });
-
 
 const CREDIT_SEED = '/api/v1/internal/person-flight-time-credits';
 

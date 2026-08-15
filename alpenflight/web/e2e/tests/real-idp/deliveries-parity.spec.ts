@@ -25,7 +25,6 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 
-
 const FLIGHTS = '/api/v1/flights';
 const DELIVERIES = '/api/v1/deliveries';
 
@@ -94,8 +93,9 @@ async function seedFlight(api: APIRequestContext, bearer: string): Promise<strin
     201,
   );
   const loc = res.headers()['location']!;
-  const external = new URL(loc, 'http://localhost').pathname.split('/').pop()!;
-  return external.replace(/^fl-/, '');
+  const externalFlightId = new URL(loc, 'http://localhost').pathname.split('/').pop()!;
+  const rawFlightIdTheSeederTakes = externalFlightId.replace(/^fl-/, '');
+  return rawFlightIdTheSeederTakes;
 }
 
 async function runSeeder(seederArgs: string): Promise<string> {

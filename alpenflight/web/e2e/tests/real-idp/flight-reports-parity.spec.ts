@@ -27,7 +27,6 @@ import {
 } from './_helpers/reporting-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -58,6 +57,12 @@ async function captureAdminBearer(
     await context.close();
   }
 }
+
+const SUMMARY_CELL = { group: 0, starts: 1, landings: 2, flights: 3, duration: 4 } as const;
+
+const SEEDED_FLIGHT_TYPE_GROUPS_PLUS_TOTAL_ROW = 3;
+
+const REPORTS_SPEC_ADMIN_USERNAME_TAG = 'rep';
 
 async function summaryRowCells(page: Page, group: string): Promise<string[]> {
   const escaped = group.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -98,7 +103,7 @@ test.describe('J-7 flight reports — real chain parity', () => {
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL, 'rep');
+    fixture = await provisionTwoClubs(browser, baseURL, REPORTS_SPEC_ADMIN_USERNAME_TAG);
     pilot = await provisionSeedClubPilot();
 
     const adminBearer = await captureAdminBearer(browser, baseURL, fixture.clubA);
@@ -161,7 +166,9 @@ test.describe('J-7 flight reports — real chain parity', () => {
       await expect(page.getByTestId('report-summary-table')).toBeVisible();
       const summaryRows = page.getByTestId('report-summary-row');
       await expect(summaryRows.filter({ hasText: 'Total' })).toBeVisible();
-      expect(await summaryRows.count()).toBeGreaterThanOrEqual(3);
+      expect(await summaryRows.count()).toBeGreaterThanOrEqual(
+        SEEDED_FLIGHT_TYPE_GROUPS_PLUS_TOTAL_ROW,
+      );
       await expect(summaryRows.filter({ hasText: /Pilot \(Glider\)/ })).toHaveCount(0);
 
       await expect(page.getByTestId('report-flights-table')).toBeVisible();
@@ -220,12 +227,12 @@ test.describe('J-7 flight reports — real chain parity', () => {
       }
       const motorCells = await summaryRowCells(page, 'Pilot (Motor)');
       expect(
-        Number(motorCells[3]),
+        Number(motorCells[SUMMARY_CELL.flights]),
         'Pilot (Motor) TotalFlights must be > 0 (corrected)',
       ).toBeGreaterThan(0);
       const towCells = await summaryRowCells(page, 'Pilot (Towing)');
       expect(
-        Number(towCells[3]),
+        Number(towCells[SUMMARY_CELL.flights]),
         'Pilot (Towing) TotalFlights must be > 0 (corrected)',
       ).toBeGreaterThan(0);
 
@@ -277,9 +284,15 @@ test.describe('J-7 flight reports — real chain parity', () => {
         ).toHaveCount(1);
       }
       const instrCells = await summaryRowCells(page, 'Instructor');
-      expect(Number(instrCells[3]), 'Instructor (non-solo) count > 0').toBeGreaterThan(0);
+      expect(
+        Number(instrCells[SUMMARY_CELL.flights]),
+        'Instructor (non-solo) count > 0',
+      ).toBeGreaterThan(0);
       const soloCells = await summaryRowCells(page, 'Instructor (Soloflights)');
-      expect(Number(soloCells[3]), 'Instructor (Soloflights) count > 0').toBeGreaterThan(0);
+      expect(
+        Number(soloCells[SUMMARY_CELL.flights]),
+        'Instructor (Soloflights) count > 0',
+      ).toBeGreaterThan(0);
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-reporting-instructor-split.png`,
@@ -317,17 +330,19 @@ test.describe('J-7 flight reports — real chain parity', () => {
         }),
       );
 
-      const summaryTable = page.getByTestId('report-summary-table');
-      await expect(summaryTable).toBeVisible();
-      await expect(page.getByTestId('report-flights-row')).toHaveCount(0);
-      const summaryRows = page.getByTestId('report-summary-row');
-      await expect(summaryRows).toHaveCount(1);
-      const total = summaryRows.first();
-      await expect(total).toContainText('Total');
-      await expect(total.locator('td').nth(1)).toHaveText('0');
-      await expect(total.locator('td').nth(2)).toHaveText('0');
-      await expect(total.locator('td').nth(3)).toHaveText('0');
-      await expect(page.getByTestId('report-empty')).toHaveCount(0);
+      await test.step('no club-B flight row leaks and the lone summary row is a zeroed Total — a location report always appends a Total, so the empty state never renders', async () => {
+        const summaryTable = page.getByTestId('report-summary-table');
+        await expect(summaryTable).toBeVisible();
+        await expect(page.getByTestId('report-flights-row')).toHaveCount(0);
+        const summaryRows = page.getByTestId('report-summary-row');
+        await expect(summaryRows).toHaveCount(1);
+        const zeroedTotalRow = summaryRows.first();
+        await expect(zeroedTotalRow).toContainText('Total');
+        await expect(zeroedTotalRow.locator('td').nth(SUMMARY_CELL.starts)).toHaveText('0');
+        await expect(zeroedTotalRow.locator('td').nth(SUMMARY_CELL.landings)).toHaveText('0');
+        await expect(zeroedTotalRow.locator('td').nth(SUMMARY_CELL.flights)).toHaveText('0');
+        await expect(page.getByTestId('report-empty')).toHaveCount(0);
+      });
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-reporting-tenant-isolation.png`,

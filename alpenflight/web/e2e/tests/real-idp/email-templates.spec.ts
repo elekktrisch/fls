@@ -10,12 +10,11 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const EMAIL_TEMPLATES_PATH = '/email-templates';
 
-const DEFAULT_KEY = 'planningday-ok';
-const DEFAULT_LOCALE = 'de';
-const DEFAULT_ROW = `${DEFAULT_KEY}-${DEFAULT_LOCALE}`;
+const FILE_DEFAULT_KEY = 'planningday-ok';
+const FILE_DEFAULT_LOCALE = 'de';
+const FILE_DEFAULT_ROW = `${FILE_DEFAULT_KEY}-${FILE_DEFAULT_LOCALE}`;
 
 async function newRecordedContext(
   browser: Browser,
@@ -63,7 +62,7 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
         'planningday-cancel',
         'planningday-assignment-notification',
       ]) {
-        const rowId = `${key}-${DEFAULT_LOCALE}`;
+        const rowId = `${key}-${FILE_DEFAULT_LOCALE}`;
         await expect(page.getByTestId(`email-template-row-${rowId}`)).toBeVisible();
         await expect(page.getByTestId(`email-template-override-${rowId}`)).toHaveCount(0);
       }
@@ -89,17 +88,21 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     try {
       await openEmailTemplates(pageA, twoClubs.clubA);
 
-      await pageA.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
-      await expect(pageA).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
+      await pageA.getByTestId(`email-template-row-${FILE_DEFAULT_ROW}`).click();
+      await expect(pageA).toHaveURL(
+        `${EMAIL_TEMPLATES_PATH}/${FILE_DEFAULT_KEY}/${FILE_DEFAULT_LOCALE}`,
+      );
       await pageA.locator('#EmailSubject').fill(customSubject);
       await pageA.getByTestId('email-template-body').fill(customBody);
       await pageA.getByTestId('email-template-save-button').locator('button').click();
       await expect(pageA).toHaveURL(EMAIL_TEMPLATES_PATH);
 
-      await expect(pageA.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toBeVisible();
+      await expect(pageA.getByTestId(`email-template-override-${FILE_DEFAULT_ROW}`)).toBeVisible();
 
-      await pageA.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
-      await expect(pageA).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
+      await pageA.getByTestId(`email-template-row-${FILE_DEFAULT_ROW}`).click();
+      await expect(pageA).toHaveURL(
+        `${EMAIL_TEMPLATES_PATH}/${FILE_DEFAULT_KEY}/${FILE_DEFAULT_LOCALE}`,
+      );
       await expect(pageA.getByTestId('email-template-body')).toHaveValue(customBody);
       await expect(pageA.locator('#EmailSubject')).toHaveValue(customSubject);
     } finally {
@@ -110,8 +113,8 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     const pageB = await ctxB.newPage();
     try {
       await openEmailTemplates(pageB, twoClubs.clubB);
-      await expect(pageB.getByTestId(`email-template-row-${DEFAULT_ROW}`)).toBeVisible();
-      await expect(pageB.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toHaveCount(0);
+      await expect(pageB.getByTestId(`email-template-row-${FILE_DEFAULT_ROW}`)).toBeVisible();
+      await expect(pageB.getByTestId(`email-template-override-${FILE_DEFAULT_ROW}`)).toHaveCount(0);
     } finally {
       await ctxB.close();
       await proofVideo(pageB, testInfo, {
@@ -131,17 +134,21 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     try {
       await openEmailTemplates(page, twoClubs.clubA);
 
-      await expect(page.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toBeVisible();
+      await expect(page.getByTestId(`email-template-override-${FILE_DEFAULT_ROW}`)).toBeVisible();
 
-      await page.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
-      await expect(page).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
+      await page.getByTestId(`email-template-row-${FILE_DEFAULT_ROW}`).click();
+      await expect(page).toHaveURL(
+        `${EMAIL_TEMPLATES_PATH}/${FILE_DEFAULT_KEY}/${FILE_DEFAULT_LOCALE}`,
+      );
       await page.getByTestId('email-template-reset-button').locator('button').click();
       await expect(page).toHaveURL(EMAIL_TEMPLATES_PATH);
 
-      await expect(page.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toHaveCount(0);
+      await expect(page.getByTestId(`email-template-override-${FILE_DEFAULT_ROW}`)).toHaveCount(0);
 
-      await page.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
-      await expect(page).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
+      await page.getByTestId(`email-template-row-${FILE_DEFAULT_ROW}`).click();
+      await expect(page).toHaveURL(
+        `${EMAIL_TEMPLATES_PATH}/${FILE_DEFAULT_KEY}/${FILE_DEFAULT_LOCALE}`,
+      );
       await expect(page.getByTestId('email-template-reset-button')).toHaveCount(0);
     } finally {
       await ctx.close();

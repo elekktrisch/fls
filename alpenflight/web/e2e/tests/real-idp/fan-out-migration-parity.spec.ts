@@ -9,10 +9,15 @@ import {
 } from './_helpers/fan-out-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const RENAMED_SUFFIX = ' (renamed by club A)';
 
 const REAL_BUNDLE = (process.env['J0C_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
+
+const SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY: { retries?: number } = REAL_BUNDLE
+  ? { retries: 0 }
+  : {};
+
+const LIVE_MIGRATION_SEED_TIMEOUT_MS = 120_000;
 
 async function newRecordedContext(
   browser: Browser,
@@ -50,14 +55,17 @@ async function bearerFromLocationsList(page: Page): Promise<string> {
 }
 
 test.describe('Fan-out migration parity — migrated Location, two clubs (real-idp)', () => {
-  test.describe.configure({ mode: 'serial', ...(REAL_BUNDLE ? { retries: 0 } : {}) });
+  test.describe.configure({
+    mode: 'serial',
+    ...SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY,
+  });
 
   let fixture: FanOutParityFixture;
   let baseURL: string;
   let clubBLocationId: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    testInfo.setTimeout(120_000);
+    testInfo.setTimeout(LIVE_MIGRATION_SEED_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     fixture = REAL_BUNDLE
       ? await ensureSharedMigrationBundle(browser, baseURL)
@@ -106,7 +114,7 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     }
   });
 
-  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
+  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows) [skipped: times out on the load-starved fanout runner; re-run in the nightly real-idp suite]', async ({
     browser,
   }, testInfo) => {
     expect(clubBLocationId, 'club B must have located its copy first').toBeTruthy();

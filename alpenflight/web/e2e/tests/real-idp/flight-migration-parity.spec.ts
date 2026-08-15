@@ -27,7 +27,6 @@ import {
 } from './_helpers/flight-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -63,7 +62,7 @@ async function createGliderFlightAerotow(
   page: Page,
   md: FlightMasterdata,
   comment: string,
-  shots?: { testInfo: TestInfo },
+  captureGalleryScreenshots?: { testInfo: TestInfo },
 ): Promise<string> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
@@ -81,9 +80,9 @@ async function createGliderFlightAerotow(
   await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
   await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
 
-  if (shots) {
+  if (captureGalleryScreenshots) {
     await page.screenshot({
-      path: `${shots.testInfo.outputDir}/alpenflight-flights-wizard-glider.png`,
+      path: `${captureGalleryScreenshots.testInfo.outputDir}/alpenflight-flights-wizard-glider.png`,
       fullPage: true,
     });
   }
@@ -93,10 +92,10 @@ async function createGliderFlightAerotow(
   await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId, md.towImmat);
   await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId, 'TowPilot');
 
-  if (shots) {
+  if (captureGalleryScreenshots) {
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     await page.screenshot({
-      path: `${shots.testInfo.outputDir}/alpenflight-flights-wizard-tow.png`,
+      path: `${captureGalleryScreenshots.testInfo.outputDir}/alpenflight-flights-wizard-tow.png`,
       fullPage: true,
     });
   }
@@ -110,9 +109,11 @@ async function createGliderFlightAerotow(
     { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
-  const createdResp = await created;
+  const createdRespWithBodyEvictedByNavigation = await created;
 
-  const flightId = flightIdFromLocation(createdResp.headers()['location']);
+  const flightId = flightIdFromLocation(
+    createdRespWithBodyEvictedByNavigation.headers()['location'],
+  );
   await expect(page).toHaveURL(/\/flights$/);
 
   const row = page
@@ -127,7 +128,7 @@ async function createMotorFlight(
   page: Page,
   md: FlightMasterdata,
   comment: string,
-  shots?: { testInfo: TestInfo },
+  captureGalleryScreenshots?: { testInfo: TestInfo },
 ): Promise<{ id: string; flightAircraftType: string }> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
@@ -146,9 +147,9 @@ async function createMotorFlight(
 
   await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
 
-  if (shots) {
+  if (captureGalleryScreenshots) {
     await page.screenshot({
-      path: `${shots.testInfo.outputDir}/alpenflight-motor-form.png`,
+      path: `${captureGalleryScreenshots.testInfo.outputDir}/alpenflight-motor-form.png`,
       fullPage: true,
     });
   }
@@ -162,11 +163,11 @@ async function createMotorFlight(
     { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
-  const createdResp = await created;
+  const createdRespWithBodyEvictedByNavigation = await created;
 
-  const id = flightIdFromLocation(createdResp.headers()['location']);
+  const id = flightIdFromLocation(createdRespWithBodyEvictedByNavigation.headers()['location']);
 
-  const bearer = createdResp.request().headers()['authorization'];
+  const bearer = createdRespWithBodyEvictedByNavigation.request().headers()['authorization'];
 
   await expect(page).toHaveURL(/\/flights$/);
 
@@ -246,18 +247,18 @@ async function createMinimalGliderFlight(
     { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
-  const createdResp = await created;
-  return flightIdFromLocation(createdResp.headers()['location']);
+  const createdRespWithBodyEvictedByNavigation = await created;
+  return flightIdFromLocation(createdRespWithBodyEvictedByNavigation.headers()['location']);
 }
 
-const WINCH_START_TYPE_ID = '019e2e15-2c00-7fa0-8000-000000000fa0';
+const WINCH_LAUNCH_START_TYPE_ID = '019e2e15-2c00-7fa0-8000-000000000fa0';
 
 async function createFullyPopulatedGliderFlight(page: Page, md: FlightMasterdata): Promise<string> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
   await expect(page.getByTestId('flight-step-launch')).toBeVisible();
 
-  await selectAfOption(page, 'flight-edit-startType', WINCH_START_TYPE_ID);
+  await selectAfOption(page, 'flight-edit-startType', WINCH_LAUNCH_START_TYPE_ID);
   await selectAfOption(page, 'flight-edit-startLocation', md.locationId, 'J2 Airfield');
 
   await page.getByTestId('flight-step-next').click();
@@ -280,8 +281,8 @@ async function createFullyPopulatedGliderFlight(page: Page, md: FlightMasterdata
     { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
-  const createdResp = await created;
-  return flightIdFromLocation(createdResp.headers()['location']);
+  const createdRespWithBodyEvictedByNavigation = await created;
+  return flightIdFromLocation(createdRespWithBodyEvictedByNavigation.headers()['location']);
 }
 
 function isoToday(): string {
@@ -296,6 +297,13 @@ function isoDaysAhead(days: number): string {
 }
 
 const OLDEST_SEEDED_FLIGHT_OFFSET_DAYS = 10;
+
+const REAL_LOGIN_AND_LIVE_SEED_TIMEOUT_MS = 180_000;
+
+const RETRY_WOULD_409_ON_THE_PRIOR_ATTEMPTS_DEPLOYMENT = { retries: 0 } as const;
+
+const CRUD_SPEC_ADMIN_USERNAME_TAG = 'flt';
+const HARDENING_SPEC_ADMIN_USERNAME_TAG = 'fhd';
 
 async function widenFlightListRangeToRecent(page: Page): Promise<void> {
   const refetch = page.waitForResponse(
@@ -317,14 +325,18 @@ async function widenFlightListRangeToRecent(page: Page): Promise<void> {
 
   await inputs.first().click();
   await expect(overlay).toBeVisible();
-  await overlay.locator('.ant-picker-panel').first().locator('.ant-picker-header-prev-btn').click();
+  const leftPanelPreviousMonth = overlay
+    .locator('.ant-picker-panel')
+    .first()
+    .locator('.ant-picker-header-prev-btn');
+  await leftPanelPreviousMonth.click();
 
-  const cells = overlay.locator(
+  const selectableDayCells = overlay.locator(
     '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
   );
-  const count = await cells.count();
-  await cells.first().click();
-  await cells.nth(count - 1).click();
+  const selectableDayCellCount = await selectableDayCells.count();
+  await selectableDayCells.first().click();
+  await selectableDayCells.nth(selectableDayCellCount - 1).click();
 
   const committed = new URL((await refetch).url());
   const from = committed.searchParams.get('from')!;
@@ -346,9 +358,9 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   let flightId: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    testInfo.setTimeout(180_000);
+    testInfo.setTimeout(REAL_LOGIN_AND_LIVE_SEED_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL, 'flt');
+    fixture = await provisionTwoClubs(browser, baseURL, CRUD_SPEC_ADMIN_USERNAME_TAG);
 
     const ctx = await browser.newContext({ baseURL });
     const page = await ctx.newPage();
@@ -649,9 +661,10 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await expect(page.getByTestId('flight-conflict-keep-mine-comment')).toBeVisible();
       const keepTheirs = page.getByTestId('flight-conflict-keep-theirs-comment');
       await expect(keepTheirs).toContainText(conflictingComment);
-      await expect(
-        page.locator('[data-testid^="flight-conflict-keep-mine-"]').first(),
-      ).toBeFocused();
+      const keepMineOfWhicheverFieldConflictsFirst = page
+        .locator('[data-testid^="flight-conflict-keep-mine-"]')
+        .first();
+      await expect(keepMineOfWhicheverFieldConflictsFirst).toBeFocused();
 
       expect(putCount, 'a 412 must NOT auto-retry — exactly one PUT before the dialog').toBe(1);
 
@@ -675,13 +688,13 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
 });
 
 test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', () => {
-  test.describe.configure({ mode: 'serial', retries: 0 });
+  test.describe.configure({ mode: 'serial', ...RETRY_WOULD_409_ON_THE_PRIOR_ATTEMPTS_DEPLOYMENT });
 
   let fixture: FlightParityFixture;
   let baseURL: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    testInfo.setTimeout(180_000);
+    testInfo.setTimeout(REAL_LOGIN_AND_LIVE_SEED_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     fixture = await seedFlightParity(browser, request, baseURL, testInfo.retry);
   });
@@ -758,7 +771,6 @@ test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', 
       await loginAsMigratedAdmin(page, fixture.owner);
       const bearer = await bearerFromFlightsList(page);
 
-
       const list = await ctx.request.get('/api/v1/flights', { headers: { authorization: bearer } });
       expect(list.status()).toBe(200);
       const items = ((await list.json()) as { items: { id: string; processState: string }[] })
@@ -827,9 +839,9 @@ test.describe('Flight hardening — create-persists + edit validation (real-idp)
   let masterdata: FlightMasterdata;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    testInfo.setTimeout(180_000);
+    testInfo.setTimeout(REAL_LOGIN_AND_LIVE_SEED_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL, 'fhd');
+    fixture = await provisionTwoClubs(browser, baseURL, HARDENING_SPEC_ADMIN_USERNAME_TAG);
     const ctx = await browser.newContext({ baseURL });
     const page = await ctx.newPage();
     try {
@@ -987,12 +999,12 @@ test.describe('Flight hardening — create-persists + edit validation (real-idp)
       await expect(page.getByTestId('flight-form')).toBeVisible();
       await expect(saveButton(page)).toBeEnabled();
 
-      const flightDate = page.getByTestId('flight-edit-flightDate').locator('input');
-      await flightDate.fill('');
+      const saveGatingFlightDate = page.getByTestId('flight-edit-flightDate').locator('input');
+      await saveGatingFlightDate.fill('');
       await expect(fieldErrors(page, 'flight-edit-flightDate')).toBeVisible();
       await expect(saveButton(page)).toBeDisabled();
 
-      await flightDate.fill(isoToday());
+      await saveGatingFlightDate.fill(isoToday());
       await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
       await expect(saveButton(page)).toBeEnabled();
 

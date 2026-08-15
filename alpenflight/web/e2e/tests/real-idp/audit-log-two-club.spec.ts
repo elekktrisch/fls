@@ -17,9 +17,11 @@ import {
 import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const AUDIT_LOGS_PATH = '/system/logs';
 const START_PATH = '/start';
+
+const AUDIT_PAGE_SIZE = 50;
+const SUCCESS_ROW_HTTP_STATUS_PLACEHOLDER = '—';
 
 const CH_COUNTRY_LABEL = 'Switzerland';
 
@@ -213,7 +215,9 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await expect(locationRow.getByTestId(TESTIDS.rowAction)).toBeVisible();
       await expect(locationRow.getByTestId(TESTIDS.rowTarget)).toHaveText('Location');
       await expect(locationRow.getByTestId(TESTIDS.rowActor)).toBeVisible();
-      await expect(locationRow.getByTestId(TESTIDS.rowStatus)).toHaveText('—');
+      await expect(locationRow.getByTestId(TESTIDS.rowStatus)).toHaveText(
+        SUCCESS_ROW_HTTP_STATUS_PLACEHOLDER,
+      );
       await expect(locationRow.getByTestId(TESTIDS.rowTime)).toBeVisible();
 
       await page.screenshot({
@@ -273,17 +277,20 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       const locationUpdateRows = page.getByTestId(TESTIDS.row);
       const locationUpdateRowCount = await locationUpdateRows.count();
       const detail = page.getByTestId(TESTIDS.rowDetail);
-      let ours = false;
+      let foundRowCarryingThisRenamesEditedName = false;
       for (let i = 0; i < locationUpdateRowCount; i++) {
         await locationUpdateRows.nth(i).click();
         await expect(detail).toBeVisible();
         if (((await detail.textContent()) ?? '').includes(editedName)) {
-          ours = true;
+          foundRowCarryingThisRenamesEditedName = true;
           break;
         }
         await locationUpdateRows.nth(i).click();
       }
-      expect(ours, `an UPDATE/Location audit row must carry this rename's editedName`).toBe(true);
+      expect(
+        foundRowCarryingThisRenamesEditedName,
+        `an UPDATE/Location audit row must carry this rename's editedName`,
+      ).toBe(true);
       await expect(detail).toContainText(editedName);
       await expect(detail).toContainText(clubALocationName);
 
@@ -349,16 +356,16 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await loginAsClubAdmin(page, fixture.clubA);
 
       const bearer = await bearerFor(page);
-      await seedAuditEvents(ctx.request, bearer, 55);
+      await seedAuditEvents(ctx.request, bearer, AUDIT_PAGE_SIZE + 5);
 
       await enterAuditLogs(page);
 
       await expect(page.getByTestId(TESTIDS.row).first()).toBeVisible();
       const firstPageCount = await page.getByTestId(TESTIDS.row).count();
       expect(firstPageCount, 'default page renders at most pageSize=50 rows').toBeLessThanOrEqual(
-        50,
+        AUDIT_PAGE_SIZE,
       );
-      expect(firstPageCount, 'seed guarantees a full first page').toBe(50);
+      expect(firstPageCount, 'seed guarantees a full first page').toBe(AUDIT_PAGE_SIZE);
       const pagerNext = page.getByTestId(TESTIDS.pagerNext).locator('button');
       await expect(pagerNext).toBeEnabled();
       await expect(page.getByTestId(TESTIDS.pagerPrev).locator('button')).toBeDisabled();
@@ -370,7 +377,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       const nextReq = page.waitForRequest(
         (r) =>
           new URL(r.url()).pathname === '/api/v1/admin/audit-events' &&
-          new URL(r.url()).searchParams.get('pageOffset') === '50',
+          new URL(r.url()).searchParams.get('pageOffset') === String(AUDIT_PAGE_SIZE),
       );
       await pagerNext.click();
       await nextReq;

@@ -22,7 +22,6 @@ import {
 } from './_helpers/reservation-parity-fixture';
 import { provisionTwoClubs, type TwoClubFixture } from './_helpers/two-club-fixture';
 
-
 const FLIGHTS = '/api/v1/flights';
 const DELIVERIES = '/api/v1/deliveries';
 const CREDITS = '/api/v1/internal/person-flight-time-credits';
@@ -36,6 +35,10 @@ const FLIGHT_DELIVERY_BOOKED = '019e2e15-2c00-7a9e-8000-000000003a9e';
 
 const DELIVERY_PREPARED = 10;
 const DELIVERY_BOOKED = 20;
+
+const DAYS_AGED_PAST_ELIGIBILITY_FLOOR = 4;
+const DAYS_AGED_STILL_INELIGIBLE = 0;
+const NO_FLIGHT_LINK = '-';
 
 const CREATE_BUTTON = 'del-create-button';
 const DELETE_CONFIRM_MODAL = 'del-delete-confirm-modal';
@@ -266,7 +269,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${flightId} 4`);
+    await runSeeder(`lock-and-age ${flightId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     try {
       await loginAsReservationAdmin(page);
       await page.goto('/start?lang=en');
@@ -346,8 +349,8 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${gliderId} 4`);
-    await runSeeder(`lock-and-age ${towId} 0`);
+    await runSeeder(`lock-and-age ${gliderId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
+    await runSeeder(`lock-and-age ${towId} ${DAYS_AGED_STILL_INELIGIBLE}`);
     await runSeeder(`link-tow ${gliderId} ${towId}`);
     const ORIGINAL_BALANCE = 5_400;
     const creditId = await grantCredit(
@@ -438,7 +441,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${flightId} 4`);
+    await runSeeder(`lock-and-age ${flightId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     const batch = Number(Date.now().toString().slice(-7));
     const d1 = await seedDelivery(`delivery ${SEED_CLUB_A_ID} ${flightId} Shared ${batch}`);
     const d2 = await seedDelivery(`delivery ${SEED_CLUB_A_ID} ${flightId} Shared ${batch + 1}`);
@@ -613,7 +616,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
   test('[edge] cross-tenant write (delete / book another club’s delivery) is rejected — 404 delete, false book', async () => {
     const batch = Number(Date.now().toString().slice(-7));
     const clubBDelivery = await seedDelivery(
-      `delivery ${twoClubs.clubB.clubId} - Foreign ${batch}`,
+      `delivery ${twoClubs.clubB.clubId} ${NO_FLIGHT_LINK} Foreign ${batch}`,
     );
     seededDeliveryIds.push(clubBDelivery);
 
@@ -658,8 +661,8 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${firstPassId} 4`);
-    await runSeeder(`lock-and-age ${secondPassId} 4`);
+    await runSeeder(`lock-and-age ${firstPassId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
+    await runSeeder(`lock-and-age ${secondPassId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     const ORIGINAL_BALANCE = 100_000;
     const creditId = await grantCredit(
       api.request,

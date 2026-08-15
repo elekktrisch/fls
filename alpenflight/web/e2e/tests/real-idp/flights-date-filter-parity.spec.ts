@@ -10,7 +10,6 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 function rangeInputs(page: Page) {
   return page.getByTestId('flights-date-range').locator('input');
 }
@@ -19,9 +18,9 @@ function pickerOverlay(page: Page) {
   return page.locator('.cdk-overlay-container .ant-picker-panel-container');
 }
 
-function display(d: Date): string {
-  return formatDdMmYyyy(d);
-}
+const REAL_LOGIN_TIMEOUT_MS = 180_000;
+
+const DATE_FILTER_SPEC_ADMIN_USERNAME_TAG = 'fdr';
 
 function daysFromToday(n: number): Date {
   const d = new Date();
@@ -63,9 +62,9 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
   let baseURL: string;
 
   test.beforeAll(async ({ browser }, testInfo) => {
-    testInfo.setTimeout(180_000);
+    testInfo.setTimeout(REAL_LOGIN_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL, 'fdr');
+    fixture = await provisionTwoClubs(browser, baseURL, DATE_FILTER_SPEC_ADMIN_USERNAME_TAG);
   });
 
   test.afterAll(async () => {
@@ -86,7 +85,7 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       const inputs = rangeInputs(page);
       await expect(inputs.first()).toBeVisible();
 
-      const today = display(new Date());
+      const today = formatDdMmYyyy(new Date());
       await expect(inputs.first()).toHaveValue(today);
       await expect(inputs.nth(1)).toHaveValue(today);
 
@@ -122,12 +121,12 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       await rangeInputs(page).first().click();
       const overlay = pickerOverlay(page);
       await expect(overlay).toBeVisible();
-      const cells = overlay.locator(
+      const selectableDayCells = overlay.locator(
         '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
       );
-      const count = await cells.count();
-      await cells.first().click();
-      await cells.nth(count - 1).click();
+      const selectableDayCellCount = await selectableDayCells.count();
+      await selectableDayCells.first().click();
+      await selectableDayCells.nth(selectableDayCellCount - 1).click();
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-flights-date-mouse.png`,
@@ -137,7 +136,7 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       const response = await refetch;
       const params = new URL(response.url()).searchParams;
       expect(params.get('from')).not.toBe(params.get('to'));
-      const today = display(new Date());
+      const today = formatDdMmYyyy(new Date());
       const renderedFrom = await rangeInputs(page).first().inputValue();
       const renderedTo = await rangeInputs(page).nth(1).inputValue();
       expect(`${renderedFrom}..${renderedTo}`).not.toBe(`${today}..${today}`);
@@ -169,8 +168,8 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       const inputs = rangeInputs(page);
       const fromDate = daysFromToday(0);
       const toDate = daysFromToday(7);
-      const from = display(fromDate);
-      const to = display(toDate);
+      const from = formatDdMmYyyy(fromDate);
+      const to = formatDdMmYyyy(toDate);
 
       await inputs.first().click();
       await inputs.first().fill(from);
