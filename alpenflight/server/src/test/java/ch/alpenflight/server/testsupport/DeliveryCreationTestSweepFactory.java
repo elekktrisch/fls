@@ -7,7 +7,7 @@ import java.util.UUID;
 
 final class DeliveryCreationTestSweepFactory {
 
-    private static final UUID FALLBACK_CLUB =
+    private static final UUID SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private DeliveryCreationTestSweepFactory() {}
@@ -19,7 +19,7 @@ final class DeliveryCreationTestSweepFactory {
         UUID currentTenant = TenantTestContext.current().orElse(null);
         UUID fkClub = currentTenant == null
                 || TenantTestContext.NO_TENANT.equals(currentTenant)
-                ? FALLBACK_CLUB
+                ? SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED
                 : currentTenant;
 
         UUID aircraftId = ctx.seedAircraft(fkClub);
@@ -29,11 +29,11 @@ final class DeliveryCreationTestSweepFactory {
             throw new IllegalStateException("Flight save returned a null id");
         }
 
-        UUID operatingClubPlaceholder =
+        UUID tenantTheResolverWillAssignOnInsert =
                 currentTenant == null ? TenantTestContext.NO_TENANT : currentTenant;
 
         return DeliveryCreationTest.create(
-                operatingClubPlaceholder,
+                tenantTheResolverWillAssignOnInsert,
                 flightId,
                 TenantScopedRowBuilders.SWEEP_PREFIX + "DCT_" + Long.toString(System.nanoTime(), 36),
                 null,

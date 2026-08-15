@@ -65,11 +65,11 @@ public final class TwoClubFixture {
         String keyA = clubKeyFor('a');
         String keyB = clubKeyFor('b');
 
-        List<UUID> prior = priorClubIds(slugA, slugB, keyA, keyB);
+        List<UUID> prior = priorClubIdsIncludingSoftDeleted(slugA, slugB, keyA, keyB);
         if (!prior.isEmpty()) {
             deleteTenantScopedRowsFor(prior);
         }
-        deleteClubsBySlugOrKey(slugA, slugB, keyA, keyB);
+        hardDeleteClubsBySlugOrKey(slugA, slugB, keyA, keyB);
 
         Club a = repo.save(Club.create(
                 namePrefix + "alpha", slugA, keyA,
@@ -94,13 +94,14 @@ public final class TwoClubFixture {
                 ? null : rows.getFirst().getId().value(), "t_club_state");
     }
 
-    private List<UUID> priorClubIds(String slugA, String slugB, String keyA, String keyB) {
+    private List<UUID> priorClubIdsIncludingSoftDeleted(
+            String slugA, String slugB, String keyA, String keyB) {
         return jdbc.queryForList(
                 "SELECT id FROM t_club WHERE slug IN (?, ?) OR club_key IN (?, ?)",
                 UUID.class, slugA, slugB, keyA, keyB);
     }
 
-    private void deleteClubsBySlugOrKey(String slugA, String slugB, String keyA, String keyB) {
+    private void hardDeleteClubsBySlugOrKey(String slugA, String slugB, String keyA, String keyB) {
         jdbc.update("DELETE FROM t_club WHERE slug IN (?, ?) OR club_key IN (?, ?)",
                 slugA, slugB, keyA, keyB);
     }
@@ -156,14 +157,26 @@ public final class TwoClubFixture {
         }
         Object[] ids = clubIds.stream().map(UUID::toString).toArray();
         String in = inPlaceholders(clubIds.size());
+        deleteRestrictFkHoldersOfEveryClubBeforeAnyClubsParents(ids, in);
+        deleteCrossTenantRowsRestrictFkingTheClubItself(ids, in);
+        deleteRowsOfEveryTenantScopedEntityInTheCatalog(ids, in);
+    }
+
+    private void deleteRestrictFkHoldersOfEveryClubBeforeAnyClubsParents(Object[] ids, String in) {
         jdbc.update("DELETE FROM t_inoutbound_point WHERE location_id IN ("
                         + "  SELECT id FROM t_location WHERE club_id IN (" + in + "))", ids);
         jdbc.update("DELETE FROM t_delivery WHERE operating_club_id IN (" + in + ")", ids);
         jdbc.update("DELETE FROM t_flight WHERE operating_club_id IN (" + in + ")", ids);
         jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN (" + in + ")", ids);
         jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id IN (" + in + ")", ids);
+    }
+
+    private void deleteCrossTenantRowsRestrictFkingTheClubItself(Object[] ids, String in) {
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id IN (" + in + ")", ids);
         jdbc.update("DELETE FROM t_user WHERE club_id IN (" + in + ")", ids);
+    }
+
+    private void deleteRowsOfEveryTenantScopedEntityInTheCatalog(Object[] ids, String in) {
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
             String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);

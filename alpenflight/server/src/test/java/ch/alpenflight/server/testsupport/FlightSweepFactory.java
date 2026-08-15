@@ -7,7 +7,7 @@ import java.util.UUID;
 
 final class FlightSweepFactory {
 
-    private static final UUID FALLBACK_MANAGING_CLUB =
+    private static final UUID SEED_CLUB_FOR_CROSS_TENANT_AIRCRAFT_WHEN_UNSCOPED =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private FlightSweepFactory() {}
@@ -16,7 +16,7 @@ final class FlightSweepFactory {
         UUID currentTenant = TenantTestContext.current().orElse(null);
         UUID aircraftManager = currentTenant == null
                 || TenantTestContext.NO_TENANT.equals(currentTenant)
-                ? FALLBACK_MANAGING_CLUB
+                ? SEED_CLUB_FOR_CROSS_TENANT_AIRCRAFT_WHEN_UNSCOPED
                 : currentTenant;
         UUID aircraftId = ctx.seedAircraft(aircraftManager);
         return Flight.createGlider(aircraftId, FlightProcessState.NOT_PROCESSED.id(), emptyOps());

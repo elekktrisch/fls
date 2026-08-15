@@ -20,16 +20,16 @@ class KeycloakAdminWireDtoDeserializationTest {
             .disable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
             .build();
 
-    private static List<RealmRoleWire> readRoles(String body) {
+    private static List<RealmRoleWire> readRoles(String roleMappingsJson) {
         return PROD_LIKE_MAPPER.readValue(
-                body,
+                roleMappingsJson,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, RealmRoleWire.class));
     }
 
     @Test
     void parsesRealKeycloakRoleMappingsArrayWithRichFields() {
-        String body = """
+        String keycloak26RoleMappingsResponse = """
                 [
                   {
                     "id": "7d3f9c2a-1111-2222-3333-444455556666",
@@ -50,9 +50,11 @@ class KeycloakAdminWireDtoDeserializationTest {
                 ]
                 """;
 
-        List<RealmRoleWire> roles = readRoles(body);
+        List<RealmRoleWire> roles = readRoles(keycloak26RoleMappingsResponse);
 
-        assertThat(roles).hasSize(2);
+        assertThat(roles)
+                .as("the strict prod mapper must ignore the rich KC fields, not reject the body")
+                .hasSize(2);
         assertThat(roles.get(0).id())
                 .isEqualTo("7d3f9c2a-1111-2222-3333-444455556666");
         assertThat(roles.get(0).name()).isEqualTo("CLUB_ADMINISTRATOR");
@@ -69,7 +71,7 @@ class KeycloakAdminWireDtoDeserializationTest {
 
     @Test
     void parsesRealKeycloakUserListWithRichFields() {
-        String body = """
+        String keycloak26UserListResponse = """
                 [
                   {
                     "id": "9d08ed9c-699a-4c26-9036-9f0bd378009d",
@@ -92,11 +94,13 @@ class KeycloakAdminWireDtoDeserializationTest {
                 """;
 
         List<UserWire> users = PROD_LIKE_MAPPER.readValue(
-                body,
+                keycloak26UserListResponse,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, UserWire.class));
 
-        assertThat(users).hasSize(1);
+        assertThat(users)
+                .as("the strict prod mapper must ignore the rich KC fields, not reject the body")
+                .hasSize(1);
         UserWire u = users.get(0);
         assertThat(u.id()).isEqualTo(UUID.fromString("9d08ed9c-699a-4c26-9036-9f0bd378009d"));
         assertThat(u.username()).isEqualTo("club-admin-a");

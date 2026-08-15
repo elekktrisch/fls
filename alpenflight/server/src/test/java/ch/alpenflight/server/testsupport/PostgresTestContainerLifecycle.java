@@ -21,12 +21,13 @@ public final class PostgresTestContainerLifecycle {
     public static final String APP_ROLE_USER = "alpenflight_app";
     public static final String APP_ROLE_PASSWORD = "alpenflight_app";
 
-    private static final long EXTERNAL_LOCK_KEY = 0x414C50464C545354L;
+    private static final long ONE_TEST_JVM_AT_A_TIME_LOCK_KEY = 0x414C50464C545354L;
     private static final int EXTERNAL_LOCK_WAIT_SECONDS = 15;
 
-    private static final String OWNER_LABEL = "ch.alpenflight.test=pg";
+    private static final String TEST_OWNED_CONTAINER_LABEL = "ch.alpenflight.test=pg";
 
     private static final int STALE_CONTAINER_MIN_AGE_SECONDS = 60;
+    private static final long UNINSPECTABLE_CONTAINER_AGE_SECONDS = Long.MAX_VALUE;
 
     private final String containerName = "alpenflight-pg-test-" + UUID.randomUUID().toString().substring(0, 8);
     private volatile int hostPort = -1;
@@ -84,7 +85,7 @@ public final class PostgresTestContainerLifecycle {
         runOrThrow(
                 "docker", "run", "-d",
                 "--name", containerName,
-                "--label", OWNER_LABEL,
+                "--label", TEST_OWNED_CONTAINER_LABEL,
                 "-e", "POSTGRES_DB=" + DB_NAME,
                 "-e", "POSTGRES_USER=" + DB_USER,
                 "-e", "POSTGRES_PASSWORD=" + DB_PASSWORD,
@@ -127,7 +128,7 @@ public final class PostgresTestContainerLifecycle {
             long deadline = System.currentTimeMillis() + EXTERNAL_LOCK_WAIT_SECONDS * 1000L;
             while (System.currentTimeMillis() < deadline) {
                 try (var rs = lock.createStatement()
-                        .executeQuery("SELECT pg_try_advisory_lock(" + EXTERNAL_LOCK_KEY + ")")) {
+                        .executeQuery("SELECT pg_try_advisory_lock(" + ONE_TEST_JVM_AT_A_TIME_LOCK_KEY + ")")) {
                     rs.next();
                     if (rs.getBoolean(1)) {
                         locked = true;
@@ -142,8 +143,7 @@ public final class PostgresTestContainerLifecycle {
                                 + EXTERNAL_LOCK_WAIT_SECONDS + "s). Run with ALPENFLIGHT_TEST_FORKS=1 and"
                                 + " one gradle test invocation at a time.");
             }
-            lock.createStatement().execute("DROP SCHEMA public CASCADE");
-            lock.createStatement().execute("CREATE SCHEMA public");
+            resetPublicSchemaSoFlywayMigratesFresh(lock);
         } catch (SQLException e) {
             try {
                 lock.close();
@@ -163,6 +163,11 @@ public final class PostgresTestContainerLifecycle {
         externalPassword = password;
         external = true;
         started = true;
+    }
+
+    private static void resetPublicSchemaSoFlywayMigratesFresh(Connection conn) throws SQLException {
+        conn.createStatement().execute("DROP SCHEMA public CASCADE");
+        conn.createStatement().execute("CREATE SCHEMA public");
     }
 
     public synchronized void stop() {
@@ -207,7 +212,7 @@ public final class PostgresTestContainerLifecycle {
                 if (ageSeconds < STALE_CONTAINER_MIN_AGE_SECONDS) {
                     continue;
                 }
-                removeQuietly(name);
+                removeContainerAndItsAnonymousVolumeQuietly(name);
             }
         } catch (Exception ignored) {
         }
@@ -216,15 +221,15 @@ public final class PostgresTestContainerLifecycle {
     private static long ageSecondsOf(String name, long nowMillis) {
         try {
             String created = captureOutput("docker", "inspect", "-f", "{{.Created}}", name).trim();
-            if (created.isEmpty()) return Long.MAX_VALUE;
+            if (created.isEmpty()) return UNINSPECTABLE_CONTAINER_AGE_SECONDS;
             long createdMillis = java.time.Instant.parse(created).toEpochMilli();
             return (nowMillis - createdMillis) / 1000L;
         } catch (Exception e) {
-            return Long.MAX_VALUE;
+            return UNINSPECTABLE_CONTAINER_AGE_SECONDS;
         }
     }
 
-    private static void removeQuietly(String name) {
+    private static void removeContainerAndItsAnonymousVolumeQuietly(String name) {
         try {
             new ProcessBuilder("docker", "rm", "-f", "-v", name)
                     .redirectErrorStream(true)

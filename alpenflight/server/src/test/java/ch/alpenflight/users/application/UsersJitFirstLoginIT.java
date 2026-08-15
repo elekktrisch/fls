@@ -41,6 +41,8 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-77d3-8000-0000000007d3");
     private static final UUID LANG_DE =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
+    private static final String COUNTRY_CH = "019e2e15-2c00-74be-8000-0000000004be";
+    private static final String CLUB_STATE_ACTIVE = "019e2e15-2c00-7bb8-8000-000000000bb8";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -267,8 +269,8 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, 'Other Club', ?, ?::uuid, ?::uuid, ?, false)
                 """,
                 otherClub.toString(), "OTH" + otherClub.toString().substring(0, 5),
-                "019e2e15-2c00-74be-8000-0000000004be",
-                "019e2e15-2c00-7bb8-8000-000000000bb8",
+                COUNTRY_CH,
+                CLUB_STATE_ACTIVE,
                 "other-club-" + otherClub);
         UUID residentSub = freshSub();
         UUID rowId = UUID.randomUUID();
@@ -333,13 +335,17 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void partialUniqueOnKeycloakSubIsPresent_raceLoserNet() {
+    void partialUniqueOnKeycloakSub_isTheRaceNet_andStaysQualifiedToNonNullSubs() {
         Map<String, Object> idx = jdbc.queryForMap(
                 "SELECT indexdef FROM pg_indexes WHERE indexname = 'ux_user_keycloak_sub'");
         String def = (String) idx.get("indexdef");
         assertThat(def)
+                .as("the concurrent-first-login net is a UNIQUE on t_user(keycloak_sub)")
                 .containsIgnoringCase("t_user")
-                .containsIgnoringCase("(keycloak_sub)")
+                .containsIgnoringCase("(keycloak_sub)");
+        assertThat(def)
+                .as("the partial qualifier must survive — a global UNIQUE would also block "
+                        + "re-invite after a softDelete detaches the sub")
                 .containsIgnoringCase("WHERE")
                 .containsIgnoringCase("keycloak_sub IS NOT NULL");
     }

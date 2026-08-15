@@ -7,7 +7,7 @@ import java.util.UUID;
 
 final class AircraftReservationSweepFactory {
 
-    private static final UUID FALLBACK_CLUB =
+    private static final UUID SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private AircraftReservationSweepFactory() {}
@@ -19,7 +19,7 @@ final class AircraftReservationSweepFactory {
         UUID currentTenant = TenantTestContext.current().orElse(null);
         UUID fkClub = currentTenant == null
                 || TenantTestContext.NO_TENANT.equals(currentTenant)
-                ? FALLBACK_CLUB
+                ? SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED
                 : currentTenant;
 
         UUID aircraftId = ctx.seedAircraft(fkClub);
@@ -30,11 +30,11 @@ final class AircraftReservationSweepFactory {
         Instant start = Instant.now().plus(7, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
         Instant end = start.plus(2, ChronoUnit.HOURS);
 
-        UUID operatingClubPlaceholder =
+        UUID tenantTheResolverWillAssignOnInsert =
                 currentTenant == null ? TenantTestContext.NO_TENANT : currentTenant;
 
         return AircraftReservation.create(
-                operatingClubPlaceholder,
+                tenantTheResolverWillAssignOnInsert,
                 aircraftId,
                 pilotPersonId,
                 locationId,

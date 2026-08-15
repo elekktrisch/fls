@@ -47,6 +47,8 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_UIR_";
     private static final String KEY_PREFIX = "IT_UIR_";
+    private static final String REDACTED_BRANCH_WITH_THE_SPACING_JSONB_RESERIALISES_WITH =
+            "\"branch\": \"[redacted]\"";
 
     @Autowired UsersService service;
     @Autowired JdbcTemplate jdbc;
@@ -92,7 +94,9 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         assertThat(created.clubId()).isEqualTo(clubA);
         verify(directory).createUser(any());
         verify(directory).sendExecuteActions(any(), anyList(), any());
-        assertThat(outbox.sent()).isEmpty();
+        assertThat(outbox.sent())
+                .as("the create path invites through Keycloak's password-reset action, no welcome mail")
+                .isEmpty();
         assertThat(rowClub("uir-new")).isEqualTo(clubA);
     }
 
@@ -115,7 +119,9 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         verify(directory, never()).sendExecuteActions(any(), anyList(), any());
         assertThat(outbox.sent()).hasSize(1);
         String html = outbox.sent().get(0).htmlBody();
-        assertThat(html).contains("Willkommen bei AlpenFlight");
+        assertThat(html)
+                .as("the welcome-attached mail is localised to the directory user's de locale")
+                .contains("Willkommen bei AlpenFlight");
     }
 
     @Test
@@ -153,11 +159,11 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
         assertThat(afterState)
                 .as("the branch discriminator must ride verbatim, not as a redacted sentinel")
                 .contains("\"attached_existing\"")
-                .doesNotContain("\"branch\": \"[redacted]\"");
+                .doesNotContain(REDACTED_BRANCH_WITH_THE_SPACING_JSONB_RESERIALISES_WITH);
     }
 
     @Test
-    void mixedCaseEmail_ofUnattachedExistingKcUser_binds_not500() {
+    void mixedCaseEmail_isLowercasedForTheKeycloakLookup_soTheExistingKcUserBinds_not500() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
         when(directory.findUserByEmail("mixed@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
@@ -167,7 +173,9 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
 
         assertThat(bound.clubId()).isEqualTo(clubA);
         verify(directory, never()).createUser(any());
-        assertThat(directoryClubIdAttr.get(existingSub)).isEqualTo(clubA);
+        assertThat(directoryClubIdAttr.get(existingSub))
+                .as("the mixed-case invite matched the lowercased KC record and bound it")
+                .isEqualTo(clubA);
     }
 
     @Test
@@ -188,7 +196,7 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void bindPostSetFailure_clearsStrandedClubIdAttribute() {
+    void bindFailingAfterTheClubIdAttributeWrite_clearsTheStrandedAttribute() {
         UUID existingSub = UuidCreator.getTimeOrderedEpoch();
         when(directory.findUserByEmail("fail@example.com"))
                 .thenReturn(Optional.of(new DirectoryUser(existingSub, null, "en")));
@@ -204,7 +212,6 @@ class UsersInviteRobustnessIT extends PostgresIntegrationTest {
                 .isNull();
         assertThat(rowCount("uir-strand")).isZero();
     }
-
 
     private UserInviteRequest invite(String username, String email) {
         return new UserInviteRequest(username, "Test Member", email, null, null,

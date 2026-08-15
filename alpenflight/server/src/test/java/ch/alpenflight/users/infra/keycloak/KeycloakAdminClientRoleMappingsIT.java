@@ -154,6 +154,7 @@ class KeycloakAdminClientRoleMappingsIT {
         roleMappingsBody = "{\"error\":\"server_error\"}";
 
         assertThatThrownBy(() -> client().getRealmRoleMappings(ORPHAN_SUB))
+                .as("only 404 is benign — a genuine KC outage must not be swallowed")
                 .isInstanceOf(UserDirectoryException.class)
                 .hasMessageContaining("status 500");
     }

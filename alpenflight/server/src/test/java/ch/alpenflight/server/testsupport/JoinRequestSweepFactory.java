@@ -13,9 +13,11 @@ final class JoinRequestSweepFactory {
     static JoinRequest build(SweepFixtureContext ctx) {
         UUID currentTenant = TenantTestContext.current().orElse(TenantTestContext.NO_TENANT);
         String unique = Long.toString(System.nanoTime(), 36);
+        UUID id = UuidCreator.getTimeOrderedEpoch();
+        UUID keycloakSubFreshPerBuildSoRepeatedSweepsNeverCollide = UuidCreator.getTimeOrderedEpoch();
         return JoinRequest.submit(
-                UuidCreator.getTimeOrderedEpoch(),
-                UuidCreator.getTimeOrderedEpoch(),
+                id,
+                keycloakSubFreshPerBuildSoRepeatedSweepsNeverCollide,
                 TenantScopedRowBuilders.SWEEP_PREFIX + unique + "@example.com",
                 TenantScopedRowBuilders.SWEEP_PREFIX + "pilot",
                 currentTenant,

@@ -23,7 +23,7 @@ class KeycloakNamedRefDeserializationTest {
 
     @Test
     void parsesRealKeycloakRoleRepresentationObject() {
-        String body = """
+        String keycloak26RoleRepresentation = """
                 {
                   "id": "7d3f9c2a-1111-2222-3333-444455556666",
                   "name": "CLUB_ADMINISTRATOR",
@@ -35,15 +35,18 @@ class KeycloakNamedRefDeserializationTest {
                 }
                 """;
 
-        KeycloakNamedRef ref = PROD_LIKE_MAPPER.readValue(body, KeycloakNamedRef.class);
+        KeycloakNamedRef ref =
+                PROD_LIKE_MAPPER.readValue(keycloak26RoleRepresentation, KeycloakNamedRef.class);
 
-        assertThat(ref.id()).isEqualTo(ROLE_ID);
+        assertThat(ref.id())
+                .as("the strict prod mapper must ignore composite/clientRole/containerId, not reject them")
+                .isEqualTo(ROLE_ID);
         assertThat(ref.name()).isEqualTo("CLUB_ADMINISTRATOR");
     }
 
     @Test
     void parsesRealKeycloakUserListWithRichFields() {
-        String body = """
+        String keycloak26UserListResponse = """
                 [
                   {
                     "id": "9d08ed9c-699a-4c26-9036-9f0bd378009d",
@@ -62,7 +65,7 @@ class KeycloakNamedRefDeserializationTest {
                 """;
 
         List<KeycloakNamedRef> refs = PROD_LIKE_MAPPER.readValue(
-                body,
+                keycloak26UserListResponse,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, KeycloakNamedRef.class));
 
@@ -73,7 +76,7 @@ class KeycloakNamedRefDeserializationTest {
 
     @Test
     void parsesRealKeycloakGroupAndRoleMappingLists() {
-        String groups = """
+        String keycloak26GroupList = """
                 [
                   {
                     "id": "11111111-2222-3333-4444-555555555555",
@@ -86,7 +89,7 @@ class KeycloakNamedRefDeserializationTest {
                 """;
 
         assertThatCode(() -> PROD_LIKE_MAPPER.readValue(
-                groups,
+                keycloak26GroupList,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, KeycloakNamedRef.class)))
                 .doesNotThrowAnyException();

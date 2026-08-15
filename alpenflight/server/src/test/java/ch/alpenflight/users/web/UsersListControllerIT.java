@@ -36,10 +36,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class UsersListControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final UUID CLUB =
+    private static final UUID MIGRATION_SEEDED_CLUB_1 =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID OTHER_CLUB =
             UUID.fromString("019e30c3-2c00-7001-8000-0000000ab102");
+    private static final String SYMBOLIC_CLUB_ID_CLAIM_FORCING_KEYCLOAK_SUB_TENANT_FALLBACK =
+            "club-1";
     private static final UUID LANG_DE =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
 
@@ -73,7 +75,7 @@ class UsersListControllerIT extends PostgresIntegrationTest {
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                adminId.toString(), CLUB.toString(), "list-it-admin", "List IT Admin",
+                adminId.toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-admin", "List IT Admin",
                 "admin@example.com", LANG_DE.toString(), adminSub.toString());
 
         jdbc.update("""
@@ -81,7 +83,7 @@ class UsersListControllerIT extends PostgresIntegrationTest {
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                UUID.randomUUID().toString(), CLUB.toString(), "list-it-peer", "List IT Peer",
+                UUID.randomUUID().toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-peer", "List IT Peer",
                 "peer@example.com", LANG_DE.toString(), UUID.randomUUID().toString());
 
         jdbc.update("""
@@ -98,7 +100,7 @@ class UsersListControllerIT extends PostgresIntegrationTest {
 
         adminToken = jwts.mint(c -> c
                 .subject(adminSub.toString())
-                .claim("clubId", "club-1")
+                .claim("clubId", SYMBOLIC_CLUB_ID_CLAIM_FORCING_KEYCLOAK_SUB_TENANT_FALLBACK)
                 .claim("preferred_username", "list-it-admin")
                 .claim("given_name", "List")
                 .claim("email", "admin@example.com")
@@ -113,7 +115,7 @@ class UsersListControllerIT extends PostgresIntegrationTest {
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                UUID.randomUUID().toString(), CLUB.toString(), "list-it-orphan",
+                UUID.randomUUID().toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-orphan",
                 "List IT Orphan", "orphan@example.com", LANG_DE.toString(), orphanSub.toString());
 
         when(directory.getRealmRoleMappings(orphanSub)).thenReturn(List.<RealmRoleRef>of());

@@ -188,7 +188,7 @@ class TenantCatalogConsistencyTest {
     }
 
     @Test
-    void cross_tenant_tables_have_no_club_id() throws Exception {
+    void person_the_cross_tenant_root_has_no_club_id() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             assertTableExists(conn, "t_person");
             try (ResultSet rs = conn.createStatement().executeQuery(

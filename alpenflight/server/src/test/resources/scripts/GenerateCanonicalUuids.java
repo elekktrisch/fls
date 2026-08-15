@@ -1,5 +1,6 @@
 
 import java.io.PrintStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -7,7 +8,7 @@ import java.util.Map;
 
 public class GenerateCanonicalUuids {
 
-    private static final long TIMESTAMP_MS = 1778889600000L;
+    private static final long TIMESTAMP_MS = Instant.parse("2026-05-16T00:00:00Z").toEpochMilli();
 
     private static final Map<String, Long> TABLE_OFFSETS = new java.util.LinkedHashMap<>();
     static {
@@ -53,6 +54,21 @@ public class GenerateCanonicalUuids {
         return sb.toString();
     }
 
+    static void printTable(PrintStream out, String tableName,
+                           String[] codesInAppendOnlyIndexOrder) {
+        printTable(out, tableName, tableName, codesInAppendOnlyIndexOrder);
+    }
+
+    static void printTable(PrintStream out, String tableName, String heading,
+                           String[] codesInAppendOnlyIndexOrder) {
+        out.println();
+        out.println("# " + heading + ":");
+        for (int i = 0; i < codesInAppendOnlyIndexOrder.length; i++) {
+            out.printf("  %s = %s%n", codesInAppendOnlyIndexOrder[i],
+                    uuidV7(TABLE_OFFSETS.get(tableName) + i));
+        }
+    }
+
     record Row(String tableName, String naturalKey, int index) {
         String uuid() {
             return uuidV7(TABLE_OFFSETS.get(tableName) + index);
@@ -84,25 +100,13 @@ public class GenerateCanonicalUuids {
 
         out.println("# Canonical seed UUIDs — output of GenerateCanonicalUuids.java");
         out.println("# Re-run produces bit-identical output (deterministic by construction).");
-        out.println();
-        out.println("# country (ISO 3166-1 alpha-2 → UUID v7):");
-        for (int i = 0; i < countryIso2.length; i++) {
-            out.printf("  %s = %s%n", countryIso2[i], uuidV7(TABLE_OFFSETS.get("country") + i));
-        }
+        printTable(out, "country", "country (ISO 3166-1 alpha-2 → UUID v7)", countryIso2);
 
         String[] languageCodes = {"de", "fr", "it", "en", "rm", "de-CH", "fr-CH", "it-CH"};
-        out.println();
-        out.println("# language (BCP-47 → UUID v7):");
-        for (int i = 0; i < languageCodes.length; i++) {
-            out.printf("  %s = %s%n", languageCodes[i], uuidV7(TABLE_OFFSETS.get("language") + i));
-        }
+        printTable(out, "language", "language (BCP-47 → UUID v7)", languageCodes);
 
         String[] clubStates = {"ACTIVE", "SUSPENDED", "CLOSED"};
-        out.println();
-        out.println("# club_state:");
-        for (int i = 0; i < clubStates.length; i++) {
-            out.printf("  %s = %s%n", clubStates[i], uuidV7(TABLE_OFFSETS.get("club_state") + i));
-        }
+        printTable(out, "club_state", clubStates);
 
         String[][] startTypes = {
                 {"WINCH_LAUNCH",   "[GLIDER]"},
@@ -120,127 +124,64 @@ public class GenerateCanonicalUuids {
         }
 
         String[] lengthUnits = {"METER", "FEET"};
-        out.println();
-        out.println("# length_unit_type:");
-        for (int i = 0; i < lengthUnits.length; i++) {
-            out.printf("  %s = %s%n", lengthUnits[i], uuidV7(TABLE_OFFSETS.get("length_unit_type") + i));
-        }
+        printTable(out, "length_unit_type", lengthUnits);
 
         String[] elevationUnits = {"METER", "FEET"};
-        out.println();
-        out.println("# elevation_unit_type:");
-        for (int i = 0; i < elevationUnits.length; i++) {
-            out.printf("  %s = %s%n", elevationUnits[i], uuidV7(TABLE_OFFSETS.get("elevation_unit_type") + i));
-        }
+        printTable(out, "elevation_unit_type", elevationUnits);
 
         String[] counterUnits = {"HOURS_DECIMAL", "HOURS_MINUTES", "LANDINGS", "STARTS"};
-        out.println();
-        out.println("# counter_unit_type:");
-        for (int i = 0; i < counterUnits.length; i++) {
-            out.printf("  %s = %s%n", counterUnits[i], uuidV7(TABLE_OFFSETS.get("counter_unit_type") + i));
-        }
+        printTable(out, "counter_unit_type", counterUnits);
 
         String[] extensionTypes = {"STRING", "INTEGER", "BOOLEAN", "DATE", "LIST"};
-        out.println();
-        out.println("# extension_type:");
-        for (int i = 0; i < extensionTypes.length; i++) {
-            out.printf("  %s = %s%n", extensionTypes[i], uuidV7(TABLE_OFFSETS.get("extension_type") + i));
-        }
+        printTable(out, "extension_type", extensionTypes);
 
         String[] roles = {"ADMIN", "FLIGHT_OPS", "INSTRUCTOR", "PILOT", "READER"};
-        out.println();
-        out.println("# role:");
-        for (int i = 0; i < roles.length; i++) {
-            out.printf("  %s = %s%n", roles[i], uuidV7(TABLE_OFFSETS.get("role") + i));
-        }
-
+        printTable(out, "role", roles);
 
         String[] aircraftTypes = {
                 "UNKNOWN", "GLIDER", "GLIDER_WITH_MOTOR", "MOTOR_GLIDER",
                 "MOTOR_AIRCRAFT", "MULTI_ENGINE", "JET", "HELICOPTER"};
-        out.println();
-        out.println("# aircraft_type:");
-        for (int i = 0; i < aircraftTypes.length; i++) {
-            out.printf("  %s = %s%n", aircraftTypes[i], uuidV7(TABLE_OFFSETS.get("aircraft_type") + i));
-        }
+        printTable(out, "aircraft_type", aircraftTypes);
 
         String[] aircraftStates = {
                 "OK", "INFORMATION", "ATTENTION", "MALFUNCTION",
                 "MAINTENANCE", "UNINSURED", "END_OF_LIFE"};
-        out.println();
-        out.println("# aircraft_state:");
-        for (int i = 0; i < aircraftStates.length; i++) {
-            out.printf("  %s = %s%n", aircraftStates[i], uuidV7(TABLE_OFFSETS.get("aircraft_state") + i));
-        }
+        printTable(out, "aircraft_state", aircraftStates);
 
         String[] locationTypes = {
                 "WAYPOINT", "GRASS_RUNWAY", "EXTERNAL_FIELD",
                 "GLIDER_AIRFIELD", "CONCRETE_RUNWAY", "OTHER"};
-        out.println();
-        out.println("# location_type:");
-        for (int i = 0; i < locationTypes.length; i++) {
-            out.printf("  %s = %s%n", locationTypes[i], uuidV7(TABLE_OFFSETS.get("location_type") + i));
-        }
+        printTable(out, "location_type", locationTypes);
 
         String[] flightCrewTypes = {
                 "PILOT_OR_STUDENT", "CO_PILOT", "FLIGHT_INSTRUCTOR", "PASSENGER",
                 "WINCH_OPERATOR", "OBSERVER", "FLIGHT_COST_INVOICE_RECIPIENT"};
-        out.println();
-        out.println("# flight_crew_type:");
-        for (int i = 0; i < flightCrewTypes.length; i++) {
-            out.printf("  %s = %s%n", flightCrewTypes[i], uuidV7(TABLE_OFFSETS.get("flight_crew_type") + i));
-        }
+        printTable(out, "flight_crew_type", flightCrewTypes);
 
         String[] flightProcessStates = {
                 "NOT_PROCESSED", "INVALID", "VALID", "LOCKED",
                 "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED",
                 "EXCLUDED_FROM_DELIVERY_PROCESS"};
-        out.println();
-        out.println("# flight_process_state:");
-        for (int i = 0; i < flightProcessStates.length; i++) {
-            out.printf("  %s = %s%n", flightProcessStates[i], uuidV7(TABLE_OFFSETS.get("flight_process_state") + i));
-        }
+        printTable(out, "flight_process_state", flightProcessStates);
 
         String[] flightAirStates = {
                 "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED",
                 "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED"};
-        out.println();
-        out.println("# flight_air_state:");
-        for (int i = 0; i < flightAirStates.length; i++) {
-            out.printf("  %s = %s%n", flightAirStates[i], uuidV7(TABLE_OFFSETS.get("flight_air_state") + i));
-        }
+        printTable(out, "flight_air_state", flightAirStates);
 
         String[] flightCostBalanceTypes = {
                 "PILOT_PAYS_ALL", "FIFTY_FIFTY_PILOT_COPILOT", "TOW_PILOT_PAYS_TOW",
                 "NO_INSTRUCTOR_FEE", "INVOICE_TO_PERSON"};
-        out.println();
-        out.println("# flight_cost_balance_type:");
-        for (int i = 0; i < flightCostBalanceTypes.length; i++) {
-            out.printf("  %s = %s%n",
-                    flightCostBalanceTypes[i], uuidV7(TABLE_OFFSETS.get("flight_cost_balance_type") + i));
-        }
-
+        printTable(out, "flight_cost_balance_type", flightCostBalanceTypes);
 
         String[] accountingRuleFilterTypes = {
                 "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
                 "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME",
                 "DO_NOT_INVOICE", "START_TAX"};
-        out.println();
-        out.println("# accounting_rule_filter_type:");
-        for (int i = 0; i < accountingRuleFilterTypes.length; i++) {
-            out.printf("  %s = %s%n",
-                    accountingRuleFilterTypes[i],
-                    uuidV7(TABLE_OFFSETS.get("accounting_rule_filter_type") + i));
-        }
+        printTable(out, "accounting_rule_filter_type", accountingRuleFilterTypes);
 
         String[] accountingUnitTypes = {
                 "MINUTES", "SECONDS", "LANDINGS", "START_OR_FLIGHT"};
-        out.println();
-        out.println("# accounting_unit_type:");
-        for (int i = 0; i < accountingUnitTypes.length; i++) {
-            out.printf("  %s = %s%n",
-                    accountingUnitTypes[i],
-                    uuidV7(TABLE_OFFSETS.get("accounting_unit_type") + i));
-        }
+        printTable(out, "accounting_unit_type", accountingUnitTypes);
     }
 }

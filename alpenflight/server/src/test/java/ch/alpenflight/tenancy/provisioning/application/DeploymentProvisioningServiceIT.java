@@ -38,6 +38,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(DeploymentProvisioningServiceIT.MockDirectoryConfig.class)
 class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
 
+    private static final String OPERATOR_DEFAULT_DEPLOYMENT_ID =
+            "00000000-0000-0000-0000-000000000002";
+
     @Autowired
     private DeploymentProvisioningService provisioning;
 
@@ -54,14 +57,14 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
     private UUID clubStateId;
 
     @BeforeEach
-    void seed() {
+    void precleanItOwnedRowsAndResolveReferenceIds() {
         countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
         clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
 
         jdbc.update("""
-                UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid
+                UPDATE t_club SET deployment_id = ?::uuid
                 WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_PROV_%')
-                """);
+                """, OPERATOR_DEFAULT_DEPLOYMENT_ID);
         jdbc.update("""
                 DELETE FROM t_member_state WHERE club_id IN (
                     SELECT id FROM t_club WHERE clubname LIKE 'IT_PROV_%')
@@ -312,7 +315,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
                 null));
 
-        UUID highestClubId = first.clubIds().stream()
+        UUID highestClubIdAsManifestPrimaryHint = first.clubIds().stream()
                 .max(Comparator.naturalOrder())
                 .orElseThrow();
 
@@ -321,10 +324,12 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                 List.of(
                         clubSpec("IT_PROV_manifest_alpha", "it-prov-manifest-alpha", "IPA"),
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
-                highestClubId));
+                highestClubIdAsManifestPrimaryHint));
 
         assertThat(replay.deploymentId()).isEqualTo(first.deploymentId());
-        assertThat(replay.primaryClubId()).isEqualTo(first.primaryClubId());
+        assertThat(replay.primaryClubId())
+                .as("primary is bound at first provisioning — a replay's manifest hint cannot move it")
+                .isEqualTo(first.primaryClubId());
     }
 
     @Test

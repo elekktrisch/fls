@@ -8,7 +8,7 @@ import org.jspecify.annotations.Nullable;
 
 final class FlightReportRowSweepFactory {
 
-    private static final UUID FALLBACK_CLUB =
+    private static final UUID SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private static final FlightReportDecorations NO_DECORATIONS = new FlightReportDecorations() {
@@ -39,14 +39,14 @@ final class FlightReportRowSweepFactory {
         UUID currentTenant = TenantTestContext.current().orElse(null);
         UUID fkClub = currentTenant == null
                 || TenantTestContext.NO_TENANT.equals(currentTenant)
-                ? FALLBACK_CLUB
+                ? SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED
                 : currentTenant;
         UUID aircraftId = ctx.seedAircraft(fkClub);
         Flight flight = ctx.seedFlight(fkClub, aircraftId);
 
-        UUID operatingClubPlaceholder =
+        UUID tenantTheResolverWillAssignOnInsert =
                 currentTenant == null ? TenantTestContext.NO_TENANT : currentTenant;
         return FlightReportRow.project(flight, null, null, NO_DECORATIONS,
-                operatingClubPlaceholder);
+                tenantTheResolverWillAssignOnInsert);
     }
 }

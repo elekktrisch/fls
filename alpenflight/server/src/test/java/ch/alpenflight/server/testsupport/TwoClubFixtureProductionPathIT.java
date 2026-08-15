@@ -21,13 +21,13 @@ class TwoClubFixtureProductionPathIT extends PostgresIntegrationTest {
     @Autowired private CountryRepository countries;
     @Autowired private ClubStateRepository clubStates;
 
-    private static final String NAME_PREFIX = "T19A_";
-    private static final String KEY_PREFIX = "T19A";
+    private static final String CLASS_UNIQUE_NAME_PREFIX = "T19A_";
+    private static final String CLASS_UNIQUE_KEY_PREFIX = "T19A";
 
     @Test
     void production_path_mints_two_distinct_clubs_with_valid_slugs() {
         TwoClubFixture fixture = new TwoClubFixture(
-                jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+                jdbc, clubs, countries, clubStates, CLASS_UNIQUE_NAME_PREFIX, CLASS_UNIQUE_KEY_PREFIX);
         fixture.seed();
 
         UUID a = fixture.clubA();
@@ -45,10 +45,11 @@ class TwoClubFixtureProductionPathIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void production_path_is_rerunnable_in_the_same_jvm() {
-        new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX).seed();
-        TwoClubFixture second =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
+    void production_path_reseeds_the_same_slugs_in_one_jvm_without_a_unique_violation() {
+        new TwoClubFixture(jdbc, clubs, countries, clubStates,
+                CLASS_UNIQUE_NAME_PREFIX, CLASS_UNIQUE_KEY_PREFIX).seed();
+        TwoClubFixture second = new TwoClubFixture(jdbc, clubs, countries, clubStates,
+                CLASS_UNIQUE_NAME_PREFIX, CLASS_UNIQUE_KEY_PREFIX);
         second.seed();
         assertThat(second.clubA()).isNotEqualTo(second.clubB());
     }

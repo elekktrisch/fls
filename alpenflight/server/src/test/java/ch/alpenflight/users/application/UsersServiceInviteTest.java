@@ -70,7 +70,7 @@ class UsersServiceInviteTest {
                 null, null, LANG, null, Set.of(Role.PILOT));
     }
 
-    private static User savedUser() {
+    private static User savedUserWithHibernateGeneratedId() {
         User u = User.register(CLUB, KC_SUB, "jane.doe", "Jane Doe",
                 "jane@example.com", LANG, null);
         try {
@@ -131,7 +131,7 @@ class UsersServiceInviteTest {
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
         when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
-        when(users.save(any(User.class))).thenReturn(savedUser());
+        when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
                 new RealmRoleRef(null, "PILOT", null)));
 
@@ -149,7 +149,7 @@ class UsersServiceInviteTest {
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
         when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
-        when(users.save(any(User.class))).thenReturn(savedUser());
+        when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
                 new RealmRoleRef(null, "PILOT", null)));
         doThrow(new UserDirectoryException("smtp down"))

@@ -57,6 +57,8 @@ class ReservationsBaselineIntegrationTest {
     private static final List<String> S014_SYSTEM_GLOBAL_REF_TABLES = List.of(
             "t_accounting_rule_filter_type", "t_accounting_unit_type");
 
+    private static final String DEV_SEED_UUID_BAND_PREFIX = "019e30c3-";
+
     @BeforeAll
     static void loadCanonicalSeeds() throws Exception {
         try (InputStream in = ReservationsBaselineIntegrationTest.class
@@ -294,7 +296,7 @@ class ReservationsBaselineIntegrationTest {
 
 
     @Test
-    void delivery_batch_id_partial_unique_per_club() throws Exception {
+    void delivery_batch_id_unique_per_club_except_the_default_zero() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -573,7 +575,7 @@ class ReservationsBaselineIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT id::text, operating_club_id::text, reservation_type_name "
                                 + "FROM t_aircraft_reservation_type "
-                                + "WHERE id::text LIKE '019e30c3-%'")) {
+                                + "WHERE id::text LIKE '" + DEV_SEED_UUID_BAND_PREFIX + "%'")) {
             List<String> rows = new ArrayList<>();
             while (rs.next()) {
                 rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3));
@@ -593,7 +595,7 @@ class ReservationsBaselineIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT id::text, operating_club_id::text, assignment_type_name "
                                 + "FROM t_planning_day_assignment_type "
-                                + "WHERE id::text LIKE '019e30c3-%' "
+                                + "WHERE id::text LIKE '" + DEV_SEED_UUID_BAND_PREFIX + "%' "
                                 + "ORDER BY id::text")) {
             List<String> rows = new ArrayList<>();
             while (rs.next()) {

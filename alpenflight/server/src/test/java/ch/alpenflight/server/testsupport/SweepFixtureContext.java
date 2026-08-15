@@ -26,7 +26,7 @@ public final class SweepFixtureContext {
 
     private static final AtomicInteger AIRCRAFT_COUNTER = new AtomicInteger(0);
 
-    private static final UUID RECIPIENT_FILTER_TYPE_ID =
+    private static final UUID V4_SEEDED_RECIPIENT_FILTER_TYPE_ID =
             UUID.fromString("019e2e15-2c00-7650-8000-000000004650");
 
     private final WebApplicationContext appContext;
@@ -85,13 +85,17 @@ public final class SweepFixtureContext {
             Flight saved = repository(Flight.class).save(flight);
             UUID flightId = saved.getId();
             if (flightId != null) {
-                JpaRepository<FlightReportRow, UUID> reportRows = repository(FlightReportRow.class);
-                if (reportRows.existsById(flightId)) {
-                    reportRows.deleteById(flightId);
-                }
+                deleteAutoProjectedReportRowSoTheSweepsOwnInsertIsTheFirst(flightId);
             }
             return saved;
         });
+    }
+
+    private void deleteAutoProjectedReportRowSoTheSweepsOwnInsertIsTheFirst(UUID flightId) {
+        JpaRepository<FlightReportRow, UUID> reportRows = repository(FlightReportRow.class);
+        if (reportRows.existsById(flightId)) {
+            reportRows.deleteById(flightId);
+        }
     }
 
     public UUID seedReservationType(UUID club) {
@@ -122,8 +126,9 @@ public final class SweepFixtureContext {
                 "t_country");
     }
 
+    // RENAME: firstAccountingRuleFilterTypeId -> seededRecipientFilterTypeId
     public UUID firstAccountingRuleFilterTypeId() {
-        return RECIPIENT_FILTER_TYPE_ID;
+        return V4_SEEDED_RECIPIENT_FILTER_TYPE_ID;
     }
 
     public UUID firstLocationTypeId() {

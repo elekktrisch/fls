@@ -7,7 +7,7 @@ import java.util.UUID;
 
 final class PlanningDaySweepFactory {
 
-    private static final UUID FALLBACK_CLUB =
+    private static final UUID SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private PlanningDaySweepFactory() {}
@@ -19,15 +19,15 @@ final class PlanningDaySweepFactory {
         UUID currentTenant = TenantTestContext.current().orElse(null);
         UUID fkClub = currentTenant == null
                 || TenantTestContext.NO_TENANT.equals(currentTenant)
-                ? FALLBACK_CLUB
+                ? SEED_CLUB_FOR_FK_PARENTS_WHEN_UNSCOPED
                 : currentTenant;
 
         UUID locationId = ctx.seedLocation(fkClub);
-        UUID operatingClubPlaceholder =
+        UUID tenantTheResolverWillAssignOnInsert =
                 currentTenant == null ? TenantTestContext.NO_TENANT : currentTenant;
 
         return PlanningDay.create(
-                operatingClubPlaceholder,
+                tenantTheResolverWillAssignOnInsert,
                 LocalDate.now(java.time.ZoneOffset.UTC).plus(7, ChronoUnit.DAYS),
                 locationId,
                 TenantScopedRowBuilders.SWEEP_PREFIX + "PLN");

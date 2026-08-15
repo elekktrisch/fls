@@ -3,7 +3,9 @@ package ch.alpenflight.tenancy.showcase;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import java.util.Arrays;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,16 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private static final String PS_LOCKED = "019e2e15-2c00-7a9b-8000-000000003a9b";
     private static final String PS_DELIVERY_BOOKED = "019e2e15-2c00-7a9e-8000-000000003a9e";
 
+    private static final String SHOWCASE_OWNED_FLIGHT_IDS_SQL = "'019e30c3-2c00-7801-%'";
+    private static final String SHOWCASE_OWNED_LOCATION_IDS_SQL = "'019e30c3-2c00-7301-%'";
+    private static final String SHOWCASE_OWNED_IMMATS_SQL = Arrays.stream(SHOWCASE_IMMATS)
+            .map(immat -> "'" + immat + "'")
+            .collect(Collectors.joining(",", "(", ")"));
+
+    private static final int MEMBER_STATES_SEEDED_PER_CLUB = 3;
+    private static final int FLIGHT_TYPES_SEEDED_PER_CLUB = 4;
+    private static final int FLIGHT_AIRCRAFT_TYPE_TOW = 2;
+
     @Autowired
     private ShowcaseSeeder seeder;
 
@@ -39,17 +51,41 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private JdbcTemplate jdbc;
 
     @BeforeEach
-    void preClean() {
-        jdbc.update("DELETE FROM t_flight WHERE id::text LIKE '019e30c3-2c00-7801-%'");
+    void preCleanTheRowsThisItOwns() {
+        deleteShowcaseFlightsFirstSoCrewCascadesAndTowLinksNullOut();
+        unlinkThenDeleteThePicPersons();
+        deleteShowcaseAircraftCascadingTheirAirworthinessRows();
+        deleteShowcaseLocationsNowThatNoFlightReferencesThem();
+        deleteShowcaseUsers();
+        deleteShowcaseClub2WithItsPerClubReferenceData();
+    }
+
+    private void deleteShowcaseFlightsFirstSoCrewCascadesAndTowLinksNullOut() {
+        jdbc.update("DELETE FROM t_flight WHERE id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL);
+    }
+
+    private void unlinkThenDeleteThePicPersons() {
         jdbc.update("UPDATE t_user SET person_id = NULL WHERE person_id IN (?::uuid, ?::uuid)",
                 PERSON_PILOT1.toString(), PERSON_PILOT_C2.toString());
         jdbc.update("DELETE FROM t_person WHERE id IN (?::uuid, ?::uuid)",
                 PERSON_PILOT1.toString(), PERSON_PILOT_C2.toString());
-        jdbc.update("DELETE FROM t_aircraft WHERE immatriculation IN ('HB-3001','HB-TOW1','HB-MOT1','HB-3002','HB-CHTR')");
+    }
+
+    private void deleteShowcaseAircraftCascadingTheirAirworthinessRows() {
+        jdbc.update("DELETE FROM t_aircraft WHERE immatriculation IN " + SHOWCASE_OWNED_IMMATS_SQL);
+    }
+
+    private void deleteShowcaseLocationsNowThatNoFlightReferencesThem() {
         jdbc.update("DELETE FROM t_location WHERE icao_code IN ('LSZX','LSGB','LSPD','LSZW','LSGT','LSPM')");
+    }
+
+    private void deleteShowcaseUsers() {
         for (String u : SHOWCASE_USERNAMES) {
             jdbc.update("DELETE FROM t_user WHERE username = ?", u);
         }
+    }
+
+    private void deleteShowcaseClub2WithItsPerClubReferenceData() {
         jdbc.update("DELETE FROM t_member_state WHERE club_id = ?::uuid", CLUB_2.toString());
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id = ?::uuid", CLUB_2.toString());
         jdbc.update("DELETE FROM t_club WHERE id = ?::uuid", CLUB_2.toString());
@@ -63,8 +99,8 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
                 "SELECT slug FROM t_club WHERE id = ?::uuid", String.class, CLUB_2.toString()))
                 .isEqualTo("showcase-club-2");
 
-        assertThat(countMemberStates(CLUB_2)).isEqualTo(3);
-        assertThat(countFlightTypes(CLUB_2)).isEqualTo(4);
+        assertThat(countMemberStates(CLUB_2)).isEqualTo(MEMBER_STATES_SEEDED_PER_CLUB);
+        assertThat(countFlightTypes(CLUB_2)).isEqualTo(FLIGHT_TYPES_SEEDED_PER_CLUB);
 
         assertThat(clubOf("pilot-empty1")).isEqualTo("019e30c3-2c00-7001-8000-000000000001");
         assertThat(clubOf("clubadmin-c2")).isEqualTo(CLUB_2.toString());
@@ -83,16 +119,18 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
 
         assertThat(countShowcaseClubs()).isEqualTo(clubsAfterFirst).isEqualTo(1);
         assertThat(countShowcaseUsers()).isEqualTo(usersAfterFirst).isEqualTo(SHOWCASE_USERNAMES.length);
-        assertThat(countMemberStates(CLUB_2)).isEqualTo(memberStatesAfterFirst).isEqualTo(3);
-        assertThat(countFlightTypes(CLUB_2)).isEqualTo(flightTypesAfterFirst).isEqualTo(4);
+        assertThat(countMemberStates(CLUB_2)).isEqualTo(memberStatesAfterFirst)
+                .isEqualTo(MEMBER_STATES_SEEDED_PER_CLUB);
+        assertThat(countFlightTypes(CLUB_2)).isEqualTo(flightTypesAfterFirst)
+                .isEqualTo(FLIGHT_TYPES_SEEDED_PER_CLUB);
     }
 
     @Test
     void seedsLocationsPerClub() {
         seeder.seed();
 
-        assertThat(countLocations(CLUB_1)).isEqualTo(3);
-        assertThat(countLocations(CLUB_2)).isEqualTo(3);
+        assertThat(countShowcaseOwnedLocations(CLUB_1)).isEqualTo(3);
+        assertThat(countShowcaseOwnedLocations(CLUB_2)).isEqualTo(3);
 
         assertThat(icaoExists(CLUB_1, "LSZX")).isTrue();
         assertThat(icaoExists(CLUB_2, "LSZW")).isTrue();
@@ -108,10 +146,12 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
         assertThat(typeCodeOf("HB-3002")).isEqualTo("GLIDER");
         assertThat(typeCodeOf("HB-CHTR")).isEqualTo("MOTOR_AIRCRAFT");
 
-        assertThat(countAircraftManagedBy(CLUB_1)).isEqualTo(3);
-        assertThat(countAircraftManagedBy(CLUB_2)).isEqualTo(2);
+        assertThat(countShowcaseOwnedAircraftManagedBy(CLUB_1)).isEqualTo(3);
+        assertThat(countShowcaseOwnedAircraftManagedBy(CLUB_2)).isEqualTo(2);
 
-        assertThat(isTowingAircraft("HB-TOW1")).isTrue();
+        assertThat(isTowingAircraft("HB-TOW1"))
+                .as("the tow plane carries the flag the aircraft picker filters on")
+                .isTrue();
 
         for (String immat : SHOWCASE_IMMATS) {
             assertThat(openStateCount(immat))
@@ -123,15 +163,15 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     @Test
     void locationsAndAircraftAreIdempotentAcrossReRuns() {
         seeder.seed();
-        int locC1 = countLocations(CLUB_1);
-        int locC2 = countLocations(CLUB_2);
+        int locC1 = countShowcaseOwnedLocations(CLUB_1);
+        int locC2 = countShowcaseOwnedLocations(CLUB_2);
         long aircraft = countShowcaseAircraft();
         long stateRows = countShowcaseStateRows();
 
         seeder.seed();
 
-        assertThat(countLocations(CLUB_1)).isEqualTo(locC1).isEqualTo(3);
-        assertThat(countLocations(CLUB_2)).isEqualTo(locC2).isEqualTo(3);
+        assertThat(countShowcaseOwnedLocations(CLUB_1)).isEqualTo(locC1).isEqualTo(3);
+        assertThat(countShowcaseOwnedLocations(CLUB_2)).isEqualTo(locC2).isEqualTo(3);
         assertThat(countShowcaseAircraft()).isEqualTo(aircraft).isEqualTo(SHOWCASE_IMMATS.length);
         assertThat(countShowcaseStateRows()).isEqualTo(stateRows).isEqualTo(SHOWCASE_IMMATS.length);
     }
@@ -171,7 +211,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     void locksWereReachedThroughTheTimeGateWithLockedAtStamped() {
         seeder.seed();
         Integer lockedWithoutTimestamp = jdbc.queryForObject(
-                "SELECT count(*) FROM t_flight WHERE id::text LIKE '019e30c3-2c00-7801-%' "
+                "SELECT count(*) FROM t_flight WHERE id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " "
                         + "AND process_state_id IN (?::uuid, ?::uuid) AND locked_at IS NULL",
                 Integer.class, PS_LOCKED, PS_DELIVERY_BOOKED);
         assertThat(lockedWithoutTimestamp).isZero();
@@ -187,22 +227,24 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
         Integer towType = jdbc.queryForObject(
                 "SELECT flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
                 Integer.class, FLIGHT_C1_TOW_TODAY.toString());
-        assertThat(towType).isEqualTo(2);
+        assertThat(towType).isEqualTo(FLIGHT_AIRCRAFT_TYPE_TOW);
     }
 
     @Test
-    void backfillsFlightReportRowsForEverySeededFlight() {
+    void rebuildsFlightReportRowsForEverySeededFlight_becauseTheJdbcInsertsBypassTheProjector() {
         seeder.seed();
         Long reportRows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_report_row "
-                        + "WHERE flight_id::text LIKE '019e30c3-2c00-7801-%'",
+                        + "WHERE flight_id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL,
                 Long.class);
         assertThat(reportRows).isEqualTo(countShowcaseFlights()).isEqualTo(14);
         var gliderRow = jdbc.queryForMap(
                 "SELECT pilot_name, tow_flight_id::text AS tow_flight_id, tow_immatriculation "
                         + "FROM t_flight_report_row WHERE flight_id = ?::uuid",
                 FLIGHT_C1_AEROTOW_GLIDER_TODAY.toString());
-        assertThat(gliderRow.get("tow_flight_id")).isEqualTo(FLIGHT_C1_TOW_TODAY.toString());
+        assertThat(gliderRow.get("tow_flight_id"))
+                .as("the reconstructed tow block proves the real projector ran, not a stub")
+                .isEqualTo(FLIGHT_C1_TOW_TODAY.toString());
         assertThat(gliderRow.get("tow_immatriculation")).isEqualTo("HB-TOW1");
         assertThat(gliderRow.get("pilot_name")).asString().isNotBlank();
     }
@@ -232,7 +274,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private int countFlights(UUID clubId) {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid "
-                        + "AND id::text LIKE '019e30c3-2c00-7801-%' AND deleted_on IS NULL",
+                        + "AND id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " AND deleted_on IS NULL",
                 Integer.class, clubId.toString());
         return n == null ? 0 : n;
     }
@@ -240,7 +282,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private int countFlightsInState(UUID clubId, String processStateId) {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid "
-                        + "AND process_state_id = ?::uuid AND id::text LIKE '019e30c3-2c00-7801-%' "
+                        + "AND process_state_id = ?::uuid AND id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " "
                         + "AND deleted_on IS NULL",
                 Integer.class, clubId.toString(), processStateId);
         return n == null ? 0 : n;
@@ -249,7 +291,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private int countTodaysFlights(UUID clubId) {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid "
-                        + "AND flight_date = CURRENT_DATE AND id::text LIKE '019e30c3-2c00-7801-%' "
+                        + "AND flight_date = CURRENT_DATE AND id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " "
                         + "AND deleted_on IS NULL",
                 Integer.class, clubId.toString());
         return n == null ? 0 : n;
@@ -259,7 +301,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid "
                         + "AND process_state_id IN (?::uuid, ?::uuid) "
-                        + "AND id::text LIKE '019e30c3-2c00-7801-%' AND deleted_on IS NULL",
+                        + "AND id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " AND deleted_on IS NULL",
                 Integer.class, clubId.toString(), PS_NOT_PROCESSED, PS_INVALID);
         return n == null ? 0 : n;
     }
@@ -268,7 +310,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_crew c JOIN t_flight f ON f.id = c.flight_id "
                         + "WHERE c.person_id = ?::uuid AND c.deleted_on IS NULL "
-                        + "AND f.id::text LIKE '019e30c3-2c00-7801-%'",
+                        + "AND f.id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL,
                 Integer.class, personId.toString());
         return n == null ? 0 : n;
     }
@@ -284,7 +326,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
 
     private long countShowcaseFlights() {
         Long n = jdbc.queryForObject(
-                "SELECT count(*) FROM t_flight WHERE id::text LIKE '019e30c3-2c00-7801-%' "
+                "SELECT count(*) FROM t_flight WHERE id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " "
                         + "AND deleted_on IS NULL",
                 Long.class);
         return n == null ? 0 : n;
@@ -293,15 +335,15 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private long countShowcaseCrew() {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_crew c JOIN t_flight f ON f.id = c.flight_id "
-                        + "WHERE f.id::text LIKE '019e30c3-2c00-7801-%' AND c.deleted_on IS NULL",
+                        + "WHERE f.id::text LIKE " + SHOWCASE_OWNED_FLIGHT_IDS_SQL + " AND c.deleted_on IS NULL",
                 Long.class);
         return n == null ? 0 : n;
     }
 
-    private int countLocations(UUID clubId) {
+    private int countShowcaseOwnedLocations(UUID clubId) {
         Integer n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_location WHERE club_id = ?::uuid "
-                        + "AND id::text LIKE '019e30c3-2c00-7301-%' AND deleted_on IS NULL",
+                        + "AND id::text LIKE " + SHOWCASE_OWNED_LOCATION_IDS_SQL + " AND deleted_on IS NULL",
                 Integer.class, clubId.toString());
         return n == null ? 0 : n;
     }
@@ -316,7 +358,7 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     private long countShowcaseAircraft() {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_aircraft WHERE immatriculation IN "
-                        + "('HB-3001','HB-TOW1','HB-MOT1','HB-3002','HB-CHTR') AND deleted_on IS NULL",
+                        + SHOWCASE_OWNED_IMMATS_SQL + " AND deleted_on IS NULL",
                 Long.class);
         return n == null ? 0 : n;
     }
@@ -325,15 +367,15 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_aircraft_aircraft_state s "
                         + "JOIN t_aircraft a ON a.id = s.aircraft_id "
-                        + "WHERE a.immatriculation IN ('HB-3001','HB-TOW1','HB-MOT1','HB-3002','HB-CHTR')",
+                        + "WHERE a.immatriculation IN " + SHOWCASE_OWNED_IMMATS_SQL,
                 Long.class);
         return n == null ? 0 : n;
     }
 
-    private long countAircraftManagedBy(UUID clubId) {
+    private long countShowcaseOwnedAircraftManagedBy(UUID clubId) {
         Long n = jdbc.queryForObject(
                 "SELECT count(*) FROM t_aircraft WHERE managing_club_id = ?::uuid "
-                        + "AND immatriculation IN ('HB-3001','HB-TOW1','HB-MOT1','HB-3002','HB-CHTR') "
+                        + "AND immatriculation IN " + SHOWCASE_OWNED_IMMATS_SQL + " "
                         + "AND deleted_on IS NULL",
                 Long.class, clubId.toString());
         return n == null ? 0 : n;

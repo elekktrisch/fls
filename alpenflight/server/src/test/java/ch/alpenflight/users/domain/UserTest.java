@@ -58,7 +58,7 @@ class UserTest {
     }
 
     @Test
-    void soft_delete_is_idempotent_and_stamps_actor() {
+    void soft_delete_is_idempotent_and_keeps_the_first_deletedOn_stamp() {
         Clock fixed = Clock.fixed(Instant.parse("2026-05-26T10:00:00Z"), ZoneOffset.UTC);
         UUID actor = UUID.randomUUID();
         User u = newUser();

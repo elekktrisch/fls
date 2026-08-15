@@ -49,7 +49,7 @@ class RoleAssignmentPolicyTest {
     }
 
     @Test
-    void sysadmin_explicitly_denied_on_this_surface() {
+    void sysadmin_caller_is_outside_the_club_admin_grant_cabin_and_may_grant_nothing() {
         Jwt sysadmin = jwtWithRoles("SYSTEM_ADMINISTRATOR");
         assertThat(policy.isGrantable(sysadmin, Set.of(Role.PILOT))).isFalse();
     }
