@@ -19,6 +19,46 @@ stragglers each ceremony so the file shrinks.
 
 ## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
 
+- **[LOST-INVARIANTS-NEED-GUARDS]** The comments this sweep could NOT convert into names were
+  disproportionately **warnings against plausible future changes** — each an invariant a well-meaning
+  refactor breaks *silently*, and for which a comment was already a weak guard. Give the load-bearing ones
+  an arch test or an IT so the machine holds them:
+  - **Three "deliberately NOT `@Transactional`" cases**, each of which someone will add for consistency:
+    `JoinRequestsService.latestForCaller` (Hibernate binds tenant at session-open, so a method-level tx pins
+    the session to `NO_TENANT` and the read inside `Tenants.runAs` misses);
+    `DailyFlightValidationJob.runForCurrentClub` (one bad flight must not poison the club's batch); and
+    `LifecycleTransitionAuditListener`'s plain `@EventListener` (the audit port already opens its own
+    fresh-tx listener; double-deferring pushes the row past the actor resolver's boundary).
+  - **`Tenants.runAs` must stay OUTSIDE the `TransactionTemplate`** in `FlightReportRebuildService` — same
+    session-open tenant binding.
+  - **`JoinRequestTxWriter` exists only** so the `@Transactional` boundary nests inside `Tenants.runAs`
+    (self-invocation would skip the proxy advice); inlining it looks like a simplification.
+  - **`FlightInitialState.resolveSeeds`** wraps a `TransactionTemplate` inside `@PostConstruct` because the
+    EntityManager needs a bound JDBC session — dropping the "redundant" wrapper breaks **boot**, not tests.
+  - **`AircraftRepository.flush()`** cannot be renamed (Spring Data binds `JpaRepository.flush()` by name),
+    so the reason has NO in-code trace at all: `save()` on a managed parent routes through `em.merge`, which
+    cascades by *copying* transient children, leaving the caller's child reference without its generated UUID.
+  - **`AuditEventDtos.AuditEventRow.beforeState`/`afterState` are `Map<String,Object>` not `String`** so
+    OpenAPI codegen emits free-form JSON objects; "simplifying" to `String` silently changes the generated
+    client contract.
+  - **`FlightsService.createFlight`** reads the operating club from `TenantContextCarrier`, not
+    `saved.getOperatingClubId()`, because the `@TenantId` discriminator is not reliably populated back onto
+    the in-memory entity post-save.
+  - **`HttpOgnDeviceDatabase`** must not inject `RestClient.Builder` — that passes `@SpringBootTest` and kills
+    the **boot jar** ([[project_test_classpath_hides_boot_failures]]). Partially rescued into a method name.
+  *(seam: arch tests / ITs for the above, in `server/src/test/java/ch/alpenflight/arch`)*
+- **[PACKAGE-INFO-DOMAIN-VOCABULARY-LOST]** The `package-info.java` files are now bare `@NullMarked` /
+  `@ApplicationModule` declarations. Layering stays ArchUnit-enforced and tenancy stays structural, but the
+  **domain vocabulary** went with them — notably the aircraft three-axis ownership model
+  (`managing_club_id` vs `owner_club_id` vs `aircraft_owner_person_id`) and the S-058 reversion of S-159 for
+  the charter case. That belongs in `docs/modernization/`, which is where this policy says rationale lives —
+  it just never got written there. *(seam: a short domain-vocabulary note under `docs/modernization/`)*
+- **[DEAD-ACTOR-RESOLVER-EVICT]** `audit/application/ActorResolver.java:50` `evict(String sub)` has **zero
+  callers** in `src/main`, `src/test` or e2e; the deleted comment claimed "Called by the user-deactivation
+  flow". Wire it into user deactivation or delete it. *(seam: `ActorResolver` + the deactivation flow)*
+
+
+
 - **[REQUEST-ID-NEVER-LOGGED]** `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
   **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
   **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
