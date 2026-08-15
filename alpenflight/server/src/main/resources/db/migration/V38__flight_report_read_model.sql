@@ -1,21 +1,3 @@
--- J-7 RM-1 — flight-report read-model tables (ADR 0027 §2).
---
--- Redundant, domain-maintained projection of the flight-report row shape the
--- report screen reads (column set = the SELECT of the native-SQL oracle in
--- JpaFlightReportRepository, page + summary queries). Rows are written
--- synchronously by FlightReportProjector on every Flight save (Spring Data
--- @DomainEvents) — never by triggers (ADR 0022 directive 2: business logic in
--- the Java domain, not the database).
---
--- STRUCTURAL ONLY per ADR 0022: PK / FK / NOT NULL / indexes. No business
--- CHECKs — projection invariants live on the FlightReportRow aggregate.
---
--- AIR-STATE IS NEVER STORED (sacred cow): only the raw timestamp/flag columns
--- are carried; services compute air-state via FlightAirState.compute.
---
--- These tables have no deleted_on — rows are hard-deleted / rebuilt by the
--- projector, so every index below covers all rows by construction (S-014
--- tombstone rule: no-soft-delete table).
 
 CREATE TABLE t_flight_report_row (
     flight_id                     UUID         NOT NULL PRIMARY KEY,
@@ -44,8 +26,6 @@ CREATE TABLE t_flight_report_row (
     nr_of_ldgs_on_start_location  SMALLINT,
     duration_seconds              BIGINT,
     towed_glider_flight_id        UUID,
-    -- Tow block: the paired aerotow flight's denormalized copy. All columns
-    -- NULL when the flight has no tow link.
     tow_flight_id                 UUID,
     tow_start_date_time           TIMESTAMPTZ,
     tow_ldg_date_time             TIMESTAMPTZ,
@@ -71,15 +51,10 @@ COMMENT ON TABLE t_flight_report_row IS
     'by FlightReportProjector. Decoration columns are denormalized copies; '
     'air-state is never stored.';
 
--- covers tombstones: no deleted_on on this table (projection rows are hard-deleted/rebuilt)
 CREATE INDEX ix_frr_club_date  ON t_flight_report_row (operating_club_id, flight_date);
--- covers tombstones: no deleted_on on this table (projection rows are hard-deleted/rebuilt)
 CREATE INDEX ix_frr_club_start ON t_flight_report_row (operating_club_id, start_date_time);
--- Projector reverse lookups (refresh both sides of a tow link on save).
--- covers tombstones: no deleted_on on this table (projection rows are hard-deleted/rebuilt)
 CREATE INDEX ix_frr_tow_flight ON t_flight_report_row (tow_flight_id)
     WHERE tow_flight_id IS NOT NULL;
--- covers tombstones: no deleted_on on this table (projection rows are hard-deleted/rebuilt)
 CREATE INDEX ix_frr_towed_glider ON t_flight_report_row (towed_glider_flight_id)
     WHERE towed_glider_flight_id IS NOT NULL;
 
@@ -100,5 +75,4 @@ COMMENT ON TABLE t_flight_report_crew IS
     'Live crew (person, crew-type) pairs per flight-report row — serves the '
     'report person-filter and person-role summary flags at query time (RM-3).';
 
--- covers tombstones: no deleted_on on this table (projection rows are hard-deleted/rebuilt)
 CREATE INDEX ix_frc_person ON t_flight_report_crew (person_id);

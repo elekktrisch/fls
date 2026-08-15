@@ -1,10 +1,3 @@
--- S-155 boyscout: refresh aggregate-root id `COMMENT ON COLUMN` text after
--- the typed-ID external form changed from `<prefix>_<crockford-base32>` to
--- `<prefix>-<uuid>`. ADR 0019 amended in the same change. Comment-only
--- update — no DDL, no DML.
---
--- V2/V3/V4 carry the original (now stale) comments; migrations are
--- immutable per CONVENTIONS.md, so we overwrite via a new migration.
 
 COMMENT ON COLUMN t_person.id IS
     'UUID v7. Aggregate root (ADR 0018). External form psn-<uuid>. See ADR 0019.';

@@ -1,185 +1,9 @@
--- V4__reservations_planning_accounting.sql
---
--- S-014: Reservations / planning / accounting baseline.
---   12 domain tables + 1 operational counter table
---   = aircraft_reservation cluster (2),
---     planning cluster (3),
---     accounting cluster (5),
---     delivery-test harness (2),
---     club_delivery_number_counter (1).
---
--- Append-only over S-013's V3. Once V<n> is applied to any environment its
--- checksum is locked; never amend — ship V<n+1>. Convention is documented in
--- V2 + the no-amend-shipped-migrations rule in CLAUDE.md.
---
--- ============================================================================
--- ID strategy (ADR 0019 — carries from S-012/S-013)
--- ============================================================================
---   * Every PK is `uuid NOT NULL PRIMARY KEY`. Postgres native 16-byte type.
---   * Application generates IDs via Hibernate 7 + uuid-creator
---     UuidCreator.getTimeOrderedEpoch() — wired at S-022.
---   * NO `DEFAULT gen_random_uuid()` on any PK column.
---   * Aggregate-root rows in this migration (5): aircraft_reservation (arv_),
---     planning_day (pln_), accounting_rule_filter (arf_), delivery (dlv_),
---     delivery_creation_test (dct_).
---   * Aggregate-internal entities carry no prefix: delivery_item,
---     planning_day_assignment, delivery_creation_test_item.
---
--- ============================================================================
--- Multi-tenancy (ADR 0008 + 2026-05-16 Aircraft-cross-tenant amendment)
--- ============================================================================
---   * TENANT_SCOPED tables here (10): 5 aggregate roots + 3 internal entities
---     (denormalized) + 2 reclassified-per-club ref tables.
---   * SYSTEM_GLOBAL reference tables (2): accounting_rule_filter_type +
---     accounting_unit_type. No legacy ClubId — seeded with fixed canonical
---     UUID v7 literals + legacy_int_id SMALLINT UNIQUE for S-016 cutover.
---   * Cross-aggregate FKs:
---       - delivery.flight_id → flight.id RESTRICT (Flight TENANT_SCOPED;
---         service layer asserts same-tenant at S-022).
---       - delivery_item.article_id → article.id RESTRICT (same-tenant;
---         invoice integrity preserved by article_number snapshot column).
---   * Cross-tenant FKs (Hibernate @TenantId does NOT filter):
---       - aircraft_reservation.aircraft_id → aircraft.id RESTRICT
---         (Aircraft is cross-tenant per 2026-05-16 amendment; S-022/S-064
---         service layer enforces "may operating_club reserve this aircraft?"
---         via owner_club_id + charter agreement + public-rental checks;
---         audit event carries cross_tenant: true marker when
---         aircraft.owner_club_id != aircraft_reservation.operating_club_id).
---       - aircraft_reservation.location_id → location.id RESTRICT.
---       - planning_day.location_id → location.id RESTRICT.
---       - delivery.recipient_person_id → person.id SET NULL
---         (cross-tenant ride-through; snapshot survives via 9 frozen
---         recipient_* columns per OR Art. 957a).
---       - aircraft_reservation.pilot_person_id → person.id RESTRICT.
---       - aircraft_reservation.second_crew_person_id → person.id SET NULL.
---       - planning_day_assignment.assigned_person_id → person.id RESTRICT.
---       - delivery_creation_test.flight_id → flight.id CASCADE (harness
---         payload dies with the flight).
---
--- ============================================================================
--- Delivery state machine reshape (legacy → new)
--- ============================================================================
---   Legacy has no delivery.process_state_id; state lives on
---   flight.process_state_id + delivery.is_further_processed.
---   The new schema promotes state to first-class on Delivery:
---     SMALLINT NOT NULL DEFAULT 10
---       10 = Prepared (default)
---       20 = Booked   (terminal-on-mutation; gap-free numbering)
---       30 = Error    (retryable)
---       99 = Cancelled
---   The value-set + transition rules live on Delivery.ProcessState enum
---   (@Enumerated(STRING) per ADR 0020) + Delivery.book() preconditions at
---   S-022 / S-064. Schema column is SMALLINT only; no CHECK-in-set per
---   ADR 0022 directive 2.
---   S-016 cutover mapping (planned):
---     flight.process_state_id = 50 (DELIVERY_PREPARED) → delivery 10
---     flight.process_state_id = 45 (DELIVERY_PREPARATION_ERROR) → delivery 30
---     flight.process_state_id = 60 (DELIVERY_BOOKED) → delivery 20
---     delivery.is_further_processed = true ↔ delivery.process_state_id = 20
---
--- ============================================================================
--- delivery.delivery_number reshape (VARCHAR → INTEGER + counter)
--- ============================================================================
---   Legacy delivery.DeliveryNumber is VARCHAR with operator-formatted text
---   (e.g. "INV-2024-001"). The new schema reshapes to INTEGER + per-club
---   gap-free uniqueness per Swiss OR Art. 957a:
---     delivery.delivery_number INTEGER NULL
---     UNIQUE (operating_club_id, delivery_number)
---       WHERE delivery_number IS NOT NULL AND deleted_on IS NULL
---   The gap-free invariant stays structurally enforced by the partial
---   UNIQUE; the "Booked rows must carry a number" precondition lives on
---   Delivery.book() at S-064 (per ADR 0022 directive 2).
---   The text format lives at S-016 in club_extension or as
---   delivery.legacy_delivery_number_text (parity column added on cutover).
---   Service-layer allocator at S-064 uses club_delivery_number_counter
---   (UPDATE...RETURNING for monotonic claim, sub-10ms).
---
--- ============================================================================
--- accounting_rule_filter.filter_config jsonb reshape
--- ============================================================================
---   Legacy AccountingRuleFilter carries 30+ predicate columns (most NULL per
---   filter type). The new schema collapses all predicates into a single
---   jsonb column + a filter_type_id discriminator:
---     filter_type_id  uuid NOT NULL → accounting_rule_filter_type (8 rows)
---     filter_config   jsonb NOT NULL DEFAULT '{}'::jsonb
---   Per-discriminator typed-shape validation runs at S-064 (Jackson
---   default-typing DISABLED globally; ArchUnit rule bans
---   @JsonTypeInfo(use=Id.CLASS) — A03 polymorphic-deserialization
---   mitigation). GIN index serves admin search only; engine reads jsonb
---   wholesale + interprets in Java.
---
--- ============================================================================
--- aircraft_reservation tstzrange + GiST
--- ============================================================================
---   Two TIMESTAMPTZ columns + a generated tstzrange:
---     reservation_start TIMESTAMPTZ NOT NULL,
---     reservation_end   TIMESTAMPTZ NOT NULL,
---     reservation_range tstzrange GENERATED ALWAYS AS
---       (tstzrange(reservation_start, reservation_end, '[)')) STORED
---   Note: the refinement design notes wrote `tsrange`, but tsrange takes
---   TIMESTAMP (no TZ) — the implicit ::timestamp cast from TIMESTAMPTZ is
---   session-TZ-dependent and therefore NOT IMMUTABLE, which Postgres rejects
---   in a generation expression. tstzrange is immutable when both args are
---   TIMESTAMPTZ; it's the right primitive for our schema.
---   reservation_end > reservation_start (incl. the empty-range degenerate
---   where lower=upper produces a GiST-invisible empty range) is enforced
---   at AircraftReservation constructor + validateDuration() at S-064
---   (per ADR 0022 directive 2 — no CHECK in the schema).
---   GiST index on (aircraft_id, reservation_range) WHERE deleted_on IS NULL
---   serves sub-10ms conflict probes at S-064. EXCLUDE USING gist NOT applied
---   at DB level — multiple legitimate-overlap business rules (maintenance vs
---   flight; multi-pilot; charter exemption) enforced at S-064 service layer.
---
--- ============================================================================
--- delivery_item.total_amount removed per ADR 0022 directive 2
--- ============================================================================
---   The previously-shipped NUMERIC(14,4) GENERATED column has been removed.
---   Calculation lives on DeliveryItem.totalAmount() : Money — a value-object
---   compute-on-read at S-022. Legacy server never queried, sorted, or
---   filtered by total; no persisted-shape consumer to preserve. If a
---   future sort/filter-by-amount use case materialises, the right answer
---   is a denormalised delivery.total_amount_chf populated by Delivery.book()
---   (legal-record snapshot pattern), not a re-introduced GENERATED column.
---   unit_price is a forward-looking addition (legacy DeliveryItem has no
---   unit_price); S-016 cutover back-fills from article master.
---
--- ============================================================================
--- delivery.recipient_* 9 frozen snapshot columns
--- ============================================================================
---   Per Swiss OR Art. 957a (10-year invoice retention), recipient name +
---   address are snapshot at booking and NEVER re-resolved from
---   recipient_person_id. DSAR exempt once process_state_id >= 20.
---   Documented in tenant-rules.yaml.Deliveries.fadp_dsar_retention_exempt_when.
---
--- ============================================================================
--- Migration ordering
--- ============================================================================
---   1. CREATE EXTENSION btree_gist (composite GiST on aircraft_reservation).
---   2. Reservations cluster: aircraft_reservation_type → aircraft_reservation.
---   3. Planning cluster: planning_day_assignment_type → planning_day →
---      planning_day_assignment.
---   4. Accounting cluster — reference tables: accounting_rule_filter_type +
---      accounting_unit_type.
---   5. Accounting cluster — rule filter aggregate root: accounting_rule_filter.
---   6. Delivery aggregate root + DeliveryItem internal entity.
---   7. Delivery-creation-test harness: delivery_creation_test +
---      delivery_creation_test_item.
---   8. Operational: club_delivery_number_counter.
---   9. SQL COMMENT ON COLUMN block (forensic clarity).
---  10. Reference-data seeds (fixed canonical UUID v7 literals).
--- ============================================================================
 
 
--- =============================================================================
--- 1. Required extension
--- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 
--- =============================================================================
--- 2. Reservations cluster
--- =============================================================================
 
 CREATE TABLE t_aircraft_reservation_type (
     id                          UUID          NOT NULL PRIMARY KEY,
@@ -236,11 +60,6 @@ CREATE TABLE t_aircraft_reservation (
         FOREIGN KEY (reservation_type_id)     REFERENCES t_aircraft_reservation_type (id) ON DELETE RESTRICT,
     CONSTRAINT fk_arv_flight_type_id
         FOREIGN KEY (flight_type_id)          REFERENCES t_flight_type (id)             ON DELETE RESTRICT
-    -- ck_arv_end_after_start + ck_arv_max_30_days removed per ADR 0022
-    -- directive 2: end-after-start (incl. empty-range degenerate where
-    -- lower=upper produces an empty tstzrange GiST would silently miss)
-    -- and 30-day max land on AircraftReservation constructor +
-    -- validateDuration() at S-064.
 );
 CREATE INDEX ix_arv_aircraft_range_gist
     ON t_aircraft_reservation USING gist (aircraft_id, reservation_range)
@@ -251,16 +70,10 @@ CREATE INDEX ix_arv_club_start_end
 CREATE INDEX ix_arv_pilot
     ON t_aircraft_reservation (pilot_person_id, reservation_start DESC)
     WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL;
--- covers tombstones: deferred-perf-tuning S-108 — index shape (DESC ordering +
--- partial predicate) pending production-scale query-plan analysis. Full-range
--- scan acceptable at current per-club reservation counts; revisit at S-108.
 CREATE INDEX ix_arv_location
     ON t_aircraft_reservation (operating_club_id, location_id, reservation_start);
 
 
--- =============================================================================
--- 3. Planning cluster
--- =============================================================================
 
 CREATE TABLE t_planning_day_assignment_type (
     id                              UUID          NOT NULL PRIMARY KEY,
@@ -275,8 +88,6 @@ CREATE TABLE t_planning_day_assignment_type (
     deleted_by_user_id              UUID,
     CONSTRAINT fk_pdat_operating_club_id
         FOREIGN KEY (operating_club_id) REFERENCES t_club (id) ON DELETE RESTRICT
-    -- ck_pdat_required_nr_nonnegative removed per ADR 0022 directive 2:
-    -- AssignmentCount VO at S-022.
 );
 CREATE INDEX ix_pdat_club ON t_planning_day_assignment_type (operating_club_id)
     WHERE deleted_on IS NULL;
@@ -297,8 +108,6 @@ CREATE TABLE t_planning_day (
         FOREIGN KEY (operating_club_id) REFERENCES t_club (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_pln_location_id
         FOREIGN KEY (location_id)       REFERENCES t_location (id) ON DELETE RESTRICT
-    -- ck_pln_planning_date_reasonable removed per ADR 0022 directive 2:
-    -- date-range invariant on PlanningDay constructor at S-022.
 );
 CREATE UNIQUE INDEX ux_pln_club_date_loc
     ON t_planning_day (operating_club_id, planning_date, location_id)
@@ -326,8 +135,6 @@ CREATE TABLE t_planning_day_assignment (
     CONSTRAINT fk_pda_assignment_type_id
         FOREIGN KEY (assignment_type_id) REFERENCES t_planning_day_assignment_type (id)  ON DELETE RESTRICT
 );
--- covers tombstones: CASCADE join target on planning_day deletion needs to find
--- soft-deleted child rows too so the parent's ON DELETE CASCADE cleans them.
 CREATE INDEX ix_pda_planning_day
     ON t_planning_day_assignment (planning_day_id);
 CREATE INDEX ix_pda_person
@@ -341,9 +148,6 @@ CREATE UNIQUE INDEX ux_pda_composite
     WHERE deleted_on IS NULL;
 
 
--- =============================================================================
--- 4. Accounting cluster — reference tables
--- =============================================================================
 
 CREATE TABLE t_accounting_rule_filter_type (
     id              UUID         NOT NULL PRIMARY KEY,
@@ -366,9 +170,6 @@ CREATE UNIQUE INDEX ux_aut_code             ON t_accounting_unit_type (code);
 CREATE UNIQUE INDEX ux_aut_legacy_int_id    ON t_accounting_unit_type (legacy_int_id);
 
 
--- =============================================================================
--- 5. Accounting cluster — rule filter aggregate root
--- =============================================================================
 
 CREATE TABLE t_accounting_rule_filter (
     id                                  UUID          NOT NULL PRIMARY KEY,
@@ -396,8 +197,6 @@ CREATE TABLE t_accounting_rule_filter (
         FOREIGN KEY (filter_type_id)            REFERENCES t_accounting_rule_filter_type (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_arf_accounting_unit_type_id
         FOREIGN KEY (accounting_unit_type_id)   REFERENCES t_accounting_unit_type (id)            ON DELETE RESTRICT
-    -- ck_arf_sort_indicator_nonnegative removed per ADR 0022 directive 2:
-    -- SortIndicator VO at S-022.
 );
 CREATE INDEX ix_arf_club_active_sort
     ON t_accounting_rule_filter (operating_club_id, is_active, sort_indicator)
@@ -412,9 +211,6 @@ CREATE UNIQUE INDEX ux_arf_club_sort_partial
     WHERE deleted_on IS NULL;
 
 
--- =============================================================================
--- 6. Delivery aggregate root + DeliveryItem internal entity
--- =============================================================================
 
 CREATE TABLE t_delivery (
     id                                          UUID          NOT NULL PRIMARY KEY,
@@ -448,15 +244,6 @@ CREATE TABLE t_delivery (
         FOREIGN KEY (flight_id)             REFERENCES t_flight (id)  ON DELETE RESTRICT,
     CONSTRAINT fk_dlv_recipient_person_id
         FOREIGN KEY (recipient_person_id)   REFERENCES t_person (id)  ON DELETE SET NULL
-    -- All 6 CHECK constraints previously on delivery removed per ADR 0022
-    -- directive 2:
-    --   * process_state_id IN (10,20,30,99) → Delivery.ProcessState enum
-    --     (@Enumerated(STRING)) at S-022.
-    --   * delivery_number > 0 / batch_id >= 0 → DeliveryNumber / BatchId VO
-    --     constructors at S-022.
-    --   * Booked-requires-{number,delivered_on,recipient} → Delivery.book()
-    --     state-transition preconditions at S-064. Gap-free numbering of
-    --     legal records stays structurally enforced by ux_dlv_club_number_partial.
 );
 CREATE INDEX ix_dlv_club_state_date
     ON t_delivery (operating_club_id, process_state_id, delivered_on DESC)
@@ -490,10 +277,6 @@ CREATE TABLE t_delivery_item (
     unit_price                  NUMERIC(12, 4)  NOT NULL DEFAULT 0,
     discount_in_percent         INTEGER         NOT NULL DEFAULT 0,
     unit_type_code              VARCHAR(50)     NOT NULL,
-    -- total_amount GENERATED column removed per ADR 0022 directive 2:
-    -- DeliveryItem.totalAmount() compute-on-read VO at S-022. Legacy server
-    -- never queried, sorted, or filtered by total — display-only field, no
-    -- persisted-shape consumer to preserve.
     created_on                  TIMESTAMPTZ     NOT NULL DEFAULT now(),
     created_by_user_id          UUID,
     modified_on                 TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -506,9 +289,6 @@ CREATE TABLE t_delivery_item (
         FOREIGN KEY (delivery_id)       REFERENCES t_delivery (id) ON DELETE CASCADE,
     CONSTRAINT fk_dli_article_id
         FOREIGN KEY (article_id)        REFERENCES t_article (id)  ON DELETE RESTRICT
-    -- All 4 CHECK constraints previously on delivery_item removed per
-    -- ADR 0022 directive 2: Position / Quantity / Money (unit_price) /
-    -- DiscountPercent VO constructors at S-022.
 );
 CREATE INDEX ix_dli_delivery
     ON t_delivery_item (delivery_id)
@@ -518,9 +298,6 @@ CREATE UNIQUE INDEX ux_dli_delivery_pos
     WHERE deleted_on IS NULL;
 
 
--- =============================================================================
--- 7. Delivery-creation-test harness (aggregate + internal)
--- =============================================================================
 
 CREATE TABLE t_delivery_creation_test (
     id                                      UUID          NOT NULL PRIMARY KEY,
@@ -582,18 +359,10 @@ CREATE TABLE t_delivery_creation_test_item (
         FOREIGN KEY (operating_club_id)         REFERENCES t_club (id)                    ON DELETE RESTRICT,
     CONSTRAINT fk_dcti_delivery_creation_test_id
         FOREIGN KEY (delivery_creation_test_id) REFERENCES t_delivery_creation_test (id)  ON DELETE CASCADE
-    -- All 4 CHECK constraints previously on delivery_creation_test_item
-    -- removed per ADR 0022 directive 2: same Position / Quantity / Money /
-    -- DiscountPercent VOs as DeliveryItem (S-022).
 );
--- delivery_creation_test_item has no soft-delete (snapshot rows die with parent
--- on CASCADE); index covers all rows by design.
 CREATE INDEX ix_dcti_test ON t_delivery_creation_test_item (delivery_creation_test_id);
 
 
--- =============================================================================
--- 8. Operational counter — per-club monotonic delivery numbering
--- =============================================================================
 
 CREATE TABLE t_club_delivery_number_counter (
     operating_club_id   UUID          NOT NULL PRIMARY KEY,
@@ -601,16 +370,10 @@ CREATE TABLE t_club_delivery_number_counter (
     modified_on         TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT fk_cdnc_operating_club_id
         FOREIGN KEY (operating_club_id) REFERENCES t_club (id) ON DELETE CASCADE
-    -- ck_cdnc_next_number_positive removed per ADR 0022 directive 2:
-    -- DeliveryNumberCounter VO + Delivery.allocateNextNumber() at S-064.
 );
 
 
--- =============================================================================
--- 9. SQL COMMENT ON COLUMN — forensic clarity
--- =============================================================================
 
--- Aggregate-root id columns (prefix + ADR 0019).
 COMMENT ON COLUMN t_aircraft_reservation.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: arv_<crockford-base32>. See ADR 0019.';
 COMMENT ON COLUMN t_planning_day.id IS
@@ -622,7 +385,6 @@ COMMENT ON COLUMN t_delivery.id IS
 COMMENT ON COLUMN t_delivery_creation_test.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: dct_<crockford-base32>. See ADR 0019.';
 
--- Cross-tenant aircraft FK (2026-05-16 amendment).
 COMMENT ON COLUMN t_aircraft_reservation.aircraft_id IS
     'Cross-tenant FK per 2026-05-16 Aircraft-cross-tenant amendment. FK loads NOT @TenantId-filtered. Service layer (S-026/S-064) enforces "may operating_club reserve this aircraft?" via owner / charter / public-rental check. Audit event carries cross_tenant: true when aircraft.owner_club_id != aircraft_reservation.operating_club_id. S-024 leakage CI must include this column in the cross-tenant FK roster.';
 
@@ -638,7 +400,6 @@ COMMENT ON COLUMN t_planning_day_assignment.assigned_person_id IS
 COMMENT ON COLUMN t_planning_day.location_id IS
     'Cross-tenant Location FK (sacred-cow shared resource); RESTRICT on delete.';
 
--- Delivery state machine + numbering + frozen-recipient PII.
 COMMENT ON COLUMN t_delivery.process_state_id IS
     'State machine: 10=Prepared, 20=Booked (terminal-on-mutation, gap-free numbering), 30=Error (retryable), 99=Cancelled. Reshape from legacy flight.process_state_id + delivery.is_further_processed; see S-016 cutover mapping in migration header.';
 COMMENT ON COLUMN t_delivery.delivery_number IS
@@ -647,10 +408,6 @@ COMMENT ON COLUMN t_delivery.flight_id IS
     'Same-tenant FK (Flight is TENANT_SCOPED). Service layer (S-022) asserts flight.operating_club_id == delivery.operating_club_id on write. RESTRICT preserves invoice trail integrity.';
 COMMENT ON COLUMN t_delivery.recipient_person_id IS
     'Cross-tenant ride-through; SET NULL on delete. Frozen recipient_* snapshot survives Person deletion per Swiss OR Art. 957a.';
--- Canonical comment for the recipient_* snapshot column family (9 cols total).
--- All other recipient_* columns share this invariant — comment lives on
--- recipient_lastname rather than 9 lockstep copies. recipient_country_name
--- carries its own distinct comment (NOT FK to country).
 COMMENT ON COLUMN t_delivery.recipient_lastname IS
     'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). Same invariant applies to recipient_firstname / recipient_name / recipient_address_line1 / recipient_address_line2 / recipient_zip_code / recipient_city / recipient_person_club_member_number. NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
 COMMENT ON COLUMN t_delivery.recipient_country_name IS
@@ -658,21 +415,16 @@ COMMENT ON COLUMN t_delivery.recipient_country_name IS
 COMMENT ON COLUMN t_delivery.batch_id IS
     'Operational sequence for batch-cancel via DeliveryBatchDeleteRequest. NOT an aggregate UUID (ADR 0019 escape hatch for operational counters). Per-club scoping enforced at schema level via ux_dlv_club_batch_partial UNIQUE (batch_id <> 0 AND deleted_on IS NULL) + service-layer allocator at S-064.';
 
--- delivery_item — article + unit snapshot. (total_amount column removed per
--- ADR 0022 directive 2; DeliveryItem.totalAmount() value-object compute-on-read
--- at S-022 replaces the GENERATED STORED column.)
 COMMENT ON COLUMN t_delivery_item.article_number IS
     'Frozen snapshot from article.article_number at booking. Invoice integrity per Swiss OR Art. 957a — never re-resolved from article_id.';
 COMMENT ON COLUMN t_delivery_item.unit_type_code IS
     'Frozen snapshot from accounting_unit_type.code at booking. Invoice integrity.';
 
--- accounting_rule_filter jsonb hardening (A03 mitigation).
 COMMENT ON COLUMN t_accounting_rule_filter.filter_config IS
     'jsonb predicate bag. Engine reads typed keys per filter_type_id; allow-list validated at S-064 write path. Jackson default-typing DISABLED globally; NEVER deserialize polymorphic types from this column (A03 injection mitigation). PII redaction: pii_blob: true.';
 COMMENT ON COLUMN t_accounting_rule_filter.filter_type_id IS
     'Discriminator FK to accounting_rule_filter_type (8 canonical rows). Drives the filter_config jsonb shape allow-list at S-064.';
 
--- delivery_creation_test jsonb hardening (same A03 concern).
 COMMENT ON COLUMN t_delivery_creation_test.expected_delivery IS
     'jsonb snapshot of the expected DeliveryDetails graph (recipient + flight info + items + info fields). PII redaction: pii_blob: true. Jackson default-typing DISABLED.';
 COMMENT ON COLUMN t_delivery_creation_test.last_test_created_delivery IS
@@ -683,18 +435,7 @@ COMMENT ON COLUMN t_delivery_creation_test.flight_id IS
     'Same-tenant FK. CASCADE on flight delete — the harness payload dies with its subject.';
 
 
--- =============================================================================
--- 10. Reference-data seeds — fixed canonical UUID v7 literals
--- =============================================================================
--- Generator: alpenflight/server/src/test/resources/scripts/GenerateCanonicalUuids.java
--- Ground truth: alpenflight/server/src/test/resources/reference-seeds-canonical-uuids.json
--- Re-running the generator must produce bit-identical UUIDs (deterministic by
--- construction). DO NOT regenerate after this migration has shipped to any
--- environment — Flyway checksum-locks V4.
 
--- accounting_rule_filter_type (8 rows per legacy
--- database/FLSTest/3 insert/3 Insert Static Data.sql; AccountingRuleFilterTypeId
--- values 10, 20, 30, 40, 50, 60, 70, 80).
 INSERT INTO t_accounting_rule_filter_type (id, code, legacy_int_id, name, description) VALUES
     ('019e2e15-2c00-7650-8000-000000004650'::uuid, 'RECIPIENT',           10, 'Recipient accounting rule filter',           'Routes the recipient/invoice target for matching flights'),
     ('019e2e15-2c00-7651-8000-000000004651'::uuid, 'NO_LANDING_TAX',      20, 'No landing tax accounting rule filter',      'Suppresses landing-tax line items for matching flights'),
@@ -705,9 +446,6 @@ INSERT INTO t_accounting_rule_filter_type (id, code, legacy_int_id, name, descri
     ('019e2e15-2c00-7656-8000-000000004656'::uuid, 'VSF_FEE',             70, 'VSF fee accounting rule filter',             'Emits Swiss VSF association fee line item'),
     ('019e2e15-2c00-7657-8000-000000004657'::uuid, 'ENGINE_TIME',         80, 'Engine time accounting rule filter',         'Emits engine-time-based line item for matching flights');
 
--- accounting_unit_type (4 rows per legacy
--- database/FLSTest/3 insert/3 Insert Static Data.sql; AccountingUnitTypeId
--- values 10, 20, 30, 40).
 INSERT INTO t_accounting_unit_type (id, code, legacy_int_id, name, short_name) VALUES
     ('019e2e15-2c00-7a38-8000-000000004a38'::uuid, 'MINUTES',         10, 'Minuten',         'Min'),
     ('019e2e15-2c00-7a39-8000-000000004a39'::uuid, 'SECONDS',         20, 'Sekunden',        'Sec'),

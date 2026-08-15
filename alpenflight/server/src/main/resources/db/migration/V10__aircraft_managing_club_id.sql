@@ -1,22 +1,7 @@
--- V10__aircraft_managing_club_id.sql
---
--- S-159: Aircraft becomes structurally tenant-scoped via a NEW
--- `managing_club_id` column. Separate from `owner_club_id` (the physical
--- owner — own club, other club, or NULL). Every aircraft has exactly one
--- managing tenant (the club that registered + operates it). Ownership is
--- independent metadata.
---
--- Per ADR 0022 directive 2: schema is structural only (PK / FK / NOT NULL
--- / index). Owner-kind discriminator (own-club vs. external org vs. private
--- person) is derived at the domain layer, not encoded in a CHECK or enum.
 
 ALTER TABLE t_aircraft
     ADD COLUMN managing_club_id UUID;
 
--- Backfill: if the aircraft already had an owner_club_id, that club becomes
--- the managing club (own-club case). For pre-existing charter / null-owner
--- rows, assign seed-club-1 — the only club guaranteed to exist by V5. Any
--- legacy-data import (S-028+) will re-assign managing_club_id per source DB.
 UPDATE t_aircraft
 SET managing_club_id = COALESCE(owner_club_id,
                                 '019e30c3-2c00-7001-8000-000000000001'::uuid);

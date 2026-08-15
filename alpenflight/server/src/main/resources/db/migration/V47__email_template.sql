@@ -1,7 +1,3 @@
--- V2 shipped an unused legacy-shaped t_email_template (template_code, nullable
--- club_id, DB-stored system rows). The oracle supersedes that: system defaults
--- are S-082 Thymeleaf files, the DB holds ONLY club overrides. No aggregate, FK
--- dependent, or seed row referenced the V2 table, so dropping it is structural.
 DROP TABLE IF EXISTS t_email_template CASCADE;
 
 CREATE TABLE t_email_template (

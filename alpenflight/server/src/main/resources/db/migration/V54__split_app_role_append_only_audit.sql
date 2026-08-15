@@ -1,39 +1,4 @@
--- =============================================================================
--- S-160: split the DDL/DML migrator role from the runtime app role so the audit
--- trail (t_mutation_audit_event) is structurally append-only for the app.
---
--- The existing `alpenflight` role stays the MIGRATOR: it owns the schema, has
--- DDL, and runs Flyway (boot-time via spring.flyway.{url,user,password}; the
--- Gradle flywayMigrate task via the build.gradle.kts flyway block). This
--- migration runs AS the migrator.
---
--- `alpenflight_app` is a new LOGIN role the running application boots as (the
--- main datasource). It gets broad DML on every app table BUT only INSERT,SELECT
--- on t_mutation_audit_event — no UPDATE/DELETE — so app-credential compromise
--- cannot tamper or erase audit history (S-027 threat-row (d)). The migrator
--- retains full CRUD on the audit table for lawful maintenance migrations, so
--- Flyway is never locked out (the exact concern S-160's Context flags).
---
--- Roles are CLUSTER-global while Flyway history is per-DB, so every step is
--- create-if-not-exists / idempotent: a re-provisioned DB on a shared cluster
--- where `alpenflight_app` already exists must not error.
---
--- The app-role password is injected via the Flyway placeholder
--- ${app_role_password} (never hardcoded) — wired from APP_DB_PASSWORD in
--- application.yml + the Gradle flyway placeholders block, loopback dev default.
---
--- Per ADR 0022 directive 2 this is infrastructure (role/grant topology), not
--- business logic — no schema/behavior change to any table.
--- =============================================================================
 
--- Whole split is guarded by the migrator's ability to CREATE ROLE. In CI and
--- prod the migrator is a superuser / CREATEROLE grantee, so the app role is
--- provisioned and the append-only REVOKE bites (proven by AppendOnlyAuditRoleIT).
--- On a shared LAN test cluster whose migrator role lacks CREATEROLE (the
--- external-PG dev box), the block NO-OPs with a NOTICE instead of erroring — the
--- exact "test infra can't split roles" fallback the S-160 AC anticipates. Every
--- app-role statement lives inside the guard because it references a role that
--- won't exist when creation was skipped.
 DO $$
 BEGIN
     IF NOT (SELECT rolsuper OR rolcreaterole FROM pg_catalog.pg_roles WHERE rolname = current_user) THEN
