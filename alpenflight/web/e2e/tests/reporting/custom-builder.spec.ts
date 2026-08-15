@@ -1,25 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * J-7 — Custom report builder MOCK inner-loop spec (`page.route`-stubbed).
- *
- * T-15 thickened this from the T-01 thin stub to the full custom-builder
- * contract (J-7-flight-reports.md § Custom builder + § Spec must assert): set
- * the FlightDate range + the three flight-type toggles + the conditional
- * person/location selector → Apply → the filter round-trips through the route
- * param AND the results render the filtered set. Booted under `mock-auth`;
- * `/api/v1/*` intercepted via `page.route`. The real-data proof of the same
- * custom flow is the sibling `real-idp/flight-reports-parity.spec.ts`.
- *
- * Custom builder shape (legacy `flightreport-custom-configuration.html`): From/To
- * date range + Glider/Motor/Tow checkboxes + a conditional selector — LocationId
- * (category=location) or FlightCrewPersonId (category=person). Apply builds the
- * route's JSON filter (encodeCustomFilter) + navigates to `…/apply` where the
- * results page decodes + renders it.
- *
- * Mock governance: NO `@mocked:` seams — this is the declared mock inner loop.
- */
 
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
@@ -104,7 +85,6 @@ async function stubReportBackend(page: Page): Promise<void> {
   );
 }
 
-/** Parse the `:filter` JSON out of the apply-route URL (handles double-encode). */
 function decodeFilterFromUrl(url: string): Record<string, unknown> {
   let encoded = new URL(url).pathname.split('/').at(-2) ?? '';
   for (let i = 0; i < 3; i++) {
@@ -142,22 +122,18 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     const form = page.getByTestId(TESTIDS.customForm);
     await expect(form).toBeVisible();
 
-    // The location category renders the location selector, NOT the person one.
     await expect(page.getByTestId(TESTIDS.customLocationSelect)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.customPersonSelect)).toHaveCount(0);
 
-    // Date range (From/To) — the testid is on the <af-input>; fill the inner input.
     await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
     await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-12-31');
 
-    // Flight-type toggles: defaults Glider+Motor on, Tow off — turn Tow ON.
     await page.getByTestId(TESTIDS.customTowToggle).check();
 
     await page.screenshot({ path: 'screenshots/reporting/05-custom-builder.png', fullPage: true });
 
     await page.getByTestId(TESTIDS.customApply).locator('button').click();
 
-    // Filter round-trips through the route param (the AC).
     await expect(page).toHaveURL(/\/flightreports\/custom\/location\/.+\/(apply|view)/);
     const filter = decodeFilterFromUrl(page.url());
     expect(filter['flightDateFrom']).toBe('2026-01-01');
@@ -166,7 +142,6 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     expect(filter['motorFlights']).toBe(true);
     expect(filter['towFlights']).toBe(true);
 
-    // The results view renders the decoded filtered set.
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.summaryRow).filter({ hasText: 'Total' })).toBeVisible();
     await expect(page.getByTestId(TESTIDS.flightsTable)).toBeVisible();
@@ -185,7 +160,6 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     await page.goto('/flightreports/custom/person/%7B%7D/edit');
 
     await expect(page.getByTestId(TESTIDS.customForm)).toBeVisible();
-    // The person category renders the person selector branch.
     await expect(page.getByTestId(TESTIDS.customPersonSelect)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.customLocationSelect)).toHaveCount(0);
 
@@ -197,7 +171,6 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     const filter = decodeFilterFromUrl(page.url());
     expect(filter['flightDateFrom']).toBe('2026-01-01');
     expect(filter['flightDateTo']).toBe('2026-06-30');
-    // person category leaves Tow off by default (corrected legacy default).
     expect(filter['towFlights']).toBe(false);
 
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
@@ -207,7 +180,6 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     await stubReportBackend(page);
     await page.goto('/flightreports/custom/location/%7B%7D/edit');
 
-    // From/To are required (built to the J-6b as-you-type bar) → Apply disabled.
     await expect(page.getByTestId(TESTIDS.customApply).locator('button')).toBeDisabled();
     await page.getByTestId(TESTIDS.customFrom).locator('input').fill('2026-01-01');
     await page.getByTestId(TESTIDS.customTo).locator('input').fill('2026-12-31');

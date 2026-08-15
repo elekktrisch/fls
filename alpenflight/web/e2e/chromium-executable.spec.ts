@@ -29,7 +29,6 @@ describe('resolveChromiumExecutablePath', () => {
       {},
       (p) => p === '/usr/bin/chromium' || p === '/usr/bin/chromium-browser',
     );
-    // probe order: /usr/lib/chromium/chromium first, then /usr/bin/chromium
     expect(path).toBe('/usr/bin/chromium');
   });
 

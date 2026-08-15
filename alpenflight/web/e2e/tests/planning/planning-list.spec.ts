@@ -1,24 +1,6 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * Planning-day LIST page — J-6 T-07 inner-loop spec.
- *
- * Drives the REAL `/planning` list contract the T-07 store calls:
- *   GET /api/v1/planning-days/overview/future → PlanningDayDetail[]
- *   GET /api/v1/locations                     → location picker (name decoration)
- *   GET /api/v1/persons                        → person picker (crew decoration)
- *
- * Mock-auth: the dev server boots under `--configuration=mock-auth` (synthetic
- * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR principal, so New / Setup / edit /
- * delete affordances render); every `/api/v1/*` call is intercepted via
- * `page.route`. The FULL real chain + the create/edit/setup flows are the
- * sibling `planning-crud.spec.ts` (T-08/T-09/T-16) + the real-idp parity spec.
- *
- * The shared `planning-crud.spec.ts` stub targets the future POST-page contract
- * + edit-form selectors (un-fixme'd as those screens land in T-08/T-09); this
- * spec pins the LIST screen against the GET-future contract the T-07 store uses.
- */
 
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const LOCATION_BERN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
@@ -30,7 +12,6 @@ const FLIGHTOP_ID = 'pn-019e30c3-2c00-7001-8000-0000000000b3';
 const WEEKDAY_DAY_ID = '019e30c3-2c00-7001-8000-000000000e01';
 const WEEKEND_DAY_ID = '019e30c3-2c00-7001-8000-000000000e02';
 
-/** `YYYY-MM-DD`, `days` from local today (planning days are FUTURE, pure DATE). */
 function dayKeyFromToday(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -40,23 +21,16 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
-/**
- * Like {@link dayKeyFromToday} but shifted past a Saturday/Sunday landing —
- * the row this key feeds is asserted `data-weekend=false` (line ~167), and a
- * naive today+3 lands on the weekend whenever the suite runs on Wed/Thu
- * (first hit: 2026-06-11, a Thursday). Mirrors V34/V39's weekday targeting.
- */
 function weekdayKeyFromToday(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  const shift = d.getDay() === 6 ? 2 : d.getDay() === 0 ? 1 : 0; // Sat -> Mon, Sun -> Mon
+  const shift = d.getDay() === 6 ? 2 : d.getDay() === 0 ? 1 : 0;
   return dayKeyFromToday(days + shift);
 }
 
-/** The next Saturday from today (`YYYY-MM-DD`) — exercises the Sat/Sun flag. */
 function nextSaturdayKey(): string {
   const d = new Date();
-  const delta = (6 - d.getDay() + 7) % 7 || 7; // 6 = Saturday; never today
+  const delta = (6 - d.getDay() + 7) % 7 || 7;
   d.setDate(d.getDate() + delta);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -130,7 +104,6 @@ async function wirePlanning(page: Page, days: MockPlanningDay[]): Promise<void> 
       body: JSON.stringify(mockPersons),
     }),
   );
-  // Mutable list so a delete drops the day on the post-delete refresh.
   const state = [...days];
   await page.route('**/api/v1/planning-days/overview/future', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) }),
@@ -176,7 +149,6 @@ test.describe('J-6 planning list (mock-auth inner loop)', () => {
       '1',
     );
 
-    // The Saturday row is visually flagged (legacy isSaturday/isSunday parity).
     await expect(planningRow(page, WEEKEND_DAY_ID)).toHaveAttribute('data-weekend', 'true');
     await expect(row).toHaveAttribute('data-weekend', 'false');
 
@@ -187,10 +159,6 @@ test.describe('J-6 planning list (mock-auth inner loop)', () => {
     await wirePlanning(page, [weekdayDay]);
     await gotoDe(page, '/planning');
 
-    // New (→ /planning/new/edit) + Setup (→ /planningsetup) — those target
-    // routes land in T-08/T-09; here we pin the list page's wiring contract
-    // (the affordances render for the admin principal). Post-nav URL is asserted
-    // by the sibling crud + setup-wizard specs once those routes exist.
     await expect(page.getByTestId('planning-new-button')).toBeVisible();
     await expect(page.getByTestId('planning-setup-button')).toBeVisible();
   });

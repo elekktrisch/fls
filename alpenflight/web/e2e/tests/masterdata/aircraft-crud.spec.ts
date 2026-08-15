@@ -1,22 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-/**
- * Aircraft CRUD shape. Parity port of legacy
- * `e2e/tests/masterdata/aircrafts-crud.spec.ts` — observable CRUD behavior
- * only, not legacy URL shape or response envelope (ADR 0022). Booted under
- * the `mock-auth` Angular configuration; the principal is a mocked
- * SYSTEM_ADMINISTRATOR so the mutation affordances render. All
- * `/api/v1/*` calls are intercepted via `page.route` — no live backend.
- *
- * Coverage:
- *   - List + seed-row visibility.
- *   - Type-filter slices (GLIDER / TOWING / MOTOR / ALL).
- *   - Edit round-trip.
- *   - Create round-trip.
- *   - 409 on duplicate immatriculation surfaces inline.
- *   - Soft-delete removes the row.
- */
 
 interface MockAircraftType {
   id: string;
@@ -273,9 +257,6 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
     }),
   );
   await page.route('**/api/v1/locations**', (route) => {
-    // Only fulfill the bare-list call — the aircraft routes also live under
-    // `/api/v1/aircraft/*`, but Playwright's glob matches `/aircraft/...`
-    // by the more-specific aircraft handler below if registered first.
     const u = new URL(route.request().url());
     if (u.pathname === '/api/v1/locations') {
       return route.fulfill({
@@ -298,10 +279,6 @@ function setupAircraftBackend(aircraft: MockAircraftDetail[]) {
     const idMatch = path.match(/^\/api\/v1\/aircraft\/(ac-[^/]+)$/);
 
     if (method === 'GET' && path === '/api/v1/aircraft') {
-      // Honor the `?type=GLIDER|TOWING|MOTOR` query param the way the server
-      // does (AircraftService.listAircraft / AircraftTypeSlice). Membership
-      // preserves legacy AircraftService.cs:303-304 (GLIDER includes
-      // GLIDER_WITH_MOTOR) and :96 (MOTOR excludes GLIDER_WITH_MOTOR).
       const typeParam = url.searchParams.get('type');
       const filtered = aircraft.filter((a) => {
         const items = toListItem(a);
@@ -401,9 +378,6 @@ function setupAircraftBackend(aircraft: MockAircraftDetail[]) {
         return;
       }
       const prev = aircraft[idx]!;
-      // id + ownerClubId are server-owned: a PUT body can't change them. Carry
-      // ownerClubId via a conditional spread — under exactOptionalPropertyTypes
-      // an explicit `ownerClubId: undefined` is rejected by the optional prop.
       aircraft[idx] = {
         ...prev,
         ...body,
@@ -443,8 +417,6 @@ test('aircraft: lists the seeded row at /aircraft', async ({ page }) => {
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toContainText('HB-GLI');
 
-  // Legacy list parity (T-13): the row carries Manufacturer + Model + Seats,
-  // mirroring legacy aircrafts-table.html.
   await expect(page.getByTestId(`aircraft-model-${gliderSeed.id}`)).toContainText('Schleicher');
   await expect(page.getByTestId(`aircraft-model-${gliderSeed.id}`)).toContainText('ASK-21');
   await expect(page.getByTestId(`aircraft-seats-${gliderSeed.id}`)).toContainText('2 seats');
@@ -453,11 +425,6 @@ test('aircraft: lists the seeded row at /aircraft', async ({ page }) => {
 test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy membership', async ({
   page,
 }) => {
-  // Seeds include a glider-with-motor — the membership invariant from
-  // AircraftService.cs:303-304 (GLIDER includes GLIDER_WITH_MOTOR) and :96
-  // (MOTOR excludes GLIDER_WITH_MOTOR) is what the parity reviewer flagged
-  // as the highest-impact regression risk if filtering goes client-side
-  // by hasEngine.
   const aircraft: MockAircraftDetail[] = [
     { ...gliderSeed },
     { ...motorSeed },
@@ -469,13 +436,11 @@ test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy mem
 
   await page.goto('/aircraft');
 
-  // Default ALL shows every row.
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toBeVisible();
 
-  // Filter to GLIDER — pure glider + glider-with-motor (per legacy).
   await page.getByTestId('aircraft-type-filter').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Gliders' }).click();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
@@ -483,7 +448,6 @@ test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy mem
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toHaveCount(0);
 
-  // Filter to TOWING.
   await page.getByTestId('aircraft-type-filter').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Towing aircraft' }).click();
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toBeVisible();
@@ -491,8 +455,6 @@ test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy mem
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toHaveCount(0);
 
-  // Filter to MOTOR — pure motor + towing-motor; explicitly NOT
-  // glider-with-motor (legacy excluded it).
   await page.getByTestId('aircraft-type-filter').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Motor aircraft' }).click();
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toBeVisible();
@@ -517,8 +479,6 @@ test('aircraft: editing the seeded row updates the list (UI round-trip)', async 
   await expect(page).toHaveURL('/aircraft');
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toContainText('HB-REN');
 
-  // Persistence round-trip — reload tears down the providedIn:root store,
-  // forcing a refetch from the mock backend.
   await page.reload();
   await page.getByTestId(`aircraft-row-${gliderSeed.id}`).click();
   await expect(page).toHaveURL(/\/aircraft\/.+\/edit$/);
@@ -547,7 +507,6 @@ test('aircraft: creating a new aircraft appears in the list', async ({ page }) =
 });
 
 test('aircraft: 409 on duplicate immatriculation surfaces inline', async ({ page }, testInfo) => {
-  // The duplicate-immatriculation POST is deliberately rejected; the browser logs the 409.
   allowConsoleErrors(testInfo, /\b409\b/);
   const aircraft: MockAircraftDetail[] = [{ ...gliderSeed }];
   await stubReferenceData(page);
@@ -570,7 +529,7 @@ test('aircraft: invalid immatriculation pattern keeps Save disabled', async ({ p
 
   await page.goto('/aircraft/new');
   const immat = page.locator('#Immatriculation');
-  await immat.fill('X'); // too short — fails minLength + pattern
+  await immat.fill('X');
   await immat.blur();
 
   await expect(page.getByTestId('aircraft-save-button').locator('button')).toBeDisabled();
@@ -591,13 +550,6 @@ test('aircraft: soft-delete removes the row from the rendered list', async ({ pa
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toHaveCount(0);
 });
 
-// Screenshot-oracle parity: the legacy aircraft master-data form is captured
-// at `e2e/screenshots/masterdata-aircrafts-form.png` (S-050 ref). The list of
-// visible fields + section grouping below is the parity claim — silent drift
-// here (e.g. adding a checkbox for an internal back-end marker like
-// `isFastEntryRecord`) is what this test exists to catch. Update both the
-// expected list and the reference screenshot together when the form changes
-// intentionally.
 test('aircraft form: field inventory matches legacy reference screenshot (parity oracle: masterdata-aircrafts-form.png)', async ({
   page,
 }) => {
@@ -607,21 +559,14 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
 
   await page.goto('/aircraft/new');
 
-  // 3 sections must be present (legacy: Stammdaten / Betriebliche Daten /
-  // Technische Daten — translated 1:1).
   await expect(page.getByTestId('aircraft-section-masterdata')).toBeVisible();
   await expect(page.getByTestId('aircraft-section-operational')).toBeVisible();
   await expect(page.getByTestId('aircraft-section-technical')).toBeVisible();
 
-  // Visible section titles (legacy: Stammdaten / Betriebliche Daten /
-  // Technische Daten — translated 1:1).
   await expect(page.getByRole('heading', { name: 'Master data' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Operational data' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Technical data' })).toBeVisible();
 
-  // Section 1: Master data fields. Inputs use af-input (id-bearing label
-  // associations work); selects use af-select which doesn't propagate the
-  // form-field's id to the underlying nz-select, so we locate by testId.
   await expect(page.getByLabel('Immatriculation')).toBeVisible();
   await expect(page.getByLabel('Competition sign')).toBeVisible();
   await expect(page.getByTestId('aircraft-type-select')).toBeVisible();
@@ -629,12 +574,6 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
   await expect(page.getByLabel('Model')).toBeVisible();
   await expect(page.getByLabel('Seats')).toBeVisible();
 
-  // Section 2: Operational fields + SPOT link's Test-link button +
-  // 4 towing/winch checkboxes (legacy showed all four; the legacy form
-  // gates the two sub-checkboxes via UI affordance, not server validation —
-  // parity for now keeps them flat, no hide/show).
-  // The owner-select was dropped in S-159: ownership defaults to the managing
-  // club at the service layer; change via transfer-ownership.
   await expect(page.getByTestId('aircraft-homebase-select')).toBeVisible();
   await expect(page.getByLabel('SPOT tracker link')).toBeVisible();
   await expect(page.getByTestId('aircraft-spotlink-test')).toBeVisible();
@@ -643,8 +582,6 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
   await expect(page.getByLabel('Towing start allowed')).toBeVisible();
   await expect(page.getByLabel('Winch start allowed')).toBeVisible();
 
-  // Section 3: Technical fields. Year is an af-select — locate by testId
-  // for the same reason as Type / Homebase above.
   await expect(page.getByLabel('MTOM (kg)')).toBeVisible();
   await expect(page.getByLabel('Serial number')).toBeVisible();
   await expect(page.getByTestId('aircraft-year-select')).toBeVisible();
@@ -654,16 +591,10 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
   await expect(page.getByLabel('Noise level (dB)')).toBeVisible();
   await expect(page.getByLabel('Comment')).toBeVisible();
 
-  // Absences — fields that legacy does NOT expose on the master-data form
-  // (internal markers or fields set elsewhere). Adding these silently is the
-  // parity violation this test guards against.
   await expect(page.getByLabel(/fast.entry/i)).toHaveCount(0);
   await expect(page.getByText('Flight counter unit')).toHaveCount(0);
 });
 
-// Engine counter unit is conditionally rendered — legacy
-// `aircraft-form-fields.html:237` gates it on `selectedAircraftType.HasEngine`.
-// Glider (no engine) → hidden. Motor (has engine) → visible.
 test('aircraft form: engine counter unit dropdown is hidden for engineless types, visible for engine types', async ({
   page,
 }) => {

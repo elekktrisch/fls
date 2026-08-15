@@ -1,5 +1,3 @@
-// Spec #12: canonical CRUD on a masterdata entity (Locations).
-// TODO testid: `.fls-new-button button`, `a.delete-link`, form Save/Cancel.
 
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
@@ -17,7 +15,6 @@ async function openListAndWait(page: Page) {
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
 async function ensureLocationDeleted(page: Page, name: string): Promise<void> {
-  // Drop prior-run leftover so CREATE doesn't duplicate.
   const token = await page.evaluate(() => {
     const raw = sessionStorage.getItem('ngStorage-loginResult');
     if (!raw) return null;
@@ -40,7 +37,6 @@ async function ensureLocationDeleted(page: Page, name: string): Promise<void> {
 }
 
 async function fillRequiredDropdowns(page: Page): Promise<void> {
-  // Country + LocationType selectize dropdowns have no testids — drive via $scope.
   await page.waitForFunction(() => {
     const w = window as unknown as {
       angular: { element: (n: Element) => { scope: () => unknown } };
@@ -82,11 +78,6 @@ async function submitForm(page: Page) {
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 
-// Locations list grows long under accumulated state; ng-table filter inputs
-// lag — see TEST_WRITING.md §6. The spec drives CREATE/EDIT via the UI form
-// (the surface that matters) but navigates by direct URL instead of filtering
-// the table to find rows. DELETE goes via API since the list-row trash anchor
-// has the same ng-table dependency.
 test.setTimeout(90_000);
 
 test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, testInfo) => {
@@ -103,7 +94,6 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, te
   });
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // CREATE via UI form.
   await openListAndWait(page);
   await page.locator('.fls-new-button button').click();
   await page.waitForURL('**/#/masterdata/locations/new', { timeout: 10_000 });
@@ -115,8 +105,6 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, te
   await fillRequiredDropdowns(page);
   await submitForm(page);
 
-  // Find the new row via the (unpaged) list endpoint — cheaper than paged
-  // and avoids whatever's 500'ing on the search filter under load.
   const lookupRes = await page.request.get(`${API_BASE}/api/v1/locations`, { headers: auth });
   expect(
     lookupRes.ok(),
@@ -126,7 +114,6 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, te
   const created = lookupBody.find(l => l.LocationName === NAME);
   expect(created, 'created location should be in /locations listing').toBeTruthy();
 
-  // EDIT via direct-URL navigation (skips the unreliable list-row click).
   await gotoRoute(page, `/masterdata/locations/${created!.LocationId}`);
   await page.locator('#Description').waitFor({ state: 'visible' });
   await expect(page.locator('#LocationName')).toHaveValue(NAME);
@@ -134,14 +121,11 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, te
   await page.locator('#Description').fill(DESC_EDITED);
   await submitForm(page);
 
-  // API readback to confirm edit persisted (skips the ng-table filter wait).
   const verifyRes = await page.request.get(`${API_BASE}/api/v1/locations/${created!.LocationId}`, { headers: auth });
   expect(verifyRes.ok()).toBeTruthy();
   const verifyBody = await verifyRes.json() as { Description?: string };
   expect(verifyBody.Description).toBe(DESC_EDITED);
 
-  // DELETE via API (UI trash-link path is exercised by other CRUD specs
-  // against shorter tables — locations list is too big to filter reliably).
   await page.request.post(`${API_BASE}/api/v1/locations/${created!.LocationId}`, {
     headers: { ...auth, 'X-HTTP-Method-Override': 'DELETE' },
   });

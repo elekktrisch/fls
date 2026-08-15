@@ -3,26 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
 
-/**
- * J-26 T-04 — persons membership data-loss fix (mock inner loop).
- *
- * Before the fix: /persons/:id/edit hydrated memberNumber / memberState /
- * role flags and Save reported success, but `PersonUpdateRequest` omits them
- * BY DESIGN and `PUT /api/v1/persons/{id}/clubs/current` was never called —
- * the edits were silently DROPPED. This spec locks the fix: Save persists
- * BOTH halves (person PUT + membership PUT), asserted via the UI round-trip
- * AND the captured PUT payloads.
- *
- * Mock-auth fidelity: dev server boots under `--configuration=mock-auth`
- * (synthetic SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR principal); every
- * `/api/v1/*` call is intercepted via `page.route` — no live backend. The
- * REAL-chain twin (real principal → real endpoint → re-open) is the journey's
- * `parity_test` (`tests/real-idp/hardening-J26.spec.ts`).
- *
- * CHROME ENTRY (J-26 "Spec must assert" / do-ship done-bar): enter through
- * the nav chrome — /start → `af-nav-section-/persons` → row → form. Never a
- * bare goto to the form.
- */
 
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 const PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000a01';
@@ -81,12 +61,6 @@ const mockMemberStates = [
   { id: STATE_HONORARY_ID, name: 'Honorary' },
 ];
 
-/**
- * Seed deliberately carries NON-form-exposed truthy flags
- * (isWinchOperator + receiveFlightReports): the server's clubs/current PUT
- * is a full replace, so the page must ECHO them — the payload capture below
- * asserts they survive the Save un-zeroed.
- */
 const seedPerson: MockPerson = {
   id: PERSON_ID,
   firstname: 'Anna',
@@ -153,7 +127,6 @@ function toListItem(p: MockPerson): Record<string, unknown> {
 }
 
 async function stubReferenceData(page: Page): Promise<void> {
-  // bootstrapPrefetch lookups — harmless empties (persons-add-modal pattern).
   for (const path of [
     'countries',
     'club-states',
@@ -178,8 +151,6 @@ async function stubReferenceData(page: Page): Promise<void> {
       body: JSON.stringify(mockMemberStates),
     }),
   );
-  // The /start chrome-entry shell: the dual-role mock principal lands on the
-  // sysadmin dashboard variant, which reads these two (start.spec pattern).
   await page.route('**/api/v1/me/system-dashboard**', (route) =>
     route.fulfill({
       status: 200,
@@ -210,12 +181,6 @@ interface CapturedPuts {
   membership: MembershipPut[];
 }
 
-/**
- * In-memory persons backend. Captures BOTH PUT payloads (the spec's
- * wire-level assertion) and applies the membership PUT as a FULL REPLACE —
- * mirroring the server record's primitive-boolean semantics, so a payload
- * that omitted an unexposed flag would observably zero it on re-open.
- */
 function setupPersonsBackend(persons: MockPerson[], captured: CapturedPuts) {
   return async (route: Route) => {
     const req = route.request();
@@ -267,8 +232,6 @@ function setupPersonsBackend(persons: MockPerson[], captured: CapturedPuts) {
       }
       const body = req.postDataJSON() as MembershipPut;
       captured.membership.push(body);
-      // Full replace (server parity): absent optionals clear, absent booleans
-      // land false.
       person.memberships[0] = {
         id: pc.id,
         clubId: pc.clubId,
@@ -278,9 +241,6 @@ function setupPersonsBackend(persons: MockPerson[], captured: CapturedPuts) {
           const name = body.memberStateId
             ? mockMemberStates.find((m) => m.id === body.memberStateId)?.name
             : undefined;
-          // exactOptionalPropertyTypes: only emit memberStateName when it
-          // resolves to a definite string (an unresolved id leaves it absent,
-          // never `{ memberStateName: undefined }`).
           return name ? { memberStateName: name } : {};
         })(),
         isMotorPilot: body.isMotorPilot ?? false,
@@ -318,22 +278,17 @@ test('persons edit: memberNumber + role toggle + memberState round-trip through 
   await stubReferenceData(page);
   await page.route('**/api/v1/persons**', setupPersonsBackend(persons, captured));
 
-  // CHROME ENTRY: app shell → Masterdata group → Persons nav section → list row
-  // → edit form. Persons moved under the Masterdata dropdown (J-8 T-22a); the
-  // helper opens that group first, then clicks the nested entry.
   await page.goto('/start?lang=de');
   await enterViaNav(page, '/persons');
   await expect(page).toHaveURL(/\/persons$/);
   await page.getByTestId(`person-row-${PERSON_ID}`).click();
   await expect(page).toHaveURL(/\/persons\/pn-.+\/edit$/);
 
-  // Hydration sanity — the membership fields the bug was dropping.
   const memberNumber = page.getByTestId('member-number-input').locator('input');
   await expect(memberNumber).toHaveValue('M-001');
   await expect(page.getByTestId('role-motor-pilot')).not.toBeChecked();
   await expect(page.getByTestId('role-glider-pilot')).toBeChecked();
 
-  // Edit: change memberNumber + toggle a role flag + change memberState.
   await memberNumber.fill('M-777');
   await page.getByTestId('role-motor-pilot').check();
   await page.getByTestId('member-state-select').click();
@@ -342,8 +297,6 @@ test('persons edit: memberNumber + role toggle + memberState round-trip through 
   await page.getByTestId('person-save-button').click();
   await expect(page).toHaveURL(/\/persons$/);
 
-  // WIRE assertion 1: BOTH halves were PUT — person AND clubs/current (the
-  // missing call was the data loss).
   expect(captured.person).toHaveLength(1);
   expect(captured.membership).toHaveLength(1);
   const membershipPut = captured.membership[0];
@@ -352,13 +305,10 @@ test('persons edit: memberNumber + role toggle + memberState round-trip through 
   expect(membershipPut.memberStateId).toBe(STATE_HONORARY_ID);
   expect(membershipPut.isMotorPilot).toBe(true);
   expect(membershipPut.isGliderPilot).toBe(true);
-  // WIRE assertion 2: the full-replace PUT ECHOES the non-form-exposed flags
-  // — the fix must not trade one data loss for another.
   expect(membershipPut.isWinchOperator).toBe(true);
   expect(membershipPut.receiveFlightReports).toBe(true);
   expect(membershipPut.isActive).toBe(true);
 
-  // UI round-trip: re-open the person — the edited values hydrate back.
   await page.getByTestId(`person-row-${PERSON_ID}`).click();
   await expect(page).toHaveURL(/\/persons\/pn-.+\/edit$/);
   await expect(page.getByTestId('member-number-input').locator('input')).toHaveValue('M-777');

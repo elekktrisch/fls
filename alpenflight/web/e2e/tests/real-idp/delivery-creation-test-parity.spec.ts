@@ -24,51 +24,6 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 
-/**
- * J-9 — Delivery-creation-test harness real chain (live Keycloak auth + real
- * Spring backend + real Postgres). The journey's `parity_test` (the real-chain
- * done-bar) — proves the SACRED-COW rules engine end to end through its harness
- * screen. NO `page.route` mocking on any path: the engine pipeline, the
- * `@TenantId` filter, the CLUB_ADMINISTRATOR `@PreAuthorize` gate, the
- * `expected_delivery` jsonb capture + diff, and the dry-run/run endpoints all
- * run live over a DETERMINISTIC scenario this spec seeds through the real APIs.
- *
- * ── PRINCIPAL (CLUB_ADMINISTRATOR, every harness endpoint is admin-gated) ─────
- * Drives `clubadmin4` (V29 seed), a REAL CLUB_ADMINISTRATOR bound to seed-club-1
- * — NOT the mock-admin everything-principal that hides a role-authz gap
- * ([[project_real_idp_real_roles_catches_authz_gaps]]). The cross-tenant 404
- * probe drives a REAL second club + admin (`provisionTwoClubs`).
- *
- * ── DETERMINISTIC SCENARIO (mirrors DeliveryCreationTestRunIT, over REST) ─────
- * The engine output must be reproducible, so the spec CREATES the inputs as
- * seed-club-1 through the real APIs (no reliance on whatever the fanout migrated):
- *   - the masterdata (`seedFlightMasterdata`: aircraft / pilot / flight-type /
- *     location);
- *   - a GLIDER Flight (90-min duration, 1 landing, the pilot crew);
- *   - two AccountingRuleFilters via the J-8 API — a FlightTime line (legacyId 30,
- *     glider-scoped, min=0 ⇒ bills the whole duration) emitting `ART-FT`, and a
- *     LandingTax line (legacyId 60) emitting `ART-LT`.
- * The engine then produces a DETERMINISTIC two-item delivery `[ART-FT, ART-LT]`,
- * so the dry-run fill, the SUCCESS run, and the perturbed FAILURE diff are stable.
- *
- * The ignore flags `ignoreDeliveryInformation` / `ignoreAdditionalInformation` +
- * the four recipient-ignore flags ride the create (the T-12 DeliveryDetailsStage
- * deferral leaves those snapshot fields null — without the ignores a run fails on
- * them). The dry-run capture PRECEDES save (the T-21 captureExpected contract: a
- * saved harness persists the expected set the just-captured dry-run produced).
- *
- * ── REAL-IDP HYGIENE (hard-won) ──────────────────────────────────────────────
- *   - ENTER via the masterdata nav dropdown (`enterViaNav`), NOT a bare goto for
- *     the chrome-reachability assertion;
- *   - prefer WARM in-app navigation; do NOT `clearCookies` (kills session
- *     restore) and avoid a cold `page.goto` reopen mid-flow where a warm nav
- *     works ([[project_real_idp_goto_reboot_renew_stall]]);
- *   - read a created id off the 201 `Location` header / a re-GET, never the POST
- *     body (the SPA list re-fetch evicts it,
- *     [[project_spa_nav_evicts_post_response_body]]);
- *   - track every created harness id + `afterAll` DELETE it so a Playwright retry
- *     starts on a clean seed-club-1 (the shared, never-truncated seed tenant).
- */
 
 const DCT = '/api/v1/deliverycreationtests';
 const FILTERS = '/api/v1/accounting-rule-filters';
@@ -113,12 +68,10 @@ async function newRecordedContext(
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
   const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
-  // Guard every page this context opens, not just the fixture-injected one.
   context.on('page', (p) => watchConsoleErrors(p, testInfo));
   return context;
 }
 
-/** All 9 boolean flags present (FAIL_ON_NULL_FOR_PRIMITIVES) + the rule scope. */
 function filterConfig(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     isRuleForGliderFlights: false,
@@ -134,7 +87,6 @@ function filterConfig(extra: Record<string, unknown> = {}): Record<string, unkno
   };
 }
 
-/** Create an AccountingRuleFilter via the real J-8 API; return its bare UUID. */
 async function createFilter(
   api: APIRequestContext,
   bearer: string,
@@ -155,11 +107,6 @@ async function createFilter(
   return id;
 }
 
-/**
- * Seed the deterministic engine inputs as seed-club-1: the masterdata, a glider
- * Flight (90-min, 1 landing, pilot crew), and the FlightTime + LandingTax line
- * filters. Returns the created Flight's id + the two filter ids.
- */
 async function seedScenario(
   api: APIRequestContext,
   bearer: string,
@@ -198,7 +145,6 @@ async function seedScenario(
   const flightLoc = flightRes.headers()['location']!;
   const flightId = new URL(flightLoc, 'http://localhost').pathname.split('/').pop()!;
 
-  // min=0 ⇒ the FlightTime loop bills the whole active duration as one item.
   const ftFilterId = await createFilter(api, bearer, createdFilters, {
     filterTypeId: FILTER_TYPE_FLIGHT_TIME,
     filterTypeLegacyId: LEGACY_FLIGHT_TIME,
@@ -228,18 +174,11 @@ function articleNumbers(items: DeliveryItem[] | undefined): string[] {
   return (items ?? []).map((i) => i.articleNumber ?? '').sort();
 }
 
-// ===========================================================================
-// The real chain: nav-entry + list → author a harness (pick flight → dry-run
-// fills the expected set → save) → run SUCCESS + matched-rule link to J-8 → a
-// perturbed run FAILURE + the cell-level diff → cross-tenant 404.
-// ===========================================================================
 test.describe('Delivery creation test harness — rules-engine real chain (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
 
   let baseURL: string;
-  /** clubadmin4's Bearer (seed-club-1, the @TenantId club). */
   let adminBearer: string;
-  /** A real second club + admin (club B) — the cross-tenant-404 probe. */
   let twoClubs: TwoClubFixture;
   let scenario: {
     flightId: string;
@@ -247,9 +186,7 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     ltFilterId: string;
     ltWrite: Record<string, unknown>;
   };
-  /** Filters created in seed-club-1 — deleted in afterAll (retry-isolation). */
   const createdFilters: string[] = [];
-  /** Harness ids created in seed-club-1 — deleted in afterAll. */
   const createdHarnesses: string[] = [];
   let cleanupCtx: BrowserContext;
 
@@ -263,9 +200,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     scenario = await seedScenario(cleanupCtx.request, adminBearer, createdFilters);
   });
 
-  // ux_dct_club_flight_partial permits one live harness per (club, flight), and
-  // every test authors on the one shared seeded flight — so each must drop its
-  // harness before the next creates, else the second create 409s.
   test.afterEach(async () => {
     for (const id of createdHarnesses) {
       await cleanupCtx.request
@@ -293,16 +227,11 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     try {
       await loginAsReservationAdmin(page);
 
-      // ENTER via the chrome nav (the chrome-reachability AC): open the Masterdata
-      // dropdown, click the nested harness entry, the list renders.
       await page.goto('/start?lang=en');
       await enterViaNav(page, '/deliverycreationtests');
       await expect(page).toHaveURL('/deliverycreationtests');
       await expect(page.getByTestId('dct-table')).toBeVisible();
 
-      // New harness → pick the seeded flight → "Create test delivery" DRY-RUNS the
-      // engine (no persist) and fills the expected DeliveryItem set. The engine
-      // ran live over the seeded flight + the two J-8 filters → the two line items.
       await page.getByTestId('dct-new-button').locator('button').click();
       await expect(page).toHaveURL('/deliverycreationtests/new');
       await page
@@ -323,9 +252,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
         fullPage: true,
       });
 
-      // Save: the captured dry-run rides the create as the expected set (T-21).
-      // Read the created id off the 201 Location (the list re-fetch evicts the POST
-      // body) by watching the create response.
       const createResp = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
@@ -340,16 +266,12 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
       createdHarnesses.push(harnessId);
       await expect(page).toHaveURL('/deliverycreationtests');
 
-      // The harness round-trips its persisted expected set (re-GET, not the POST
-      // body): the two line items + their matched filter ids.
       const detail = (await ctx.request
         .get(`${DCT}/${harnessId}`, { headers: { authorization: adminBearer } })
         .then((r) => r.json())) as DctDetail;
       expect(articleNumbers(detail.expectedDelivery.items)).toEqual([FT_ARTICLE, LT_ARTICLE]);
       expect(detail.expectedMatchedFilterIds.length).toBe(2);
 
-      // Run the harness: the engine re-runs vs the stored expectation → SUCCESS,
-      // and each matched AccountingRuleFilter id links into the J-8 rule editor.
       await page.getByTestId(`dct-row-${harnessId}`).click();
       await expect(page).toHaveURL(new RegExp(`/deliverycreationtests/${harnessId}/edit$`));
       await expect(page.getByTestId('dct-edit-form')).toBeVisible();
@@ -389,8 +311,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
     try {
       await loginAsReservationAdmin(page);
 
-      // Author a fresh harness capturing the current engine output (the SUCCESS
-      // baseline) through the real chain.
       await page.goto('/start?lang=en');
       await enterViaNav(page, '/deliverycreationtests');
       await expect(page).toHaveURL('/deliverycreationtests');
@@ -415,19 +335,12 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
       createdHarnesses.push(harnessId);
       await expect(page).toHaveURL('/deliverycreationtests');
 
-      // The operator's daily rule-tuning move: change a rule so the engine now
-      // emits a DIFFERENT line for the landing tax — a real divergence the harness
-      // must catch (not a DB tamper). Re-point the LandingTax filter to a new
-      // article number via the real J-8 PUT (the write-request shape, not the
-      // detail projection — the detail omits the required filterTypeLegacyId).
       const putRes = await ctx.request.put(`${FILTERS}/${scenario.ltFilterId}`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
         data: { ...scenario.ltWrite, articleNumber: 'ART-LT-CHANGED' },
       });
       expect(putRes.status(), `filter PUT must 200 — got ${putRes.status()}`).toBe(200);
 
-      // Run: the engine now produces ART-LT-CHANGED, diverging from the stored
-      // expectation (ART-LT) → FAILURE with a cell-level diff on the changed item.
       await page.getByTestId(`dct-row-${harnessId}`).click();
       await expect(page.getByTestId('dct-edit-form')).toBeVisible();
       await page.getByTestId('dct-run').locator('button').click();
@@ -440,7 +353,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
         fullPage: true,
       });
     } finally {
-      // Restore the LandingTax filter so the SUCCESS test stays order-independent.
       await ctx.request
         .put(`${FILTERS}/${scenario.ltFilterId}`, {
           headers: { authorization: adminBearer, 'content-type': 'application/json' },
@@ -465,9 +377,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
   }) => {
     const ctx = await browser.newContext({ baseURL });
     try {
-      // Author a harness as seed-club-1 (clubadmin4 / adminBearer) directly over
-      // the REST API — the dry-run fills + the write-request captures the expected
-      // set (the same chain the UI drives).
       const example = await ctx.request
         .get(`${DCT}/example/${scenario.flightId}`, { headers: { authorization: adminBearer } })
         .then((r) => r.json());
@@ -493,7 +402,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
         .pop()!;
       createdHarnesses.push(id);
 
-      // Capture club B's admin Bearer through real Keycloak (a DIFFERENT tenant).
       const bCtx = await browser.newContext({ baseURL });
       const bPage = await bCtx.newPage();
       let clubBBearer: string;
@@ -511,14 +419,11 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
         await bCtx.close();
       }
 
-      // seed-club-1's admin reads it fine (the positive control — the id is valid).
       const ownRead = await ctx.request.get(`${DCT}/${id}`, {
         headers: { authorization: adminBearer },
       });
       expect(ownRead.status(), 'the owning tenant reads its own harness').toBe(200);
 
-      // Club B's admin CANNOT read it — the @TenantId-scoped finder never returns
-      // another club's row → 404 (NOT 403; the row is invisible, not forbidden).
       const crossTenant = await ctx.request.get(`${DCT}/${id}`, {
         headers: { authorization: clubBBearer },
       });
@@ -527,7 +432,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
         `club B must NOT read club A's harness (cross-tenant 404) — got ${crossTenant.status()}`,
       ).toBe(404);
 
-      // The run endpoint is tenant-scoped too — club B's run → 404, not a leak.
       const crossRun = await ctx.request.post(`${DCT}/${id}/run`, {
         headers: { authorization: clubBBearer },
       });
@@ -538,29 +442,6 @@ test.describe('Delivery creation test harness — rules-engine real chain (real-
   });
 });
 
-// ===========================================================================
-// MIGRATED-DATA real chain — the engine done-bar over migrated J-2 flights +
-// J-8 filters (S-107). The fanout's REAL legacy export migrates the WHOLE
-// TestClub base seed, including the HB-3256 static-seed glider flight and the
-// full set of FlightTime + LandingTax AccountingRuleFilters. Running the harness
-// dry-run over that migrated flight must drive the migrated filter set through
-// the engine → its genuine delivery (the FlightTime + LandingTax lines) —
-// proving producer-bound J-8 filters + J-2 flights reach the rules engine end to
-// end, no new mapper. Rides the SAME real bundle the J-0c fan-out spec ingests;
-// runs only when the fanout's real export ran.
-// ===========================================================================
-// HB-3256 is the unique-immatriculation static legacy-seed glider (`6 Insert Test
-// Flights.sql:138`, FlightAircraftType glider, LdgDateTime=DATEADD(n,22,start)).
-// Driven over the REAL migrated bundle, the migrated FlightTime (5001, with T-01's
-// deliveryLineText) + LandingTax (6001) filters produce its genuine delivery — assert
-// that exact pair (the migration promise: a migrated club bills its own data correctly).
-//
-// The fixture grants the HB-3256 pilot a migrated PersonFlightTimeCredit — a
-// 600-second (10-minute) prepaid balance at a 25% discount, matched to 'HB-3256'.
-// Under the 22-minute flight that provokes the engine's over-credit split: the
-// 5001 FlightTime line becomes a credited 10-minute line (carrying the discount)
-// + a full-price 12-minute remainder, proving a real prepaid balance survives
-// cutover and the engine applies it over migrated seed.
 const MIGRATED_FT_ARTICLE = '5001';
 const MIGRATED_FT_ITEM_TEXT = 'HB-3256 Glider flight minutes';
 const MIGRATED_FT_TOTAL_QTY = 22;
@@ -588,9 +469,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    // The migrated CLUB gets a fresh provisioned UUID, so resolve the loginable
-    // admin by OWNERSHIP (the J-5/J-8 migrated-read pattern) — it owns the same
-    // migrated TestClub the static-seed glider flights + filters reconciled onto.
     const resolved = await resolveMigratedTestClubAdmin(browser, baseURL, testInfo);
     migratedAdmin = resolved.admin;
     migratedBearer = resolved.bearer;
@@ -604,9 +482,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
     try {
       await loginAsMigratedTestClubAdmin(page, migratedAdmin);
 
-      // List the migrated TestClub's glider flights. The HB-3256 static-seed
-      // glider is among them; the engine dry-run over it must drive the migrated
-      // filter set to its genuine FlightTime + LandingTax delivery.
       const flightsRes = await ctx.request.get(`${FLIGHTS}?limit=200`, {
         headers: { authorization: migratedBearer },
       });
@@ -620,11 +495,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           `got ${flightItems.length} flight(s)`,
       ).toBeGreaterThan(0);
 
-      // Dry-run the engine (GET example, no persist) over each migrated glider and
-      // pin the HB-3256 one by a STABLE attribute — the FlightTime line's itemText
-      // (the immatriculation-bearing deliveryLineText), NOT the fresh migrated
-      // UUID. Other migrated gliders (the two HB-3407 flights) carry a different
-      // FlightTime itemText + quantity, so this never false-matches them.
       let hb3256Items: DeliveryItem[] | undefined;
       let hb3256FlightId: string | undefined;
       for (const flight of gliderFlights) {
@@ -657,15 +527,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
           `migrated filters did not match the migrated flight, not a read race.`,
       ).toBeTruthy();
 
-      // The genuine migrated delivery: the 5001 FlightTime tier (HB-3256 glider is
-      // DATEADD(n,22,start) ⇒ 22 'Minuten') split by the migrated prepaid credit +
-      // the 6001 LandingTax line (1 ldg at LSZK ⇒ 2 'Landung'). Both filters and the
-      // migrated credit drive the engine over genuine seed.
-      //
-      // The migrated PersonFlightTimeCredit (10-minute balance, 25% discount, matched
-      // to 'HB-3256') covers only part of the 22-minute flight, so the engine splits
-      // the FlightTime tier into a credited line (the covered minutes, carrying the
-      // discount) + a full-price remainder. Emission order: credited first.
       const ftLines = hb3256Items!.filter(
         (i) => i.articleNumber === MIGRATED_FT_ARTICLE && i.itemText === MIGRATED_FT_ITEM_TEXT,
       );
@@ -704,13 +565,6 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
       expect(ltLine!.quantity).toBe(MIGRATED_LT_EXPECTED_QTY);
       expect(ltLine!.unitType).toBe(MIGRATED_LT_UNIT);
 
-      // RENDER the migrated delivery on screen (the gallery video proof): drive
-      // the harness dry-run UI over the migrated HB-3256 flight, mirroring the
-      // clean-seed block. The picker is sourced from the SAME @TenantId flights
-      // read the loop paged, so the migrated flight is selectable; "Create test
-      // delivery" dry-runs the migrated filter set through the engine and renders
-      // its genuine FlightTime + LandingTax lines — what the video must film,
-      // not the empty stored-runs list (the migrated TestClub has none).
       await page.goto('/deliverycreationtests?lang=en');
       await page.getByTestId('dct-new-button').locator('button').click();
       await expect(page).toHaveURL('/deliverycreationtests/new');
@@ -748,41 +602,11 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
   });
 });
 
-// ===========================================================================
-// FLIGHT-TIME-CREDIT sub-engine — the credit branch of the rules engine, proven
-// through the SAME `/deliverycreationtests` dry-run + diff harness (no new
-// screen). A pilot holds a pre-paid `PersonFlightTimeCredit` balance + a
-// `DiscountInPercent`; when a flight's immatriculation matches the credit, the
-// engine applies the balance to the FlightTime line — a single discounted line
-// when the balance fully covers the flight, or a credited line + a billed
-// remainder when it covers only part (the over-credit 2-line split). The dry-run
-// loads credits read-only (AsNoTracking parity) and writes no transaction, so a
-// re-run is idempotent and the balance never mutates.
-//
-// Activation: the flight immat SUBSTRING-matches the stored
-// `MatchedAircraftImmatriculations` CSV (reproduce legacy `.Contains`, a parity
-// exclusion — not corrected to exact-element), under the
-// `UseRuleForAllAircraftsExceptListed` inversion flag. Current balance = the
-// single `IsCurrent` transaction; `NoFlightTimeLimit` ⇒ unlimited credit.
-// ===========================================================================
 
-// The credit-seed affordance — a `dev`/`test`-profile-only, OpenAPI-hidden
-// internal endpoint under `/api/v1/internal/` (the InternalProvisioningController
-// convention), the ONLY write path for `PersonFlightTimeCredit` in the clean-seed
-// run: there is no production credit-CRUD screen, and a static SQL seed cannot
-// reference the per-run pilot person + the freshly-minted flight immatriculation
-// `seedFlightMasterdata` creates (retry-isolation mints both fresh). The handle
-// grants one credit (its single IsCurrent transaction) to a person, matched to an
-// immat substring, and is deletable for retry-isolation. Reads back via
-// `GET .../{id}` so the idempotent case can re-read the balance.
 const CREDIT_SEED = '/api/v1/internal/person-flight-time-credits';
 
 const CREDIT_DISCOUNT_PERCENT = 25;
-/** The seeded glider flight runs 08:00→09:30 = 90 min, billed whole (min=0 filter). */
 const FLIGHT_BILLABLE_MINUTES = 90;
-// PILOT_PAYS_ALL (legacy cost-balance int 1) makes the RecipientStage fallback
-// resolve the PIC as the billed recipient, so the credit branch loads the pilot's
-// PersonFlightTimeCredit; without it the recipient is unresolved and no credit applies.
 const COST_BALANCE_PILOT_PAYS_ALL = 'fcb-019e2e15-2c00-7268-8000-000000004268';
 
 interface DctExample {
@@ -790,12 +614,10 @@ interface DctExample {
   matchedFilterIds: string[];
 }
 
-/** Every FlightTime line on `article`, in emission order (the split yields two). */
 function flightTimeLines(items: DeliveryItem[] | undefined, article: string): DeliveryItem[] {
   return (items ?? []).filter((i) => i.articleNumber === article);
 }
 
-/** The single FlightTime line on `article` (asserts exactly one exists). */
 function flightTimeLine(
   items: DeliveryItem[] | undefined,
   article: string,
@@ -804,7 +626,6 @@ function flightTimeLine(
   return lines.length === 1 ? lines[0] : undefined;
 }
 
-/** Dry-run the engine over a flight (no persist) and return the would-be delivery. */
 async function dryRun(
   api: APIRequestContext,
   bearer: string,
@@ -815,14 +636,6 @@ async function dryRun(
     .then((r) => r.json())) as DctExample;
 }
 
-/**
- * Seed (as seed-club-1) a glider flight + a min=0 FlightTime line filter whose
- * article the credit cases assert on, plus a `PersonFlightTimeCredit` granting the
- * pilot a balance + discount, matched to the flight's immatriculation (substring
- * match, non-inversion branch). The flight's PILOT_PAYS_ALL cost-balance makes the
- * RecipientStage fallback resolve the PIC as the billed recipient, so its credit is
- * the one the engine loads + applies.
- */
 async function seedCreditScenario(
   api: APIRequestContext,
   bearer: string,
@@ -867,11 +680,6 @@ async function seedCreditScenario(
     .split('/')
     .pop()!;
 
-  // Pin this filter to THIS case's flight by exact-immat include-list
-  // (AccountingRuleMatcher.aircraftMatches is case-insensitive EQUALITY): the
-  // cases share one serial session over distinct fresh-immat glider flights, so
-  // an immat-unscoped glider filter from a PRIOR case would also match this
-  // flight and emit the credited line under the prior case's article.
   await createFilter(api, bearer, createdFilters, {
     filterTypeId: FILTER_TYPE_FLIGHT_TIME,
     filterTypeLegacyId: LEGACY_FLIGHT_TIME,
@@ -886,8 +694,6 @@ async function seedCreditScenario(
     }),
   });
 
-  // valid_until is far-future so the engine's ValidUntil >= flight-start filter
-  // (2026-05-15) always retains it; the credit is matched to THIS flight's immat.
   const creditRes = await api.post(CREDIT_SEED, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {
@@ -957,10 +763,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
     await cleanupCtx?.close();
   });
 
-  // Fully-covered: the balance exceeds the 90-min flight, so the whole line is
-  // credited (single discounted line). Drives the harness UI for the gallery video
-  // and RENDERS the credited line on screen before the deep assert, mirroring the
-  // J-9 clean-seed [happy] block.
   test('[happy] a flight covered by a matching credit dry-runs to ONE discounted FlightTime line', async ({
     browser,
   }, testInfo) => {
@@ -1019,13 +821,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
     }
   });
 
-  // Over-credit 2-line split: the balance covers only PART of the billable time →
-  // a credited line (qty = credited seconds, discount = the credit's percent) + a
-  // billed-remainder line (qty = over-credit seconds, discount = 0), same article
-  // + itemText. Provoked WITHIN one FlightTime line (L > C): there is no cross-line
-  // carryover — the IsCurrent balance is read fresh per delivery and never mutated
-  // in the line loop, so a split needs a single line whose duration exceeds the
-  // balance.
   test('[happy] over-credit splits into a credited line + a billed-remainder line', async ({
     browser,
   }, testInfo) => {
@@ -1034,7 +829,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
     try {
       await loginAsReservationAdmin(page);
 
-      // 30-min balance under a 90-min flight ⇒ credited 30 min + remainder 60 min.
       const creditedMinutes = 30;
       const remainderMinutes = FLIGHT_BILLABLE_MINUTES - creditedMinutes;
       const scenario = await seedCreditScenario(
@@ -1051,7 +845,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
       await page.getByTestId('dct-name').locator('input').fill('Glider — over-credit split');
       await page.getByTestId('dct-flight-picker').selectOption(scenario.flightId);
       await page.getByTestId('dct-create-test-delivery').locator('button').click();
-      // The split renders TWO same-article lines, so item-1 is present.
       await expect(page.getByTestId('dct-expected-item-1')).toBeVisible();
 
       await page.screenshot({
@@ -1063,8 +856,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
       const lines = flightTimeLines(example.delivery.items, scenario.ftArticle);
       expect(lines.length, 'over-credit emits TWO FlightTime lines (credited + remainder)').toBe(2);
 
-      // Emission order (FlightTimeStage): the credited line first, then the
-      // remainder. Same article + itemText; only qty + discount differ.
       const creditedLine = lines[0]!;
       const remainderLine = lines[1]!;
       expect(creditedLine.quantity, 'the credited line bills the covered minutes').toBe(
@@ -1097,17 +888,6 @@ test.describe('Delivery creation test harness — flight-time-credit sub-engine 
   });
 });
 
-// ===========================================================================
-// MIGRATED-DATA credit chain — the migration done-bar: a REAL migrated
-// PersonFlightTimeCredit (its IsCurrent balance, carried by the migration mapper)
-// applied over a migrated flight whose immat matches the credit's CSV, driving
-// the engine to a credited FlightTime line. Runs only when the fanout's real
-// legacy export ran (the synth bundle carries no credit rows). The exact migrated
-// values (immat, balance, discount, the credited flight) are not knowable ahead
-// of the real export, so the block asserts STRUCTURALLY: some migrated flight,
-// dry-run through the engine, emits a FlightTime line carrying a non-zero migrated
-// discount (the credit applied). The real export's values surface at the gate.
-// ===========================================================================
 test.describe('Delivery creation test harness — migrated credit drives the engine (real-idp)', () => {
   test.describe.configure({ mode: 'serial', retries: 0 });
 
@@ -1145,11 +925,6 @@ test.describe('Delivery creation test harness — migrated credit drives the eng
         0,
       );
 
-      // Dry-run each migrated flight; the credited one carries a FlightTime line
-      // with a non-zero discount (the migrated credit applied). Pin it by that
-      // discount, not a hardcoded immat/flight id — the gate mines the exact
-      // migrated values; structurally, the migration promise is "a migrated credit
-      // is applied", which a discounted line proves.
       let creditedItems: DeliveryItem[] | undefined;
       let creditedFlightId: string | undefined;
       for (const flight of flightItems) {
@@ -1185,8 +960,6 @@ test.describe('Delivery creation test harness — migrated credit drives the eng
         'the credited line bills a positive flight-time quantity',
       ).toBeGreaterThan(0);
 
-      // RENDER the credited migrated delivery on screen (the gallery video proof):
-      // drive the harness dry-run UI over the credited migrated flight.
       await page.goto('/deliverycreationtests?lang=en');
       await page.getByTestId('dct-new-button').locator('button').click();
       await expect(page).toHaveURL('/deliverycreationtests/new');

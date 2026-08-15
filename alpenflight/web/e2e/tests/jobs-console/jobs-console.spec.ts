@@ -1,21 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * Scheduled-jobs admin console (`/system/jobs`) — mock inner-loop spec, committing
- * the SCREEN SHAPE. Mock-backend (`page.route`) over `GET /api/v1/admin/jobs` (the
- * `JobRegistry` list) + `POST /api/v1/admin/jobs/{name}/run` (idempotent runOnce).
- *
- * These assertions are THIN on purpose: they pin the stable data-testids the
- * jobs-console component exposes. The full flow — real cross-tenant transitions,
- * Mailpit receipt, OGN fixture sync, delivery creation, and the club-admin 403 — is
- * thickened by the real-idp `sysadmin` gate spec.
- *
- * The mocked JSON mirrors the `JobsAdminController` contract: the registry is a list
- * of `{ name, cron, lastRun }`, and `lastRun` is a `JobRun`
- * `{ status, startedAt, finishedAt, summary }` where status ∈
- * { NEVER_RUN, RUNNING, COMPLETED, FAILED }.
- */
 
 type JobRunStatus = 'NEVER_RUN' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
@@ -60,7 +45,6 @@ const seedJobs: JobRow[] = [
   },
 ];
 
-/** Serve the `JobRegistry` list — every registered business job with its last run. */
 function setupJobsBackend(jobs: JobRow[]) {
   return async (route: Route) => {
     await route.fulfill({
@@ -71,11 +55,6 @@ function setupJobsBackend(jobs: JobRow[]) {
   };
 }
 
-/**
- * Serve the `POST /api/v1/admin/jobs/{name}/run` runOnce result: a COMPLETED
- * `JobRun` with started/finished timestamps + a summary (the console renders these
- * as the run-result the operator reads). Echoes the job name back for the caller.
- */
 function setupRunNowBackend() {
   return async (route: Route) => {
     const name = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
@@ -103,7 +82,6 @@ test.describe('jobs-console', () => {
 
     await page.goto('/system/jobs');
 
-    // Table + one row per registered job, each showing name + last-run status.
     await expect(page.getByTestId('jobs-table')).toBeVisible();
     await expect(page.getByTestId('job-row')).toHaveCount(seedJobs.length);
 
@@ -119,7 +97,6 @@ test.describe('jobs-console', () => {
       fullPage: true,
     });
 
-    // Run now on Daily Flight Validation → the console shows a completed run result.
     await validationRow.getByTestId('job-run-now').click();
     await expect(page.getByTestId('job-run-result')).toBeVisible();
     await expect(page.getByTestId('job-run-result')).toContainText('COMPLETED');

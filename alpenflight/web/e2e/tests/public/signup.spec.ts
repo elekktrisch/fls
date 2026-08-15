@@ -1,22 +1,5 @@
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * S-134 self-service signup. The e2e harness here is mock-auth: the SPA boots
- * under `app.config.mock.ts` with no live Keycloak. The CTAs call into a
- * stubbed `OidcSecurityService` that records its last `authorize` args on
- * `window.__lastAuthorizeArgs` (see app.config.mock.ts) — that's the seam
- * we assert on. The real-Keycloak end-to-end is a separate harness (S-021
- * follow-up; tracked there).
- *
- * Coverage:
- *   - /signup renders + CTAs visible.
- *   - "Sign up" → authorize() with { prompt: 'create', ui_locales }.
- *   - "Continue with Google" → authorize() with { kc_idp_hint: 'google', ui_locales }.
- *   - intent=migrate stamps /migrate/start in post-login-redirect.
- *   - intent=demo (anonymous-pre-signup) coerces to the /join default.
- *   - /migrate/start with signup-pending stamp emits PII-free signup.completed.
- *   - /migrate/start with NO stamp does not emit signup.completed.
- */
 
 interface AuthorizeArgs {
   configId?: string;
@@ -32,7 +15,6 @@ declare global {
 test.describe('signup — SPA-side wiring (mock-auth)', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      // Mock OIDC writes `__lastAuthorizeArgs` on call; clear before each spec.
       delete (window as Window).__lastAuthorizeArgs;
     });
   });
@@ -47,8 +29,6 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
     await page.screenshot({ path: 'screenshots/public/01-signup.png', fullPage: true });
   });
 
-  // Vision §2 NFR (touch targets at <md, retained on the gloves rationale post
-  // amendment 2026-05-20d). Same shape as landing.spec.ts AC-DIR-2.
   test('every signup CTA hits >= 44 x 44 CSS px at <md', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/signup');
@@ -72,7 +52,6 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
       prompt: 'create',
       ui_locales: 'de',
     });
-    // No kc_idp_hint on the local CTA — would silently route to Google.
     expect(args?.params?.customParams).not.toHaveProperty('kc_idp_hint');
   });
 
@@ -149,19 +128,16 @@ test.describe('signup — post-signup landing emits funnel event', () => {
     await page.goto('/migrate/start');
     await expect(page.getByTestId('migrate-handshake')).toBeVisible();
 
-    // Settle: the OnInit emit is synchronous after the component mounts.
     await expect.poll(() => funnelEvents.length, { timeout: 5_000 }).toBeGreaterThan(0);
     const emit = funnelEvents[0];
     expect(emit).toContain('"event_id":"signup.completed"');
     expect(emit).toContain('"idp":"google"');
     expect(emit).toContain('"intent":"migrate"');
 
-    // PII assertions (S-134 security plan): no email, no given/family name, no raw IP.
     expect(emit).not.toMatch(/@/);
     expect(emit).not.toMatch(/given_name|family_name|firstName|lastName/i);
     expect(emit).not.toMatch(/\b(?:\d{1,3}\.){3}\d{1,3}\b/);
 
-    // One-shot: stamp is consumed; reload does not re-emit.
     const cleared = await page.evaluate(() => sessionStorage.getItem('alpenflight.signup-pending'));
     expect(cleared).toBeNull();
   });
@@ -179,7 +155,6 @@ test.describe('signup — post-signup landing emits funnel event', () => {
     await page.goto('/migrate/start');
     await expect(page.getByTestId('migrate-handshake')).toBeVisible();
 
-    // Give the OnInit a frame to attempt + give up.
     await page.waitForTimeout(250);
     expect(funnelEvents.filter((e) => e.includes('signup.completed'))).toHaveLength(0);
   });

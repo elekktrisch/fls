@@ -6,31 +6,6 @@ import { fillKcLogin } from './_helpers/kc-form';
 import { waitForMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
-/**
- * Scheduled-jobs console (`/system/jobs`) driven against the REAL chain (live
- * Keycloak JWT → Spring `@Scheduled`/`@MeasuredJob` registry → Postgres). No
- * `page.route`: the point of this spec is that a console click really runs a
- * cross-tenant job and really moves rows.
- *
- *   - [happy] A SYSTEM_ADMINISTRATOR opens the console and sees every registered
- *     business job with its cron and last-run status.
- *   - [happy] Run now on Daily Flight Validation completes, and the console shows
- *     the run's outcome (status + the summary counts the job returned).
- *   - [happy] The run's effect is visible to a CLUB_ADMINISTRATOR in their own
- *     tenant: the club dashboard's pending-validation count never grows across a
- *     validation pass, and the sysadmin who triggered it has no tenant of their
- *     own to read it back with.
- *   - [happy] Run now on Daily Report really sends mail: the run reaches Mailpit
- *     as a `Flugrapport` addressed to a pilot seeded for THIS run and naming the
- *     flight they flew, while the crew member on the same flight whose membership
- *     opts out of flight reports receives nothing.
- *   - [key-error] A CLUB_ADMINISTRATOR is redirected off `/system/jobs` by the
- *     sysadmin guard AND `POST /api/v1/admin/jobs/{name}/run` returns 403. The
- *     jobs are cross-tenant, so this is the load-bearing negative.
- *
- * The OGN device-database sync is proved by `AircraftDatabaseSyncJobIT` against a
- * recorded registry — deliberately not here, so the gate reaches no third party.
- */
 
 const JOBS_PATH = '/system/jobs';
 const START_PATH = '/start';
@@ -40,7 +15,6 @@ interface SeededPrincipal {
   password: string;
 }
 
-/** Showcase principals (alpenflight/auth/realm-export.json + the dev-user seed). */
 const SYSADMIN: SeededPrincipal = {
   username: 'sysadmin@example.com',
   password: 'sysadmin-dev-2026!',
@@ -50,16 +24,12 @@ const CLUB_ADMIN: SeededPrincipal = {
   password: 'clubadmin1-dev-2026!',
 };
 
-/** The job the console triggers — the one with a visible cross-tenant effect. */
 const VALIDATION_JOB = 'daily-flight-validation';
 
-/** The job whose effect leaves the system: one report mail per opted-in person. */
 const REPORT_JOB = 'daily-report';
 
-/** `DailyReportJob.SUBJECT` — the only subject the seeded recipients may receive. */
 const REPORT_SUBJECT = 'Flugrapport';
 
-/** Every job the registry must surface (one `@MeasuredJob` bean each). */
 const REGISTERED_JOBS = [
   VALIDATION_JOB,
   'delivery-creation',
@@ -100,7 +70,6 @@ async function loginAs(
   return { context, page };
 }
 
-/** The Bearer the OIDC interceptor attaches, for the raw-endpoint 403 probe. */
 async function captureBearer(page: Page): Promise<string> {
   const bearerPromise = page.waitForRequest(
     (req) =>
@@ -114,7 +83,6 @@ async function captureBearer(page: Page): Promise<string> {
   return req.headers()['authorization']!;
 }
 
-/** The club dashboard's pending-validation count, read in the caller's tenant. */
 async function pendingValidation(page: Page, bearer: string): Promise<number> {
   const res = await page.request.get('/api/v1/me/club-dashboard', {
     headers: { authorization: bearer },
@@ -193,7 +161,6 @@ test.describe('scheduled-jobs console (real chain)', () => {
         timeout: 60_000,
       });
 
-      // Re-read in the club's own tenant — the sysadmin has none of their own.
       const after = await pendingValidation(admin.page, adminBearer);
       expect(
         after,
@@ -227,8 +194,6 @@ test.describe('scheduled-jobs console (real chain)', () => {
       const adminBearer = await captureBearer(admin.page);
       const seed = await seedDailyReportCrew(admin.page.request, adminBearer);
 
-      // Both addresses were minted for this run, so an empty inbox HERE is what
-      // makes the message below the click's doing rather than an earlier pass'.
       for (const address of [seed.optedIn.email, seed.optedOut.email]) {
         await expect(
           waitForMessage(address, { timeoutMs: 2_000 }),
@@ -254,8 +219,6 @@ test.describe('scheduled-jobs console (real chain)', () => {
         fullPage: true,
       });
 
-      // Keyed on the seeded glider, so this is the report OF THIS RUN'S flight —
-      // not whichever Flugrapport the pass happened to send first.
       const report = await waitForMessageWithBody(
         seed.optedIn.email,
         REPORT_SUBJECT,

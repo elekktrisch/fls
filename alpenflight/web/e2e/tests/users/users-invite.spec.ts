@@ -1,24 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-/**
- * S-168 Users admin spec. Mock-backend (page.route) — live-Keycloak SPA
- * e2e is S-109/S-110 territory. The mock-auth principal carries both
- * SYSTEM_ADMINISTRATOR and CLUB_ADMINISTRATOR; the surface itself is
- * gated on CLUB_ADMINISTRATOR via `clubAdminGuard`, so direct
- * `page.goto('/users')` is the entry point.
- *
- * Coverage:
- *   - List + seeded rows (chips, invite-pending badge, per-row resend).
- *   - Invite round-trip: form → POST `/api/v1/users` → row appears.
- *   - Person picker on invite uses `POST /api/v1/persons/lookup` exact-match.
- *   - Role round-trip: edit page → diff PUT → reload reflects update.
- *   - Diff-and-PUT preserves SYSTEM_ADMINISTRATOR (out-of-band role) on edit.
- *   - Deactivate happy-path + 409 self-delete refusal inline + dialog
- *     stays open on conflict.
- *   - Username-conflict 409 surfaces inline.
- *   - Resend-invite affordance gated on `invitePending`.
- */
 
 interface MockUserListItem {
   id: string;
@@ -374,7 +356,6 @@ test('users: person picker uses /persons/lookup exact-match', async ({ page }) =
   await page.goto('/users/new');
 
   await page.getByTestId('person-picker-email').locator('input').fill(seedLookupPerson.email!);
-  // Wait for the picker matches to populate after lookup.
   const lookupPromise = page.waitForResponse(
     (resp) => resp.url().endsWith('/api/v1/persons/lookup') && resp.request().method() === 'POST',
   );
@@ -408,13 +389,11 @@ test('users: role round-trip — edit page diff PUTs + reload reflects', async (
   await page.getByTestId(`user-row-${SEED_USER_ID}`).click();
   await expect(page).toHaveURL(`/users/${SEED_USER_ID}/edit`);
 
-  // Grant CLUB_ADMINISTRATOR on top of existing PILOT.
   await page.getByTestId('role-CLUB_ADMINISTRATOR').check();
   await page.screenshot({ path: 'screenshots/users/04-edit-roles.png', fullPage: true });
   await page.getByTestId('user-save-button').click();
 
   await expect(page).toHaveURL('/users');
-  // Cutover gate (S-052): role-change-visible-on-reload. Force a fresh GET.
   await page.reload();
   await expect(page.getByTestId(`user-role-${SEED_USER_ID}-CLUB_ADMINISTRATOR`)).toBeVisible();
 });
@@ -429,7 +408,6 @@ test('users: edit preserves SYSTEM_ADMINISTRATOR (out-of-band role) on save', as
     'System administrator',
   );
 
-  // Bump a profile field; do not touch the role boxes.
   await page.getByTestId('friendlyName-input').locator('input').fill('Sandra Admin (Updated)');
 
   const putPromise = page.waitForRequest(
@@ -458,7 +436,6 @@ test('users: deactivate removes the row', async ({ page }) => {
 });
 
 test('users: self-deactivate refused inline (409)', async ({ page }, testInfo) => {
-  // The self-deactivate PUT is deliberately rejected; the browser logs it.
   allowConsoleErrors(testInfo, /\b409\b/);
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);
@@ -469,7 +446,6 @@ test('users: self-deactivate refused inline (409)', async ({ page }, testInfo) =
   await page.getByTestId('user-deactivate-button').click();
   await page.getByTestId('af-dialog-confirm').click();
 
-  // Dialog stays open with the backend's detail surfaced inline.
   await expect(page.getByTestId('af-dialog-message')).toContainText(
     'A user cannot deactivate themselves.',
   );
@@ -477,7 +453,6 @@ test('users: self-deactivate refused inline (409)', async ({ page }, testInfo) =
 });
 
 test('users: invite refuses on duplicate username (409)', async ({ page }, testInfo) => {
-  // The duplicate-username invite is deliberately rejected; the browser logs it.
   allowConsoleErrors(testInfo, /\b409\b/);
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);

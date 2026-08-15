@@ -1,13 +1,5 @@
 import type { TestInfo } from '@playwright/test';
 
-/**
- * Stable per-test id derived from the test's title path. Same title → same
- * slug → same row, every run. See e2e/TEST_WRITING.md §1.
- *
- *  - slug:  lowercase-hyphenated, max 60 chars
- *  - name:  "E2E <slug>" — for Name / FriendlyName columns
- *  - short: 6-char base36 FNV-1a hash, for fixed-width fields like ICAO
- */
 export type TestId = { slug: string; name: string; short: string };
 
 export function testId(testInfo: TestInfo): TestId {

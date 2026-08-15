@@ -1,24 +1,7 @@
 import { type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * EmailTemplate CRUD shape (mock-auth, chromium project). Greenfield screen —
- * the proof is the union list + clone-on-customize + reset-to-default round-trip
- * against stubbed `/api/v1/email-templates`. The `installApiFloor` fixture
- * (console-guard) registers the lowest-priority `/api/v1/**` floor FIRST; the
- * specific `**\/api/v1/email-templates**` stub below is registered AFTER it so it
- * wins. The mocked principal is a CLUB_ADMINISTRATOR (the role gate lives on the
- * server per S-159, not the client).
- *
- * @mocked: http — mock-auth screen e2e
- *
- * Coverage:
- *   - List shows file defaults and any club override (override badge).
- *   - Editing + saving clones a default into a club override (the row's badge
- *     flips to Customized).
- *   - Reset-to-default removes the override (the badge flips back to Default and
- *     the Reset button only renders for an override row).
- */
+// @mocked: http — mock-auth screen e2e
 
 type Source = 'FILE_DEFAULT' | 'CLUB_OVERRIDE';
 

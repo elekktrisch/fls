@@ -11,52 +11,18 @@ import {
   type TestUser,
 } from './test-user';
 
-/**
- * Two-club tenant-isolation fixture for the J-0 real-idp Locations proof.
- *
- * Provisions, against the REAL stack (live Keycloak + live Spring backend +
- * real Postgres), two clubs each with its own CLUB_ADMINISTRATOR:
- *
- *   - **Club A** is the Flyway-seeded `seed-club-1` row (always present after
- *     a clean migrate — see `V5__clubs_walking_skeleton.sql`). No creation
- *     needed; we only mint a fresh KC admin bound to it.
- *   - **Club B** is created at runtime via `POST /api/v1/clubs`. That surface
- *     requires SYSTEM_ADMINISTRATOR (`ClubsController.createClub`), and no
- *     realm client grants the resource-owner-password flow, so we obtain a
- *     sysadmin bearer the only real way: a one-time browser login as the
- *     seeded `sysadmin` user, capturing the Bearer the SPA attaches to its
- *     own `/api/v1/*` calls (the `secureRoutes` interceptor). That bearer
- *     then drives the club-create request.
- *
- * Each club's CLUB_ADMINISTRATOR is a fresh `e2e-…@example.com` KC user with
- * the `clubId` user-attribute set to its club's **real UUID**. The realm's
- * `clubId` mapper projects that attribute as a `clubId` claim, and the
- * backend's `ClubTenantIdentifierResolver` parses a UUID-shaped claim as the
- * tenant directly — so no `t_user` seed row is required for tenant
- * resolution, and the `ClubsController` SpEL gate
- * (`#id.value().toString() == principal.claims['clubId']`) is satisfied too.
- *
- * Cleanup: the KC admin users are `e2e-…@example.com`, swept by
- * `global-teardown.ts`; this fixture also deletes them explicitly via
- * `dispose()`. The created club B row is left behind (clubs accumulate
- * harmlessly; a fresh per-run slug avoids the unique-slug 409).
- */
 
-/** Flyway-seeded `seed-club-1` (V5__clubs_walking_skeleton.sql). */
 const SEED_CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 
-/** Canonical reference seeds (V2__identity_and_reference.sql / V5). */
 export const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 export const ACTIVE_CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 
-/** Seeded sysadmin (realm-export.json) — the only principal that may POST clubs. */
 const SYSADMIN_USER = 'sysadmin@example.com';
 const SYSADMIN_PASSWORD = 'sysadmin-dev-2026!';
 
 const CLUB_ADMINISTRATOR_ROLE = 'CLUB_ADMINISTRATOR';
 
 export interface ClubAdmin {
-  /** Raw club UUID (no `clb-` prefix) — matches the `clubId` claim. */
   clubId: string;
   user: TestUser;
   kcUserId: string;
@@ -76,24 +42,6 @@ function runId(): string {
   return id;
 }
 
-/**
- * Mint a CLUB_ADMINISTRATOR identity for one of the two clubs.
- *
- * The username MUST be disjoint per provisioning call across the whole
- * `playwright test` invocation, because `ux_user_username_lower_alive` is a
- * partial-unique over alive (non-soft-deleted) usernames in the backend: a
- * second live provisioning of the same username (a sibling spec calling
- * `provisionTwoClubs`, or a Playwright retry while the prior attempt's user is
- * still alive) collides. `runId()` is stable for the whole invocation and the
- * fixed `club-a-admin`/`club-b-admin` labels are identical across specs, so the
- * run-id + label alone are NOT enough. We fold in:
- *   - `scope` — a caller-supplied spec token (e.g. `loc`, `acft`) so the two
- *     specs that both drive this fixture read disjointly in the realm and in
- *     teardown logs; and
- *   - `nonce` — a fresh per-call random tail (mirrors `freshTestUser`'s uuid8
- *     scheme) so a retry re-randomises rather than re-inserting a still-alive
- *     username. Both halves stay under the `e2e-…@example.com` cleanup predicate.
- */
 function adminUser(label: string, scope: string, nonce: string): TestUser {
   return {
     email: `${E2E_EMAIL_PREFIX}${runId()}-${scope}-${label}-${nonce}${E2E_EMAIL_SUFFIX}`,
@@ -103,11 +51,6 @@ function adminUser(label: string, scope: string, nonce: string): TestUser {
   };
 }
 
-/**
- * Drive the seeded `sysadmin` through the SPA login and capture the Bearer
- * the OIDC interceptor attaches to its first `/api/v1/*` call. Navigates to
- * `/clubs` (sysadmin's catalog list) to guarantee such a call fires.
- */
 export async function captureSysadminBearer(browser: Browser, baseURL: string): Promise<string> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
@@ -123,7 +66,6 @@ export async function captureSysadminBearer(browser: Browser, baseURL: string): 
   await fillKcLogin(page, SYSADMIN_USER, SYSADMIN_PASSWORD);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
 
-  // sysadmin's authed home; the clubs list issues GET /api/v1/clubs.
   await page.goto('/clubs');
 
   const req = await bearerPromise;
@@ -132,26 +74,10 @@ export async function captureSysadminBearer(browser: Browser, baseURL: string): 
   return bearer;
 }
 
-/** Strip the `clb-` external-form prefix to the raw tenant UUID. */
 function rawClubId(prefixedId: string): string {
-  // ClubResponse.id is the prefixed external form `clb-<uuid>`; the
-  // tenant claim + SpEL gate compare against the raw UUID.
   return prefixedId.replace(/^clb-/, '');
 }
 
-/**
- * Create club B via the real `POST /api/v1/clubs` surface as sysadmin.
- *
- * Idempotent across Playwright RETRIES: the slug is deterministic per run
- * (`E2E_RUN_ID` is stable within a run, so retry attempts reuse it), and
- * there is no per-retry teardown of the created club row. A naive create
- * therefore 409s on the slug-unique index on the second attempt. We treat
- * that 409 as "club B already provisioned by a prior attempt" and recover
- * its id by listing clubs (sysadmin's read surface) and matching the slug —
- * reusing the SAME distinct club, so the two-distinct-clubs tenant-isolation
- * premise holds (club B is still the runtime-created club, never the
- * Flyway-seeded club A).
- */
 async function createClubB(browser: Browser, baseURL: string): Promise<string> {
   const bearer = await captureSysadminBearer(browser, baseURL);
   const slug = `e2e-${runId()}-club-b`;
@@ -169,9 +95,6 @@ async function createClubB(browser: Browser, baseURL: string): Promise<string> {
       },
     });
     if (res.status() === 409) {
-      // A prior (failed/retried) attempt already created club B under this
-      // run's slug. Recover its id rather than failing — and assert it is a
-      // DISTINCT club from the seeded club A.
       const existingId = await findClubIdBySlug(ctx, bearer, slug);
       if (!existingId) {
         throw new Error(
@@ -194,10 +117,6 @@ async function createClubB(browser: Browser, baseURL: string): Promise<string> {
   }
 }
 
-/**
- * Find an existing club's raw UUID by its slug via sysadmin's `GET
- * /api/v1/clubs` catalog. Returns `undefined` when no club carries the slug.
- */
 async function findClubIdBySlug(
   ctx: BrowserContext,
   bearer: string,
@@ -226,23 +145,6 @@ async function provisionClubAdmin(
   return { clubId, user, kcUserId };
 }
 
-/**
- * Provision the two-club fixture. Club A reuses the Flyway seed; club B is
- * created live. Returns each club's CLUB_ADMINISTRATOR login handle plus a
- * `dispose()` that removes the KC admin users.
- *
- * `scope` is a short spec token (default `tc`) that disambiguates the admin
- * usernames so two specs both driving this fixture in the SAME `playwright
- * test` invocation (J-0 Locations + J-1 Aircraft) provision DISJOINT admins —
- * `ux_user_username_lower_alive` rejects a second alive copy of a username.
- * A per-call random nonce (folded into the username by `adminUser`) additionally
- * keeps a Playwright retry from re-inserting a still-alive username.
- *
- * Note club B itself is shared across callers (its slug is run-stable and
- * `createClubB` recovers the existing row on the 409) — that is fine: the two
- * specs only need a DISTINCT-from-A club B, not a private one, and each gets its
- * OWN admin identity bound to it.
- */
 export async function provisionTwoClubs(
   browser: Browser,
   baseURL: string,
@@ -264,10 +166,6 @@ export async function provisionTwoClubs(
   };
 }
 
-/**
- * Log a CLUB_ADMINISTRATOR in through the SPA + Keycloak login form, landing
- * on the authed root. The page's storageState is the per-club session.
- */
 export async function loginAsClubAdmin(page: Page, admin: ClubAdmin): Promise<void> {
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();

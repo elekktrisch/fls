@@ -1,11 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * Spec #05 (ported parity): drive the flight-edit wizard on an existing
- * record, mutate one field, save, and assert the PUT request shape +
- * `If-Match` header.
- */
 
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
@@ -101,10 +96,6 @@ async function stubFlightDetail(
           airState: 'LANDED',
           processStateId: 'ps-1',
           version: 7,
-          // Real pilot crew-type UUID (FLIGHT_CREW_TYPE_PILOT) — the form
-          // resolves the pilot slot by this id; J-26 T-13's required pilot
-          // validator needs it to hydrate (was a bare 'pilot' string that the
-          // form never matched, so Save would stay gated).
           crew: [
             { personId: PERSON_PILOT, flightCrewTypeId: '019e2e15-2c00-76b0-8000-0000000036b0' },
           ],
@@ -153,14 +144,11 @@ test.describe('flight edit — edit existing (parity port)', () => {
 
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await page.screenshot({ path: 'screenshots/flights/05-01-edit-loaded.png', fullPage: true });
-    // Mocked flight has startTypeId='st-self' → tow step is hidden;
-    // wizard is two steps (Launch / Glider).
     await page.getByTestId('flight-step-next').click();
     const commentInput = page.getByTestId('flight-edit-glider-comment').locator('input');
     await commentInput.fill('after edit');
     await page.screenshot({ path: 'screenshots/flights/05-02-edit-glider.png', fullPage: true });
 
-    // Glider is the last step — submit directly.
     await page.getByTestId('flight-submit-header').click();
 
     await expect.poll(() => captured).not.toBeNull();

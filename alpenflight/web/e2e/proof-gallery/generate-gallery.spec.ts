@@ -5,17 +5,6 @@ import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-/**
- * Generator unit spec — the ONE-page, in-flight-journey-only model.
- *
- * The generator emits a single `<outDir>/index.html` rendering only the
- * `journeyUnderWork`: its pass-video(s) + paired legacy↔AlpenFlight screenshots +
- * the Maintainability panel. No all-journeys index, no per-journey history pages,
- * no sub-path split — merged journeys' proof lives in their PRs.
- *
- * Pure JS tooling: no DB, no browser. Loads the ESM generator via dynamic
- * `import()` and exercises its exported pure functions + the file emit.
- */
 const GENERATOR = resolve(__dirname, 'generate-gallery.mjs');
 
 async function loadGenerator(): Promise<{
@@ -74,13 +63,11 @@ async function loadGenerator(): Promise<{
   return import(pathToFileURL(GENERATOR).href);
 }
 
-// Smallest valid PNG (1×1 transparent) — enough for existsSync + copyFileSync.
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64',
 );
 
-/** Stand up a sidecar dir with a screenshots.json + the named PNGs on disk. */
 function makeShotDir(
   base: string,
   decls: { journey: string; side: string; view: string; file: string; caption: string }[],
@@ -99,7 +86,6 @@ function emptyReport(dir: string): string {
   return p;
 }
 
-/** A report with one green proof for `journey` (1 video) + the on-disk .webm. */
 function singleProofReport(dir: string, journey: string): { reportPath: string } {
   const videoDir = mkdtempSync(resolve(dir, 'vids-'));
   const videoFile = resolve(videoDir, `${journey.toLowerCase()}-proof.webm`);
@@ -184,14 +170,11 @@ describe('generateGallery — ONE page, in-flight journey only', () => {
     expect(journey).toBe('J-11');
     expect(existsSync(outFile)).toBe(true);
     expect(outFile).toBe(resolve(dir, 'out', 'index.html'));
-    // No per-journey history subdirs, no previews index.
     expect(existsSync(resolve(dir, 'out', 'J-11', 'index.html'))).toBe(false);
     expect(existsSync(resolve(dir, 'out', 'J-0', 'index.html'))).toBe(false);
 
     const html = readFileSync(outFile, 'utf8');
     expect(html).toContain('>J-11 — proof</h1>');
-    // The dropped all-journeys model leaves no trace: no accordion, no per-run nav,
-    // no previews back-index, no all-journeys link.
     expect(html).not.toContain('<details');
     expect(html).not.toContain('Per-run proof galleries');
     expect(html).not.toContain('alpenflight/previews/');
@@ -217,7 +200,6 @@ describe('generateGallery — ONE page, in-flight journey only', () => {
   it('renders ONLY the journey-under-work; another journey in the report is excluded', async () => {
     const { generateGallery } = await loadGenerator();
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-scope-'));
-    // A report carrying proofs for J-0 AND J-1; rendering J-1 must drop J-0's video.
     const videoDir = mkdtempSync(resolve(dir, 'vids-'));
     const j0Video = resolve(videoDir, 'j0.webm');
     const j1Video = resolve(videoDir, 'j1.webm');
@@ -389,13 +371,6 @@ describe('generateGallery — ONE page, in-flight journey only', () => {
   });
 });
 
-/**
- * STAGED == RENDERED single source of truth. The pre-deploy SHOTS-PRESENT guard
- * reads `extractScreenshots` → `renderedShotKeys`; the generator renders exactly
- * those keys. This locks: for any staged sidecar, the keys `renderedShotKeys`
- * reports are EXACTLY the keys the generated HTML carries an `<img alt="…">` for
- * (present == rendered, no third read) — so a one-sided stage is detectable.
- */
 describe('generateGallery — staged == rendered single source', () => {
   const J7_PAIR = [
     {
@@ -498,11 +473,6 @@ describe('generateGallery — staged == rendered single source', () => {
   });
 });
 
-/**
- * Maintainability panel — fail-soft artifact parsing + the page-level panel. The
- * panel is informational, scoped to the journey-under-work's delta; any of the
- * artifacts may be ABSENT (the producer is `continue-on-error`).
- */
 
 const SAMPLE_AUDIT = JSON.stringify({
   verdict: 'fail',
@@ -543,7 +513,6 @@ const SAMPLE_QODANA_NO_BASELINE = JSON.stringify({
   runs: [{ results: [{ ruleId: 'unused' }, { ruleId: 'unused' }] }],
 });
 
-/** Write the maintainability artifacts into `<outDir>/maintainability/`. */
 function writeMaint(
   outDir: string,
   files: Partial<
@@ -648,11 +617,11 @@ describe('generateGallery — Maintainability panel on the page', () => {
     const { html } = buildWithMaint(generateGallery, { writeMaint: true });
 
     expect(html).toContain('class="maintainability"');
-    expect(html).toContain('<span class="status failure">'); // fail verdict → red pill
+    expect(html).toContain('<span class="status failure">');
     expect(html).toContain('FE delta (this journey vs main)');
     expect(html).toContain('score <strong>71.1</strong> (B)');
-    expect(html).toContain('<strong>3</strong> violations'); // PMD
-    expect(html).toContain('3.0%'); // CPD
+    expect(html).toContain('<strong>3</strong> violations');
+    expect(html).toContain('3.0%');
     expect(html).toContain('BE unused code (Qodana)');
     expect(html).toContain('<strong>1</strong> new vs baseline');
     expect(html).toContain('(report-only)');
@@ -667,7 +636,6 @@ describe('generateGallery — Maintainability panel on the page', () => {
     const idxHtml = readFileSync(idx, 'utf8');
     expect(idxHtml).toContain('href="./fallow-audit.json"');
     expect(idxHtml).toContain('href="./pmd-main.xml"');
-    // The panel link targets the dir (now backed by index.html), relative to the page.
     expect(html).toContain('href="maintainability/"');
   });
 

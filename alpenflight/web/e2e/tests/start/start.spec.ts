@@ -1,13 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * Home dashboard (`/start`) — S-165 MVP. Mock-auth bootstraps a synthetic
- * principal with a known {@code personId}; specs stub the two backend
- * endpoints the page reads (`/api/v1/flights?personId=…&limit=1`,
- * `/api/v1/flights/{id}`) plus the picker stores the card body resolves
- * names against.
- */
 
 const MOCK_PERSON_ID = 'pn-019e30c3-2c00-7100-8000-0000000000a5';
 const FLIGHT_ID = 'fl-019e30c3-2c00-7165-8000-000000000001';
@@ -83,11 +76,6 @@ const mockMyFlight = {
 };
 
 async function stubMe(page: Page, personId: string | null = MOCK_PERSON_ID): Promise<void> {
-  // Mock-auth pre-seeds personId on the synthetic principal, so the page
-  // already has what it needs — but the production code path fires GET /me
-  // post-login (per SessionStore.loadMe()). Stub it explicitly so the spec
-  // exercises the same wire shape the real OIDC flow does, and so a future
-  // me-driven branch surfaces here instead of in production.
   await page.route('**/api/v1/me', (route) =>
     route.fulfill({
       status: 200,
@@ -135,7 +123,6 @@ async function stubPickerStores(page: Page): Promise<void> {
   await page.route('**/api/v1/persons**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
-  // Reference data also loaded by bootstrapPrefetch — harmless empties.
   await page.route('**/api/v1/countries**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
@@ -185,15 +172,6 @@ async function stubFlightDetail(page: Page, detail: unknown): Promise<void> {
   );
 }
 
-/**
- * Land on the S-165 pilot dashboard. The mock-auth principal holds
- * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR (the "can drive everything"
- * persona), so the J-3 role-switch shell (T-07) renders the sysadmin variant by
- * default. The "Pilot view" toggle is the admin→pilot fallback — clicking it
- * drops to the pilot variant, where these S-165 selectors live. (Under real-idp
- * the dedicated `pilot1` principal lands on the pilot variant directly; that's
- * asserted in `real-idp/start-dashboard.spec.ts`.)
- */
 async function gotoPilotView(page: Page): Promise<void> {
   await page.goto('/start?lang=en');
   await page.getByTestId('start-pilot-view-toggle').click();
@@ -216,8 +194,6 @@ test.describe('home (/start) dashboard', () => {
     const lastCard = page.getByTestId('start-last-flight-card');
     await expect(lastCard).toBeVisible();
     await expect(lastCard).toContainText('HB-S165');
-    // Card-header date renders DD.MM.YYYY, locale-independent (J-6b T-12 —
-    // legacy hardcodes it; flightDate 2026-05-21 → 21.05.2026).
     await expect(lastCard).toContainText('21.05.2026');
     await expect(page.getByTestId('start-last-flight-role')).toHaveText('PIC');
 
@@ -242,8 +218,6 @@ test.describe('home (/start) dashboard', () => {
     await expect(empty).toBeVisible();
     const emptyCta = page.getByTestId('start-empty-cta');
     await expect(emptyCta).toBeVisible();
-    // Regression-lock the self-contained imperative CTA copy (was the
-    // fragment "Log your first" in round 1).
     await expect(emptyCta).toHaveText('Log your first flight');
 
     await page.screenshot({ path: 'screenshots/start/02-empty.png', fullPage: true });
@@ -262,8 +236,6 @@ test.describe('home (/start) dashboard', () => {
     await page.getByTestId('start-quick-open-logbook').click();
     await expect(page).toHaveURL(/\/flights$/);
 
-    // Re-enter pilot view: navigating away resets the shell's local pilot-view
-    // override signal, so an admin principal lands back on its own variant.
     await gotoPilotView(page);
 
     await page.getByTestId('start-quick-log-flight').click();

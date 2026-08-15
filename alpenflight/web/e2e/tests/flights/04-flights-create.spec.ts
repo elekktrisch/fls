@@ -3,20 +3,6 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-/**
- * Spec #04 (ported parity): driving the flight-edit wizard end-to-end to
- * create a glider flight. The legacy spec injected on `$scope` to bypass
- * selectize widgets; the new equivalent stubs all backend calls and drives
- * the ng-zorro form via `getByTestId` + native input typing.
- *
- * Coverage:
- *   - Navigate to /flights/new.
- *   - Form opens with smart defaults from `GET /flights/new-template`.
- *   - Walk the 3-step wizard, fill mandatory fields, submit.
- *   - Assert `POST /flights` request body shape (single-row glider create
- *     when startType ≠ Towing).
- *   - Navigate back to /flights on save.
- */
 
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
@@ -81,7 +67,6 @@ async function stubMasterdata(page: Page): Promise<void> {
       ]),
     }),
   );
-  // Catch-all for reference data the bootstrap fans out.
   await page.route('**/api/v1/countries**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
   );
@@ -167,24 +152,16 @@ test.describe('flight edit — create (parity port)', () => {
 
     await page.goto('/flights/new');
 
-    // Wizard mounts after new-template resolves.
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await expect(page.getByTestId('flight-step-launch')).toBeVisible();
     await page.screenshot({ path: 'screenshots/flights/04-01-launch.png', fullPage: true });
 
-    // Flight date pre-filled from new-template.
     await expect(page.getByTestId('flight-edit-flightDate').locator('input')).toHaveValue(
       '2026-05-25',
     );
 
-    // Tow step is hidden from the stepper because startType is Self
-    // (not Aerotow) — only steps 0 (Launch) and 1 (Glider) render.
     await expect(page.getByTestId('flight-step-2')).toHaveCount(0);
 
-    // Move to step 2 (glider). Aircraft / flight type defaulted from
-    // new-template; pick a pilot (J-26 T-13 made it a client-required field —
-    // the new-template's empty crew leaves it blank, so Save is gated until a
-    // pilot is chosen) + type a comment for the parity assertion.
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
@@ -192,10 +169,8 @@ test.describe('flight edit — create (parity port)', () => {
 
     await page.screenshot({ path: 'screenshots/flights/04-02-glider-filled.png', fullPage: true });
 
-    // Glider is the last step under Self start — submit directly.
     await page.getByTestId('flight-submit-header').click();
 
-    // POST /flights observed once, with the glider row shape.
     await expect.poll(() => captured.length).toBeGreaterThan(0);
     const body = captured[0] as Record<string, unknown>;
     expect(body['flightAircraftType']).toBe('GLIDER');
@@ -203,7 +178,6 @@ test.describe('flight edit — create (parity port)', () => {
     expect(body['flightDate']).toBe('2026-05-25');
     expect(body['comment']).toBe('parity create');
 
-    // Redirected back to /flights.
     await expect(page).toHaveURL(/\/flights$/);
   });
 });

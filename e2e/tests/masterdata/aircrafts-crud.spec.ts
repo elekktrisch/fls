@@ -1,7 +1,3 @@
-// Spec #26: aircraft CRUD via /masterdata/aircrafts. Create via API
-// (AircraftType selectize is hostile), edit Comment via UI, delete via UI.
-//
-// TODO testid: `form-save`, `form-cancel`, `row-delete`, `list-new`.
 
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
@@ -25,24 +21,17 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
 }, testInfo) => {
   const page = loggedInPage;
   const id = testId(testInfo);
-  // Immatriculation is StringLength(15). "T-" + 6-char hash fits.
   const IMMAT = `T-${id.short}`;
   const COMMENT_EDITED = `${id.name} edited`;
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // Pre-clean via raw SQL. EF6 soft-deletes Aircrafts (Remove sets IsDeleted=1
-  // but leaves DeletedOn=NULL), and the unique constraint is on
-  // (Immatriculation, DeletedOn) — two NULL DeletedOn rows collide. The paged
-  // API endpoint filters out soft-deleted rows so we can't find them via API.
-  // SQL gets us at the raw table.
   await withPool(async (pool) => {
     await pool.request()
       .input('immat', sql.NVarChar, IMMAT)
       .query('DELETE FROM Aircrafts WHERE Immatriculation = @immat');
   });
 
-  // CREATE via API — AircraftType=1 (Glider).
   const createRes = await page.request.post(`${API_BASE}/api/v1/aircrafts`, {
     headers: auth,
     data: {
@@ -60,9 +49,6 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   expect(created.AircraftId).toBeTruthy();
   expect(created.Immatriculation).toBe(IMMAT);
 
-  // EDIT — open the edit form by ID directly; ng-table's filter inputs lag
-  // badly under accumulated load (locations list test #12 has the same
-  // problem). The list-click path is well-covered by other CRUD specs.
   await gotoRoute(page, `/masterdata/aircrafts/${created.AircraftId}`);
   await page.locator('#Immatriculation').waitFor({ state: 'visible', timeout: 30_000 });
   await expect(page.locator('#Immatriculation')).toHaveValue(IMMAT);
@@ -71,7 +57,6 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   await page.waitForURL('**/#/masterdata/aircrafts', { timeout: 30_000 });
   await page.waitForLoadState('domcontentloaded');
 
-  // API readback proves the edit landed.
   const verifyRes = await page.request.get(
     `${API_BASE}/api/v1/aircrafts/${created.AircraftId}`,
     { headers: auth },
@@ -80,20 +65,12 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   const verifyBody = (await verifyRes.json()) as { Comment?: string };
   expect(verifyBody.Comment).toBe(COMMENT_EDITED);
 
-  // DELETE via API. Driving the list-table trash anchor is unreliable here
-  // because the ng-table filter input fails to render under accumulated
-  // load (see TEST_WRITING.md §6 — ng-table filter inputs lag). The
-  // delete pathway itself is covered by spec #29 / #30 against shorter
-  // tables.
   const delRes = await page.request.delete(
     `${API_BASE}/api/v1/aircrafts/${created.AircraftId}`,
     { headers: auth },
   );
   expect(delRes.ok(), `DELETE /aircrafts/{id}: ${delRes.status()}`).toBeTruthy();
 
-  // Server soft-deletes (EF6 mapping); assert by re-fetching the soft-delete-
-  // aware overview. Single-id GET would 500 on a missing row, and the paged
-  // search endpoint 500s under load (use the cheaper listitems endpoint).
   const overviewRes = await page.request.get(
     `${API_BASE}/api/v1/aircrafts/listitems/gliders`,
     { headers: auth },

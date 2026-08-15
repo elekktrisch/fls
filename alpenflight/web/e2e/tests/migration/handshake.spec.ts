@@ -2,17 +2,6 @@ import { readFile } from 'node:fs/promises';
 
 import { allowConsoleErrors, expect, test } from '../_helpers/console-guard';
 
-/**
- * S-140 — /migrate/start happy path. Mock-auth bootstrap; the SPA mocks
- * GET /api/v1/migrations/handshake/current with a successful response so
- * the page lands in the "have upload" state with the PEM textarea, the
- * download button, the regenerate button, and the JAR-link panel all
- * visible. Touch-target asserts at the mobile viewport.
- *
- * <p>Backend-side state machine + supersession + expiry-job coverage
- * lives in {@code MigrationHandshakeIT} (server). This spec stops at the
- * SPA's observable contract.
- */
 test.describe('migration handshake — /migrate/start (mock-auth)', () => {
   const MOCK_UPLOAD = {
     uploadId: '019e30c3-2c00-7001-8000-000000000001',
@@ -32,8 +21,6 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
       });
     });
     await page.route('**/api/v1/migrations/handshake', async (route) => {
-      // Regenerate flow: mint a new id so the test can assert the
-      // textarea swaps to the fresh PEM.
       const next = {
         ...MOCK_UPLOAD,
         uploadId: '019e30c3-2c00-7001-8000-000000000002',
@@ -107,7 +94,6 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     const artifact = JSON.parse(copied[0]!);
     expect(artifact.uploadId).toBe(MOCK_UPLOAD.uploadId);
     expect(artifact.publicKeyPem).toBe(MOCK_UPLOAD.publicKeyPem);
-    // A bare PEM (no uploadId) would fail the server's AEAD-tag check.
     expect(copied[0]).not.toBe(MOCK_UPLOAD.publicKeyPem);
   });
 
@@ -126,12 +112,9 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
 
     await page.getByTestId('af-dialog-confirm').click();
 
-    // Dialog dismisses + the page settles back to the loaded state. The PEM
-    // textarea remains visible (same PEM in the mock; the uploadId swapped).
     await expect(page.getByTestId('af-dialog-title')).toHaveCount(0);
     await expect(page.getByTestId('migrate-handshake-pem')).toBeVisible();
 
-    // The swap is observable via the download filename — the fresh uploadId.
     const downloadPromise = page.waitForEvent('download');
     await page.getByTestId('migrate-handshake-download').click();
     const download = await downloadPromise;
@@ -169,7 +152,6 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
   test('mount on a fresh visit with no in-flight row falls through to POST', async ({
     page,
   }, testInfo) => {
-    // The no-in-flight-row GET is deliberately 404 to prove POST fall-through.
     allowConsoleErrors(testInfo, /404/);
     let currentCalls = 0;
     let postCalls = 0;

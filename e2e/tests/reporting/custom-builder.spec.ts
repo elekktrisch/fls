@@ -1,8 +1,3 @@
-// Spec #17: /flightreports/custom builder. Inject filter on $scope, OK,
-// land on /apply, assert a summary or flights row rendered.
-//
-// TODO testid: `report-config-form`, `report-apply`, `report-summary-table`,
-// `report-results`.
 
 import { test, expect, gotoRoute, screenshot } from '../../fixtures';
 import { testId } from '../../test-id';
@@ -35,12 +30,10 @@ async function waitForConfigScopeReady(page: Page): Promise<void> {
 }
 
 test('flightreports:custom builder applies filter and renders results', async ({ loggedInPage }, testInfo) => {
-  // Ensure ≥1 LSZK glider flight in the window so the report renders something.
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
   await ensureGliderFlight(loggedInPage.request, token, { comment: id.name });
 
-  // AngularJS $location.path() URL-encodes `{}` to `%7B%7D`.
   await gotoRoute(loggedInPage, `/flightreports/custom/${CATEGORY}/%7B%7D/edit`);
   await waitForConfigScopeReady(loggedInPage);
   await screenshot(loggedInPage, 'custom-builder-edit');
@@ -67,7 +60,6 @@ test('flightreports:custom builder applies filter and renders results', async ({
     s.custom.TowFlights = true;
     const lszk = s.md.locations.find(l => l.IcaoCode === 'LSZK') ?? s.md.locations[0];
     s.custom.LocationId = lszk.LocationId;
-    // $apply lives on the scope, not on the element wrapper.
     s.$apply();
     return { locationId: s.custom.LocationId as string };
   }, { from: FROM_DATE, to: TO_DATE });
@@ -89,12 +81,10 @@ test('flightreports:custom builder applies filter and renders results', async ({
     });
   }, undefined, { timeout: SECONDARY_TIMEOUT });
 
-  // Filter panel rendered with From="01.01.2025".
   const fromCell = loggedInPage.locator('.filter-criteria-panel .filter-value').first();
   await expect(fromCell, 'filter-criteria panel must render the From date').toBeVisible();
   await expect(fromCell).toHaveText(/01\.01\.2025/);
 
-  // Conservative OR: summary OR flights table — pipeline rendered, content is out of scope.
   const summaryRows = loggedInPage.locator('table.fls').first().locator('tr').filter({
     has: loggedInPage.locator('td'),
   });

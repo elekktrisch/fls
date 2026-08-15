@@ -4,23 +4,6 @@ import {
   sweepE2eUsers,
 } from './_helpers/keycloak-admin';
 
-/**
- * Top-level globalTeardown — runs even on suite-abort where per-project
- * teardown wouldn't. Two safety nets, in order:
- *
- *  1. Restore `accessTokenLifespan` to the canonical value if a
- *     realm-mutating spec crashed past `withRealmPatch`'s `finally` block
- *     (worker SIGKILL, Playwright wall-clock timeout). Load-bearing: a
- *     persisted 30s lifespan would poison subsequent specs / dev runs.
- *  2. Sweep any `e2e-*@example.com` user the suite may have leaked
- *     (per-test afterEach is the primary cleanup; this is the safety
- *     net for SIGKILL'd workers).
- *
- * No-op on mock-auth-only runs: localhost guard + admin token fail-fast
- * if Keycloak isn't reachable. We swallow those so a `pnpm e2e` run
- * doesn't fail at teardown when there's no Keycloak. On real-idp runs,
- * a failed lifespan restore is fatal — the sweep step is best-effort.
- */
 export default async function globalTeardown(): Promise<void> {
   const realIdpRun = process.env['E2E_REAL_IDP'] === '1';
   try {
@@ -42,8 +25,6 @@ export default async function globalTeardown(): Promise<void> {
     }
   } catch (err) {
     if (realIdpRun) {
-      // Lifespan restore is load-bearing — fail loud so the next run
-      // doesn't inherit a poisoned realm.
       throw new Error(
         `real-idp teardown: accessTokenLifespan restore failed — ${(err as Error).message}. ` +
           'Manually verify alpenflight realm `accessTokenLifespan` is 900s before re-running.',

@@ -1,8 +1,3 @@
-// Spec #23: DeliveryCreationJob pipeline, API-driven.
-//   Valid → (flightvalidation) → Locked → (deliverycreation) → DeliveryPrepared
-//
-// Both workflows are gated by wall-clock age (TEST_WRITING.md §4):
-//   ensureGliderFlight backdates CreatedOn; SQL UPDATE backdates LockedOn.
 
 import { test, expect } from '../../fixtures';
 import { testId } from '../../test-id';
@@ -12,7 +7,6 @@ import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
-// Mirror of FLS.Data.WebApi.Flight.FlightProcessState.
 const ProcessState = {
   NotProcessed: 0,
   Invalid: 28,
@@ -34,14 +28,12 @@ async function getFlightProcessState(
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   const body = await res.json();
-  // For glider flights, ProcessStateId is nested under GliderFlightDetailsData.
   return body?.GliderFlightDetailsData?.ProcessStateId as number;
 }
 
 async function triggerWorkflow(
   page: Page, token: string, name: 'flightvalidation' | 'deliverycreation',
 ): Promise<void> {
-  // Workflows scan every club flight — see TEST_WRITING.md §3.
   const res = await page.request.get(`${API_BASE}/api/v1/workflows/${name}`, {
     headers: { Authorization: `Bearer ${token}` },
     timeout: 90_000,
@@ -50,9 +42,6 @@ async function triggerWorkflow(
 }
 
 async function listDeliveriesForFlight(flightId: string): Promise<{ DeliveryId: string }[]> {
-  // The /api/v1/deliveries/page DTO (DeliveryOverview) doesn't expose FlightId,
-  // so we can't filter the API response by it. Query SQL directly — same
-  // pattern the diagnostic block below uses on the Locked-stuck path.
   return withPool(async (pool) => {
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, flightId)
@@ -70,7 +59,6 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
 }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
-  // Aged 5 days: clears the 2-day locking gate. LockedOn is backdated below.
   const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
     comment: id.name,
     processStateId: ProcessState.Valid,
@@ -84,15 +72,6 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
   const afterValidation = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   test.skip(afterValidation !== ProcessState.Locked, `flight state ${afterValidation}, expected Locked (40)`);
 
-  // Eligibility is `CreatedOn <= today - 3d` (DeliveryService.cs); we
-  // already set CreatedOn = today - 5d via ensureGliderFlight's
-  // createdOnDaysAgo so locking + delivery both qualify on the same row.
-  //
-  // Retry-poll: under parallel load #33 contract tests and #32 rules-engine
-  // tests also fire /workflows/deliverycreation. A single call isn't
-  // guaranteed to include our flight in its `Where(...).ToList()` snapshot.
-  // Fire deliverycreation up to N times until our flight transitions OR we
-  // give up.
   let finalState: number = ProcessState.Locked;
   for (let attempt = 0; attempt < 4; attempt++) {
     await triggerWorkflow(loggedInPage, token, 'deliverycreation');
@@ -100,15 +79,7 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
     if (finalState !== ProcessState.Locked) break;
   }
 
-  // Happy path is DeliveryPrepared(50); DeliveryPreparationError(45) or
-  // ExcludedFromDeliveryProcess(99) are degraded-pass branches.
   if (finalState === ProcessState.Locked) {
-    // Diagnose: query the row directly. The deliverycreation job's filter is:
-    //   FlightType.ClubId == clubId
-    //   AND FlightAircraftType in (GliderFlight, MotorFlight)
-    //   AND ProcessStateId == Locked
-    //   AND TruncateTime(CreatedOn) <= today - 3d
-    // If we hit this branch, dump enough to tell which clause failed.
     const row = await withPool(async (pool) => {
       const r = await pool.request()
         .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)
@@ -143,7 +114,6 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
       `DeliveryPrepared but no Delivery row references FlightId ${HISTORICAL_FLIGHT_ID}`,
     ).toBeGreaterThan(0);
   } else {
-    // Degraded-pass: workflow advanced state but rules produced no Delivery.
     // eslint-disable-next-line no-console
     console.warn(`delivery-creation-workflow: no Delivery created (state ${finalState})`);
   }

@@ -1,8 +1,3 @@
-// Spec #15: /planningsetup wizard. Submit Sat+Sun recurrence over a date
-// range, assert ≥1 planning-day row appears.
-//
-// TODO testid: `planning-setup-form`, `planning-setup-submit`,
-// `setup-startdate-input`, `setup-enddate-input`.
 
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
@@ -11,15 +6,11 @@ const SETUP_ROUTE = '/planningsetup';
 const PLANNING_LIST_ROUTE = '/planning';
 const SETUP_FORM_SELECTOR = 'form[role="form"]';
 
-// Saturday 2026-05-16 through Sunday 2026-05-31 — covers 3 Sat + 3 Sun under
-// the default recurrence the controller pre-sets.
 const START_DATE_ISO = '2026-05-16T00:00:00Z';
 const END_DATE_ISO   = '2026-05-31T00:00:00Z';
 
 async function waitForSetupReady(page: Page): Promise<void> {
   await page.locator(SETUP_FORM_SELECTOR).waitFor({ state: 'visible' });
-  // Controller uses Clubs.query() (buggy — see TEST_WRITING.md §6); wait for
-  // $scope.locations only, we'll set LocationId ourselves.
   await page.waitForFunction(() => {
     const w = window as unknown as {
       angular?: { element: (n: Element) => { scope: () => Record<string, unknown> } };
@@ -48,7 +39,6 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
   await gotoRoute(page, SETUP_ROUTE);
   await waitForSetupReady(page);
 
-  // Inject date range + LocationId on $scope (Pikaday + selectize aren't drivable).
   const submitted = await page.evaluate(({ startIso, endIso }) => {
     const w = window as unknown as {
       angular: {
@@ -70,7 +60,6 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
       const loc = s.locations.find(l => l.IcaoCode === 'LSZK') ?? s.locations[0];
       s.setup.LocationId = loc.LocationId;
     }
-    // $apply lives on the scope, not on the element wrapper — see TEST_WRITING.md §6.
     s.$apply();
     return {
       hasLocation: !!s.setup.LocationId,
@@ -82,7 +71,6 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
   expect(submitted.hasLocation, 'setup.LocationId should be set (we inject LSZK if controller did not)').toBe(true);
   expect(submitted.everySat && submitted.everySun, 'default Sat+Sun recurrence should be preserved').toBe(true);
 
-  // 4. Submit via the form's actual submit button (ng-submit="generate(setup)").
   await page.locator(`${SETUP_FORM_SELECTOR} button[type="submit"]`).click();
 
   await page.waitForURL(/#\/planning(\?|$)/, { timeout: 15_000 });
@@ -95,7 +83,6 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
     });
   }, undefined, { timeout: 15_000 });
 
-  // List defaults to Day.From=today; our 2026-05 range is in window.
   await expect(
     page.locator('tbody [data-testid="row"]').first(),
     'at least one planning day row should appear after wizard submit',

@@ -1,13 +1,3 @@
-// Spec #32: one case per AccountingRuleFilterType — POST a minimal rule,
-// preview-delivery against the seeded historical flight, assert the rule
-// matched and its side effect appears in the result. Serial mode so cases
-// share the per-suite fixture-rule deactivate / restore in beforeAll/afterAll.
-//
-// Note: DoNotInvoiceFlightRule used to silently fail to set HasMatched —
-// fixed in flsserver. Other product bugs in this area:
-// AdditionalInfo / FlightCostPaidByPerson / FlightCostPaidByPilot /
-// FlightDeliveryInfo are similarly missing HasMatched, but they're not
-// covered by the 10-type enum so the bug is latent there.
 
 import { test, expect, APIRequestContext } from "@playwright/test";
 
@@ -15,17 +5,14 @@ const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 const USERNAME = process.env.FLS_USERNAME ?? "testclubadmin";
 const PASSWORD = process.env.FLS_PASSWORD ?? "s";
 
-// Seed flight from _test-fixture.sql §5: glider HB-3407 at LSZK, 47 min, 1 ldg.
 const FLIGHT_ID = "F1500005-0000-0000-0000-000000000001";
 
-// Fixture rule ids from _test-fixture.sql §4 — deactivated for this spec.
 const FIXTURE_RULE_IDS = [
-  "F1500004-0000-0000-0000-000000000001", // Recipient
-  "F1500004-0000-0000-0000-000000000002", // FlightTime
-  "F1500004-0000-0000-0000-000000000003", // LandingTax
+  "F1500004-0000-0000-0000-000000000001",
+  "F1500004-0000-0000-0000-000000000002",
+  "F1500004-0000-0000-0000-000000000003",
 ];
 
-// Mirror of AccountingRuleFilterType.cs.
 const RT = {
   DoNotInvoiceFlight: 5,
   Recipient: 10,
@@ -39,10 +26,8 @@ const RT = {
   EngineTime: 80,
 } as const;
 
-// Mirror of AccountingUnitType.cs.
 const UT = { Min: 10, Sec: 20, Ldgs: 30, StartOrFlight: 40 } as const;
 
-// Minimal payload — defaults mirror C# DTO ctor; override per rule type.
 function baseRulePayload(
   name: string,
   typeId: number,
@@ -137,14 +122,12 @@ test.describe("rules-engine per-type coverage", () => {
     token = (await tokenRes.json()).access_token;
     auth = { Authorization: `Bearer ${token}` };
 
-    // Deactivate fixture rules so they don't pollute MatchedAccountingRuleFilterIds.
     for (const id of FIXTURE_RULE_IDS) {
       const getRes = await api.get(
         `${API_BASE}/api/v1/accountingrulefilters/${id}`,
         { headers: auth },
       );
       if (!getRes.ok()) {
-        // Fixture rule missing (e.g. older seed) — record nothing, move on.
         continue;
       }
       const details = await getRes.json();
@@ -164,7 +147,6 @@ test.describe("rules-engine per-type coverage", () => {
   });
 
   test.afterAll(async () => {
-    // Restore IsActive=true on fixture rules. Best-effort: a re-seed normalizes.
     for (const [id, original] of fixtureRuleSnapshots) {
       try {
         await api.put(`${API_BASE}/api/v1/accountingrulefilters/${id}`, {
@@ -172,7 +154,6 @@ test.describe("rules-engine per-type coverage", () => {
           data: { ...original, IsActive: true },
         });
       } catch {
-        // ignore — re-seed will fix
       }
     }
     await api.dispose();
@@ -218,8 +199,6 @@ test.describe("rules-engine per-type coverage", () => {
     try {
       const r = await previewDelivery();
       expect(r.MatchedAccountingRuleFilterIds).toContain(id);
-      // IgnoreFlightRulesEngine returns early when DoNotInvoiceFlight is set,
-      // so no other rules (recipient/item) ever run.
       expect(r.CreatedDeliveryDetails.DeliveryItems.length).toBe(0);
     } finally {
       await deleteRule(id);
@@ -232,7 +211,6 @@ test.describe("rules-engine per-type coverage", () => {
       ...baseRulePayload("e2e Recipient", RT.Recipient),
       RecipientTarget: {
         RecipientName: recipientName,
-        // PersonId null is fine — DeliveryRecipientRule copies whatever is here.
         PersonId: null,
         PersonClubMemberNumber: null,
       },
@@ -258,8 +236,6 @@ test.describe("rules-engine per-type coverage", () => {
     try {
       const r = await previewDelivery();
       expect(r.MatchedAccountingRuleFilterIds).toContain(id);
-      // NoLandingTaxRule has no ArticleTarget — it only sets internal flags
-      // (see NoLandingTaxRule.cs), so no DeliveryItem with our article should exist.
     } finally {
       await deleteRule(id);
     }
@@ -269,7 +245,6 @@ test.describe("rules-engine per-type coverage", () => {
     const article = "9030";
     const id = await createRule({
       ...baseRulePayload("e2e FlightTime", RT.FlightTime),
-      // Glider-only so it can't run on the synthetic tow recursion if any
       IsRuleForTowingFlights: false,
       IsRuleForMotorFlights: false,
       ArticleTarget: {
@@ -279,10 +254,6 @@ test.describe("rules-engine per-type coverage", () => {
       AccountingUnitTypeId: UT.Min,
     });
     try {
-      // The just-inserted rule can lag the delivery-preview engine's first read
-      // under load, so re-fetch the preview until the rule matches, then assert
-      // the emitted item on that settled result (the whole preview is derived
-      // from one rules-engine pass — re-reading yields a self-consistent `r`).
       let r!: DeliveryCreationResult;
       await expect(async () => {
         r = await previewDelivery();
@@ -292,8 +263,6 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      // 47 min duration → quantity 47 in minutes (Sec→Min conversion in
-      // BaseAccountingRule.GetUnitQuantity).
       expect(items[0].Quantity).toBe(47);
       expect(items[0].UnitType).toBe("Minuten");
     } finally {
@@ -302,11 +271,6 @@ test.describe("rules-engine per-type coverage", () => {
   });
 
   test("EngineTime — skipped: glider seed flight has no engine times", async () => {
-    // AircraftEngineTimeRule's Initialize gates on ActiveEngineTimeInSeconds,
-    // and the seed glider flight has no EngineStart/EndOperatingCounter, so
-    // ActiveEngineTimeInSeconds is 0 and the loop never enters. Asserting
-    // matched-id presence on a flight with engine telemetry would require
-    // mutating the seed; out of scope for this spec.
     test.skip(
       true,
       "glider seed flight has no engine times to drive the EngineTime loop",
@@ -330,8 +294,6 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      // InstructorFeeRule sets ItemText to "Fluglehrer-Honorar {InstructorDisplayName}"
-      // — for the solo seed flight InstructorDisplayName is empty.
       expect(items[0].ItemText).toContain("Fluglehrer-Honorar");
     } finally {
       await deleteRule(id);
@@ -354,7 +316,6 @@ test.describe("rules-engine per-type coverage", () => {
       );
       expect(items.length).toBe(1);
       expect(items[0].ItemText).toContain(lineText);
-      // 47 min duration → 47 in minutes.
       expect(items[0].Quantity).toBe(47);
     } finally {
       await deleteRule(id);
@@ -423,7 +384,6 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      // VsfFeeRule sets Quantity = NrOfLdgs.GetValueOrDefault(1) — seed flight has 1.
       expect(items[0].Quantity).toBe(1);
     } finally {
       await deleteRule(id);

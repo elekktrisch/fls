@@ -1,6 +1,6 @@
 import { test, gotoRoute, screenshot } from '../../fixtures';
 
-const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001'; // deterministic historical fixture flight from _test-fixture.sql
+const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
 const AUTH_ROUTES: { name: string; path: string }[] = [
   { name: 'dashboard',                        path: '/main' },

@@ -1,14 +1,10 @@
 import { test, expect, gotoRoute, screenshot } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
-// Each entity may have a list page and (where seed data exists) a per-row form.
-// `hasSeedData = false` means the list renders but is empty; we skip the form test.
 type Entity = {
   name: string;
   listPath: string;
   hasSeedData: boolean;
-  // Optional: a string we expect to find on the form page once a row is opened.
-  // Defaults to checking that at least one populated <input> exists.
   formAssertion?: (page: Page) => Promise<void>;
 };
 
@@ -27,15 +23,10 @@ const ENTITIES: Entity[] = [
 ];
 
 async function dataRowCount(page: Page): Promise<number> {
-  // Every data row carries data-testid="row" (see e2e/SELECTORS.md). Header / filter / pager rows don't.
   return page.locator('tbody [data-testid="row"]').count();
 }
 
 async function openFirstRowForm(page: Page): Promise<void> {
-  // Two row layouts in the wild (see e2e/SELECTORS.md):
-  //   1. Row-click pattern: the <tr data-testid="row"> itself is the click target (ng-click on the <tr>).
-  //   2. Pencil-link pattern: a separate <a data-testid="row-edit"> pencil icon inside the row.
-  // Prefer the pencil link if it exists, otherwise fall back to clicking the row.
   const rowEdit = page.locator('tbody [data-testid="row-edit"]').first();
   const row = page.locator('tbody [data-testid="row"]').first();
   const target = (await rowEdit.count()) > 0 ? rowEdit : row;
@@ -45,7 +36,6 @@ async function openFirstRowForm(page: Page): Promise<void> {
   await page.waitForFunction(prev => location.href !== prev, urlBefore);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(500);
-  // Wait for any busy indicator the form fetch may have introduced.
   await page.waitForFunction(() => {
     const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];
     return spinners.every(el => {
@@ -57,7 +47,6 @@ async function openFirstRowForm(page: Page): Promise<void> {
 }
 
 async function expectFormPopulated(page: Page): Promise<void> {
-  // At least one visible text input or textarea should carry a value once the form is hydrated.
   const populated = await page
     .locator('input[type="text"], input:not([type]), textarea')
     .evaluateAll(els =>

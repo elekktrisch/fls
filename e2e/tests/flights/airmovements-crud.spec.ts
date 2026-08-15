@@ -1,7 +1,3 @@
-// Spec #07: motor-flight CRUD mirror of glider flights. /airmovements drives
-// FlightAircraftType=4 via the same /api/v1/flights endpoints.
-//
-// Contract gaps (TODO testid): `new-flight`, `flight-comment-input`, `form-save`.
 
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
@@ -21,7 +17,6 @@ async function api<T>(page: Page, token: string, method: 'GET' | 'POST', url: st
 
 test('airmovements-list: renders /airmovements (empty or seeded)', async ({ loggedInPage }) => {
   await gotoRoute(loggedInPage, '/airmovements');
-  // Default date filter is today..today; assert table chrome, not row count.
   const table = loggedInPage.locator('table.fls').first();
   await expect(table).toBeVisible({ timeout: 10_000 });
   await screenshot(loggedInPage, 'airmovements-crud-01');
@@ -32,7 +27,6 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
   const initialComment = `${id.name} create`;
   const editedComment = `${id.name} edit`;
 
-  // Pre-clean prior runs.
   await withPool(async (pool) => {
     await pool.request()
       .input('c1', sql.NVarChar, initialComment)
@@ -64,7 +58,7 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
 
   const created = await api<{ FlightId: string }>(loggedInPage, token, 'POST', '/api/v1/flights', {
     FlightDate: flightDate,
-    StartType: 5, // Self-launch (DefaultStartType for motor flights)
+    StartType: 5,
     Comment: initialComment,
     MotorFlightDetailsData: {
       AircraftId: motorAircraft.AircraftId,
@@ -93,7 +87,6 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
   ).toHaveCount(1, { timeout: 15_000 });
 
   await gotoRoute(loggedInPage, `/airmovements/${created.FlightId}`);
-  // Dotted id — use attribute selector, not CSS '#id'.
   const commentInput = loggedInPage.locator('input[id="MotorFlightDetailsData.FlightComment"]');
   await expect(commentInput).toBeVisible({ timeout: 10_000 });
   await expect(commentInput).toHaveValue(initialComment);

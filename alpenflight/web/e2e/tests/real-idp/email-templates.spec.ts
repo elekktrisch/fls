@@ -10,28 +10,9 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-/**
- * Club-customizable masterdata against the REAL chain (live Keycloak auth +
- * real Spring backend + real Postgres) — the J-11 `parity_test`. Both screens
- * are greenfield, so the proof is the real-idp CRUD round-trip video, NOT a
- * legacy pairing.
- *
- * Email templates: a CLUB_ADMINISTRATOR opens `/email-templates`, sees the
- * S-082 file defaults UNIONed with the caller's own-club overrides, customizes
- * one default (cloning it to a per-club override that renders at send time
- * without a redeploy), and resets it (deleting the override so the file default
- * renders again). Customizing in club A must NOT mutate the file default a
- * second club sees.
- *
- * Articles: the shipped S-054 `/articles` screen round-trips tenant-scoped
- * create / edit / soft-delete, and `includeInactive` surfaces an inactive row —
- * verified against the deployed UI, not rebuilt. Override-at-send is proven by
- * the backend IT; the UI-observable proof is the override CRUD round-trip.
- */
 
 const EMAIL_TEMPLATES_PATH = '/email-templates';
 
-/** The S-082 file defaults the union read seeds from (all keyed `de`). */
 const DEFAULT_KEY = 'planningday-ok';
 const DEFAULT_LOCALE = 'de';
 const DEFAULT_ROW = `${DEFAULT_KEY}-${DEFAULT_LOCALE}`;
@@ -46,7 +27,6 @@ async function newRecordedContext(
   return context;
 }
 
-/** Open the email-templates list through the nav chrome and wait for the table. */
 async function openEmailTemplates(page: Page, admin: ClubAdmin): Promise<void> {
   await loginAsClubAdmin(page, admin);
   await page.goto('/start?lang=en');
@@ -78,8 +58,6 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     try {
       await openEmailTemplates(page, twoClubs.clubA);
 
-      // The S-082 set ships as file defaults — each renders a row tagged
-      // "Default" (no override indicator) until a club customizes it.
       for (const key of [
         'planningday-ok',
         'planningday-cancel',
@@ -111,19 +89,15 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     try {
       await openEmailTemplates(pageA, twoClubs.clubA);
 
-      // Edit the file default → upsert a per-club override (club_id = caller).
       await pageA.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
       await expect(pageA).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
-      // File defaults carry no subject, so Save is gated until one is supplied.
       await pageA.locator('#EmailSubject').fill(customSubject);
       await pageA.getByTestId('email-template-body').fill(customBody);
       await pageA.getByTestId('email-template-save-button').locator('button').click();
       await expect(pageA).toHaveURL(EMAIL_TEMPLATES_PATH);
 
-      // The row now reads as an override (the clone-on-customize indicator).
       await expect(pageA.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toBeVisible();
 
-      // Re-open the row — the customized body persisted in the DB override.
       await pageA.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
       await expect(pageA).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
       await expect(pageA.getByTestId('email-template-body')).toHaveValue(customBody);
@@ -132,8 +106,6 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
       await ctxA.close();
     }
 
-    // A second club still sees the system/file default — club A's override is
-    // tenant-scoped and never mutated the shipped template.
     const ctxB = await newRecordedContext(browser, baseURL, testInfo);
     const pageB = await ctxB.newPage();
     try {
@@ -159,7 +131,6 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
     try {
       await openEmailTemplates(page, twoClubs.clubA);
 
-      // The prior test left club A holding an override for this row.
       await expect(page.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toBeVisible();
 
       await page.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
@@ -167,11 +138,8 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
       await page.getByTestId('email-template-reset-button').locator('button').click();
       await expect(page).toHaveURL(EMAIL_TEMPLATES_PATH);
 
-      // The row returns to default state — the override indicator is gone.
       await expect(page.getByTestId(`email-template-override-${DEFAULT_ROW}`)).toHaveCount(0);
 
-      // Re-open — the file default body is back (the reset button no longer
-      // renders, since the row is a file default again).
       await page.getByTestId(`email-template-row-${DEFAULT_ROW}`).click();
       await expect(page).toHaveURL(`${EMAIL_TEMPLATES_PATH}/${DEFAULT_KEY}/${DEFAULT_LOCALE}`);
       await expect(page.getByTestId('email-template-reset-button')).toHaveCount(0);
@@ -189,13 +157,11 @@ test.describe('Email templates — club customization real chain (real-idp)', ()
 
 const ARTICLES_PATH = '/articles';
 
-/** A per-run-unique article number so reruns/retries never 409 on the index. */
 function uniqueArticleNumber(prefix: string): string {
   const tail = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `${prefix}-${tail}`;
 }
 
-/** Read the rendered list row's id (`articles-row-art-<uuid>`) for a named article. */
 async function articleRowId(page: Page, articleName: string): Promise<string> {
   const row = page.locator('[data-testid^="articles-row-"]').filter({ hasText: articleName });
   await expect(row).toBeVisible();
@@ -231,7 +197,6 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
     try {
       await loginAsClubAdmin(page, twoClubs.clubA);
 
-      // Create — the new row lands in the caller's tenant list.
       await page.goto(ARTICLES_PATH);
       await expect(page.getByTestId('articles-table')).toBeVisible();
       await page.getByTestId('articles-new-button').locator('button').click();
@@ -250,7 +215,6 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
 
       const articleId = await articleRowId(page, articleName);
 
-      // Edit — the rename round-trips and persists across a reload.
       await page.getByTestId(`articles-row-${articleId}`).click();
       await expect(page).toHaveURL(`${ARTICLES_PATH}/${articleId}/edit`);
       await page.locator('#ArticleName').fill(renamed);
@@ -258,10 +222,6 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
       await expect(page).toHaveURL(ARTICLES_PATH);
       await expect(page.getByTestId(`articles-row-${articleId}`)).toContainText(renamed);
 
-      // Deactivate — isActive=false drops the row out of the default
-      // (active-only) list. Soft-delete is a separate, terminal operation:
-      // a deleted row never resurfaces, so includeInactive (which surfaces
-      // isActive=false rows) is driven by deactivate, not delete.
       await page.getByTestId(`articles-row-${articleId}`).click();
       await expect(page).toHaveURL(`${ARTICLES_PATH}/${articleId}/edit`);
       await page.getByTestId('articles-flag-active').uncheck();
@@ -269,7 +229,6 @@ test.describe('Articles — tenant-scoped CRUD real chain (real-idp)', () => {
       await expect(page).toHaveURL(ARTICLES_PATH);
       await expect(page.getByTestId(`articles-row-${articleId}`)).toHaveCount(0);
 
-      // includeInactive — the deactivated row re-surfaces, tagged inactive.
       await page.getByTestId('articles-include-inactive').check();
       await expect(page.getByTestId(`articles-row-${articleId}`)).toBeVisible();
       await expect(page.getByTestId(`articles-badge-inactive-${articleId}`)).toBeVisible();

@@ -3,18 +3,9 @@ import { clearInbox } from "./mailpit";
 const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 const MAILPIT_BASE = process.env.MAILPIT_BASE ?? "http://localhost:8025";
 
-// The webServer health poll on `/api/v1/countries` only checks for HTTP 200,
-// which the EF connection pool answers before the FLSTest seed replay has
-// hydrated the reference tables. Registration/reporting/email specs then race a
-// half-seeded backend. This gate holds the whole suite until the seed is
-// genuinely populated and mailpit is reachable, so a not-ready backend fails
-// loudly here instead of as scattered flaky reds.
 
-// The static-data seed inserts ~200 Country rows; a populated response well
-// above an empty pool proves the seed replay finished, not merely that EF is up.
 const MIN_COUNTRIES = 100;
 
-// The seeded TestClub admin; the warm-up requests scope to this club's data.
 const FLS_USERNAME = process.env.FLS_USERNAME ?? "testclubadmin";
 const FLS_PASSWORD = process.env.FLS_PASSWORD ?? "s";
 
@@ -80,15 +71,6 @@ async function bearerToken(): Promise<string> {
   return accessToken;
 }
 
-// Each distinct paged read path is a separate EF6 LINQ tree that legacy compiles
-// lazily on its FIRST execution against a fresh `CreateDbContext()`. The list
-// specs render via `ng-table`'s `getData`, whose promise can resolve before that
-// cold compile+connection-warm+security-warm returns, so the first render is
-// empty and the spec asserts on nothing. Warming the exact query shape the suite
-// reads through — once, up front, authenticated as the club that owns the data —
-// makes the first spec-driven call warm. The paged routes take
-// `page/{pageStart}/{pageSize}` and a `{ SearchFilter }` body (empty filter =
-// unfiltered, which also proves data-readiness for the flight surface).
 const PAGED_WARMUPS = [
   {
     label: "glider flights",
@@ -97,8 +79,6 @@ const PAGED_WARMUPS = [
   },
   { label: "motor flights", path: "flights/motorflights/page/0/100" },
   { label: "aircraft reservations", path: "aircraftreservations/page/0/100" },
-  // flightreports returns FlightReportResult, which nests its PagedList under
-  // .Flights (the other paths return a top-level PagedList).
   {
     label: "flight reports",
     path: "flightreports/page/0/100",
@@ -107,10 +87,6 @@ const PAGED_WARMUPS = [
   { label: "planning days", path: "planningdays/page/0/100" },
 ] as const;
 
-// A `minRows` warm-up polls until the seed is genuinely queryable through this
-// exact shape; the rest need only one 200 to compile the tree — but any warm-up
-// erroring (4xx/5xx / non-PagedList body) must fail the run loudly, never resolve
-// empty and let the spec race a cold query again.
 async function warmPagedReadSurface(): Promise<void> {
   const accessToken = await bearerToken();
   for (const warmup of PAGED_WARMUPS) {

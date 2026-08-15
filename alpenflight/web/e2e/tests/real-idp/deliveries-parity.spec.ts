@@ -25,39 +25,6 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 
-/**
- * J-10 — Deliveries (invoice-draft) read screen, real chain (live Keycloak auth +
- * real Spring backend + real Postgres). The journey's `parity_test` (the real-chain
- * done-bar) — proves the READ-ONLY `/deliveries` viewer end to end over CLEAN-SEED
- * data (the Delivery migration is deferred to J-10b — it needs J-11's ARTICLE first).
- * NO `page.route` mocking on any path: the paged list, the view-by-id, the
- * `@TenantId` filter, and the CLUB_ADMINISTRATOR `@PreAuthorize` gate all run live.
- *
- * ── PRINCIPAL (CLUB_ADMINISTRATOR, every delivery endpoint is admin-gated) ─────
- * Drives `clubadmin4` (V29 seed), a REAL CLUB_ADMINISTRATOR bound to seed-club-1 —
- * NOT the mock-admin everything-principal that hides a role-authz gap
- * ([[project_real_idp_real_roles_catches_authz_gaps]]). The cross-tenant 404 probe
- * drives a REAL second club + admin (`provisionTwoClubs`).
- *
- * ── CLEAN-SEED (the Delivery write side ships in J-10b) ───────────────────────
- * There is NO create REST surface for Delivery this iteration, so the read
- * screen's clean-seed input is materialized directly against the live Postgres via
- * the Gradle `seedDelivery` task (the established DB-fixture seam, mirroring
- * `seedAircraftOwnerLink`): a Delivery + three line items + the frozen recipient,
- * under seed-club-1, linked to a Flight this spec creates over the REAL flight API.
- * The read endpoint + `@TenantId` scope + cross-tenant 404 then run fully real off
- * those rows — the seed is fixture STATE, not a mocked seam.
- *
- * ── REAL-IDP HYGIENE (hard-won) ──────────────────────────────────────────────
- *   - ENTER via the masterdata nav dropdown (`enterViaNav`), NOT a bare goto for
- *     the chrome-reachability assertion;
- *   - prefer WARM in-app navigation; do NOT `clearCookies` (kills session restore)
- *     ([[project_real_idp_goto_reboot_renew_stall]]);
- *   - read a created flight id off the 201 `Location` header
- *     ([[project_spa_nav_evicts_post_response_body]]);
- *   - track every seeded delivery + `afterAll` DELETE it so a Playwright retry
- *     starts on a clean seed-club-1.
- */
 
 const FLIGHTS = '/api/v1/flights';
 const DELIVERIES = '/api/v1/deliveries';
@@ -98,16 +65,10 @@ async function newRecordedContext(
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
   const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
-  // Guard every page this context opens, not just the fixture-injected one.
   context.on('page', (p) => watchConsoleErrors(p, testInfo));
   return context;
 }
 
-/**
- * Create a GLIDER flight (90-min, 1 landing, pilot crew) under the caller's tenant
- * via the REAL flight API; return its RAW uuid (the seeder UPDATEs the PK). The
- * delivery's `flight_id` FK is RESTRICT, so a real flight must exist first.
- */
 async function seedFlight(api: APIRequestContext, bearer: string): Promise<string> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
   const res = await api.post(FLIGHTS, {
@@ -134,7 +95,6 @@ async function seedFlight(api: APIRequestContext, bearer: string): Promise<strin
   );
   const loc = res.headers()['location']!;
   const external = new URL(loc, 'http://localhost').pathname.split('/').pop()!;
-  // The flight id arrives external (`fl-<uuid>`); the seeder takes the raw uuid.
   return external.replace(/^fl-/, '');
 }
 
@@ -155,7 +115,6 @@ async function runSeeder(seederArgs: string): Promise<string> {
   return line;
 }
 
-/** Run the Gradle `seedDelivery` task — a Delivery + items + frozen recipient. */
 async function seedDelivery(
   clubId: string,
   flightId: string,
@@ -166,22 +125,15 @@ async function seedDelivery(
   return JSON.parse(line) as { deliveryId: string; articleNumber: string };
 }
 
-/** Remove a seeded delivery + its items (retry pre-clean / afterAll cleanup). */
 async function deleteSeededDelivery(deliveryId: string): Promise<void> {
   await runSeeder(`delete ${deliveryId}`).catch(() => undefined);
 }
 
-// ===========================================================================
-// CLEAN-SEED real chain: nav-entry + list → view (line items + frozen recipient
-// + flight link, NO write actions) → cross-tenant 404. seed-club-1 / clubadmin4.
-// ===========================================================================
 test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
 
   let baseURL: string;
-  /** clubadmin4's Bearer (seed-club-1, the @TenantId club). */
   let adminBearer: string;
-  /** A real second club + admin (club B) — the cross-tenant-404 probe. */
   let twoClubs: TwoClubFixture;
   let seeded: SeededDelivery;
   let cleanupCtx: BrowserContext;
@@ -219,15 +171,11 @@ test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
     try {
       await loginAsReservationAdmin(page);
 
-      // ENTER via the chrome nav (the chrome-reachability AC): open the Masterdata
-      // dropdown, click the nested Deliveries entry, the list renders.
       await page.goto('/start?lang=en');
       await enterViaNav(page, '/deliveries');
       await expect(page).toHaveURL('/deliveries');
       await expect(page.getByTestId('del-table')).toBeVisible();
 
-      // The list carries the seeded delivery row (number-or-unbooked · recipient),
-      // the batch, and the state badge — all tenant-scoped to seed-club-1.
       const row = page.getByTestId(`del-row-${seeded.deliveryId}`);
       await expect(row).toBeVisible();
       await expect(row).toContainText(seeded.recipientLastName);
@@ -239,14 +187,10 @@ test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
         fullPage: true,
       });
 
-      // Click into the view — read-only line items + the frozen recipient + the
-      // read-only flight link; NO book/delete affordance this iteration.
       await row.click();
       await expect(page).toHaveURL(`/deliveries/${seeded.deliveryId}`);
       await expect(page.getByTestId('del-detail')).toBeVisible();
 
-      // The three seeded engine-shaped line items (position / article / text /
-      // qty / unit) render read-only.
       const detail = (await ctx.request
         .get(`${DELIVERIES}/${seeded.deliveryId}`, { headers: { authorization: adminBearer } })
         .then((r) => r.json())) as DeliveryDetail;
@@ -257,18 +201,14 @@ test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
       await expect(page.getByTestId('del-item-0')).toContainText('Flight time tier 1');
       await expect(page.getByTestId('del-item-2')).toContainText('Landing tax');
 
-      // The frozen recipient snapshot renders read-only (empty fields are
-      // suppressed, so assert on the populated ones the seed wrote).
       await expect(page.getByTestId('del-recipient-lastName')).toContainText(
         seeded.recipientLastName,
       );
       await expect(page.getByTestId('del-recipient-city')).toContainText('Zürich');
 
-      // The read-only flight link + state badge.
       await expect(page.getByTestId('del-flight-link')).toBeVisible();
       await expect(page.getByTestId('del-state-badge')).toBeVisible();
 
-      // READ-ONLY: there is NO book / delete affordance anywhere on the view.
       await expect(page.getByTestId('del-book-button')).toHaveCount(0);
       await expect(page.getByTestId('del-delete-button')).toHaveCount(0);
 
@@ -296,13 +236,11 @@ test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
   }) => {
     const ctx = await browser.newContext({ baseURL });
     try {
-      // seed-club-1's admin reads it fine (the positive control — the id is valid).
       const ownRead = await ctx.request.get(`${DELIVERIES}/${seeded.deliveryId}`, {
         headers: { authorization: adminBearer },
       });
       expect(ownRead.status(), 'the owning tenant reads its own delivery').toBe(200);
 
-      // Capture club B's admin Bearer through real Keycloak (a DIFFERENT tenant).
       const bCtx = await browser.newContext({ baseURL });
       const bPage = await bCtx.newPage();
       let clubBBearer: string;
@@ -320,8 +258,6 @@ test.describe('Deliveries — clean-seed read chain (real-idp)', () => {
         await bCtx.close();
       }
 
-      // Club B's admin CANNOT read it — the @TenantId-scoped finder never returns
-      // another club's row → 404 (NOT 403; the row is invisible, not forbidden).
       const crossTenant = await ctx.request.get(`${DELIVERIES}/${seeded.deliveryId}`, {
         headers: { authorization: clubBBearer },
       });
