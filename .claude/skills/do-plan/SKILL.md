@@ -13,18 +13,18 @@ the next one into a full slice the `/do-ship` skill can build.
 **A journey is a Scrum sprint: ≥60% AlpenFlight feature improvement, ≤40% tech-debt/infra**
 ([[feedback_journey_is_a_60_40_sprint]]). Every journey leads with a real AlpenFlight feature
 (the green-Playwright path above); pending riders + infra/flake/CI/proof-tooling cleanup fill the
-remaining ≤40% by riding the journey's gate. **Pure tech-debt never earns its own journey** —
-it delivers no AlpenFlight functionality; if a debt item is too big for one journey's 40% slot,
-split it across the next 2-3 journeys' budgets. A standalone journey is *only* genuinely new
-vertical AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
+remaining ≤40% by riding the journey's gate. If a debt item is too big for one journey's 40% slot,
+split it across the next 2-3 journeys' budgets (WORKFLOW-SLIM is the current example).
 
-> **⏳ Debt-burndown window (updated /do-retro 2026-06-22 — FINAL LAP).** The original window
-> (2026-06-14) overran its ~2-3 journeys without clearing its named riders — the journeys since were
-> feature/bug-led (J-2b/J-2c/J-9b), so the inverted budget was never actually spent. Operator decision
-> (2026-06-22): **the NEXT journey runs inverted (≥30% feature / ≤70% tech-debt), aimed squarely at clearing
-> GALLERY-SIMPLIFY** (the operator's bookmark pain) — it still LEADS with a real feature + green-Playwright
-> path. **After that one journey, revert to 60/40 and DELETE this marker;** WORKFLOW-SLIM + COMMENT-STRIP then
-> ride feature journeys' ≤40% debt slots as normal (split across journeys if too big). (`_BOYSCOUT.md` details.)
+**The exception — a HARDENING journey** (`hardening: true`). Debt/infra whose shape is a *sweep* can't
+be split across 40% slots without ceasing to be coherent, and a blanket "pure tech-debt never earns its
+own journey" only forced an operator override every time: J-26 (hardening), J-27 (migration-fidelity),
+J-29 (scheduled-proof stabilization), J-30 (nightly gate) and J-31 (comment sweep) all shipped as
+essentially pure infra/debt. Name the type and hold it to the SAME bar as any journey: **≥1 provable
+screen result + a green gate.** It may REUSE an already-built screen for that proof (J-31 drove the
+landing page, exactly as Journey-0 drove Locations) — it owes no NEW screen. No screen result, or no
+green gate → not a journey; back to riders. Every other standalone journey is genuinely new vertical
+AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
 
 **Budget for the unforeseen.** The gate always surfaces real work the carve can't see (hidden bugs, infra
 surprises, parity gaps). Carve with explicit slack: a journey's task count growing from gate-revealed work is
@@ -158,6 +158,7 @@ title: <screen/route name>
 epic: E-NN            # the feature area it belongs to
 status: todo
 journey0: false       # true only for the chain-bootstrap journey
+hardening: false      # true = sweep/stabilization journey; same bar, may reuse a built screen
 carved: false         # flips true in Mode B
 depends_on: [J-NNN, ...]
 rolls_up: [S-NNN, ...]  # horizontal stories absorbed (refinement preserved)
@@ -194,9 +195,9 @@ later). Leave `implemented/` alone.
 
 - Every journey is provable by one green Playwright run. If you can't name what
   the spec asserts, the journey isn't carved.
-- Every journey delivers at least one screen/route (a visible, provable result). A coherent
-  multi-screen feature may stay one journey; split only when the screens are genuinely independent
-  features (or the operator wants the dominant screen shipped first).
+- Every journey delivers at least one screen/route (a visible, provable result) — a hardening journey
+  may reuse an already-built one. A coherent multi-screen feature may stay one journey; split only when
+  the screens are genuinely independent features (or the operator wants the dominant screen first).
 - Headless work always has a screen home or an escalation — never a layer-slice.
 - Journey-0 exists and is the thinnest chain-bootstrap, before any feature journey.
 - `AskUserQuestion` count ≈ 0. Roadmap order, grouping, parity placement: pick + record.

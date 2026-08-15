@@ -103,11 +103,14 @@ present) — the lessons are then reconstruction-only.
    scope** (a missing screen, a re-carve of an oversized journey) — that, and only that,
    feeds `/do-plan`. Infra/efficiency work (proof-chain speedups, flake fixes, CI
    hardening) is a rider too unless it's a vertical slice in its own right.
-   **`_BOYSCOUT.md` shrinking is `/do-ship`'s job (delete-on-ship), not the retro's** (operator
-   2026-06-24). The retro only AUDITS it: if any shipped rider survives (a `✅`/`SHIPPED`/struck-through
-   bullet), that's a `/do-ship` discipline slip — delete the straggler AND note it as a friction signal,
-   don't treat bulk cleanup as routine retro work. Shipped work lives in git + the PR, never a
-   kept-for-trace bullet.
+   **The retro TRIAGES `_BOYSCOUT.md`** (operator 2026-08-15 — surface-only folding let it grow ~17 → 40
+   riders / 30 sections): tag every rider's severity inline right after its `**[NAME]**` — `[S1]` security /
+   tenancy / correctness / money, `[S2]` coverage gap / silent-failure risk, `[S3]` cosmetic / dead code /
+   doc — which is the order `/do-ship` burns them down in; and DELETE riders that are genuinely won't-fix or
+   superseded, stating the reason in the commit message. **Never delete a security-relevant rider.**
+   *Shipped*-rider deletion stays `/do-ship`'s job (delete-on-ship): a surviving `✅`/`SHIPPED`/struck-through
+   bullet is a `/do-ship` discipline slip — delete the straggler AND note it as a friction signal. Shipped
+   work lives in git + the PR, never a kept-for-trace bullet.
 4. **Memory hygiene** (via `codebase-memory-mcp` + `.claude/memory/`):
    - **Capture** durable, non-obvious lessons (feedback/project facts).
    - **Update** stale memories whose facts the recent work changed.
@@ -171,7 +174,8 @@ that rides the next journey via `/do-ship`. Don't delete on day one.
 
 Print: the journey window digested; friction signals found; the grill conclusions
 (or that the ceremony was skipped — non-interactive); suite edits made (file +
-one-line why each); ADR amendments drafted (operator decides); backlog / infra /
+one-line why each); the `_BOYSCOUT.md` triage (rider count before/after, the S1 list,
+what was deleted + why); ADR amendments drafted (operator decides); backlog / infra /
 efficiency journeys filed; memory captured/updated/compacted; whether any
 superseded-tooling retirement rider was filed and why.
 
