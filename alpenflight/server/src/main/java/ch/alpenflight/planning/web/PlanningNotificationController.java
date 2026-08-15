@@ -11,21 +11,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Guarded run-now affordance for the planning-day notification job (J-6 T-10c).
- * Triggers {@link PlanningDayNotificationJob#runForCurrentClub()} for the
- * caller's <em>own</em> club so the e2e fires the job deterministically and
- * asserts mailpit (the J-15 jobs console is not built yet).
- *
- * <p><strong>Guard.</strong> {@code @Profile({"dev","test"})} keeps the bean out
- * of production contexts (a real club can't trigger the batch by hand), and
- * {@code @PreAuthorize} restricts it to a {@code CLUB_ADMINISTRATOR}. The run is
- * tenant-scoped: the job reads the current tenant, so a caller only ever mails
- * for their own club. {@code @Hidden} keeps the route out of the OpenAPI
- * snapshot (a test/dev-only surface). The audit event is emitted inside the job
- * ({@link PlanningDayNotificationJob} → {@code AuditTrail.record}), satisfying
- * the mutating-endpoint audit-coverage guard transitively.
- */
 @RestController
 @RequestMapping("/api/v1/planning-days/notifications")
 @Profile({"dev", "test"})

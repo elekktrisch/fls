@@ -24,16 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Cross-layer tenancy properties for the Article aggregate. The Hibernate
- * {@code @TenantId} discriminator filters reads/writes by the resolved
- * tenant; number uniqueness is per-tenant (V3 partial UNIQUE on
- * {@code (operating_club_id, article_number) WHERE deleted_on IS NULL}).
- *
- * <p>HTTP-layer authz + 404-not-403 matrix lives in
- * {@link ArticlesAuthorizationIT}; aggregate-level rules live in the
- * domain tests under {@code articles.domain}.
- */
 class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NUMBER_PREFIX = "IT_ARTI_";
@@ -61,8 +51,6 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void tenant_filter_isolates_reads_and_persists_operating_club_id() {
-        // The minted club id is runtime, so tenant A is entered via runAs here
-        // rather than a method-level @WithTenant literal.
         TenantTestContext.runAs(clubA, () -> {
             ArticleDetail aRow = articles.registerArticle(payload(uniqueNumber()));
             AtomicReference<ArticleDetail> bRowRef = new AtomicReference<>();
@@ -129,9 +117,9 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void no_tenant_context_writes_fail_at_fk_constraint() {
-        // No real row carries the nil UUID, so fk_article_operating_club_id
-        // rejects the write — the fail-closed half of the @TenantId contract.
         assertThatThrownBy(() -> articles.registerArticle(payload(uniqueNumber())))
+                .as("no real row carries the nil UUID, so fk_article_operating_club_id rejects "
+                        + "the write — the fail-closed half of the @TenantId contract")
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

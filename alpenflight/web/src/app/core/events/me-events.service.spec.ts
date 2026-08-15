@@ -25,7 +25,6 @@ const pilot: User = {
   roles: ['PILOT'],
 };
 
-/** Captures the single live `open(...)` call so the test can drive its callbacks. */
 interface CapturedOpen {
   url: string;
   headers: Record<string, string>;
@@ -55,7 +54,6 @@ function fakeTransport(): SseTransport & { opens: CapturedOpen[]; last(): Captur
         onmessage: init.onmessage,
         onerror: init.onerror,
       });
-      // A real stream stays open — never resolve unless aborted.
       return new Promise<void>((_, reject) => {
         init.signal.addEventListener('abort', () =>
           reject(new DOMException('aborted', 'AbortError')),
@@ -94,8 +92,6 @@ function setup(getAccessToken: () => Observable<string> = () => of('tok-123')) {
   return { transport, store, service };
 }
 
-// Flush the microtask queue so the async openStream() (awaits getAccessToken
-// then calls transport.open) reaches transport.open after the effect fires.
 const flushMicrotasks = () => Promise.resolve().then(() => Promise.resolve());
 
 afterEach(() => TestBed.resetTestingModule());
@@ -193,7 +189,6 @@ describe('MeEventsService', () => {
     await flushMicrotasks();
 
     expect(transport.last().signal.aborted).toBe(true);
-    // No second open after the intentional close.
     expect(transport.opens).toHaveLength(1);
   });
 
@@ -208,8 +203,6 @@ describe('MeEventsService', () => {
     TestBed.tick();
     await flushMicrotasks();
 
-    // The library would call onerror after our abort; an intentional close
-    // must rethrow (return undefined ⇒ retry; throw ⇒ stop).
     expect(() => open.onerror(new Error('aborted'))).toThrow();
   });
 
@@ -220,7 +213,6 @@ describe('MeEventsService', () => {
     await flushMicrotasks();
     await transport.last().onopen(eventStreamResponse(200));
 
-    // Transient drop → onerror returns a numeric delay (do not throw).
     const delay1 = transport.last().onerror(new Error('network blip'));
     const delay2 = transport.last().onerror(new Error('network blip'));
 
@@ -235,9 +227,7 @@ describe('MeEventsService', () => {
     await flushMicrotasks();
     const open = transport.last();
 
-    // 401 onopen → the service throws a fatal error.
     await expect(open.onopen({ status: 401, headers: { get: () => null } })).rejects.toThrow();
-    // Feeding that fatal error back through onerror rethrows it (stops retry).
     let fatal: unknown;
     await open.onopen({ status: 401, headers: { get: () => null } }).catch((e) => (fatal = e));
     expect(() => open.onerror(fatal)).toThrow();

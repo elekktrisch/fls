@@ -12,17 +12,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Backs the {@code POST /api/v1/admin/deployments/{id}/lifecycle}
- * surface. Wraps {@link Deployment#transitionByAdmin} with the
- * cross-Deployment authz seam, the 404-on-unknown-id contract (per the
- * security plan: don't leak existence to token-leak probes), and the
- * sandbox-short-circuit guard.
- *
- * <p>The 409 path is owned by the controller-advice handler — the
- * service throws {@link IllegalLifecycleTransitionException} and the
- * web layer translates.
- */
 @Service
 @Transactional
 public class DeploymentsAdminService {
@@ -40,10 +29,6 @@ public class DeploymentsAdminService {
         Deployment deployment = deployments.findById(deploymentId)
                 .orElseThrow(() -> new DeploymentNotFoundException(deploymentId));
 
-        // Sandbox short-circuit before invoking the aggregate. Per the
-        // security plan: defense-in-depth — the aggregate's transitionTo
-        // also asserts, but a deliberate 409 from the surface keeps the
-        // admin-audit-trail narration tight.
         if (deployment.getLifecycleState() == LifecycleState.SANDBOX) {
             throw new IllegalLifecycleTransitionException(
                     LifecycleState.SANDBOX,

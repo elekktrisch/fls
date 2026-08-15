@@ -6,16 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { AccountStore } from './account.store';
 import { ProfileAccountTab } from './profile-account.tab';
 
-/**
- * Logic test for the Account-tab form definition (J-26 T-08): `languageId`
- * carries `Validators.required` again — the legacy profile form
- * (flsweb `profile.html:61`) marked the language selectize `required`, and the
- * rewrite dropped it (only the server-side `@NotNull` enforced it). No
- * template rendering per the web testing posture (CLAUDE.md §8) — the class is
- * instantiated for its form definition only; the inline error rendering is the
- * Playwright case in `e2e/tests/forms/validation-hardening.spec.ts`.
- */
-
 type AccountFormShape = FormGroup<{
   friendlyName: FormControl<string>;
   notificationEmail: FormControl<string>;
@@ -24,8 +14,6 @@ type AccountFormShape = FormGroup<{
 }>;
 
 function createTab(): ProfileAccountTab {
-  // Minimal store stand-in: the constructor reads `view()` (hydration effect)
-  // and calls `load()`; nothing else runs without a rendered template.
   const storeStub = {
     view: () => null,
     isLoading: () => false,

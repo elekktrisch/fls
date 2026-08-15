@@ -14,14 +14,6 @@ import { SessionStore } from '../../../../core/session/session.store';
 import { isBookedState, processStateClass, processStateKey } from '../process-state';
 import { DeliveriesStore } from '../deliveries.store';
 
-/**
- * Delivery list (`/deliveries`). The club's deliveries (number · recipient ·
- * batch · state), paged, tenant-scoped on the server, plus the write
- * affordances: the engine "create deliveries" action and a per-row delete
- * (confirm-gated, disabled on Booked rows — a Booked delivery is terminal).
- * A rejected delete (shared-flight / booked-terminal 409) surfaces as a
- * non-blocking toast; the list is untouched.
- */
 @Component({
   selector: 'af-deliveries-list',
   standalone: true,
@@ -183,12 +175,10 @@ export class DeliveriesListPage {
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
 
-  /** The combined create/delete error surfaced as the non-blocking toast. */
   protected readonly actionError = computed(
     () => this.store.createError() ?? this.store.deleteError(),
   );
 
-  /** The row currently awaiting delete confirmation (null = no dialog). */
   protected readonly pendingDelete = signal<DeliveryOverview | null>(null);
 
   constructor() {

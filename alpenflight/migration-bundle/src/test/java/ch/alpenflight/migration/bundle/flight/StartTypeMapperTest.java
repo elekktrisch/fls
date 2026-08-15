@@ -42,22 +42,12 @@ class StartTypeMapperTest extends AbstractMapperContractTest<StartTypeMapper> {
 
     @Test
     void declaresNoForeignKeysSinceSystemGlobalResolveSkipsTopo() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("SYSTEM_GLOBAL_RESOLVE mappers resolve through V2 seeds, "
                         + "not through a per-bundle dependency declaration")
                 .isEmpty();
     }
 
-    /**
-     * Pins the legacy {@code AircraftStartType} enum
-     * ({@code FLS.Server.Data/Enums/AircraftStartType.cs}: 1=TowingByAircraft,
-     * 2=WinchLaunch, 3=SelfStart, 4=ExternalStart, 5=MotorFlightStart) onto the
-     * V2 {@code t_start_type.code} seed. Legacy 1 is TowingByAircraft (towed by
-     * an aircraft) — the legacy web oracle {@code FlightsController.needsTowplane}
-     * returns {@code startType == 1}, so legacy 1 must map to AEROTOW, NOT
-     * WINCH_LAUNCH. Guards against the J-2 T-40 parity inversion where 1↔2 were
-     * swapped, silently mis-typing every migrated aerotow as winch-launched.
-     */
     @ParameterizedTest
     @CsvSource({
         "1, AEROTOW",
@@ -66,7 +56,8 @@ class StartTypeMapperTest extends AbstractMapperContractTest<StartTypeMapper> {
         "4, EXTERNAL_START",
         "5, MOTOR",
     })
-    void mapsLegacyEnumIdToCanonicalV2Code(int legacyId, String expectedCode) throws Exception {
+    void mapsLegacyEnumIdToCanonicalV2CodeWithTowingByAircraftAsAerotowNotWinchLaunch(
+            int legacyId, String expectedCode) throws Exception {
         ResultSet source = mock(ResultSet.class);
         lenient().when(source.getInt(anyString())).thenReturn(legacyId);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

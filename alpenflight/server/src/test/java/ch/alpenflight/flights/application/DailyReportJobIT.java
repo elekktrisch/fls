@@ -39,14 +39,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the daily flight-report mail (S-084, J-15 AC #4) against
- * the captured outbox.
- *
- * <p>The opt-out seed is what makes the assertion mean something: two people fly
- * the same flight and only the one whose club membership carries
- * {@code receiveFlightReports} is mailed.
- */
 @Import(CapturedMailSender.Config.class)
 class DailyReportJobIT extends PostgresIntegrationTest {
 
@@ -118,7 +110,6 @@ class DailyReportJobIT extends PostgresIntegrationTest {
         assertThat(afterSecond).isEqualTo(1);
     }
 
-    // ---------------------------------------------------------------- helpers
 
     private Flight flightOf(UUID flightId) {
         return TenantTestContext.runAs(clubA, () -> flights.findByIdWithCrew(FlightId.of(flightId))

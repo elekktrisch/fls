@@ -17,15 +17,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * ADR 0029 guard. Every {@code @RestController} mapped under
- * {@code /api/v1/internal/} is a dev/test-only affordance compiled into the
- * production artifact and kept unreachable in production by runtime gates —
- * so it MUST carry {@code @Profile} naming only non-production profiles and
- * {@code @Hidden} (springdoc). A future affordance that forgets either, or
- * that names a production profile, fails the build here instead of silently
- * shipping reachable in production.
- */
 class InternalAffordanceGuardTest {
 
     private static final String INTERNAL_PREFIX = "/api/v1/internal/";

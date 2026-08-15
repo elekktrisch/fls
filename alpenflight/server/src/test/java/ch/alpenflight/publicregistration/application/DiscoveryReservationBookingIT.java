@@ -35,23 +35,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The discovery-flight reservation, driven through the production intake
- * ({@code RegistrationService.cs:152-199}).
- *
- * <p>The load-bearing case is
- * {@link #two_candidates_on_the_same_day_each_get_their_own_overlapping_slot}:
- * the member-booking service's exclusivity probe would answer 409 for the second
- * candidate, which is exactly why
- * {@code DiscoveryReservationBooker} goes to the aggregate + repository instead.
- *
- * <p>Three aircraft that must NOT be picked are seeded alongside the one that
- * must — another club's double-seater glider, a single-seat glider, and a
- * motorised glider — so the owner / seat-count / type predicate is proved to
- * narrow rather than passing on an empty fleet. Exactly one aircraft ever
- * matches, because legacy's {@code FirstOrDefault} has no {@code ORDER BY} and a
- * second match would make "which glider" a DB-order coin flip.
- */
 class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
 
     private static final LocalDate DISCOVERY_DAY = LocalDate.of(2099, 6, 15);
@@ -95,12 +78,13 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
         });
         setDiscoveryFlightType(discoveryFlightTypeId);
 
-        // Decoys: every one of them fails exactly one clause of the
-        // owner-club / two-seats / pure-glider predicate.
+        seedDecoysEachFailingOneClauseOfTheOwnerSeatsAndPureGliderPredicate();
+    }
+
+    private void seedDecoysEachFailingOneClauseOfTheOwnerSeatsAndPureGliderPredicate() {
         registerAircraft(otherClubId, otherClubId, "GLIDER", 2, "HB-DRB1");
         registerAircraft(clubId, clubId, "GLIDER", 1, "HB-DRB2");
         registerAircraft(clubId, clubId, "GLIDER_WITH_MOTOR", 2, "HB-DRB3");
-        // Managed here but owned elsewhere — legacy asks who OWNS the airframe.
         registerAircraft(clubId, otherClubId, "GLIDER", 2, "HB-DRB4");
     }
 
@@ -203,12 +187,6 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
         assertThat(onlyReservation().get("flight_type_id")).isNull();
     }
 
-    /**
-     * The scenic flow's one behavioural difference from discovery
-     * ({@code RegistrationService.cs:269-411} books nothing). The club is fully
-     * bookable and the discovery submission that follows proves it, so the empty
-     * reservation count is the scenic flow's doing rather than an inert fixture.
-     */
     @Test
     void a_scenic_registration_books_nothing_in_a_club_discovery_can_book_in() {
         giveClubAHomebase();
@@ -244,10 +222,6 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
                 "discovery registration carries no reservation outcome");
     }
 
-/**
-     * The intake rejects a day the club never published, so every discovery
-     * case here needs the picker's day to genuinely exist.
-     */
     private void publishDiscoveryDay(LocalDate eventDate) {
         TenantTestContext.runAs(clubId, () ->
                 discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
@@ -298,7 +272,7 @@ class DiscoveryReservationBookingIT extends PostgresIntegrationTest {
     }
 
     private UUID firstCountryId() {
-        return Objects.requireNonNull(countries.findAllOrdered().getFirst().getId()).value();
+        return Objects.requireNonNull(countries.findAllOrderedByNameUnderIcuCollation().getFirst().getId()).value();
     }
 
     private UUID firstLocationTypeId() {

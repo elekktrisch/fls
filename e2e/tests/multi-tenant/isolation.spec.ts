@@ -1,10 +1,3 @@
-// Spec #25: multi-tenant isolation. Log in as testclubadmin AND othertestadmin
-// via /Token, hit club-scoped list endpoints, assert their result sets are
-// disjoint and neither leaks the other's marker rows.
-//
-// SERVER.md §4: multi-tenancy is enforced by convention (every service must
-// filter by ClubId). A failure here is a real tenancy bug, not flaky data.
-
 import { test, expect } from '../../fixtures';
 import { withPool } from '../../test-data';
 import sql from 'mssql';
@@ -15,8 +8,6 @@ const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const CLUB_A = { username: 'testclubadmin', password: 's', label: 'TestClub' };
 const CLUB_B = { username: 'othertestadmin', password: 's', label: 'OtherClub' };
 
-// Historical glider flight seeded by _test-fixture.sql §5 for TestClub only.
-// OtherClub must never surface this id.
 const TESTCLUB_HISTORICAL_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
 interface PagedResult<T> {
@@ -40,7 +31,6 @@ async function getPaged<T>(
   token: string,
   path: string,
 ): Promise<PagedResult<T>> {
-  // Retry on 401 — freshly-issued tokens occasionally race with validation under load.
   let lastStatus = 0;
   let lastText = '';
   for (let attempt = 1; attempt <= 4; attempt++) {
@@ -82,9 +72,6 @@ test.describe('multi-tenant isolation', () => {
       `need both seeded admins; got tokenA=${!!tokenA} tokenB=${!!tokenB}`,
     );
 
-    // Diagnostic: confirm each token actually resolves to its intended user.
-    // If these mismatch, the auth filter is broken (or Playwright's request
-    // context is sharing a cookie that the server prefers over our bearer).
     const meA = await request.get(`${API_BASE}/api/v1/users/my`, {
       headers: { Authorization: `Bearer ${tokenA!}` },
     });
@@ -99,15 +86,11 @@ test.describe('multi-tenant isolation', () => {
     const nameB = userB.Username ?? userB.UserName;
     expect(nameA, 'tokenA must resolve to testclubadmin').toBe(CLUB_A.username);
     expect(nameB, 'tokenB must resolve to othertestadmin').toBe(CLUB_B.username);
-    // Surface the ClubId both calls saw — if these are equal, the auth
-    // pipeline merged the two users into the same ClubId. If they differ
-    // and the flight filter STILL leaks, the bug is elsewhere.
     expect(
       userA.ClubId,
       `tokenA-clubid=${userA.ClubId}  tokenB-clubid=${userB.ClubId}`,
     ).not.toBe(userB.ClubId);
 
-    // Flights
     const flightsA = await getPaged<{ FlightId: string }>(
       request, tokenA!, '/api/v1/flights/gliderflights/page/0/200',
     );
@@ -118,15 +101,10 @@ test.describe('multi-tenant isolation', () => {
     const flightIdsA = new Set((flightsA.Items ?? []).map(f => f.FlightId.toLowerCase()));
     const flightIdsB = new Set((flightsB.Items ?? []).map(f => f.FlightId.toLowerCase()));
 
-    // TestClub's historical fixture flight is visible to A and invisible to B.
     expect(
       flightIdsA.has(TESTCLUB_HISTORICAL_FLIGHT_ID.toLowerCase()),
       'TestClub admin should see the seeded historical glider flight',
     ).toBeTruthy();
-    // If OtherClub sees the historical flight, diagnose: what does the
-    // server believe its OwnerId is RIGHT NOW? If it equals userB.ClubId,
-    // some other test mutated the row. If it still equals testClubId,
-    // the filter itself is broken.
     if (flightIdsB.has(TESTCLUB_HISTORICAL_FLIGHT_ID.toLowerCase())) {
       const owner = await withPool(async (pool) => {
         const r = await pool.request()
@@ -144,14 +122,12 @@ test.describe('multi-tenant isolation', () => {
       ).toBeTruthy();
     }
 
-    // Disjoint set check: intersection empty.
     const flightIntersection = [...flightIdsA].filter(id => flightIdsB.has(id));
     expect(
       flightIntersection,
       `Flights leaked across clubs: ${flightIntersection.join(', ')}`,
     ).toEqual([]);
 
-    // Persons
     const personsA = await getPaged<{ PersonId: string; Lastname: string }>(
       request, tokenA!, '/api/v1/persons/page/0/500',
     );
@@ -162,7 +138,6 @@ test.describe('multi-tenant isolation', () => {
     const personIdsA = new Set((personsA.Items ?? []).map(p => p.PersonId.toLowerCase()));
     const personIdsB = new Set((personsB.Items ?? []).map(p => p.PersonId.toLowerCase()));
 
-    // OtherClub's admin Person (Otheradmin / Other) is in B's list and not A's.
     const otherAdminPersonId = 'f1500002-0000-0000-0000-0000000000b1';
     expect(
       personIdsB.has(otherAdminPersonId),
@@ -179,7 +154,6 @@ test.describe('multi-tenant isolation', () => {
       `Persons leaked across clubs (sample): ${personIntersection.slice(0, 5).join(', ')}`,
     ).toBe(0);
 
-    // AircraftReservations (may be empty either side; must be disjoint if not)
     const reservA = await getPaged<{ AircraftReservationId: string }>(
       request, tokenA!, '/api/v1/aircraftreservations/page/0/200',
     );
@@ -200,7 +174,6 @@ test.describe('multi-tenant isolation', () => {
       `Aircraft reservations leaked across clubs: ${reservIntersection.join(', ')}`,
     ).toEqual([]);
 
-    // Union sanity check — catches silent per-side truncation that would mask a leak.
     const union = new Set([...flightIdsA, ...flightIdsB]);
     expect(
       union.size,

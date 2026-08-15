@@ -4,14 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code Aircraft} aggregate root. Wraps a
- * {@link UUID} so service / controller / DTO signatures cannot accidentally
- * accept a {@code Location} or {@code Person} id in an {@code Aircraft} slot.
- *
- * <p>External form is {@code ac-<uuid>} per ADR 0019. The 3-character
- * {@code ac-} prefix lets readers spot an Aircraft id at a glance.
- */
 @Schema(
         type = "string",
         pattern = "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

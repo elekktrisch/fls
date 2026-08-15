@@ -13,16 +13,10 @@ final class ClubMapper {
 
     private ClubMapper() {}
 
-    /**
-     * Default projection: {@code joinCode} is {@code null}. Used for list /
-     * mutation / audit-snapshot paths and for non-admin readers — the code is
-     * admin-only on the wire and a quasi-secret in the audit ledger (S-177).
-     */
     static ClubResponse toResponse(Club club) {
         return map(club, null);
     }
 
-    /** Admin projection: includes the club's current {@code joinCode}. */
     static ClubResponse toAdminResponse(Club club) {
         return map(club, club.getJoinCode());
     }

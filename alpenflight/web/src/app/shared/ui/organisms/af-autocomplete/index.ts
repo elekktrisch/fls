@@ -1,2 +1,2 @@
 export { AfAutocompleteComponent } from './af-autocomplete.component';
-export { fuzzyFilter } from './fuzzy-filter';
+export { substringFilter } from './fuzzy-filter';

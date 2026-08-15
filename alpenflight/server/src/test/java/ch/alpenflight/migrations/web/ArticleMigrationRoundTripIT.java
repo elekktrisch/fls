@@ -39,30 +39,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The Article migrate round-trip proof (the {@code DeliveryItem.article_id}
- * RESTRICT FK target). The {@code ArticleMapper} + {@code t_article} schema
- * shipped at the V3 baseline but had NO
- * {@link ch.alpenflight.migration.bundle.MapperLegacyBindings} producer entry, so
- * the producer SELECT + real round-trip had never run
- * ({@code verify_infra_is_run_not_just_authored}). The binding is now wired; this IT
- * proves it end-to-end against the REAL server ingest pipeline so the
- * {@link ch.alpenflight.migrations.application.ForeignKeyResolver} runs live.
- *
- * <p>The load-bearing invariant: {@code operating_club_id} is the {@code @TenantId}
- * and is OFF-convention for the CLUB FK (the resolver's default derives
- * {@code club_id}). The mapper's {@code foreignKeyColumns()} override is what
- * rewrites the legacy {@code ClubId} GUID to the provisioned club's new id —
- * without it every article reaches the INSERT with a verbatim legacy GUID and
- * 23503s {@code fk_article_operating_club_id} (the orphan-tenant FK failure that
- * would red the ~20-min fanout). Mirrors {@link AccountingRuleFilterMigrationRoundTripIT}.
- *
- * <p>No collision dedupe: legacy {@code Articles} already enforces UNIQUE
- * {@code (ArticleNumber, ClubId)} over live rows, mirroring V3's
- * {@code ux_article_club_number} ({@code WHERE deleted_on IS NULL}) — so a
- * soft-deleted article can share a live one's {@code (club, article_number)}
- * without colliding. This IT seeds that exact case and asserts both land.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -77,6 +53,8 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
+
+    private static final String ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS = "A-1";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -154,13 +132,8 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
                 legacyClubIdB, "Art Club B", testClubSlug + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // Club A: a live article, plus a SOFT-DELETED article sharing the SAME
-        // (club, article_number) — legacy permits it (UNIQUE covers live rows
-        // only) and it must land without 23505 on ux_article_club_number.
         UUID liveArticleA = UUID.randomUUID();
         UUID softDeletedArticleA = UUID.randomUUID();
-        // Club B: one article — tenant isolation + the same article_number "A-1"
-        // in a DIFFERENT club must NOT collide (the UNIQUE is per club).
         UUID articleB = UUID.randomUUID();
 
         Map<EntityType, EntityPolicy> entityPolicies = Map.of(
@@ -178,9 +151,12 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
                 clubNdjson(legacyClubIdA, keyA, "Art Club A Legacy"),
                 clubNdjson(legacyClubIdB, keyB, "Art Club B Legacy")));
         tarEntries.put("ARTICLE.ndjson", concat(concat(
-                articleNdjson(liveArticleA, legacyClubIdA, "A-1", "Landing fee", false),
-                articleNdjson(softDeletedArticleA, legacyClubIdA, "A-1", "Old landing fee", true)),
-                articleNdjson(articleB, legacyClubIdB, "A-1", "Club B landing fee", false)));
+                articleNdjson(liveArticleA, legacyClubIdA,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Landing fee", false),
+                articleNdjson(softDeletedArticleA, legacyClubIdA,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Old landing fee", true)),
+                articleNdjson(articleB, legacyClubIdB,
+                        ARTICLE_NUMBER_SHARED_BY_ALL_THREE_ROWS, "Club B landing fee", false)));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Article Migrate IT Deployment",
@@ -198,8 +174,6 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID newClubA = clubIdByKey.get(keyA);
         UUID newClubB = clubIdByKey.get(keyB);
 
-        // The live club-A article: operating_club_id resolved to the provisioned
-        // club (NOT the verbatim legacy GUID — that would 23503 fk_article_operating_club_id).
         Map<String, Object> live = jdbc.queryForMap(
                 "SELECT operating_club_id, article_number, deleted_on "
                         + "FROM t_article WHERE id = ?::uuid", liveArticleA.toString());
@@ -212,8 +186,6 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("the live article has no deleted_on")
                 .isNull();
 
-        // The soft-deleted club-A dup: lands without a ux_article_club_number 23505
-        // even though it shares (club A, "A-1") with the live row.
         Map<String, Object> softDeleted = jdbc.queryForMap(
                 "SELECT operating_club_id, deleted_on "
                         + "FROM t_article WHERE id = ?::uuid", softDeletedArticleA.toString());
@@ -224,14 +196,13 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "collide with the live (club, article_number) on the partial UNIQUE")
                 .isNotNull();
 
-        // Club B's "A-1": same article_number, different club — no cross-club collision.
         Map<String, Object> clubBArticle = jdbc.queryForMap(
                 "SELECT operating_club_id FROM t_article WHERE id = ?::uuid", articleB.toString());
         assertThat(UUID.fromString(clubBArticle.get("operating_club_id").toString()))
-                .as("club B's article is tenant-scoped on club B")
+                .as("club B's article is tenant-scoped on club B — the same article_number "
+                        + "in a DIFFERENT club is no collision, the UNIQUE is per club")
                 .isEqualTo(newClubB);
 
-        // Tenant isolation: club A owns exactly its 2 articles; club B exactly 1.
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM t_article WHERE operating_club_id = ?::uuid",
                 Integer.class, newClubA.toString()))
@@ -282,7 +253,6 @@ class ArticleMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped exactly as {@code ArticleMapper.writeNdjson}. */
     private byte[] articleNdjson(UUID legacyId, UUID legacyClubId, String articleNumber,
             String articleName, boolean softDeleted) throws IOException {
         var row = JSON.createObjectNode();

@@ -24,23 +24,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * {@code /api/v1/admin/jobs} console contract (J-15 S-081):
- *
- * <ul>
- *   <li>SYSTEM_ADMINISTRATOR GET → 200, lists the registry incl. the retrofitted
- *       {@code planning-day-notification} and a test job.</li>
- *   <li>SYSTEM_ADMINISTRATOR POST {@code /{name}/run} → 200 + a COMPLETED run
- *       carrying the job body's summary.</li>
- *   <li>CLUB_ADMINISTRATOR POST → 403 and GET → 403 — the load-bearing negative
- *       (AC7): the jobs run cross-tenant, so a club admin must not touch them.</li>
- *   <li>Unknown job name → 404 (don't offer a name that isn't listed).</li>
- * </ul>
- *
- * <p>The test job is a {@code @MeasuredJob}/{@code BusinessJob} bean so the run
- * exercises the real registry + aspect (a durable {@code JobRun} is persisted)
- * without depending on any single job's data setup.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, JobsAdminControllerIT.TestJobConfig.class})
@@ -89,7 +72,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void club_administrator_cannot_run_a_job() {
+    void club_administrator_cannot_run_a_job_because_jobs_run_cross_tenant() {
         ResponseEntity<Void> response = rest.exchange(
                 post("/api/v1/admin/jobs/" + TEST_JOB + "/run", clubAdminToken()), Void.class);
 
@@ -97,7 +80,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void club_administrator_cannot_list_jobs() {
+    void club_administrator_cannot_list_jobs_because_jobs_run_cross_tenant() {
         ResponseEntity<Void> response = rest.exchange(
                 get("/api/v1/admin/jobs", clubAdminToken()), Void.class);
 
@@ -134,7 +117,7 @@ class JobsAdminControllerIT extends PostgresIntegrationTest {
         }
     }
 
-    @MeasuredJob(name = TEST_JOB, cron = "0 0 0 1 1 ?", description = "Admin-console IT job")
+    @MeasuredJob(name = TEST_JOB, cronShownInConsole = "0 0 0 1 1 ?", description = "Admin-console IT job")
     static class ConsoleTestJob implements ch.alpenflight.platform.scheduling.BusinessJob {
         @Override
         public String runOnce() {

@@ -12,18 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Reservation-type lookup surface (J-5 T-05) — the type dropdown for the
- * reservation edit form. Split from {@link AircraftReservationsController}
- * because the path {@code /api/v1/aircraft-reservation-types} (the T-01 spec
- * drives this) is a sibling resource, not a sub-path of
- * {@code /api/v1/aircraft-reservations}.
- *
- * <p>Read-only + {@code isAuthenticated()} — any authenticated tenant member
- * may load their tenant's reservation types. No mutating endpoint here (type
- * CRUD is masterdata-admin work outside this CRUD seam), so this controller has
- * no {@code ControllerAuditCoverageTest} obligation.
- */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft-reservation-types", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Aircraft reservation types",

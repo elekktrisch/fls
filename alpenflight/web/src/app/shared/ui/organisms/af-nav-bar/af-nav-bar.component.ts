@@ -19,32 +19,13 @@ import { AfWordmarkComponent } from '../../atoms/af-wordmark';
 import { AfLangPickerComponent } from '../../molecules/af-lang-picker';
 import { ViewportService } from '../../viewport';
 
-/**
- * A top-level nav entry is EITHER a leaf (carries `path`, links straight to a
- * route) OR a group (carries `children`, no `path` — opens a dropdown / nested
- * drawer block listing its children). The `children`-on-NavItem model keeps the
- * input surface a single flat array; the component branches on `path` presence.
- */
 export interface NavItem {
-  /** Present on a leaf; absent on a group. */
   readonly path?: string;
   readonly label: string;
   readonly icon?: string;
-  /** Present on a group; absent on a leaf. A group never carries `path`. */
   readonly children?: readonly NavItem[];
-  /**
-   * Live count rendered as a pill next to the label. A group with no badge of
-   * its own rolls up its children's badges onto its trigger, so a count carried
-   * by a dropdown child still shows when the menu is collapsed.
-   */
   readonly badge?: Signal<number>;
-  /** `data-testid` for the rendered badge pill; rolls up onto a parent group. */
   readonly badgeTestId?: string;
-  /**
-   * Overrides the path-derived `af-nav-section-<path>` testid. Required by an
-   * entry whose path carries a per-principal id, which would otherwise give the
-   * spec no stable handle on it.
-   */
   readonly testId?: string;
 }
 
@@ -53,18 +34,6 @@ export interface UserSummary {
   readonly initials: string;
 }
 
-/**
- * Top-bar primary nav (ADR 0024 §Decision).
- *
- *   ┌────────────────────────────────────────────────────────────────┐
- *   │ [✈ AlpenFlight]  Clubs  Flights  Members         [👤 user ▾]   │
- *   └────────────────────────────────────────────────────────────────┘
- *
- * Single-layer, 56px tall. Below md, sections collapse to a hamburger
- * drawer; the bar shows hamburger + brand + user avatar.
- *
- * Active section indicator: brand-500 underline.
- */
 @Component({
   selector: 'af-nav-bar',
   standalone: true,
@@ -85,7 +54,6 @@ export interface UserSummary {
       role="banner"
       class="sticky top-0 z-50 flex items-center gap-3 h-14 px-4 bg-white border-b border-slate-200 md:gap-6 md:px-6 lg:px-8 xl:px-12"
     >
-      <!-- Below-md hamburger -->
       @if (!isWide()) {
         <button
           type="button"
@@ -98,7 +66,6 @@ export interface UserSummary {
         </button>
       }
 
-      <!-- Brand -->
       <a
         [routerLink]="brandHref()"
         class="inline-flex items-center gap-2 flex-none text-slate-900 no-underline font-medium"
@@ -107,14 +74,10 @@ export interface UserSummary {
         <af-wordmark [label]="title()" />
       </a>
 
-      <!-- Section tabs (above md only) -->
       @if (isWide()) {
         <nav class="flex items-stretch gap-1 h-full ml-2" aria-label="Primary">
           @for (item of items(); track item.label) {
             @if (item.children; as children) {
-              <!-- Group: a "Label ▾" trigger opening an nz-dropdown of children.
-                   The trigger shows ACTIVE (brand-500) when ANY child route is
-                   active (groupActive(), a computed over the children + url). -->
               <button
                 type="button"
                 class="inline-flex items-center gap-1 px-3.5 text-[15px] text-slate-600 bg-transparent border-0 border-b-2 border-transparent -mb-px cursor-pointer hover:text-slate-900"
@@ -127,7 +90,7 @@ export interface UserSummary {
                 [attr.data-testid]="'af-nav-group-' + slug(item.label)"
               >
                 {{ item.label }}
-                @if (groupBadge(item); as badged) {
+                @if (firstBadgedChild(item); as badged) {
                   <ng-container
                     *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
                   ></ng-container>
@@ -183,7 +146,6 @@ export interface UserSummary {
 
       <span class="flex-1"></span>
 
-      <!-- User menu (right) -->
       @if (user(); as u) {
         <button
           type="button"
@@ -254,7 +216,6 @@ export interface UserSummary {
       }
     </header>
 
-    <!-- Mobile drawer (sections only; user menu stays in the bar) -->
     <nz-drawer
       [nzVisible]="drawerOpen()"
       nzPlacement="left"
@@ -264,19 +225,12 @@ export interface UserSummary {
       (nzOnClose)="closeDrawer()"
     >
       <ng-container *nzDrawerContent>
-        <!-- Drawer nav renders its section testids ONLY below md. The desktop
-             header nav (above) renders the same af-nav-section-[path] testids;
-             gating the drawer on !isWide() keeps each testid a SINGLE match per
-             viewport (else af-nav-section-/clubs resolves to 2 elements and
-             strict-mode locators violate). -->
         @if (!isWide()) {
           <nav aria-label="Primary mobile">
             <ul class="list-none m-0 p-0 flex flex-col gap-1">
               @for (item of items(); track item.label) {
                 <li>
                   @if (item.children; as children) {
-                    <!-- Group: an expandable block; the parent label toggles the
-                       nested child list (parent is a label, not a route). -->
                     <button
                       type="button"
                       class="flex items-center gap-2.5 w-full py-3 px-2 text-slate-900 bg-transparent border-0 border-l-[3px] border-transparent cursor-pointer text-left"
@@ -290,7 +244,7 @@ export interface UserSummary {
                         <af-icon [name]="item.icon" [size]="18" />
                       }
                       <span class="flex-1">{{ item.label }}</span>
-                      @if (groupBadge(item); as badged) {
+                      @if (firstBadgedChild(item); as badged) {
                         <ng-container
                           *ngTemplateOutlet="badgePill; context: { $implicit: badged }"
                         ></ng-container>
@@ -351,9 +305,6 @@ export interface UserSummary {
       </ng-container>
     </nz-drawer>
 
-    <!-- Count pill: a positive live count binds (zero is falsy → no stray pill
-         on an empty queue). The host (leaf / dropdown child / rolled-up group
-         trigger) supplies the NavItem carrying the badge signal + its testid. -->
     <ng-template #badgePill let-item>
       @if (item.badge(); as count) {
         <span
@@ -380,14 +331,8 @@ export class AfNavBarComponent {
   protected readonly drawerOpen = this.#drawerOpen.asReadonly();
   protected readonly isWide = computed(() => this.#atLeastMd());
 
-  /** Drawer group-block expanded state (mobile), keyed by group label. */
   readonly #openGroups = signal<ReadonlySet<string>>(new Set());
 
-  /**
-   * Current url as a signal (zoneless — bridge NavigationEnd, seed with the
-   * router's current url so the first paint already reflects the active route).
-   * `groupActive()` reads this to light the parent when a child is active.
-   */
   readonly #url = toSignal(
     this.#router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -397,26 +342,19 @@ export class AfNavBarComponent {
     { initialValue: this.#router.url },
   );
 
-  /**
-   * The badge a group surfaces on its (collapsed) trigger: the first child that
-   * carries one. A leaf badges itself, so this only resolves the roll-up.
-   */
-  protected groupBadge(item: NavItem): NavItem | null {
+  protected firstBadgedChild(item: NavItem): NavItem | null {
     return item.children?.find((c) => c.badge) ?? null;
   }
 
-  /** A group is active when the current url matches any of its children's paths. */
   protected groupActive(children: readonly NavItem[]): boolean {
     const url = this.#url();
     return children.some((c) => !!c.path && (url === c.path || url.startsWith(`${c.path}/`)));
   }
 
-  /** A leaf's testid: its own override, else derived from the path. */
   protected sectionTestId(item: NavItem): string {
     return item.testId ?? `af-nav-section-${item.path}`;
   }
 
-  /** Stable testid slug from a group label (`Masterdata` → `masterdata`). */
   protected slug(label: string): string {
     return label.toLowerCase().replace(/\s+/g, '-');
   }

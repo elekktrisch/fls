@@ -27,21 +27,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The anonymous surface, driven through the production filter chain with no
- * Authorization header at all (S-025). Four things are on trial:
- *
- * <ul>
- *   <li>the two registration POSTs are reachable without a token, and a
- *       neighbouring authenticated endpoint still is not — a {@code permitAll}
- *       widening that opens more than the two named writes fails here;</li>
- *   <li>an unknown slug 404s and a club with public registration closed 403s;</li>
- *   <li><strong>neither rejection writes a row</strong> — asserted by Person /
- *       PersonClub counts across the call, not by the status alone;</li>
- *   <li>the accepted path audits under the resolved club with an anonymous
- *       actor, while the rejected paths leave no tenant-scoped trace at all.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
@@ -86,17 +71,15 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        // Anonymous-actor plumbing on a genuinely token-less request: no
-        // JwtAuthenticationToken means ActorResolver yields Actor.anonymous() and
-        // both identifiers stay null. (actor_kind is deliberately not asserted —
-        // V18 pins every non-migrated row to 'NORMAL'; system_actor is the flag
-        // that classifies the write.)
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT actor_user_id, actor_keycloak_sub, system_actor, failed, action "
                         + "FROM t_mutation_audit_event "
                         + "WHERE target_entity_type = ? AND tenant_club_id = ?::uuid",
                 AUDIT_ENTITY_TYPE, openClubId.toString());
-        assertThat(row.get("system_actor")).isEqualTo(true);
+        assertThat(row.get("system_actor"))
+                .as("system_actor is the flag that classifies an anonymous write; actor_kind is "
+                        + "'NORMAL' on every non-migrated row, so it says nothing here")
+                .isEqualTo(true);
         assertThat(row.get("actor_user_id")).isNull();
         assertThat(row.get("actor_keycloak_sub")).isNull();
         assertThat(row.get("failed")).isEqualTo(false);
@@ -129,11 +112,6 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         assertThat(count("t_person_club")).isEqualTo(membershipsBefore);
     }
 
-    /**
-     * The rejection paths must run with no tenant scope at all, which is why the
-     * slug is resolved before any {@code Tenants.runAs} window opens: a closed
-     * club that a caller probed must carry no tenant-scoped trace of the attempt.
-     */
     @Test
     void a_rejected_submission_leaves_no_tenantScoped_trace() {
         assertThat(anonymousDiscoveryPost(closedSlug).getStatusCode())
@@ -157,18 +135,16 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
 
     @Test
     void the_permitAll_widening_opens_only_the_two_named_writes() {
-        // A neighbouring authenticated endpoint is untouched.
         assertThat(rest.getForEntity("/api/v1/clubs", Void.class).getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        // Sibling verbs on the very same public path stay closed.
         assertThat(rest.exchange(discoveryPath(openSlug), HttpMethod.DELETE, null, Void.class)
                 .getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(rest.exchange(discoveryPath(openSlug), HttpMethod.PUT, null, Void.class)
                 .getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
-        // An unenumerated POST under the same prefix is not anonymous-writable.
         assertThat(anonymousPost("/api/v1/public/clubs/" + openSlug + "/members").getStatusCode())
+                .as("an unenumerated POST under the same public prefix is not anonymous-writable")
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -176,10 +152,6 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         return rest.postForEntity(path, null, Void.class);
     }
 
-    /**
-     * The rejection paths must fail on the slug, not on the body, so every probe
-     * here posts a submission that would otherwise be accepted.
-     */
     private ResponseEntity<Void> anonymousDiscoveryPost(String slug) {
         return rest.postForEntity(discoveryPath(slug),
                 PublicSubmissions.discoveryBody(DISCOVERY_DAY), Void.class);

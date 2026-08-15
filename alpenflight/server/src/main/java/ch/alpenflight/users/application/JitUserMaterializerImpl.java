@@ -15,26 +15,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-/**
- * Wires the cross-cutting {@link JitUserMaterializer} port to the Users
- * aggregate. The materializer itself is non-transactional; each call into
- * {@link UsersService#materializeFromJwt} flows through the {@code UsersService}
- * proxy and opens its own {@code @Transactional} boundary. That tx is
- * independent of the inbound request's transaction, so a materialise
- * failure rolls back without poisoning the controller's tx — and the
- * race-loser catch can re-read in a fresh tx after the winner's commit.
- *
- * <p>Soft-delete gate: any matching row with {@code deleted_on IS NOT
- * NULL} surfaces as {@link UserDeactivatedException}. The tombstone's
- * {@code keycloak_sub} stays set after soft-delete so the gate fires for
- * residual-JWT requests; the re-invite flow clears the tombstone's sub
- * before inserting a new row.
- *
- * <p>Race-loser: the DB partial UNIQUE on {@code keycloak_sub} is the
- * structural net for two-concurrent-first-login. The loser catches
- * {@link DataIntegrityViolationException} from {@code flush()}, re-reads,
- * returns the winner's id. No retry loop.
- */
 @Component
 class JitUserMaterializerImpl implements JitUserMaterializer {
 
@@ -102,8 +82,6 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
             return Optional.of(rowId);
         }
 
-        // Materialise inputs — username / friendlyName / email — must be
-        // present, else there's no buildable User aggregate.
         String username = jwt.getClaimAsString("preferred_username");
         String friendlyName = jwt.getClaimAsString("given_name");
         String email = jwt.getClaimAsString("email");
@@ -122,26 +100,12 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
                     sub, rawClubId, languageId, rowId);
             return Optional.of(rowId);
         } catch (DataIntegrityViolationException race) {
-            // Race-loser: the winning thread created the row inside its
-            // own tx; re-read and return their id. Counts as
-            // already-present so DoS alerting on `created` rate isn't
-            // inflated by the race-loser cohort.
             outcomeAlreadyPresent.increment();
             Optional<UUID> bySub = users.findActiveByKeycloakSub(sub)
                     .map(JitUserMaterializerImpl::idOf);
             if (bySub.isPresent()) {
                 return bySub;
             }
-            // By-sub re-read missed even though the username insert collided:
-            // the active row holding this `preferred_username` carries a
-            // DIFFERENT sub (the same person re-appearing under a fresh KC
-            // sub — admin recreate, realm re-import, or a concurrent
-            // first-login whose username-winning row was a sibling
-            // principal's). Reconcile that row's sub to this JWT's sub
-            // (tenant-guarded in the service) so JIT is idempotent on
-            // username — without it the principal is left permanently
-            // tenant-less and every @TenantId read misses its club_id
-            // (J-2 T-22 / T-23 silent-tenant-less gap).
             UUID clubId = UUID.fromString(rawClubId);
             return usersService.reconcileSubByUsername(username, sub, clubId);
         }

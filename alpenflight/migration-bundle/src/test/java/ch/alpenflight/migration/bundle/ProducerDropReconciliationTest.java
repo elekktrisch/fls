@@ -25,19 +25,14 @@ class ProducerDropReconciliationTest {
                         CLUB_A, UUID.randomUUID(), "owner has no club"),
                 new ProducerDropWarning(RESERVATION_NO_PILOT, EntityType.AIRCRAFT_RESERVATION,
                         CLUB_A, UUID.randomUUID(), "no pilot"),
-                // Whole-bundle reject — never folded into row counts.
                 new ProducerDropWarning("ARTICLE_DUPLICATE_NUMBER", EntityType.ARTICLE,
                         CLUB_A, UUID.randomUUID(), "duplicate article number"),
-                // Per-row keep-first drop — folds into the row-count equality.
                 new ProducerDropWarning(PLANNING_DAY_DUPLICATE, EntityType.PLANNING_DAY,
                         CLUB_A, UUID.randomUUID(), "duplicate (ClubId, Day, LocationId)"),
-                // Post-remap composite keep-first drop — folds in too.
                 new ProducerDropWarning(PLANNING_DAY_ASSIGNMENT_DUPLICATE,
                         EntityType.PLANNING_DAY_ASSIGNMENT,
                         CLUB_A, UUID.randomUUID(),
                         "duplicate post-remap (planning_day_id, person, type)"),
-                // A row-scoped drop with no Club context keys under the empty-string
-                // bucket, matching the diff engine's null-Club convention.
                 new ProducerDropWarning(RESERVATION_NO_PILOT, EntityType.AIRCRAFT_RESERVATION,
                         null, UUID.randomUUID(), "no pilot"));
 

@@ -25,34 +25,14 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.util.ClassUtils;
 
-/**
- * Pins the project-wide {@code t_} table-prefix convention.
- *
- * <p>Two layers:
- * <ol>
- *   <li><strong>Schema-derived:</strong> every {@code BASE TABLE} in
- *       {@code information_schema.tables} for the {@code public} schema must
- *       start with {@code t_}. {@code flyway_schema_history} is the lone
- *       Flyway-owned exception. No hardcoded table list — survives every
- *       future migration without edits.</li>
- *   <li><strong>JPA-derived:</strong> every {@code @Entity} class under
- *       {@code ch.alpenflight} must resolve to a {@code t_}-prefixed table
- *       name via its explicit {@code @Table(name=…)}. Catches the case
- *       where an entity's {@code @Table} value was missed but the
- *       coincident DDL happens to still exist.</li>
- * </ol>
- *
- * <p>An ArchUnit rule mirrors the JPA-side check at build time without
- * needing a Postgres container; this IT is the runtime double-check.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class TableNamingConventionTest {
 
-    /** Tables NOT subject to the {@code t_} prefix. Flyway owns its own catalog. */
-    private static final Set<String> EXCEPTIONS = Set.of("flyway_schema_history");
+    private static final Set<String> FLYWAY_OWNED_TABLES_EXEMPT_FROM_T_PREFIX =
+            Set.of("flyway_schema_history");
 
     private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
 
@@ -78,7 +58,7 @@ class TableNamingConventionTest {
                                 + "AND table_type = 'BASE TABLE'")) {
             while (rs.next()) {
                 String name = rs.getString(1);
-                if (EXCEPTIONS.contains(name)) {
+                if (FLYWAY_OWNED_TABLES_EXEMPT_FROM_T_PREFIX.contains(name)) {
                     continue;
                 }
                 if (!name.startsWith("t_")) {
@@ -88,8 +68,8 @@ class TableNamingConventionTest {
         }
         assertThat(offenders)
                 .as("Every public BASE TABLE must carry the t_ prefix "
-                        + "(exceptions: %s). Add the prefix in the migration "
-                        + "or extend EXCEPTIONS with an inline rationale.", EXCEPTIONS)
+                        + "(exempt, Flyway-owned: %s). Add the prefix in the migration.",
+                        FLYWAY_OWNED_TABLES_EXEMPT_FROM_T_PREFIX)
                 .isEmpty();
     }
 

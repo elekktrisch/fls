@@ -50,28 +50,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The four registration mails, driven through the production intake so the
- * recipient branch, the render and the {@code Tenants.runAs} window all take
- * part ({@code RegistrationService.cs:222-255} and {@code :369-398}).
- *
- * <p>The load-bearing cases:
- *
- * <ul>
- *   <li>{@link #a_scenic_registration_renders_the_contact_fields_legacy_left_blank}
- *       — legacy's scenic templates interpolate a namespace their send path never
- *       binds, so email, all three phones and the remarks render blank in every
- *       scenic mail legacy has sent. An assertion that the mail merely arrives
- *       passes against that bug; these assert the values.</li>
- *   <li>{@link #a_registrant_without_an_email_address_is_still_registered} and
- *       {@link #a_club_without_an_organiser_address_still_takes_the_registration}
- *       — the two no-mail branches. Each asserts the OTHER mail did go out, so a
- *       silently broken send path cannot pass them by sending nothing at all.</li>
- *   <li>{@link #a_club_override_wins_over_the_shipped_template} — the override
- *       lookup is {@code @TenantId}-scoped, so it resolves only if the send
- *       happens inside the tenant window.</li>
- * </ul>
- */
 @Import(CapturedMailSender.Config.class)
 class PublicRegistrationEmailIT extends PostgresIntegrationTest {
 
@@ -154,12 +132,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
                 .doesNotContain("Reservation erstellt.");
     }
 
-    /**
-     * The whole point of the port: legacy binds {@code PassengerFlightRegistration-
-     * Model} but interpolates {@code $!TrialFlightRegistrationModel.*}
-     * ({@code RegistrationEmailBuildService.cs:211-213,271-273}), and Velocity's
-     * silent {@code $!} swallows the miss.
-     */
     @Test
     void a_scenic_registration_renders_the_contact_fields_legacy_left_blank() {
         intake.acceptScenic(slug, "198.51.100.43", registrant(true));
@@ -215,11 +187,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
                 .contains("Rechnungsadresse");
     }
 
-    /**
-     * The coupon recipient the organiser has to post the voucher to. Both
-     * choices are driven, because a template hardcoding either name renders
-     * plausibly on one of them.
-     */
     @Test
     void the_organiser_learns_which_of_the_two_people_gets_the_coupon() {
         intake.acceptScenic(slug, "198.51.100.48", registrant(false, true));
@@ -233,7 +200,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
                 .containsSubsequence("Gutschein an:", "Rosa Renggli");
     }
 
-    /** Every skip reason the booker can produce needs its own copy, not just the two above. */
     @Test
     void every_reservation_outcome_has_its_own_organiser_sentence() {
         Set<String> sentences = new LinkedHashSet<>();
@@ -257,10 +223,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
         return section.group(1).replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").strip();
     }
 
-    /**
-     * The five fields legacy renders blank in its scenic mails, asserted with
-     * their labels so a template that dropped the line cannot pass either.
-     */
     private static void assertCandidateFieldsRendered(MailMessage message) {
         assertThat(message.htmlBody())
                 .contains("Rosa Renggli")
@@ -304,7 +266,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
                 null, null, "079 555 66 77", null, null, true, false, null);
     }
 
-    /** Every key the organiser template dereferences, so only the switch varies. */
     private static Map<String, Object> blankModel() {
         Map<String, Object> model = new HashMap<>();
         for (String key : List.of("clubName", "locationName", "flightDate", "contactDate",
@@ -316,10 +277,6 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
         return model;
     }
 
-/**
-     * The intake rejects a day the club never published, so every discovery
-     * case here needs the picker's day to genuinely exist.
-     */
     private void publishDiscoveryDay(LocalDate eventDate) {
         TenantTestContext.runAs(clubId, () ->
                 discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
@@ -363,7 +320,7 @@ class PublicRegistrationEmailIT extends PostgresIntegrationTest {
     }
 
     private UUID firstCountryId() {
-        return Objects.requireNonNull(countries.findAllOrdered().getFirst().getId()).value();
+        return Objects.requireNonNull(countries.findAllOrderedByNameUnderIcuCollation().getFirst().getId()).value();
     }
 
     private UUID firstLocationTypeId() {

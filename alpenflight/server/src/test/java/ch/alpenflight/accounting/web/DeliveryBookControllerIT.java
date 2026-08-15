@@ -40,15 +40,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP proof of {@code POST /api/v1/deliveries/delivered}. A
- * CLUB_ADMINISTRATOR books a Prepared delivery: the request-supplied number +
- * delivered timestamp are stamped, the delivery flips to {@code Booked}, and the
- * billed flight AND its tow flip to {@code DeliveryBooked} (re-read from the DB). An
- * unknown id returns {@code 200 false} (parity, not an error); deleting a booked
- * delivery is rejected with {@code 409} (booked is terminal — the corrected legacy
- * un-guarded-delete behavior).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -180,7 +171,6 @@ class DeliveryBookControllerIT extends PostgresIntegrationTest {
 
     private record Scenario(UUID flightId, UUID towFlightId, UUID deliveryId) {}
 
-    // ----- assertions / http -----
 
     private UUID flightProcessState(UUID flightId) {
         return jdbc.queryForObject("SELECT process_state_id FROM t_flight WHERE id = ?", UUID.class, flightId);

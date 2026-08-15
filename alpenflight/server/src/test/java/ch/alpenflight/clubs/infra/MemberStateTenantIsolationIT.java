@@ -17,27 +17,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * AC4 + AC5 + AC3 evidence: with the resolver wired and {@code @TenantId} on
- * {@link MemberState}, {@code findAll()} returns only the current tenant's
- * rows; mid-test switch via {@link TenantTestContext#runAs} sees the other
- * tenant's rows; inserts under the sentinel context fail at the
- * {@code fk_member_state_club_id} foreign-key constraint (nil UUID is not
- * present in {@code club}).
- *
- * <p>Per ADR 0021: per-test unique club keys; pre-clean by stable test name;
- * no {@code @AfterEach} cleanup.
- */
 class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_MSTI_";
-    private static final String TEST_KEY_PREFIX = "IT_M_"; // club_key is VARCHAR(10) — keep prefix tight.
+    private static final String CLUB_KEY_PREFIX_KEPT_SHORT_FOR_VARCHAR10 = "IT_M_";
 
     @Autowired
     private JdbcTemplate jdbc;
 
-    // Infra-package test: depend on the Spring Data binding directly so
-    // we can exercise save() + the rest of the JpaRepository surface.
     @Autowired
     private JpaMemberStateRepository memberStates;
 
@@ -55,8 +42,9 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        TwoClubFixture fixture =
-                new TwoClubFixture(jdbc, clubs, countries, clubStates, TEST_NAME_PREFIX, TEST_KEY_PREFIX);
+        TwoClubFixture fixture = new TwoClubFixture(
+                jdbc, clubs, countries, clubStates,
+                TEST_NAME_PREFIX, CLUB_KEY_PREFIX_KEPT_SHORT_FOR_VARCHAR10);
         fixture.seed();
         clubA = fixture.clubA();
         clubB = fixture.clubB();
@@ -67,8 +55,6 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void findAll_under_tenant_A_returns_only_A_rows() {
-        // The minted club id is runtime, so tenant A is entered via runAs here
-        // rather than the method-level @WithTenant literal.
         TenantTestContext.runAs(clubA, () ->
                 assertThat(memberStates.findAll())
                         .extracting(MemberState::getName)

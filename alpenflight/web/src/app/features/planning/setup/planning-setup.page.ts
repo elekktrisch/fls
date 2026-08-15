@@ -45,42 +45,20 @@ type SetupForm = FormGroup<{
   info: FormControl<string>;
 }>;
 
-/** Weekday checkbox rows — control name (matches the rule-request field), the
- *  short `mon`..`sun` testid suffix the setup-wizard spec ticks, + the full
- *  scoped label key (referenced via a variable, not a literal, so the i18n
- *  key-coverage extractor doesn't mis-parse a concatenated translate call).
- *  Monday-first display order (ISO / Swiss week). */
 const WEEKDAYS: readonly {
-  key: string;
+  testIdSuffix: string;
   control: keyof SetupForm['controls'];
   labelKey: string;
 }[] = [
-  { key: 'mon', control: 'everyMonday', labelKey: 'weekday.mon' },
-  { key: 'tue', control: 'everyTuesday', labelKey: 'weekday.tue' },
-  { key: 'wed', control: 'everyWednesday', labelKey: 'weekday.wed' },
-  { key: 'thu', control: 'everyThursday', labelKey: 'weekday.thu' },
-  { key: 'fri', control: 'everyFriday', labelKey: 'weekday.fri' },
-  { key: 'sat', control: 'everySaturday', labelKey: 'weekday.sat' },
-  { key: 'sun', control: 'everySunday', labelKey: 'weekday.sun' },
+  { testIdSuffix: 'mon', control: 'everyMonday', labelKey: 'weekday.mon' },
+  { testIdSuffix: 'tue', control: 'everyTuesday', labelKey: 'weekday.tue' },
+  { testIdSuffix: 'wed', control: 'everyWednesday', labelKey: 'weekday.wed' },
+  { testIdSuffix: 'thu', control: 'everyThursday', labelKey: 'weekday.thu' },
+  { testIdSuffix: 'fri', control: 'everyFriday', labelKey: 'weekday.fri' },
+  { testIdSuffix: 'sat', control: 'everySaturday', labelKey: 'weekday.sat' },
+  { testIdSuffix: 'sun', control: 'everySunday', labelKey: 'weekday.sun' },
 ];
 
-/**
- * Planning-day SETUP WIZARD (J-6 T-09) — `/planningsetup`.
- *
- * Single-step form (legacy `planning-setup.html` is a single form too — parity,
- * not under-build): a `StartDate`/`EndDate` range, the seven `Every<Weekday>`
- * checkboxes (default Sat+Sun ticked, legacy `PlanningDaySetupController.js:8-17`),
- * a location select (defaults to the first available location — the SPA tenant
- * model carries no club `HomebaseId`, so "the club's home base if available" maps
- * to the first location). On submit → POST `/api/v1/planning-days/create/rule`
- * (orval `bulkCreatePlanningDays`); the backend expands the rule, skips existing
- * days idempotently + bounds the range (T-05) → routes back to `/planning` where
- * the created days appear. Cancel → `/planning`.
- *
- * Built on the J-5 / T-08 form idiom — typed reactive `FormGroup`, the shared
- * `withOptionals` request builder (low-CRAP rider), design-system tokens. Nav
- * happens only on the bus success event (the SPA-nav-evicts-response-body trap).
- */
 @Component({
   selector: 'af-planning-setup',
   standalone: true,
@@ -115,7 +93,6 @@ const WEEKDAYS: readonly {
           class="flex flex-col gap-6"
           novalidate
         >
-          <!-- Section 1: Range -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-range">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -166,7 +143,6 @@ const WEEKDAYS: readonly {
             </af-form-field>
           </section>
 
-          <!-- Section 2: Weekdays -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-weekdays">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -174,10 +150,10 @@ const WEEKDAYS: readonly {
               {{ t('sections.weekdays') }}
             </h2>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
-              @for (wd of weekdays; track wd.key) {
+              @for (wd of weekdays; track wd.testIdSuffix) {
                 <label
                   class="flex items-center gap-2 cursor-pointer select-none"
-                  [attr.data-testid]="'planning-setup-weekday-' + wd.key"
+                  [attr.data-testid]="'planning-setup-weekday-' + wd.testIdSuffix"
                 >
                   <input
                     type="checkbox"
@@ -190,7 +166,6 @@ const WEEKDAYS: readonly {
             </div>
           </section>
 
-          <!-- Section 3: Notes -->
           <section class="flex flex-col gap-2" data-testid="planning-setup-section-notes">
             <h2
               class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -238,7 +213,6 @@ export class PlanningSetupPage {
   protected readonly weekdays = WEEKDAYS;
   protected readonly submitted = signal(false);
 
-  // Legacy parity: Saturday + Sunday default-ticked (`PlanningDaySetupController.js:8-10`).
   protected readonly form: SetupForm = this.fb.group({
     startDate: this.fb.nonNullable.control('', [Validators.required]),
     endDate: this.fb.nonNullable.control('', [Validators.required]),
@@ -253,10 +227,6 @@ export class PlanningSetupPage {
     info: this.fb.nonNullable.control(''),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): each required `af-form-field [errors]` tracks its control's errors
-  // debounced ~200ms and clears when valid — replacing the touched-only
-  // bindings (silent until blur/submit).
   protected readonly startDateErrors = liveFieldErrors(this.form.controls.startDate);
   protected readonly endDateErrors = liveFieldErrors(this.form.controls.endDate);
   protected readonly locationIdErrors = liveFieldErrors(this.form.controls.locationId);
@@ -266,25 +236,17 @@ export class PlanningSetupPage {
   );
 
   constructor() {
-    // Picker payloads (locations) are loaded by the root store on init; ensure
-    // they are present when the wizard is the first screen hit.
     this.store.loadDecorations();
     this.store.clearSaveError();
 
-    // Default the location to the club's home base if available — the SPA has no
-    // homebase claim, so fall back to the first available location (legacy
-    // `PlanningDaySetupController.js:13-16`). Only seed an empty control so a
-    // user choice is never overwritten.
     effect(() => {
-      const first = this.store.locations()[0];
-      if (first && this.form.controls.locationId.value === '') {
-        this.form.controls.locationId.setValue(first.id, { emitEvent: false });
+      const defaultLocation = this.store.locations()[0];
+      if (defaultLocation && this.form.controls.locationId.value === '') {
+        this.form.controls.locationId.setValue(defaultLocation.id, { emitEvent: false });
       }
     });
 
     const destroyRef = inject(DestroyRef);
-    // Navigate only on the bus success event — a 422 (range) / error leaves us
-    // on the form with the inline error (no nav-evicts-response-body race).
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.submitted()) return;
       if (evt.kind === 'planningDay.bulkCreated') {
@@ -308,11 +270,6 @@ export class PlanningSetupPage {
   }
 }
 
-/**
- * Form → rule-expand request. The 7 weekday flags + range are always sent;
- * `withOptionals` prunes only the empty `info`. Empty weekday flags are sent
- * as-is (all `false`) → the backend returns an empty list, no error (oracle).
- */
 function formToRuleRequest(form: SetupForm): PlanningDayRuleRequest {
   const v = form.getRawValue();
   return withOptionals(

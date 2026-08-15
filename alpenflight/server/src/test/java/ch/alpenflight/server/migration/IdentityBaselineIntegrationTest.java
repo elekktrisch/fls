@@ -29,15 +29,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Asserts S-012's V2__identity_and_reference migration produced the 19-table
- * identity + reference baseline with UUID-everywhere PKs, the aggregate-prefix
- * column comments, the partial-unique indexes, and the canonical reference
- * seeds.
- *
- * <p>Shares the Postgres container shape with FlywayBootstrapIntegrationTest
- * so Spring's context cache reuses the same boot.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
@@ -68,11 +59,6 @@ class IdentityBaselineIntegrationTest {
 
     @Autowired DataSource dataSource;
 
-    /**
-     * AC1 — every domain table listed in S-012 is present. {@code role} +
-     * {@code user_role} are intentionally absent: per S-052, Keycloak owns
-     * role assignment and a local role catalogue would be parallel-truth.
-     */
     @Test
     void identity_baseline_tables_present() throws Exception {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(
@@ -94,26 +80,19 @@ class IdentityBaselineIntegrationTest {
                                 + "AND table_type = 'BASE TABLE'")) {
             while (rs.next()) actual.add(rs.getString(1));
         }
-        // The test name promises "all 19" — assert the exact set including the
-        // Framework tables Flyway lands. containsAll would silently allow
-        // a 20th domain table to slip in undetected; containsExactlyInAnyOrder
-        // forces a deliberate update if the catalogue changes.
         Set<String> frameworkTables = Set.of("flyway_schema_history");
         Set<String> expectedRequired = new LinkedHashSet<>();
         expectedRequired.addAll(expected);
         expectedRequired.addAll(frameworkTables);
-        // containsAll (not containsExactlyInAnyOrder): subsequent migrations
-        // (V3+, V4+, ...) add more domain tables; this test pins S-012's required
-        // set without freezing the table catalogue at the V2 generation.
         assertThat(actual)
-                .as("V2 migration must create all 19 identity + reference tables + the framework tables")
+                .as("V2 migration must create every S-012 identity + reference table + the framework "
+                        + "tables; role / user_role are deliberately absent — Keycloak owns role "
+                        + "assignment (S-052), a local catalogue would be parallel truth")
                 .containsAll(expectedRequired);
     }
 
-    /** AC2 — every PK across the 19 tables is `uuid NOT NULL`. */
     @Test
     void all_pk_columns_are_uuid_not_null() throws Exception {
-        // 19 tables × 1 PK each. Single info_schema query proves every PK is uuid + not null.
         record PkRow(String table, String column, String type, String nullable) {}
         List<PkRow> rows = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
@@ -143,9 +122,6 @@ class IdentityBaselineIntegrationTest {
                         rs.getString("data_type"), rs.getString("is_nullable")));
             }
         }
-        // Guard against the silent-zero-row pass: if V2 ever vanishes or the
-        // table catalogue drifts, an empty result set should make this test
-        // fail loudly rather than passing because the per-row loop never ran.
         Set<String> seenTables = new LinkedHashSet<>();
         for (PkRow row : rows) seenTables.add(row.table());
         assertThat(seenTables)
@@ -165,7 +141,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** AC2 — every FK column points at a uuid column (no Long/int leakage). */
     @Test
     void all_fk_columns_are_uuid() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -194,7 +169,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** AC6 — user.keycloak_sub is a uuid, nullable, with a partial UNIQUE index. */
     @Test
     void user_has_keycloak_sub_uuid_partial_unique() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -220,7 +194,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** Sacred-cow pin: Person has NO club_id column (cross-tenant by design). */
     @Test
     void person_has_no_club_id_column() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -236,7 +209,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** AC5 — person_club reshapes legacy composite to surrogate id + composite UNIQUE. */
     @Test
     void person_club_has_surrogate_id_pk_and_composite_unique() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -264,7 +236,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** Aggregate-root column comments cite ADR 0019 + the aggregate-prefix scheme. */
     @Test
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
         record CommentExpect(String table, String prefix) {}
@@ -294,7 +265,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** user.club_id carries the principal-subject SQL comment (NOT a @TenantId). */
     @Test
     void user_club_id_principal_subject_comment_present() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -311,7 +281,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /** Switzerland's UUID is the canonical-seed sacred cow — pinned in the JSON. */
     @Test
     void country_seeded_with_canonical_switzerland_uuid() throws Exception {
         String expectedSwitzerlandUuid = canonicalSeedUuid("t_country", "iso2", "CH");
@@ -347,11 +316,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /**
-     * ADR 0020 rule 4 — the legacy is_for_glider / is_for_tow / is_for_motor
-     * boolean trio collapses to applicable_categories TEXT[]. Java enum +
-     * service layer are the only value-set enforcer; no DB CHECK.
-     */
     @Test
     void start_type_has_applicable_categories_text_array_no_check() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -384,7 +348,6 @@ class IdentityBaselineIntegrationTest {
                         "SELECT code, applicable_categories::text FROM t_start_type ORDER BY code")) {
             java.util.Map<String, String> got = new java.util.LinkedHashMap<>();
             while (rs.next()) got.put(rs.getString(1), rs.getString(2));
-            // Postgres TEXT[] -> '{X,Y}' literal. Order preserved by INSERT.
             assertThat(got).contains(
                     java.util.Map.entry("WINCH_LAUNCH",   "{GLIDER}"),
                     java.util.Map.entry("AEROTOW",        "{GLIDER,TOW}"),
@@ -405,31 +368,23 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    /**
-     * V2 must not contain {@code INSERT INTO t_member_state} / {@code person_category}
-     * statements — those are per-club seeds populated at S-016 cutover, not in V2.
-     * We assert on the migration text rather than the table row count because
-     * S-022+ integration tests legitimately insert into these tables and leave
-     * rows behind per ADR 0021's pre-clean-not-teardown policy.
-     */
     @Test
-    void v2_does_not_seed_member_state_or_person_category() throws Exception {
+    void v2_migration_text_does_not_seed_member_state_or_person_category() throws Exception {
         Path v2 = Path.of("src/main/resources/db/migration/V2__identity_and_reference.sql");
         if (!Files.isRegularFile(v2)) {
             v2 = Path.of("alpenflight/server/src/main/resources/db/migration/V2__identity_and_reference.sql");
         }
         String body = Files.readString(v2);
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_member_state\\b");
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_person_category\\b");
+        assertThat(body)
+                .as("member states are per-club S-016 cutover seeds; asserted on V2's text because "
+                        + "later ITs legitimately leave rows in the table (ADR 0021 pre-clean, no teardown)")
+                .doesNotContainPattern("(?im)^\\s*INSERT INTO t_member_state\\b");
+        assertThat(body)
+                .as("person categories are per-club S-016 cutover seeds; asserted on V2's text because "
+                        + "later ITs legitimately leave rows in the table (ADR 0021 pre-clean, no teardown)")
+                .doesNotContainPattern("(?im)^\\s*INSERT INTO t_person_category\\b");
     }
 
-    /**
-     * Positive assertion of the email-shape CHECK retentions (ADR 0022
-     * directive 2 input-shape defense-in-depth carve-out). Each retained
-     * constraint carries a `ADR 0022 retained: …` COMMENT marker — the
-     * marker-based denylist allowlist in MigrationFolderConventionsTest
-     * pairs the CHECK literal with the COMMENT.
-     */
     @Test
     void person_email_shape_checks_retained_with_adr_0022_marker() throws Exception {
         for (String name : List.of("ck_person_email_private_shape", "ck_person_email_business_shape")) {
@@ -470,8 +425,6 @@ class IdentityBaselineIntegrationTest {
                         "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='t_user'")) {
             List<String> defs = new ArrayList<>();
             while (rs.next()) defs.add(rs.getString(1));
-            // Postgres pretty-prints functional indexes as `lower((username)::text)` —
-            // double paren + explicit cast on VARCHAR. Match by tokens, not exact substring.
             assertThat(defs)
                     .as("functional UNIQUE on LOWER(username)")
                     .anyMatch(d -> {
@@ -536,12 +489,10 @@ class IdentityBaselineIntegrationTest {
 
     @Test
     void audit_columns_present_on_mutable_tables() throws Exception {
-        // Aggregate roots + the internal collection that's mutated outside its
-        // root. Reference tables intentionally skip the quad per design notes
-        // (audit goes via S-027's audit_event table).
-        List<String> mutables = List.of("t_person", "t_club", "t_user", "t_person_club");
+        List<String> aggregateRootsPlusPersonClubMutatedOutsideItsRoot =
+                List.of("t_person", "t_club", "t_user", "t_person_club");
         try (Connection conn = dataSource.getConnection()) {
-            for (String t : mutables) {
+            for (String t : aggregateRootsPlusPersonClubMutatedOutsideItsRoot) {
                 for (String col : List.of("created_on", "created_by_user_id", "modified_on", "modified_by_user_id")) {
                     try (var stmt = conn.prepareStatement(
                             "SELECT data_type FROM information_schema.columns "

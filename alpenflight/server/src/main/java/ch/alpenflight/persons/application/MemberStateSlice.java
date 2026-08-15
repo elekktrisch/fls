@@ -9,19 +9,6 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Tenant-scoped read slice for {@code t_member_state} — feeds the form
- * picker via {@code GET /api/v1/club/member-states}. Hibernate's
- * {@code @TenantId} discriminator on {@code MemberState.clubId} scopes the
- * underlying {@code findAll()} to the caller's tenant automatically, so
- * this read intentionally does NOT call any unscoped path.
- *
- * <p>Counterpart to S-047's cross-tenant reference-data pattern: same shape
- * (slim listitem, sorted by name, no admin CRUD here) but per-club scope.
- * The first per-club listitem endpoint in the system — establishes the
- * {@code /api/v1/club/<thing>} URL convention. Full {@code t_member_state}
- * admin CRUD is deferred to a follow-up story.
- */
 @Service
 public class MemberStateSlice {
 
@@ -39,10 +26,6 @@ public class MemberStateSlice {
                 .toList();
     }
 
-    /**
-     * Returns the underlying entities for callers that need {@code id +
-     * name} as a pair (e.g. the person-mapper's display-name lookup).
-     */
     @Transactional(readOnly = true)
     public List<MemberStateNameRow> nameRowsInCurrentTenant() {
         return repository.findAll().stream()
@@ -62,7 +45,6 @@ public class MemberStateSlice {
         return new MemberStateNameRow(id, name);
     }
 
-    /** Public lookup row consumed by {@link PersonMapper.MemberStateNameLookup}. */
     public record MemberStateNameRow(UUID id, String name) implements PersonMapper.MemberStateNameRow {
     }
 }

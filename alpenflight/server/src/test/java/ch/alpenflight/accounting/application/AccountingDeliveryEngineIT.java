@@ -42,15 +42,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration test for the {@link AccountingDeliveryEngine} orchestrator. Seeds
- * two clubs + a flight graph through production-create paths (ADR 0027 §3) and
- * drives {@code computeForFlight} under each tenant via
- * {@link TenantTestContext#runAs}. Proves: a FlightTime tier + a LandingTax + a
- * Recipient filter produce the expected items + recipient + matched-filter-ids;
- * a DoNotInvoice filter short-circuits to an empty delivery; a cross-tenant
- * flight id is invisible → {@link FlightNotFoundException}.
- */
 class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
 
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
@@ -122,12 +113,11 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
                 .containsExactly("ART-FT", "ART-LT");
 
         DeliveryItemDetails ft = items.get(0);
-        // 90 min flight, tier min=0 -> bill all; SEC->MIN = 5400/60 = 90.
         assertThat(ft.quantity()).isEqualByComparingTo(new BigDecimal("90"));
         assertThat(ft.unitType()).isEqualTo(AccountingUnitType.MIN.unitTypeString());
 
         DeliveryItemDetails lt = items.get(1);
-        assertThat(lt.quantity()).isEqualByComparingTo(BigDecimal.valueOf(2)); // nrOfLdgs
+        assertThat(lt.quantity()).isEqualByComparingTo(BigDecimal.valueOf(2));
         assertThat(lt.unitType()).isEqualTo(AccountingUnitType.LDGS.unitTypeString());
 
         assertThat(result.recipient()).isNotNull();
@@ -139,12 +129,6 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(result.isDoNotInvoiceFlight()).isFalse();
     }
 
-    // The migrated `FlightTime: Glider per minute` filter (article 5001, glider-
-    // scoped, min=0) applies over a migrated 47-minute glider flight → exactly one
-    // article-5001 line at qty 47 'Minuten'. Reproduces the §5 historical glider
-    // (DATEADD(MINUTE, 47, start)) + §4 filter the real-bundle fanout migrates; the
-    // engine predicate/scope is pure-data, so this locks the seam in check minutes
-    // instead of the ~20-min fanout (delivery-creation-test-parity.spec.ts:577).
     @Test
     void migratedShapedFlightTimeFilter_appliesOverMigratedGliderFlight() {
         UUID aircraft = seedAircraft(clubA);
@@ -172,15 +156,6 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(article5001.get(0).unitType()).isEqualTo(AccountingUnitType.MIN.unitTypeString());
     }
 
-    // Legacy recipient rules route to a club-internal accounting ACCOUNT, not a
-    // member: the real-seed RecipientTarget carries PersonId=null + a synthetic
-    // PersonClubMemberNumber (e.g. "999007") + a RecipientName, and no Person owns
-    // that number. Legacy DeliveryRecipientRule.Apply sets the recipient from the
-    // embedded value object (no Person lookup) and never throws. The migrated
-    // recipient filter must therefore resolve to a self-contained recipient — not
-    // a 500 — so a matched recipient filter whose member number has no Person still
-    // produces a delivery (delivery-creation-test-parity.spec.ts:577 over the real
-    // bundle's account-recipient rule).
     @Test
     void recipientFilterWithoutMatchingPerson_resolvesSelfContainedRecipient() {
         UUID aircraft = seedAircraft(clubA);
@@ -202,7 +177,10 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
         assertThat(result.recipient()).isNotNull();
         assertThat(result.recipient().personClubMemberNumber()).isEqualTo("999007");
         assertThat(result.recipient().recipientName()).isEqualTo("FGZO Passagierflug Gutschein");
-        assertThat(result.recipient().personId()).isNull();
+        assertThat(result.recipient().personId())
+                .as("no Person owns this member number, yet the recipient still resolves "
+                        + "self-contained instead of failing the delivery")
+                .isNull();
         assertThat(result.getMatchedFilterIds()).contains(recipientFilterId);
     }
 
@@ -219,7 +197,6 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
 
         UUID doNotInvoiceId = TenantTestContext.runAs(clubA, () ->
                 filtersService.create(ignoreRequest()).id());
-        // A line filter that WOULD emit — proves the short-circuit, not just "no rules".
         TenantTestContext.runAs(clubA, () ->
                 filtersService.create(lineRequest(FILTER_TYPE_FLIGHT_TIME, LEGACY_FLIGHT_TIME,
                         UNIT_MINUTES, "FT", "ART-FT", "Flugzeit")));
@@ -228,7 +205,10 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
                 TenantTestContext.runAs(clubA, () -> engine.computeForFlight(flight));
 
         assertThat(result.isDoNotInvoiceFlight()).isTrue();
-        assertThat(result.deliveryItems()).isEmpty();
+        assertThat(result.deliveryItems())
+                .as("a flight-time filter that would otherwise emit is seeded, so an empty delivery "
+                        + "proves the short-circuit rather than an absence of rules")
+                .isEmpty();
         assertThat(result.getMatchedFilterIds()).containsExactly(doNotInvoiceId);
     }
 
@@ -245,10 +225,7 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
                 .isInstanceOf(FlightNotFoundException.class);
     }
 
-    // -- payloads ---------------------------------------------------------------
 
-    // A glider-scoped line filter matching all flights (every facet useAllExcept +
-    // empty -> no condition), tier window min=0/max=unlimited.
     private static AccountingRuleFilterWriteRequest lineRequest(UUID typeId, int legacyType,
                                                                 UUID unitTypeId, String name,
                                                                 String article, String lineText) {
@@ -297,7 +274,6 @@ class AccountingDeliveryEngineIT extends PostgresIntegrationTest {
                 null, null);
     }
 
-    // -- seeding (production-create paths) --------------------------------------
 
     private UUID seedAircraft(UUID managingClubId) {
         UUID acType = jdbc.queryForObject("SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);

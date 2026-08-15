@@ -29,21 +29,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Authz matrix for the FlightType REST surface under the S-159 model:
- *
- * <ul>
- *   <li><strong>Tenant scoping is structural</strong> via Hibernate's
- *       {@code @TenantId} discriminator on {@code FlightType.operatingClubId}.
- *       Cross-club access is invisible (404), not 403 — the IDOR contract.</li>
- *   <li><strong>Role gates</strong> on the controller: CLUB_ADMINISTRATOR
- *       for register / update / soft-delete; reads open to any
- *       authenticated principal.</li>
- *   <li><strong>SYSTEM_ADMINISTRATOR has no rights here</strong> — sysadmin
- *       lacks a tenant context (no clubId claim) and is denied at the role
- *       gate on every write (403, not 404).</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -92,10 +77,11 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
                 updatePayload(uniqueName()), adminB);
         assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
-        // DELETE shares the same loadOrThrow gate — verify the IDOR contract
-        // holds for the mutation-path too, not just the read+update legs.
         ResponseEntity<String> del = delete("/api/v1/flight-types/" + id, adminB);
-        assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(del.getStatusCode())
+                .as("the mutation paths share the same loadOrThrow gate as the read path, "
+                        + "so the IDOR contract holds for DELETE too")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -118,14 +104,13 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
 
     @Test
     void sysAdmin_cannotRegister_lacksClubAdminRole() {
-        // Per S-159: sysadmin is rejected at the @PreAuthorize gate before
-        // reaching the persistence layer. Returns 403, NOT 404 — the
-        // cross-tenant 404 contract applies only when the role gate
-        // succeeded and tenant scope filtered the row out.
         String sysToken = mintToken(null, "SYSTEM_ADMINISTRATOR");
         ResponseEntity<String> res = post("/api/v1/flight-types",
                 createPayload(uniqueName()), sysToken);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(res.getStatusCode())
+                .as("rejected at the @PreAuthorize gate with 403 — the cross-tenant 404 contract "
+                        + "applies only once the role gate has passed")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -167,7 +152,6 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ----- helpers -----
 
     private String mintToken(String clubId, String role) {
         Consumer<com.nimbusds.jwt.JWTClaimsSet.Builder> body = c -> {

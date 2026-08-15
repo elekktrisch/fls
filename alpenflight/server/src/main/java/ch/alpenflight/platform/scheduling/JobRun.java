@@ -12,25 +12,10 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * One execution of a {@link MeasuredJob}. Append-only: {@link MeasuredJobAspect}
- * inserts a row at {@code start}, then the same row is transitioned to
- * {@code completed} / {@code failed} in place. The console reads the most
- * recent row per {@code jobName} — {@code NEVER_RUN} is the absence of any row.
- *
- * <p>Platform / cross-tenant table (jobs run unscoped across all clubs; the
- * console is {@code SYSTEM_ADMINISTRATOR}-gated, no tenant): no {@code @TenantId}.
- * Mirrors {@code t_deployment} / {@code t_migration_run} — greenfield platform
- * tables that carry no legacy origin and no tenant discriminator.
- *
- * <p>Per ADR 0022 directive 2 the lifecycle lives here as Java mutators
- * ({@link #complete}, {@link #fail}), not as a schema CHECK.
- */
 @Entity
 @Table(name = "t_job_run")
 public class JobRun {
 
-    /** Terminal-or-in-flight state of a single run. Absence ↔ {@code NEVER_RUN}. */
     public enum Status {
         RUNNING,
         COMPLETED,
@@ -64,10 +49,8 @@ public class JobRun {
     private @Nullable String error;
 
     protected JobRun() {
-        // JPA.
     }
 
-    /** Opens a run in {@link Status#RUNNING} at {@code clock}'s instant. */
     public static JobRun start(String jobName, Clock clock) {
         if (jobName == null || jobName.isBlank()) {
             throw new IllegalArgumentException("jobName must not be blank");
@@ -79,7 +62,6 @@ public class JobRun {
         return run;
     }
 
-    /** RUNNING → COMPLETED, stamping {@code finishedAt} + the run summary. */
     public void complete(@Nullable String summary, Clock clock) {
         if (status != Status.RUNNING) {
             throw new IllegalStateException("complete() only valid from RUNNING, was " + status);
@@ -89,7 +71,6 @@ public class JobRun {
         this.finishedAt = Instant.now(clock);
     }
 
-    /** RUNNING → FAILED, stamping {@code finishedAt} + the failure message. */
     public void fail(@Nullable String error, Clock clock) {
         if (status != Status.RUNNING) {
             throw new IllegalStateException("fail() only valid from RUNNING, was " + status);

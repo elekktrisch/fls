@@ -8,12 +8,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-
-/**
- * Lifecycle-state reference row for {@code Club} (ACTIVE / SUSPENDED / …).
- * System-global; not tenant-scoped. Mapped to the V2 {@code t_club_state}
- * table; data lives in the V2 Flyway seed.
- */
 @Entity
 @Table(name = "t_club_state")
 public class ClubState {
@@ -28,7 +22,6 @@ public class ClubState {
     private String name = "";
 
     protected ClubState() {
-        // JPA.
     }
 
     public @Nullable ClubStateId getId() {

@@ -144,9 +144,6 @@ export class JoinRequestsListPage {
   protected readonly selectedDenyRequest = signal<PendingJoinRequestItem | null>(null);
 
   constructor() {
-    // The decision lands asynchronously; close the open modal once its selected
-    // row has dropped from the list (success). A failure keeps the row, so the
-    // modal stays open showing its inline error.
     effect(() => {
       const ids = new Set(this.store.entities().map((r) => r.id));
       const approving = this.selectedRequest();

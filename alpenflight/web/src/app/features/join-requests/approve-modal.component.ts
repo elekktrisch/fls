@@ -19,7 +19,6 @@ import { CLUB_ADMIN_GRANTABLE_ROLES, roleLabel } from '../users/role-catalog';
 
 import { JoinRequestsStore, type PendingJoinRequestItem } from './join-requests.store';
 
-/** New members default to the pilot baseline; the admin widens from there. */
 const DEFAULT_ROLES: ReadonlySet<UserUpdateRequestRolesItem> = new Set(['PILOT']);
 
 @Component({
@@ -120,9 +119,6 @@ export class ApproveModalComponent {
   protected onSubmit(): void {
     const r = this.request();
     if (!r || !this.canSubmit()) return;
-    // Fire-and-stay: the host closes the modal once the approval lands (the row
-    // drops + toast); on a 409 the modal stays open so `approve-error` renders
-    // the cause inline.
     const personId = this.pickedPerson()?.id;
     this.store.approve({
       id: r.id,

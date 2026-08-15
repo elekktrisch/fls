@@ -13,23 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Cross-tenant pre-paid flight-time credit aggregate root: legacy
- * {@code PersonFlightTimeCredits.PersonFlightTimeCreditId} →
- * {@code t_person_flight_time_credit.id}. Neither this table nor its
- * transaction child carries a {@code club_id} — a credit is per-person and
- * visible to every club the owning Person belongs to (legacy scopes the load
- * via {@code Person -> PersonClubs.ClubId}), so {@code person_id} rides the
- * {@link ch.alpenflight.migration.bundle.Manifest} {@code TENANT_BYPASS_ALLOW_LIST}
- * to cross-tenant {@link EntityType#PERSON}, the {@link
- * ch.alpenflight.migration.bundle.flight.FlightCrewMapper} idiom.
- *
- * <p>{@code MatchedAircraftImmatriculations} is a denormalized CSV substring-
- * matched downstream by the credit engine — no FK rewrite (parity exclusion).
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId}, {@code OwnershipType},
- * {@code RecordState}, {@code IsDeleted}.
- */
 public final class PersonFlightTimeCreditMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -66,12 +49,12 @@ public final class PersonFlightTimeCreditMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.PERSON);
     }
 

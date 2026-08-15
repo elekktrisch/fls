@@ -1,8 +1,3 @@
--- Cardinality scoped to indexed columns only. Full-table NDV scans on 100K+
--- row tables cost minutes per column for data S-013 never uses on non-indexed
--- columns. The enumeration query lists each (schema, table, column) appearing
--- in any non-PK index; the caller (Java code) runs APPROX_COUNT_DISTINCT per
--- entry as a follow-up statement. This SQL is the *enumeration* step.
 SELECT DISTINCT
     s.name           AS schema_name,
     t.name           AS table_name,

@@ -9,13 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data implementation of {@link UserRepository}.
- *
- * <p>User has no Hibernate {@code @TenantId}; the CLUB_ADMINISTRATOR scope
- * predicate is in the JPQL of every list / count query so a forgotten filter
- * fails to compile rather than silently scopes realm-wide.
- */
 public interface JpaUserRepository extends JpaRepository<User, UUID>, UserRepository {
 
     @Override
@@ -52,8 +45,6 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     long countAllActive();
 
     @Override
-    // JPQL against referencedata's Language mapping (ADR 0027 retired the
-    // former native t_language EXISTS once the entity landed with RM-4).
     @Query("select case when count(l) > 0 then true else false end "
             + "from Language l where l.id = :languageId")
     boolean languageExists(@Param("languageId") UUID languageId);

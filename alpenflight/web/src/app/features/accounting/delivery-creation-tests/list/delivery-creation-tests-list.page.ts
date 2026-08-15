@@ -11,13 +11,6 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 import { SessionStore } from '../../../../core/session/session.store';
 import { DeliveryCreationTestsStore } from '../delivery-creation-tests.store';
 
-/**
- * DeliveryCreationTest list (`/deliverycreationtests`). The rules-engine harness
- * surface. Columns: name · active · last result (✓ pass / ✗ fail / — never run).
- * A "new" entry point and per-row navigation into the edit form (T-17). Every
- * harness endpoint is CLUB_ADMINISTRATOR-gated on the server, so the mutation
- * affordance hides for a non-admin (the row identity columns still render).
- */
 @Component({
   selector: 'af-delivery-creation-tests-list',
   standalone: true,

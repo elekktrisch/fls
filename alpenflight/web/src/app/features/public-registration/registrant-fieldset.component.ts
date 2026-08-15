@@ -12,16 +12,6 @@ import { liveFieldErrors } from '@shared/util/form';
 
 import { REGISTRANT_FORM, type RegistrantForm, displayName } from './registrant-form';
 
-/**
- * A blank anonymous form must not open in red: `liveFieldErrors` reports a
- * required field's error from first paint, which is right for a form the
- * visitor has started and wrong for the one they just landed on. The message is
- * held back until they have typed into — or left — the field the rule is about.
- *
- * Blur is half of that, and marking a control touched pushes no value or status
- * change, so the gate reads `events` (which does carry `TouchedChangeEvent`)
- * rather than the error stream alone.
- */
 function engagedFieldErrors(
   control: AbstractControl,
   gates: readonly AbstractControl[] = [control],
@@ -47,9 +37,6 @@ function registrantFieldErrors(form: RegistrantForm) {
     mobilePhone: engagedFieldErrors(form.controls.mobilePhone),
     privatePhone: engagedFieldErrors(form.controls.privatePhone),
     businessPhone: engagedFieldErrors(form.controls.businessPhone),
-    // The mobile-or-email rule lives on the group, so its message is rendered
-    // once under the pair rather than duplicated onto both controls — and it
-    // waits on the pair, not on the first field the visitor happens to fill.
     contact: engagedFieldErrors(form, [form.controls.mobilePhone, form.controls.privateEmail]),
     invoiceFirstname: engagedFieldErrors(invoice.firstname),
     invoiceLastname: engagedFieldErrors(invoice.lastname),
@@ -60,13 +47,6 @@ function registrantFieldErrors(form: RegistrantForm) {
   };
 }
 
-/**
- * The registrant fields both public registration flows collect.
- *
- * Single column at every breakpoint (AC-DIR-1) and native input types so the
- * phone keyboard matches the field (AC-DIR-3). Errors render while typing,
- * debounced ~200ms by `liveFieldErrors`.
- */
 @Component({
   selector: 'af-registrant-fieldset',
   standalone: true,
@@ -341,8 +321,6 @@ export class RegistrantFieldsetComponent {
     { requireSync: true },
   );
 
-  // Legacy names both candidates in the coupon choice so the sender knows who
-  // receives what (`tryflight.html:147-155`).
   protected readonly candidateName = computed(() =>
     displayName(this.#value().firstname, this.#value().lastname),
   );

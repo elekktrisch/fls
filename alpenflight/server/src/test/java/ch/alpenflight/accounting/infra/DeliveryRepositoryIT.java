@@ -25,18 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence proof of the read-only {@link Delivery} aggregate + its
- * tenant-scoped, soft-delete-filtered read finders, driven through the real
- * {@code @TenantId} discriminator via {@link TenantTestContext#runAs}.
- *
- * <p>Seeding is ADR-0027-clean: the two clubs + article come from their
- * production save paths ({@link TwoClubFixture} / {@link Article#register}). The
- * read-only Delivery has no write factory this iteration, so its rows are
- * hydrated reflectively via {@link DeliveryTestHydrator} (ADR 0027 §4 — no
- * production setter added just for tests) then saved through the repo so the
- * resolver stamps the tenant.
- */
 class DeliveryRepositoryIT extends PostgresIntegrationTest {
 
     @Autowired private DeliveryRepository deliveries;
@@ -102,19 +90,18 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void findActivePage_ordersByBatchDescThenRecipientAsc() {
-        // ux_dlv_club_batch_partial makes a non-zero batch_id per-club-unique, so
-        // the within-batch recipient ordering is proven on the batch_id=0 rows
-        // (excluded from the partial unique), which sort last under batch desc.
-        UUID highest = save(clubA, 30L, recipientNamed("Zulu"));
-        UUID middle = save(clubA, 20L, recipientNamed("Mike"));
-        UUID unbatchedAlpha = save(clubA, 0L, recipientNamed("Alpha"));
-        UUID unbatchedBravo = save(clubA, 0L, recipientNamed("Bravo"));
+        UUID highest = hydrateAndSaveReadOnlyDelivery(clubA, 30L, recipientNamed("Zulu"));
+        UUID middle = hydrateAndSaveReadOnlyDelivery(clubA, 20L, recipientNamed("Mike"));
+        UUID unbatchedAlpha = hydrateAndSaveReadOnlyDelivery(clubA, 0L, recipientNamed("Alpha"));
+        UUID unbatchedBravo = hydrateAndSaveReadOnlyDelivery(clubA, 0L, recipientNamed("Bravo"));
 
         TenantTestContext.runAs(clubA, () -> {
             assertThat(deliveries.countActive()).isEqualTo(4);
             assertThat(deliveries.findActivePage(PageRequest.of(0, 10)))
                     .extracting(Delivery::getId)
-                    .as("batch desc, then recipient lastname asc within a batch")
+                    .as("batch desc, then recipient lastname asc within a batch — the within-batch "
+                            + "ordering rides the batch_id=0 rows, the only ones ux_dlv_club_batch_partial "
+                            + "exempts from per-club batch uniqueness")
                     .containsExactly(highest, middle, unbatchedAlpha, unbatchedBravo);
 
             assertThat(deliveries.findActivePage(PageRequest.of(1, 2)))
@@ -127,7 +114,7 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
 
     @Test
     void findActiveById_isTenantScoped() {
-        UUID bRow = save(clubB, 5L, recipientNamed("Bravo"));
+        UUID bRow = hydrateAndSaveReadOnlyDelivery(clubB, 5L, recipientNamed("Bravo"));
 
         TenantTestContext.runAs(clubA, () -> {
             assertThat(deliveries.findActiveById(bRow))
@@ -143,7 +130,8 @@ class DeliveryRepositoryIT extends PostgresIntegrationTest {
         });
     }
 
-    private UUID save(UUID clubId, long batchId, DeliveryRecipient recipient) {
+    private UUID hydrateAndSaveReadOnlyDelivery(UUID clubId, long batchId,
+                                                DeliveryRecipient recipient) {
         return TenantTestContext.runAs(clubId, () -> {
             Delivery delivery = DeliveryTestHydrator.delivery(
                     DeliveryProcessState.PREPARED, null, batchId, recipient, List.of());

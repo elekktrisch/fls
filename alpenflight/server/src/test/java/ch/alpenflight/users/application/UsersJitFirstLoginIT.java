@@ -30,19 +30,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-169 integration test — JIT user-row materialise on first authenticated
- * request. Pins the contract from the design notes: filter runs after JWT
- * decode, creates one local row per principal, idempotent on subsequent
- * hits, refuses tombstoned principals with 403, no-ops on permitted
- * endpoints and on tokens that don't carry the materialise inputs
- * (sysadmin, malformed claims).
- *
- * <p>Hits {@code GET /api/v1/me} as the smoke endpoint — it's
- * {@code @PreAuthorize("isAuthenticated()")} (no role gate to dance
- * around), already wired, and observably independent of the JIT row state
- * (its projection reads JDBC directly).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -54,6 +41,8 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-77d3-8000-0000000007d3");
     private static final UUID LANG_DE =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
+    private static final String COUNTRY_CH = "019e2e15-2c00-74be-8000-0000000004be";
+    private static final String CLUB_STATE_ACTIVE = "019e2e15-2c00-7bb8-8000-000000000bb8";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -211,9 +200,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
 
     @Test
     void reInviteAfterSoftDelete_subDetached_jitCreatesFreshRow() {
-        // Re-entry contract: after the invite flow has cleared the
-        // tombstone's keycloak_sub (releasing it from the partial UNIQUE),
-        // a JWT for that sub JIT-materialises a fresh row.
         UUID sub = freshSub();
         UUID tombId = UUID.randomUUID();
         jdbc.update("""
@@ -245,14 +231,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
 
     @Test
     void sameUsername_freshSub_reconcilesRowInPlace_notTenantLess() {
-        // J-2 T-23 durable fix: a principal re-appears under a FRESH KC sub
-        // but the SAME preferred_username (KC user recreated / realm
-        // re-import / a concurrent first-login whose username-winning row
-        // carried a sibling's sub). The first sub's row already holds the
-        // username, so the second sub's JIT insert hits
-        // ux_user_username_lower_alive (23505). Before the fix the by-sub
-        // re-read missed and the principal was left tenant-less forever; now
-        // JIT reconciles the row's keycloak_sub to the presenting sub.
         UUID firstSub = freshSub();
         UUID secondSub = freshSub();
         String username = "jit-it-reconcile";
@@ -265,7 +243,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 UUID.class, firstSub.toString());
         assertThat(rowId).as("first login materialised one row").isNotNull();
 
-        // Same username, fresh sub.
         String secondToken = mintJitReadyRealm(secondSub, CLUB, username, "Recon",
                 "reconcile@example.com", "en");
         ResponseEntity<String> res = get("/api/v1/me", secondToken);
@@ -273,8 +250,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 .as("re-login under a fresh sub resolves a tenant — not a tenant-less hang")
                 .isEqualTo(HttpStatus.OK);
 
-        // Still exactly one active row for that username; its sub is now the
-        // SECOND sub (reconciled in place — no duplicate, no orphan).
         Integer activeCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM t_user WHERE lower(username) = lower(?) AND deleted_on IS NULL",
                 Integer.class, username);
@@ -287,11 +262,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
 
     @Test
     void sameUsername_differentClub_isNotRebound_failsClosed() {
-        // Tenant guard: a username row in ANOTHER club must NOT be rebound —
-        // that would silently relocate identity across tenants. The principal
-        // stays tenant-less (fail-closed) and no row is mutated.
-        // t_user.club_id carries fk_user_club_id → t_club, so the "other"
-        // club must be a real row. Create a throwaway one (cleaned up below).
         UUID otherClub = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id, slug,
@@ -299,14 +269,12 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, 'Other Club', ?, ?::uuid, ?::uuid, ?, false)
                 """,
                 otherClub.toString(), "OTH" + otherClub.toString().substring(0, 5),
-                "019e2e15-2c00-74be-8000-0000000004be",  // CH
-                "019e2e15-2c00-7bb8-8000-000000000bb8",  // ACTIVE
+                COUNTRY_CH,
+                CLUB_STATE_ACTIVE,
                 "other-club-" + otherClub);
         UUID residentSub = freshSub();
         UUID rowId = UUID.randomUUID();
         String username = "jit-it-crosstenant";
-        // Seed an active row for `username` in `otherClub`. The guard we are
-        // testing is the club_id-match in reconcileSubByUsername.
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -318,9 +286,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
         UUID intruderSub = freshSub();
         String token = mintJitReadyRealm(intruderSub, CLUB, username, "Intruder",
                 "resident@example.com", "en");
-        // /api/v1/me itself is isAuthenticated() so it still 200s; the point
-        // is no row is created for the intruder sub and the resident row is
-        // untouched.
         get("/api/v1/me", token);
 
         Integer intruderRows = jdbc.queryForObject(
@@ -370,20 +335,17 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void partialUniqueOnKeycloakSubIsPresent_raceLoserNet() {
-        // The partial UNIQUE is the structural net for the concurrent
-        // first-login race (the materializer catches
-        // DataIntegrityViolationException and re-reads). Verify it exists
-        // with the expected `WHERE keycloak_sub IS NOT NULL` predicate so a
-        // future migration accidentally dropping the partial qualifier
-        // (turning it into a global UNIQUE that would also block re-invite
-        // after softDelete) fails this test.
+    void partialUniqueOnKeycloakSub_isTheRaceNet_andStaysQualifiedToNonNullSubs() {
         Map<String, Object> idx = jdbc.queryForMap(
                 "SELECT indexdef FROM pg_indexes WHERE indexname = 'ux_user_keycloak_sub'");
         String def = (String) idx.get("indexdef");
         assertThat(def)
+                .as("the concurrent-first-login net is a UNIQUE on t_user(keycloak_sub)")
                 .containsIgnoringCase("t_user")
-                .containsIgnoringCase("(keycloak_sub)")
+                .containsIgnoringCase("(keycloak_sub)");
+        assertThat(def)
+                .as("the partial qualifier must survive — a global UNIQUE would also block "
+                        + "re-invite after a softDelete detaches the sub")
                 .containsIgnoringCase("WHERE")
                 .containsIgnoringCase("keycloak_sub IS NOT NULL");
     }

@@ -12,28 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Consumer side of the round-trip — stand-in for S-141's ingest pipeline.
- * Two stages:
- *
- * <ol>
- *   <li><strong>Resolve SYSTEM_GLOBAL FKs.</strong> Populate the
- *       {@code legacy_guid → new_uuid} translation maps via
- *       {@link LegacyIdMapPopulator} by joining each SYSTEM_GLOBAL bundle
- *       entry against its V2-seeded destination on the lookup column.</li>
- *   <li><strong>Ingest FULL_PORT rows.</strong> For each row,
- *       {@link ForeignKeyRewriter} rewrites SYSTEM_GLOBAL FK columns from
- *       legacy GUID to new-stack UUID; {@code Mapper.readEntity} then binds
- *       the resolved row to the destination {@code INSERT}.</li>
- * </ol>
- *
- * <p>SYSTEM_GLOBAL bundle entries are recorded in the producer counts but
- * not inserted into the destination — V2 already seeded those rows.
- *
- * <p>FULL_PORT-to-FULL_PORT FKs (e.g. {@code User.club_id} → CLUB) flow
- * through unchanged: ADR 0019 legacy-GUID preservation makes the legacy
- * GUID identical to the destination row's PK. No rewrite needed.
- */
 public final class ConsumerHarness {
 
     private final Connection postgresConnection;

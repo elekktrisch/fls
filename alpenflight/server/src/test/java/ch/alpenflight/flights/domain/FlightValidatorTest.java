@@ -8,15 +8,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Smoke tests for {@link FlightValidator} — port of legacy
- * {@code FlightService.cs:1073-1136} (ValidateFlightBasics) + the start-
- * type-specific arms at {@code :987-1039}.
- *
- * <p>S-062a ships the pure-function port + per-rule smoke; depth (every
- * field combo, route-allow-list edge cases, multi-error aggregation) lives
- * in S-101.
- */
 class FlightValidatorTest {
 
     private static final UUID AIRCRAFT = UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1");

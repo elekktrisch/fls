@@ -19,15 +19,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * S-139 load-bearing gate — the jar's ALPF encrypt path is the byte-exact
- * inverse of the server's decrypt. The export jar's {@link BundleEncryptor}
- * produces the envelope; the SAME relocated {@link TinkMigrationBundleCipher}
- * the server ingest uses recovers the plaintext. If this drifts, the full
- * producer→consumer e2e (S-139a) fails opaquely — so it's pinned here, with
- * no Docker / no database, purely on the crypto envelope.
- */
 class CryptoFormatMatchIT {
+
+    private static final int PLAINTEXT_BYTES_SPANNING_MANY_AEAD_SEGMENTS = 50_000;
 
     private final MigrationBundleCipher cipher = new TinkMigrationBundleCipher();
 
@@ -37,9 +31,7 @@ class CryptoFormatMatchIT {
         KeyPair rsa = rsa4096();
         UUID uploadId = UUID.randomUUID();
 
-        // A multi-segment payload (> the 4 KB AEAD segment) so the round-trip
-        // exercises segment chaining, not just a single block.
-        byte[] plaintext = syntheticPlaintext(50_000);
+        byte[] plaintext = syntheticPlaintext(PLAINTEXT_BYTES_SPANNING_MANY_AEAD_SEGMENTS);
         Path plaintextFile = dir.resolve("bundle.tar.gz");
         Files.write(plaintextFile, plaintext);
 
@@ -49,13 +41,11 @@ class CryptoFormatMatchIT {
 
         byte[] envelope = Files.readAllBytes(encrypted);
 
-        // Structural: the prefix is a well-formed ALPF v1 header.
         BundleHeader header = BundleHeader.parse(envelope);
         assertThat(header.version()).isEqualTo(BundleHeader.CURRENT_VERSION);
         assertThat(Arrays.copyOf(envelope, BundleHeader.MAGIC_LENGTH))
                 .isEqualTo(BundleHeader.magic());
 
-        // Decrypt with the server's cipher → byte-identical recovery.
         byte[] recovered = decrypt(envelope, header, uploadId, rsa);
         assertThat(recovered).isEqualTo(plaintext);
     }
@@ -76,10 +66,6 @@ class CryptoFormatMatchIT {
         byte[] envelope = Files.readAllBytes(encrypted);
         BundleHeader header = BundleHeader.parse(envelope);
 
-        // The uploadId is bound as the StreamingAead associated data. Tink
-        // validates the tag lazily on read, so a wrong uploadId surfaces as an
-        // IOException from the decrypting stream — never silently-recovered data
-        // (the server maps this read-time failure to BUNDLE_DECRYPT_AEAD_TAG_FAILED).
         assertThatThrownBy(() -> decrypt(envelope, header, wrongUploadId, rsa))
                 .isInstanceOf(IOException.class);
     }

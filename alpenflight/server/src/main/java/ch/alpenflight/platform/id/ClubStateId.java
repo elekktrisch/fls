@@ -4,13 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code ClubState} reference row. Wire form is a
- * plain UUID string — see {@link CountryId} for rationale (reference rows
- * are not aggregate roots per ADR 0018; prefixes from ADR 0019 reserved
- * for roots). Exists to prevent compile-time confusion with
- * {@link CountryId} or other unrelated {@link UUID} arguments.
- */
 @Schema(
         type = "string",
         format = "uuid",

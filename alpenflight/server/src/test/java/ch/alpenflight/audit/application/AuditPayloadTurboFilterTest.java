@@ -11,12 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Drives the {@link AuditPayloadTurboFilter} contract: any log statement
- * whose formatted message contains an audit-payload marker is dropped
- * before it reaches an appender. Both formatted-string and argument
- * payloads are covered.
- */
 class AuditPayloadTurboFilterTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(AuditPayloadTurboFilterTest.class);
@@ -70,15 +64,12 @@ class AuditPayloadTurboFilterTest {
 
     @Test
     void allows_log_referencing_before_state_column_name_only() {
-        // Earlier revisions denied any line containing the literal string
-        // "before_state" — too broad. Operational logs (e.g.
-        // "fetched mutation_audit_event.before_state") were unintentionally
-        // suppressed. The narrowed rule reserves the deny for actual payload
-        // markers (sentinel + AUDIT_PAYLOAD_MARKER).
         LOG.info("repository hit before_state column count={}", 12);
 
         assertThat(appender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
+                .as("the deny is reserved for payload markers — an operational log naming the "
+                        + "before_state column must still reach its appender")
                 .anyMatch(m -> m.contains("before_state"));
     }
 
@@ -100,7 +91,6 @@ class AuditPayloadTurboFilterTest {
                 .anyMatch(m -> m.contains("019e30c3-2c00-7777-8000-000000000777"));
     }
 
-    /** Belt-and-braces clean-up so subsequent test classes start with a clean filter chain. */
     @org.junit.jupiter.api.AfterEach
     void detach() {
         ch.qos.logback.classic.Logger root =

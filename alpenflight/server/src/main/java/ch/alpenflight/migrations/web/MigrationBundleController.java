@@ -25,17 +25,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * S-141 streaming-bundle endpoints. Both are gated on the same email-
- * verified SpEL predicate as the S-140 handshake endpoints — the row
- * ownership check (uploadId.user_id == principal) is enforced in the
- * service layer.
- *
- * <p>The POST endpoint reads {@code application/octet-stream} directly off
- * the servlet input stream. Spring multipart resolution stays disabled at
- * the route level so an oversize body never gets spooled to {@code tmpdir}
- * (the encryption envelope plaintext-leak posture, S-141 design notes).
- */
 @RestController
 @RequestMapping(path = "/api/v1/migrations")
 @Tag(name = "Migration bundle ingest",
@@ -83,12 +72,6 @@ public class MigrationBundleController {
         }
     }
 
-    /**
-     * Counting input-stream that rejects bytes past the bundle-size cap.
-     * Acts in concert with the {@code Content-Length} pre-check above —
-     * a chunked body without a declared length still surfaces 413 mid-stream
-     * when the cap is crossed.
-     */
     private static InputStream boundedStream(InputStream raw) {
         return new InputStream() {
             private long readSoFar;
@@ -141,7 +124,6 @@ public class MigrationBundleController {
         return statusService.findStatus(uploadId, userId);
     }
 
-    /** Body of a successful {@code 200 OK} from the bundle-ingest endpoint. */
     public record IngestResponse(UUID deploymentId, List<UUID> clubIds, UUID primaryClubId) {
         public IngestResponse {
             clubIds = List.copyOf(clubIds);

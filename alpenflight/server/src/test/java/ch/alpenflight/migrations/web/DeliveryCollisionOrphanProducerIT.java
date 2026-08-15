@@ -16,45 +16,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The two Delivery / DeliveryItem migration cases a synth bundle can't reach,
- * proven against the REAL bound producer SELECT
- * ({@link MapperLegacyBindings#selectForProducer}) and the REAL Flyway schema —
- * so a regression reds in minutes here, not only at the ~20-min fanout. A synth
- * bundle uses aliased column names and bypasses the producer SELECT entirely, so
- * only a real-producer IT validates the {@code LEFT JOIN Articles} resolution and
- * the schema's absence of a {@code UNIQUE(flight_id)}.
- *
- * <p><strong>Orphan ArticleNumber → keep-null (not 23503).</strong> Legacy
- * {@code DeliveryItems.ArticleNumber} is free text with no FK. The bound
- * {@code DELIVERY_ITEM} producer SELECT {@code LEFT JOIN}s the live Article master
- * keyed by {@code (ClubId, ArticleNumber)} {@code AND a.IsDeleted = 0}. A number
- * matching no live article (free-typed, or only a soft-deleted article) projects a
- * NULL {@code ResolvedArticleId} — the line is kept with a null {@code article_id}
- * (the {@code article_number} snapshot preserved), never a
- * {@code fk_dli_article_id} 23503 that aborts the whole bundle. Regressing the
- * LEFT JOIN to an inner join would drop the orphan line; dropping the
- * {@code IsDeleted = 0} predicate would resolve it onto a soft-deleted article —
- * both fail this test loudly.
- *
- * <p><strong>Multiple deliveries per flight → no 23505.</strong> Legacy permits
- * several {@code Deliveries} on one {@code FlightId} (that is why the write side's
- * delete guard rejects deleting one when {@literal >}1 share the flight). The
- * {@code t_delivery} schema must therefore carry NO {@code UNIQUE(flight_id)}. This
- * inserts two deliveries sharing one flight directly against the migrated schema and
- * asserts both land — a regression adding {@code UNIQUE(flight_id)} would 23505 on
- * the second insert.
- */
 @Tag("slow")
 class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
-    // seed-club-1 is the canonical dev club — a stable, read-only FK target. The
-    // flight the two deliveries share is THIS test's own row (own aircraft + own
-    // flight, random ids, seeded per run): the shared dev-seed flight is mutated
-    // by sibling write-side ITs in the full suite, so depending on it FK-fails.
-    private static final UUID SEED_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final UUID STABLE_READ_ONLY_SEED_CLUB =
+            UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final int ARTICLE_LIVE = 0;
+    private static final int ARTICLE_SOFT_DELETED = 1;
     private static final UUID GLIDER_AIRCRAFT_TYPE =
             UUID.fromString("019e2e15-2c00-7af9-8000-000000002af9");
     private static final UUID FLIGHT_PROCESS_STATE_VALID =
@@ -66,12 +36,9 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
     private final UUID clubId = UUID.randomUUID();
     private final UUID deliveryId = UUID.randomUUID();
 
-    // A line whose ArticleNumber matches a LIVE article — resolves to its id.
     private final UUID liveArticleId = UUID.randomUUID();
     private final UUID resolvableItemId = UUID.randomUUID();
     private final String resolvableNumber = "A-LIVE";
-    // A line whose ArticleNumber matches NO live article (only a soft-deleted one
-    // of the same number exists) — must resolve to NULL, kept, never 23503.
     private final UUID softDeletedArticleId = UUID.randomUUID();
     private final UUID orphanItemId = UUID.randomUUID();
     private final String orphanNumber = "A-ORPHAN";
@@ -81,11 +48,6 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seedLegacyShapedStagingTables() {
-        // Legacy-shaped staging tables standing in for the MSSQL tables the
-        // DELIVERY_ITEM producer SELECT reads. Unquoted mixed-case identifiers
-        // fold to lowercase in Postgres, matching the bound SELECT's unquoted
-        // names. BIT IsDeleted is a 0/1 SMALLINT — the SELECT's a.IsDeleted = 0
-        // reads it identically on both dialects.
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS Deliveries (
                     DeliveryId UUID PRIMARY KEY,
@@ -127,18 +89,17 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
         jdbc.update("INSERT INTO Deliveries (DeliveryId, ClubId, FlightId) VALUES (?, ?, NULL)",
                 deliveryId, clubId);
 
-        // One live article the resolvable line keys onto; one soft-deleted article
-        // sharing the orphan line's number — the IsDeleted = 0 predicate must skip
-        // it so the orphan still resolves to NULL.
         jdbc.update("INSERT INTO Articles (ArticleId, ClubId, ArticleNumber, IsDeleted) "
-                + "VALUES (?, ?, ?, 0)", liveArticleId, clubId, resolvableNumber);
+                + "VALUES (?, ?, ?, ?)",
+                liveArticleId, clubId, resolvableNumber, ARTICLE_LIVE);
         jdbc.update("INSERT INTO Articles (ArticleId, ClubId, ArticleNumber, IsDeleted) "
-                + "VALUES (?, ?, ?, 1)", softDeletedArticleId, clubId, orphanNumber);
+                + "VALUES (?, ?, ?, ?)",
+                softDeletedArticleId, clubId, orphanNumber, ARTICLE_SOFT_DELETED);
 
         insertItem(resolvableItemId, 1, resolvableNumber);
         insertItem(orphanItemId, 2, orphanNumber);
 
-        seedOwnFlight();
+        seedOwnFlightRatherThanTheSiblingMutatedDevSeedFlight();
     }
 
     @AfterEach
@@ -152,10 +113,7 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_aircraft WHERE id = ?::uuid", ownAircraftId.toString());
     }
 
-    // Own aircraft + flight under the stable seed club so the two t_delivery
-    // inserts share a flight_id this test fully owns and cleans up — independent
-    // of any sibling IT that mutates the shared dev-seed flight.
-    private void seedOwnFlight() {
+    private void seedOwnFlightRatherThanTheSiblingMutatedDevSeedFlight() {
         jdbc.update("""
                 INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
                                       immatriculation, is_towing_or_winch_required,
@@ -164,7 +122,8 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?,
                         false, false, false, false, false, 2)
                 """,
-                ownAircraftId.toString(), SEED_CLUB.toString(), SEED_CLUB.toString(),
+                ownAircraftId.toString(),
+                STABLE_READ_ONLY_SEED_CLUB.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(),
                 GLIDER_AIRCRAFT_TYPE.toString(),
                 "HB-DLV" + Long.toString(ownAircraftId.getLeastSignificantBits() & 0xFFFF, 36));
         jdbc.update("""
@@ -174,7 +133,7 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                 VALUES (?::uuid, ?::uuid, ?::uuid, 1, CURRENT_DATE - 7,
                         false, false, false, ?::uuid)
                 """,
-                ownFlightId.toString(), SEED_CLUB.toString(), ownAircraftId.toString(),
+                ownFlightId.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(), ownAircraftId.toString(),
                 FLIGHT_PROCESS_STATE_VALID.toString());
     }
 
@@ -246,6 +205,6 @@ class DeliveryCollisionOrphanProducerIT extends PostgresIntegrationTest {
                      created_on, modified_on)
                 VALUES (?::uuid, ?::uuid, 10, ?::uuid, 0, now(), now())
                 """,
-                id.toString(), SEED_CLUB.toString(), ownFlightId.toString());
+                id.toString(), STABLE_READ_ONLY_SEED_CLUB.toString(), ownFlightId.toString());
     }
 }

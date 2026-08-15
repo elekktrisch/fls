@@ -8,25 +8,6 @@ import java.sql.SQLException;
 import java.util.Locale;
 import java.util.Properties;
 
-/**
- * Owns the read-only, forward-only legacy MSSQL connection. The export is a
- * pure read against a production legacy instance, so the connection is
- * hardened on three axes:
- *
- * <ul>
- *   <li>{@code ApplicationIntent=ReadOnly} forced onto the JDBC URL — the
- *       driver routes to a readable secondary on an AG and the export can
- *       never issue a write.</li>
- *   <li>{@code responseBuffering=adaptive} + an explicit fetch size so a
- *       multi-million-row table streams rather than materialising in driver
- *       memory.</li>
- *   <li>{@link Connection#setReadOnly(boolean)} as defence in depth.</li>
- * </ul>
- *
- * <p>Each {@link #openEntityCursor} returns a forward-only, read-only
- * {@link ResultSet}; the caller drains it once and closes it (closing the
- * statement too).
- */
 public final class LegacyJdbcReader implements AutoCloseable {
 
     private static final int FETCH_SIZE = 1000;
@@ -58,12 +39,6 @@ public final class LegacyJdbcReader implements AutoCloseable {
         }
     }
 
-    /**
-     * Opens a forward-only, read-only cursor for one entity SELECT. The
-     * returned {@link ResultSet}'s {@link ResultSet#getStatement()} is
-     * closed when the result set is closed (driver default) — callers use
-     * try-with-resources on the result set.
-     */
     public ResultSet openEntityCursor(String sql) throws SQLException {
         PreparedStatement ps = connection.prepareStatement(
                 sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -72,16 +47,6 @@ public final class LegacyJdbcReader implements AutoCloseable {
         return ps.executeQuery();
     }
 
-    /**
-     * Adds {@code ApplicationIntent=ReadOnly} when absent, overrides a single
-     * {@code ReadWrite} intent the operator may have pasted. SQL Server URL
-     * properties are {@code ;}-delimited {@code key=value} pairs after the
-     * {@code jdbc:sqlserver://host} prefix.
-     *
-     * <p>A URL carrying more than one {@code ApplicationIntent} parameter is
-     * rejected: the driver honours the LAST occurrence, so rewriting only the
-     * first could let a trailing {@code ReadWrite} slip through.
-     */
     static String forceReadOnlyIntent(String jdbcUrl) {
         String lower = jdbcUrl.toLowerCase(Locale.ROOT);
         if (countOccurrences(lower, "applicationintent=") > 1) {
@@ -118,7 +83,6 @@ public final class LegacyJdbcReader implements AutoCloseable {
         try {
             connection.close();
         } catch (SQLException ignored) {
-            // Best-effort close on a read-only connection — nothing to roll back.
         }
     }
 }

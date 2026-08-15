@@ -14,29 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Aircraft↔state history, aggregate-internal under {@code Aircraft}
- * (cross-tenant). Legacy composite PK
- * {@code (AircraftId, AircraftStateId, ValidFrom)} → surrogate
- * {@code id UUID PK} minted by S-141 INSERT (V3 reshape rationale in
- * {@code V3__flights_aircraft_locations.sql}).
- *
- * <p>No own {@code legacy_id_map_*} temp table — leaf entity, nobody FKs
- * back into it. Mapper carries only the wire columns; S-141 mints the
- * surrogate at INSERT time (UUID v7).
- *
- * <p>{@code noticed_by_person_id} → cross-tenant Person; declared in the
- * {@link ch.alpenflight.migration.bundle.Manifest} TENANT_BYPASS_ALLOW_LIST
- * widening. {@code aircraft_state_id} resolves through V3's seeded
- * {@code t_aircraft_state.legacy_int_id} map — entity outside
- * {@link EntityType}, not a per-bundle dependency.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}. Legacy schema lacks an
- * {@code IsDeleted} column on this table — the new {@code deleted_on}
- * tombstone column is populated only on subsequent post-migration
- * mutations; ports as NULL.
- */
 public final class AircraftAircraftStateMapper implements Mapper {
 
     static final String AIRCRAFT_ID = "aircraft_id";
@@ -69,22 +46,15 @@ public final class AircraftAircraftStateMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.AIRCRAFT);
     }
 
-    /**
-     * {@code aircraft_state_id} carries the synthetic {@code new UUID(0,
-     * legacyIntId)} encoding ({@link Coercions#legacyIntIdToUuidString} over
-     * the legacy {@code AircraftStateId}); the ingest pipeline resolves it to
-     * the real V3 {@code t_aircraft_state} seed PK by joining
-     * {@code legacy_int_id}.
-     */
     @Override
     public List<ReferenceLookup> referenceLookups() {
         return List.of(

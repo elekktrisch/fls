@@ -42,8 +42,6 @@ class InstructorFeeStageTest {
                 UUID.randomUUID(), null, article, AccountingUnitType.MIN, config);
     }
 
-    // Two matching type-40 filters that target the SAME article must produce TWO
-    // distinct lines (always-new-line bypass), not one coalesced line.
     @Test
     void everyMatchingFilterAddsItsOwnLineEvenForTheSameArticle() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
@@ -60,8 +58,6 @@ class InstructorFeeStageTest {
                         .isEqualByComparingTo(BigDecimal.valueOf(60)));
     }
 
-    // A NoInstructorFee flight (cost-balance-type 4) still emits the line but bills
-    // a quantity of zero.
     @Test
     void noInstructorFeeFlightBillsZeroQuantity() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());

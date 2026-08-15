@@ -2,18 +2,6 @@ package ch.alpenflight.migration.bundle;
 
 import java.util.Map;
 
-/**
- * Legacy tables intentionally not ported. Each entry carries a "WHY not
- * mapped" reason so the parity oracle's coverage gate (S-187) can fail
- * loudly when a new legacy DBUpdate adds a table that is neither mapped
- * nor explicitly registered here. Keys are the legacy table names exactly
- * as the FLSTest CREATE TABLE statement spells them (plural, as the legacy
- * convention requires) — strict equality against the legacy schema dump.
- *
- * <p>Distinct from {@link Manifest#unmappedReason()} which is keyed by
- * {@link EntityType} (new-stack concept). Registry entries here have no
- * {@link EntityType} at all — there is no destination table.
- */
 public final class UnmappedTables {
 
     private UnmappedTables() { }

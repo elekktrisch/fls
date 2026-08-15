@@ -7,16 +7,11 @@ import java.time.Clock;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Aggregate-level invariants for {@link Person}. The sacred-cow shape lives
- * in the {@code joinClub} / {@code leaveClub} / {@code softDelete} methods;
- * these tests pin the rules that the schema deliberately does NOT enforce
- * (per ADR 0022 directive 2: business rules on aggregates, not DB).
- */
 class PersonTest {
 
     private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a1");
     private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000000a2");
+    private static final UUID MEMBER_STATE = UUID.fromString("019e30c3-2c00-7001-8000-0000000000b1");
 
     @Test
     void joinClub_rejectsSecondActiveMembershipForSameClub() {
@@ -44,10 +39,10 @@ class PersonTest {
                 CLUB_A, "M-1-new", null,
                 PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
 
-        // Reactivation preserves identity: the partial unique ux_person_club_alive
-        // would reject a fresh insert; reactivating the prior row flips deleted_on
-        // back to NULL and re-applies the membership fields.
-        assertThat(rejoined).isSameAs(original);
+        assertThat(rejoined)
+                .as("rejoining reactivates the prior row in place — a fresh insert would collide "
+                        + "with the ux_person_club_alive partial unique")
+                .isSameAs(original);
         assertThat(rejoined.isDeleted()).isFalse();
         assertThat(rejoined.getMemberNumber()).isEqualTo("M-1-new");
     }
@@ -57,10 +52,9 @@ class PersonTest {
         Person p = Person.register("Ada", "Lovelace", null);
         p.joinClub(CLUB_A, "M-1", null, PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
 
-        // CLUB_A admin attempts to soft-delete; the caller-side check
-        // (`hasActiveMembershipInOtherTenant`) reports CLUB_B still has an
-        // active membership for this Person — the aggregate must refuse.
-        assertThatThrownBy(() -> p.softDelete(null, Clock.systemUTC(), /* hasOtherTenantMemberships = */ true))
+        boolean anotherTenantStillHasAnActiveMembership = true;
+        assertThatThrownBy(() ->
+                p.softDelete(null, Clock.systemUTC(), anotherTenantStillHasAnActiveMembership))
                 .as("CLUB_ADMIN must not orphan another tenant's PersonClub records via single-tenant delete")
                 .isInstanceOf(CrossTenantMembershipBlockedException.class);
         assertThat(p.isDeleted()).isFalse();
@@ -71,12 +65,14 @@ class PersonTest {
         Person p = Person.register("Ada", "Lovelace", null);
         p.joinClub(CLUB_A, "M-1", null, PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
 
-        p.softDelete(null, Clock.systemUTC(), /* hasOtherTenantMemberships = */ false);
+        boolean anotherTenantStillHasAnActiveMembership = false;
+        p.softDelete(null, Clock.systemUTC(), anotherTenantStillHasAnActiveMembership);
 
         assertThat(p.isDeleted()).isTrue();
-        // Cascade soft-deletes the aggregate-internal PersonClub rows so the
-        // tenant-scoped view drops the membership immediately.
-        assertThat(p.getActivePersonClubs()).isEmpty();
+        assertThat(p.getActivePersonClubs())
+                .as("the delete cascades to the aggregate-internal PersonClub rows, so the "
+                        + "tenant-scoped view drops the membership immediately")
+                .isEmpty();
     }
 
     @Test
@@ -97,7 +93,7 @@ class PersonTest {
     void updateNotificationPrefs_changesOnlyTheThreeBooleans_adminFieldsUntouched() {
         Person p = Person.register("Ada", "Lovelace", null);
         p.joinClub(
-                CLUB_A, "M-42", UUID.fromString("019e30c3-2c00-7001-8000-0000000000b1"),
+                CLUB_A, "M-42", MEMBER_STATE,
                 new PersonRoleFlags(true, true, true, true, false, false, false, false),
                 new PersonNotificationPrefs(false, false, false),
                 true);
@@ -105,14 +101,11 @@ class PersonTest {
         PersonClub pc = p.updateNotificationPrefs(
                 CLUB_A, new PersonNotificationPrefs(true, false, true));
 
-        // The three notification booleans changed.
         assertThat(pc.isReceiveFlightReports()).isTrue();
         assertThat(pc.isReceiveAircraftReservationNotifications()).isFalse();
         assertThat(pc.isReceivePlanningDayRoleReminder()).isTrue();
-        // The admin-only membership identity fields are UNTOUCHED.
         assertThat(pc.getMemberNumber()).isEqualTo("M-42");
-        assertThat(pc.getMemberStateId())
-                .isEqualTo(UUID.fromString("019e30c3-2c00-7001-8000-0000000000b1"));
+        assertThat(pc.getMemberStateId()).isEqualTo(MEMBER_STATE);
         assertThat(pc.isMotorPilot()).isTrue();
         assertThat(pc.isTowPilot()).isTrue();
         assertThat(pc.isGliderInstructor()).isTrue();
@@ -126,8 +119,6 @@ class PersonTest {
         p.joinClub(CLUB_A, "M-1", null,
                 PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
 
-        // No alive membership in CLUB_B → caller-tenant absence is a clean
-        // PersonNotFoundException (→ 409 at the edge).
         assertThatThrownBy(() -> p.updateNotificationPrefs(
                         CLUB_B, new PersonNotificationPrefs(true, true, true)))
                 .isInstanceOf(PersonNotFoundException.class);

@@ -10,13 +10,6 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.UUID;
 
-/**
- * Drives a Postgres container's lifecycle via {@code docker} CLI — symmetric
- * with {@link MssqlContainerLifecycle} and with the {@code alpenflight/server}
- * test-support's {@code PostgresTestContainerLifecycle}. Same reason to
- * bypass Testcontainers: the sandbox enforces Docker REST API ≥ 1.44 and
- * the bundled docker-java negotiates 1.32.
- */
 public final class PostgresContainerLifecycle {
 
     private static final String IMAGE = "postgres:17-alpine";
@@ -71,7 +64,6 @@ public final class PostgresContainerLifecycle {
                     .start()
                     .waitFor();
         } catch (Exception ignored) {
-            // Best-effort cleanup.
         }
     }
 
@@ -110,7 +102,6 @@ public final class PostgresContainerLifecycle {
                     }
                 }
             } catch (IOException | InterruptedException ignored) {
-                // retry
             }
             sleepQuietly(500);
         }

@@ -12,52 +12,9 @@ import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * J-1 T-07 aircraft migration parity fixture — the migrated-data half of the
- * aircraft real chain. Mirrors the J-0c `fan-out-parity-fixture`: it ingests a
- * migrated bundle through the REAL `POST /api/v1/migrations/{id}/bundle`
- * endpoint (never a DB INSERT) so the migration ingest + Keycloak club-admin
- * provisioning run LIVE, then resolves the loginable migrated admin of the club
- * that owns the migrated aircraft.
- *
- * TWO bundle fidelities, ONE downstream path (identical to J-0c):
- *   - **Synth (default — fast inner loop, no legacy stack).** Mint a handshake
- *     here, shell out to the Gradle `seedAircraftParityBundle` task (the only
- *     Java seam — the ALPF bundle envelope is built in Java by the same factory
- *     the server round-trip ITs use). It emits the encrypted aircraft bundle
- *     (a club + owner Person + homebase Location + one AIRCRAFT with a random
- *     `J1-<rand>` immatriculation + state + counter) as base64 to a temp file.
- *   - **Real (`J1_BUNDLE_SOURCE=real` — full chain).** Reuse the workflow's
- *     handshake JSON (`J1_REAL_HANDSHAKE_FILE`) + the `alpenflight-export`
- *     `.enc` bundle (`J1_REAL_BUNDLE_FILE`), and the legacy-created
- *     immatriculation (`J1_REAL_IMMATRICULATION`).
- *
- * Shared tail (both modes): log in the Flyway-seeded `clubadmin2` migration
- * principal (real KC, verified-email + V26 `t_user`), capture its Bearer, POST
- * the bundle → the ingest provisions one Keycloak club-admin per migrated club.
- * The aircraft's managing club is the single declared club; its provisioned
- * admin is made loginable so the spec can render `/aircraft` as that admin.
- *
- * DISTINCT migration principal (J-1 T-17): this spec uses `clubadmin2`, NOT
- * J-0c's `clubadmin1`. The migration ingest provisions a non-terminal Deployment
- * OWNED BY the principal's Keycloak sub (DeploymentProvisioningService#provision
- * → findActiveByOwner). When the J-0c fan-out spec and this aircraft spec run in
- * the SAME `playwright test` invocation (alpenflight-proof-fanout.yml), sharing
- * `clubadmin1` made the second ingest 409 DEPLOYMENT_EXISTS on the first spec's
- * active Deployment. A per-spec principal gives each a disjoint deployment owner
- * so `findActiveByOwner` never collides. (Realm-export carries `clubadmin2` as a
- * second verified-email user; V26 seeds its `t_user` row.)
- */
+const AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_USER = 'clubadmin2@example.com';
+const AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
 
-/** Seeded `clubadmin2` (V26 dev user seed + realm-export). The J-1 migration principal (disjoint from J-0c's `clubadmin1` — T-17). */
-const PRINCIPAL_USER = 'clubadmin2@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
-
-/**
- * Repo paths: this file is alpenflight/web/e2e/tests/real-idp/_helpers/, so five
- * `..` reach `alpenflight/`. The server is its own Gradle root project; its
- * wrapper + the seeder tasks live under `alpenflight/server/`.
- */
 const SERVER_DIR = resolve(__dirname, '../../../../../server');
 const GRADLEW = resolve(SERVER_DIR, 'gradlew');
 
@@ -85,7 +42,6 @@ function requiredEnvPath(name: string): string {
 }
 
 export interface MigratedClubAdmin {
-  /** Raw provisioned club UUID — matches the `clubId` claim + admin username tag. */
   clubId: string;
   username: string;
   password: string;
@@ -93,9 +49,7 @@ export interface MigratedClubAdmin {
 }
 
 export interface AircraftParityFixture {
-  /** The migrated aircraft's immatriculation (random in synth, legacy-created in real). */
   immatriculation: string;
-  /** The migrated admin of the club that owns (manages) the migrated aircraft. */
   owner: MigratedClubAdmin;
 }
 
@@ -122,7 +76,6 @@ interface ResolvedBundle {
   immatriculation: string;
 }
 
-/** `GET /api/v1/aircraft` list-item projection (the SPA's generated `AircraftListItem`). */
 interface AircraftListItem {
   id: string;
   immatriculation: string;
@@ -139,10 +92,12 @@ async function capturePrincipalBearer(browser: Browser, baseURL: string): Promis
     await page.goto('/');
     await page.getByTestId('landing-topbar-sign-in').click();
     await page.waitForURL(/\/realms\/alpenflight\//);
-    await fillKcLogin(page, PRINCIPAL_USER, PRINCIPAL_PASSWORD);
+    await fillKcLogin(
+      page,
+      AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_USER,
+      AIRCRAFT_SPEC_OWN_MIGRATION_PRINCIPAL_PASSWORD,
+    );
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
-    // The aircraft list is the principal's authed read surface; navigating to it
-    // guarantees a /api/v1/* call fires so the interceptor attaches a Bearer.
     await page.goto('/aircraft');
     const req = await bearerPromise;
     return req.headers()['authorization']!;
@@ -162,11 +117,6 @@ async function mintHandshake(api: APIRequestContext, bearer: string): Promise<Ha
   return (await res.json()) as HandshakeResponse;
 }
 
-/**
- * Invoke the Gradle `seedAircraftParityBundle` task to build the encrypted
- * aircraft bundle. Returns the raw bundle bytes (the task base64-encodes to a
- * temp file; we decode here).
- */
 async function buildBundleBytes(
   publicKeyPem: string,
   uploadId: string,
@@ -202,13 +152,8 @@ async function resolveSynthBundle(
   bearer: string,
   attempt: number,
 ): Promise<ResolvedBundle> {
-  // Attempt-scoped suffix so a Playwright retry never reuses the prior run's
-  // uploadId / club key / immatriculation: a failed ingest seals its upload
-  // FAILED (a re-POST 409s BUNDLE_PRIOR_RUN_FAILED).
-  const attemptTag = `${Date.now().toString(36)}${attempt > 0 ? `r${attempt}` : ''}`;
-  // Immatriculation must satisfy the SPA / domain pattern + length cap (<=15).
-  // Keep it short, uppercase, hyphenated: `J1-<6 hex>`.
-  const immatriculation = `J1-${attemptTag.slice(-6).toUpperCase()}`;
+  const perAttemptUniqueTag = `${Date.now().toString(36)}${attempt > 0 ? `r${attempt}` : ''}`;
+  const immatriculation = `J1-${perAttemptUniqueTag.slice(-6).toUpperCase()}`;
   const clubKey = `J1A${runId().slice(0, 4).toUpperCase()}${attempt}`;
   const handshake = await mintHandshake(api, bearer);
   const bundle = await buildBundleBytes(
@@ -253,7 +198,6 @@ async function ingestBundle(
   return (await res.json()) as IngestResponse;
 }
 
-/** Deterministic migrated-admin username (mirrors the server's directory adapter). */
 function migratedAdminUsername(clubId: string): string {
   return `migrated-admin+${clubId}@migrated.alpenflight.local`;
 }
@@ -271,11 +215,6 @@ async function loginableAdmin(clubId: string): Promise<MigratedClubAdmin> {
   return { clubId, username, password: E2E_CANNED_PASSWORD, kcUserId: kcUser.id };
 }
 
-/**
- * `true` when this tenant (resolved off `bearer`'s `clubId` claim) carries an
- * aircraft with the migrated immatriculation. Uses the SAME read API the parity
- * spec asserts on (`GET /api/v1/aircraft`).
- */
 async function tenantHasAircraft(
   api: APIRequestContext,
   bearer: string,
@@ -291,12 +230,6 @@ async function tenantHasAircraft(
 
 const PER_CLUB_LOGIN_BUDGET_MS = 12_000;
 
-/**
- * Drive a migrated club admin through the SPA + real-KC login in a throwaway
- * context and capture the tenant-scoped Bearer the OIDC interceptor attaches.
- * Bounded so a single un-loginable admin can't burn the beforeAll budget;
- * returns `undefined` on timeout/error (treated as non-owner by the caller).
- */
 async function tryBearerForMigratedAdmin(
   browser: Browser,
   baseURL: string,
@@ -332,14 +265,6 @@ async function tryBearerForMigratedAdmin(
   }
 }
 
-/**
- * Seed the migrated aircraft + resolve the loginable admin of its managing
- * club. The aircraft's managing club is the bundle's single declared club, but
- * the real FLSTest bundle may declare several clubs (all FULL_PORT) — only the
- * one carrying the migrated aircraft is the owner. We identify it by OWNERSHIP:
- * each provisioned admin queries its own `/api/v1/aircraft`; exactly the one
- * whose list contains the immatriculation is the managing club.
- */
 export async function seedAircraftParity(
   browser: Browser,
   api: APIRequestContext,
@@ -382,11 +307,6 @@ export async function seedAircraftParity(
   return { immatriculation, owner: owner! };
 }
 
-/**
- * Log a migrated club admin in through the SPA + Keycloak login form, landing
- * on the authed root. Production `provisionClubAdminIdentity` stamps
- * firstName/lastName (T-06) so VERIFY_PROFILE never fires.
- */
 export async function loginAsMigratedAdmin(
   page: Page,
   admin: MigratedClubAdmin,
@@ -402,21 +322,12 @@ export async function loginAsMigratedAdmin(
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }
 
-/**
- * Run the Gradle `seedAircraftOwnerLink` task (S-163 [edge] DB-fixture seam):
- * sets the owner Person + the JWT-sub→Person `t_user` link + the aircraft's
- * `aircraft_owner_person_id`. This is fixture STATE, not a mocked seam — the
- * S-163 access decision still runs fully real off these rows. Returns the
- * created `personId`.
- */
 export async function seedAircraftOwnerLink(opts: {
   aircraftId: string;
   ownerKeycloakSub: string;
   ownerClubId: string;
   languageId: string;
 }): Promise<string> {
-  // The aircraft id arrives in external `ac-<uuid>` form; the seeder UPDATEs the
-  // raw uuid PK, so strip the prefix.
   const rawAircraftId = opts.aircraftId.replace(/^ac-/, '');
   const seederArgs = [rawAircraftId, opts.ownerKeycloakSub, opts.ownerClubId, opts.languageId].join(
     ' ',

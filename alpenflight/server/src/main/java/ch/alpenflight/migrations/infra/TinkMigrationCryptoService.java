@@ -8,14 +8,6 @@ import java.util.Arrays;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 
-/**
- * Tink-AEAD adapter. The {@code uploadId} UUID is encoded as 16 bytes and
- * passed as {@code associatedData} so a ciphertext minted for row A
- * cannot be unwrapped against row B's metadata.
- *
- * <p>Plaintext byte arrays are zeroized in-place after wrapping; the caller
- * is expected to pass an array it no longer references.
- */
 @Component
 class TinkMigrationCryptoService implements MigrationCryptoService {
 

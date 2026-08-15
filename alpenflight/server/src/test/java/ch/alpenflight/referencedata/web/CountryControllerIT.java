@@ -24,11 +24,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Full-stack HTTP integration test for the Country reference-data read
- * surface. Exercises the seeded V2 data (248 ISO countries) through the
- * production {@code SecurityFilterChain} via {@link JwtTestFixture}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -82,8 +77,6 @@ class CountryControllerIT extends PostgresIntegrationTest {
         assertThat(sweden).as("Sweden present").isGreaterThanOrEqualTo(0);
         assertThat(sweden).isLessThan(switzerland);
 
-        // ICU collation: accented C-names (Côte d'Ivoire) sort inside the C
-        // group, not at the end as default C-collation would place them.
         int cote = names.indexOf("Côte d'Ivoire");
         int cuba = names.indexOf("Cuba");
         if (cote >= 0 && cuba >= 0) {

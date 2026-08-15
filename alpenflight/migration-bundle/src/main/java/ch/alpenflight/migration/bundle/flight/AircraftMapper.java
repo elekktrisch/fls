@@ -15,74 +15,17 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Cross-tenant aggregate root per ADR 0008's 2026-05-24 amendment: legacy
- * {@code Aircrafts.AircraftId} → {@code t_aircraft.id}.
- *
- * <p>{@code managing_club_id} (V10, NOT NULL) is computed producer-side
- * via cascade: legacy {@code OwnerClubId} → single-{@code PersonClub} of
- * {@code AircraftOwnerPersonId} in bundle → drop+warn
- * {@code AIRCRAFT_NO_MANAGING_CLUB}. The producer aliases the resolved
- * value as the cursor's {@code ManagingClubId} column; this mapper reads
- * it verbatim. {@code owner_club_id} (V3, nullable) is plain ownership
- * metadata orthogonal to the tenant identity.
- *
- * <p>Outgoing FKs per {@link Mapper#foreignKeys()}: {@link EntityType#CLUB}
- * (owner + manager), {@link EntityType#PERSON}
- * ({@code aircraft_owner_person_id} — cross-tenant tenant-bypass per the
- * {@link ch.alpenflight.migration.bundle.Manifest}
- * {@code TENANT_BYPASS_ALLOW_LIST}), {@link EntityType#LOCATION}
- * ({@code homebase_id} — cross-tenant ride-through into the tenant-scoped
- * Location replica matching the Aircraft's managing club).
- * {@code aircraft_type_id} resolves through V3's seeded {@code legacy_int_id}
- * map and the two counter-unit-type FKs through V25's — those entities live outside
- * {@link EntityType} and are not per-bundle dependencies.
- *
- * <p>Mapper-side {@code spot_link} {@code ^https://} reject at
- * {@link #readEntity}: defense-in-depth ahead of the V3
- * {@code ck_aircraft_spot_link_https} schema CHECK (ADR 0022 directive 2
- * A10 SSRF carve-out). Fails the bundle row with
- * {@code BUNDLE_AIRCRAFT_SPOT_LINK_NOT_HTTPS} rather than letting the
- * row land and surface as an opaque mid-COPY constraint violation.
- *
- * <p>Aircraft ownership-exclusivity invariant (V3 SQL COMMENT):
- * {@code owner_club_id} XOR {@code aircraft_owner_person_id} —
- * service-layer enforced. Mapper passes through; producer (S-139) is
- * responsible for stripping malformed legacy rows before they hit the
- * bundle.
- *
- * <p>Cross-bundle Aircraft dedupe is out of scope: per S-183,
- * {@code legacy_id_map_aircraft} is bundle-local ({@code ON COMMIT DROP}).
- * Future multi-bundle merge of the same physical aircraft requires manual
- * resolution via S-051.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class AircraftMapper implements Mapper {
 
-    /**
-     * Thrown by {@link #readEntity} when the producer-side hygiene failed
-     * to strip a non-{@code https://} {@code spot_link}. Surfaces as a
-     * row-attributable error before the V3 CHECK fires mid-COPY.
-     */
     public static final String NOT_HTTPS_SPOT_LINK_ERROR =
             "BUNDLE_AIRCRAFT_SPOT_LINK_NOT_HTTPS";
 
-    /**
-     * Mapper-side {@code spot_link} scheme accepted. Matches the V3
-     * {@code ck_aircraft_spot_link_https} CHECK ({@code ~* '^https://'},
-     * case-insensitive) so producer-side hygiene + schema CHECK agree.
-     */
     private static final String HTTPS_SCHEME = "https://";
 
-    /**
-     * Cap on the offending {@code spot_link} fragment echoed back in the
-     * row-attributable error message. Defense-in-depth: bundle-supplied
-     * URLs may carry query strings or fragments with credentials/PII that
-     * downstream loggers (S-141 error sink) capture verbatim.
-     */
     private static final int SPOT_LINK_ECHO_LIMIT = 32;
+
+    private static final char FIRST_PRINTABLE_ASCII = 0x20;
+    private static final char ASCII_DELETE = 0x7f;
 
     static final String LEGACY_GUID = "legacy_guid";
     static final String MANAGING_CLUB_ID = "managing_club_id";
@@ -146,37 +89,15 @@ public final class AircraftMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.LOCATION);
     }
 
-    /**
-     * AIRCRAFT's FK columns are off the {@code <target>_id} convention, so each
-     * {@code (column, target)} pair is declared explicitly (S-187a / T-05b):
-     *
-     * <ul>
-     *   <li>{@code managing_club_id} + {@code owner_club_id} → CLUB — one target
-     *       reached through TWO columns, which the convention cannot express;</li>
-     *   <li>{@code aircraft_owner_person_id} → PERSON — off-convention name;</li>
-     *   <li>{@code homebase_id} → LOCATION ({@link EntityType#fansOut()}) — the
-     *       per-club replica is disambiguated by the aircraft's OWN
-     *       {@code managing_club_id}, NOT the resolver's default {@code club_id}
-     *       referencer field (which this row never carries). By declaration order
-     *       {@code managing_club_id} is rewritten to its new-stack id before
-     *       {@code homebase_id} resolves, so the composite
-     *       {@code (legacy_guid, club_id)} lookup lands on the managing club's
-     *       Location replica.</li>
-     * </ul>
-     *
-     * <p>The {@code aircraft_type_id} + counter-unit-type FKs are NOT here: they
-     * resolve through the V3 {@code legacy_int_id} reference-lookup path
-     * ({@link #referenceLookups()}), not the GUID id-map this declares.
-     */
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
         return List.of(
@@ -186,23 +107,6 @@ public final class AircraftMapper implements Mapper {
                 new ForeignKeyColumn(HOMEBASE_ID, EntityType.LOCATION, MANAGING_CLUB_ID));
     }
 
-    /**
-     * Each column carries the synthetic {@code new UUID(0, legacyIntId)}
-     * encoding ({@link Coercions#legacyIntIdToUuidString}); the ingest pipeline
-     * resolves it to the real Flyway-seed PK by joining {@code legacy_int_id}:
-     *
-     * <ul>
-     *   <li>{@code aircraft_type_id} → {@code t_aircraft_type} (legacy
-     *       {@code AircraftTypeId}, V3 seed).</li>
-     *   <li>{@code flight_operating_counter_unit_type_id} +
-     *       {@code engine_operating_counter_unit_type_id} →
-     *       {@code t_counter_unit_type} (legacy
-     *       {@code Flight/EngineOperatingCounterUnitTypeId}). V25 backfilled
-     *       {@code t_counter_unit_type.legacy_int_id} (legacy {@code 1}=Minutes,
-     *       {@code 2}=2-decimals-per-hour); before that the producer's emitted
-     *       synthetic UUIDs had nothing to resolve against.</li>
-     * </ul>
-     */
     @Override
     public List<ReferenceLookup> referenceLookups() {
         return List.of(
@@ -233,7 +137,6 @@ public final class AircraftMapper implements Mapper {
         Coercions.writeOptionalString(target, FLARM_ID, source.getString("FLARMId"));
         Coercions.writeOptionalString(target, AIRCRAFT_SERIAL_NUMBER,
                 source.getString("AircraftSerialNumber"));
-        // Legacy datetime2 → DATE; JDBC truncates the time portion via getDate().
         Coercions.writeOptionalDate(target, YEAR_OF_MANUFACTURE,
                 source.getDate("YearOfManufacture"));
         Coercions.writeOptionalString(target, NOISE_CLASS, source.getString("NoiseClass"));
@@ -285,7 +188,7 @@ public final class AircraftMapper implements Mapper {
                     + ": Aircraft.spot_link must start with 'https://' — "
                     + "producer-side hygiene fell through, would otherwise trip "
                     + "ck_aircraft_spot_link_https mid-COPY. Got prefix: "
-                    + safeEchoFragment(spotLink));
+                    + loggableSpotLinkPrefix(spotLink));
         }
         int position = 1;
         target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
@@ -326,14 +229,15 @@ public final class AircraftMapper implements Mapper {
         target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
     }
 
-    private static String safeEchoFragment(String spotLink) {
+    private static String loggableSpotLinkPrefix(String spotLink) {
         int limit = Math.min(SPOT_LINK_ECHO_LIMIT, spotLink.length());
         StringBuilder builder = new StringBuilder(limit);
         for (int index = 0; index < limit; index++) {
             char character = spotLink.charAt(index);
-            // Strip control characters (C0 + DEL) so the echo cannot
-            // smuggle ANSI escapes or newlines into downstream loggers.
-            builder.append(character < 0x20 || character == 0x7f ? '?' : character);
+            builder.append(
+                    character < FIRST_PRINTABLE_ASCII || character == ASCII_DELETE
+                            ? '?'
+                            : character);
         }
         return builder.toString();
     }

@@ -40,21 +40,14 @@ import { SessionStore } from '../../../core/session/session.store';
 import { AccountingStore } from '../accounting.store';
 import { MatchListControlComponent } from './match-list-control.component';
 
-// Legacy filter-type legacyIds that drive section visibility (legacy predicate
-// fns in AccountingRuleFiltersEditController.js): article-target ∉ {5,10},
-// recipient ==10, aircraft-filter ==30, no-landing-tax ==20.
 const LEGACY_DO_NOT_INVOICE = 5;
 const LEGACY_RECIPIENT = 10;
 const LEGACY_NO_LANDING_TAX = 20;
 const LEGACY_AIRCRAFT_FILTER = 30;
 
-// Legacy "unlimited" duration sentinel (AccountingRuleFiltersEditController.js:65):
-// unlimited === !(min > 0 || max < 2147483647).
-const MAX_DURATION_SECONDS = 2147483647;
+const LEGACY_UNLIMITED_DURATION_SECONDS = 2147483647;
 
 type AccountingForm = FormGroup<{
-  // String-typed legacyId so the native <select> round-trips empty ('' = not
-  // chosen → required error). The form drives section visibility off it.
   filterTypeLegacyId: FormControl<string>;
   ruleFilterName: FormControl<string>;
   description: FormControl<string>;
@@ -63,28 +56,21 @@ type AccountingForm = FormGroup<{
   isRuleForGliderFlights: FormControl<boolean>;
   isRuleForTowingFlights: FormControl<boolean>;
   isRuleForMotorFlights: FormControl<boolean>;
-  // article-target (legacyId ∉ {5,10})
   articleNumber: FormControl<string>;
   deliveryLineText: FormControl<string>;
   accountingUnitTypeId: FormControl<string>;
-  // recipient-target (legacyId == 10)
   recipientMemberNumber: FormControl<string>;
   recipientName: FormControl<string>;
   chargedToClubInternal: FormControl<boolean>;
-  // aircraft-filter (legacyId == 30)
   flightDurationUnlimited: FormControl<boolean>;
   minFlightTimeInSeconds: FormControl<number | null>;
   maxFlightTimeInSeconds: FormControl<number | null>;
   includeThresholdText: FormControl<boolean>;
   thresholdText: FormControl<string>;
   includeFlightTypeName: FormControl<boolean>;
-  // no-landing-tax (legacyId == 20)
   noLandingTaxForGlider: FormControl<boolean>;
   noLandingTaxForTowingAircraft: FormControl<boolean>;
   noLandingTaxForAircraft: FormControl<boolean>;
-  // predicate match-lists (T-13) — each round-trips a {useAllExcept, matched[]}
-  // via the MatchListControlComponent (CVA). Always present (every type can use
-  // them), so they live outside the conditional sections.
   matchAircraftImmatriculations: FormControl<MatchList>;
   matchStartTypes: FormControl<MatchList>;
   matchFlightTypeCodes: FormControl<MatchList>;
@@ -97,27 +83,11 @@ type AccountingForm = FormGroup<{
   extendMatchingFlightTypeCodesToGliderAndTowFlight: FormControl<boolean>;
 }>;
 
-// The nine visible match-lists (legacy `accountingRuleFilters-edit.html`;
-// personCategories is dead/commented-out → migrated but no control). Maps the
-// form control name → the FilterConfig field + the i18n label key + the optional
-// suggestion source. Drives both the template instances and the write/read
-// round-trip — one parameterised control, no copy-pasted blocks.
 interface MatchListSpec {
-  /** Stable list key — drives every per-instance data-testid. */
   readonly key: string;
-  /** The AccountingForm control name. */
   readonly control: keyof MatchListControlMap;
-  /** The FilterConfig field it round-trips. */
   readonly field: keyof MatchListMap;
-  /**
-   * Full scope-relative i18n key (under the `accounting` transloco scope), e.g.
-   * `edit.matchLists.immatriculations`. Stored whole and read via a single
-   * variable in the template — NOT a literal+variable concatenation — so the
-   * i18n-key-coverage static analyzer (which only resolves string-literal keys)
-   * resolves it; a concatenated prefix reads as an undefined truncated key.
-   */
   readonly labelKey: string;
-  /** Store option source feeding the typed-entry datalist (undefined = typed only). */
   readonly optionSource?:
     | 'aircraftImmatriculations'
     | 'flightTypeCodes'
@@ -139,92 +109,71 @@ type MatchListControlMap = Pick<
   | 'matchMemberStates'
 >;
 
-const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
-  {
-    key: 'immatriculations',
-    control: 'matchAircraftImmatriculations',
-    field: 'aircraftImmatriculations',
-    labelKey: 'edit.matchLists.immatriculations',
-    optionSource: 'aircraftImmatriculations',
-  },
-  {
-    key: 'start-types',
-    control: 'matchStartTypes',
-    field: 'startTypes',
-    labelKey: 'edit.matchLists.startTypes',
-  },
-  {
-    key: 'flight-type-codes',
-    control: 'matchFlightTypeCodes',
-    field: 'flightTypeCodes',
-    labelKey: 'edit.matchLists.flightTypeCodes',
-    optionSource: 'flightTypeCodes',
-  },
-  {
-    key: 'start-locations',
-    control: 'matchStartLocations',
-    field: 'startLocations',
-    labelKey: 'edit.matchLists.startLocations',
-    optionSource: 'locations',
-  },
-  {
-    key: 'landing-locations',
-    control: 'matchLdgLocations',
-    field: 'ldgLocations',
-    labelKey: 'edit.matchLists.landingLocations',
-    optionSource: 'locations',
-  },
-  {
-    key: 'club-member-numbers',
-    control: 'matchClubMemberNumbers',
-    field: 'clubMemberNumbers',
-    labelKey: 'edit.matchLists.clubMemberNumbers',
-    optionSource: 'clubMemberNumbers',
-  },
-  {
-    key: 'flight-crew-types',
-    control: 'matchFlightCrewTypes',
-    field: 'flightCrewTypes',
-    labelKey: 'edit.matchLists.flightCrewTypes',
-    optionSource: 'flightCrewTypes',
-  },
-  {
-    key: 'aircraft-homebases',
-    control: 'matchAircraftHomebases',
-    field: 'aircraftHomebases',
-    labelKey: 'edit.matchLists.aircraftHomebases',
-    optionSource: 'locations',
-  },
-  {
-    key: 'member-states',
-    control: 'matchMemberStates',
-    field: 'memberStates',
-    labelKey: 'edit.matchLists.memberStates',
-  },
-];
+const MATCH_LIST_SPECS_WITHOUT_PERSON_CATEGORIES_UNRENDERED_IN_THE_LEGACY_FORM: readonly MatchListSpec[] =
+  [
+    {
+      key: 'immatriculations',
+      control: 'matchAircraftImmatriculations',
+      field: 'aircraftImmatriculations',
+      labelKey: 'edit.matchLists.immatriculations',
+      optionSource: 'aircraftImmatriculations',
+    },
+    {
+      key: 'start-types',
+      control: 'matchStartTypes',
+      field: 'startTypes',
+      labelKey: 'edit.matchLists.startTypes',
+    },
+    {
+      key: 'flight-type-codes',
+      control: 'matchFlightTypeCodes',
+      field: 'flightTypeCodes',
+      labelKey: 'edit.matchLists.flightTypeCodes',
+      optionSource: 'flightTypeCodes',
+    },
+    {
+      key: 'start-locations',
+      control: 'matchStartLocations',
+      field: 'startLocations',
+      labelKey: 'edit.matchLists.startLocations',
+      optionSource: 'locations',
+    },
+    {
+      key: 'landing-locations',
+      control: 'matchLdgLocations',
+      field: 'ldgLocations',
+      labelKey: 'edit.matchLists.landingLocations',
+      optionSource: 'locations',
+    },
+    {
+      key: 'club-member-numbers',
+      control: 'matchClubMemberNumbers',
+      field: 'clubMemberNumbers',
+      labelKey: 'edit.matchLists.clubMemberNumbers',
+      optionSource: 'clubMemberNumbers',
+    },
+    {
+      key: 'flight-crew-types',
+      control: 'matchFlightCrewTypes',
+      field: 'flightCrewTypes',
+      labelKey: 'edit.matchLists.flightCrewTypes',
+      optionSource: 'flightCrewTypes',
+    },
+    {
+      key: 'aircraft-homebases',
+      control: 'matchAircraftHomebases',
+      field: 'aircraftHomebases',
+      labelKey: 'edit.matchLists.aircraftHomebases',
+      optionSource: 'locations',
+    },
+    {
+      key: 'member-states',
+      control: 'matchMemberStates',
+      field: 'memberStates',
+      labelKey: 'edit.matchLists.memberStates',
+    },
+  ];
 
-/**
- * AccountingRuleFilter edit form (`/accountingrules/new` + `/accountingrules/:id/edit`).
- *
- * Replaces the T-11 placeholder. Core fields are always shown; the four
- * conditional sections (article-target / recipient-target / aircraft-filter /
- * no-landing-tax) show/hide off the selected filter-type's `legacyId` — the
- * load-bearing legacy contract (AccountingRuleFiltersEditController.js predicate
- * fns + save normalisation, mirrored on save here).
- *
- * Validation is the J-6b `liveFieldErrors` as-you-type bar (debounced ~200ms),
- * NOT touched-gated. Save is gated on a REACTIVE `formStatus` signal (off
- * `statusChanges`, J-26 T-09) so the disable binding never lags validity under
- * OnPush + zoneless. Server 409/403 reroute through the `liveFieldErrors`
- * async slot so the debounced stream surfaces them (a `setErrors` carries no
- * `valueChanges`).
- *
- * The match-list predicate sub-component (the 10 `{useAllExcept, matched[]}`
- * lists) is T-13; it mounts into the `accounting-rules-section-match-lists`
- * host below the conditional sections and contributes its own slice of
- * `filterConfig`. T-12 sends each match-list at its `{useAllExcept: true,
- * matched: []}` default so the body validates without it.
- */
 @Component({
   selector: 'af-accounting-edit',
   standalone: true,
@@ -278,7 +227,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Core fields (always shown) -->
             <section class="flex flex-col gap-2" data-testid="accounting-rules-section-core">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -374,7 +322,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </div>
             </section>
 
-            <!-- article-target (legacyId ∉ {5,10}) -->
             @if (showArticleTarget()) {
               <section
                 class="flex flex-col gap-2"
@@ -423,7 +370,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- recipient-target (legacyId == 10) -->
             @if (showRecipientTarget()) {
               <section
                 class="flex flex-col gap-2"
@@ -465,7 +411,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- aircraft-filter (legacyId == 30) -->
             @if (showAircraftFilter()) {
               <section
                 class="flex flex-col gap-2"
@@ -541,7 +486,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!-- no-landing-tax (legacyId == 20) -->
             @if (showNoLandingTax()) {
               <section
                 class="flex flex-col gap-2"
@@ -584,13 +528,6 @@ const MATCH_LIST_SPECS: readonly MatchListSpec[] = [
               </section>
             }
 
-            <!--
-              Match-list predicate sub-component (T-13): the nine visible
-              {useAllExcept, matched[]} lists (personCategories is dead in the
-              legacy form — migrated, no control). One parameterised
-              MatchListControlComponent instantiated per spec, each bound to its
-              own form control so the slice round-trips through filterConfig.
-            -->
             <section class="flex flex-col gap-3" data-testid="accounting-rules-section-match-lists">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -659,14 +596,8 @@ export class AccountingEditPage {
   protected readonly filterTypeOptions = computed(() =>
     [...this.store.filterTypes()].sort((a, b) => a.legacyId - b.legacyId),
   );
-  // The unit-type catalog feeds the article-target section's select. T-07
-  // exposes it through the store; until that wiring lands it is simply empty
-  // (the select shows only the placeholder — never blocks save).
   protected readonly unitTypeOptions = computed(() => this.store.accountingUnitTypes());
 
-  // Suggestion tokens per match-list spec (T-13). Lifted off the store's
-  // lazily-loaded `matchListOptions`; an absent source resolves to typed-entry
-  // with no suggestions. Read in the template via `optionsFor(spec)`.
   private readonly matchListOptions = this.store.matchListOptions;
   protected optionsFor(spec: MatchListSpec): readonly string[] {
     const source = spec.optionSource;
@@ -712,39 +643,26 @@ export class AccountingEditPage {
     extendMatchingFlightTypeCodesToGliderAndTowFlight: this.fb.nonNullable.control(false),
   });
 
-  protected readonly matchListSpecs = MATCH_LIST_SPECS;
+  protected readonly matchListSpecs =
+    MATCH_LIST_SPECS_WITHOUT_PERSON_CATEGORIES_UNRENDERED_IN_THE_LEGACY_FORM;
 
   protected readonly saveSubmitted = signal(false);
   protected readonly notFound = signal(false);
 
-  // The match-lists slice is owned by T-13; T-12 preserves whatever the loaded
-  // detail carried (so a round-trip never drops a match-list the form doesn't
-  // render) and defaults to {useAllExcept: true, matched: []} on create.
   private readonly loadedMatchLists = signal<MatchListSlice>(defaultMatchListSlice());
 
-  // Save gating off a REACTIVE form-status signal (J-26 T-09), not the
-  // non-reactive form.invalid getter — under OnPush + zoneless a getter lags the
-  // disable binding behind validity. Seeded with the live status; statusChanges
-  // re-render the button the instant a required field flips.
   private readonly formStatus = toSignal(this.form.statusChanges, {
     initialValue: this.form.status,
   });
   protected readonly formInvalid = computed(() => this.formStatus() !== 'VALID');
 
-  // Server 409/403 routed through the `liveFieldErrors` async slot (J-26
-  // T-10/11/12) so the inline message surfaces under the as-you-type binding (a
-  // `setErrors` carries no `valueChanges`, so the debounced stream never re-reads
-  // it). Cleared the moment the user retypes the name.
   private readonly nameServerError = signal<ValidationErrors | null>(null);
 
-  // J-6b `liveFieldErrors` as-you-type bar (debounced ~200ms), NOT touched-gated.
   protected readonly nameErrors = liveFieldErrors(this.form.controls.ruleFilterName, {
     asyncErrors$: toObservable(this.nameServerError),
   });
   protected readonly filterTypeErrors = liveFieldErrors(this.form.controls.filterTypeLegacyId);
 
-  // Section-driving legacyId mirror (toSignal off the control's valueChanges so
-  // the @if blocks re-evaluate on every type change without a CD tick).
   private readonly legacyIdValue = toSignal(this.form.controls.filterTypeLegacyId.valueChanges, {
     initialValue: '',
   });
@@ -798,8 +716,6 @@ export class AccountingEditPage {
         .filterTypes()
         .find((ty) => ty.id === detail.filterTypeId)?.legacyId;
       const slice = extractMatchListSlice(detail.filterConfig);
-      // personCategories is the one dead list with no control — preserved here
-      // so the round-trip never drops it (the rest are owned by form controls).
       this.loadedMatchLists.set(slice);
       this.form.patchValue({
         ...detailToFormValue(detail, legacyId ?? null),
@@ -810,9 +726,6 @@ export class AccountingEditPage {
       }
     });
 
-    // A 404 on detail load (cross-tenant / deleted) surfaces a not-found banner
-    // instead of an empty form — the @TenantId finder never returns another
-    // club's row (T-14 thickens the assertion; the screen-shape lands here).
     effect(() => {
       if (!this.store.saveError()) return;
       if (this.store.saveErrorKind() === 'not-found' && !this.isCreate()) {
@@ -822,7 +735,6 @@ export class AccountingEditPage {
 
     const destroyRef = inject(DestroyRef);
 
-    // Hoist a server-side name conflict (409) onto the inline name slot.
     effect(() => {
       const err = this.store.saveError();
       if (!err) return;
@@ -833,8 +745,6 @@ export class AccountingEditPage {
       }
     });
 
-    // Clear the server name error + matching store error the moment the user
-    // retypes the name (re-enables Save without a blur dance).
     this.form.controls.ruleFilterName.valueChanges
       .pipe(takeUntilDestroyed(destroyRef))
       .subscribe(() => {
@@ -842,7 +752,6 @@ export class AccountingEditPage {
         if (this.store.saveErrorKind() === 'conflict') this.store.clearSaveError();
       });
 
-    // Navigate on the mutation-bus event — guaranteed-post-response, no race.
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (
@@ -876,7 +785,6 @@ export class AccountingEditPage {
     }
   }
 
-  /** Resolve the selected legacyId back to the type's UUID for the write request. */
   private selectedFilterTypeId(): string | null {
     const legacyId = this.selectedLegacyId();
     if (legacyId === null) return null;
@@ -892,8 +800,6 @@ export class AccountingEditPage {
     const isNoLandingTax = legacyId === LEGACY_NO_LANDING_TAX;
 
     const filterConfig: FilterConfig = {
-      // All 9 boolean flags present (server FAIL_ON_NULL_FOR_PRIMITIVES → an
-      // omitted boolean is a 400); default false outside the section that owns it.
       isRuleForGliderFlights: v.isRuleForGliderFlights,
       isRuleForTowingFlights: v.isRuleForTowingFlights,
       isRuleForMotorFlights: v.isRuleForMotorFlights,
@@ -904,21 +810,17 @@ export class AccountingEditPage {
       extendMatchingFlightTypeCodesToGliderAndTowFlight:
         v.extendMatchingFlightTypeCodesToGliderAndTowFlight,
       includeThresholdText: isAircraftFilter && v.includeThresholdText,
-      // The nine visible match-lists come from their form controls (T-13);
-      // personCategories (dead, no control) is preserved from the loaded detail.
       ...formValueToMatchListMap(v),
       personCategories: this.loadedMatchLists().lists.personCategories,
     };
 
-    // Threshold text nulled when its toggle is off (legacy :139-141).
     if (isAircraftFilter && v.includeThresholdText && v.thresholdText.trim() !== '') {
       filterConfig.thresholdText = v.thresholdText.trim();
     }
-    // Unlimited clears min/max on save (legacy :142-145); else send the range.
     if (isAircraftFilter && !v.flightDurationUnlimited) {
       filterConfig.minFlightTimeInSecondsMatchingValue = v.minFlightTimeInSeconds ?? 0;
       filterConfig.maxFlightTimeInSecondsMatchingValue =
-        v.maxFlightTimeInSeconds ?? MAX_DURATION_SECONDS;
+        v.maxFlightTimeInSeconds ?? LEGACY_UNLIMITED_DURATION_SECONDS;
     }
     if (isArticle && v.deliveryLineText.trim() !== '') {
       filterConfig.deliveryLineText = v.deliveryLineText.trim();
@@ -936,9 +838,6 @@ export class AccountingEditPage {
       filterConfig,
     };
 
-    // Optionals collapse to undefined (and drop off the wire) when empty / not
-    // applicable to the selected type (legacy clears the off-type targets on
-    // save). Type 5 (DoNotInvoice) sends neither article nor recipient.
     return withOptionals(base, {
       description: v.description,
       accountingUnitTypeId: isArticle ? v.accountingUnitTypeId : '',
@@ -949,8 +848,6 @@ export class AccountingEditPage {
   }
 }
 
-// Every match-list always present (non-optional MatchList) so the slice survives
-// `exactOptionalPropertyTypes` when spread into the write request's filterConfig.
 type MatchListMap = Record<
   | 'aircraftImmatriculations'
   | 'startTypes'
@@ -1013,8 +910,6 @@ function extractMatchListSlice(config: FilterConfig): MatchListSlice {
   };
 }
 
-// The loaded match-list slice → the form controls (T-13). `personCategories` is
-// intentionally omitted (no control; preserved separately on save).
 function matchListSliceToFormValue(
   slice: MatchListSlice,
 ): Partial<ReturnType<AccountingForm['getRawValue']>> {
@@ -1034,7 +929,6 @@ function matchListSliceToFormValue(
   };
 }
 
-// The form controls → the FilterConfig match-list slice on save (T-13).
 function formValueToMatchListMap(
   v: ReturnType<AccountingForm['getRawValue']>,
 ): Omit<MatchListMap, 'personCategories'> {
@@ -1058,9 +952,9 @@ function detailToFormValue(
   const c = d.filterConfig;
   const min = c.minFlightTimeInSecondsMatchingValue;
   const max = c.maxFlightTimeInSecondsMatchingValue;
-  // Legacy "unlimited" derive (AccountingRuleFiltersEditController.js:65):
-  // !(min > 0 || max < 2147483647).
-  const unlimited = !((min ?? 0) > 0 || (max ?? MAX_DURATION_SECONDS) < MAX_DURATION_SECONDS);
+  const unlimited = !(
+    (min ?? 0) > 0 || (max ?? LEGACY_UNLIMITED_DURATION_SECONDS) < LEGACY_UNLIMITED_DURATION_SECONDS
+  );
   return {
     filterTypeLegacyId: legacyId === null ? '' : String(legacyId),
     ruleFilterName: d.ruleFilterName,

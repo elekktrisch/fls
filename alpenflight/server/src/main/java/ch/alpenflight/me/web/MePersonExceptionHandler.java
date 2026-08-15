@@ -9,20 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * HTTP mapping for {@link MePersonController}.
- *
- * <ul>
- *   <li>{@link IllegalArgumentException} → 400. The Person aggregate's
- *       {@code updateContact} throws it for an invalid email or over-length
- *       field; without this advice it would surface as 500. Bean-validation
- *       failures ({@code @Valid} on the request DTO) are already 400 via
- *       Spring's default handler.</li>
- *   <li>{@link NoLinkedPersonException} / {@link PersonNotFoundException} →
- *       409. The caller is authenticated but has no linked Person record (or
- *       its linkage resolved to nothing) — a clean conflict, not a 500.</li>
- * </ul>
- */
 @RestControllerAdvice(assignableTypes = MePersonController.class)
 class MePersonExceptionHandler {
 

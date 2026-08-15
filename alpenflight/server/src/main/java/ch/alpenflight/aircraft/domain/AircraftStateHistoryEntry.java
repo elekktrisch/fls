@@ -13,17 +13,6 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal child of {@link Aircraft}: a single airworthiness
- * state period. The state "current" row is the one with
- * {@code validTo == null}; closing it sets {@code validTo} to the new
- * period's {@code validFrom}. Composite-shape parity with legacy
- * {@code AircraftAircraftState}, but the new schema gives every row a
- * UUID surrogate PK (V3 ships {@code id UUID PRIMARY KEY}).
- *
- * <p>No top-level CRUD endpoint exists. Mutators are package-private;
- * only {@link Aircraft} drives them via {@code changeState(...)}.
- */
 @Entity
 @Table(name = "t_aircraft_aircraft_state")
 public class AircraftStateHistoryEntry {
@@ -64,7 +53,6 @@ public class AircraftStateHistoryEntry {
     private @Nullable UUID deletedByUserId;
 
     protected AircraftStateHistoryEntry() {
-        // JPA.
     }
 
     static AircraftStateHistoryEntry open(UUID aircraftStateId,

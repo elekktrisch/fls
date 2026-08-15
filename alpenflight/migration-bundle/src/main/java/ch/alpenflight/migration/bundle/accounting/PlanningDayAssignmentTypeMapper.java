@@ -14,15 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped per-club reference: legacy
- * {@code PlanningDayAssignmentTypes.PlanningDayAssignmentTypeId} →
- * {@code t_planning_day_assignment_type.id}. {@code operating_club_id}
- * is the {@code @TenantId} discriminator per V4.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class PlanningDayAssignmentTypeMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -53,18 +44,17 @@ public final class PlanningDayAssignmentTypeMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB);
     }
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // operating_club_id is the @TenantId (off the convention club_id), J-6 T-11.
         return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 

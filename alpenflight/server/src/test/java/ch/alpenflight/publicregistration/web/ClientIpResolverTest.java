@@ -5,12 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
-/**
- * The two ways an abuse guard's source key goes wrong are opposite failures, and
- * both are on trial here: collapsing every visitor onto a proxy's address (a
- * self-inflicted lockout) and believing a header any caller can write (a guard
- * that guards nothing).
- */
 class ClientIpResolverTest {
 
     private static final String HEADER = "X-Forwarded-For";
@@ -38,11 +32,6 @@ class ClientIpResolverTest {
                 .isEqualTo(PUBLIC_CLIENT);
     }
 
-    /**
-     * The nearest proxy appends what it saw, so the rightmost non-infrastructure
-     * hop is the only entry a caller cannot choose; anything it prepends stays to
-     * the left and must not win.
-     */
     @Test
     void a_prepended_hop_cannot_impersonate_another_client() {
         assertThat(resolve(PROXY_ON_THE_COMPOSE_NETWORK, "198.51.100.7, " + PUBLIC_CLIENT))

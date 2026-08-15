@@ -38,14 +38,8 @@ import { SessionStore } from '@core/session/session.store';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
-/** Generated DTO marks `id` optional; the server always populates it. */
 export type Club = ClubResponse & { id: string };
 
-/**
- * Which control a save error belongs to — the edit page routes the inline
- * `duplicate` marker by this instead of sniffing the message text
- * (J-26 T-07; mirrors the flight-types `SaveErrorKind` from T-05).
- */
 export type ClubSaveErrorKind = 'slug-duplicate' | 'club-key-duplicate' | 'other';
 
 interface ClubsExtraState {
@@ -55,7 +49,6 @@ interface ClubsExtraState {
   saveError: string | null;
   saveErrorKind: ClubSaveErrorKind | null;
   lastRefreshedAt: number | null;
-  /** Own-club slices, loaded on demand by the club-admin edit screen. */
   discoveryFlightDays: readonly DiscoveryFlightDayResponse[];
   discoveryDayError: string | null;
   flightTypes: readonly FlightTypeListItem[];
@@ -127,11 +120,6 @@ export const ClubsStore = signalStore(
           ),
         ),
       ),
-      /**
-       * Single-club read. `listClubs` is the cross-tenant catalog and is closed
-       * to a CLUB_ADMINISTRATOR, so this is the only way that role reaches its
-       * own club — and the only source the edit screen can rely on.
-       */
       loadOne: rxMethod<string>(
         pipe(
           tap(() => patchState(store, { isLoading: true, loadError: null })),
@@ -214,9 +202,6 @@ export const ClubsStore = signalStore(
           ),
         ),
       ),
-      // `concatMap`, not `switchMap`: these append to / remove from a list, and a
-      // cancelled-but-already-committed mutation would leave the panel desynced
-      // from the server until a reload.
       publishDiscoveryFlightDay: rxMethod<string>(
         pipe(
           tap(() => patchState(store, { discoveryDayError: null })),
@@ -257,8 +242,6 @@ export const ClubsStore = signalStore(
             flightTypesApi.listFlightTypes().pipe(
               tapResponse({
                 next: (types: FlightTypeListItem[]) => patchState(store, { flightTypes: types }),
-                // An unreachable catalog only costs the picker its labels; the
-                // club's stored flight type still round-trips through the form.
                 error: () => patchState(store, { flightTypes: [] }),
               }),
             ),
@@ -284,10 +267,8 @@ export const ClubsStore = signalStore(
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
       const session = inject(SessionStore);
-      // The catalog is the cross-tenant read (`ClubsController.listClubs`); a
-      // club admin would only earn a 403 from it and reads its own club through
-      // `loadOne` instead.
-      if (session.isSystemAdmin() || session.isFlightOperator()) {
+      const mayReadCrossTenantCatalog = session.isSystemAdmin() || session.isFlightOperator();
+      if (mayReadCrossTenantCatalog) {
         store.loadAll();
       }
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
@@ -337,10 +318,6 @@ function errorPatch(
   req: { slug: string; clubKey?: string },
 ): { saveError: string; saveErrorKind: ClubSaveErrorKind } {
   if (e.status === 409) {
-    // Route by the problem-detail `field` (J-26 T-07): the server
-    // discriminates ux_club_key vs ux_club_slug — duplicate club keys no
-    // longer collapse onto the slug field. An absent field keeps the
-    // slug-duplicate shape (the slug conflict's bare 409 carries no body).
     const field = (e.error as { field?: string } | null)?.field;
     if (field === 'clubKey') {
       return {
@@ -355,8 +332,6 @@ function errorPatch(
       saveErrorKind: 'slug-duplicate',
     };
   }
-  // RFC-7807-ish: the server attaches `{ field, message }` (ApiError) for 400.
-  // Prefer it over the raw `HttpErrorResponse.message` boilerplate.
   const body = e.error as { field?: string; message?: string } | null;
   if (body && typeof body.message === 'string' && body.message.length > 0) {
     return {

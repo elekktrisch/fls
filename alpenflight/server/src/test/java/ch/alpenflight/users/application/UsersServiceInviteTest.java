@@ -39,11 +39,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/**
- * Pins the two-phase invite orchestrator's compensating-delete + role-grant
- * rejection paths. WireMock for the full e2e shape lives in the IT layer;
- * this Mockito unit test fixes the contract.
- */
 class UsersServiceInviteTest {
 
     private static final UUID CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
@@ -75,9 +70,7 @@ class UsersServiceInviteTest {
                 null, null, LANG, null, Set.of(Role.PILOT));
     }
 
-    /** Persist-side test stand-in: stamps a UUID on the User so service code
-     * can read it back as if Hibernate had just generated it. */
-    private static User savedUser() {
+    private static User savedUserWithHibernateGeneratedId() {
         User u = User.register(CLUB, KC_SUB, "jane.doe", "Jane Doe",
                 "jane@example.com", LANG, null);
         try {
@@ -107,7 +100,7 @@ class UsersServiceInviteTest {
     void invite_compensating_delete_fires_when_local_save_throws() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
         doThrow(new RuntimeException("simulated DB failure"))
                 .when(users).save(any(User.class));
@@ -136,9 +129,9 @@ class UsersServiceInviteTest {
     void invite_happy_path_creates_kc_user_then_local_row_then_grants_roles() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
-        when(users.save(any(User.class))).thenReturn(savedUser());
+        when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
                 new RealmRoleRef(null, "PILOT", null)));
 
@@ -154,9 +147,9 @@ class UsersServiceInviteTest {
     void invite_kc_email_failure_does_not_roll_back_business_tx() {
         when(tenant.resolveCurrentTenantIdentifier()).thenReturn(CLUB);
         when(users.findActiveByUsernameLower("jane.doe")).thenReturn(Optional.empty());
-        when(directory.findUserByEmail("jane@example.com")).thenReturn(Optional.empty());
+        when(directory.findUserByEmailRealmWide("jane@example.com")).thenReturn(Optional.empty());
         when(directory.createUser(any(UserDirectorySpec.class))).thenReturn(KC_SUB);
-        when(users.save(any(User.class))).thenReturn(savedUser());
+        when(users.save(any(User.class))).thenReturn(savedUserWithHibernateGeneratedId());
         when(directory.findRealmRolesByName(anySet())).thenReturn(List.of(
                 new RealmRoleRef(null, "PILOT", null)));
         doThrow(new UserDirectoryException("smtp down"))

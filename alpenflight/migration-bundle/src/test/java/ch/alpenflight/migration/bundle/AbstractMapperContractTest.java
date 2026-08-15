@@ -23,67 +23,31 @@ import java.util.TreeMap;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
 
-/**
- * Per-mapper contract suite. Subclass returns the mapper instance and one
- * deterministic legacy row; this class asserts the {@link Mapper} contract.
- * The two abstract hooks are the only subclass surface — every other
- * assertion is shared so the per-mapper unit test stays a 10-line stub.
- *
- * @param <M> concrete mapper type.
- */
 public abstract class AbstractMapperContractTest<M extends Mapper> {
 
     private static final long FAKER_SEED = 42L;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final JsonFactory JSON_FACTORY = new JsonFactory();
 
-    /** Mapper under test. */
     protected abstract M mapper();
 
-    /**
-     * One deterministic legacy row keyed by the <em>legacy</em> ResultSet
-     * column name the mapper's {@code writeNdjson} reads. {@link Faker} is
-     * pre-seeded so subclass output is repeatable.
-     */
     protected abstract Map<String, Object> legacyRow(Faker faker);
 
-    /**
-     * Declarative value-set for sparse-enum columns the mapper passes through
-     * without a value-set guard (per ADR 0022 directive 2). Key = new-stack
-     * column name (the {@link Mapper#columns()} entry); value = the set of
-     * legitimate primitive values. {@code FlightMapper.flight_aircraft_type_id}
-     * declares {@code (short)1, 2, 4} so S-187's parity oracle seeds the
-     * legacy fixture from inside the set rather than drifting onto a
-     * never-seen value the Flight aggregate (S-058) would reject downstream.
-     * Default empty — non-sparse-enum mappers leave it alone.
-     */
     protected Map<String, Set<Number>> permittedSparseEnumValues() {
         return Map.of();
     }
 
-    /** Seeded {@link Faker} matching {@link #legacyRow}. */
     protected final Faker seededFaker() {
         return new Faker(new Random(FAKER_SEED));
     }
 
-    /**
-     * Random UUID as a string — every identity-group mapper test fabricates
-     * legacy GUID columns the same way. Lives on the base class so subclasses
-     * stay at the documented "10-line stub" size.
-     */
     protected static String randomUuidString(Faker faker) {
         return new java.util.UUID(
                 faker.random().nextLong(), faker.random().nextLong()).toString();
     }
 
-    /**
-     * 1-based PreparedStatement parameter position for {@code columnName}
-     * on the supplied mapper. Tests assert by column name rather than by
-     * a hand-counted magic position so a column-list reshuffle doesn't
-     * silently slide an assertion onto the wrong column.
-     */
     protected static int positionOf(Mapper mapper, String columnName) {
-        String[] columns = mapper.columns();
+        String[] columns = mapper.wireColumns();
         for (int index = 0; index < columns.length; index++) {
             if (columns[index].equals(columnName)) {
                 return index + 1;
@@ -101,22 +65,22 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
 
     @Test
     void columnsAreNotEmpty() {
-        assertThat(mapper().columns()).isNotEmpty();
+        assertThat(mapper().wireColumns()).isNotEmpty();
     }
 
     @Test
     void columnsAreUnique() {
-        assertThat(mapper().columns()).doesNotHaveDuplicates();
+        assertThat(mapper().wireColumns()).doesNotHaveDuplicates();
     }
 
     @Test
     void columnsAreCallerSafeMutation() {
         Mapper underTest = mapper();
-        String[] first = underTest.columns();
+        String[] first = underTest.wireColumns();
         String original = first[0];
         first[0] = "MUTATED";
-        assertThat(underTest.columns()[0])
-                .as("Mapper.columns() invariant — callers must not be able to mutate "
+        assertThat(underTest.wireColumns()[0])
+                .as("Mapper.wireColumns() invariant — callers must not be able to mutate "
                         + "the shared column list.")
                 .isEqualTo(original);
     }
@@ -124,14 +88,8 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
     @Test
     void foreignKeyTargetsPrecedeSelfInIngestOrder() {
         EntityType self = mapper().entityType();
-        for (EntityType target : mapper().foreignKeys()) {
+        for (EntityType target : mapper().foreignKeyTargets()) {
             if (target == self) {
-                // Self-FK on an aggregate root is legitimate when ingest splits
-                // it into a two-pass UPDATE (PersonCategory parent — S-184;
-                // Flight tow_flight_id — S-185). Mappers deferring the self-FK
-                // declare it absent from foreignKeys() instead; if a self-FK
-                // shows up here, it's because a future story put it there
-                // deliberately. The ordinal check would always fail; skip.
                 continue;
             }
             assertThat(target.ordinal())
@@ -149,9 +107,9 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         assertThat(emitted.isObject())
                 .as("writeNdjson must emit a JSON object")
                 .isTrue();
-        for (String column : underTest.columns()) {
+        for (String column : underTest.wireColumns()) {
             assertThat(emitted.has(column))
-                    .as("JSON output is missing column %s declared by columns()", column)
+                    .as("JSON output is missing column %s declared by wireColumns()", column)
                     .isTrue();
         }
     }
@@ -170,7 +128,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
             assertThat(node)
                     .as("Mapper declared %s as a sparse-enum column but did not "
                             + "emit it — every permittedSparseEnumValues key must "
-                            + "appear in columns()", column)
+                            + "appear in wireColumns()", column)
                     .isNotNull();
             if (node == null || node.isNull()) {
                 continue;
@@ -204,13 +162,6 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         doAnswer(capture).when(ps).setDate(anyInt(), any());
         doAnswer(capture).when(ps).setTimestamp(anyInt(), any());
         doAnswer(capture).when(ps).setBytes(anyInt(), any());
-        // Primitive binds — flight-group mappers bypass autoboxing for type
-        // fidelity (SMALLINT via setShort, INT via setInt, BIGINT via setLong).
-        // setNull captures the nullable-primitive path. Captured value lands
-        // as the boxed primitive; downstream assertion treats null differently
-        // (setNull stores java.sql.Types as the second arg — capture stores it
-        // verbatim, which is non-null so the round-trip assertion still
-        // distinguishes "bound something" from "missing position").
         doAnswer(capture).when(ps).setShort(anyInt(), org.mockito.ArgumentMatchers.anyShort());
         doAnswer(capture).when(ps).setInt(anyInt(), anyInt());
         doAnswer(capture).when(ps).setLong(anyInt(), org.mockito.ArgumentMatchers.anyLong());
@@ -220,7 +171,7 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
                 .as("readEntity must accept what writeNdjson emitted")
                 .doesNotThrowAnyException();
 
-        String[] columns = underTest.columns();
+        String[] columns = underTest.wireColumns();
         Set<String> parityIgnored = ParityMarkers.ignored(underTest.getClass());
         for (int i = 0; i < columns.length; i++) {
             int position = i + 1;
@@ -239,12 +190,6 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         }
     }
 
-    /**
-     * Round-trip helper exposed to subclasses with extra cases. Promoted
-     * from private so {@code FlightMapperTest}'s V13 air-state translation
-     * + sparse-enum pass-through cases share the same mock-ResultSet
-     * stubbing surface as the contract test.
-     */
     protected JsonNode invokeWriteNdjson(M underTest, Map<String, Object> legacy)
             throws Exception {
         ResultSet rs = mock(ResultSet.class);
@@ -254,8 +199,6 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         });
         lenient().when(rs.getObject(anyString())).thenAnswer(
                 invocation -> legacy.get(invocation.<String>getArgument(0)));
-        // Typed getObject — flight-group mappers use this to avoid the
-        // primitive 0-vs-null ambiguity on Integer / Long / Short columns.
         lenient().when(rs.getObject(anyString(), any(Class.class))).thenAnswer(invocation -> {
             Object value = legacy.get(invocation.<String>getArgument(0));
             if (value == null) {

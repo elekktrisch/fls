@@ -73,7 +73,6 @@ class AccountingRuleFilterDomainTest {
         assertThat(arf.getRuleFilterName()).isEqualTo("Padded name");
         assertThat(arf.getDescription()).isEqualTo("some text");
         assertThat(arf.getAccountingUnitTypeId()).isEqualTo(UNIT_TYPE);
-        // Blank article target normalises to null; recipient passes through.
         assertThat(arf.getArticleTarget()).isNull();
         assertThat(arf.getRecipientTarget()).isEqualTo("M-123");
         assertThat(arf.isStopRuleEngineWhenApplied()).isTrue();
@@ -113,7 +112,6 @@ class AccountingRuleFilterDomainTest {
                 false, false, false, null, null, FilterConfig.empty()))
                 .isInstanceOf(InvalidAccountingRuleFilterException.class);
 
-        // Guard fires before assignment — nothing changed.
         assertThat(arf.getRuleFilterName()).isEqualTo("Keep me");
         assertThat(arf.isActive()).isTrue();
     }
@@ -142,7 +140,6 @@ class AccountingRuleFilterDomainTest {
     @Test
     void filterConfig_emptyHasLegacyMatchListDefaults() {
         FilterConfig cfg = FilterConfig.empty();
-        // Legacy default: each match-list applies to ALL except the (empty) list.
         assertThat(cfg.aircraftImmatriculations().useAllExcept()).isTrue();
         assertThat(cfg.aircraftImmatriculations().matched()).isEmpty();
         assertThat(cfg.personCategories().useAllExcept()).isTrue();
@@ -192,8 +189,8 @@ class AccountingRuleFilterDomainTest {
         java.util.ArrayList<String> mutable = new java.util.ArrayList<>(List.of("X"));
         FilterConfig.MatchList list = new FilterConfig.MatchList(false, mutable);
         mutable.add("Y");
-        // The record copied the list at construction — the external mutation
-        // does not leak in.
-        assertThat(list.matched()).containsExactly("X");
+        assertThat(list.matched())
+                .as("the record copied the list at construction, so the external mutation cannot leak in")
+                .containsExactly("X");
     }
 }

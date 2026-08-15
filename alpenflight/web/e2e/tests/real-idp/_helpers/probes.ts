@@ -1,15 +1,6 @@
 import { mailpitInfo } from './mailpit-client';
 import { findUserByEmail, _testing } from './keycloak-admin';
 
-/**
- * Four HTTP probes that gate the real-idp suite. Each surface — Keycloak
- * realm discovery, Mailpit REST, backend `/actuator/health`, KC Admin
- * REST + seed user — must be reachable before any spec runs.
- *
- * Bail-out diagnostic names which probe failed so an operator can fix
- * the right thing without paging through the full stack.
- */
-
 const BACKEND_HEALTH = process.env['E2E_BACKEND_HEALTH'] ?? 'http://localhost:8080/actuator/health';
 
 export interface ProbeResult {
@@ -65,9 +56,6 @@ export async function probeSeedUser(): Promise<ProbeResult> {
     }
     return { ok: true };
   } catch (err) {
-    // findUserByEmail throws on token mint failure, network error, or
-    // non-OK admin response. Tag the surface so an operator sees
-    // "admin REST failed" vs. "user missing".
     return { ok: false, detail: `admin REST call failed: ${(err as Error).message}` };
   }
 }
@@ -79,8 +67,6 @@ export async function runProbes(): Promise<{ ok: boolean; failures: string[] }> 
     ['backend /actuator/health', probeBackendHealth],
     ['admin API + seed pilot1', probeSeedUser],
   ];
-  // Parallelize: a 10s discovery timeout shouldn't add to backend's wait.
-  // Each `run()` already swallows its own error to a ProbeResult.
   const results = await Promise.all(
     probes.map(async ([name, run]) => [name, await run()] as const),
   );

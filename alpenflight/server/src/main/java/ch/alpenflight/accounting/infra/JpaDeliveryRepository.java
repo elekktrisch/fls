@@ -10,17 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data JPA implementation of {@link DeliveryRepository}. Extends both the
- * abstract port and {@code JpaRepository<Delivery, UUID>} so the application layer
- * depends on the port (ADR 0023) while Spring Data generates the runtime bean.
- *
- * <p>Delivery is tenant-scoped via {@code @TenantId} on {@code Delivery.operatingClubId};
- * Hibernate appends the tenant predicate to every JPQL query automatically, so none
- * of these queries name {@code operatingClubId} — it is the discriminator, not a
- * parameter. Soft-delete is filtered at the query layer ({@code deletedOn is null}).
- * JPA-first per ADR 0027 — no native SQL.
- */
 public interface JpaDeliveryRepository
         extends JpaRepository<Delivery, UUID>, DeliveryRepository {
 
@@ -41,14 +30,12 @@ public interface JpaDeliveryRepository
 
     @Override
     @Query("select coalesce(max(d.batchId), 0) from Delivery d")
-    long findMaxBatchId();
+    long findMaxBatchIdIncludingSoftDeleted();
 
     @Override
     @Query("select count(d) from Delivery d where d.flightId = :flightId and d.deletedOn is null")
     long countActiveByFlightId(@Param("flightId") UUID flightId);
 
-    // Disambiguates DeliveryRepository.save(Delivery) from CrudRepository.<S>save(S)
-    // for callers that hold the JpaDeliveryRepository type directly.
     @Override
     Delivery save(Delivery delivery);
 }

@@ -33,19 +33,14 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code PATCH /api/v1/flights/{id}/process-state}.
- * Verifies the legality matrix surfaces as 409, unknown-state as 400,
- * cross-tenant as 404, happy-path as 200. The OPERATOR trigger is the
- * only one exposed via this endpoint — system triggers are invoked from
- * background jobs (deferred stories).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
 class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static final String FLIGHT_ID_PREFIX = "fl-";
 
     private static final UUID NOT_PROCESSED = UUID.fromString("019e2e15-2c00-7a98-8000-000000003a98");
     private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
@@ -58,8 +53,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
 
-    // Distinct minted clubs per IT so we don't collide with FlightsControllerIT /
-    // FlightsTenantIsolationIT when JUnit runs them in the same JVM.
     private UUID clubUuid;
     private UUID otherClubUuid;
     private String adminToken;
@@ -67,8 +60,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Seed both clubs via the existing fixture (handles aircraft + child
-        // cleanup + the complex club FK chain).
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, "patchit", "PAIT");
         fixture.seed();
@@ -84,7 +75,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void operator_legal_transition_returns_200_and_new_state() {
-        String flightId = createFlightInState(VALID);
+        String flightId = createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(VALID);
         ResponseEntity<String> res = patch(
                 "/api/v1/flights/" + flightId + "/process-state",
                 Map.of("processState", "EXCLUDED_FROM_DELIVERY_PROCESS"));
@@ -96,7 +87,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void operator_illegal_transition_returns_409() {
-        String flightId = createFlightInState(VALID);
+        String flightId = createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(VALID);
         ResponseEntity<String> res = patch(
                 "/api/v1/flights/" + flightId + "/process-state",
                 Map.of("processState", "LOCKED"));
@@ -110,7 +101,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void delivery_booked_is_terminal_via_patch() {
-        String flightId = createFlightInState(DELIVERY_BOOKED);
+        String flightId = createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(DELIVERY_BOOKED);
         ResponseEntity<String> res = patch(
                 "/api/v1/flights/" + flightId + "/process-state",
                 Map.of("processState", "LOCKED"));
@@ -119,7 +110,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void same_state_returns_409() {
-        String flightId = createFlightInState(VALID);
+        String flightId = createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(VALID);
         ResponseEntity<String> res = patch(
                 "/api/v1/flights/" + flightId + "/process-state",
                 Map.of("processState", "VALID"));
@@ -128,7 +119,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void unknown_state_returns_400() {
-        String flightId = createFlightInState(VALID);
+        String flightId = createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(VALID);
         ResponseEntity<String> res = patch(
                 "/api/v1/flights/" + flightId + "/process-state",
                 Map.of("processState", "WHO_KNOWS"));
@@ -145,7 +136,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void cross_tenant_flight_returns_404() {
-        // Seed a flight under otherClubUuid and try to PATCH it with our token.
         UUID otherAircraft = seedAircraftFor(jdbc, otherClubUuid);
         UUID otherFlightId = UUID.randomUUID();
         jdbc.update("""
@@ -164,23 +154,18 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
                 VALID.toString());
 
         ResponseEntity<String> res = patch(
-                "/api/v1/flights/fl-" + otherFlightId + "/process-state",
+                "/api/v1/flights/" + FLIGHT_ID_PREFIX + otherFlightId + "/process-state",
                 Map.of("processState", "LOCKED"));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * Creates a flight via the public POST then forces it into the target
-     * state via JDBC (the public surface only stamps NOT_PROCESSED on
-     * create — system-driven transitions live in deferred stories).
-     */
-    private String createFlightInState(UUID processStateId) {
+    private String createFlightThenForceItsStateBecausePostAlwaysStampsNotProcessed(
+            UUID processStateId) {
         ResponseEntity<String> postRes = post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"));
         assertThat(postRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String idExternal = readJson(postRes).get("id").asText();
-        // Strip "fl-" prefix.
-        UUID flightUuid = UUID.fromString(idExternal.substring(3));
+        UUID flightUuid = UUID.fromString(idExternal.substring(FLIGHT_ID_PREFIX.length()));
         if (!NOT_PROCESSED.equals(processStateId)) {
             jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                     processStateId.toString(), flightUuid.toString());

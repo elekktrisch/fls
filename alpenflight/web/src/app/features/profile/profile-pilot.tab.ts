@@ -19,7 +19,6 @@ import { liveFieldErrors } from '@shared/util/form';
 import { PilotStore } from './pilot.store';
 
 type PilotForm = FormGroup<{
-  // Licence flags.
   hasGliderPilotLicence: FormControl<boolean>;
   hasGliderTraineeLicence: FormControl<boolean>;
   hasGliderInstructorLicence: FormControl<boolean>;
@@ -31,43 +30,18 @@ type PilotForm = FormGroup<{
   hasWinchOperatorLicence: FormControl<boolean>;
   hasPartMLicence: FormControl<boolean>;
   licenceNumber: FormControl<string>;
-  // Medical / instructor / Part-M expiry dates.
   medicalClass1ExpireDate: FormControl<string>;
   medicalClass2ExpireDate: FormControl<string>;
   medicalLaplExpireDate: FormControl<string>;
   gliderInstructorLicenceExpireDate: FormControl<string>;
   motorInstructorLicenceExpireDate: FormControl<string>;
   partMLicenceExpireDate: FormControl<string>;
-  // Start permissions.
   hasGliderTowingStartPermission: FormControl<boolean>;
   hasGliderSelfStartPermission: FormControl<boolean>;
   hasGliderWinchStartPermission: FormControl<boolean>;
-  // Reports.
   receiveOwnedAircraftStatisticReports: FormControl<boolean>;
 }>;
 
-/**
- * Pilot tab of `/profile` (J-4 T-09). Edits the caller's own Person
- * licence/medical fields — 10 licence flags, the licence number, 6 expiry dates,
- * 3 glider start-permission flags, and the owned-aircraft statistic-reports flag
- * — via {@code PATCH /api/v1/me/person/licences} (orval `updateMyLicences`). The
- * tab hydrates from `GET /api/v1/me/person/licences` (`getMyLicences`).
- *
- * testid contract (T-01 spec + the convention extension `profile-pilot-<field>`):
- * the spec asserts `profile-pilot-licence-glider` (the glider-pilot flag) +
- * `profile-pilot-medical-expiry` (the class-2 medical expiry — the seed's
- * `medical_class2_expire_date`). The rest follow the convention:
- * `profile-pilot-licence-{trainee,gliderInstructor,gliderPax,motor,motorInstructor,
- * tow,tmg,winchOperator,partM}`, `profile-pilot-licenceNumber`,
- * `profile-pilot-medical-{class1,lapl}-expiry`,
- * `profile-pilot-{gliderInstructor,motorInstructor,partM}-expiry`,
- * `profile-pilot-permission-{towing,self,winch}`,
- * `profile-pilot-receiveOwnedAircraftStatisticReports`.
- *
- * The shell gates this tab on a linked Person (`[nzDisabled]` + no-Person
- * banner) — this body always sits inside that gate, so it never renders (and the
- * store's GET never fires) for a person-less principal.
- */
 @Component({
   selector: 'af-profile-pilot-tab',
   standalone: true,
@@ -89,7 +63,6 @@ type PilotForm = FormGroup<{
         data-testid="profile-pilot-form"
         class="max-w-2xl flex flex-col gap-6"
       >
-        <!-- Licences ------------------------------------------------------- -->
         <fieldset class="flex flex-col gap-2">
           <legend class="mb-2 text-sm font-medium text-slate-900">{{ t('licencesGroup') }}</legend>
 
@@ -197,7 +170,6 @@ type PilotForm = FormGroup<{
           </af-form-field>
         </fieldset>
 
-        <!-- Medical + licence expiries ------------------------------------- -->
         <fieldset class="flex flex-col gap-3">
           <legend class="mb-2 text-sm font-medium text-slate-900">{{ t('medicalGroup') }}</legend>
 
@@ -262,7 +234,6 @@ type PilotForm = FormGroup<{
           </af-form-field>
         </fieldset>
 
-        <!-- Permissions + reports ------------------------------------------ -->
         <fieldset class="flex flex-col gap-2">
           <legend class="mb-2 text-sm font-medium text-slate-900">
             {{ t('permissionsGroup') }}
@@ -357,15 +328,9 @@ export class ProfilePilotTab {
     receiveOwnedAircraftStatisticReports: this.fb.control(false),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): the licenceNumber `af-form-field [errors]` tracks its maxLength(20)
-  // error debounced ~200ms and clears when valid — replacing the touched-only
-  // binding (silent until blur/submit).
   protected readonly licenceNumberErrors = liveFieldErrors(this.form.controls.licenceNumber);
 
   constructor() {
-    // Hydrate the form whenever the store's view lands (initial GET + after a
-    // save reflects the persisted projection).
     effect(() => {
       const view = this.store.view();
       if (view !== null) {
@@ -407,9 +372,6 @@ export class ProfilePilotTab {
       return;
     }
     const v = this.form.getRawValue();
-    // Flags always send (a cleared checkbox is a real false). Dates + the
-    // licence number only send when non-blank — keeps the PATCH lean and avoids
-    // overwriting an unset expiry with a blank.
     const req: MePersonLicencesUpdateRequest = {
       hasGliderPilotLicence: v.hasGliderPilotLicence,
       hasGliderTraineeLicence: v.hasGliderTraineeLicence,
@@ -426,19 +388,18 @@ export class ProfilePilotTab {
       hasGliderWinchStartPermission: v.hasGliderWinchStartPermission,
       receiveOwnedAircraftStatisticReports: v.receiveOwnedAircraftStatisticReports,
     };
-    setIfPresent(req, 'licenceNumber', v.licenceNumber);
-    setIfPresent(req, 'medicalClass1ExpireDate', v.medicalClass1ExpireDate);
-    setIfPresent(req, 'medicalClass2ExpireDate', v.medicalClass2ExpireDate);
-    setIfPresent(req, 'medicalLaplExpireDate', v.medicalLaplExpireDate);
-    setIfPresent(req, 'gliderInstructorLicenceExpireDate', v.gliderInstructorLicenceExpireDate);
-    setIfPresent(req, 'motorInstructorLicenceExpireDate', v.motorInstructorLicenceExpireDate);
-    setIfPresent(req, 'partMLicenceExpireDate', v.partMLicenceExpireDate);
+    setIfNonBlank(req, 'licenceNumber', v.licenceNumber);
+    setIfNonBlank(req, 'medicalClass1ExpireDate', v.medicalClass1ExpireDate);
+    setIfNonBlank(req, 'medicalClass2ExpireDate', v.medicalClass2ExpireDate);
+    setIfNonBlank(req, 'medicalLaplExpireDate', v.medicalLaplExpireDate);
+    setIfNonBlank(req, 'gliderInstructorLicenceExpireDate', v.gliderInstructorLicenceExpireDate);
+    setIfNonBlank(req, 'motorInstructorLicenceExpireDate', v.motorInstructorLicenceExpireDate);
+    setIfNonBlank(req, 'partMLicenceExpireDate', v.partMLicenceExpireDate);
     this.store.save(req);
   }
 }
 
-/** Assign a trimmed string field onto the request only when it is non-blank. */
-function setIfPresent(
+function setIfNonBlank(
   req: MePersonLicencesUpdateRequest,
   key: keyof MePersonLicencesUpdateRequest,
   value: string,

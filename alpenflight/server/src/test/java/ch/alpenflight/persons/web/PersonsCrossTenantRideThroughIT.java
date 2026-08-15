@@ -17,18 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Sacred-cow regression guard for {@code Flight} crew load (S-058):
- * {@link Person} has no {@code @TenantId} / {@code @Filter} / {@code @Where},
- * so a PK load must return the row regardless of the caller's tenant scope.
- * A future refactor that added any of those would silently break multi-club
- * pilot rosters — this IT is the witness that catches the regression at
- * the per-aggregate layer.
- *
- * <p>Counterpart to the catalog-driven {@code LeakageSweepIT} (which proves
- * tenant-scoped rows are isolated); this IT proves the inverse for the one
- * documented cross-tenant aggregate root.
- */
 class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_PRT_";
@@ -55,7 +43,6 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
 
     @Test
     void findById_returns_person_regardless_of_caller_tenant() {
-        // Seed a Person attached only to CLUB_B.
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000cccd");
         UUID pcId = UUID.fromString("019e30c3-2c00-7001-8000-00000000ccce");
         jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
@@ -64,9 +51,6 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 pcId.toString(), personId.toString(), clubB.toString());
 
-        // Caller acts as CLUB_A — a tenant that doesn't share any
-        // membership with this Person. Flight.crew_id resolution in S-058
-        // must still find the Person via PK regardless.
         TenantTestContext.runAs(clubA, () -> {
             Optional<Person> found = persons.findActiveById(personId);
             assertThat(found)
@@ -76,12 +60,9 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
             assertThat(found.get().getFirstname()).isEqualTo("MultiClub");
         });
 
-        // Same Person reachable under CLUB_B (the home tenant).
         TenantTestContext.runAs(clubB, () ->
                 assertThat(persons.findActiveById(personId)).isPresent());
 
-        // And reachable outside any tenant context — sysadmin admin paths
-        // load Persons via Tenants.runAs(null) / no @WithTenant.
         Optional<Person> unscoped = persons.findActiveById(personId);
         assertThat(unscoped)
                 .as("Outside any tenant context, Person PK load still resolves — "

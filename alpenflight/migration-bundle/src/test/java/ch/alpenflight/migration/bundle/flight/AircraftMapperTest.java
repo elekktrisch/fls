@@ -34,7 +34,6 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("AircraftId", randomUuidString(faker));
-        // ManagingClubId is producer-aliased (cascade resolution result).
         row.put("ManagingClubId", randomUuidString(faker));
         row.put("AircraftOwnerClubId", randomUuidString(faker));
         row.put("AircraftType", 1);
@@ -77,7 +76,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void declaresClubPersonAndLocationAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Aircraft is cross-tenant; FKs to Club (owner/manager), "
                         + "Person (aircraft_owner_person_id), Location (homebase_id) "
                         + "ride through TENANT_BYPASS_ALLOW_LIST")
@@ -87,10 +86,6 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void declaresNonCanonicalForeignKeyColumnsWithHomebaseDisambiguator() {
-        // S-187a / T-05b: AIRCRAFT's FK columns are off-convention (managing_club_id
-        // / owner_club_id both → CLUB, aircraft_owner_person_id → PERSON, homebase_id
-        // → fan-out LOCATION). The fan-out homebase resolves against the aircraft's
-        // OWN managing_club_id, not the resolver's default referencer-club field.
         assertThat(mapper.foreignKeyColumns())
                 .as("AIRCRAFT declares each off-convention FK column → target pair; "
                         + "homebase_id (fan-out LOCATION) disambiguates via managing_club_id")
@@ -106,7 +101,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void rejectsNonHttpsSpotLinkAtReadEntity() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.put(AircraftMapper.SPOT_LINK, "http://insecure.example/aircraft");
         assertThatThrownBy(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .hasMessageContaining(AircraftMapper.NOT_HTTPS_SPOT_LINK_ERROR)
@@ -115,7 +110,7 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void acceptsHttpsSpotLink() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.put(AircraftMapper.SPOT_LINK, "https://findmespot.com/abc");
         assertThatCode(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .doesNotThrowAnyException();
@@ -123,17 +118,13 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
 
     @Test
     void acceptsNullSpotLink() {
-        ObjectNode source = baseAircraftJson();
+        ObjectNode source = aircraftJsonWithEveryColumnPresent();
         source.putNull(AircraftMapper.SPOT_LINK);
         assertThatCode(() -> mapper.readEntity(source, mock(PreparedStatement.class)))
                 .doesNotThrowAnyException();
     }
 
-    private ObjectNode baseAircraftJson() {
-        // Minimal fully-populated NDJSON: readEntity-specific spot_link
-        // cases need every NEW-stack column present, but the spot_link
-        // tests assert only on the SQL exception path — round-trip
-        // coverage lives on the inherited contract test.
+    private ObjectNode aircraftJsonWithEveryColumnPresent() {
         Faker faker = seededFaker();
         ObjectNode root = new ObjectMapper().createObjectNode();
         String uuid = randomUuidString(faker);
@@ -156,7 +147,6 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
         root.putNull(AircraftMapper.FLIGHT_OPERATING_COUNTER_UNIT_TYPE_ID);
         root.putNull(AircraftMapper.ENGINE_OPERATING_COUNTER_UNIT_TYPE_ID);
         root.putNull(AircraftMapper.HOMEBASE_ID);
-        // SPOT_LINK gets set by each test case.
         root.put(AircraftMapper.IS_TOWING_OR_WINCH_REQUIRED, false);
         root.put(AircraftMapper.IS_TOWING_START_ALLOWED, false);
         root.put(AircraftMapper.IS_WINCH_START_ALLOWED, false);

@@ -12,30 +12,6 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal crew row under {@link PlanningDay}
- * ({@code t_planning_day_assignment}). One person assigned to one
- * {@code PlanningDayAssignmentType} for the day. Managed only via the parent's
- * {@link PlanningDay#assignRole} / {@link PlanningDay#clearRole}; never
- * persisted standalone.
- *
- * <p>Identity within the day is the {@code (assignmentTypeId, assignedPersonId)}
- * pair (the V4 {@code ux_pda_composite} partial-unique key). The parent reuses
- * an existing row for a role rather than delete-and-reinsert it — the same
- * flush-ordering reason as {@code FlightCrew} (re-INSERT before orphan DELETE
- * would trip the partial-unique index).
- *
- * <p>{@code assigned_person_id} is a cross-tenant reference (a Person may belong
- * to a different tenant).
- *
- * <p>Tenancy: the V4 table carries a NOT NULL {@code operating_club_id}, but
- * this aggregate-internal child does <strong>not</strong> bear {@code @TenantId}
- * — the same pattern as {@code FlightCrew} under {@code Flight} (V7 comment).
- * Rows are reached only through the tenant-filtered {@link PlanningDay} root;
- * the column is populated from the parent's club at construction so the FK +
- * NOT NULL are satisfied without making the child a second sweep-participating
- * tenant root.
- */
 @Entity
 @Table(name = "t_planning_day_assignment")
 public class PlanningDayAssignment {
@@ -44,15 +20,12 @@ public class PlanningDayAssignment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    // No @TenantId — aggregate-internal child reached only through the
-    // tenant-filtered PlanningDay root (FlightCrew/V7 pattern). The column is
-    // set from the parent's club at construction.
     @Column(name = "operating_club_id", nullable = false, updatable = false)
     private UUID operatingClubId = new UUID(0L, 0L);
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "planning_day_id", nullable = false)
-    @SuppressWarnings("UnusedVariable") // JPA mappedBy target.
+    @SuppressWarnings("UnusedVariable")
     private @Nullable PlanningDay planningDay;
 
     @Column(name = "assigned_person_id", nullable = false)
@@ -72,7 +45,6 @@ public class PlanningDayAssignment {
     private @Nullable UUID deletedByUserId;
 
     protected PlanningDayAssignment() {
-        // JPA.
     }
 
     PlanningDayAssignment(PlanningDay planningDay,
@@ -99,11 +71,6 @@ public class PlanningDayAssignment {
         this.info = info;
     }
 
-    /**
-     * Re-points this row at a different person, keeping its type identity. Used
-     * by {@link PlanningDay#assignRole} to upsert in place rather than
-     * delete-and-reinsert (partial-unique flush ordering).
-     */
     void reassignTo(UUID newAssignedPersonId) {
         if (newAssignedPersonId == null) {
             throw new IllegalArgumentException("assignedPersonId must not be null");

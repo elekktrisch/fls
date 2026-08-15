@@ -17,33 +17,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Aircraft ↔ OGN device-database sync (S-088) — mirrors legacy
- * {@code AircraftDatabaseSyncJob.cs}: download the registry, match each of our
- * aircraft to a device entry by immatriculation, and copy the FLARM device id,
- * model, and competition sign onto the matched aircraft.
- *
- * <p><strong>Update-only.</strong> The scan runs over <em>our</em> fleet, so a
- * registry entry we have no aircraft for is simply never looked at — nothing is
- * auto-created. That matters for tenancy as much as for data hygiene: a
- * device-database row carries no club, so there would be no owner to give it to.
- *
- * <p><strong>Matching.</strong> Immatriculation compared with dashes stripped and
- * upper-cased on both sides ({@code :82-85}), so {@code HB-1234} matches
- * {@code HB1234}.
- *
- * <p><strong>Scope.</strong> Aircraft is cross-tenant (ADR 0008 amendment), so the
- * job scans the fleet once rather than iterating clubs.
- */
 @Component
 @MeasuredJob(name = AircraftDatabaseSyncJob.JOB_NAME,
-        cron = AircraftDatabaseSyncJob.CRON,
+        cronShownInConsole = AircraftDatabaseSyncJob.CRON,
         description = "Aircraft sync against the OGN device database")
 public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(AircraftDatabaseSyncJob.class);
 
-    /** Stable registry key — see {@link MeasuredJob#name()}. */
     public static final String JOB_NAME = "aircraft-database-sync";
 
     static final String CRON = "0 0 4 * * SUN";
@@ -56,14 +37,12 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
         this.ddb = ddb;
     }
 
-    /** Scheduled tick — weekly; the registry changes slowly. */
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
         runOnce();
     }
 
-    /** Cross-tenant "Run now" for the {@code /system/jobs} console. */
     @Override
     @Transactional
     public RunSummary runOnce() {
@@ -81,7 +60,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
                 unmatched++;
                 continue;
             }
-            if (craft.syncFromDeviceDatabase(
+            if (craft.applyNonBlankDeviceDatabaseValues(
                     device.deviceId(), device.aircraftModel(), device.competitionSign())) {
                 aircraft.save(craft);
                 updated++;
@@ -92,7 +71,7 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private Map<String, OgnDevice> indexByRegistration() {
         Map<String, OgnDevice> byRegistration = new HashMap<>();
-        for (OgnDevice device : ddb.fetchDevices()) {
+        for (OgnDevice device : ddb.fetchDevicesOrEmptyWhenRegistryUnreachable()) {
             String registration = normalise(device.registration());
             if (!registration.isEmpty()) {
                 byRegistration.putIfAbsent(registration, device);
@@ -101,7 +80,6 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
         return byRegistration;
     }
 
-    /** Dash-stripped, upper-cased immatriculation — the match key on both sides. */
     private static String normalise(@Nullable String immatriculation) {
         if (immatriculation == null) {
             return "";
@@ -109,10 +87,6 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
         return immatriculation.replace("-", "").toUpperCase(Locale.ROOT).strip();
     }
 
-    /**
-     * Non-PII run summary: how many aircraft the registry updated, and how many of
-     * ours it does not know.
-     */
     public record RunSummary(int updatedCount, int unmatchedCount) {
 
         @Override

@@ -16,18 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Diff engine — runs after the round-trip lands rows in Postgres. For
- * FULL_PORT entities, counts legacy vs new rows per Club and surfaces any
- * divergence as {@link RowCountDelta}s. For SYSTEM_GLOBAL entities, the
- * bundle's emitted rows are recorded but not row-count-asserted against
- * the destination (V2 owns the destination rows; no insert happened).
- *
- * <p>Per-mapper sentinel + skip enumeration via {@link ParityMarkers} is
- * surfaced for {@link ParityReports} consumption. The FK orphan walk,
- * sampled-value diff, soft-delete invariant, and producer-drop
- * reconciliation against {@code migration_run.warnings} land at S-187a.
- */
 public final class ParityDiffEngine {
 
     private ParityDiffEngine() { }
@@ -75,7 +63,6 @@ public final class ParityDiffEngine {
     }
 
     private static String clubColumnFor(EntityType entity) {
-        // t_club's tenant column is its own id.
         return entity == EntityType.CLUB ? "id" : "club_id";
     }
 
@@ -119,11 +106,9 @@ public final class ParityDiffEngine {
         return new MapperSentinels(sentinelColumns, ignoredColumns);
     }
 
-    /** Per-(entity, club) row-count divergence; empty when the round-trip lined up. */
     public record RowCountDelta(EntityType entity, String clubId, long legacyCount, long newCount) {
     }
 
-    /** Per-mapper sentinel + skip enumeration consumed by {@link ParityReports}. */
     public record MapperSentinels(Set<String> sentinels, Set<String> ignored) {
     }
 

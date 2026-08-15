@@ -23,8 +23,6 @@ interface StartState {
   isLoading: boolean;
   hasError: boolean;
   hasNoFlights: boolean;
-  // True once `load(personId)` has been called with a non-null personId; the
-  // page distinguishes "still resolving /me" from "resolved, no flights".
   hasAttemptedLoad: boolean;
 }
 
@@ -36,19 +34,6 @@ const initial: StartState = {
   hasAttemptedLoad: false,
 };
 
-/**
- * Feeds the S-165 home dashboard's "Your last flight" card. Two-step fetch
- * per the refinement (`/me` → `/flights?personId=…&limit=1` → `/flights/{id}`)
- * keeps the list endpoint a single-table projection; the detail call carries
- * the crew + location ids the card resolves through the picker stores.
- *
- * <p>Direct {@link HttpClient} for the list call: the generated client's
- * {@code ListParams} type doesn't carry {@code personId} until {@code
- * openapi.json} is regenerated. TODO(S-165 follow-up): once the snapshot
- * is refreshed and orval re-emits {@code ListParams}, swap to
- * {@code FlightsService.list({personId, limit: 1})} and delete the
- * {@link HttpClient} import.
- */
 export const StartStore = signalStore(
   { providedIn: 'root' },
   withState<StartState>(initial),
@@ -96,14 +81,6 @@ export const StartStore = signalStore(
                 }),
               );
             }),
-            // The LIST hop (raw http.get) had NO error handler: a non-2xx (e.g. a
-            // 403 from the role gate, or a 5xx) errored the rxMethod stream and
-            // left isLoading:true FOREVER, so the template rendered NONE of the
-            // card / empty / error branches — a stuck-loading hang (J-3: the
-            // showcase pilot got 403 on /flights before PILOT was granted read).
-            // Flip to the error branch instead so the dashboard degrades visibly
-            // rather than hanging. catchError here covers the list hop only; the
-            // detail hop keeps its own tapResponse error handler above.
             catchError(() => {
               patchState(store, { isLoading: false, hasError: true });
               return EMPTY;
@@ -115,11 +92,6 @@ export const StartStore = signalStore(
     return {
       load,
       markNoPersonLink(): void {
-        // /me returned personId = null; render the empty state without a
-        // flights round-trip. Same visual as "no flights yet" per the AC.
-        // Reset hasError too so a previous transient error doesn't pin
-        // the error branch through a personId resolution that effectively
-        // succeeded.
         patchState(store, {
           hasAttemptedLoad: true,
           hasNoFlights: true,

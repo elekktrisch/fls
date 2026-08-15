@@ -12,17 +12,6 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal crew row under {@link Flight}. Managed only via the
- * parent aggregate's {@link Flight#replaceCrew} mutator; never persisted
- * standalone.
- *
- * <p>{@code person_id} is a cross-tenant reference (sacred-cow ride-through
- * per ADR 0008 + S-051): a Flight's pilot can be a Person whose only
- * PersonClub membership is in a different tenant. Hibernate's
- * {@code @TenantId} on the parent Flight does not propagate to the FK —
- * PK-load resolves Person regardless of the caller's tenant scope.
- */
 @Entity
 @Table(name = "t_flight_crew")
 public class FlightCrew {
@@ -33,7 +22,7 @@ public class FlightCrew {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "flight_id", nullable = false)
-    @SuppressWarnings("UnusedVariable") // JPA mappedBy target.
+    @SuppressWarnings("UnusedVariable")
     private @Nullable Flight flight;
 
     @Column(name = "person_id", nullable = false)
@@ -68,7 +57,6 @@ public class FlightCrew {
     private @Nullable UUID deletedByUserId;
 
     protected FlightCrew() {
-        // JPA.
     }
 
     FlightCrew(Flight flight,
@@ -152,14 +140,6 @@ public class FlightCrew {
         }
     }
 
-    /**
-     * In-place update of the operational fields, keeping identity
-     * ({@code personId} + {@code flightCrewTypeId}) fixed. Used by
-     * {@link Flight#replaceCrew} to reconcile an existing crew row rather than
-     * delete-and-reinsert it — the latter trips the partial-unique
-     * {@code ux_flight_crew_unique} during a flush because Hibernate orders the
-     * re-INSERT before the orphan DELETE of the identical key.
-     */
     void updateOperationalFields(@Nullable Instant beginFlightDatetime,
                                  @Nullable Instant endFlightDatetime,
                                  @Nullable Instant beginInstructionDatetime,

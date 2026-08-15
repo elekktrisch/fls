@@ -9,10 +9,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Listitem projections for the reference-data REST surface. Records;
- * read-only; no audit metadata exposed.
- */
 public final class ReferenceDataDtos {
 
     private ReferenceDataDtos() {}

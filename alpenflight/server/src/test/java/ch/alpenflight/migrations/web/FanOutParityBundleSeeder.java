@@ -22,58 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * J-0c T-03 — the SYNTHESIZED fan-out parity bundle builder, launched from the
- * real-idp Playwright spec ({@code fan-out-migration-parity.spec.ts}) via the
- * {@code seedFanOutParityBundle} Gradle {@code JavaExec} task.
- *
- * <p><strong>Why a Java seeder at all?</strong> The ALPF bundle envelope (Tink
- * StreamingAead body + RSA-OAEP-wrapped session key + the exact NDJSON / pgcopy
- * tar shape the ingest pipeline expects) is built in Java by
- * {@link MigrationBundleTestFactory} — the same factory the server ITs
- * ({@code LocationMigrationRoundTripIT} / {@code LocationRealProducerRoundTripIT})
- * use. A TypeScript spec cannot reproduce that envelope, so the bundle-build
- * stays in Java and this class is the thinnest launchable seam over it.
- *
- * <p><strong>What it does NOT do:</strong> it does not talk to Keycloak, the
- * backend, or Postgres. It is a pure byte-factory — given the per-upload RSA
- * public key (from the spec's REAL {@code POST /migrations/handshake}) and the
- * {@code uploadId}, it emits the encrypted bundle bytes to disk as base64. The
- * spec then POSTs those bytes through the REAL
- * {@code POST /api/v1/migrations/{uploadId}/bundle} endpoint (with a real
- * verified-email Bearer), so the fan-out keying + Keycloak provisioning run
- * live against the dev stack — exactly the seam the journey requires (ingest
- * through the real endpoint, never a DB INSERT).
- *
- * <p>The fan-out shape mirrors {@code LocationMigrationRoundTripIT}: one shared
- * legacy Location ({@code legacy_guid} identical) referenced by 2 clubs
- * ({@code club_id} distinct) → the LOCATION producer SELECT emits 2 NDJSON rows
- * → the ingest fans them out to 2 distinct {@code t_location} rows. The
- * Location name is the spec-supplied random {@code J0C-<rand>} freshness token
- * so the UI assertion proves data actually flowed.
- *
- * <p>Args (positional): {@code <publicKeyPemPath> <uploadId> <locationName>
- * <clubKeyPrefix> <outputPath>}. Writes the base64-encoded encrypted bundle to
- * {@code outputPath} and prints a single JSON line to stdout:
- * {@code {"clubKeyA":"…","clubKeyB":"…","locationName":"…","bundlePath":"…"}}
- * which the spec parses to correlate the ingest response's {@code clubIds} back
- * to per-club expectations.
- */
 public final class FanOutParityBundleSeeder {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    // Real Flyway-seed reference PKs (V2 / V3 / V22) — same set the round-trip
-    // IT pins. The synthetic-UUID encoding the reference-lookup resolver rewrites
-    // to these is produced via Coercions, identical to the producer path.
     private static final UUID SEED_COUNTRY_CH =
             UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID SEED_CLUB_STATE_ACTIVE =
             UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8");
-    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;   // GRASS_RUNWAY (V3)
-    private static final int LEGACY_UNIT_FEET = 2;             // FEET (V22 backfill)
-    // The CLUB_STATE legacy synthetic id the CLUB NDJSON references; mapped to
-    // the real seed PK via the CLUB_STATE.pgcopy id-map below.
+    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
+    private static final int LEGACY_UNIT_FEET = 2;
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
     private FanOutParityBundleSeeder() { }
@@ -87,8 +45,8 @@ public final class FanOutParityBundleSeeder {
         }
         Path publicKeyPemPath = Path.of(args[0]);
         UUID uploadId = UUID.fromString(args[1]);
-        String locationName = args[2];
-        String clubKeyPrefix = args[3];
+        String perRunFreshnessTokenLocationName = args[2];
+        String perRunUniqueClubKeyPrefix = args[3];
         Path outputPath = Path.of(args[4]);
 
         String pem = Files.readString(publicKeyPemPath, StandardCharsets.UTF_8);
@@ -98,24 +56,17 @@ public final class FanOutParityBundleSeeder {
 
         UUID legacyClubIdA = UUID.randomUUID();
         UUID legacyClubIdB = UUID.randomUUID();
-        // Club keys / slugs are unique per run (the prefix carries the spec's
-        // run id) so a replayed seed doesn't 409 on the slug-unique index — the
-        // two declared clubs are always DISTINCT from each other and from the
-        // Flyway seed club.
-        String keyA = clubKeyPrefix + "A";
-        String keyB = clubKeyPrefix + "B";
-        String slugBase = clubKeyPrefix.toLowerCase(java.util.Locale.ROOT);
+        String keyA = perRunUniqueClubKeyPrefix + "A";
+        String keyB = perRunUniqueClubKeyPrefix + "B";
+        String perRunUniqueSlugBase = perRunUniqueClubKeyPrefix.toLowerCase(java.util.Locale.ROOT);
 
         BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
-                legacyClubIdA, "J0C Parity Club A", slugBase + "-a", keyA, false,
+                legacyClubIdA, "J0C Parity Club A", perRunUniqueSlugBase + "-a", keyA, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         BundleManifest.ClubDeclaration clubB = new BundleManifest.ClubDeclaration(
-                legacyClubIdB, "J0C Parity Club B", slugBase + "-b", keyB, false,
+                legacyClubIdB, "J0C Parity Club B", perRunUniqueSlugBase + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // The single shared legacy Location, referenced by BOTH clubs (the exact
-        // union the LocationMapper SELECT fans out on). legacy_guid identical
-        // across the two NDJSON rows; club_id distinct → ingest fan-out to 2 rows.
         UUID sharedLocationId = UUID.randomUUID();
         UUID legacyCountryId = UUID.randomUUID();
 
@@ -135,13 +86,11 @@ public final class FanOutParityBundleSeeder {
                         legacyCountryId),
                 clubNdjson(legacyClubIdB, keyB, "J0C Parity Club B Legacy",
                         legacyCountryId)));
-        // Fan-out: SAME legacy Location, one NDJSON row per referencing club.
         tarEntries.put("LOCATION.ndjson", concat(
-                locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, locationName),
-                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, locationName)));
-        // Composite (legacy_guid, club_id, new_uuid) id-map for the fanned-out
-        // LOCATION — one row per replica, keyed on the LEGACY club id, so the
-        // ingest-side composite lookup is populated.
+                locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId,
+                        perRunFreshnessTokenLocationName),
+                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId,
+                        perRunFreshnessTokenLocationName)));
         tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(sharedLocationId, legacyClubIdA,
                         Coercions.deriveFanOutId(sharedLocationId, legacyClubIdA)),
@@ -157,9 +106,8 @@ public final class FanOutParityBundleSeeder {
         ObjectNode result = JSON.createObjectNode();
         result.put("clubKeyA", keyA);
         result.put("clubKeyB", keyB);
-        result.put("locationName", locationName);
+        result.put("locationName", perRunFreshnessTokenLocationName);
         result.put("bundlePath", outputPath.toAbsolutePath().toString());
-        // Single machine-readable line on stdout for the spec to parse.
         System.out.println(JSON.writeValueAsString(result));
     }
 
@@ -201,24 +149,18 @@ public final class FanOutParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped exactly as {@code LocationMapper.writeNdjson} after fan-out. */
     private static byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
                                          UUID countryId, String locationName) throws IOException {
         ObjectNode row = JSON.createObjectNode();
         row.put("id", Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
         row.put("legacy_guid", legacyLocationId.toString());
         row.put("club_id", legacyClubId.toString());
-        // The freshness token — both replicas carry the SAME random name (one
-        // shared legacy Location), so each club sees its own copy under it.
         row.put("location_name", locationName);
         row.put("location_short_name", "J0C");
         row.put("country_id", countryId.toString());
         row.put("location_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_LOCATION_TYPE_GRASS));
-        // Unique ICAO per club replica avoids any (club_id, icao_code) ambiguity;
-        // the legacy producer would emit the same ICAO, but isolation is what we
-        // assert, not ICAO sharing — keep it simple and distinct per replica.
-        row.put("icao_code", "J" + Integer.toHexString(legacyClubId.hashCode()).substring(0, 3).toUpperCase(java.util.Locale.ROOT));
+        row.put("icao_code", distinctIcaoPerClubReplica(legacyClubId));
         row.put("latitude", "47.46");
         row.put("longitude", "8.55");
         row.put("elevation", 1416);
@@ -240,6 +182,12 @@ public final class FanOutParityBundleSeeder {
         row.putNull("deleted_on");
         row.putNull("deleted_by_user_id");
         return ndjsonLine(row);
+    }
+
+    private static String distinctIcaoPerClubReplica(UUID legacyClubId) {
+        return "J" + Integer.toHexString(legacyClubId.hashCode())
+                .substring(0, 3)
+                .toUpperCase(java.util.Locale.ROOT);
     }
 
     private static byte[] ndjsonLine(ObjectNode row) throws IOException {

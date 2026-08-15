@@ -27,24 +27,11 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-/**
- * Keycloak adapter for {@link UserDirectoryPort}. Uses Spring's
- * {@link RestClient} (synchronous, no WebFlux dependency).
- *
- * <p>Surface is intentionally narrow — only the calls S-052 + S-028 need.
- * Every method either returns a typed port record or throws
- * {@link UserDirectoryException} carrying the HTTP status (never the
- * upstream response body, see exception docs).
- *
- * <p><strong>Tenant scoping.</strong> {@link #findUsersInClub} appends
- * {@code q=clubId:<clubId>}; an empty {@code clubId} would search realm-
- * wide, which is the R1-shape leak the security plan calls out.
- *
- * <p><strong>Logging.</strong> The bearer-token + redaction interceptors
- * mean the admin token never lands in request logs.
- */
 @Component
 public class KeycloakAdminClient implements UserDirectoryPort {
+
+    private static final List<UserDirectoryRow> NO_USERS_FOR_UNKNOWN_REALM_ROLE = List.of();
+    private static final List<RealmRoleRef> NO_REALM_ROLES_FOR_MISSING_KC_IDENTITY = List.of();
 
     private final RestClient http;
     private final KeycloakAdminProperties props;
@@ -116,11 +103,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
     @Override
     public void setEnabled(UUID sub, boolean enabled) {
-        // No read-merge-write needed: probed against KC 26.5.7, an
-        // {enabled}-only PUT preserves username/email/firstName/lastName/
-        // emailVerified/requiredActions and changes only `enabled` — the
-        // field-selective clearing that bites putMergedUser fires on absent
-        // email/firstName/lastName, none of which this body omits-and-clears.
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
@@ -141,7 +123,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         UserMutableWire current = readUserForMerge(sub);
         Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         attrs.put("clubId", List.of(clubId.toString()));
-        putMergedUser(sub, current, attrs, "write clubId attribute");
+        putUserResendingFieldsKeycloakWouldClear(sub, current, attrs, "write clubId attribute");
     }
 
     @Override
@@ -152,24 +134,10 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         if (attrs.remove("clubId") == null) {
             return;
         }
-        putMergedUser(sub, current, attrs, "clear clubId attribute");
+        putUserResendingFieldsKeycloakWouldClear(sub, current, attrs, "clear clubId attribute");
     }
 
-    /**
-     * Read-merge-write the clubId attribute. Keycloak's {@code PUT /users/{id}}
-     * is field-selective, not a top-level merge: probed against KC 26.5.7, a
-     * body omitting {@code email}/{@code firstName}/{@code lastName} CLEARS
-     * them (a bound user then vanishes from {@code ?email=&exact=true} and
-     * can't log in by email), so the write must re-send the identity read back
-     * from KC alongside the merged {@code attributes}. {@code enabled} and
-     * {@code requiredActions} happen to survive an attribute-only PUT today,
-     * but they are re-sent too: re-sending what KC holds is inert, while
-     * silently relying on KC NOT clearing them would let a bind re-enable a
-     * disabled user or drop a pending {@code VERIFY_EMAIL}/{@code
-     * UPDATE_PASSWORD} the moment that quirk changes. Each field is guarded
-     * non-null so an absent value never force-clears.
-     */
-    private void putMergedUser(
+    private void putUserResendingFieldsKeycloakWouldClear(
             UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
         Map<String, Object> body = new HashMap<>();
         if (current.username() != null) {
@@ -226,7 +194,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     }
 
     @Override
-    public Optional<DirectoryUser> findUserByEmail(String email) {
+    public Optional<DirectoryUser> findUserByEmailRealmWide(String email) {
         Objects.requireNonNull(email, "email");
         String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
                 .queryParam("email", email)
@@ -278,8 +246,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             return readListOf(body, UserWire.class).stream().map(UserWire::toRow).toList();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 404) {
-                // Role unknown in this realm → no members. Treat as empty.
-                return List.of();
+                return NO_USERS_FOR_UNKNOWN_REALM_ROLE;
             }
             throw new UserDirectoryException(
                     "Keycloak users-by-role (status " + e.getStatusCode().value() + ")", e);
@@ -296,16 +263,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             return readListOf(body, RealmRoleWire.class).stream().map(RealmRoleWire::toRef).toList();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 404) {
-                // The KC identity for this sub is gone (deleted in KC, or a local
-                // t_user row whose keycloak_sub was never provisioned in the
-                // realm — e.g. a seed / bulk-import row). A user with no KC
-                // identity has no realm roles; treat as the empty mapping rather
-                // than failing. Without this, ONE orphaned row in the club blows
-                // up the whole GET /api/v1/users list (J-26 T-30c: 502 when the
-                // KC admin client is reachable, 400 when it is not — both the
-                // same single-row-not-found root cause). Mirrors
-                // findUsersByRoleName's 404 → empty handling.
-                return List.of();
+                return NO_REALM_ROLES_FOR_MISSING_KC_IDENTITY;
             }
             throw new UserDirectoryException(
                     "Keycloak read role-mappings (status " + e.getStatusCode().value() + ")", e);
@@ -420,23 +378,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
-    /**
-     * Adapter-local wire projection over Keycloak's {@code RoleRepresentation}.
-     *
-     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is load-bearing:
-     * the injected Spring {@code ObjectMapper} runs with
-     * {@code spring.jackson.deserialization.fail-on-unknown-properties: true}
-     * (strict DTO boundary, see {@code application.yml}). Keycloak 26.5.7's real
-     * {@code GET /users/{id}/role-mappings/realm} returns an ARRAY of full
-     * {@code RoleRepresentation} objects carrying {@code description},
-     * {@code composite}, {@code clientRole}, {@code containerId},
-     * {@code attributes}. Deserialising those straight into the annotation-free
-     * domain {@link RealmRoleRef} blew up as {@code UnrecognizedPropertyException}
-     * and the adapter mislabelled it "malformed JSON list for RealmRoleRef" → 502
-     * (J-6b §4 gate; operator #7 "Users menu 400"). Pin tolerance on the wire DTO
-     * so the directory contract is independent of the global wire-boundary policy
-     * and the domain port stays Jackson-free (see {@link UserDirectoryPort}).
-     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record RealmRoleWire(@Nullable String id, String name, @Nullable String description) {
         RealmRoleRef toRef() {
@@ -444,14 +385,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
-    /**
-     * Adapter-local wire projection over Keycloak's {@code UserRepresentation}.
-     * Same rationale as {@link RealmRoleWire}: KC user-list responses carry far
-     * more than {id, username, email, enabled, requiredActions, createdTimestamp}
-     * ({@code totp}, {@code disableableCredentialTypes}, {@code notBefore},
-     * {@code access}, {@code attributes}, …). Tolerate the extras here so a future
-     * KC field add can't re-trip the same latent 502 on the users list.
-     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserWire(
             UUID id,
@@ -465,22 +398,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
-    /**
-     * Single-user representation read for the {@code clubId}-attribute
-     * read-merge-write. Carries the {@code attributes} map PLUS every mutable
-     * top-level field the {@code PUT} re-sends so an attribute-only edit can't
-     * downgrade the user.
-     *
-     * <p>KC 26.5.7's {@code PUT /users/{id}} is field-selective, not a blanket
-     * full-representation replace (probed against the local realm): an absent
-     * {@code email}/{@code firstName}/{@code lastName} CLEARS them, whereas an
-     * absent {@code username}/{@code enabled}/{@code emailVerified}/{@code
-     * requiredActions} is PRESERVED. We re-send all of them anyway — re-sending
-     * what KC already holds is a no-op, omitting a future-cleared field is the
-     * bug, and the round-trip stays correct if KC widens which fields it clears.
-     * Every other KC field is tolerated-and-dropped (same {@code ignoreUnknown}
-     * rationale as {@link UserWire}).
-     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserMutableWire(
             @Nullable String username,
@@ -500,16 +417,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
-    /**
-     * Email-lookup projection (S-181). Carries the {@code id} plus the two
-     * attributes the invite robustness branch decides on — {@code clubId}
-     * (attached-vs-unattached) and {@code locale} (welcome-attached email).
-     * A multi-valued attribute folds to its first value; an ABSENT key folds
-     * to {@code null} (genuinely unattached — the legit bind case). A
-     * present-but-unparseable/blank {@code clubId} fails CLOSED to
-     * {@link DirectoryUser#CORRUPTED_CLUB_ID} so the invite treats a corrupted
-     * attribute as attached (→ 409), never as a relocatable unattached user.
-     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record UserLookupWire(UUID id, @Nullable Map<String, List<String>> attributes) {
         DirectoryUser toDirectoryUser() {
@@ -518,12 +425,10 @@ public class KeycloakAdminClient implements UserDirectoryPort {
 
         private @Nullable UUID clubIdFailClosed() {
             if (attributes == null || !attributes.containsKey("clubId")) {
-                // Genuinely absent → unattached, the legit bind case.
                 return null;
             }
             String raw = first("clubId");
             if (raw == null || raw.isBlank()) {
-                // Present but blank/empty-valued → corrupted, not unattached.
                 return DirectoryUser.CORRUPTED_CLUB_ID;
             }
             try {

@@ -13,12 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * S-141 controller-scoped exception translator. Maps each
- * {@link BundleIngestErrorCode} to a fixed HTTP status; the bounded
- * enum means a new code surfaces here as a missing-mapping log line +
- * a defensive 500, rather than silently leaking the exception message.
- */
 @RestControllerAdvice(assignableTypes = MigrationBundleController.class)
 class MigrationBundleExceptionHandler {
 
@@ -50,7 +44,6 @@ class MigrationBundleExceptionHandler {
         return responseBuilder.body(pd);
     }
 
-    /** Suggested back-off for the 429 DATABASE_CAPACITY_EXCEEDED gate. */
     private static final int RETRY_AFTER_SECONDS = 60;
 
     @ExceptionHandler(UnknownPrincipalException.class)

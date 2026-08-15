@@ -8,15 +8,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aircraft state catalog (OK, INFORMATION, ATTENTION, MALFUNCTION,
- * MAINTENANCE, UNINSURED, END_OF_LIFE). System-global; not tenant-scoped.
- * Mapped to the V3 {@code t_aircraft_state} table; data lives in the V3
- * Flyway seed. Read-only.
- *
- * <p>{@code isAircraftFlyable} drives the "list flyable aircraft" filter
- * on the picker endpoint and the airworthiness badge on the list view.
- */
 @Entity
 @Table(name = "t_aircraft_state")
 public class AircraftState {
@@ -37,7 +28,6 @@ public class AircraftState {
     private boolean isAircraftFlyable;
 
     protected AircraftState() {
-        // JPA.
     }
 
     public @Nullable AircraftStateId getId() {

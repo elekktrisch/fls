@@ -14,37 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped reservation aggregate root: legacy
- * {@code AircraftReservations.AircraftReservationId} →
- * {@code t_aircraft_reservation.id}. {@code operating_club_id} is the
- * {@code @TenantId} discriminator per V4.
- *
- * <p>Cross-tenant FKs declared in {@code tenantBypassFks}:
- * {@code aircraft_id} (cross-tenant Aircraft per S-185 / ADR 0008),
- * {@code pilot_person_id}, {@code second_crew_person_id} (cross-tenant
- * Person sub-map). {@code location_id} is tenant-scoped — resolves
- * through the composite {@code legacy_id_map_location} replica
- * selection (S-185 pattern; replica matches the reservation's
- * {@code operating_club_id}). No tenant bypass for location_id.
- *
- * <p>{@code reservation_range tstzrange} is GENERATED ALWAYS AS
- * STORED in V4 and so absent from {@link #columns()}; the GENERATED
- * column derives from {@code reservation_start} + {@code reservation_end}
- * which the mapper emits.
- *
- * <p>Empty-range degenerate ({@code Start == End}) passes through —
- * S-064 aggregate-side rejects on read. Mapper does not pre-empt.
- *
- * <p>Legacy NULL {@code PilotPersonId} (degenerate reservation with no
- * pilot) cannot satisfy the V4 {@code pilot_person_id NOT NULL} + FK
- * RESTRICT — producer drops the row + emits
- * {@code RESERVATION_NO_PILOT} warning. Mapper trusts the producer.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- * Legacy {@code Remarks} maps to the new {@code info} column.
- */
 public final class AircraftReservationMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -85,12 +54,12 @@ public final class AircraftReservationMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(
                 EntityType.CLUB,
                 EntityType.AIRCRAFT,
@@ -102,23 +71,6 @@ public final class AircraftReservationMapper implements Mapper {
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // Off-convention FK columns the <target>_id default resolver cannot
-        // derive — without these, the resolver looks for non-existent fields
-        // (club_id / person_id / aircraft_reservation_type_id) on the row, finds
-        // nothing, and leaves the real columns carrying the verbatim legacy GUID,
-        // which then FK-violates on INSERT (sqlstate 23503: fk_arv_*). Declared:
-        //  * operating_club_id → CLUB (the @TenantId; convention would be club_id)
-        //  * pilot_person_id + second_crew_person_id → PERSON (TWO columns to one
-        //    target; convention would be person_id)
-        //  * reservation_type_id → AIRCRAFT_RESERVATION_TYPE (convention would be
-        //    aircraft_reservation_type_id)
-        //  * location_id → LOCATION (fan-out target; the column name matches the
-        //    convention, but the fan-out disambiguator is this row's OWN
-        //    operating_club_id, not the default club_id — Location is tenant-scoped
-        //    fan-out so the composite (legacy_guid, club_id) lookup must key on the
-        //    reservation's operating club)
-        // aircraft_id → AIRCRAFT and flight_type_id → FLIGHT_TYPE match the
-        // <target>_id convention, so they are NOT declared (resolver falls back).
         return List.of(
                 new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
                 new ForeignKeyColumn(PILOT_PERSON_ID, EntityType.PERSON),

@@ -25,16 +25,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 
-/**
- * Verifies that {@link LifecycleStateFilterAspect} dispatches the
- * annotated method body across Deployments matching the filter, and
- * skips off-list Deployments.
- *
- * <p>Drives a test-only bean that carries {@link LifecycleStateFilter} —
- * production usage pairs with {@link org.springframework.scheduling.annotation.Scheduled},
- * but the aspect's pointcut is the annotation alone (the ArchUnit rule
- * enforces the pairing at build time).
- */
 @Import(LifecycleStateFilterAspectIT.TestJobConfig.class)
 class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
 
@@ -63,8 +53,7 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbc.update("UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
-                + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_AS_%')");
+        repointClubsToTheOperatorDeploymentSoTheRestrictedDeleteCanRun();
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_AS_%'");
         testJob.reset();
         TwoClubFixture fixture =
@@ -84,15 +73,20 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         deployments.save(Deployment.startTrial(clock, "IT_AS_trial", trialOwner));
     }
 
+    private void repointClubsToTheOperatorDeploymentSoTheRestrictedDeleteCanRun() {
+        jdbc.update("UPDATE t_club SET deployment_id = ?::uuid "
+                        + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_AS_%')",
+                Deployment.OPERATOR_ID.toString());
+    }
+
     @Test
     void aspect_invokes_body_once_per_club_under_active_deployments() {
         testJob.runActiveOnly();
 
-        // The aspect fires the body once per Club under every ACTIVE
-        // Deployment — the operator Deployment plus the IT-owned ones
-        // contribute. Assert presence of the two IT Clubs (the aspect's
-        // tenant-switching behavior) rather than an exact count.
-        assertThat(testJob.observedTenants()).contains(clubA, clubB);
+        assertThat(testJob.observedTenants())
+                .as("every ACTIVE Deployment contributes, so assert the two IT clubs are present "
+                        + "rather than pinning an exact count")
+                .contains(clubA, clubB);
     }
 
     @Test
@@ -109,13 +103,10 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         }
     }
 
-    /**
-     * Aspect-wrapped beans run through a CGLIB proxy; field access on the
-     * proxy returns the un-initialised subclass field rather than the
-     * real target's. Counters are exposed through method getters so the
-     * test reads them via the same dispatch path the aspect wraps.
-     */
     static class TestJob {
+        private static final String CRON_THAT_NEVER_FIRES_BECAUSE_TESTS_CALL_THESE_DIRECTLY =
+                "0 0 0 1 1 ?";
+
         private final AtomicInteger activeInvocations = new AtomicInteger();
         private final AtomicInteger emptyInvocations = new AtomicInteger();
         private final List<UUID> observedTenants = new ArrayList<>();
@@ -138,19 +129,14 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
             return List.copyOf(observedTenants);
         }
 
-        // @Scheduled here is metadata for the aspect's pointcut only — the
-        // test never enables Spring scheduling, so the runner doesn't fire
-        // these methods. Tests invoke them directly + the @Around advice
-        // applies. The far-future cron expression keeps Spring's
-        // schedule-parser quiet if the harness ever enables scheduling.
-        @Scheduled(cron = "0 0 0 1 1 ?")
+        @Scheduled(cron = CRON_THAT_NEVER_FIRES_BECAUSE_TESTS_CALL_THESE_DIRECTLY)
         @LifecycleStateFilter({LifecycleState.ACTIVE})
         public synchronized void runActiveOnly() {
             activeInvocations.incrementAndGet();
             TenantContextCarrier.current().ifPresent(observedTenants::add);
         }
 
-        @Scheduled(cron = "0 0 0 1 1 ?")
+        @Scheduled(cron = CRON_THAT_NEVER_FIRES_BECAUSE_TESTS_CALL_THESE_DIRECTLY)
         @LifecycleStateFilter({})
         public void runEmptyFilter() {
             emptyInvocations.incrementAndGet();

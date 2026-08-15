@@ -13,11 +13,6 @@ import {
 } from './registrant-form';
 import { ScenicFlightStore } from './scenic-flight.store';
 
-/**
- * The anonymous scenic-flight (Mitflug) registration form for the club its URL
- * names — the discovery form minus the day: this flow books no reservation, so
- * there is no day to pick and none is sent.
- */
 @Component({
   selector: 'af-scenic-flight-page',
   standalone: true,

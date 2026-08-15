@@ -15,29 +15,11 @@ import type { MeNotificationPrefsUpdateRequest } from '@api/generated/model';
 import { NotificationsStore } from './notifications.store';
 
 type NotificationsForm = FormGroup<{
-  // The 3 per-club notification prefs. Form-field names mirror the T-01 testid
-  // tokens; the PATCH maps them to the T-10 DTO booleans (see {@link onSubmit}).
   flightReports: FormControl<boolean>;
   reservations: FormControl<boolean>;
   clubNews: FormControl<boolean>;
 }>;
 
-/**
- * Notifications tab of `/profile` (J-4 T-11). Edits the caller-tenant PersonClub's
- * 3 notification preferences — the simplest self-edit tab — via
- * {@code PATCH /api/v1/me/club-membership/notification-prefs} (orval
- * `updateMyNotificationPrefs`). The tab hydrates from
- * {@code GET /api/v1/me/club-membership/notification-prefs} (`getMyNotificationPrefs`).
- *
- * testid contract (T-01 spec) ↔ T-10 DTO field mapping:
- *   `profile-notifications-pref-flightReports` → `receiveFlightReports`;
- *   `profile-notifications-pref-reservations`  → `receiveAircraftReservationNotifications`;
- *   `profile-notifications-pref-clubNews`      → `receivePlanningDayRoleReminder`.
- *
- * The shell gates this tab on a linked Person (`[nzDisabled]` + no-Person banner)
- * and only renders the body `@if (hasPerson())`, so the store's GET never fires
- * for a person-less principal.
- */
 @Component({
   selector: 'af-profile-notifications-tab',
   standalone: true,
@@ -122,8 +104,6 @@ export class ProfileNotificationsTab {
   });
 
   constructor() {
-    // Hydrate the form whenever the store's view lands (initial GET + after a save
-    // reflects the persisted projection).
     effect(() => {
       const view = this.store.view();
       if (view !== null) {
@@ -143,8 +123,6 @@ export class ProfileNotificationsTab {
 
   protected onSubmit(): void {
     const v = this.form.getRawValue();
-    // The 3 toggles always send (a cleared checkbox is a real false). Field-name
-    // → DTO-field mapping per the class doc.
     const req: MeNotificationPrefsUpdateRequest = {
       receiveFlightReports: v.flightReports,
       receiveAircraftReservationNotifications: v.reservations,

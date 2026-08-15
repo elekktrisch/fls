@@ -22,15 +22,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence proof of the indirect-tenancy current-balance read: a
- * {@link PersonFlightTimeCredit} carries no {@code @TenantId}, yet the repo
- * scopes it to the caller's tenant via the owning Person's {@code PersonClub}
- * ({@code DeliveryService.cs:142-146} parity) — exactly the cross-tenant Person
- * pattern. Seeding is ADR-0027-clean: clubs via {@link TwoClubFixture}, members
- * via {@link Person#register} + {@code joinClub}, credits via
- * {@link PersonFlightTimeCredit#grant} + {@link PersonFlightTimeCreditRepository#save}.
- */
 class PersonFlightTimeCreditRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_PFTC_";

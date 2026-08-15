@@ -14,15 +14,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Locations REST surface. Records (immutable, explicit field
- * set); mass-assignment is structurally impossible because the controller
- * binds to the record, not to the {@code Location} aggregate.
- *
- * <p>Bean Validation here is fast-fail at the HTTP boundary; the aggregate
- * re-validates per ADR 0022 directive 2 (business rules live on the
- * aggregate, not in a DB CHECK constraint).
- */
 public final class LocationDtos {
 
     private LocationDtos() {}

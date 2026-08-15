@@ -12,15 +12,6 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal child of {@link Aircraft}: a single counter snapshot
- * (engine seconds, flight seconds, towed-glider starts, winch-launch
- * starts, self-starts, plus next-maintenance thresholds). Airframe-lifetime
- * totals accumulate across operating clubs — append-only by design.
- *
- * <p>No top-level CRUD endpoint exists. Mutators are package-private;
- * only {@link Aircraft} drives them via {@code recordCounter(...)}.
- */
 @Entity
 @Table(name = "t_aircraft_operating_counter")
 public class AircraftOperatingCounter {
@@ -67,7 +58,6 @@ public class AircraftOperatingCounter {
     private @Nullable UUID deletedByUserId;
 
     protected AircraftOperatingCounter() {
-        // JPA.
     }
 
     static AircraftOperatingCounter record(Instant atDateTime,

@@ -6,12 +6,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.List;
 
-/**
- * Minimal {@link Mapper} stand-in for unit tests that exercise the
- * container-independent parity infrastructure without coupling to a real
- * mapper's column list or legacy-schema knowledge. Records delegation so
- * decorator tests can assert pass-through.
- */
 final class FakeMapper implements Mapper {
 
     private final EntityType entityType;
@@ -32,12 +26,12 @@ final class FakeMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return columns.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return foreignKeys;
     }
 

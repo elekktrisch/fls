@@ -3,19 +3,6 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { AfButtonComponent } from '../../atoms/af-button';
 import { AfIconComponent } from '../../atoms/af-icon';
 
-/**
- * Page-level error banner. Used for non-form data-fetch failures
- * (loadAll, save, etc.). Field errors stay inline via af-field-errors;
- * global runtime errors flow through ng-zorro's NzMessage toast.
- *
- *   <af-page-error
- *     [message]="store.loadError()"
- *     (retry)="store.loadAll()"
- *   />
- *
- * Renders nothing — and consumes no vertical space — when `message` is
- * null. Drop-in for the common `@if (err) { … }` template guard.
- */
 @Component({
   selector: 'af-page-error',
   standalone: true,

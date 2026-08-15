@@ -8,24 +8,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The rules-engine matching predicate — decides whether one
- * {@link FilterConfig} applies to one {@link MatchableFlight}. The pure-domain
- * port of the legacy {@code BaseAccountingRule} condition set: every facet is
- * AND-ed (a filter matches iff ALL its conditions hold), and each facet follows
- * the same {@code useAllExcept × empty/non-empty} matrix as the legacy
- * {@code Initialize*Conditions} methods.
- *
- * <p>The engine stages (T-07+) hold an {@link AccountingRuleFilter} and call
- * {@code matches(flight, filter.filterConfig())} per filter; a {@code true}
- * means the stage emits / acts on its line for that flight.
- *
- * <p>Ported line-by-line from
- * {@code flsserver/src/FLS.Server.Service/Accounting/Rules/BaseAccountingRule.cs}
- * — NOT rewritten from understanding (customer invoices depend on the current
- * behavior, bit-exact parity is the J-9 contract). Person-category filtering is
- * a no-op here because it is commented out in the legacy source (lines 177-201).
- */
 public final class AccountingRuleMatcher {
 
     public boolean matches(MatchableFlight flight, FilterConfig filter) {
@@ -57,14 +39,14 @@ public final class AccountingRuleMatcher {
 
     private boolean startLocationMatches(MatchableFlight flight, FilterConfig filter) {
         if (flight.startLocationIcao() == null) {
-            return true; // legacy: no start location -> warn only, add no condition.
+            return true;
         }
         return facetMatches(filter.startLocations(), flight.startLocationIcao(), true);
     }
 
     private boolean ldgLocationMatches(MatchableFlight flight, FilterConfig filter) {
         if (flight.ldgLocationIcao() == null) {
-            return true; // legacy: no landing location -> warn only, add no condition.
+            return true;
         }
         return facetMatches(filter.ldgLocations(), flight.ldgLocationIcao(), true);
     }
@@ -72,7 +54,7 @@ public final class AccountingRuleMatcher {
     private boolean flightTypeMatches(MatchableFlight flight, FilterConfig filter) {
         MatchList codes = filter.flightTypeCodes();
         if (codes.useAllExcept() && codes.matched().isEmpty()) {
-            return true; // useAllExcept + empty -> no condition.
+            return true;
         }
         boolean own = containsCode(codes, flight.flightTypeCode());
         boolean extended = own;
@@ -88,38 +70,31 @@ public final class AccountingRuleMatcher {
     private boolean aircraftHomebaseMatches(MatchableFlight flight, FilterConfig filter) {
         MatchList homebases = filter.aircraftHomebases();
         if (!flight.aircraftPresent()) {
-            return true; // legacy: no aircraft -> warn only, add no condition.
+            return true;
         }
         boolean hasHomebase = flight.aircraftHomebase() != null;
         if (homebases.useAllExcept()) {
             if (homebases.matched().isEmpty()) {
-                return true; // useAllExcept + empty -> no condition.
+                return true;
             }
-            // No homebase under an exclude list never excludes (Equals(false, false)).
             return !hasHomebase || !contains(homebases.matched(), flight.aircraftHomebase(), false);
         }
-        // Include list: no homebase is forced-false (Equals(false, true)).
         return hasHomebase && contains(homebases.matched(), flight.aircraftHomebase(), false);
     }
 
     private boolean crewMatches(MatchableFlight flight, FilterConfig filter) {
         if (flight.crew().isEmpty()) {
-            return false; // legacy: no crew -> forced-false condition (rule never matches).
+            return false;
         }
         List<MatchableCrew> selected = selectByCrewType(flight.crew(), filter.flightCrewTypes());
         return crewFacetMatches(filter.clubMemberNumbers(), selected, MatchableCrew::memberNumber, "member-number")
                 && crewFacetMatches(filter.memberStates(), selected, MatchableCrew::memberStateId, "member-state");
     }
 
-    /**
-     * The legacy crew-type pre-filter ({@code flightCrewTypeSelection}): the
-     * crew members whose member-number / member-state the rule then inspects.
-     * It is NOT a standalone match condition — it narrows the crew set.
-     */
     private List<MatchableCrew> selectByCrewType(List<MatchableCrew> crew, MatchList crewTypes) {
         if (crewTypes.useAllExcept()) {
             if (crewTypes.matched().isEmpty()) {
-                return crew; // all crew types.
+                return crew;
             }
             Set<String> excluded = upper(crewTypes.matched());
             return crew.stream()
@@ -148,39 +123,19 @@ public final class AccountingRuleMatcher {
         return value;
     }
 
-    /**
-     * The crew facet uses {@code IntersectAny} (does any selected crew value
-     * appear in the matched list?) rather than {@code Contains} of a single
-     * value — the {@code useAllExcept × empty/non-empty} matrix is otherwise
-     * identical to {@link #facetMatches}.
-     *
-     * <p>Crew values are resolved (and may throw {@link MissingPersonClubException})
-     * only inside the branches that add a condition — exactly as legacy resolves
-     * {@code PersonClubs.First(...)} only when the matching branch runs. The
-     * useAllExcept + empty case adds no condition and never touches the values.
-     */
     private boolean crewFacetMatches(MatchList list,
                                      List<MatchableCrew> selected,
                                      java.util.function.Function<MatchableCrew, @Nullable String> facet,
                                      String facetName) {
         if (list.useAllExcept()) {
             if (list.matched().isEmpty()) {
-                return true; // useAllExcept + empty -> no condition.
+                return true;
             }
             return !intersectsAny(list.matched(), resolve(selected, facet, facetName));
         }
         return intersectsAny(list.matched(), resolve(selected, facet, facetName));
     }
 
-    /**
-     * One {@code Contains}-style facet's matrix:
-     * <ul>
-     *   <li>useAllExcept + non-empty -&gt; EXCLUDE: {@code !matched.contains(value)}</li>
-     *   <li>useAllExcept + empty -&gt; no condition (matches all)</li>
-     *   <li>!useAllExcept -&gt; INCLUDE: {@code matched.contains(value)}
-     *       (empty list never matches — the legacy forced-false)</li>
-     * </ul>
-     */
     private boolean facetMatches(MatchList list, @Nullable String flightValue, boolean caseInsensitive) {
         if (list.useAllExcept()) {
             if (list.matched().isEmpty()) {

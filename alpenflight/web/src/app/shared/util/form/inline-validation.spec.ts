@@ -46,12 +46,8 @@ describe('liveFieldErrors$', () => {
   it('emits the control errors after ~200ms of a value change (debounced)', () => {
     scheduler.run(({ expectObservable, cold }) => {
       const control = new FormControl('', { validators: [Validators.required] });
-      // The control starts invalid (required, empty). A value typed at frame 10
-      // makes it valid; the debounced stream should reflect that ~200ms later.
       cold('----------a|').subscribe(() => control.setValue('x'));
 
-      // startWith → initial errors at frame 0 ({ required }); then nothing until
-      // 200ms (200 frames) after the frame-10 change, when errors are null.
       expectObservable(liveFieldErrors$(control, { debounceMs: 200 })).toBe('a 209ms b', {
         a: { required: true },
         b: null,
@@ -64,8 +60,6 @@ describe('liveFieldErrors$', () => {
       const control = new FormControl('seed', { validators: [Validators.required] });
       cold('--a|').subscribe(() => control.setValue(''));
 
-      // Initially valid (null); after clearing at frame 2 + 200ms debounce it is
-      // invalid again ({ required }).
       expectObservable(liveFieldErrors$(control, { debounceMs: 200 })).toBe('a 201ms b', {
         a: null,
         b: { required: true },
@@ -76,8 +70,6 @@ describe('liveFieldErrors$', () => {
   it('de-dupes identical consecutive error states (distinctUntilChanged)', () => {
     scheduler.run(({ expectObservable, cold }) => {
       const control = new FormControl('a', { validators: [Validators.required] });
-      // Two value changes that both leave the control valid (null errors) must
-      // not produce two `null` emissions after the initial one.
       cold('--a--b|').subscribe((v) => control.setValue(v === 'a' ? 'b' : 'c'));
 
       expectObservable(liveFieldErrors$(control, { debounceMs: 200 })).toBe('a', {
@@ -90,7 +82,6 @@ describe('liveFieldErrors$', () => {
     scheduler.run(({ expectObservable, cold }) => {
       const control = new FormControl('x', { validators: [Validators.required] });
       const asyncErrors$ = new Subject<{ overlap: true } | null>();
-      // Server error arrives at frame 5 (no value change, so no client debounce).
       cold('-----a|').subscribe(() => asyncErrors$.next({ overlap: true }));
 
       expectObservable(liveFieldErrors$(control, { debounceMs: 200, asyncErrors$ })).toBe(
@@ -104,12 +95,6 @@ describe('liveFieldErrors$', () => {
   });
 
   it('re-reads errors after a post-hydrate revalidate that fires only the root status', () => {
-    // Reopen-shows-invalid guard: a required control is built empty (errors
-    // `{ required }`), the live-errors stream starts with that, then an
-    // `emitEvent:false` hydrate patch + `revalidateTree` recompute validators —
-    // firing the ROOT's status but neither the control's `valueChanges` nor its
-    // own `statusChanges`. A value-only trigger would keep the stale
-    // `{ required }`; tracking the root status clears it (debounced).
     scheduler.run(({ expectObservable, cold }) => {
       const control = new FormControl('', {
         nonNullable: true,

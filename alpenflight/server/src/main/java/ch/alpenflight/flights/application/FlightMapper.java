@@ -25,12 +25,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/**
- * Manual mapper between {@link Flight} (+ its aggregate-internal
- * {@link FlightCrew}) and the request / response DTOs. No reflection,
- * no MapStruct annotations — the explicit shape protects the mass-
- * assignment defense (state-machine columns are never wired through).
- */
 @Component
 public class FlightMapper {
 

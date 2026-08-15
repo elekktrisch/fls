@@ -10,62 +10,66 @@ import {
   PERSON_CANNED_TYPES,
 } from './canned-report';
 
-// Fixed clock: 2026-06-09 (a Tuesday), mid-year, so month/year-relative windows
-// don't straddle a boundary by accident. Local-midnight constructor matches the
-// util's normalisation.
-const TODAY = new Date(2026, 5, 9); // June = month index 5
+const TODAY_2026_06_09 = new Date(2026, 5, 9);
 
 describe('cannedDateRange — parity with legacy FlightReportsController.js date math', () => {
   it('today → from = to = today', () => {
-    expect(cannedDateRange('today', TODAY)).toEqual({ from: '2026-06-09', to: '2026-06-09' });
+    expect(cannedDateRange('today', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-09',
+      to: '2026-06-09',
+    });
   });
 
   it('yesterday → from = to = today−1', () => {
-    expect(cannedDateRange('yesterday', TODAY)).toEqual({ from: '2026-06-08', to: '2026-06-08' });
+    expect(cannedDateRange('yesterday', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-08',
+      to: '2026-06-08',
+    });
   });
 
   it('last-7-days → today−7 … today (INTENDED 8 inclusive days)', () => {
-    // moment().add(-7,"days") → 2026-06-02; to = today. June 2..9 = 8 days.
-    expect(cannedDateRange('last-7-days', TODAY)).toEqual({ from: '2026-06-02', to: '2026-06-09' });
+    expect(cannedDateRange('last-7-days', TODAY_2026_06_09)).toEqual({
+      from: '2026-06-02',
+      to: '2026-06-09',
+    });
   });
 
   it('last-30-days → today−30 … today', () => {
-    // June 9 − 30 days = May 10.
-    expect(cannedDateRange('last-30-days', TODAY)).toEqual({
+    expect(cannedDateRange('last-30-days', TODAY_2026_06_09)).toEqual({
       from: '2026-05-10',
       to: '2026-06-09',
     });
   });
 
   it('last-12-months → today−12 months … today', () => {
-    expect(cannedDateRange('last-12-months', TODAY)).toEqual({
+    expect(cannedDateRange('last-12-months', TODAY_2026_06_09)).toEqual({
       from: '2025-06-09',
       to: '2026-06-09',
     });
   });
 
   it('last-24-months → today−24 months … today', () => {
-    expect(cannedDateRange('last-24-months', TODAY)).toEqual({
+    expect(cannedDateRange('last-24-months', TODAY_2026_06_09)).toEqual({
       from: '2024-06-09',
       to: '2026-06-09',
     });
   });
 
   it('this-year → Jan 1 of current year … today', () => {
-    expect(cannedDateRange('this-year', TODAY)).toEqual({ from: '2026-01-01', to: '2026-06-09' });
+    expect(cannedDateRange('this-year', TODAY_2026_06_09)).toEqual({
+      from: '2026-01-01',
+      to: '2026-06-09',
+    });
   });
 
   it('previous-year → last Jan 1 … last Dec 31', () => {
-    expect(cannedDateRange('previous-year', TODAY)).toEqual({
+    expect(cannedDateRange('previous-year', TODAY_2026_06_09)).toEqual({
       from: '2025-01-01',
       to: '2025-12-31',
     });
   });
 
   it('month arithmetic clamps the way moment().add does at month-end overflow', () => {
-    // 2026-03-31 − 1 month: JS Date setMonth rolls 2026-02-31 → 2026-03-03.
-    // This is the same JS arithmetic; pinned so a refactor that "fixes" it
-    // (and diverges from the rendered window) is caught.
     const mar31 = new Date(2026, 2, 31);
     const got = cannedDateRange('last-12-months', mar31);
     expect(got.to).toBe('2026-03-31');
@@ -75,7 +79,7 @@ describe('cannedDateRange — parity with legacy FlightReportsController.js date
 
 describe('cannedReportSpec', () => {
   it('combines the derived range with the journey-note default flags (glider+motor on, tow off)', () => {
-    const spec = cannedReportSpec('my-flights-last-30-days', TODAY);
+    const spec = cannedReportSpec('my-flights-last-30-days', TODAY_2026_06_09);
     expect(spec).toEqual({
       from: '2026-05-10',
       to: '2026-06-09',

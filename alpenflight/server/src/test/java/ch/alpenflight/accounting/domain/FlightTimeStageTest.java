@@ -31,13 +31,12 @@ class FlightTimeStageTest {
                 .build();
     }
 
-    /** A glider-scoped flight-time filter for one tier, billed in minutes. */
-    private static RuleFilterInput tier(
+    private static RuleFilterInput gliderTierBilledInMinutes(
             String article, @Nullable Integer min, @Nullable Integer max) {
-        return tier(article, min, max, AccountingUnitType.MIN);
+        return gliderTier(article, min, max, AccountingUnitType.MIN);
     }
 
-    private static RuleFilterInput tier(
+    private static RuleFilterInput gliderTier(
             String article, @Nullable Integer min, @Nullable Integer max, AccountingUnitType unit) {
         FilterConfig base = FilterConfig.empty();
         FilterConfig config = new FilterConfig(
@@ -67,17 +66,13 @@ class FlightTimeStageTest {
                 balanceInSeconds);
     }
 
-    // Two tiers on a 1500s flight: the upper tier (min=600/max=MAX) bills
-    // 1500-600=900s, resets active->600; in the SAME pass the lower tier
-    // (min=0/max=600) then matches the now-600s remainder and bills all 600s,
-    // resetting active->0. Order is the apply order: upper tier first.
     @Test
     void tieredBillingEmitsOneItemPerTierInApplyOrder() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
         STAGE.run(acc, glider(), 1500, List.of(
-                tier("UPPER", 600, null),
-                tier("LOWER", 0, 600)));
+                gliderTierBilledInMinutes("UPPER", 600, null),
+                gliderTierBilledInMinutes("LOWER", 0, 600)));
 
         List<DeliveryItemDetails> items = acc.deliveryItems();
         assertThat(items).hasSize(2);
@@ -96,36 +91,25 @@ class FlightTimeStageTest {
     void zeroFlightTimeEmitsNoItems() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 0, List.of(tier("ANY", 0, null)));
+        STAGE.run(acc, glider(), 0, List.of(gliderTierBilledInMinutes("ANY", 0, null)));
 
         assertThat(acc.deliveryItems()).isEmpty();
     }
 
-    // Tier gap: the only tier covers (600, 1200]. A 1500s flight's first 300s
-    // (active in (1200, 1500]) match no tier, so the loop breaks on the first
-    // pass with active=1500 still > 0 and NO item — the legacy silent unbilled
-    // remainder (warn-only), reproduced bit-exact.
     @Test
     void tierGapLeavesRemainderSilentlyUnbilled() {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1500, List.of(tier("MID", 600, 1200)));
+        STAGE.run(acc, glider(), 1500, List.of(gliderTierBilledInMinutes("MID", 600, 1200)));
 
         assertThat(acc.deliveryItems()).isEmpty();
         assertThat(acc.getActiveFlightTimeInSeconds()).isEqualTo(1500);
     }
 
-    // A SEC-unit tier so the emitted quantity equals the credited seconds: the
-    // discount is a passthrough int, never folded into the quantity.
-    private static List<RuleFilterInput> oneSecTier() {
-        return List.of(tier("FT", 0, null, AccountingUnitType.SEC));
+    private static List<RuleFilterInput> secondsUnitTierSoQuantityEqualsCreditedSeconds() {
+        return List.of(gliderTier("FT", 0, null, AccountingUnitType.SEC));
     }
 
-    // The line-shape corpus on a 1000s flight: full cover / unlimited credit the
-    // whole line at the discount; over-credit splits credited(=balance, discount)
-    // + billed-remainder(0); a zero-balance limited credit and a no-applicable
-    // credit leave the pure 1000s line at discount 0. The quantity always equals
-    // the credited/billed SECONDS — the discount never touches it.
     @ParameterizedTest(name = "{0}")
     @CsvSource(nullValues = "null", value = {
             "fullyCovered,  false, 25, false, 5000, 1000, 25, 0,    0",
@@ -140,7 +124,7 @@ class FlightTimeStageTest {
             int firstQty, int firstDiscount, int remainderQty, int remainderDiscount) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(),
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(),
                 List.of(credit(exceptListed, IMMAT, discount, unlimited, balance)));
 
         var items = acc.deliveryItems();
@@ -157,14 +141,6 @@ class FlightTimeStageTest {
         }
     }
 
-    // A min!=0 tier (legacy art.1067/1069 "HB-KCB Schulung ab 11.min", min=600s)
-    // splits the credit decision on the BILLED slice (active-min), not the full
-    // active — diverges from the legacy over-credit on min!=0 tiers (ADR 0026).
-    // active=900, min=600 -> lineSeconds=300:
-    //  - balance=200 (< lineSeconds): genuine over-credit -> credited 200@discount
-    //    + remainder 100@0.
-    //  - balance=400 (between lineSeconds and active): one 300@discount line, NO
-    //    remainder, NO negative quantity — the case that red-proves the old bug.
     @ParameterizedTest(name = "{0}")
     @CsvSource(value = {
             "minTierGenuineOverCredit, 200, 200, 25, 100, 0",
@@ -175,7 +151,7 @@ class FlightTimeStageTest {
             long balance, int firstQty, int firstDiscount, int remainderQty, int remainderDiscount) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 900, List.of(tier("FT", 600, null, AccountingUnitType.SEC)),
+        STAGE.run(acc, glider(), 900, List.of(gliderTier("FT", 600, null, AccountingUnitType.SEC)),
                 List.of(credit(false, IMMAT, firstDiscount, false, balance)));
 
         var items = acc.deliveryItems();
@@ -186,13 +162,13 @@ class FlightTimeStageTest {
             assertThat(items.get(1).quantity()).isEqualByComparingTo(BigDecimal.valueOf(remainderQty));
             assertThat(items.get(1).discountInPercent()).isEqualTo(remainderDiscount);
         } else {
-            assertThat(items).hasSize(1);
+            assertThat(items)
+                    .as("a balance covering the whole billed slice yields one credited line: "
+                            + "no remainder line, no negative-quantity line")
+                    .hasSize(1);
         }
     }
 
-    // Activation is legacy String.Contains (substring on the raw CSV) under the
-    // UseRuleForAllAircraftsExceptListed inversion flag — both directions; a null
-    // list under the non-inversion branch is the NPE-guarded skip (not a match).
     @ParameterizedTest(name = "exceptListed={0} matchedImmats={1} -> applies={2}")
     @CsvSource(nullValues = "null", value = {
             "false, 'HB-1234,HB-9', true",
@@ -206,17 +182,13 @@ class FlightTimeStageTest {
             boolean exceptListed, @Nullable String matchedImmats, boolean applies) {
         var acc = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(),
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(),
                 List.of(credit(exceptListed, matchedImmats, 20, false, 5_000L)));
 
         assertThat(acc.deliveryItems().getFirst().discountInPercent())
                 .isEqualTo(applies ? 20 : 0);
     }
 
-    // First-match-wins (legacy break at cs:92): the first credit with a usable
-    // balance is applied; a zero-balance limited credit ahead of it is skipped
-    // (continue), not treated as the match. An empty credit list is the pure
-    // decrement path (discount 0, no split) — the existing decrement tests stay green.
     @ParameterizedTest(name = "{0} -> discount={1}")
     @CsvSource({
             "firstUsableWins,    10",
@@ -235,7 +207,7 @@ class FlightTimeStageTest {
             default -> List.of();
         };
 
-        STAGE.run(acc, glider(), 1000, oneSecTier(), credits);
+        STAGE.run(acc, glider(), 1000, secondsUnitTierSoQuantityEqualsCreditedSeconds(), credits);
 
         assertThat(acc.deliveryItems()).hasSize(1);
         assertThat(acc.deliveryItems().getFirst().discountInPercent()).isEqualTo(expectedDiscount);

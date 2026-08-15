@@ -12,29 +12,6 @@ import type { MatchList } from '@api/generated/model';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
 
-/**
- * Reusable predicate match-list control — the legacy accounting "selectize +
- * include/exclude" panel (`accountingRuleFilters-edit.html`), one of ten.
- *
- * Round-trips a `MatchList` (`{useAllExcept, matched[]}`) via `ControlValueAccessor`
- * so the parent form owns each list as a single control:
- *  - the **invert toggle** (`useAllExcept`) — legacy "nur folgende" (false) vs
- *    "alle ausser" (true): include the listed tokens, or use the rule for ALL
- *    flights *except* the listed ones. This is the load-bearing AC.
- *  - the **matched tokens** as removable chips, added via a typed text input.
- *    The persisted value is always a string (legacy `valueField` ints/guids are
- *    serialised as strings), so typed entry is sufficient for every list; an
- *    optional `options` array drives a `<datalist>` so dropdown-backed lists
- *    (immatriculations, ICAO codes, member numbers, crew-type ids, …) get
- *    suggestions without the control coupling to any reference store.
- *
- * Parameterised by `(label, listKey, options?)` and instantiated N times — one
- * component, no copy-pasted blocks (the CPD/maintainability bar). Per-instance
- * `data-testid`s derive from `listKey`:
- *   `accounting-rules-<listKey>-use-all-except` (the invert toggle)
- *   `accounting-rules-<listKey>-add` / `-add-button`
- *   `accounting-rules-<listKey>-chip-<value>` / `-chip-<value>-remove`
- */
 @Component({
   selector: 'af-match-list-control',
   standalone: true,
@@ -126,13 +103,9 @@ import { AfIconComponent } from '@ui/atoms/af-icon';
   `,
 })
 export class MatchListControlComponent implements ControlValueAccessor {
-  /** Stable key for this list — drives every `data-testid` + the `<datalist>` id. */
   readonly listKey = input.required<string>();
-  /** Display label (legacy panel heading). */
   readonly label = input.required<string>();
-  /** Optional suggestion tokens for the typed-entry `<datalist>` (dropdown-backed lists). */
   readonly options = input<readonly string[]>([]);
-  /** Caption for the invert toggle ("Use for all except listed"). */
   readonly useAllExceptLabel = input<string>('Use for all flights except those listed');
   readonly addPlaceholder = input<string>('Add…');
   readonly emptyLabel = input<string>('None');

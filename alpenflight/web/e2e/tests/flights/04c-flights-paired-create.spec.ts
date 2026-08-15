@@ -3,22 +3,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-/**
- * Aerotow paired-create happy path + tow-fail rollback (S-067 AC).
- *
- * S-062c shipped `FlightStore.savePair` with the 3-call orchestration
- * (POST glider → POST tow → PUT-link with If-Match) plus the
- * compensating-DELETE-on-tow-fail flow, but the only ported parity
- * specs (`04`, `05`) cover self-start. This spec walks the wizard with
- * start-type = Aerotow, asserts the request order, asserts the link PUT
- * carries `If-Match: <gliderVersion>`, and screenshots the wizard at
- * each asserted state (per alpenflight/web/CLAUDE.md §8).
- *
- * Mocks backend stateful: POST returns version=1, PUT returns version
- * bumped, GET echoes back. The mapper round-trip identity test for the
- * full attribute surface lives in flight-form.model.spec.ts.
- */
-
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const AC_TOW = 'ac-019e30c3-2c00-7001-8000-000000000a02';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
@@ -139,7 +123,6 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
       const url = new URL(req.url());
       const method = req.method();
 
-      // Template + last-context come before the POST chain.
       if (url.pathname === '/api/v1/flights/new-template' && method === 'GET') {
         await route.fulfill({
           status: 200,
@@ -152,7 +135,6 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         await route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
         return;
       }
-      // Paired-create POSTs.
       if (method === 'POST' && url.pathname === '/api/v1/flights') {
         const body = req.postDataJSON() as Record<string, unknown>;
         observed.push({ method, path: url.pathname, body, ifMatch: null });
@@ -185,7 +167,6 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         });
         return;
       }
-      // Link PUT on the glider — carries If-Match: <gliderVersion>.
       if (method === 'PUT' && url.pathname === '/api/v1/flights/fl-glider-id') {
         const body = req.postDataJSON() as Record<string, unknown>;
         observed.push({
@@ -213,7 +194,6 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         });
         return;
       }
-      // Compensating DELETE on tow-fail.
       if (method === 'DELETE' && url.pathname === '/api/v1/flights/fl-glider-id') {
         observed.push({
           method,
@@ -224,7 +204,6 @@ function setupBackend(opts: { failTowPost?: boolean }): FlightsBackend {
         await route.fulfill({ status: 204, body: '' });
         return;
       }
-      // List refetch after save.
       if (method === 'GET' && url.pathname === '/api/v1/flights') {
         await route.fulfill({
           status: 200,
@@ -253,11 +232,9 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
       fullPage: true,
     });
 
-    // Tow step is rendered (start type = Aerotow from new-template).
-    await expect(page.getByTestId('flight-step-2')).toBeVisible();
+    const towStepperItem = page.getByTestId('flight-step-2');
+    await expect(towStepperItem).toBeVisible();
 
-    // Fill glider step — pick the glider pilot (J-26 T-13 required field; the
-    // new-template's empty crew leaves it blank) + a comment.
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
@@ -267,7 +244,6 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
       fullPage: true,
     });
 
-    // Advance to tow step and pick the tow aircraft + tow pilot.
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');
@@ -283,7 +259,6 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
 
     await page.getByTestId('flight-submit-header').click();
 
-    // Three calls observed in order: POST glider, POST tow, PUT-link.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);
     expect(backend.observed[0]!.method).toBe('POST');
     expect(backend.observed[0]!.body!['flightAircraftType']).toBe('GLIDER');
@@ -291,10 +266,8 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     expect(backend.observed[1]!.body!['flightAircraftType']).toBe('TOW');
     expect(backend.observed[2]!.method).toBe('PUT');
     expect(backend.observed[2]!.body!['towFlightId']).toBe('fl-tow-id');
-    // If-Match on the link PUT is the glider's POST-time version (1).
     expect(backend.observed[2]!.ifMatch).toBe('1');
 
-    // Back to /flights on save.
     await expect(page).toHaveURL(/\/flights$/);
     await page.screenshot({
       path: 'screenshots/flights/04c-04-post-submit.png',
@@ -303,7 +276,6 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
   });
 
   test('tow-POST failure triggers compensating DELETE on glider', async ({ page }, testInfo) => {
-    // The tow POST is forced to fail so the compensating DELETE runs; the browser logs it.
     allowConsoleErrors(testInfo, /\b400\b/);
     await stubMasterdata(page);
     const backend = setupBackend({ failTowPost: true });
@@ -313,7 +285,6 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-form')).toBeVisible();
 
     await page.getByTestId('flight-step-next').click();
-    // Pick the glider pilot (J-26 T-13 required field) before advancing to tow.
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await selectAfOption(page, 'flight-edit-glider-pilot', PERSON_PILOT);
     await page.getByTestId('flight-step-next').click();
@@ -324,15 +295,14 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
 
     await page.getByTestId('flight-submit-header').click();
 
-    // POST glider, POST tow (fails), DELETE glider — exactly three calls.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);
     expect(backend.observed[0]!.method).toBe('POST');
     expect(backend.observed[1]!.method).toBe('POST');
     expect(backend.observed[2]!.method).toBe('DELETE');
     expect(backend.observed[2]!.path).toBe('/api/v1/flights/fl-glider-id');
 
-    // No PUT-link in the chain — compensating delete took precedence.
-    expect(backend.observed.find((c) => c.method === 'PUT')).toBeUndefined();
+    const linkPut = backend.observed.find((c) => c.method === 'PUT');
+    expect(linkPut, 'the rollback supersedes the link PUT').toBeUndefined();
 
     await page.screenshot({
       path: 'screenshots/flights/04c-05-rollback.png',

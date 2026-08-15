@@ -49,40 +49,6 @@ type PlanningForm = FormGroup<{
   info: FormControl<string>;
 }>;
 
-/**
- * Planning-day create / edit / view form (J-6 T-08).
- *
- * Built on J-5's reservation edit-form idiom — typed reactive `FormGroup`,
- * load-on-`:id`, submit→store, inline save-error — and LOW-CRAP via the shared
- * `@shared/util/form` helper (`withOptionals` prunes the empty crew/info
- * optionals in one pass; the store maps the 409 via `mapApiSaveError`). The
- * flagged `formToUpdateRequest` / `finalSubmit` / `errorPatch` cascade is
- * deliberately NOT replicated (the low-CRAP rider — J-6 Notes / `_BOYSCOUT.md`).
- *
- * Modes (`:mode` route param): `edit` editable, `view` read-only (controls
- * disabled, no save), create when there is no `:id` (`/planning/new/edit`).
- * The 3 person pickers map to the 3 nullable person-id DTO fields; an empty
- * picker omits the field (`withOptionals`) → the backend clears that role
- * (oracle: null/empty removes the assignment row). Duplicate (date, location)
- * → 409 surfaces inline via `store.saveError()`; the route navigates only on
- * the mutation-bus success event (the SPA-nav-evicts-response-body trap).
- *
- * The per-day reservations panel reuses the J-5 read-side (`day/{date}`,
- * filtered to the day's location) and renders each row through the shared
- * `<af-reservation-row>` molecule (J-6 T-08b — one reservation-row UI, not a
- * bespoke copy); each row links into J-5's reservation editor; "new
- * reservation" pre-seeds date + location into J-5's create form (legacy
- * `PlanningDayEditController.js:96-104,128-132`).
- *
- * The panel is keyed on **date + location**, NOT a saved planning-day id (the
- * deliberate improvement over legacy's `id==='new' → []` gate, T-08c). It loads
- * + renders reactively whenever the form's `planningDate` AND `locationId` are
- * both set — in CREATE mode (a new day, before save) and EDIT mode alike — so
- * the operator sees that date+location's reservations the moment they pick them,
- * no save required. The read is the J-5 `aircraft-reservations day/{date}` join
- * filtered to the location; the store owns the call (§4 — no HTTP in components),
- * bridged off the form's value changes (a debounced `toSignal`).
- */
 @Component({
   selector: 'af-planning-edit',
   standalone: true,
@@ -129,7 +95,6 @@ type PlanningForm = FormGroup<{
             class="flex flex-col gap-6"
             novalidate
           >
-            <!-- Section 1: Day -->
             <section class="flex flex-col gap-2" data-testid="planning-section-day">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -152,15 +117,6 @@ type PlanningForm = FormGroup<{
                     />
                   </af-form-field>
 
-                  <!--
-                    Async (date, location) uniqueness pre-check (T-07): the STORE
-                    calls the T-05 validate endpoint (debounced) when planningDate
-                    + locationId are set; its result surfaces inline here on the
-                    date field — the SAME J-6 ux_pln_club_date_loc uniqueness the
-                    save-path 409 enforces, shown earlier WITHOUT a save round-trip.
-                    The required-field message above uses the shared debounced
-                    liveFieldErrors; this is the async leg.
-                  -->
                   @if (store.uniquenessValidating()) {
                     <span
                       class="block text-sm text-slate-500"
@@ -197,7 +153,6 @@ type PlanningForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 2: Crew -->
             <section class="flex flex-col gap-2" data-testid="planning-section-crew">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -235,7 +190,6 @@ type PlanningForm = FormGroup<{
               </div>
             </section>
 
-            <!-- Section 3: Notes -->
             <section class="flex flex-col gap-2" data-testid="planning-section-notes">
               <h2
                 class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
@@ -256,14 +210,6 @@ type PlanningForm = FormGroup<{
               <af-button htmlType="button" (clicked)="router.navigateByUrl('/planning')">
                 {{ isView() ? t('back') : t('cancel') }}
               </af-button>
-              <!--
-                Read-only to edit affordance (T-09, operator #11). In VIEW mode
-                an editor (canMutate) gets an Edit button that navigates to the
-                same day's /edit route; mode=edit flips isView() false so the
-                form re-enables cleanly (the disable effect runs on the route
-                change) and Save returns. Navigation (not a local mode signal)
-                keeps isView()/canMutate() driven by the single route source.
-              -->
               @if (isView() && canMutate() && editLink() !== null) {
                 <af-button
                   type="primary"
@@ -287,10 +233,6 @@ type PlanningForm = FormGroup<{
             </div>
           </form>
 
-          <!--
-            Per-day reservations (J-5 read-side join) — keyed on date + location
-            (T-08c), shown the moment both are picked, no save required.
-          -->
           @if (showReservations()) {
             <section
               class="flex flex-col gap-2 mt-8 pt-4 border-t border-slate-200"
@@ -354,14 +296,7 @@ export class PlanningEditPage {
   protected readonly canMutate = computed(
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
-  // Read-only → edit target (T-09): the same day's `/edit` route, or null in
-  // create mode (no saved id to edit). Pure-derived so it's unit-testable.
   protected readonly editLink = computed(() => planningEditLink(this.planningId()));
-  // Query params handed to the inline reservation rows' open-link (T-10): a
-  // `returnUrl` pointing at THIS planning-day's current url (view OR edit), so
-  // the reservation editor's Cancel returns the user exactly here, not to the
-  // /reservations overview. `null` in create mode (no saved id, no day url to
-  // return to). Pure-derived → unit-testable via `planningDayLink`.
   protected readonly reservationReturnParams = computed<Record<string, string> | null>(() => {
     const returnUrl = planningDayLink(this.planningId(), this.mode());
     return returnUrl === null ? null : { returnUrl };
@@ -378,30 +313,12 @@ export class PlanningEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
-  // Inline validation WHILE TYPING (T-07, via T-03 `liveFieldErrors`): the two
-  // required fields (Date + Location) show their client-side message debounced
-  // ~200ms and clear on valid — replacing the touched-only `[errors]="ctl.touched
-  // ? …"` wiring. Towing/operator/instructor stay OPTIONAL (oracle: no required).
-  // The date control also carries the async (date, location) uniqueness leg
-  // (T-05 `…/validate`), merged into the SAME inline slot via `liveFieldErrors`'s
-  // `asyncErrors$` hook; the dedicated `planning-date-server-error` element
-  // (template) carries the stable testid + the submit-block derive from the same
-  // store uniqueness signal.
   protected readonly dateErrors = liveFieldErrors(this.form.controls.planningDate, {
     asyncErrors$: toObservable(this.store.uniquenessErrors),
   });
   protected readonly locationErrors = liveFieldErrors(this.form.controls.locationId);
 
-  // The reservations panel is keyed on date + location (T-08c), not the saved
-  // day id. Bridge the two form fields to a signal (debounced — typing a date
-  // emits per keystroke) so the panel render-gate + the store fetch both derive
-  // from the live form, in create AND edit mode. `getRawValue()` reads disabled
-  // controls too, so a VIEW-mode (read-only) day still keys correctly. The
-  // loaded-detail key is merged in as a fallback: patching a disabled (view)
-  // form does not re-emit `valueChanges`, so seed the key from `selectedDetail`
-  // when it lands — either source completing the (date, location) pair shows
-  // the panel.
-  private readonly liveFormKey = toSignal(
+  private readonly liveDateAndLocationKey = toSignal(
     this.form.valueChanges.pipe(
       map(() => this.form.getRawValue()),
       map((v) => ({ date: v.planningDate, locationId: v.locationId })),
@@ -410,23 +327,21 @@ export class PlanningEditPage {
     ),
     { initialValue: { date: '', locationId: '' } },
   );
-  protected readonly formKey = computed(() => {
-    const live = this.liveFormKey();
+  protected readonly dateAndLocationKey = computed(() => {
+    const live = this.liveDateAndLocationKey();
     if (live.date !== '' && live.locationId !== '') return live;
-    // Fall back to the loaded detail (view-mode patch suppresses valueChanges).
     const detail = this.store.selectedDetail();
     if (detail) return { date: detail.planningDate, locationId: detail.locationId };
     return live;
   });
   protected readonly showReservations = computed(() => {
-    const { date, locationId } = this.formKey();
+    const { date, locationId } = this.dateAndLocationKey();
     return date !== '' && locationId !== '';
   });
 
   protected readonly locationOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),
   );
-  // Crew pickers are optional — a leading blank clears the role assignment.
   protected readonly crewOptions = computed<readonly AfSelectOption<string>[]>(() => [
     { value: '', label: '— None —' },
     ...this.store
@@ -435,10 +350,8 @@ export class PlanningEditPage {
   ]);
 
   constructor() {
-    // Picker payloads (locations + persons) are loaded by the store on init.
     this.store.loadDecorations();
 
-    // View mode disables the whole form (read-only render).
     effect(() => {
       if (this.isView()) this.form.disable({ emitEvent: false });
       else this.form.enable({ emitEvent: false });
@@ -456,19 +369,11 @@ export class PlanningEditPage {
     effect(() => {
       const detail = this.store.selectedDetail();
       if (!detail) return;
-      // Patching the form re-emits valueChanges → the date+location bridge picks
-      // up the loaded day's key and the reservations load fires from there (the
-      // single reactive path below), so an edit-mode day shows its reservations
-      // the same way a create-mode date pick does — no separate load call.
       this.form.patchValue(detailToFormValue(detail));
     });
 
-    // Reactive inline-reservations load (T-08c): whenever date + location are
-    // BOTH set — create mode (new day, pre-save) or edit mode — (re)fetch that
-    // date+location's reservations (the J-5 `day/{date}` join, store-owned).
-    // Keyed on (date, location), debounced upstream; no saved-day id required.
     effect(() => {
-      const { date, locationId } = this.formKey();
+      const { date, locationId } = this.dateAndLocationKey();
       if (date === '' || locationId === '') {
         this.store.clearDayReservations();
         return;
@@ -476,15 +381,8 @@ export class PlanningEditPage {
       this.store.loadDayReservations({ date, locationId });
     });
 
-    // Async (date, location) uniqueness pre-check (T-07): when planningDate +
-    // locationId are BOTH set/changed, the STORE calls the T-05 `…/validate`
-    // endpoint (debounced in the store) — the SAME J-6 `ux_pln_club_date_loc`
-    // uniqueness the save path enforces, surfaced inline earlier on the date
-    // field. `excludePlanningDayId` self-excludes the edited day. No HttpClient
-    // here (CLAUDE.md §4). Keyed on the same debounced (date, location) signal
-    // the reservations panel uses; the store debounces the HTTP itself.
     effect(() => {
-      const { date, locationId } = this.formKey();
+      const { date, locationId } = this.dateAndLocationKey();
       const probe = uniquenessProbe(date, locationId, this.planningId());
       if (!probe) {
         this.store.clearUniquenessValidation();
@@ -494,8 +392,6 @@ export class PlanningEditPage {
     });
 
     const destroyRef = inject(DestroyRef);
-    // Navigate only on the bus success event — a 409/422/403 leaves us on the
-    // form with the inline error visible (no nav-evicts-response-body race).
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'planningDay.created' || evt.kind === 'planningDay.updated') {
@@ -525,11 +421,6 @@ export class PlanningEditPage {
     }
   }
 
-  /**
-   * Pre-seed J-5's reservation create form with this day's date + location.
-   * Reads the live form (not the saved detail) so it works in create mode too —
-   * the panel renders the moment date+location are picked (T-08c).
-   */
   protected newReservation(): void {
     const { planningDate: date, locationId } = this.form.getRawValue();
     if (date === '' || locationId === '') return;
@@ -561,35 +452,14 @@ function detailToFormValue(d: PlanningDayDetail): Partial<{
   };
 }
 
-/**
- * Read-only → edit navigation target for the planning-day at `id`: the same
- * day's `:mode=edit` route, or `null` when there is no saved id (create mode —
- * nothing to edit-toggle). Navigating flips the route `:mode` to `edit`, which
- * drives `isView()` false → the disable effect re-enables the form (J-6b T-09).
- * Pure → unit-tested without a `TestBed`.
- */
 export function planningEditLink(id: string | null): string | null {
   return id === null ? null : `/planning/${id}/edit`;
 }
 
-/**
- * The planning-day route URL for `id` in the given `:mode` (`view`/`edit`) — the
- * page the user is currently on. Handed to the inline reservation rows as a
- * `returnUrl` so the reservation editor's Cancel returns exactly here (J-6b
- * T-10). `null` in create mode (no saved id → no day url to return to). Pure →
- * unit-tested without a `TestBed`.
- */
 export function planningDayLink(id: string | null, mode: string): string | null {
   return id === null ? null : `/planning/${id}/${mode}`;
 }
 
-/**
- * Build the T-05 `…/validate` uniqueness-probe request, or `null` when the
- * (date, location) key is not yet complete enough to probe. `editId` (the route
- * `:id` on an edit) is sent as `excludePlanningDayId` so the planning day does
- * not self-conflict on the uniqueness check. Pure → unit-tested without a
- * `TestBed`.
- */
 export function uniquenessProbe(
   date: string,
   locationId: string,
@@ -599,13 +469,6 @@ export function uniquenessProbe(
   return withOptionals({ planningDate: date, locationId }, { excludePlanningDayId: editId ?? '' });
 }
 
-/**
- * Form → create/update request. Both verbs share the identical body shape, so
- * ONE builder — `withOptionals` prunes the empty crew/info optionals in a
- * single pass (no per-field `if (v.x !== '') req.x = …` cascade). An omitted
- * crew field clears that role on the backend (oracle: null/empty removes the
- * assignment row).
- */
 function formToCreateRequest(
   form: PlanningForm,
 ): PlanningDayCreateRequest & PlanningDayUpdateRequest {

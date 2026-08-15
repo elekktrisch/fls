@@ -16,36 +16,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aircraft reservation aggregate root (J-5). A booking of one aircraft for a
- * window — timed (explicit start/end) or all-day. Per ADR 0022 directive 2 the
- * business rules live here, NOT the schema (V4 ships NO {@code EXCLUDE}
- * constraint and NO {@code CHECK} on the range):
- *
- * <ul>
- *   <li>{@link #validateDuration()} — timed reservations reject
- *       {@code end <= start} (incl. the empty-range degenerate
- *       {@code start == end}); all-day stores {@code isAllDay=true} + the date
- *       and normalises the <em>effective</em> span to the full day
- *       {@code [date 00:00, date+1 00:00)} (NOT the legacy zero-length
- *       {@code start==end} artifact — see J-5 assumption #2).</li>
- *   <li>{@link #conflictsWith(AircraftReservation)} — half-open overlap on the
- *       SAME aircraft: {@code existing.start < new.end && new.start <
- *       existing.end}, so an adjacent {@code end == next.start} booking does
- *       NOT conflict. Self-excluded by id (an edit does not conflict with
- *       itself). All-day vs timed compose correctly because both sides compare
- *       their <em>effective</em> span.</li>
- * </ul>
- *
- * <p>The pure overlap predicate + effective-span computation are owned here so
- * the infra GiST range-probe (T-04) and the service self-exclusion (T-05) reuse
- * the same semantics. The DB probe itself is the repository's job.
- *
- * <p>Tenant-scoped via {@code @TenantId} on {@link #operatingClubId} (ADR 0008).
- * The {@code aircraftId} FK crosses tenants freely — legacy-open parity
- * (operator 2026-06-06): any operating club may reserve any aircraft, with no
- * charter gate.
- */
 @Entity
 @Table(name = "t_aircraft_reservation")
 public class AircraftReservation {
@@ -97,31 +67,13 @@ public class AircraftReservation {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    /**
-     * The {@code reservation_range tstzrange} column is
-     * {@code GENERATED ALWAYS AS STORED} in V4, derived from start+end — the
-     * aggregate never writes it. Marked {@link Transient} so JPA ignores it.
-     */
     @Transient
     @SuppressWarnings("UnusedVariable")
     private final boolean rangeIsDatabaseGenerated = true;
 
     protected AircraftReservation() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new reservation. For a timed reservation pass
-     * {@code isAllDay=false} with explicit {@code start}/{@code end}; for an
-     * all-day reservation pass {@code isAllDay=true} — {@code start}'s calendar
-     * date (UTC) defines the full-day effective span and the stored
-     * {@code reservation_start}/{@code reservation_end} are normalised to that
-     * full day. {@link #validateDuration()} runs at construction so an invalid
-     * timed range never reaches the persistence layer.
-     *
-     * @param operatingClubId the tenant stamp — the operating club. The
-     *     aircraft FK may belong to a different club (legacy-open parity).
-     */
     public static AircraftReservation create(UUID operatingClubId,
                                              UUID aircraftId,
                                              UUID pilotPersonId,
@@ -158,12 +110,6 @@ public class AircraftReservation {
         return r;
     }
 
-    /**
-     * Moves the reservation in time / toggles all-day. Re-runs
-     * {@link #validateDuration()}. For all-day, {@code start}'s UTC calendar
-     * date defines the full-day span; for timed, {@code start}/{@code end} are
-     * stored verbatim.
-     */
     public void reschedule(Instant start, Instant end, boolean isAllDay) {
         if (start == null) {
             throw new IllegalArgumentException("start must not be null");
@@ -178,20 +124,6 @@ public class AircraftReservation {
         validateDuration();
     }
 
-    /**
-     * The effective {@code [start, end)} span a candidate reservation occupies —
-     * the SAME normalisation {@link #reschedule} applies before persisting. For a
-     * timed reservation the bounds are verbatim; for all-day the span is the full
-     * UTC day {@code [date 00:00, date+1 00:00)} derived from {@code start}'s
-     * calendar date. Owned on the aggregate (ADR 0022) so the non-mutating
-     * overlap pre-check (J-6b validate path) and the save path share one rule
-     * instead of re-deriving the span.
-     *
-     * <p>Returns the raw span without the {@code end > start} duration guard so a
-     * caller can decide whether to reject (save) or surface (validate); call
-     * {@link EffectiveSpan#isValidDuration()} to apply the same check
-     * {@link #validateDuration} enforces.
-     */
     public static EffectiveSpan effectiveSpan(Instant start, Instant end, boolean isAllDay) {
         if (start == null) {
             throw new IllegalArgumentException("start must not be null");
@@ -207,18 +139,8 @@ public class AircraftReservation {
         return new EffectiveSpan(start, end);
     }
 
-    /**
-     * The normalised effective span of a candidate reservation (see
-     * {@link #effectiveSpan}). {@code start} is inclusive, {@code end} exclusive
-     * (half-open) — the same convention {@link #conflictsWith} compares on.
-     */
     public record EffectiveSpan(Instant start, Instant end) {
 
-        /**
-         * Mirrors {@link #validateDuration}: a span is valid only when its end is
-         * strictly after its start (the empty-range degenerate {@code start ==
-         * end} is invalid). All-day spans are always valid by construction.
-         */
         public boolean isValidDuration() {
             return end.isAfter(start);
         }
@@ -255,12 +177,6 @@ public class AircraftReservation {
         setInfo(newInfo);
     }
 
-    /**
-     * Rejects a timed reservation whose {@code end} is not strictly after its
-     * {@code start} (incl. the empty-range degenerate {@code start == end},
-     * which produces a GiST-invisible empty {@code tstzrange}). All-day spans
-     * are full-day by construction, so they always satisfy {@code end > start}.
-     */
     public void validateDuration() {
         Instant start = effectiveStart();
         Instant end = effectiveEnd();
@@ -271,15 +187,6 @@ public class AircraftReservation {
         }
     }
 
-    /**
-     * Half-open overlap on the SAME aircraft against {@code other}:
-     * {@code this.start < other.end && other.start < this.end}. Adjacent
-     * ranges ({@code end == next.start}) do NOT conflict. Returns {@code false}
-     * for a different aircraft, for either side soft-deleted, and for the same
-     * id (self-exclusion — an edit does not conflict with itself). Both sides
-     * compare their <em>effective</em> span so all-day vs timed compose
-     * correctly.
-     */
     public boolean conflictsWith(AircraftReservation other) {
         if (other == null) {
             return false;
@@ -297,28 +204,14 @@ public class AircraftReservation {
                 && other.effectiveStart().isBefore(this.effectiveEnd());
     }
 
-    /**
-     * True when both reservations carry the same non-null id — the
-     * self-exclusion key used by {@link #conflictsWith} (and mirrored by the
-     * service / repository {@code excludeId} on update).
-     */
     public boolean sameIdentity(AircraftReservation other) {
         return this.id != null && Objects.equals(this.id, other.id);
     }
 
-    /**
-     * Effective span start used for overlap + duration. For timed this is the
-     * stored {@code reservation_start}; for all-day it is the day's
-     * {@code 00:00} (already normalised at {@link #reschedule}).
-     */
     public Instant effectiveStart() {
         return Objects.requireNonNull(reservationStart, "reservationStart not set");
     }
 
-    /**
-     * Effective span end (exclusive — half-open). For all-day this is the next
-     * day's {@code 00:00}.
-     */
     public Instant effectiveEnd() {
         return Objects.requireNonNull(reservationEnd, "reservationEnd not set");
     }
@@ -334,11 +227,6 @@ public class AircraftReservation {
         this.info = FreeText.normalize(value, MAX_INFO_LENGTH);
     }
 
-    /**
-     * Test-only id stamp so domain unit tests can exercise self-exclusion
-     * without a persistence round-trip. Not on the production write path —
-     * JPA assigns the id at persist.
-     */
     void assignIdForTest(UUID assignedId) {
         this.id = assignedId;
     }

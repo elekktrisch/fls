@@ -10,10 +10,6 @@ export const ACCOUNTING_ROUTES: Routes = [
     loadComponent: () => import('./list/accounting-list.page').then((m) => m.AccountingListPage),
   },
   {
-    // The edit form: core fields + the filter-type-legacyId-driven conditional
-    // sections (article-target / recipient-target / aircraft-filter /
-    // no-landing-tax) + the J-6b liveFieldErrors bar (T-12). The match-list
-    // predicate sub-component (T-13) mounts inside the page.
     path: 'new',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },

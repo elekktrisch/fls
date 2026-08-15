@@ -5,13 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit guard for {@link IngestConcurrencyGate}. The integration-test
- * profile overrides the bean to {@code permits=100} so the per-upload
- * row-lock 409 path can be exercised in isolation — this test pins the
- * core semaphore semantics so a regression in the gate itself fails fast,
- * not buried inside an IT.
- */
 class IngestConcurrencyGateTest {
 
     @Test

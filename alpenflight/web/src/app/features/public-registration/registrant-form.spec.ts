@@ -9,13 +9,6 @@ import {
   type RegistrantForm,
 } from './registrant-form';
 
-/**
- * The two rules the browser copy of `PublicRegistrantDetails` is most likely to
- * get wrong: mobile-or-email is an either-or pair (not two optional fields),
- * and the invoice block is required only WHILE the invoice address differs.
- * Rendering is proven by `e2e/tests/public-registration/`.
- */
-
 const fb = new FormBuilder().nonNullable;
 
 function filledForm(): RegistrantForm {

@@ -56,8 +56,6 @@ class ClubIdTest {
 
     @Test
     void rejects_truncated_payload() {
-        // Drop the last 12 hex characters — UUID.fromString refuses anything
-        // that's not exactly the canonical 8-4-4-4-12 shape.
         assertThatThrownBy(() -> ClubId.parse("clb-019e30c3-2c00-7001-8000-"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not a valid UUID");

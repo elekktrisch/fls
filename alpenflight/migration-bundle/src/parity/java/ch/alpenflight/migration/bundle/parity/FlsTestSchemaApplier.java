@@ -13,31 +13,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-/**
- * Applies the canonical FLSTest schema shipped under
- * {@code flsserver/database/FLSTest/} to a SQL Server connection. Mirrors
- * the {@code LegacyExtractFixtureSeeder} approach the extract module uses —
- * same UTF-16 / GO / USE-skip / semver-ordering, raw JDBC instead of
- * Spring's {@code JdbcTemplate} so the bundle module stays Spring-free.
- *
- * <p>Mechanics:
- * <ul>
- *   <li>Skip {@code 1 create/1 Create Database.sql} — pins a Windows
- *       filesystem path. Run the DDL against the container's default
- *       database (master).
- *   <li>For every {@code 2 alter/*.sql}, split on {@code ^GO\s*$} and
- *       execute each non-empty batch. Strip {@code USE} / {@code CREATE
- *       DATABASE} / {@code ALTER DATABASE} (they reference {@code FLSTest}
- *       which doesn't exist in the test container, and the database-level
- *       settings are not relevant to the metadata read by the producers).
- *   <li>After DDL, apply {@code 3 insert/3 Insert Static Data.sql} — the
- *       canonical Countries / Languages / ClubStates reference rows the
- *       FK resolution at {@link LegacyIdMapPopulator} joins against.
- *   <li>Tolerate per-batch failures (legacy quirks — fulltext-conditional
- *       blocks, {@code EXECUTE AS USER} references). Counts surface via
- *       {@link Result} so the caller can assert against an expected floor.
- * </ul>
- */
 public final class FlsTestSchemaApplier {
 
     private static final Pattern GO_SEPARATOR = Pattern.compile("(?m)^\\s*GO\\s*$");
@@ -60,7 +35,7 @@ public final class FlsTestSchemaApplier {
         try (Stream<Path> entries = Files.list(alterDirectory)) {
             scripts = entries
                     .filter(path -> path.getFileName().toString().endsWith(".sql"))
-                    .sorted(scriptOrdering())
+                    .sorted(semverAwareScriptOrdering())
                     .toList();
         }
         ApplyCounts counts = new ApplyCounts();
@@ -68,9 +43,6 @@ public final class FlsTestSchemaApplier {
         for (Path script : scripts) {
             applyScript(legacyConnection, script, counts);
         }
-        // Reference seeds — the join-key invariants the producer / consumer
-        // rely on to resolve SYSTEM_GLOBAL FKs (Countries.CountryCodeIso2,
-        // Languages.LanguageKey, ClubStates.ClubStateId).
         applyScript(
                 legacyConnection,
                 flsTestRoot.resolve("3 insert").resolve("3 Insert Static Data.sql"),
@@ -100,27 +72,16 @@ public final class FlsTestSchemaApplier {
                 try {
                     statement.execute(trimmed);
                     counts.applied++;
-                } catch (SQLException ignored) {
-                    // Legacy scripts contain dialect quirks tolerated by the
-                    // metadata extractor and the parity producer (both read
-                    // only the columns each mapper actually projects).
-                    // Counted, not propagated.
+                } catch (SQLException toleratedLegacyDialectQuirk) {
                     counts.failed++;
                 }
             }
         }
     }
 
-    /**
-     * Apply scripts in semver-aware order. Lexicographic ordering
-     * mis-sorts {@code DBUpdate_v1.10.0.sql} before {@code DBUpdate_v1.2.sql};
-     * parse the digits so the install order matches the canonical legacy
-     * build.
-     */
-    private static Comparator<Path> scriptOrdering() {
-        // "2 Alter Database.sql" (database-level settings) goes first.
+    private static Comparator<Path> semverAwareScriptOrdering() {
         return Comparator
-                .comparing((Path path) -> !path.getFileName().toString().startsWith("2 "))
+                .comparing((Path path) -> !isDatabaseSettingsScript(path))
                 .thenComparing(path -> versionTuple(path.getFileName().toString()),
                         Comparator.comparing((int[] version) -> version[0])
                                 .thenComparing(version -> version[1])
@@ -129,8 +90,11 @@ public final class FlsTestSchemaApplier {
                 .thenComparing(path -> path.getFileName().toString());
     }
 
+    private static boolean isDatabaseSettingsScript(Path script) {
+        return script.getFileName().toString().startsWith("2 ");
+    }
+
     private static int[] versionTuple(String filename) {
-        // DBUpdate_v1.9.20p1.sql → [1, 9, 20, 1]
         var matcher = Pattern.compile(
                 "v(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:p(\\d+))?",
                 Pattern.CASE_INSENSITIVE).matcher(filename);
@@ -145,11 +109,6 @@ public final class FlsTestSchemaApplier {
         };
     }
 
-    /**
-     * Read a SQL script handling UTF-8 / UTF-16 BOMs. SSMS-exported scripts
-     * use UTF-16 LE; older hand-written scripts are UTF-8. BOM-detect and
-     * fall back to UTF-8.
-     */
     private static String readScript(Path script) throws IOException {
         byte[] bytes = Files.readAllBytes(script);
         if (bytes.length >= 2 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xFE) {

@@ -5,12 +5,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Wire response for {@code GET /api/v1/me/person/licences} — the caller's own
- * editable licence/medical shape (J-4 T-08), so the Pilot tab (T-09) hydrates.
- * Mirrors the {@link MePersonLicencesUpdateRequest} field set exactly: GET
- * returns it, PATCH replaces it.
- */
 @Schema(description = "Caller's own Person licence/medical fields (read shape for the Pilot tab).")
 record MePersonLicencesResponse(
         boolean hasMotorPilotLicence,

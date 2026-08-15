@@ -40,14 +40,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the nightly delivery-creation job (S-089, J-15 AC #6).
- *
- * <p>The load-bearing case is per-flight isolation: one eligible flight that the
- * rules engine can bill and one it cannot are processed in the SAME run, and the
- * unbillable one lands {@code DELIVERY_PREPARATION_ERROR} without denying the
- * other its delivery.
- */
 class DeliveryCreationJobIT extends PostgresIntegrationTest {
 
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
@@ -58,8 +50,11 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7268-8000-000000004268");
     private static final int LEGACY_FLIGHT_TIME = 30;
 
-    /** Well past the {@code created_on <= today - 3d} eligibility floor. */
-    private static final Instant AGED = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Instant CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR =
+            Instant.parse("2026-01-01T00:00:00Z");
+
+    private static final boolean WITH_PILOT = true;
+    private static final boolean WITHOUT_PILOT_SO_NO_RECIPIENT_RESOLVES = false;
 
     @Autowired JdbcTemplate jdbc;
     @Autowired DeliveryCreationJob job;
@@ -86,8 +81,9 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
     @Test
     void runOnce_billsWhatItCan_andIsolatesTheFlightItCannot() {
         seedBillingSetup(clubA);
-        UUID billable = seedLockedAgedFlight(clubA, "HB-JOBOK", true);
-        UUID unbillable = seedLockedAgedFlight(clubA, "HB-JOBNG", false);
+        UUID billable = seedLockedAgedFlight(clubA, "HB-JOBOK", WITH_PILOT);
+        UUID unbillable =
+                seedLockedAgedFlight(clubA, "HB-JOBNG", WITHOUT_PILOT_SO_NO_RECIPIENT_RESOLVES);
 
         DeliveryCreationJob.RunSummary summary = job.runOnce();
 
@@ -104,11 +100,6 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
         assertThat(deliveryCountFor(unbillable)).isZero();
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + repositories
-    // under TenantTestContext.runAs (ADR 0027 §3); JDBC only for reference-data
-    // lookups, the DB-defaulted created_on backdate, and read-only asserts.
 
     private void seedBillingSetup(UUID clubId) {
         TenantTestContext.runAs(clubId, () ->
@@ -116,11 +107,6 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(clubId, () -> filtersService.create(flightTimeFilter()).id());
     }
 
-    /**
-     * An eligible (LOCKED, aged, glider) flight. {@code withPilot} false leaves it
-     * without a crew, so the engine finds no invoice recipient and the flight
-     * becomes a preparation error.
-     */
     private UUID seedLockedAgedFlight(UUID clubId, String immatriculation, boolean withPilot) {
         UUID aircraft = seedAircraft(clubId, immatriculation);
         UUID flightType = seedFlightType(clubId, immatriculation);
@@ -147,7 +133,8 @@ class DeliveryCreationJobIT extends PostgresIntegrationTest {
                 return flights.save(flight);
             });
         }
-        jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?", Timestamp.from(AGED), flightId);
+        jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?",
+                Timestamp.from(CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR), flightId);
         return flightId;
     }
 

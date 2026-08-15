@@ -17,21 +17,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the licence-expiry notification job (S-085) against the
- * captured outbox: one mail per expiring licence, none for a licence outside the
- * 60-day window, and none for a holder without an address.
- */
 @Import(CapturedMailSender.Config.class)
 class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
-    /** Inside the {@code today + 60} window. */
-    private static final LocalDate SOON = TODAY.plusDays(30);
+    private static final LocalDate INSIDE_THE_NOTIFICATION_WINDOW =
+            TODAY.plusDays(LicenceNotificationJob.EXPIRY_NOTICE_WINDOW_DAYS - 30);
 
-    /** Outside it — the narrowing assertion's negative seed. */
-    private static final LocalDate FAR_OFF = TODAY.plusDays(120);
+    private static final LocalDate OUTSIDE_THE_NOTIFICATION_WINDOW =
+            TODAY.plusDays(LicenceNotificationJob.EXPIRY_NOTICE_WINDOW_DAYS + 60);
 
     @Autowired JdbcTemplate jdbc;
     @Autowired LicenceNotificationJob job;
@@ -39,29 +34,29 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
     @Autowired PersonRepository persons;
 
     private String holderMail;
-    private String farOffMail;
+    private String outsideWindowMail;
 
     @BeforeEach
     void clean() {
         outbox.clear();
         String run = UUID.randomUUID().toString().substring(0, 8);
         holderMail = "licence.holder." + run + "@example.com";
-        farOffMail = "licence.faroff." + run + "@example.com";
+        outsideWindowMail = "licence.outside-window." + run + "@example.com";
     }
 
     @Test
     void runOnce_mailsOncePerExpiringLicence_andSkipsWhatIsNotDue() {
-        // Two licences inside the window → two mails; one far-off licence → none.
-        seedPerson(holderMail, SOON, SOON, FAR_OFF);
-        seedPerson(farOffMail, null, null, FAR_OFF);
-        seedPerson(null, SOON, null, null);
+        seedPerson(holderMail, INSIDE_THE_NOTIFICATION_WINDOW,
+                INSIDE_THE_NOTIFICATION_WINDOW, OUTSIDE_THE_NOTIFICATION_WINDOW);
+        seedPerson(outsideWindowMail, null, null, OUTSIDE_THE_NOTIFICATION_WINDOW);
+        seedPerson(null, INSIDE_THE_NOTIFICATION_WINDOW, null, null);
 
         LicenceNotificationJob.RunSummary summary = job.runOnce();
 
         assertThat(mailsTo(holderMail))
                 .as("one mail per expiring licence, not one per person")
                 .isEqualTo(2);
-        assertThat(mailsTo(farOffMail))
+        assertThat(mailsTo(outsideWindowMail))
                 .as("a licence outside the 60-day window is not notified")
                 .isZero();
         assertThat(summary.mailCount()).isGreaterThanOrEqualTo(2);
@@ -72,7 +67,7 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_namesTheExpiringLicenceInTheSubjectAndBody() {
-        seedPerson(holderMail, SOON, null, null);
+        seedPerson(holderMail, INSIDE_THE_NOTIFICATION_WINDOW, null, null);
 
         job.runOnce();
 
@@ -84,16 +79,11 @@ class LicenceNotificationJobIT extends PostgresIntegrationTest {
         assertThat(mail.htmlBody()).contains("Class 1 Medical");
     }
 
-    // ---------------------------------------------------------------- helpers
 
     private long mailsTo(String email) {
         return outbox.sent().stream().filter(m -> m.to().contains(email)).count();
     }
 
-    /**
-     * A person carrying up to three expiry dates. {@code email} null leaves the
-     * person without any address, which is the skip case.
-     */
     private UUID seedPerson(String email, LocalDate class1, LocalDate lapl, LocalDate partM) {
         Person person = Person.register("Lizenz", "Halter-" + UUID.randomUUID(), null);
         if (email != null) {

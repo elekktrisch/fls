@@ -11,17 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { PersonalStore } from './personal.store';
 
-/**
- * Logic test for the Personal-tab store (J-4 T-07 form, T-18 hydrate): the
- * caller-scoped `GET /api/v1/me/person` (`getMyPerson`) hydrates the editable
- * contact / address fields AND the read-only name fields, `save()` round-trips
- * through `updateMyPerson` then re-reads via `getMyPerson` so the form reflects
- * the persisted contact, and a `profile.updated` event is emitted so the session
- * re-reads `/me`. The form DOM + the real PATCH wiring are proven by the
- * real-idp e2e (`profile/self-edit.spec.ts`). Per web testing posture
- * (CLAUDE.md §8) this is a store/logic spec, no template rendering.
- */
-
 const PERSON_BASE: MePersonResponse = {
   firstName: 'Pia',
   lastName: 'Lot',
@@ -86,10 +75,8 @@ describe('PersonalStore', () => {
     store.load();
     const view = store.view();
     expect(view).not.toBeNull();
-    // Read-only identity.
     expect(view?.firstName).toBe('Pia');
     expect(view?.lastName).toBe('Lot');
-    // Editable contact / address fields are populated (the T-18 fix).
     expect(view?.addressLine1).toBe('Flugplatzstrasse 1');
     expect(view?.city).toBe('Bern');
     expect(view?.privatePhone).toBe('+41 31 000');
@@ -116,8 +103,6 @@ describe('PersonalStore', () => {
       getPerson: () => of(persisted),
       update: (req) => {
         sent.push(req);
-        // PATCH responds with the /me projection (name only) in production;
-        // the store re-reads via getMyPerson, so this value is irrelevant.
         return of(PERSON_BASE);
       },
     });
@@ -134,7 +119,6 @@ describe('PersonalStore', () => {
     expect(sent).toHaveLength(1);
     const req = sent[0]!;
     expect(req.city).toBe('Zurich');
-    // The view reflects the re-read contact, not the PATCH response.
     expect(store.view()?.city).toBe('Zurich');
     expect(store.savedOnce()).toBe(true);
     expect(store.isSaving()).toBe(false);

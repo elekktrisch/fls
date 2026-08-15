@@ -9,19 +9,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-/**
- * Pure tests for the JIT filter's claim-predicate. Step-3 RED tests for
- * S-169: the filter is supposed to short-circuit on tokens that can't ride
- * the materialise path (sysadmin tokens, malformed clubId, missing
- * preferred_username), and forward those to {@code chain.doFilter}
- * untouched.
- *
- * <p>DB-touching paths (existing-row lookup, soft-delete gate, JIT insert)
- * live in {@code UsersJitFirstLoginIT}.
- */
 class JitUserMaterializerShouldMaterialiseTest {
 
     private static final UUID CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+    private static final String FEDERATED_GOOGLE_IDP_NUMERIC_SUB = "117412394827338472301";
 
     @Test
     void shouldMaterialise_jwtWithSubAndClubId_returnsTrue() {
@@ -34,7 +25,7 @@ class JitUserMaterializerShouldMaterialiseTest {
 
     @Test
     void shouldMaterialise_missingClubId_returnsFalse() {
-        Jwt jwt = realmJwt(UUID.randomUUID().toString(), /*clubId=*/ null, Map.of());
+        Jwt jwt = realmJwt(UUID.randomUUID().toString(), null, Map.of());
         assertThat(JitUserMaterializationFilter.shouldMaterialise(jwt)).isFalse();
     }
 
@@ -52,15 +43,13 @@ class JitUserMaterializerShouldMaterialiseTest {
 
     @Test
     void shouldMaterialise_nonUuidSub_returnsFalse() {
-        // Federated Google IdP carries numeric sub. Out of scope for
-        // local-row materialise; falls through to the JWT-only auth path.
-        Jwt jwt = realmJwt("117412394827338472301", CLUB.toString(), Map.of());
+        Jwt jwt = realmJwt(FEDERATED_GOOGLE_IDP_NUMERIC_SUB, CLUB.toString(), Map.of());
         assertThat(JitUserMaterializationFilter.shouldMaterialise(jwt)).isFalse();
     }
 
     @Test
     void shouldMaterialise_missingSub_returnsFalse() {
-        Jwt jwt = realmJwt(/*sub=*/ null, CLUB.toString(), Map.of());
+        Jwt jwt = realmJwt( null, CLUB.toString(), Map.of());
         assertThat(JitUserMaterializationFilter.shouldMaterialise(jwt)).isFalse();
     }
 

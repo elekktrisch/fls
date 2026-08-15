@@ -8,12 +8,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Bit-exact unit tests for {@link DeliveryDiff} — the port of the legacy
- * {@code DeliveryService.RunTestDeliveryCreation} diff
- * ({@code flsserver/.../Accounting/DeliveryService.cs:549-766}). Each case pins a
- * message string + the success = AND-of-checks contract.
- */
 class DeliveryDiffTest {
 
     private static final IgnoreFlags ALL_OFF = IgnoreFlags.none();

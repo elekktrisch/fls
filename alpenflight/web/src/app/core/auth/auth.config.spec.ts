@@ -2,9 +2,6 @@ import { alpenflightOidcConfig } from './auth.config';
 
 describe('alpenflightOidcConfig', () => {
   it('targets the AlpenFlight Keycloak realm at the dev port', () => {
-    // Absolute URL because the OIDC library validates `authority` against
-    // the `iss` claim Keycloak stamps on tokens (issuer-mismatch check on
-    // wellknown retrieval). S-041 swaps to the prod IdP at cutover.
     expect(alpenflightOidcConfig.authority).toBe('http://localhost:8090/realms/alpenflight');
   });
 
@@ -51,9 +48,6 @@ describe('alpenflightOidcConfig', () => {
   });
 
   it('disables auto-userinfo (claims come from the access/id token directly)', () => {
-    // Keycloak protocol mappers stamp clubId + roles on the access token; a
-    // separate /userinfo round-trip duplicates the discovery + adds latency
-    // to silent-refresh.
     expect(alpenflightOidcConfig.autoUserInfo ?? true).toBe(false);
   });
 });

@@ -1,25 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-/**
- * Article CRUD shape. Greenfield spec (no legacy oracle — the legacy
- * AngularJS `master-data/articles` was a thin list view; the new UX is
- * the contract per S-054). Booted under the `mock-auth` Angular
- * configuration; the principal is a mocked SYSTEM_ADMINISTRATOR so the
- * mutation affordances render even though sysadmin would 403 against a
- * live backend (the role gate lives on the server per S-159, not the
- * client). All `/api/v1/*` calls are intercepted via `page.route` — no
- * live backend.
- *
- * Coverage:
- *   - List + seed-row visibility.
- *   - Create round-trip.
- *   - Edit round-trip persists across reload.
- *   - 409 on duplicate articleNumber surfaces inline.
- *   - Soft-delete removes the row.
- *   - Inactive articles are hidden by default; `includeInactive` toggle surfaces them.
- */
-
 interface MockArticleDetail {
   id: string;
   articleNumber: string;
@@ -254,7 +235,6 @@ test('articles: editing the seeded row updates the list (UI round-trip)', async 
 });
 
 test('articles: 409 on duplicate articleNumber surfaces inline', async ({ page }, testInfo) => {
-  // The duplicate-articleNumber POST is deliberately rejected; the browser logs the 409.
   allowConsoleErrors(testInfo, /\b409\b/);
   const items: MockArticleDetail[] = [{ ...gliderHourSeed }];
   await stubReferenceData(page);
@@ -264,19 +244,12 @@ test('articles: 409 on duplicate articleNumber surfaces inline', async ({ page }
   await page.locator('#ArticleNumber').fill(gliderHourSeed.articleNumber);
   await page.locator('#ArticleName').fill('Other glider hour');
 
-  // Deterministically wait for the mocked 409 before asserting the inline
-  // error — without this the assertion races the response → store.saveError
-  // patch → re-render chain (T-47). Mirrors the stable reservations-crud 409
-  // pattern (reservations-crud.spec.ts:739-750).
   const conflict = page.waitForResponse(
     (res) => res.url().endsWith('/api/v1/articles') && res.request().method() === 'POST',
   );
   await page.getByTestId('articles-save-button').locator('button').click();
   await conflict;
 
-  // Assert on the rendered alert body (af-page-error only emits its inner
-  // node when a message is present), not the always-present host — the host
-  // is attached-but-empty before the error patch, which is the flake source.
   const saveError = page.getByTestId('articles-save-error').getByTestId('af-page-error');
   await expect(saveError).toBeVisible();
   await expect(saveError).toContainText('already in use');

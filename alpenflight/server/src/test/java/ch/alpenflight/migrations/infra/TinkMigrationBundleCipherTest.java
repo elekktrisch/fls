@@ -23,12 +23,10 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit-level round-trip for the streaming bundle cipher. Generates an
- * RSA-4096 keypair + a random 32-byte session key in-process; verifies
- * encrypt → decrypt yields the original bytes.
- */
 class TinkMigrationBundleCipherTest {
+
+    private static final int RSA_KEY_BITS = 4096;
+    private static final int SESSION_KEY_BYTES = 32;
 
     private static MigrationBundleCipher cipher;
     private static KeyPair rsaKeyPair;
@@ -39,7 +37,7 @@ class TinkMigrationBundleCipherTest {
     static void setUp() throws Exception {
         cipher = new TinkMigrationBundleCipher();
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
-        gen.initialize(4096, new SecureRandom());
+        gen.initialize(RSA_KEY_BITS, new SecureRandom());
         rsaKeyPair = gen.generateKeyPair();
         rsaPublicKeyDer = rsaKeyPair.getPublic().getEncoded();
         rsaPrivateKeyPkcs8 = rsaKeyPair.getPrivate().getEncoded();
@@ -48,7 +46,7 @@ class TinkMigrationBundleCipherTest {
     @Test
     void encrypt_decrypt_round_trip_preserves_bytes() throws Exception {
         UUID uploadId = UUID.randomUUID();
-        byte[] sessionKey = new byte[32];
+        byte[] sessionKey = new byte[SESSION_KEY_BYTES];
         new SecureRandom().nextBytes(sessionKey);
         byte[] wrappedSessionKey = cipher.wrapSessionKey(rsaPublicKeyDer, sessionKey);
         byte[] plaintext = "the quick brown fox jumps over the lazy dog".repeat(200).getBytes();
@@ -68,19 +66,15 @@ class TinkMigrationBundleCipherTest {
             decrypting.transferTo(recovered);
         }
         assertThat(recovered.toByteArray()).isEqualTo(plaintext);
-        assertThat(((RSAPublicKey) rsaKeyPair.getPublic()).getModulus().bitLength()).isEqualTo(4096);
+        assertThat(((RSAPublicKey) rsaKeyPair.getPublic()).getModulus().bitLength())
+                .as("the modulus proves the RSA strength contract the wrapped session key rides on")
+                .isEqualTo(RSA_KEY_BITS);
     }
 
-    /**
-     * Reproduces the IT pipeline (Tink decrypting stream → gzip → tar)
-     * without the servlet / DB boilerplate. If this passes but the IT
-     * still fails the bug is in the controller/service plumbing; if this
-     * fails the bug is in the cipher / streaming compatibility.
-     */
     @Test
     void decrypt_then_gzip_then_tar_round_trip() throws Exception {
         UUID uploadId = UUID.randomUUID();
-        byte[] sessionKey = new byte[32];
+        byte[] sessionKey = new byte[SESSION_KEY_BYTES];
         new SecureRandom().nextBytes(sessionKey);
         byte[] wrappedSessionKey = cipher.wrapSessionKey(rsaPublicKeyDer, sessionKey);
 

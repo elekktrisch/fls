@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SubmitError } from './join.store';
 
 import {
-  JOIN_CODE_ALPHABET,
+  JOIN_CODE_UNAMBIGUOUS_ALPHABET,
   JOIN_CODE_LENGTH,
   JOIN_NOTE_MAX,
   countdownRemaining,
@@ -12,19 +12,12 @@ import {
   sanitizeJoinCode,
 } from './join-page.logic';
 
-/**
- * Pure view-logic for the `/join` screen (T-10). Tested in vitest per the web
- * testing posture (§8: vitest for logic, Playwright for DOM) — the rendered
- * form / testids / navigate-on-201 are proven by the real-idp spec
- * `e2e/tests/real-idp/join-request.spec.ts`.
- */
 describe('sanitizeJoinCode', () => {
   it('uppercases and keeps alphabet characters', () => {
     expect(sanitizeJoinCode('abcd2345')).toBe('ABCD2345');
   });
 
   it('strips characters outside the unambiguous alphabet (I, O, 0, 1)', () => {
-    // I/O/1/0 are excluded from JOIN_CODE_ALPHABET to avoid visual ambiguity.
     expect(sanitizeJoinCode('AIO10BCD')).toBe('ABCD');
   });
 
@@ -38,7 +31,7 @@ describe('sanitizeJoinCode', () => {
   });
 
   it('every alphabet character survives sanitization', () => {
-    for (const ch of JOIN_CODE_ALPHABET) {
+    for (const ch of JOIN_CODE_UNAMBIGUOUS_ALPHABET) {
       expect(sanitizeJoinCode(ch)).toBe(ch);
     }
   });

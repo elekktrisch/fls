@@ -12,17 +12,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Tenant-scoped reservation-type lookup ({@code t_aircraft_reservation_type}) —
- * feeds the SPA's {@code /aircraftreservationtypes/listitems} dropdown and is
- * the optional {@code reservation_type_id} FK on {@link AircraftReservation}.
- *
- * <p>Tenant-scoped via {@code @TenantId} on {@link #operatingClubId} (ADR 0008).
- * The {@code is_instructor_required} / {@code is_maintenance} flags are carried
- * for parity but their business effects (the maintenance-vs-flight legitimate-
- * overlap exception, the instructor-required server enforcement) are deferred
- * refinements per the J-5 carve — they do not gate the conflict-409 proof.
- */
 @Entity
 @Table(name = "t_aircraft_reservation_type")
 public class AircraftReservationType {
@@ -60,10 +49,8 @@ public class AircraftReservationType {
     private @Nullable UUID deletedByUserId;
 
     protected AircraftReservationType() {
-        // JPA.
     }
 
-    /** Factory for a new reservation type. */
     public static AircraftReservationType create(UUID operatingClubId,
                                                  String reservationTypeName,
                                                  boolean instructorRequired,

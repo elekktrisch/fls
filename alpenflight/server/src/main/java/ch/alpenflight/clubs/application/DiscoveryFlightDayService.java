@@ -17,23 +17,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for {@link DiscoveryFlightDay}, the club-admin side of
- * the days the anonymous discovery-flight form offers.
- *
- * <p>Every method reads and writes the caller's club only: {@code @TenantId} on
- * {@code DiscoveryFlightDay.clubId} appends the discriminator to each query and
- * stamps it on each insert, so no method here takes or trusts a club id. A
- * club-admin of A addressing B's day by id therefore gets
- * {@link DiscoveryFlightDayNotFoundException} — the row is invisible under A's
- * scope (404, never 403 — the IDOR contract, S-159).
- *
- * <p>Withdrawal is a soft delete, so a withdrawn date is free again: the V58
- * partial UNIQUE excludes {@code deleted_on IS NOT NULL} rows. The
- * {@link DiscoveryFlightDayRepository#findActiveByEventDate} pre-check answers
- * the common duplicate cleanly; the constraint itself stays the arbiter and its
- * race-loser violation is mapped in {@code ClubsExceptionHandler}.
- */
 @Service
 @Transactional
 public class DiscoveryFlightDayService {
@@ -52,7 +35,6 @@ public class DiscoveryFlightDayService {
         this.auditTrail = auditTrail;
     }
 
-    /** Every live day of the caller's club, past ones included. */
     @Transactional(readOnly = true)
     public List<DiscoveryFlightDayResponse> listDays() {
         return days.findAllActive().stream().map(DiscoveryFlightDayService::toResponse).toList();

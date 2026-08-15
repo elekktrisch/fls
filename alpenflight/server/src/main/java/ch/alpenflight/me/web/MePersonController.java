@@ -21,33 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code GET + PATCH /api/v1/me/person} — the caller-scoped Person-contact
- * self-edit (J-4 T-06 PATCH, T-18 GET). A logged-in principal reads + edits
- * their OWN Person aggregate's contact / address fields (address,
- * zip/city/region, country, phones, private/business email, birthday).
- *
- * <p>The GET hydrates the Personal tab (T-07): {@code /me} carries only the
- * Person's name, not its contact / address fields, so the tab needs its own
- * caller-scoped read — mirroring the Pilot / Notifications tabs, which each
- * have their own GET (T-08 / T-10). The read shape adds the read-only name
- * fields (first/last/mid/company) so the tab can display them.
- *
- * <p><strong>No {@code :id} path param.</strong> The Person to edit is resolved
- * from the JWT {@code sub} → the caller's {@code t_user} row → its
- * {@code person_id} (via {@link MeService#resolve}), never from the request — so
- * a caller can only ever mutate their own linked Person. The name fields
- * (firstname / lastname / midname / companyName) are admin-only and not on the
- * request DTO; they are preserved unchanged. Licence / medical fields have
- * their own {@code /me/person/licences} surface (T-08).
- *
- * <p>If the caller's user row has no linked Person ({@code person_id} null) the
- * surface fails closed with {@link NoLinkedPersonException} → 409 (the SPA shell
- * also gates the tab, but the endpoint is safe on its own).
- *
- * <p>Authz: any authenticated principal — the surface is principal-scoped by
- * construction, like {@code GET /api/v1/me}.
- */
 @RestController
 @RequestMapping(path = "/api/v1/me", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "me", description = "Authenticated-principal view")
@@ -99,10 +72,6 @@ class MePersonController {
                 req.emailPrivate(), req.emailBusiness(),
                 Boolean.TRUE.equals(req.preferMailToBusinessMail()),
                 req.birthday()));
-        // Re-resolve through the /me projection so the response mirrors the
-        // /profile-other-tabs shape (firstName/lastName from the Person are
-        // reflected); the contact fields themselves round-trip via the
-        // Personal tab's own read.
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MeResponse.from(meService.resolve(jwt)));

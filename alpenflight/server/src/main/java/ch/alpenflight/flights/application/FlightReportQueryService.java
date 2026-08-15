@@ -26,39 +26,21 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Read-side query service for the flight-report screen (J-7 T-03). Pages +
- * filters the {@link ch.alpenflight.flights.domain.Flight} aggregate's data
- * through {@link FlightReportRepository} and assembles the wire DTOs.
- *
- * <p>Tenant scoping is explicit (ADR 0008): the caller's tenant is resolved
- * via {@link ClubTenantIdentifierResolver} (the same resolver Hibernate's
- * {@code @TenantId} discriminator uses — JWT {@code clubId} on the HTTP path,
- * the {@code TenantContextCarrier} override in tests / {@code @WithTenant})
- * and passed to every query — correcting the legacy tenancy hole
- * ({@code FlightReportService.cs:114-125}) so a club-A caller filtering by a
- * club-B location sees no club-B flights.
- *
- * <p>Air-state + flight-duration + category are computed here (never stored).
- * {@code AirState} / {@code processState} are emitted as the legacy SMALLINT
- * codes ({@link FlightAirState#legacyCode()} /
- * {@link FlightProcessState#legacyCode()}) for wire + Excel parity.
- *
- * <p>Summary aggregation (T-04) and the controller endpoint (T-05) are out of
- * scope; {@link FlightReportResult#summaries()} is present-but-empty here.
- */
 @Service
 @Transactional(readOnly = true)
 public class FlightReportQueryService {
 
-    /** Legacy aircraft-type ints (FlightAircraftTypeValue: 1=glider, 2=tow, 4=motor). */
-    private static final short TYPE_GLIDER = 1;
-    private static final short TYPE_TOW = 2;
-    private static final short TYPE_MOTOR = 4;
+    private static final short LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final short LEGACY_AIRCRAFT_TYPE_TOW = 2;
+    private static final short LEGACY_AIRCRAFT_TYPE_MOTOR = 4;
 
-    /** Default page size when the caller passes none (legacy canned reports request 1000 → clamped). */
+    private static final int LEGACY_START_TYPE_TOWING_BY_AIRCRAFT = 1;
+    private static final int LEGACY_START_TYPE_WINCH_LAUNCH = 2;
+    private static final int LEGACY_START_TYPE_SELF_START = 3;
+    private static final int LEGACY_START_TYPE_EXTERNAL_START = 4;
+    private static final int LEGACY_START_TYPE_MOTOR_FLIGHT_START = 5;
+
     public static final int DEFAULT_PAGE_SIZE = 100;
-    /** Hard cap on page size (oracle: paginate beyond 500, never silently truncate). */
     public static final int MAX_PAGE_SIZE = 500;
 
     private final FlightReportRepository repository;
@@ -70,16 +52,6 @@ public class FlightReportQueryService {
         this.tenantResolver = tenantResolver;
     }
 
-    /**
-     * Returns one page of report rows for the caller's tenant.
-     *
-     * @param filter    the filter criteria (null ⇒ legacy defaults)
-     * @param pageStart 0-based ROW offset (not a page number); clamped to {@code >= 0}
-     * @param pageSize  page size; null ⇒ {@link #DEFAULT_PAGE_SIZE}; clamped to {@link #MAX_PAGE_SIZE}
-     * @param sortByDuration true ⇒ sort by flight duration (the {@code FlightDuration}
-     *                       sort-key remap → underlying seconds); false ⇒ default sort
-     * @param sortAsc   sort direction (default ascending per legacy)
-     */
     public FlightReportResult getReportPage(@Nullable FlightReportFilter filter,
                                             int pageStart,
                                             @Nullable Integer pageSize,
@@ -111,13 +83,6 @@ public class FlightReportQueryService {
         return new FlightReportResult(items, total, summaries);
     }
 
-    /**
-     * Computes the two mutually-exclusive summary branches (legacy
-     * {@code FlightReportService.cs:188-730}) over ALL matched flights for the
-     * filter (tenant-scoped). Person branch when a {@code personId} is set;
-     * otherwise the location branch when a {@code locationId} is set; neither ⇒
-     * empty.
-     */
     private List<FlightReportSummary> computeSummaries(FlightReportRepository.ReportCriteria criteria) {
         if (criteria.personId() != null) {
             return personBranch(repository.findSummaryRows(criteria));
@@ -128,12 +93,6 @@ public class FlightReportQueryService {
         return List.of();
     }
 
-    /**
-     * Person branch: up to 6 fixed-order rows (each present only when it has ≥1
-     * flight) + an always-appended {@code Total}. Reproduces the legacy crew-role
-     * splits ({@code FlightReportService.cs:190-624}); the J-7 correction sets
-     * {@code totalFlights} on ALL rows (legacy omits it on Pilot Motor/Towing).
-     */
     private static List<FlightReportSummary> personBranch(List<SummaryRow> rows) {
         Accumulator pilotGlider = new Accumulator();
         Accumulator pilotMotor = new Accumulator();
@@ -145,10 +104,10 @@ public class FlightReportQueryService {
         for (SummaryRow r : rows) {
             if (r.isPilotOrStudent()) {
                 switch (r.aircraftType()) {
-                    case TYPE_GLIDER -> pilotGlider.addPerson(r);
-                    case TYPE_MOTOR -> pilotMotor.addPerson(r);
-                    case TYPE_TOW -> pilotTow.addPerson(r);
-                    default -> { /* other aircraft types not split by pilot row */ }
+                    case LEGACY_AIRCRAFT_TYPE_GLIDER -> pilotGlider.addPerson(r);
+                    case LEGACY_AIRCRAFT_TYPE_MOTOR -> pilotMotor.addPerson(r);
+                    case LEGACY_AIRCRAFT_TYPE_TOW -> pilotTow.addPerson(r);
+                    default -> { }
                 }
             }
             if (r.isCoPilot()) {
@@ -174,12 +133,6 @@ public class FlightReportQueryService {
         return out;
     }
 
-    /**
-     * Location branch: one row per {@code FlightTypeName} (alphabetical) + a
-     * {@code Total} ({@code FlightReportService.cs:626-727}). Starts/ldgs use the
-     * location-aware 4-term formula distinguishing same-airfield / fly-in
-     * ({@code nrOfLdgs-1}) / fly-out cases.
-     */
     private static List<FlightReportSummary> locationBranch(List<SummaryRow> rows, UUID locationId) {
         TreeMap<String, Accumulator> byType = new TreeMap<>();
         for (SummaryRow r : rows) {
@@ -214,74 +167,59 @@ public class FlightReportQueryService {
         return new FlightReportSummary("Total", starts, ldgs, flights, Duration.ofSeconds(seconds));
     }
 
-    /** Mutable per-group accumulator for the summary branches. */
     private static final class Accumulator {
         private int starts;
         private int ldgs;
         private int flights;
         private long seconds;
 
-        /**
-         * Person-branch fold ({@code FlightReportService.cs:244-251}):
-         * {@code ldgs = Σ(nrOfLdgs ?? (noLdg?1:0)) + Σ(nrOfLdgsOnStartLocation ?? 0)};
-         * {@code starts = Σ(nrOfLdgs ?? (noStart?1:0)) + Σ(nrOfLdgsOnStartLocation ?? 0)}
-         * — the {@code starts} base is {@code nrOfLdgs} (legacy INTENDED quirk).
-         */
         void addPerson(SummaryRow r) {
-            int onStart = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
-            ldgs += ldgBase(r, r.noLdgTimeInformation()) + onStart;
-            starts += ldgBase(r, r.noStartTimeInformation()) + onStart;
+            int ldgsOnStartLocation = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
+            ldgs += ldgBaseAlsoUsedForStarts(r, r.noLdgTimeInformation()) + ldgsOnStartLocation;
+            starts += ldgBaseAlsoUsedForStarts(r, r.noStartTimeInformation()) + ldgsOnStartLocation;
             flights++;
             seconds += r.durationSeconds();
         }
 
-        /**
-         * Location-branch fold ({@code FlightReportService.cs:683-691}). Landings
-         * count only when {@code ldgLocationId == locationId}; outlandings (start
-         * location) add {@code nrOfLdgsOnStartLocation}. Starts use the 4-term
-         * formula: same-airfield, fly-in ({@code nrOfLdgs-1}), fly-out, plus the
-         * outlandings term.
-         */
-        void addLocation(SummaryRow r, UUID loc) {
-            boolean startHere = Objects.equals(r.startLocationId(), loc);
-            boolean ldgHere = Objects.equals(r.ldgLocationId(), loc);
-            int onStart = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
+        void addLocation(SummaryRow r, UUID reportLocationId) {
+            boolean startedAtReportLocation = Objects.equals(r.startLocationId(), reportLocationId);
+            boolean landedAtReportLocation = Objects.equals(r.ldgLocationId(), reportLocationId);
+            int ldgsOnStartLocation = r.nrOfLdgsOnStartLocation() != null ? r.nrOfLdgsOnStartLocation() : 0;
 
-            ldgs += (ldgHere ? ldgBase(r, r.noLdgTimeInformation()) : 0)
-                    + (startHere ? onStart : 0);
-            starts += locationStarts(r, startHere, ldgHere) + (startHere ? onStart : 0);
+            ldgs += (landedAtReportLocation ? ldgBaseAlsoUsedForStarts(r, r.noLdgTimeInformation()) : 0)
+                    + (startedAtReportLocation ? ldgsOnStartLocation : 0);
+            starts += locationStarts(r, startedAtReportLocation, landedAtReportLocation)
+                    + (startedAtReportLocation ? ldgsOnStartLocation : 0);
             flights++;
             seconds += r.durationSeconds();
         }
 
-        /**
-         * Location-branch starts (the nrOfLdgs-based terms, sans the outlandings
-         * term) per {@code FlightReportService.cs:685-687}: same-airfield uses
-         * {@code nrOfLdgs} (noStart fallback), fly-in uses {@code nrOfLdgs-1},
-         * fly-out uses {@code nrOfLdgs}. Exactly one branch applies to a flight
-         * that touches the location.
-         */
-        private static int locationStarts(SummaryRow r, boolean startHere, boolean ldgHere) {
+        private static int locationStarts(SummaryRow r,
+                                          boolean startedAtReportLocation,
+                                          boolean landedAtReportLocation) {
             boolean hasNr = r.nrOfLdgs() != null;
             int nr = hasNr ? r.nrOfLdgs() : 0;
-            if (startHere && ldgHere) {
+            boolean sameAirfield = startedAtReportLocation && landedAtReportLocation;
+            boolean flewIn = !startedAtReportLocation && landedAtReportLocation;
+            boolean flewOut = startedAtReportLocation && !landedAtReportLocation;
+            if (sameAirfield) {
                 return hasNr ? nr : (r.noStartTimeInformation() ? 1 : 0);
             }
-            if (ldgHere) { // fly-in (start elsewhere)
+            if (flewIn) {
                 return hasNr ? nr - 1 : 0;
             }
-            if (startHere) { // fly-out (ldg elsewhere)
+            if (flewOut) {
                 return nr;
             }
             return 0;
         }
 
-        /** {@code nrOfLdgs ?? (fallbackFlag ? 1 : 0)} — the shared ldg/start base term. */
-        private static int ldgBase(SummaryRow r, boolean fallbackFlag) {
+        private static int ldgBaseAlsoUsedForStarts(SummaryRow r,
+                                                    boolean countsAsOneWhenNoTimeInformation) {
             if (r.nrOfLdgs() != null) {
                 return r.nrOfLdgs();
             }
-            return fallbackFlag ? 1 : 0;
+            return countsAsOneWhenNoTimeInformation ? 1 : 0;
         }
 
         FlightReportSummary toSummary(String label) {
@@ -358,25 +296,16 @@ public class FlightReportQueryService {
         return Duration.between(start, ldg);
     }
 
-    /**
-     * Maps a {@code t_start_type.code} to the report's {@code StartType} int.
-     * Legacy carried a per-club {@code StartTypeId} DB int with no fixed enum;
-     * the new schema dropped it (t_start_type has only {@code code}). For Excel
-     * parity this maps each code to the legacy {@code AircraftStartType} enum int
-     * by SEMANTIC correspondence (flsserver {@code Enums/AircraftStartType.cs}):
-     * TowingByAircraft=1, WinchLaunch=2, SelfStart=3, ExternalStart=4,
-     * MotorFlightStart=5 — NOT the V2 seed order. Unknown / null ⇒ null.
-     */
     private static @Nullable Integer startTypeLegacyInt(@Nullable String code) {
         if (code == null) {
             return null;
         }
         return switch (code) {
-            case "AEROTOW" -> 1;        // legacy AircraftStartType.TowingByAircraft
-            case "WINCH_LAUNCH" -> 2;   // legacy AircraftStartType.WinchLaunch
-            case "SELF_START" -> 3;     // legacy AircraftStartType.SelfStart
-            case "EXTERNAL_START" -> 4; // legacy AircraftStartType.ExternalStart
-            case "MOTOR" -> 5;          // legacy AircraftStartType.MotorFlightStart
+            case "AEROTOW" -> LEGACY_START_TYPE_TOWING_BY_AIRCRAFT;
+            case "WINCH_LAUNCH" -> LEGACY_START_TYPE_WINCH_LAUNCH;
+            case "SELF_START" -> LEGACY_START_TYPE_SELF_START;
+            case "EXTERNAL_START" -> LEGACY_START_TYPE_EXTERNAL_START;
+            case "MOTOR" -> LEGACY_START_TYPE_MOTOR_FLIGHT_START;
             default -> null;
         };
     }

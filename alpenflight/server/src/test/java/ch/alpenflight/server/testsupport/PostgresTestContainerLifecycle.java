@@ -10,34 +10,6 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.UUID;
 
-/**
- * Drives a Postgres container's lifecycle via {@code docker} CLI directly.
- *
- * <p>Symmetric with {@code MssqlTestContainerLifecycle} in
- * {@code alpenflight/database/extract/} — see that class's JavaDoc for the
- * "why not Testcontainers" rationale (sandbox Docker daemon enforces API
- * ≥1.44, Testcontainers 1.21.x ships docker-java 3.4.x that negotiates 1.32).
- *
- * <p>First consumer is the Flyway bootstrap smoke test in S-009.
- * S-015 generalizes if a second story needs it; until then this lives in
- * the server module's {@code testsupport} package.
- *
- * <p>Container guarantees:
- * <ul>
- *   <li>Image: {@code postgres:17.4-alpine} (pinned minor + variant; ADR 0002 Postgres 17).
- *   <li>Random container name per JVM run.
- *   <li>Random host port — read back from {@code docker port}.
- *   <li>Shutdown hook removes the container even on JVM crash.
- *   <li>Pre-start sweep reaps stale {@code alpenflight-pg-test-*} containers + their
- *       volumes left by a previously SIGKILLed JVM (the shutdown hook never fires on a
- *       {@code timeout}-kill, so each killed run otherwise leaks a container + ~1 GB
- *       volume). Concurrency-safe: only reaps containers older than
- *       {@link #STALE_CONTAINER_MIN_AGE_SECONDS}, so a sibling run's just-started
- *       container is never touched.
- *   <li>Connection-readiness poll with a 120-second cap (raised from 60s — it timed
- *       out under load, forcing CI round-trips instead of local self-verify).
- * </ul>
- */
 public final class PostgresTestContainerLifecycle {
 
     private static final String IMAGE = "postgres:17.4-alpine";
@@ -46,82 +18,33 @@ public final class PostgresTestContainerLifecycle {
     static final String DB_PASSWORD = "alpenflight_test_pw";
     private static final int READINESS_TIMEOUT_SECONDS = 120;
 
-    /**
-     * Runtime app login role V54 provisions (S-160): broad DML but INSERT,SELECT-
-     * only on {@code t_mutation_audit_event}. The password is V54's
-     * {@code ${app_role_password}} placeholder; the test profile resolves it to
-     * {@link #APP_ROLE_PASSWORD} (application.yml/-test.yml default, no
-     * {@code APP_DB_PASSWORD} env under test). {@link #appRoleConnection()} opens
-     * a connection AS this role so the append-only IT can prove the REVOKE bites.
-     */
     public static final String APP_ROLE_USER = "alpenflight_app";
     public static final String APP_ROLE_PASSWORD = "alpenflight_app";
 
-    /**
-     * Advisory-lock key guarding the shared external test database — one test
-     * JVM at a time. Arbitrary constant; must only be unique within our use of
-     * the external server.
-     */
-    private static final long EXTERNAL_LOCK_KEY = 0x414C50464C545354L; // "ALPFLTST"
+    private static final long ONE_TEST_JVM_AT_A_TIME_LOCK_KEY = 0x414C50464C545354L;
     private static final int EXTERNAL_LOCK_WAIT_SECONDS = 15;
 
-    /** Marker label so the pre-start sweep + the Stop-hook prune can target our containers precisely. */
-    private static final String OWNER_LABEL = "ch.alpenflight.test=pg";
+    private static final String TEST_OWNED_CONTAINER_LABEL = "ch.alpenflight.test=pg";
 
-    /**
-     * Containers younger than this are assumed to belong to a concurrently-running test JVM
-     * (started but not yet ready) and are <strong>not</strong> reaped by the pre-start sweep.
-     * Stale leaks from a SIGKILLed run are always older than this by the time the next run starts.
-     */
     private static final int STALE_CONTAINER_MIN_AGE_SECONDS = 60;
+    private static final long UNINSPECTABLE_CONTAINER_AGE_SECONDS = Long.MAX_VALUE;
 
     private final String containerName = "alpenflight-pg-test-" + UUID.randomUUID().toString().substring(0, 8);
     private volatile int hostPort = -1;
     private volatile boolean started = false;
 
-    // External-PG mode state (see externalConfigured()).
     private volatile boolean external = false;
     private volatile String externalJdbcUrl;
     private volatile String externalUser;
     private volatile String externalPassword;
     private volatile Connection externalLockConnection;
 
-    /**
-     * External-PG mode: when {@code DATASOURCE_URL} is set (dev boxes that must
-     * NOT start a local Postgres — operator directive), tests run against that
-     * database directly — the shared dev DB, no separate test database
-     * (operator decision). CI never takes this path (pinned PG 17 container
-     * stays authoritative); {@code ALPENFLIGHT_TEST_FORCE_DOCKER=1} restores
-     * the container path on a dev box.
-     *
-     * <p>Isolation: the schema is dropped + recreated at JVM start (Flyway then
-     * migrates fresh — immune to cross-branch migration drift), and a
-     * session-held advisory lock serialises test JVMs; run with
-     * {@code ALPENFLIGHT_TEST_FORKS=1}. Failures in this mode are LOUD —
-     * external is explicit intent, so we never skip-silently nor fall back to
-     * a local container.
-     */
     static boolean externalConfigured() {
         return System.getenv("DATASOURCE_URL") != null
                 && System.getenv("CI") == null
                 && System.getenv("ALPENFLIGHT_TEST_FORCE_DOCKER") == null;
     }
 
-    /**
-     * True when {@link #start()} is about to spin a local
-     * {@code alpenflight-pg-test-*} container on the dev box — which is
-     * forbidden: dev-box tests run against the LAN Postgres via {@code ~/.bashrc}
-     * {@code DATASOURCE_*} (external mode), never a local container
-     * ([[feedback_no_local_postgres_for_tests]]). Pure over injected env so the
-     * decision is testable without launching a container.
-     *
-     * <p>Fires only when {@code CI} is unset (dev box) AND the container path
-     * would be taken — i.e. {@code FORCE_DOCKER} is set, or {@code DATASOURCE_URL}
-     * is absent. In CI ({@code CI} set) local-container mode is legitimate (the
-     * S-160 append-only role IT provisions its second role only there), so the
-     * guard stays silent; normal external mode (LAN PG, no {@code FORCE_DOCKER})
-     * is likewise untouched.
-     */
     static boolean localContainerLaunchForbidden(String datasourceUrl, String ci, String forceDocker) {
         if (ci != null) {
             return false;
@@ -162,7 +85,7 @@ public final class PostgresTestContainerLifecycle {
         runOrThrow(
                 "docker", "run", "-d",
                 "--name", containerName,
-                "--label", OWNER_LABEL,
+                "--label", TEST_OWNED_CONTAINER_LABEL,
                 "-e", "POSTGRES_DB=" + DB_NAME,
                 "-e", "POSTGRES_USER=" + DB_USER,
                 "-e", "POSTGRES_PASSWORD=" + DB_PASSWORD,
@@ -179,14 +102,6 @@ public final class PostgresTestContainerLifecycle {
         }
     }
 
-    /**
-     * Connects to the {@code DATASOURCE_URL} database itself (operator decision:
-     * the shared dev DB, no separate test database), serialises against sibling
-     * test JVMs via a session advisory lock, then resets the schema so Flyway
-     * migrates fresh. Consequence: every test run RESETS the dev database — a
-     * fast-loop dev backend running against the same DB must be restarted after
-     * a test run (and should not serve traffic during one).
-     */
     private void startExternal() {
         String testUrl = System.getenv("DATASOURCE_URL");
         String user = System.getenv("DATASOURCE_USER");
@@ -213,7 +128,7 @@ public final class PostgresTestContainerLifecycle {
             long deadline = System.currentTimeMillis() + EXTERNAL_LOCK_WAIT_SECONDS * 1000L;
             while (System.currentTimeMillis() < deadline) {
                 try (var rs = lock.createStatement()
-                        .executeQuery("SELECT pg_try_advisory_lock(" + EXTERNAL_LOCK_KEY + ")")) {
+                        .executeQuery("SELECT pg_try_advisory_lock(" + ONE_TEST_JVM_AT_A_TIME_LOCK_KEY + ")")) {
                     rs.next();
                     if (rs.getBoolean(1)) {
                         locked = true;
@@ -228,33 +143,31 @@ public final class PostgresTestContainerLifecycle {
                                 + EXTERNAL_LOCK_WAIT_SECONDS + "s). Run with ALPENFLIGHT_TEST_FORKS=1 and"
                                 + " one gradle test invocation at a time.");
             }
-            // Fresh start every JVM: immune to cross-branch Flyway drift; the
-            // post-run state stays inspectable until the NEXT run (ADR 0021).
-            lock.createStatement().execute("DROP SCHEMA public CASCADE");
-            lock.createStatement().execute("CREATE SCHEMA public");
+            resetPublicSchemaSoFlywayMigratesFresh(lock);
         } catch (SQLException e) {
             try {
                 lock.close();
             } catch (SQLException ignored) {
-                // best-effort
             }
             throw new IllegalStateException("External-PG test mode: schema reset failed on " + testUrl, e);
         } catch (RuntimeException e) {
             try {
                 lock.close();
             } catch (SQLException ignored) {
-                // best-effort
             }
             throw e;
         }
-        // Hold the lock connection for the JVM's lifetime; the advisory lock is
-        // session-scoped and releases when this connection dies with the JVM.
         externalLockConnection = lock;
         externalJdbcUrl = testUrl;
         externalUser = user;
         externalPassword = password;
         external = true;
         started = true;
+    }
+
+    private static void resetPublicSchemaSoFlywayMigratesFresh(Connection conn) throws SQLException {
+        conn.createStatement().execute("DROP SCHEMA public CASCADE");
+        conn.createStatement().execute("CREATE SCHEMA public");
     }
 
     public synchronized void stop() {
@@ -270,7 +183,6 @@ public final class PostgresTestContainerLifecycle {
                     externalLockConnection.close();
                 }
             } catch (Exception ignored) {
-                // best-effort: the advisory lock dies with the session anyway
             }
             return;
         }
@@ -280,23 +192,9 @@ public final class PostgresTestContainerLifecycle {
                     .start()
                     .waitFor();
         } catch (Exception ignored) {
-            // best-effort cleanup
         }
     }
 
-    /**
-     * Reap {@code alpenflight-pg-test-*} containers (and the volumes they own) left behind by a
-     * previously SIGKILLed JVM, before starting a fresh one. The normal teardown is a JVM shutdown
-     * hook that never fires when a worker's {@code timeout NNN ./gradlew test} sends SIGKILL, so each
-     * killed run otherwise leaks a container + its ~1 GB volume and slowly fills the dev box.
-     *
-     * <p>Concurrency-safe: only containers older than {@link #STALE_CONTAINER_MIN_AGE_SECONDS} are
-     * removed, so a sibling test JVM's container that is still booting (younger than the guard) is
-     * never killed. {@code docker rm -f -v} removes the container's anonymous volume in the same call.
-     *
-     * <p>Best-effort: any failure (no Docker, permission, race with another sweep) is swallowed — the
-     * sweep must never break test startup.
-     */
     private static void sweepStaleContainers() {
         try {
             String out = captureOutput(
@@ -312,42 +210,32 @@ public final class PostgresTestContainerLifecycle {
                 if (name.isEmpty()) continue;
                 long ageSeconds = ageSecondsOf(name, now);
                 if (ageSeconds < STALE_CONTAINER_MIN_AGE_SECONDS) {
-                    // Too young — likely a concurrently-booting sibling run; leave it alone.
                     continue;
                 }
-                removeQuietly(name);
+                removeContainerAndItsAnonymousVolumeQuietly(name);
             }
         } catch (Exception ignored) {
-            // never let the sweep break startup
         }
     }
 
-    /**
-     * Age of a container in seconds via {@code docker inspect} of its {@code .Created} timestamp,
-     * which is precise (the {@code docker ps --format} relative-time strings are not parseable). On
-     * any failure returns {@link Long#MAX_VALUE} so an un-inspectable leftover is treated as stale
-     * and reaped (it is not a live sibling — those inspect fine).
-     */
     private static long ageSecondsOf(String name, long nowMillis) {
         try {
             String created = captureOutput("docker", "inspect", "-f", "{{.Created}}", name).trim();
-            if (created.isEmpty()) return Long.MAX_VALUE;
+            if (created.isEmpty()) return UNINSPECTABLE_CONTAINER_AGE_SECONDS;
             long createdMillis = java.time.Instant.parse(created).toEpochMilli();
             return (nowMillis - createdMillis) / 1000L;
         } catch (Exception e) {
-            return Long.MAX_VALUE;
+            return UNINSPECTABLE_CONTAINER_AGE_SECONDS;
         }
     }
 
-    private static void removeQuietly(String name) {
+    private static void removeContainerAndItsAnonymousVolumeQuietly(String name) {
         try {
-            // -v removes the container's anonymous volume in the same call.
             new ProcessBuilder("docker", "rm", "-f", "-v", name)
                     .redirectErrorStream(true)
                     .start()
                     .waitFor();
         } catch (Exception ignored) {
-            // best-effort
         }
     }
 
@@ -359,14 +247,6 @@ public final class PostgresTestContainerLifecycle {
         return "jdbc:postgresql://localhost:" + hostPort + "/" + DB_NAME;
     }
 
-    /**
-     * Open a JDBC connection AS the {@link #APP_ROLE_USER} runtime role (S-160)
-     * against the SAME database the migrator ran Flyway on — so V54 has already
-     * created the role there. The caller closes it. Throws if the role cannot
-     * log in (e.g. external-PG mode where the shared cluster never provisioned
-     * it): the append-only IT translates that into a fail-loud skip, but CI's
-     * container path always has the role and connects.
-     */
     public Connection appRoleConnection() throws SQLException {
         ensureStarted();
         Properties props = new Properties();
@@ -410,7 +290,6 @@ public final class PostgresTestContainerLifecycle {
                     }
                 }
             } catch (IOException | InterruptedException e) {
-                // retry
             }
             sleepQuietly(500);
         }

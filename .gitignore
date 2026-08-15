@@ -38,5 +38,11 @@ alpenflight/web/.angular
 # Per-developer Keycloak env (Google OAuth client secrets, SMTP overrides,
 # SPA base URL). .env.example is the committed template.
 alpenflight/auth/.env
-# J-7 T-21: e2e diagnostic screenshots (alpenflight/web/e2e) — not matched by the root /screenshots rule
 alpenflight/web/e2e/screenshots/
+
+# Local backend bring-up runtime artifacts (real-idp dev stack + ci.yml)
+alpenflight/server/backend.log
+alpenflight/server/backend.pid
+
+# /comment-strip working state (manifests, shard state)
+.comment-strip/

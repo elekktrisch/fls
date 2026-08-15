@@ -172,8 +172,6 @@ describe('AircraftStore', () => {
       aircraftServiceStub({
         list: (params) => {
           calls.push(params?.type);
-          // Server returns only the GLIDER + GLIDER_WITH_MOTOR rows per
-          // AircraftService.cs:303-304 membership.
           return params?.type === ListAircraftType.GLIDER
             ? of([gliderItem])
             : of([gliderItem, motorItem, towingItem]);

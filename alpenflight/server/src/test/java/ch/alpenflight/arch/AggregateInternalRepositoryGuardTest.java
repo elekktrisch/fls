@@ -17,23 +17,6 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.util.ClassUtils;
 
-/**
- * Aggregate-internal entities (no own {@code @TenantId}, lifecycle-bound to a
- * parent {@code @TenantId}-bearing root via {@code @ManyToOne}) MUST NOT
- * have their own {@code JpaRepository}. Exposing a repository against them
- * would route reads outside the parent aggregate's tenant discriminator and
- * defeat ADR 0008's per-aggregate isolation.
- *
- * <p>Today's known case: {@code InOutboundPoint} under {@code Location}.
- * Future: {@code FlightCrew} under {@code Flight}, {@code DeliveryItem}
- * under {@code Delivery}. The rule is auto-discovering — a future
- * aggregate-internal entity is caught the moment a contributor declares
- * {@code interface XRepository extends JpaRepository<X, ?>} for it.
- *
- * <p>Plain-reflection rather than ArchUnit because the assertion runs on
- * generic type arguments of the {@code JpaRepository} interface — Java
- * reflection exposes those cleanly via {@link ParameterizedType}.
- */
 class AggregateInternalRepositoryGuardTest {
 
     @Test

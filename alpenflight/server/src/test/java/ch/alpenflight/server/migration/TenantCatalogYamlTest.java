@@ -11,17 +11,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Pure-YAML assertions over {@code alpenflight/database/tenant-rules.yaml}. No
- * Spring, no Docker, no DataSource — these check the tenant catalog's
- * declarations (type pins, classification, PII column lists) against the
- * ADRs that govern them.
- *
- * <p>Split out of {@code TenantCatalogConsistencyTest} so a contributor
- * without Docker can still run the catalog static checks via
- * {@code ./gradlew check}, and so CI doesn't boot a Postgres container
- * just to read a YAML file.
- */
 class TenantCatalogYamlTest {
 
     private static Map<String, Object> tenantRules;
@@ -202,7 +191,6 @@ class TenantCatalogYamlTest {
         assertThat(articles.get("tenant_column")).isEqualTo("operating_club_id");
     }
 
-    /** S-014 reclassification: AircraftReservationTypes (legacy ClubId NOT NULL → per-club). */
     @Test
     @SuppressWarnings("unchecked")
     void s014_aircraft_reservation_types_reclassified_to_tenant_scoped() {
@@ -214,7 +202,6 @@ class TenantCatalogYamlTest {
         assertThat(arvTypes.get("tenant_column")).isEqualTo("operating_club_id");
     }
 
-    /** S-014 reclassification: PlanningDayAssignmentTypes (legacy ClubId NOT NULL → per-club). */
     @Test
     @SuppressWarnings("unchecked")
     void s014_planning_day_assignment_types_reclassified_to_tenant_scoped() {
@@ -226,15 +213,6 @@ class TenantCatalogYamlTest {
         assertThat(pdaTypes.get("tenant_column")).isEqualTo("operating_club_id");
     }
 
-    /**
-     * After S-058 (reverts S-159), Aircraft is cross-tenant again, but it
-     * remains an empty entry in {@code ride_through_targets} for
-     * downstream consumers — Aircraft carries no PII columns (only
-     * sensitive metadata: immatriculation, flarm id, mtom, …). The
-     * ride-through list captures PII-carrying cross-tenant FKs so that
-     * audit-blob redaction and DSAR scope iterate the right entities;
-     * Aircraft doesn't belong on either list.
-     */
     @Test
     @SuppressWarnings("unchecked")
     void s014_aircraft_reservations_ride_through_persons_only_no_pii_on_aircraft() {
@@ -246,7 +224,6 @@ class TenantCatalogYamlTest {
                 .containsExactly("Persons");
     }
 
-    /** S-014 PII catalog extension: 9 frozen recipient snapshot cols + 2 free-text quasi-PII. */
     @Test
     @SuppressWarnings("unchecked")
     void s014_deliveries_pii_columns_include_9_recipient_snapshot_columns() {
@@ -261,7 +238,6 @@ class TenantCatalogYamlTest {
                         "recipient_person_club_member_number");
     }
 
-    /** S-014 DSAR exemption: Booked deliveries are FADP-DSAR-exempt per Swiss OR Art. 957a. */
     @Test
     @SuppressWarnings("unchecked")
     void s014_deliveries_fadp_dsar_exempt_when_booked() {
@@ -274,7 +250,6 @@ class TenantCatalogYamlTest {
                 .contains("process_state_id");
     }
 
-    /** S-014 AccountingRuleFilters pii_blob (filter_config jsonb may carry member_number lists). */
     @Test
     @SuppressWarnings("unchecked")
     void s014_accounting_rule_filters_marked_pii_blob() {
@@ -285,7 +260,6 @@ class TenantCatalogYamlTest {
                 .isEqualTo(true);
     }
 
-    /** S-014 new tenant-scoped entries: DeliveryCreationTest + DeliveryCreationTestItem + ClubDeliveryNumberCounter. */
     @Test
     @SuppressWarnings("unchecked")
     void s014_new_tenant_scoped_entries_present() {
@@ -297,7 +271,6 @@ class TenantCatalogYamlTest {
         }
     }
 
-    /** S-014 SYSTEM_GLOBAL reference tables stay reference (no ClubId in legacy). */
     @Test
     @SuppressWarnings("unchecked")
     void s014_system_global_reference_tables_stay_reference() {
@@ -310,12 +283,6 @@ class TenantCatalogYamlTest {
         }
     }
 
-    /**
-     * tenant-rules.yaml lives in a sibling Gradle module (alpenflight/database/).
-     * Resolution strategy: walk up from the working dir until we find a
-     * directory containing the yaml, then drop the path off that base. Works
-     * both when running from the repo root and from {@code alpenflight/server/}.
-     */
     private static Path locateTenantRules() {
         Path cwd = Path.of("").toAbsolutePath();
         Path probe = cwd;

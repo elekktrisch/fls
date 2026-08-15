@@ -27,15 +27,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the FlightType CRUD slice under a
- * CLUB_ADMINISTRATOR principal of seed-club-1. Asserts the REST surface,
- * soft-delete + recreate-same-name, and per-tenant name uniqueness.
- *
- * <p>Tenant isolation lives in {@link FlightTypesTenantIsolationIT}; role
- * authz matrix (404-not-403, sysadmin denial) lives in
- * {@link FlightTypesAuthorizationIT}.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -55,17 +46,12 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        // Per-test cleanup keeps the seed-club's slot empty so each test
-        // starts with a known surface (the V3 seed doesn't insert
-        // flight_type rows; only V3-seeded FCBTs).
-        // The club's flights go first: the V36 dev-seed flight references the
-        // seeded flight type (fk_flight_flight_type_id), so on a fresh DB the
-        // flight-type delete trips the FK unless a flights IT happened to run
-        // earlier (order-dependent red in isolation / failed-first ordering).
-        // Same proven statement as FlightCreatedSseIT; crew + report rows
-        // cascade. Full production-code seeding conversion is T-18/T-20.
-        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
+        deleteClubFlightsBeforeFlightTypesBecauseFlightRowsFkReferenceThem();
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id = ?::uuid", CLUB_ID);
+    }
+
+    private void deleteClubFlightsBeforeFlightTypesBecauseFlightRowsFkReferenceThem() {
+        jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
     @Test
@@ -120,8 +106,6 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
 
     @Test
     void softDelete_thenRecreateSameName_succeeds() {
-        // Mirrors the S-050 Aircraft pattern — the partial-UNIQUE filters
-        // soft-deleted rows out of the uniqueness scope.
         String name = uniqueName();
         ResponseEntity<String> created = post("/api/v1/flight-types", createPayload(name));
         String id = readJson(created).get("id").asText();
@@ -130,13 +114,13 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         ResponseEntity<String> recreated = post("/api/v1/flight-types", createPayload(name));
-        assertThat(recreated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(recreated.getStatusCode())
+                .as("the partial UNIQUE excludes soft-deleted rows from the uniqueness scope")
+                .isEqualTo(HttpStatus.CREATED);
     }
 
     @Test
     void registerFlightType_minSeatsZero_returns_400() {
-        // DTO @Min(1) rejects 0 at the boundary; the legacy 0-treated-as-null
-        // ambiguity is documented as a parity exclusion on S-053.
         Map<String, Object> body = createPayload(uniqueName());
         body.put("minNrOfAircraftSeatsRequired", 0);
         ResponseEntity<String> res = post("/api/v1/flight-types", body);
@@ -150,7 +134,6 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ----- helpers -----
 
     private ResponseEntity<String> get(String path) {
         return rest.exchange(

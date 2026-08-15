@@ -1,14 +1,5 @@
 package ch.alpenflight.migration.tool;
 
-/**
- * Stable process exit codes. Operators script the export; a small, frozen
- * taxonomy lets a wrapper distinguish "fix the handshake" from "fix the DB
- * connection" without parsing stderr. The full S-139 follow-up taxonomy
- * (per-phase granularity) is deferred — this is the load-bearing minimum.
- *
- * <p>{@code OK} and {@code USAGE} match the picocli convention (0 / 2) so a
- * bad command line surfaces the standard usage exit.
- */
 public enum ExitCode {
     OK(0),
     USAGE(2),

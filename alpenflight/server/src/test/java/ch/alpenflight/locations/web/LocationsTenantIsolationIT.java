@@ -26,25 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Cross-layer tenancy properties for the Locations aggregate:
- *
- * <ul>
- *   <li>The {@code @TenantId} discriminator filters reads (list + getById)
- *       under the current tenant.</li>
- *   <li>Per-club partial UNIQUE on {@code (club_id, icao_code)} rejects
- *       same-club ICAO collisions but accepts cross-club coexistence.</li>
- *   <li>The {@code NO_TENANT} sentinel yields empty reads and FK-rejected
- *       writes.</li>
- *   <li>Writes persist the resolved {@code club_id} to the row.</li>
- * </ul>
- *
- * <p>Per CONVENTIONS.md §"Test pyramid", these are the cross-layer
- * properties that can only be proved with a live Hibernate + Postgres
- * stack. Aggregate-level rules (ICAO regex, blank-name rejection) live in
- * {@code LocationDomainTest}; HTTP routing + authz live in
- * {@code LocationsControllerIT} / {@code LocationsAuthorizationIT}.
- */
 class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_LTI_";
@@ -70,15 +51,12 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void tenant_filter_isolates_reads_and_persists_club_id() {
-        // The minted club id is runtime, so tenant A is entered via runAs here
-        // rather than a method-level @WithTenant literal.
         TenantTestContext.runAs(clubA, () -> {
             LocationDetail aRow = locations.createLocation(payload("Field A", "AA01"));
             AtomicReference<LocationDetail> bRowRef = new AtomicReference<>();
             TenantTestContext.runAs(clubB, () ->
                     bRowRef.set(locations.createLocation(payload("Field B", "AB02"))));
 
-            // A's list contains A's row; getById of B's row throws (invisible to A).
             assertThat(locations.listLocations())
                     .extracting(li -> li.id().toString())
                     .contains(aRow.id().toString())
@@ -87,11 +65,12 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
             assertThatThrownBy(() -> locations.getLocation(bExternal))
                     .isInstanceOf(LocationNotFoundException.class);
 
-            // The persisted row carries A's club_id (not B's, not nil).
             Integer matches = jdbc.queryForObject(
                     "SELECT count(*) FROM t_location WHERE id = ?::uuid AND club_id = ?::uuid",
                     Integer.class, aRow.id().value().toString(), clubA.toString());
-            assertThat(matches).isEqualTo(1);
+            assertThat(matches)
+                    .as("the persisted row carries A's club_id — not B's, not the nil sentinel")
+                    .isEqualTo(1);
         });
     }
 
@@ -111,8 +90,6 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void no_tenant_context_yields_empty_reads() {
-        // Resolver returns NO_TENANT (nil UUID) when no tenant is entered.
-        // Hibernate appends WHERE club_id = nil-UUID → zero rows.
         TenantTestContext.runAs(clubA, () ->
                 locations.createLocation(payload("Hidden A", "AE55")));
         assertThat(locations.listLocations()).isEmpty();
@@ -120,9 +97,6 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     void no_tenant_context_writes_fail_at_fk_constraint() {
-        // No real row carries the nil UUID, so the FK constraint
-        // fk_location_club_id rejects the write — the fail-closed half of
-        // the @TenantId contract.
         assertThatThrownBy(() -> locations.createLocation(payload("would-poison", "AF66")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

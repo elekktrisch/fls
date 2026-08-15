@@ -6,12 +6,6 @@ import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.platform.id.ArticleId;
 import java.util.Objects;
 
-/**
- * Aggregate → DTO mapping. Pure functions; no Spring, no JPA. The mapper
- * relies on the entity having been hydrated (id non-null after persist), so
- * the {@code Objects.requireNonNull(...)} pattern surfaces a coding bug as
- * an NPE on the boundary rather than letting a partial DTO propagate.
- */
 final class ArticleMapper {
 
     private ArticleMapper() {}

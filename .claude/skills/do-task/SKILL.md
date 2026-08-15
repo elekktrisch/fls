@@ -174,10 +174,13 @@ chaining.
 - Schema structural; business rules on aggregates.
 - No new JDBC/native SQL outside the register (ADR 0027) — gap-hunter blocks it.
 - Default real; any mock declared with an `@mocked:` tag for the journey PR list.
-- **Self-explanatory code, why-only comments.** No what/narration/history/task-attribution comments
-  in code, specs, or YAML (no `T-NN:`/`J-NNN`/"legacy stored…"/"this masks…"); a rare short *why* only
-  when non-derivable, preferred as a named symbol / test name / ADR ref. Put task history in the commit
-  message, NOT in code or the journey body. Cite by file:line, never SHAs in committed text.
+- **No comments — put the understanding in the name.** Not "why-only": write zero human-written prose
+  in code, specs, or YAML. A comment you reach for is a symbol, test, or constant that needs a longer
+  name, or an ADR/`docs/modernization/` entry. Long names are fine. Only tool-parsed directives
+  (`eslint-disable*`, `@ts-ignore`/`@ts-expect-error`, `prettier-ignore`, `noinspection`, `language=`,
+  `@formatter:off/on`, shebangs) and `// ext:` markers at an externally-owned boundary *with no pin
+  available* survive — prefer `@JsonProperty`/`@Column`. Put task history in the commit message, NOT in
+  code or the journey body. Cite by file:line, never SHAs in committed text. See `/comment-strip`.
 - Leave a ticked checklist + a lean report. Don't prune the journey body (that's
   `/do-ship`'s finish step).
 

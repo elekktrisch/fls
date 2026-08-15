@@ -9,14 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Meta-tests for the {@link PostgresIntegrationTest} base class + the
- * {@link WithTenant} / {@link TenantContextExtension} / {@link TenantTestContext}
- * primitives. Each {@code @Test} method asserts one invariant of the
- * test-infrastructure surface that downstream stories (S-022 and beyond)
- * consume; if any of these break, the consumers see a confusing failure
- * mode that this class catches first.
- */
 @Import(TenantContextProbe.class)
 @WithTenant(PostgresIntegrationTestSmokeIT.CLASS_LEVEL_TENANT)
 class PostgresIntegrationTestSmokeIT extends PostgresIntegrationTest {

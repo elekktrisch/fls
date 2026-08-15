@@ -266,12 +266,6 @@ export class PersonsEditPage {
     isTowPilot: this.fb.control(false),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings (silent
-  // until blur/submit) and binding the previously-silent optional fields
-  // (city / mobile / memberNumber) that carried a maxLength validator but
-  // rendered no inline error at all.
   protected readonly firstnameErrors = liveFieldErrors(this.form.controls.firstname);
   protected readonly lastnameErrors = liveFieldErrors(this.form.controls.lastname);
   protected readonly emailErrors = liveFieldErrors(this.form.controls.email);
@@ -280,7 +274,6 @@ export class PersonsEditPage {
   protected readonly memberNumberErrors = liveFieldErrors(this.form.controls.memberNumber);
 
   constructor() {
-    // Hydrate the form when an existing detail is loaded.
     effect(() => {
       const detail = this.store.selectedPerson();
       if (detail && !this.isCreate()) {
@@ -288,10 +281,6 @@ export class PersonsEditPage {
       }
     });
 
-    // Trigger detail load when route param has an id. `select(id)` clears
-    // any stale detail from the previous Person before the GET response
-    // lands — keeps the form blank during loading rather than showing the
-    // previous Person's fields.
     effect(() => {
       const id = this.routeId();
       if (id !== null) {
@@ -302,16 +291,12 @@ export class PersonsEditPage {
       }
     });
 
-    // Reset saving spinner when a save error surfaces.
     effect(() => {
       if (this.store.saveError() !== null) {
         this.saving.set(false);
       }
     });
 
-    // Navigate back to the list ONLY when the save succeeds, signalled via
-    // MUTATION_BUS. Optimistic navigation on submit would hide save errors
-    // on an unmounted page.
     this.bus.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((evt) => {
       if (this.saving() && (evt.kind === 'person.created' || evt.kind === 'person.updated')) {
         this.saving.set(false);
@@ -337,77 +322,56 @@ export class PersonsEditPage {
         return;
       }
       const req = personUpdateRequest(v);
-      // J-26 T-04: PUT /persons/{id} ignores membership fields BY DESIGN —
-      // memberNumber / memberState / role flags live on the caller-tenant
-      // PersonClub and go through PUT /persons/{id}/clubs/current. Forward
-      // them to the store's forked update; without this the edits were
-      // silently dropped (data loss).
-      const membership = this.membershipRequest(v);
+      const membership = this.fullReplaceMembershipRequest(v);
       this.store.update(membership ? { id, req, membership } : { id, req });
     }
   }
 
-  /**
-   * Build the clubs/current payload from the form + the hydrated membership.
-   * The server PUT is a FULL REPLACE (primitive booleans — an absent flag
-   * lands as false), so every flag the form does NOT expose is echoed from
-   * the loaded detail to avoid zeroing it. Returns undefined when the loaded
-   * Person has no caller-tenant membership — nothing to update then.
-   */
-  private membershipRequest(
+  private fullReplaceMembershipRequest(
     v: ReturnType<PersonForm['getRawValue']>,
   ): PersonClubRequest | undefined {
-    const pc = this.store.selectedPerson()?.memberships?.[0];
-    if (!pc) {
+    const loaded = this.store.selectedPerson()?.memberships?.[0];
+    if (!loaded) {
       return undefined;
     }
-    // FULL REPLACE: every flag the form does NOT expose is echoed from the
-    // loaded detail (an absent primitive boolean lands as false server-side).
-    // The form-driven flags + the optional memberNumber/memberStateId override.
     return withOptionals(
       {
         isMotorPilot: v.isMotorPilot,
         isGliderPilot: v.isGliderPilot,
         isTowPilot: v.isTowPilot,
-        isGliderInstructor: pc.isGliderInstructor,
-        isGliderTrainee: pc.isGliderTrainee,
-        isPassenger: pc.isPassenger,
-        isWinchOperator: pc.isWinchOperator,
-        isMotorInstructor: pc.isMotorInstructor,
-        receiveFlightReports: pc.receiveFlightReports,
-        receiveAircraftReservationNotifications: pc.receiveAircraftReservationNotifications,
-        receivePlanningDayRoleReminder: pc.receivePlanningDayRoleReminder,
-        isActive: pc.isActive,
+        isGliderInstructor: loaded.isGliderInstructor,
+        isGliderTrainee: loaded.isGliderTrainee,
+        isPassenger: loaded.isPassenger,
+        isWinchOperator: loaded.isWinchOperator,
+        isMotorInstructor: loaded.isMotorInstructor,
+        receiveFlightReports: loaded.receiveFlightReports,
+        receiveAircraftReservationNotifications: loaded.receiveAircraftReservationNotifications,
+        receivePlanningDayRoleReminder: loaded.receivePlanningDayRoleReminder,
+        isActive: loaded.isActive,
       },
       membershipOptionals(v),
     ) as PersonClubRequest;
   }
 
   private hydrate(detail: PersonResponse): void {
-    const pc = detail.memberships?.[0];
+    const callerTenantMembership = detail.memberships?.[0];
     this.form.patchValue({
       firstname: detail.firstname,
       lastname: detail.lastname,
       email: detail.emailPrivate ?? '',
       mobilePhone: detail.mobilePhone ?? '',
       city: detail.city ?? '',
-      memberNumber: pc?.memberNumber ?? '',
-      memberStateId: pc?.memberStateId ?? null,
-      isMotorPilot: pc?.isMotorPilot ?? false,
-      isGliderPilot: pc?.isGliderPilot ?? false,
-      isTowPilot: pc?.isTowPilot ?? false,
+      memberNumber: callerTenantMembership?.memberNumber ?? '',
+      memberStateId: callerTenantMembership?.memberStateId ?? null,
+      isMotorPilot: callerTenantMembership?.isMotorPilot ?? false,
+      isGliderPilot: callerTenantMembership?.isGliderPilot ?? false,
+      isTowPilot: callerTenantMembership?.isTowPilot ?? false,
     });
   }
 }
 
 type PersonFormValue = ReturnType<PersonForm['getRawValue']>;
 
-// Form→request mapping (J-26 T-23): the optional-contact + optional-membership
-// `if (trimmed.length > 0) req.x = …` chains collapse onto the shared
-// `withOptionals` (one pruning pass — `''`/`null`/`undefined` drop, matching the
-// prior trim-then-conditional-spread byte-for-byte; the form already trims/normalises).
-
-/** Email / mobile / city — trimmed, dropped when blank (`emailPrivate` is the wire name). */
 function contactOptionals(v: PersonFormValue) {
   return {
     emailPrivate: v.email.trim(),
@@ -416,7 +380,6 @@ function contactOptionals(v: PersonFormValue) {
   };
 }
 
-/** memberNumber (trimmed) + memberStateId (`null` sentinel → dropped). */
 function membershipOptionals(v: PersonFormValue) {
   return {
     memberNumber: v.memberNumber.trim(),
@@ -425,9 +388,6 @@ function membershipOptionals(v: PersonFormValue) {
 }
 
 function personCreateRequest(v: PersonFormValue): PersonCreateRequest {
-  // `withOptionals` widens optionals with `| undefined`; the runtime pruning
-  // guarantees none survive, so the narrowing cast to the exact-optional DTO
-  // is sound (same cast the aircraft builders use — see aircraft-edit.page.ts).
   return withOptionals(
     {
       firstname: v.firstname.trim(),

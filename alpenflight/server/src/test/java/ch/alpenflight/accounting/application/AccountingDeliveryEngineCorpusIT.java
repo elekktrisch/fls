@@ -40,23 +40,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The combinatorial regression corpus (S-107) — the bit-exact parity net the
- * harness exists to run. Each case drives the whole {@link AccountingDeliveryEngine}
- * orchestrator over a flight × rule combination seeded through the production
- * create paths (ADR 0027 §3 — {@link TwoClubFixture} + the engine-IT seed pattern)
- * and asserts the produced {@link DeliveryItemDetails} set EXACTLY (article order +
- * quantity + unit), reproducing the legacy {@code DeliveryItemRulesEngine} output.
- *
- * <p>The cases cover the load-bearing behaviors the engine can't be trusted on by
- * inspection: the FlightTime decrement loop (the oracle's documented 1069/1068
- * legacy example + zero + tier-gap), the bit-exact Sec→Min unit conversion (the
- * {@code MathContext(28, HALF_EVEN)} C#-decimal flag — validated against a
- * non-terminating division, not a clean integer), the EngineTime loop + null
- * counter, the single-pass types (LandingTax/NoLandingTax suppression, StartTax,
- * always-new-line InstructorFee + 0-on-NoInstructorFee, AdditionalFuelFee, VsfFee),
- * IgnoreFlight short-circuit, Recipient first-match-wins, and glider→tow recursion.
- */
 class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
     private static final UUID TYPE_RECIPIENT =
@@ -98,7 +81,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
     private static final int LEGACY_DO_NOT_INVOICE = 5;
     private static final int LEGACY_START_TAX = 55;
 
-    // FlightCostBalanceType legacy id 4 = NoInstructorFee (InstructorFeeStage bills 0).
     private static final int COST_BALANCE_NO_INSTRUCTOR_FEE = 4;
 
     @Autowired JdbcTemplate jdbc;
@@ -114,11 +96,8 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
     private UUID club;
 
-    // A fresh, isolated club per case (unique prefix) so no prior case's filters
-    // leak into this run — the engine matches EVERY active filter in the club, so
-    // a residual filter from another case would corrupt the asserted item set.
     @BeforeEach
-    void seedClub(org.junit.jupiter.api.TestInfo testInfo) {
+    void seedFreshClubPerCaseSoFiltersCannotLeakBetweenCases(org.junit.jupiter.api.TestInfo testInfo) {
         String tag = "C" + Integer.toHexString(testInfo.getDisplayName().hashCode());
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, tag + "_", tag);
@@ -126,11 +105,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         club = fixture.clubA();
     }
 
-    // The oracle's documented legacy example (AccountingRuleFilterFactory.cs:752/787):
-    // article "1069" tier (min=600, max=MaxInt) + article "1068" tier (min=0, max=600),
-    // both billed in minutes, on a 1500s flight. The upper tier bills 1500-600=900s
-    // (15 min) and resets active->600; the lower tier then bills 600s (10 min). The
-    // upper tier emits FIRST (apply order within the pass), so the set is [1069, 1068].
     @Test
     void flightTimeTiered_oracle1069_1068_example_isBitExact() {
         UUID flight = glider(seconds(1500), (short) 1);
@@ -146,11 +120,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(items.get(1).quantity()).isEqualByComparingTo(new BigDecimal("10"));
     }
 
-    // The bit-exact Sec->Min conversion flag (T-05): a 100s flight billed in minutes
-    // is 100/60, a NON-TERMINATING division. The MathContext(28, HALF_EVEN) C#-decimal
-    // approximation produces exactly 1.666666666666666666666666667 (28 significant
-    // digits, banker's rounding on the last). A hand-waved 100.0/60.0 double would give
-    // 1.6666666666666667 — so this exact string is what validates the flag.
     @Test
     void flightTimeMinutes_nonTerminatingDivision_isBitExactToCsharpDecimal() {
         UUID flight = glider(seconds(100), (short) 1);
@@ -160,6 +129,8 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
         assertThat(items).hasSize(1);
         assertThat(items.get(0).quantity().toPlainString())
+                .as("MathContext(28, HALF_EVEN) C#-decimal parity on a non-terminating division; "
+                        + "a plain double would yield 1.6666666666666667")
                 .isEqualTo("1.666666666666666666666666667");
     }
 
@@ -171,9 +142,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(compute(flight)).isEmpty();
     }
 
-    // Tier gap: the only tier covers (600, 1200]; a 1500s flight starts in (1200, 1500],
-    // matches no tier, and the loop breaks on the first pass with the remainder silently
-    // unbilled (legacy warn-only quirk, reproduced bit-exact).
     @Test
     void flightTimeTierGap_leavesRemainderSilentlyUnbilled() {
         UUID flight = glider(seconds(1500), (short) 1);
@@ -182,9 +150,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(compute(flight)).isEmpty();
     }
 
-    // EngineTime tiered loop: 1800s of engine running time, two tiers (min=600 + min=0)
-    // billed in minutes -> [ENG-HI 20 min, ENG-LO 10 min]; same decrement semantics as
-    // FlightTime. A null engine counter (no engine times seeded) -> the loop never runs.
     @Test
     void engineTimeTiered_billsPerTier_andNullCounterEmitsNone() {
         UUID withEngine = gliderWithEngineCounter(seconds(1500), 0L, 1800L);
@@ -200,13 +165,11 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(withEngineItems.get(1).quantity()).isEqualByComparingTo(new BigDecimal("10"));
 
         UUID noEngine = glider(seconds(1500), (short) 1);
-        assertThat(compute(noEngine)).isEmpty();
+        assertThat(compute(noEngine))
+                .as("a flight with no engine counter never enters the tier loop")
+                .isEmpty();
     }
 
-    // LandingTax single pass: quantity = nrOfLdgs, one line; NoLandingTax(20) runs first
-    // and, on a glider-suppressing filter, forces the glider's landing-tax line off. Seed
-    // both a NoLandingTax(forGlider) filter and a LandingTax filter -> the suppression
-    // wins, zero items.
     @Test
     void landingTax_billsNrOfLdgs_butNoLandingTaxSuppressesTheGliderLine() {
         UUID taxed = glider(seconds(1500), (short) 3);
@@ -219,10 +182,11 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
 
         UUID suppressed = glider(seconds(1500), (short) 3);
         noLandingTaxForGlider();
-        assertThat(compute(suppressed)).isEmpty();
+        assertThat(compute(suppressed))
+                .as("the NoLandingTax filter runs first and forces the glider's landing-tax line off")
+                .isEmpty();
     }
 
-    // StartTax single pass: quantity = 1 (one start), in START_OR_FLIGHT units.
     @Test
     void startTax_emitsOneStartUnit() {
         UUID flight = glider(seconds(1500), (short) 1);
@@ -235,9 +199,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(items.get(0).unitType()).isEqualTo("Start");
     }
 
-    // InstructorFee always builds a NEW line (no by-article coalescing): two matching
-    // type-40 filters with the SAME article yield TWO lines. And a NoInstructorFee flight
-    // (cost-balance-type 4) bills 0 quantity (the duration is still computed).
     @Test
     void instructorFee_alwaysNewLine_andZeroOnNoInstructorFee() {
         UUID flight = gliderWithCostBalance(seconds(1800), (short) 1, COST_BALANCE_NO_INSTRUCTOR_FEE);
@@ -252,7 +213,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
                 assertThat(item.quantity()).isEqualByComparingTo(BigDecimal.ZERO));
     }
 
-    // AdditionalFuelFee single pass: a fuel-surcharge line in minutes (duration-derived).
     @Test
     void additionalFuelFee_emitsLine() {
         UUID flight = glider(seconds(1800), (short) 1);
@@ -265,7 +225,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(items.get(0).quantity()).isEqualByComparingTo(new BigDecimal("30"));
     }
 
-    // VsfFee single pass: quantity = nrOfLdgs, one line in landing units.
     @Test
     void vsfFee_billsNrOfLdgs() {
         UUID flight = glider(seconds(1500), (short) 2);
@@ -277,8 +236,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(items.get(0).quantity()).isEqualByComparingTo(BigDecimal.valueOf(2));
     }
 
-    // IgnoreFlight(5) short-circuits to an empty delivery even though a line filter would
-    // otherwise emit — proving the do-not-invoice path, not merely "no rules".
     @Test
     void ignoreFlight_shortCircuitsToEmptyDelivery() {
         UUID flight = glider(seconds(1500), (short) 1);
@@ -288,16 +245,15 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         RuleBasedDeliveryDetails result =
                 TenantTestContext.runAs(club, () -> engine.computeForFlight(flight));
         assertThat(result.isDoNotInvoiceFlight()).isTrue();
-        assertThat(result.deliveryItems()).isEmpty();
+        assertThat(result.deliveryItems())
+                .as("a line filter that would otherwise emit is seeded, so an empty delivery proves "
+                        + "the do-not-invoice short-circuit rather than an absence of rules")
+                .isEmpty();
     }
 
-    // Recipient(10) first-match-wins: two recipient filters both match; the engine sets
-    // the recipient from the FIRST (sort_indicator, id order) and ignores the second.
     @Test
     void recipient_firstMatchWins() {
         UUID flight = glider(seconds(1500), (short) 1);
-        // The recipient target resolves the filter's member number to a club member;
-        // seed both so neither filter has a null target (legacy throws on null).
         seedMember("First", "Recipient", "REC-1");
         seedMember("Second", "Recipient", "REC-2");
         UUID first = recipient("REC-1", "First Recipient");
@@ -310,11 +266,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         assertThat(result.getMatchedFilterIds()).contains(first);
     }
 
-    // glider->tow recursion: a glider with a tow flight; one FlightTime filter (glider-
-    // scoped + extend-to-tow) matches BOTH. The tow's line rolls into the SAME accumulator
-    // and is positioned BEFORE the glider's later lines (the legacy placement quirk). Here
-    // both flights bill the same article, so the tow's minutes COALESCE into the glider's
-    // line (glider 1500s=25min + tow 1200s=20min = 45min on one line).
     @Test
     void gliderTowRecursion_towLineRollsIntoTheGliderDelivery() {
         UUID tow = tow(seconds(1200), (short) 1);
@@ -324,16 +275,16 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         List<DeliveryItemDetails> items = compute(glider);
         assertThat(items).hasSize(1);
         assertThat(items.get(0).articleNumber()).isEqualTo("ROLL");
-        assertThat(items.get(0).quantity()).isEqualByComparingTo(new BigDecimal("45"));
+        assertThat(items.get(0).quantity())
+                .as("the tow rolls into the same-article glider line: 1500s (25 min) + 1200s (20 min)")
+                .isEqualByComparingTo(new BigDecimal("45"));
     }
 
-    // -- engine invocation ------------------------------------------------------
 
     private List<DeliveryItemDetails> compute(UUID flightId) {
         return TenantTestContext.runAs(club, () -> engine.computeForFlight(flightId)).deliveryItems();
     }
 
-    // -- filter seeding (production-create paths) -------------------------------
 
     private void billGlider(UUID typeId, int legacyType, UUID unitTypeId, String article,
                             String lineText, @Nullable Integer minSeconds, @Nullable Integer maxSeconds) {
@@ -403,9 +354,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
         return new EngineWindow(min, max);
     }
 
-    // A glider-scoped filter config: every facet useAllExcept + empty -> no condition;
-    // optional flight-time / engine-time windows; extend-to-tow when towing recursion is
-    // exercised. The no-landing-tax-for-glider flag is layered on via withNoLandingTaxForGlider.
     private static FilterConfig gliderConfig(boolean isTow, @Nullable Integer minFlightSeconds,
                                              @Nullable Integer maxFlightSeconds,
                                              @Nullable Integer minEngineSeconds,
@@ -424,7 +372,6 @@ class AccountingDeliveryEngineCorpusIT extends PostgresIntegrationTest {
                 null, null);
     }
 
-    // -- flight seeding (production-create paths) -------------------------------
 
     private record Times(@Nullable Instant start, @Nullable Instant ldg) {}
 

@@ -16,22 +16,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Hourly sweep that flips expired {@code awaiting_upload} rows to
- * {@code expired} and wipes their wrapped private keys. Idempotent — the
- * predicate ({@code state = AWAITING_UPLOAD AND expires_at < now()}) is
- * the source of truth, so a re-run on the same tick simply finds an
- * empty result set.
- *
- * <p>Runs unscoped via {@link UnscopedScheduledJob} — the row has no
- * Deployment / Club context (signup precedes tenancy), so the per-
- * Deployment iteration {@code LifecycleStateFilter} performs is the
- * wrong shape.
- *
- * <p>Audit + funnel emissions fire one row per expired upload. The audit
- * actor is the system (no security context on the scheduler thread —
- * {@code ActorResolver} surfaces {@code system_actor=true}).
- */
 @Component
 public class MigrationHandshakeExpiryJob {
 
@@ -59,7 +43,6 @@ public class MigrationHandshakeExpiryJob {
         runOnce();
     }
 
-    /** Test-visible alias for the scheduled trigger. */
     @Transactional
     public int runOnce() {
         List<MigrationUpload> expired = repository.findExpired(clock.instant());

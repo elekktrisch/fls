@@ -23,7 +23,6 @@ export function actionLabel(action: string | undefined): string {
   return ACTION_LABELS[action] ?? action;
 }
 
-/** Slate tint per action so the forensic list scans by mutation kind at a glance. */
 export function actionBadgeClass(action: string | undefined): string {
   switch (action) {
     case AuditEventRowAction.CREATE:

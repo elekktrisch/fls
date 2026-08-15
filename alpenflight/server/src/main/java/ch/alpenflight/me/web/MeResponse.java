@@ -9,16 +9,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Wire shape for {@code GET /api/v1/me}. Identifiers carry their ADR 0019
- * external prefixes: {@code personId} as {@code pn-<uuid>} (matches
- * {@code FlightCrewItem.personId}, so the SPA compares {@code me.personId}
- * to {@code crew[].personId} directly and passes it into
- * {@code GET /api/v1/flights?personId=pn-<uuid>} without string-munging);
- * {@code clubId} as {@code clb-<uuid>} (matches {@code ClubDtos}). {@code id}
- * stays a raw UUID — no external-id form for the {@code user} row yet
- * (S-052 introduces one).
- */
 @Schema(description = "Authenticated-principal projection.")
 @JsonInclude(JsonInclude.Include.ALWAYS)
 record MeResponse(

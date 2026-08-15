@@ -48,7 +48,6 @@ describe('slugAvailable', () => {
       entities: () => entities,
       currentId: () => entities[0]!.id,
     });
-    // Editing the row that already owns 'alpha' should NOT flag it as duplicate.
     const ctl = new FormControl('alpha');
     expect(validator(ctl)).toBeNull();
   });
@@ -90,8 +89,6 @@ describe('emailRecipientList', () => {
   });
 
   it('rejects a migrated free-text value that was never an address', () => {
-    // T-14 ports legacy operator-email values verbatim, so the edit form is
-    // where an unparseable one has to surface instead of 400-ing on save.
     expect(validate('bitte Adresse eintragen')).toEqual({ email: true });
   });
 });

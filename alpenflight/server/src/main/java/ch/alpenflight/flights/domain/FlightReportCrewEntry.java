@@ -13,22 +13,6 @@ import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal crew entry under {@link FlightReportRow} — one live
- * {@code (personId, flightCrewTypeId)} pair of the projected flight. Managed
- * only via {@link FlightReportRow}'s projection methods; never persisted
- * standalone. Serves the report's person filter and person-role summary
- * flags at query time (RM-3).
- *
- * <p>Composite PK {@code (flight_id, person_id, flight_crew_type_id)} —
- * identity IS the content; the projector reconciles by this key.
- *
- * <p>{@code operating_club_id} is a plain copied column, NOT {@code @TenantId}
- * (FlightCrew / PlanningDayAssignment child precedent): the parent row carries
- * the structural discriminator, and the value here is supplied by the
- * projector from the same resolver Hibernate stamps the parent with — keeping
- * this child out of the S-024 leakage-sweep roster (it has no repository).
- */
 @Entity
 @Table(name = "t_flight_report_crew")
 @IdClass(FlightReportCrewEntry.Pk.class)
@@ -37,7 +21,7 @@ public class FlightReportCrewEntry {
     @Id
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "flight_id", nullable = false)
-    @SuppressWarnings("UnusedVariable") // JPA mappedBy target + derived id.
+    @SuppressWarnings("UnusedVariable")
     private @Nullable FlightReportRow row;
 
     @Id
@@ -52,7 +36,6 @@ public class FlightReportCrewEntry {
     private UUID operatingClubId = new UUID(0L, 0L);
 
     protected FlightReportCrewEntry() {
-        // JPA.
     }
 
     FlightReportCrewEntry(FlightReportRow row,
@@ -89,7 +72,6 @@ public class FlightReportCrewEntry {
         return operatingClubId;
     }
 
-    /** Composite-PK class (JPA {@code @IdClass}; {@code row} = parent's id). */
     public static final class Pk implements Serializable {
 
         private static final long serialVersionUID = 1L;
@@ -99,7 +81,6 @@ public class FlightReportCrewEntry {
         private @Nullable UUID flightCrewTypeId;
 
         public Pk() {
-            // JPA.
         }
 
         public Pk(UUID row, UUID personId, UUID flightCrewTypeId) {

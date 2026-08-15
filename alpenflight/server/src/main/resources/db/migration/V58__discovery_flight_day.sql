@@ -1,15 +1,3 @@
--- Bookable days a club offers discovery flights on. Replaces the legacy
--- per-club settings row that held a JSON array of ISO datetimes; AlpenFlight
--- has no settings table by design, so the days become club-scoped rows.
---
--- Structural only (ADR 0022 directive 2): PK, the club FK, the tenant
--- discriminator, the identity-bearing partial UNIQUE. "A past day is not
--- bookable" and "a day may not be scheduled into the past" are aggregate
--- methods, not CHECKs.
---
--- DATE, not TIMESTAMPTZ: the legacy value carried a time-of-day that nothing
--- ever read (the booked reservation is all-day), so storing an instant would
--- invent a timezone question the domain does not have.
 
 CREATE TABLE t_discovery_flight_day (
     id                  UUID          NOT NULL PRIMARY KEY,
@@ -25,10 +13,6 @@ CREATE TABLE t_discovery_flight_day (
         FOREIGN KEY (club_id) REFERENCES t_club (id) ON DELETE RESTRICT
 );
 
--- Identity-bearing: one live entry per (club, date) — a second row for the same
--- day would render as a duplicate option in the public day picker. Partial, so a
--- club can withdraw a day and re-publish it. Also serves the public read's
--- (club_id, event_date >= today) scan.
 CREATE UNIQUE INDEX ux_discovery_flight_day_club_date
     ON t_discovery_flight_day (club_id, event_date)
     WHERE deleted_on IS NULL;

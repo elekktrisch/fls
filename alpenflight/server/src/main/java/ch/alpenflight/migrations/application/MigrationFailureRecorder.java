@@ -19,14 +19,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Records ingest failure trail in a fresh transaction so it survives the
- * main {@code ingestInTransaction} rollback. Lives outside
- * {@link MigrationBundleIngestService} because Spring AOP cannot
- * intercept self-invocation — calling {@code applyFailure} via {@code this}
- * inside the same bean bypasses the {@link Propagation#REQUIRES_NEW}
- * boundary, and the failure writes ride the same doomed transaction.
- */
 @Component
 public class MigrationFailureRecorder {
 

@@ -19,30 +19,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/**
- * S-024's native-SQL escape-hatch gate. Pure JUnit — no Spring, no Docker.
- * Two responsibilities:
- *
- * <ol>
- *   <li><strong>Caller scan.</strong> Text-grep
- *       {@code alpenflight/server/src/main/java/**} for native-SQL call
- *       sites ({@code @Query(nativeQuery = true)},
- *       {@code createNativeQuery(}, {@code JdbcTemplate.*query},
- *       {@code NamedParameterJdbcTemplate.*query}). For each hit, scan the
- *       enclosing string literals for any tenant-scoped table name
- *       (derived from {@link TenantScopedEntityCatalog#resolveTableName}).
- *       A hit against a tenant-scoped table that is not listed in
- *       {@code native-sql-register.md}'s allow-list fails the build.</li>
- *   <li><strong>Register hygiene.</strong> Every entry in the register has
- *       a parseable {@code Expires: YYYY-MM-DD}; entries past today's date
- *       fail the build (not warn — a CI warning gets scrolled past, and
- *       renewal is a 1-line PR).</li>
- * </ol>
- *
- * <p>Today the register is empty: any native SQL hit fails immediately.
- * Promote to a JavaParser-based AST if comment / log-string false-positives
- * appear in the future — the text-grep is intentionally conservative.
- */
 class NativeSqlRegisterTest {
 
     private static final Pattern NATIVE_CALL_PATTERN = Pattern.compile(
@@ -50,12 +26,8 @@ class NativeSqlRegisterTest {
                     + "JdbcTemplate\\b|NamedParameterJdbcTemplate\\b");
 
     private static final Pattern REGISTER_ENTRY_HEADER = Pattern.compile("^###\\s+`([^`]+)`");
-    // Field-name group allows hyphens — needed for "Tenant-scoped tables touched"
-    // (the field name documented in the template + parser switch lower-case key).
-    // Boyscout fix to S-024's pattern.
     private static final Pattern REGISTER_FIELD = Pattern.compile(
             "^-\\s+\\*\\*([A-Za-z][A-Za-z\\- ]*?)(?:\\:)?\\*\\*\\s*:?\\s*(.*?)$");
-    /** Java string literal OR text block; group(1) holds the body in either form. */
     private static final Pattern STRING_LITERAL = Pattern.compile(
             "\"\"\"([\\s\\S]*?)\"\"\"|\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"");
 
@@ -74,8 +46,10 @@ class NativeSqlRegisterTest {
             String relPath = relativize(srcMain, javaFile);
             Matcher lit = STRING_LITERAL.matcher(body);
             while (lit.find()) {
-                String literal = lit.group(1) != null ? lit.group(1) : lit.group(2);
-                String sql = literal.toLowerCase(Locale.ROOT);
+                String textBlockBody = lit.group(1);
+                String quotedBody = lit.group(2);
+                String sql = (textBlockBody != null ? textBlockBody : quotedBody)
+                        .toLowerCase(Locale.ROOT);
                 for (String table : tenantScopedTables) {
                     if (!containsTableReference(sql, table)) {
                         continue;
@@ -123,11 +97,6 @@ class NativeSqlRegisterTest {
         }
     }
 
-    /**
-     * The whole word check would catch the table name appearing as a column
-     * or alias; require an adjacent SQL keyword (FROM / JOIN / INTO / UPDATE /
-     * DELETE FROM) to narrow to real table references.
-     */
     private static boolean containsTableReference(String sql, String tableLowercase) {
         Pattern p = Pattern.compile(
                 "\\b(from|join|into|update|delete\\s+from)\\s+\""
@@ -137,11 +106,6 @@ class NativeSqlRegisterTest {
         return p.matcher(sql).find();
     }
 
-    /**
-     * Returns relPath → set-of-tenant-scoped-tables-approved-for-that-file.
-     * A single register entry may list multiple tables; each is allow-listed
-     * for the entry's caller path.
-     */
     private static Map<String, Set<String>> parseRegisterAsCallerToTables() throws IOException {
         Map<String, Set<String>> out = new java.util.LinkedHashMap<>();
         for (RegisterEntry entry : parseRegisterEntries()) {
@@ -186,7 +150,7 @@ class NativeSqlRegisterTest {
                 case "caller" -> current.caller = value;
                 case "tenant-scoped tables touched" -> current.tables = value;
                 case "expires" -> current.expires = parseExpiryDate(value);
-                default -> { /* ignored fields */ }
+                default -> { }
             }
         }
         if (current != null) {
@@ -199,36 +163,28 @@ class NativeSqlRegisterTest {
         try {
             return LocalDate.parse(value);
         } catch (DateTimeParseException ex) {
-            // tolerate "YYYY-MM-DD (12 months from Approved by default)" comment
             int space = value.indexOf(' ');
-            String head = space > 0 ? value.substring(0, space) : value;
+            String dateBeforeAnyTrailingNote = space > 0 ? value.substring(0, space) : value;
             try {
-                return LocalDate.parse(head);
+                return LocalDate.parse(dateBeforeAnyTrailingNote);
             } catch (DateTimeParseException ignored) {
                 return null;
             }
         }
     }
 
-    /** Drop a leading `./`, normalize Windows separators. */
     private static String normalizeRelativePath(String path) {
         String normalized = path.replace('\\', '/');
         if (normalized.startsWith("./")) {
             normalized = normalized.substring(2);
         }
-        // Strip a leading `alpenflight/server/` if the register entry includes it
-        // — both forms refer to the same file.
         if (normalized.startsWith("alpenflight/server/")) {
             normalized = normalized.substring("alpenflight/server/".length());
         }
         return normalized;
     }
 
-    /** Project-relative path from server/ — matches the form a register entry uses. */
     private static String relativize(Path srcMainRoot, Path javaFile) {
-        // srcMainRoot is `<repo>/alpenflight/server/src/main/java`; relativize
-        // against server/ so the key is `src/main/java/...` — what a contributor
-        // copies from their IDE's file tree.
         Path serverRoot = srcMainRoot.getParent().getParent().getParent();
         return serverRoot.relativize(javaFile).toString().replace('\\', '/');
     }

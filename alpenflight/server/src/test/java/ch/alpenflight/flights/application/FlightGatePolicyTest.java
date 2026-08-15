@@ -12,86 +12,69 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Boundary unit test for {@link FlightGatePolicy}. The gate keys on
- * {@code flight_date} (lock) and {@code locked_at} (bill) — a deliberate
- * divergence from legacy's {@code CreatedOn} (J-2 parity decision,
- * operator 2026-06-03). Calendar-day comparison in the server's UTC zone:
- * "now" is anchored with {@link Clock#fixed} so the exact day boundary is
- * pinned.
- */
 class FlightGatePolicyTest {
 
     private static final UUID AIRCRAFT = UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1");
 
-    /** 2026-01-01T12:00:00Z — the e2e fixture anchor. */
-    private static final Instant NOW =
-            LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant();
-    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+    private static final LocalDate TODAY = LocalDate.of(2026, 1, 1);
+    private static final Clock CLOCK_AT_NOON_TODAY = Clock.fixed(
+            TODAY.atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant(), ZoneOffset.UTC);
+
+    private static final LocalDate NEWEST_LOCKABLE_FLIGHT_DAY = TODAY.minusDays(2);
+    private static final LocalDate ONE_DAY_TOO_RECENT_TO_LOCK = TODAY.minusDays(1);
+    private static final LocalDate NEWEST_BILLABLE_LOCK_DAY = TODAY.minusDays(3);
+    private static final LocalDate ONE_DAY_TOO_RECENT_TO_BILL = TODAY.minusDays(2);
 
     private final FlightGatePolicy policy = new FlightGatePolicy();
 
-    // ---- canLock: flight_date <= today - 2 days ------------------------
 
     @Test
-    void canLock_rejects_one_day_before_the_gate() {
-        // today = 2026-01-01, gate = today-2d = 2025-12-30.
-        // A flight flown 2025-12-31 (one day too recent) cannot lock.
-        Flight f = glider(LocalDate.of(2025, 12, 31));
-        assertThat(policy.canLock(f, CLOCK.instant())).isFalse();
+    void canLock_rejects_a_flight_flown_one_day_too_recently() {
+        Flight f = glider(ONE_DAY_TOO_RECENT_TO_LOCK);
+        assertThat(policy.canLock(f, CLOCK_AT_NOON_TODAY.instant())).isFalse();
     }
 
     @Test
-    void canLock_allows_exactly_on_the_calendar_day_boundary() {
-        // flight_date == today-2d (2025-12-30) is allowed (<=).
-        Flight f = glider(LocalDate.of(2025, 12, 30));
-        assertThat(policy.canLock(f, CLOCK.instant())).isTrue();
+    void canLock_allows_a_flight_flown_exactly_on_the_gate_day() {
+        Flight f = glider(NEWEST_LOCKABLE_FLIGHT_DAY);
+        assertThat(policy.canLock(f, CLOCK_AT_NOON_TODAY.instant())).isTrue();
     }
 
     @Test
     void canLock_allows_well_past_the_gate() {
-        Flight f = glider(LocalDate.of(2025, 12, 1));
-        assertThat(policy.canLock(f, CLOCK.instant())).isTrue();
+        Flight f = glider(TODAY.minusMonths(1));
+        assertThat(policy.canLock(f, CLOCK_AT_NOON_TODAY.instant())).isTrue();
     }
 
-    // ---- canBill: locked_at <= today - 3 days --------------------------
 
     @Test
-    void canBill_rejects_one_day_before_the_gate() {
-        // gate = today-3d = 2025-12-29. Locked 2025-12-30 (one day too
-        // recent) cannot bill — even an end-of-day instant stays on the
-        // 2025-12-30 calendar day.
-        Flight f = locked(LocalDate.of(2025, 12, 30));
-        assertThat(policy.canBill(f, CLOCK.instant())).isFalse();
+    void canBill_rejects_a_flight_locked_one_day_too_recently() {
+        Flight f = lockedAtNoonOf(ONE_DAY_TOO_RECENT_TO_BILL);
+        assertThat(policy.canBill(f, CLOCK_AT_NOON_TODAY.instant())).isFalse();
     }
 
     @Test
-    void canBill_allows_exactly_on_the_calendar_day_boundary() {
-        // locked_at on 2025-12-29 (today-3d) is allowed (<=), regardless of
-        // the time-of-day within that calendar day.
-        Flight f = locked(LocalDate.of(2025, 12, 29));
-        assertThat(policy.canBill(f, CLOCK.instant())).isTrue();
+    void canBill_allows_a_flight_locked_at_any_time_on_the_gate_day() {
+        Flight f = lockedAtNoonOf(NEWEST_BILLABLE_LOCK_DAY);
+        assertThat(policy.canBill(f, CLOCK_AT_NOON_TODAY.instant())).isTrue();
     }
 
     @Test
     void canBill_is_false_when_locked_at_is_unset() {
-        Flight f = glider(LocalDate.of(2025, 1, 1)); // never locked
-        assertThat(policy.canBill(f, CLOCK.instant())).isFalse();
+        Flight f = glider(TODAY.minusYears(1));
+        assertThat(policy.canBill(f, CLOCK_AT_NOON_TODAY.instant())).isFalse();
     }
 
     private static Flight glider(LocalDate flightDate) {
         return Flight.createGlider(AIRCRAFT, FlightProcessState.VALID.id(), ops(flightDate));
     }
 
-    /** A flight in LOCKED state whose {@code locked_at} day is {@code lockedDay}. */
-    private static Flight locked(LocalDate lockedDay) {
+    private static Flight lockedAtNoonOf(LocalDate lockedDay) {
         Flight f = Flight.createGlider(AIRCRAFT, FlightProcessState.VALID.id(),
-                ops(LocalDate.of(2025, 1, 1)));
-        // Stamp via the transition path using a clock fixed on the noon of
-        // the desired locked day (proves the truncation-to-date).
-        Instant at = lockedDay.atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant();
+                ops(TODAY.minusYears(1)));
+        Instant noonOfLockedDay = lockedDay.atStartOfDay(ZoneOffset.UTC).plusHours(12).toInstant();
         f.transition(FlightProcessState.LOCKED,
-                ch.alpenflight.flights.domain.TransitionTrigger.LOCK_JOB, at);
+                ch.alpenflight.flights.domain.TransitionTrigger.LOCK_JOB, noonOfLockedDay);
         return f;
     }
 

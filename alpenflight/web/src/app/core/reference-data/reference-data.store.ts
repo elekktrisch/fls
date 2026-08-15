@@ -62,9 +62,7 @@ const initial: ReferenceDataState = {
   lastRefreshedAt: null,
 };
 
-// Reference rows are Flyway-managed and only change on schema migration —
-// the SPA can cache for a full day without seeing drift.
-const TTL_MS = 24 * 60 * 60 * 1000;
+const FLYWAY_MANAGED_CATALOGS_TTL_MS = 24 * 60 * 60 * 1000;
 
 function withId<T extends { id?: string }>(r: T, label: string): T & { id: string } {
   if (!r.id) {
@@ -139,7 +137,7 @@ export const ReferenceDataStore = signalStore(
       }),
       needsRefresh: computed(() => {
         const at = lastRefreshedAt();
-        return at === null || Date.now() - at > TTL_MS;
+        return at === null || Date.now() - at > FLYWAY_MANAGED_CATALOGS_TTL_MS;
       }),
     }),
   ),
@@ -156,11 +154,6 @@ export const ReferenceDataStore = signalStore(
       clear(): void {
         patchState(store, initial);
       },
-      /**
-       * Loads all catalogs in parallel. `catchError` per stream so one slow
-       * endpoint does not stall the whole bootstrap (S-006 canonical pattern).
-       * Idempotent: TTL-gated; consumers can call freely.
-       */
       loadAll: rxMethod<void>(
         pipe(
           tap(() => patchState(store, { isLoading: true, loadError: null })),

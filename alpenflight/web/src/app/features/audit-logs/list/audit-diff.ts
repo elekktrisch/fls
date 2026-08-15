@@ -20,7 +20,6 @@ function hasEntries(state: StateMap): boolean {
   return !!state && Object.keys(state).length > 0;
 }
 
-/** Stringify an arbitrary JSON scalar/object readably; absent keys render blank. */
 function render(value: unknown): string | undefined {
   if (value === undefined) return undefined;
   if (value === null) return 'null';
@@ -29,11 +28,6 @@ function render(value: unknown): string | undefined {
   return JSON.stringify(value);
 }
 
-/**
- * Shape the before/after payload for display: a field diff when both sides are
- * present, after-only for a create, before-only for a delete. `changed` marks
- * keys whose value differs across the two states (drives the highlight).
- */
 export function buildAuditDiff(row: Pick<AuditEventRow, 'beforeState' | 'afterState'>): AuditDiff {
   const before = row.beforeState as StateMap;
   const after = row.afterState as StateMap;

@@ -17,6 +17,275 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
+
+- **[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]** `MapperVsSchemaCompatibilityTest` has been **red since J-13**
+  (`f042781de`), not since this journey — T-14 proved it by stashing its own diff and re-running the test red
+  identically. `MapperVsSchemaCompatibilityTest.java:213`'s placeholder map is missing `${app_role_password}`,
+  which `V54__split_app_role_append_only_audit.sql:48` needs. One-line fix. Worth asking how it stayed red
+  across several journeys without anyone noticing. *(seam: that test's Flyway placeholder map)*
+- **[E2E-TSCONFIG-NODE10-REJECTED-BY-TS6]** `e2e/tsconfig.json:5` sets `moduleResolution: node10`, which
+  TypeScript 6 rejects as deprecated (TS5107), so `npx tsc -p e2e/tsconfig.json` cannot run at all on the
+  top-level suite. Pre-existing and unrelated to the sweep, but it means that suite has **no typecheck gate**
+  — alongside the finding that `angular.json`'s `lintFilePatterns` is `src/**` only, so `e2e/` has no lint gate
+  either. J-31's `--check` is currently the only automated guard covering that directory.
+  *(seam: `e2e/tsconfig.json` + an `e2e` lint/typecheck lane)*
+- **[INLINE-ANGULAR-TEMPLATES-ARE-NOT-TYPECHECKED]** A rename inside an inline `template:` literal compiles
+  clean and breaks at runtime — `tsc` never checks it. T-14 hit this on `CalendarDay.iso/key` and updated five
+  template sites by hand. This is a standing rename hazard for the whole `web/src` codebase, not a J-31 artifact;
+  worth a lint rule or a note in `web/CLAUDE.md` §4. *(seam: inline-template type checking)*
+
+## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
+
+- **[SCHEMA-DECISIONS-NOTE]** T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
+  other batch this one had **no rescue move**: an applied index/constraint cannot be renamed to carry its reason
+  (that needs `ALTER … RENAME TO` in a NEW migration — a schema change), and an applied migration's DDL must not
+  be edited. So the rationale below now lives only in git. **111 `COMMENT ON` DDL statements survive** (string
+  literals, untouchable by the stripper), so the column-level contracts they carry — e.g. the aircraft
+  ownership-exclusivity XOR on `t_aircraft.aircraft_owner_person_id` — are still in the DB catalog; everything
+  below is what was in `--` prose only. Proposal: one `docs/modernization/schema-decisions.md`, sourced from the
+  106 above-threshold entries reviewed at T-12, covering:
+  - **Partial-UNIQUE predicates and what each one's identity claim is.** `ux_location_legacy_guid_club` (V23:32) /
+    `ux_iop_legacy_guid_location` (V24:34) — one fan-out replica per (shared legacy row, club / parent replica);
+    re-ingest UPSERTs onto this index instead of colliding on the `id` PK (the J-0 23505); predicate excludes both
+    soft-deleted AND non-migrated (`legacy_guid IS NULL`) rows. `ux_deployment_owner_active` (V14:34) — sandbox +
+    deleting deliberately excluded (shared-fixed singleton; mid-cascade users may legitimately re-ingest).
+    `ux_migration_run_upload_active` (V20:31) and `ux_join_request_alive` (V49:31) — the uppercase state literal in
+    the predicate is load-bearing (`@Enumerated(STRING)` writes `name()`). `ux_pftc_transaction_current` (V46:58) —
+    structural backstop for the mapper's keep-first dedupe. V11 flight-type name + V7 location ICAO — active-only so
+    soft-delete-then-recreate-same-name works; V7 also retired the S-049 "null out icao_code on soft-delete"
+    workaround that had traded audit fidelity for it.
+  - **Tenant-FK constraint NAMES are a guard contract.** `LeakageSweepIT` reconstructs `fk_<t_-stripped-table>_<tenant-col>`
+    and pins its fail-closed write to that exact string. V32/V33/V41/V43/V44 exist solely to realign ad-hoc V4 names.
+    Renaming a tenant FK off that shape silently disarms the leakage guard for that aggregate — nothing states this now.
+  - **Deliberately absent CHECK constraints, with the Java owner that replaced each.** V3: 14 flight CHECKs →
+    Flight aggregate / TimeWindow / FlightDate / RunwayCode / CouponNumber VOs; aircraft + location + counter CHECKs →
+    their VOs. V4:239 `ck_arv_end_after_start` → `AircraftReservation.validateDuration()` **because the degenerate
+    lower==upper case yields an empty `tstzrange` that GiST silently misses** — the DB cannot catch it. V4: `EXCLUDE
+    USING gist` deliberately NOT applied (maintenance-vs-flight / multi-pilot / charter overlaps are legitimate).
+    V4:493 `delivery_item.total_amount` GENERATED removed, and the named future answer is a denormalised
+    `delivery.total_amount_chf` written by `Delivery.book()`, never a re-introduced GENERATED column. V13: air state
+    is computed, never stored (sacred cow). V38: read-model rows written by `FlightReportProjector` via `@DomainEvents`,
+    never triggers.
+  - **Columns nullable on purpose, and what NOT NULL would break.** V23/V24 `legacy_guid` (clean-seed + API rows have
+    no legacy origin). V25 `counter_unit_type.legacy_int_id` — LANDINGS/STARTS are AlpenFlight-canonical with no legacy
+    equivalent and fabricating a key would be a **false entry in the reversible id-map**; the UNIQUE still works because
+    Postgres treats NULLs as distinct. V15 `idempotency_key` UNIQUE-but-nullable (multiple NULLs allowed → no synthetic
+    backfill needed). V50 `club.logo_url` and V48 `join_code`'s DEFAULT — both shaped so the cutover CLUB reconcile
+    (`INSERT … ON CONFLICT (id) DO UPDATE`, `EntityStreamIngestor#buildInsertStatement`) leaves the provisioning-owned
+    column intact because the candidate tuple omits it. V53 `delivery_item.article_id` (a free-typed legacy
+    ArticleNumber must be KEPT with NULL, not 23503 the whole bundle). V21, V57, V9 `tenant_club_id`.
+  - **Backfill ordering + guards.** V7 add-nullable → backfill → SET NOT NULL → FK, with the backfill *defensive only*
+    (V3 seeds no locations, so a fresh DB hits zero rows). V10's owner→managing fallback to seed-club-1. V14's
+    `deployment_id` DEFAULT catches direct-JDBC test fixtures predating the column. **V54:29** — the whole app-role
+    split is guarded on the migrator holding CREATEROLE and NO-OPs with a NOTICE on this LAN dev cluster; roles are
+    cluster-global while Flyway history is per-DB, so every step must stay create-if-not-exists.
+  - **Index-shape debt — ALREADY COVERED, do not re-document.** V4:254 `ix_arv_location` carried a literal
+    `covers tombstones: deferred-perf-tuning S-108` marker. `alpenflight/server/CONVENTIONS.md:266-279` already
+    names all three tombstone-coverage reasons, points at each index by search string, and states outright that
+    renaming an applied index needs a new `ALTER INDEX … RENAME TO`. The three applied indexes still carry their
+    pre-convention names; the debt is the rename migration, not a missing note.
+  - **Immutability + forensic anchors.** "Never amend a shipped migration — ship V<n+1>" (V1/V2/V3/V4 headers) — the
+    exact rule this journey just paid for with a `flyway repair`. Canonical UUIDv7 seed literals: generator
+    `server/src/test/resources/scripts/GenerateCanonicalUuids.java`, ground truth `reference-seeds-canonical-uuids.json`,
+    "DO NOT regenerate after ship" (V42 continues the family at offset 18_000). `legacy_int_id … UNIQUE` retained
+    forever for the `ReferenceLookupResolver` point lookup (V22/V25 backfill the tables V2 missed). V18's forensic
+    triple, and its `legacy_orphan_actor_id` with **intentionally no FK to `t_user`** (ADR 0007 forbids the shadow).
+  - **Hard do-not-add fences.** V2's AUTH-ARTIFACTS block — never add `password_hash` / `refresh_token` / `mfa_secret`
+    / `lockout_enabled` / `email_confirmed` to `t_user`; Keycloak owns them, and a local `role`/`user_role` table would
+    be parallel truth. That block was a PR-review tripwire and is now gone. V3: `flight_aircraft_type_id` is SMALLINT
+    (1,2,4; 3 skipped) and deliberately not an FK — ~70 MB saved at ~5M rows. V4: `tstzrange` not `tsrange` because the
+    implicit `::timestamp` cast is session-TZ-dependent hence NOT IMMUTABLE and Postgres rejects it in a generation
+    expression; `reservation_range` is GENERATED and must never be inserted.
+  - **Dev-seed-in-prod posture** (V31/V34/V36 headers, the most-repeated block in the batch). V5 inserts seed-club-1
+    **unconditionally, no profile guard**, and Flyway runs one `classpath:db/migration` location across every profile —
+    so every dev seed lands in production too. It is inert there **only** because reads are `@TenantId`-filtered and
+    real tenants get distinct UUIDs; the guarantee is NOT a Flyway location fence and NOT "seed-club-1 is absent in
+    prod". Accepted cross-cutting debt with no other written home. Same block carries the **seed-band rule**: controller
+    ITs must scope pre-clean to `id::text NOT LIKE '019e30c3-%'` or they wipe the seeds (J-5 T-34 wiped V31), plus the
+    reasons behind V36's VALID process_state (NotProcessed leaked into the J-3 pending tile, 4→5), V34's LSPL-not-LSZW
+    ICAO, "HB-SEED", and V39/V45's relative-date pinning.
+  - **Tenancy classifications that no code states.** V46 PersonFlightTimeCredit is INDIRECTLY tenant-scoped (no
+    `club_id`; the repo joins the owning Person's PersonClub). V16 `t_migration_upload` is pre-tenant, so the
+    `@TenantId`-driven S-024 sweep does not touch it. V55/V56 + `t_deployment` / `t_migration_run` are platform tables
+    with deliberately no tenant column. V3/V4: Aircraft cross-tenant (2026-05-16 amendment), Flight tenant-scoped by
+    per-flight `operating_club_id` **not** denormalised from aircraft (charter case).
+  - **Security posture.** V54's INSERT,SELECT-only app-role grant on `t_mutation_audit_event` (and V9:76 flagging it as
+    the security-reviewed exception to the GRANT/REVOKE ban); V16's Tink AEAD with `uploadId` bound as `associatedData`;
+    V4's 9 frozen `recipient_*` columns per Swiss OR Art. 957a with DSAR exemption at `process_state_id >= 20`.
+  - **Supersession chains** (why V52 undid V4+V19's delivery-number model, why V53 dropped the never-wired counter, why
+    V47 dropped V2's email-template table, why V43's `ALTER TYPE` was safe, why V58 is DATE not TIMESTAMPTZ, why V56
+    ships ShedLock's table with `@EnableSchedulerLock` off). Recoverable from git, expensive to reconstruct.
+  *(seam: one new `docs/modernization/schema-decisions.md`; source = `.comment-strip/manifest/migrations-sql.jsonl`,
+  106 entries at score ≥ 8, all reviewed at T-12)*
+
+## Pending (filed by /do-ship J-31 T-11, 2026-08-15)
+
+- **[MONEY-PROOF-CAPTION-OVERCLAIMS]** `deliveries-write-parity.spec.ts`'s `[money-proof]` **gallery caption**
+  reads "asserting the actual balance == original − glider − tow", but the spec asserts
+  `drawdown > ONE_PASS_SECONDS` — an inequality, not the arithmetic. The caption is what the operator reads in
+  the proof gallery, so the gallery has been advertising a balance-equality proof that was never made, on an
+  accounting surface. Either assert the equality or correct the caption; a proof artifact must claim only what
+  it shows. *(seam: that spec's assertion + its `proofVideo` caption)*
+- **[SPEC-TITLES-OVERCLAIM — the AC is where two of them live]** Six spec titles claimed more than their
+  assertions and were retitled in-journey. Two were left alone because they mirror story ACs verbatim, which
+  means the **AC** over-claims: `[happy] time-range filter narrows to events in range` (J-13 AC line 15) only
+  proves that a future from-bound empties the list and clearing restores it; `[edge] non-admin cannot reach
+  /join-requests (403 / redirect)` (J-12b AC) proves the redirect and absent nav entries, never a 403 status.
+  Fix the ACs or the specs. Same family as [VACUOUS-NARROWING-ASSERTIONS]. *(seam: those two ACs + specs)*
+- **[REAL-IDP-SPECS-MUST-NOT-page.route]** The real-idp parity specs carried a header invariant — "NO mocking on
+  the happy + key-error paths; a `page.route` interception would defeat the seam" — enforced only by that prose.
+  It is now gone, and nothing forbids a future `page.route` in a real-idp spec, which would silently convert a
+  full-chain proof into a mocked one. This one **is** cheaply enforceable: an eslint rule banning `page.route`
+  under `e2e/tests/real-idp/`. *(seam: an eslint override for that directory)*
+- **[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]** `forms/validation-hardening.spec.ts:150-154` registers a persons
+  **detail** route first and a broad `**/api/v1/persons**` list glob after. Playwright is last-registered-wins
+  and the broad glob also matches `/api/v1/persons/{id}`, so the list array may be serving the detail GET. The
+  deleted comment asserted the opposite. Needs a human read — if it is shadowed, the spec is passing against the
+  wrong fixture. *(seam: that spec's route registration order)*
+
+## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
+
+- **[DEAD-BUT-WIRED-IMPERSONATION-INTERCEPTOR — needs a security decision]** `@AuditTargetTenant` has **zero
+  usages repo-wide**, yet `AuditTargetTenantInterceptor` **is wired onto `/api/v1/**`** by `TenancyWebMvcConfig`.
+  The comment the sweep deleted said there is no production caller (the S-049c impersonation surface was
+  withdrawn in S-159) and, verbatim, **"DO NOT WIRE WITHOUT SECURITY REVIEW"**. That warning now exists
+  nowhere in the code. Decide: delete the annotation + interceptor + config registration, or wire it
+  deliberately with the review the comment demanded. Related: `Tenants.runAs` has **no HTTP entry point** by
+  design — `TenantBypassGuardTest` guards the carrier, but nothing guards the *absence* of an impersonation
+  controller. *(seam: `@AuditTargetTenant` + `AuditTargetTenantInterceptor` + `TenancyWebMvcConfig`)*
+- **[CLUBSPEC-MUST-NOT-CARRY-DEPLOYMENT-ID]** `ClubSpec` deliberately has **no `deploymentId` component**: the
+  bundle-envelope mapper must strip any inbound `deployment_id`, or a crafted migration bundle smuggles a Club
+  into **another user's Deployment**. That was recorded only in a comment the sweep deleted, and it is an
+  invariant enforced by an *absence* — nothing fails if someone adds the field. Wants an arch/IT assertion that
+  `ClubSpec` carries no deployment-scoped component. *(seam: `ClubSpec` + the bundle-envelope mapper)*
+- **[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]** `KeycloakDeploymentDirectory.setUserAttribute` sends a single-key
+  `attributes` map on `PUT /users/{id}`, which Keycloak treats as a **full replace** — this repo's documented
+  partial-PUT footgun, where an attributes-only PUT also nulls email/firstName/lastName
+  ([[project_keycloak_partial_put_field_selective]]). Safe **today only** because freshly-provisioned users
+  carry no other attributes; the sibling `KeycloakAdminClient.writeClubIdAttribute` already does read-merge-write.
+  Make this one match. *(seam: `KeycloakDeploymentDirectoryAdapter.setUserAttribute`)*
+- **[LOST-INVARIANTS-NEED-GUARDS]** The comments this sweep could NOT convert into names were
+  disproportionately **warnings against plausible future changes** — each an invariant a well-meaning
+  refactor breaks *silently*, and for which a comment was already a weak guard. Give the load-bearing ones
+  an arch test or an IT so the machine holds them:
+  - **Three "deliberately NOT `@Transactional`" cases**, each of which someone will add for consistency:
+    `JoinRequestsService.latestForCaller` (Hibernate binds tenant at session-open, so a method-level tx pins
+    the session to `NO_TENANT` and the read inside `Tenants.runAs` misses);
+    `DailyFlightValidationJob.runForCurrentClub` (one bad flight must not poison the club's batch); and
+    `LifecycleTransitionAuditListener`'s plain `@EventListener` (the audit port already opens its own
+    fresh-tx listener; double-deferring pushes the row past the actor resolver's boundary).
+  - **`Tenants.runAs` must stay OUTSIDE the `TransactionTemplate`** in `FlightReportRebuildService` — same
+    session-open tenant binding.
+  - **`JoinRequestTxWriter` exists only** so the `@Transactional` boundary nests inside `Tenants.runAs`
+    (self-invocation would skip the proxy advice); inlining it looks like a simplification.
+  - **`FlightInitialState.resolveSeeds`** wraps a `TransactionTemplate` inside `@PostConstruct` because the
+    EntityManager needs a bound JDBC session — dropping the "redundant" wrapper breaks **boot**, not tests.
+  - **`AircraftRepository.flush()`** cannot be renamed (Spring Data binds `JpaRepository.flush()` by name),
+    so the reason has NO in-code trace at all: `save()` on a managed parent routes through `em.merge`, which
+    cascades by *copying* transient children, leaving the caller's child reference without its generated UUID.
+  - **`AuditEventDtos.AuditEventRow.beforeState`/`afterState` are `Map<String,Object>` not `String`** so
+    OpenAPI codegen emits free-form JSON objects; "simplifying" to `String` silently changes the generated
+    client contract.
+  - **`FlightsService.createFlight`** reads the operating club from `TenantContextCarrier`, not
+    `saved.getOperatingClubId()`, because the `@TenantId` discriminator is not reliably populated back onto
+    the in-memory entity post-save.
+  - **`HttpOgnDeviceDatabase`** must not inject `RestClient.Builder` — that passes `@SpringBootTest` and kills
+    the **boot jar** ([[project_test_classpath_hides_boot_failures]]). Partially rescued into a method name.
+  *(seam: arch tests / ITs for the above, in `server/src/test/java/ch/alpenflight/arch`)*
+- **[PACKAGE-INFO-DOMAIN-VOCABULARY-LOST]** The `package-info.java` files are now bare `@NullMarked` /
+  `@ApplicationModule` declarations. Layering stays ArchUnit-enforced and tenancy stays structural, but the
+  **domain vocabulary** went with them — notably the aircraft three-axis ownership model
+  (`managing_club_id` vs `owner_club_id` vs `aircraft_owner_person_id`) and the S-058 reversion of S-159 for
+  the charter case. That belongs in `docs/modernization/`, which is where this policy says rationale lives —
+  it just never got written there. *(seam: a short domain-vocabulary note under `docs/modernization/`)*
+- **[DEAD-ACTOR-RESOLVER-EVICT]** `audit/application/ActorResolver.java:50` `evict(String sub)` has **zero
+  callers** in `src/main`, `src/test` or e2e; the deleted comment claimed "Called by the user-deactivation
+  flow". Wire it into user deactivation or delete it. *(seam: `ActorResolver` + the deactivation flow)*
+
+
+
+- **[REQUEST-ID-NEVER-LOGGED]** `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
+  **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
+  **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
+  matched, which is presumably why nobody checked. One-character-class fix, but it changes log output, so it
+  did not ride a comment sweep. *(seam: `RequestIdFilter` MDC key ↔ `logback-spring.xml`)*
+- **[AUDIT-REDACTION-BINDS-FIELD-NAMES-AS-STRINGS]** `application.yml`'s `audit.redaction.entities.*.allow` /
+  `denyAll` lists **Java field names as strings**, matched at runtime via `Field.getName()` in `PiiRedactor`.
+  Renaming a field on any audited entity silently flips it to `[redacted]` in the audit trail — **no compile
+  check catches it**, and the symptom is missing audit data, not a red build. This blocked two otherwise-obvious
+  `Club` renames in T-10. Give it a pin: bind by a constant/enum the compiler can see, or add a startup guard
+  asserting every configured name resolves to a real field. *(seam: `PiiRedactor` ↔ `application.yml` redaction
+  config)*
+- **[SERVER-MAIN-SWEEP-NITS]** Four pre-existing nits the strip exposed, none touched (all would change
+  behaviour or a CI-verified artifact): delivery eligibility (`LOCKED` + billable type + `created_on <= today-3d`)
+  lives in `DeliveryCreationService.eligibleFlights` rather than on an aggregate, in tension with ADR 0022 §2;
+  `DeliveriesController`'s `@Tag(description = "Read-only delivery … viewer")` is stale — it also owns
+  create/book/delete, and it feeds the OpenAPI snapshot; `PiiRedactor.MAX_SERIALIZED_BYTES` is compared against
+  `json.length()` (chars, not bytes); `FlightReportRepository.ReportCriteria.tenantId` is populated and never
+  read (tenant scoping is structural via `@TenantId`) — the deleted comment was the only thing explaining why
+  that component looks unused. *(seam: those four files)*
+
+## Pending (filed by /do-ship J-31 T-09, 2026-08-15)
+
+- **[VACUOUS-NARROWING-ASSERTIONS]** Two tests were found asserting less than their names claimed, each held up
+  only by a comment the sweep deleted. `FlightsControllerIT.list_default_window_returns_recent_flights_only`
+  seeds **no old-dated row**, so "recent only" was never proven — renamed to
+  `list_without_explicit_window_includes_a_flight_dated_today` rather than gerrymandering the seed mid-sweep.
+  `MePersonControllerIT` carried a comment claiming the Person aggregate lower-cases email, but the PATCH input
+  is **already lower-case**, so nothing proves it; an `.as(…)` was deliberately NOT added because it would
+  assert a claim the test does not make. Both need an adversarial row / mixed-case payload to become real
+  ([[feedback_adversarial_seed_for_narrowing_assertions]]). *(seam: those two ITs' seeds)*
+- **[TENANT-ISOLATION-IT-PREFIX-COLLISION]** `FlightsTenantIsolationIT` and `FlightTypesTenantIsolationIT` share
+  the same club-name/club-key prefixes (`IT_FTI_` / `IT_FT`) — the ADR 0021 rule-1 collision that a deleted
+  `LocationsAuthorizationIT` comment existed to warn about. Pre-existing, not caused by the sweep; single-schema
+  external-PG runs are where it bites. Give each class its own ids on next touch. *(seam: those two ITs' club ids)*
+
+## Pending (filed by /do-ship J-31 T-08c, 2026-08-14)
+
+- **[TAILWIND-LAYER-VS-NGZORRO-ADR]** The sweep deleted the only written explanation of why `!text-white`
+  is needed at `reservations-calendar.page.ts:148-156` — Tailwind's layered utilities lose to ng-zorro's
+  **unlayered** reset, a bug the operator reported and which was fixed **twice**. The rule now survives only
+  as an undocumented idiom across **13 call sites**; ADR 0024 §11 does not state it. Rationale belongs in
+  `docs/modernization/`, not in code, so the durable home is a one-line addition to **ADR 0024 §11** — but
+  `/do-ship` does not auto-edit ADRs, so this needs the operator. Left undocumented, it gets fixed a third
+  time. *(seam: ADR 0024 §11 + the 13 `!text-white` call sites)*
+
+## Pending (filed by /do-ship J-31 T-08, 2026-08-14)
+
+- **[PROD-DENSITY-ATTR-MISSING]** `alpenflight/web/src/index.prod.html` never sets `data-density`, so the ~15
+  `body[data-density='comfortable']` rules in `styles.css` are **inert in production** while they apply in dev —
+  the shipped app is denser than the one anyone reviews. Found because the comment describing the density
+  system outlived the attribute it described. *(seam: `index.prod.html` + the density rules in `styles.css`)*
+- **[DEAD-VIRTUAL-SCROLL-INPUT]** `af-data-table.component.ts:74` exposes a `virtualScroll` input with **zero
+  consumers** — either wire it or delete it. *(seam: that component's public inputs)*
+
+## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
+
+- **[MANIFEST-TENANT-BYPASS-COUNT]** `ManifestTenantBypassAllowListTest.java:23` — the deleted comment named
+  **eleven** allow-listed tenant-bypass entries; the list actually holds **twelve**. Either the comment rotted
+  or an entry was added without the deliberation the allow-list exists to force. The open question is whether
+  **`AUDIT_LOG`** is a deliberate bypass. A tenant-bypass allow-list is exactly the kind of list where a
+  silently-grown entry is a tenancy leak, so this needs an answer, not a re-counted comment. *(seam: the
+  bypass allow-list + its test)*
+- **[MIGRATION-BUNDLE-DEAD-EDGES]** Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
+  `LEGACY_SYSTEM_USER_ID` is `public` with **zero references** (duplicate of the bindings GUID);
+  `migration-bundle/build.gradle.kts:51` carried an archunit-1.4.2-vs-Java-25 workaround whose rationale died
+  with its comment — the guard belongs in `ArchitectureTest` where it can fail loudly; and
+  `accounting/package-info.java` is now an **empty file** with no `@NullMarked`, unlike its sibling
+  `identity/package-info.java` — a nullness-annotation gap the comment was hiding. *(seam: those three files)*
+
+## Pending (filed by /do-ship J-31 T-05b, 2026-08-14)
+
+- **[PHANTOM-PASSWORD-GUARD]** A comment deleted from `alpenflight/auth/scripts/normalize-realm-export.sh`
+  asserted that "CI grep rejects any password not in this allow-set". **No such guard exists** — the only
+  realm-password check is `check-realm-shape.sh:124`, which asserts the *policy shape*, not the allow-set.
+  The comment documented a safety property nobody implemented, which is exactly the folklore this sweep
+  exists to kill; T-05b's replacement name asserts only what is actually enforced. Decide: implement the
+  allow-set grep in CI, or accept that dev-realm passwords are unguarded and say so. A claimed guard on a
+  credential seam needs the proving test, not prose ([[feedback_safety_claim_needs_negative_test]]).
+  *(seam: `check-realm-shape.sh` + the realm-export password fields)*
+
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
 - **[RESERVATIONS-EVICTED-BODY]** `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
@@ -33,8 +302,16 @@ stragglers each ceremony so the file shrinks.
   and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
   that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
   on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
-  redaction, and whether it belongs in the audit table at all), which is why this is filed for the operator rather than
-  fixed in-journey. *(seam: audit actor columns + the anonymous write path)*
+  redaction, and whether it belongs in the audit table at all), which is why this was filed for the operator rather than
+  fixed in-journey.
+  **ADJUDICATED (operator, /do-retro 2026-08-14) — build it as:** `actor_kind = ANONYMOUS_PUBLIC` (distinct from a
+  system/cron actor, `system_actor=false`), **plus the raw `client_ip`** recorded on anonymous public-registration
+  writes ONLY — never on authenticated ones. **Retention 90 days**: a scheduled job nulls `client_ip` on rows older
+  than that and **keeps the audit row** (redaction, not deletion — the trail survives, the personal data does not).
+  Redaction on request must be possible ahead of the window. Ships with a privacy-notice entry naming the purpose
+  (abuse investigation), the 90-day window, and the redaction path — the notice is part of the AC, not a follow-up.
+  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` is the intended tripwire and goes red.
+  *(seam: audit actor columns + the anonymous write path + a retention job)*
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
@@ -105,11 +382,6 @@ stragglers each ceremony so the file shrinks.
   to cut the workflow YAML (~4.5k→~2k) — the only still-pending half (the mock-suite sharding, real-idp shard,
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
-- **[COMMENT-STRIP] Self-explanatory code, why-only comments** — the pre-existing cross-journey narration carried
-  in `MapperLegacyBindings.java` and the real-idp `_helpers/fan-out-parity-fixture.ts` (its own burndown slot —
-  too big for a per-touch fold). The do-* skills enforce why-only going forward.
-  *(seam: those two files + per-touch elsewhere)*
-  [[feedback_self_explanatory_no_history_comments]]
 - **[HISTORY→GIT] Journey/story files contract-only.** Prune journey files to frontmatter + ACs + the
   task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
   + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +

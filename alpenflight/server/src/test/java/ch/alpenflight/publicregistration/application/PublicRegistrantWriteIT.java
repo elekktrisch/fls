@@ -29,30 +29,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * The registrant write both public flows share, driven through the production
- * intake so the {@code Tenants.runAs} window, the aggregate mutators and the
- * repository all take part. On trial:
- *
- * <ul>
- *   <li>the registrant Person + its PersonClub land in the club the slug named,
- *       carrying the contact fields legacy copies
- *       ({@code RegistrationService.cs:109-131});</li>
- *   <li><strong>both</strong> trainee markers move together — the person-level
- *       {@code has_glider_trainee_licence} licence AND the club-level
- *       {@code is_glider_trainee} role — true for discovery, false for scenic;</li>
- *   <li>the invoice Person exists only when the invoice address differs, is
- *       never a trainee, and carries the notification email as its private
- *       email ({@code :133-150});</li>
- *   <li>the registrant joins as a prospect: no member number, no member state,
- *       notifications off, inactive.</li>
- * </ul>
- *
- * <p>A member already exists in the target club throughout, so
- * {@code Person.joinClub}'s alive-membership dedupe is exercised on a populated
- * club rather than assumed: it keys on the (person, club) pair, so a stranger's
- * membership must neither collide with the registrant's nor be mutated by it.
- */
 class PublicRegistrantWriteIT extends PostgresIntegrationTest {
 
     private static final LocalDate DISCOVERY_DAY = LocalDate.of(2099, 6, 15);
@@ -105,12 +81,13 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         assertRegistrant(accepted, true);
         assertInvoiceRecipient(accepted);
 
-        // joinClub deduplicates per (person, club) pair: the stranger who was
-        // already a member of this club keeps exactly the membership the fixture
-        // gave them, and the registrant gets their own alongside it.
         withPerson(existingMemberId, person -> {
             PersonClub membership = onlyMembership(person);
-            assertThat(membership.getMemberNumber()).isEqualTo("M-1");
+            assertThat(membership.getMemberNumber())
+                    .as("joinClub dedupes on the (person, club) pair, so a stranger's membership "
+                            + "in the same club neither collides with the registrant's nor is "
+                            + "mutated by it")
+                    .isEqualTo("M-1");
             assertThat(membership.isActive()).isTrue();
         });
     }
@@ -153,12 +130,6 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         assertThat(countPersonsNamed("Bezahler")).isZero();
     }
 
-    /**
-     * The registrant both flows write, differing only in the trainee markers —
-     * the same expectations are asserted for discovery and scenic so a marker
-     * that stops tracking {@code PublicRegistrationKind.marksGliderTrainee()}
-     * cannot pass on one flow and fail on the other.
-     */
     private void assertRegistrant(Accepted accepted, boolean expectTrainee) {
         withPerson(accepted.registered().registrantPersonId(), person -> {
             assertThat(person.getFirstname()).isEqualTo("Rosa");
@@ -216,20 +187,11 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
                         "beat.bezahler@example.ch"));
     }
 
-/**
-     * The intake rejects a day the club never published, so every discovery
-     * case here needs the picker's day to genuinely exist.
-     */
     private void publishDiscoveryDay(LocalDate eventDate) {
         TenantTestContext.runAs(clubId, () ->
                 discoveryDays.save(DiscoveryFlightDay.schedule(eventDate, eventDate)));
     }
 
-    /**
-     * Reads a Person back inside a tenant window AND a transaction — the lazy
-     * {@code personClubs} collection is only reachable while the session is
-     * open, and only carries the tenant's rows while the carrier is set.
-     */
     private void withPerson(UUID personId, Consumer<Person> assertions) {
         TenantTestContext.runAs(clubId, () -> new TransactionTemplate(txManager).executeWithoutResult(
                 status -> assertions.accept(persons.findActiveById(personId).orElseThrow())));
@@ -245,11 +207,6 @@ class PublicRegistrantWriteIT extends PostgresIntegrationTest {
         return rows == null ? 0L : rows;
     }
 
-    /**
-     * Scoped to this test's club: {@code t_person} is cross-tenant and the
-     * fixture's teardown only reaches tenant-scoped tables, so a global count
-     * would also see registrants left by earlier runs and other suites.
-     */
     private long countPersonsNamed(String lastname) {
         Long rows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_person p JOIN t_person_club pc ON pc.person_id = p.id "

@@ -12,12 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global LocationType catalog. Rows
- * are Flyway-managed (V3 seed — 6 rows today); the API never writes here.
- * Authenticated users (any role) may read — the Locations edit form needs
- * the dropdown. LocationType admin UI is deferred per S-049 acceptance.
- */
 @RestController
 @RequestMapping(path = "/api/v1/location-types", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "LocationTypes", description = "Location-type reference catalog.")

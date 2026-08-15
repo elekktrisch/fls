@@ -1,6 +1,6 @@
 package ch.alpenflight.audit.web;
 
-import static ch.alpenflight.audit.web.AuditTestSupport.truncateForTenant;
+import static ch.alpenflight.audit.web.AuditTestSupport.preCleanAuditRowsThatOutliveTestRollback;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.security.JwtTestFixture;
@@ -25,12 +25,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Pins the {@link RequestAuditFilter} synthetic-failure contract. When a
- * mutating call returns 4xx or 5xx and no success-row was published by the
- * service layer, the filter emits exactly one {@code failed=true} row with
- * {@code http_status} populated.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -48,7 +42,7 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        truncateForTenant(jdbc, SYSADMIN_TENANT);
+        preCleanAuditRowsThatOutliveTestRollback(jdbc, SYSADMIN_TENANT);
         sysadminToken = jwts.mint(c -> c
                 .claim("clubId", SYSADMIN_TENANT.toString())
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
@@ -75,8 +69,9 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         Map<String, Object> row = failedRows.get(0);
         assertThat(row.get("action")).isEqualTo("CREATE");
         assertThat(row.get("target_entity_type")).isEqualTo("Club");
-        // pg JDBC maps SMALLINT to Integer in queryForList default mapping
-        assertThat(row.get("http_status")).isEqualTo(400);
+        assertThat(row.get("http_status"))
+                .as("http_status is SMALLINT, which queryForList maps to Integer")
+                .isEqualTo(400);
         assertThat(row.get("after_state")).isNull();
         assertThat(row.get("failure_reason")).isNotNull();
     }
@@ -113,8 +108,9 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
     @Test
     void get_request_emits_no_failure_row_even_on_404() {
         ResponseEntity<String> res = get("/api/v1/clubs/clb-00000000-0000-0000-0000-000000000000");
-        // 400 (malformed external form) or 404 — either way it's a GET so no audit.
-        assertThat(res.getStatusCode().is2xxSuccessful()).isFalse();
+        assertThat(res.getStatusCode().is2xxSuccessful())
+                .as("400 malformed-external-form or 404 — either way a GET, so no audit row")
+                .isFalse();
 
         long rows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
@@ -125,11 +121,6 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
 
     @Test
     void auth_failure_does_not_emit_mutation_event() {
-        // No Authorization header → Spring Security 401. Auth events are
-        // Actuator's surface (S-020 already feeds them via
-        // Authentication{Success,Failure}Event); the mutation-audit trail
-        // must not duplicate them. Story design pin under
-        // §"Auth events stay in Actuator".
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("name", "AuthFail");
         payload.put("slug", "auth-fail-" + suffix());
@@ -145,15 +136,12 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
                 String.class);
         assertThat(res.getStatusCode().value()).isIn(401, 403);
 
-        // No row landed on the sysadmin tenant — the filter recognised
-        // 401/403 as an auth surface and stayed out of the mutation trail.
-        // (setUp truncated this tenant; if a row appears it can only be
-        // from this request.)
-        long onSysadmin = jdbc.queryForObject(
+        long rowsSinceSetUpTruncatedThisTenant = jdbc.queryForObject(
                 "SELECT count(*) FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 Long.class, SYSADMIN_TENANT.toString());
-        assertThat(onSysadmin)
-                .as("Auth-failure 401/403 must NOT emit a row into mutation_audit_event")
+        assertThat(rowsSinceSetUpTruncatedThisTenant)
+                .as("auth-failure 401/403 must NOT emit a row into mutation_audit_event — auth "
+                        + "events are Actuator's surface and the mutation trail never duplicates them")
                 .isZero();
     }
 

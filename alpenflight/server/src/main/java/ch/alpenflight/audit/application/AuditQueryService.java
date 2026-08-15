@@ -13,19 +13,6 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Application-layer query surface for {@code t_mutation_audit_event}. Sits
- * between the {@code @RestController} and the
- * {@link MutationAuditEventRepository} port so the web layer stays thin
- * (presentation only) and the row → DTO translation is co-located with
- * the other audit-trail application services. Matches the
- * {@code web → service → port} layering convention the rest of the codebase
- * follows.
- *
- * <p>Reads pass through Hibernate's {@code @TenantId} discriminator on
- * the entity, so per-tenant scoping is structural — no per-query
- * predicate.
- */
 @Service
 public class AuditQueryService {
 
@@ -47,10 +34,6 @@ public class AuditQueryService {
                 query.pageSize(),
                 query.pageOffset());
         List<AuditEventRow> items = rows.stream().map(this::toRow).toList();
-        // Cursor-pagination proxy: if we got the full page back, *probably*
-        // more remain. The caller's next request may legitimately come back
-        // empty when total exactly matches pageSize — well-known tradeoff
-        // for skipping a separate count query.
         boolean hasMore = items.size() >= query.pageSize();
         Integer nextOffset = hasMore ? query.pageOffset() + items.size() : null;
         return new AuditEventPage(items, hasMore, nextOffset);
@@ -76,14 +59,6 @@ public class AuditQueryService {
                 e.getFailureReason());
     }
 
-    /**
-     * Parse the jsonb column into a property map. Returning a map (vs the
-     * raw string) means OpenAPI codegen types {@code beforeState}/
-     * {@code afterState} as free-form JSON objects, not literal strings —
-     * S-056 consumes them as structured payload. Malformed JSON downgrades
-     * to a sentinel map entry so a single bad row doesn't fail the whole
-     * list.
-     */
     private @Nullable Map<String, Object> parseJsonOrSentinel(@Nullable String json) {
         if (json == null) {
             return null;

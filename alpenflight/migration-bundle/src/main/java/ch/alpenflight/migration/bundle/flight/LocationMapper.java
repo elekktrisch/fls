@@ -14,43 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped masterdata per V7: legacy {@code Locations.LocationId} →
- * {@code t_location.id} with a {@code club_id} discriminator. Legacy has
- * no per-club Location ownership, so producer-side fan-out (S-139) emits
- * one bundle row per {@code (legacy Location, referencing Club)} pair —
- * the referencing-Club set is the union of {@code Flights.StartLocationId
- * / LdgLocationId}, {@code Clubs.HomebaseId}, and {@code Aircrafts.HomebaseId}
- * joined through the Aircraft's computed {@code managing_club_id}. The
- * producer is responsible for joining the fan-out partner Club into the
- * cursor; this mapper reads it as {@code ClubId}.
- *
- * <p>Fan-out keying (J-0b): {@code id} is derived per replica via
- * {@link Coercions#deriveFanOutId}{@code (legacy LocationId, legacy ClubId)} —
- * a distinct {@code club_id}-keyed PK per replica — while {@code legacy_guid}
- * stays the shared legacy {@code LocationId} (identical across replicas). The
- * producer emits a composite 3-column {@code legacy_id_map/LOCATION} pgcopy
- * ({@code (legacy_guid, club_id, id)}) so the ingest-side
- * {@code legacy_id_map_location} is composite-keyed {@code (legacy_guid,
- * club_id)} and a downstream FK resolves the referencer's OWN replica.
- * Aircraft.homebase_id's lowest-UUID fallback is out of scope here (J-1).
- *
- * <p>Outgoing structural FKs:
- * <ul>
- *   <li>{@code club_id} → CLUB (the tenant discriminator per V7).</li>
- *   <li>{@code country_id} → COUNTRY (system-global cross-tenant ref).</li>
- * </ul>
- * Lookup FKs to {@code t_location_type}, {@code t_elevation_unit_type},
- * {@code t_length_unit_type} are emitted as the synthetic
- * {@code new UUID(0, legacyIntId)} encoding and declared via
- * {@link #referenceLookups()}; the ingest pipeline resolves each to the real
- * Flyway-seed PK by joining the seed table's {@code legacy_int_id} column.
- * Those tables live outside the {@link EntityType} enum (no per-bundle id
- * map), so the resolve is structural against the seed itself.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class LocationMapper implements Mapper {
 
     static final String ID = "id";
@@ -104,12 +67,12 @@ public final class LocationMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB, EntityType.COUNTRY);
     }
 
@@ -126,15 +89,11 @@ public final class LocationMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         UUID legacyLocationId = UUID.fromString(source.getString("LocationId"));
-        UUID legacyClubId = UUID.fromString(source.getString("ClubId"));
-        // Fan-out (J-0b): one shared legacy Location referenced by N clubs lands
-        // as N rows, each with a distinct derived id keyed on the LEGACY club id
-        // (the only id stable producer↔referencer — ingest never sees it). The
-        // legacy_guid stays the shared LocationId across every replica.
+        UUID legacyFanOutPartnerClubId = UUID.fromString(source.getString("ClubId"));
         target.writeStringField(ID,
-                Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
+                Coercions.deriveFanOutId(legacyLocationId, legacyFanOutPartnerClubId).toString());
         target.writeStringField(LEGACY_GUID, legacyLocationId.toString());
-        target.writeStringField(CLUB_ID, legacyClubId.toString());
+        target.writeStringField(CLUB_ID, legacyFanOutPartnerClubId.toString());
         target.writeStringField(LOCATION_NAME, source.getString("LocationName"));
         Coercions.writeOptionalString(target, LOCATION_SHORT_NAME,
                 source.getString("LocationShortName"));
@@ -180,9 +139,6 @@ public final class LocationMapper implements Mapper {
     @Override
     public void readEntity(JsonNode source, PreparedStatement target) throws SQLException {
         int position = 1;
-        // Fan-out: id (the derived per-replica PK) and legacy_guid (the shared
-        // legacy LocationId) are SEPARATE destination columns per the J-0b
-        // architect decision — no longer the legacy_guid → id alias.
         target.setObject(position++, UUID.fromString(source.get(ID).asText()));
         target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
         target.setObject(position++, UUID.fromString(source.get(CLUB_ID).asText()));

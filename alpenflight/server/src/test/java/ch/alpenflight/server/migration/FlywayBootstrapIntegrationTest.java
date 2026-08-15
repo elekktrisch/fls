@@ -22,17 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * End-to-end Flyway bootstrap. Spins a Postgres 17 container via the docker
- * CLI (Testcontainers can't negotiate API ≥1.44 in this sandbox — see
- * {@link PostgresTestContainerLifecycle} JavaDoc), boots Spring Boot against
- * it, asserts {@code V1__baseline.sql} migrated and is recorded in
- * {@code flyway_schema_history}.
- *
- * <p>Adversarial cases (checksum drift, out-of-order detection, clean disabled)
- * are exercised via direct Flyway API to avoid mutating the test class's own
- * autoconfig.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
@@ -98,9 +87,6 @@ class FlywayBootstrapIntegrationTest {
 
     @Test
     void schema_history_records_every_versioned_migration() throws Exception {
-        // Flyway's own `flyway_schema_history` is the source-of-truth for
-        // "which migrations have run" — assert it has at least the
-        // baseline + V2..V<latest> rows with the SUCCESS flag set.
         try (var conn = dataSource.getConnection();
                 var stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(
@@ -128,8 +114,6 @@ class FlywayBootstrapIntegrationTest {
     void out_of_order_disabled_blocks_late_v0(@org.junit.jupiter.api.io.TempDir Path tmp) throws Exception {
         Path migrationsDir = tmp.resolve("db").resolve("migration");
         Files.createDirectories(migrationsDir);
-        // Existing V1 already applied to the shared container. Drop in a V0
-        // that should have come "before" V1 — out-of-order=false rejects it.
         Files.writeString(
                 migrationsDir.resolve("V0_5__earlier.sql"),
                 "CREATE TABLE _ooo_marker (id INT PRIMARY KEY);",
@@ -143,7 +127,6 @@ class FlywayBootstrapIntegrationTest {
                 .baselineOnMigrate(false)
                 .load();
 
-        // Validate detects the unapplied lower-version migration.
         assertThatThrownBy(adversarial::validate)
                 .isInstanceOf(FlywayValidateException.class);
     }
@@ -160,27 +143,23 @@ class FlywayBootstrapIntegrationTest {
         Path v1 = migrationsDir.resolve("V1__drift.sql");
         Files.writeString(v1, "CREATE TABLE drift_marker (id INT PRIMARY KEY);", StandardCharsets.UTF_8);
 
-        // Isolate from the shared container's flyway_schema_history by using a
-        // disposable schema. The container is shared across tests; a dedicated
-        // schema makes the adversarial migration's history independent.
-        String schema = "drift_" + System.nanoTime();
+        String disposableSchemaKeepingTheSharedHistoryUntouched = "drift_" + System.nanoTime();
         try (var conn = DriverManager.getConnection(
                 POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password());
                 var stmt = conn.createStatement()) {
-            stmt.execute("CREATE SCHEMA " + schema);
+            stmt.execute("CREATE SCHEMA " + disposableSchemaKeepingTheSharedHistoryUntouched);
         }
 
         Flyway firstRun = Flyway.configure()
                 .dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password())
                 .locations("filesystem:" + migrationsDir.toAbsolutePath())
-                .schemas(schema)
-                .defaultSchema(schema)
+                .schemas(disposableSchemaKeepingTheSharedHistoryUntouched)
+                .defaultSchema(disposableSchemaKeepingTheSharedHistoryUntouched)
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
                 .load();
         firstRun.migrate();
 
-        // Mutate V1 — append a comment line. Checksum changes.
         Files.writeString(
                 v1,
                 Files.readString(v1, StandardCharsets.UTF_8) + "\n-- drift induced by test\n",
@@ -189,8 +168,8 @@ class FlywayBootstrapIntegrationTest {
         Flyway secondRun = Flyway.configure()
                 .dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password())
                 .locations("filesystem:" + migrationsDir.toAbsolutePath())
-                .schemas(schema)
-                .defaultSchema(schema)
+                .schemas(disposableSchemaKeepingTheSharedHistoryUntouched)
+                .defaultSchema(disposableSchemaKeepingTheSharedHistoryUntouched)
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
                 .load();
@@ -201,8 +180,6 @@ class FlywayBootstrapIntegrationTest {
 
     @Test
     void v1_is_the_pending_migration_count_zero_after_boot() {
-        // info.pending() returns the migrations Flyway has NOT yet applied.
-        // After Spring Boot autoconfig ran migrate() at startup, this must be zero.
         assertThat(flyway.info().pending())
                 .as("Spring Boot autoconfig migrated V1 at startup; no pending migrations should remain")
                 .isEmpty();
@@ -211,11 +188,6 @@ class FlywayBootstrapIntegrationTest {
                 .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("1"));
     }
 
-    /**
-     * S-012 ships V<n>__identity_and_reference.sql with n >= 2. Relaxed comparator
-     * tolerates S-018 (shedlock) landing as V2 ahead of identity, in which case
-     * S-012's migration takes V3.
-     */
     @Test
     void current_version_at_least_2_after_s012() {
         assertThat(flyway.info().current().getVersion())
@@ -238,11 +210,6 @@ class FlywayBootstrapIntegrationTest {
         }
     }
 
-    /**
-     * S-013 ships V<n>__flights_aircraft_locations.sql with n >= 3. Relaxed
-     * comparator tolerates ordering shifts (e.g. S-018 ShedLock landing earlier
-     * could push S-013 to V4 / V5).
-     */
     @Test
     void current_version_at_least_S013_after_baseline() {
         assertThat(flyway.info().current().getVersion())
@@ -265,11 +232,6 @@ class FlywayBootstrapIntegrationTest {
         }
     }
 
-    /**
-     * S-014 ships V<n>__reservations_planning_accounting.sql with n >= 4 (chain
-     * on main is V1/V2/V3 before this story; S-018 ShedLock landing in between
-     * could push to V5).
-     */
     @Test
     void current_version_at_least_4_after_s014() {
         assertThat(flyway.info().current().getVersion())

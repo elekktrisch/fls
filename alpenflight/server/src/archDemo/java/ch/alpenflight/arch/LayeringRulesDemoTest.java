@@ -9,21 +9,6 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
 
-/**
- * Regression guard for {@link LayeringRulesTest}. Re-declares the same
- * rules and points them at the {@code archDemo} source set, which holds
- * three deliberate violations (one per rule). Each assertion expects the
- * rule to FAIL — if any rule silently passes here, someone weakened the
- * production rules in {@code LayeringRulesTest} and this regression
- * harness catches it.
- *
- * <p>Mirrors {@link ch.alpenflight.platform.id.FlsUuidV7Generator}'s
- * pattern of "intentionally bad input + assert failure" — see
- * {@code verifyNullAwayFailsOnViolation} for the established analog.
- *
- * <p>Run via {@code ./gradlew verifyArchUnitFailsOnViolation} — NOT part
- * of {@code check} / {@code build}; CI invokes it as a separate step.
- */
 class LayeringRulesDemoTest {
 
     private static final JavaClasses CLASSES =

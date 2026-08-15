@@ -26,20 +26,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * Full-chain resource-server verification — exercises the production
- * {@link org.springframework.security.web.SecurityFilterChain} against
- * synthesised tokens minted by {@link JwtTestFixture}. The fixture replaces
- * the production {@code JwtDecoder} bean with one that validates against a
- * test RSA key + the {@code http://test-issuer} issuer; everything else
- * (filter chain, validator chain, authentication converter) is identical
- * to the live config.
- *
- * <p>The {@code @WithMockUser}-style {@code .with(jwt())} shortcut used in
- * {@code ClubsAuthorizationTest} bypasses the {@code JwtDecoder} entirely;
- * this IT is the only place a misconfigured {@code JwtIssuerValidator} or a
- * weakened decoder would surface.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -65,13 +51,6 @@ class SecurityFilterChainIT {
     @Autowired JwtDecoder jwtDecoder;
     @Autowired ApplicationContext ctx;
 
-    // S-021 ripped out /api/v1/hello as a permitAll smoke endpoint. The
-    // resource-server chain is now exercised against /api/v1/clubs — token
-    // validation (signature / issuer / expiry / alg) happens BEFORE
-    // authority enforcement, so the 401 paths below are independent of
-    // whether the token carries SYSTEM_ADMINISTRATOR. The "valid token →
-    // 200" smoke is covered by clubAware_converter_maps_realm_roles_to_authorities
-    // below, which mints a token with the required role.
     @Test
     void protected_endpoint_anonymous_returns_401_with_bearer_challenge() throws Exception {
         mvc.perform(get("/api/v1/clubs"))
@@ -81,7 +60,7 @@ class SecurityFilterChainIT {
     }
 
     @Test
-    void expired_token_returns_401() throws Exception {
+    void expired_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mint(c -> c
                 .issueTime(Date.from(Instant.now().minusSeconds(120)))
                 .expirationTime(Date.from(Instant.now().minusSeconds(60))));
@@ -90,14 +69,14 @@ class SecurityFilterChainIT {
     }
 
     @Test
-    void wrong_issuer_token_returns_401() throws Exception {
+    void wrong_issuer_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mint(c -> c.issuer("http://other-issuer"));
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void alg_none_token_returns_401() throws Exception {
+    void alg_none_token_returns_401_at_token_validation() throws Exception {
         String token = jwts.mintWithoutSignature(c -> { });
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());

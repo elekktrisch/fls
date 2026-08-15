@@ -37,12 +37,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * {@code GET /api/v1/flights?personId={uuid}} — S-165 dashboard contract.
- * Filters list rows to flights where a non-deleted {@code flight_crew} row
- * carries the supplied {@code person_id}. {@code @TenantId} on Flight stays
- * authoritative — cross-tenant person ids match nothing rather than 403.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -108,10 +102,6 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
     void list_withPersonIdFilter_includesFlightsInAnyNonDeletedCrewRole() {
         UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
         String pilotExt = PersonId.of(pilot).toExternal();
-        // The AC says ANY non-deleted crew role qualifies. Seed two flights
-        // with the same person in different roles (PIC + PASSENGER); both
-        // must surface — proves the SQL EXISTS clause carries no
-        // `flightCrewTypeId` predicate.
         String picFlight = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
         String paxFlight = createFlightWithCrew(pilotExt, PASSENGER.toString(), "2026-05-02");
 
@@ -119,16 +109,14 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                 "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
 
-        assertThat(extractIds(items)).contains(picFlight, paxFlight);
+        assertThat(extractIds(items))
+                .as("Both crew roles surface — the EXISTS clause carries no "
+                        + "flightCrewTypeId predicate")
+                .contains(picFlight, paxFlight);
     }
 
     @Test
     void list_withPersonIdFilter_includesFlightsInTerminalProcessStates() {
-        // AC: "Includes flights in any process state (NotProcessed / Valid /
-        // Invalid / Locked / DeliveryBooked / ExcludedFromDeliveryProcess) —
-        // only `deleted_on IS NULL` filtered out." Force the seeded flight
-        // into a terminal state via JDBC (public create only stamps
-        // NOT_PROCESSED) and confirm it still surfaces under the filter.
         UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
         String pilotExt = PersonId.of(pilot).toExternal();
         String flightId = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
@@ -165,8 +153,6 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
 
     @Test
     void list_withPersonIdFilter_respectsTenantScopeOnFlight() {
-        // A person id from another tenant matches nothing. No 403 — the IDOR
-        // contract is "404 / empty", not "leaks existence via status code".
         UUID foreignClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c1");
         UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
         UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
@@ -200,14 +186,11 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
 
     @Test
     void list_withPersonIdFilter_limitOne_returnsMostRecentByFlightDateThenStartThenCreated() {
-        // AC sort: flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC.
-        // Two flights share the latest flight_date — the one with the LATER
-        // start_date_time wins. A third flight on an earlier date is dropped
-        // by the limit=1.
         UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
         String pilotExt = PersonId.of(pilot).toExternal();
         createFlightWithPicAndStart(pilotExt, "2026-05-09", "2026-05-09T07:00:00Z");
-        String winner = createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T08:00:00Z");
+        String latestDateAndLatestStartTime =
+                createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T08:00:00Z");
         createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T06:00:00Z");
 
         JsonNode items = readJson(get(
@@ -215,8 +198,9 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                         + "&limit=1")).get("items");
         assertThat(items).hasSize(1);
         assertThat(items.get(0).get("id").asText())
-                .as("limit=1 returns the most recent flight per the AC sort")
-                .isEqualTo(winner);
+                .as("limit=1 returns the most recent flight per the AC sort "
+                        + "(flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC)")
+                .isEqualTo(latestDateAndLatestStartTime);
     }
 
     private String createFlightWithPic(String personIdExternal, String flightDateIso) {

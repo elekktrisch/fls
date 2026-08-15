@@ -10,7 +10,6 @@ describe('revalidateTree', () => {
     const group = fb.group({
       name: fb.control<string | null>(null),
     });
-    // addValidators registers but does not run the rule — validity lags.
     group.controls.name.addValidators(Validators.required);
     expect(group.valid).toBe(true);
 

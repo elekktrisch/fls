@@ -11,15 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { SystemDashboardStore } from './system-dashboard.store';
 
-/**
- * Logic test for the sysadmin dashboard store (T-11): the `/me/system-dashboard`
- * fetch (cross-tenant totals), the loading/error states, and the session-clear.
- * Per the web testing posture (CLAUDE.md §8) this is a store/logic spec — the
- * tile DOM + the `start-tenant-enter` control are proven by the real-idp e2e
- * (`start-dashboard.spec.ts`, T-16). No SSE re-fetch: cross-tenant totals load
- * on init (the per-principal `flight.created` nudge is a per-tenant concern).
- */
-
 function meStub(totals: () => Observable<SystemDashboardResponse>): MeService {
   return {
     get2: ((options?: unknown) => {

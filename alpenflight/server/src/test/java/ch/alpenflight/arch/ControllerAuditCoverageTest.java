@@ -25,26 +25,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * S-027 coverage guard. Every {@code @RestController} method that handles
- * a mutating HTTP verb (POST/PUT/PATCH/DELETE) under {@code /api/v1/**}
- * must either:
- *
- * <ul>
- *   <li>transitively call {@link AuditTrail#record} or
- *       {@link AuditTrail#recordFailed}; OR</li>
- *   <li>carry {@link AuditedBy} on the method or the enclosing
- *       controller class — the escape for hand-off paths (async / lambda)
- *       whose call graph ArchUnit can't trace.</li>
- * </ul>
- *
- * <p>Caught at CI build time — a new mutating endpoint that forgets the
- * audit hookup fails this test instead of silently shipping audit gaps.
- *
- * <p>The walk is a bounded DFS over the production {@link JavaClass}
- * graph; stops at the first {@code AuditTrail.record*} hit or after
- * exhausting the method's reachable call set.
- */
 class ControllerAuditCoverageTest {
 
     private static final int MAX_DEPTH = 12;
@@ -75,9 +55,6 @@ class ControllerAuditCoverageTest {
                 || controllerMethod.getOwner().isAnnotatedWith(AuditedBy.class)) {
             return false;
         }
-        // Read-shaped POST (paged-list / search / lookup carrying its query in
-        // the body) legitimately emits no audit event — the @ReadOnlyQuery
-        // marker is the narrow exemption (NOT a way to silence a real mutation).
         if (controllerMethod.isAnnotatedWith(ReadOnlyQuery.class)) {
             return false;
         }
@@ -100,7 +77,7 @@ class ControllerAuditCoverageTest {
                 case POST, PUT, PATCH, DELETE -> {
                     return true;
                 }
-                default -> { /* GET / HEAD / OPTIONS / TRACE — not mutating. */ }
+                default -> { }
             }
         }
         return false;
@@ -123,7 +100,7 @@ class ControllerAuditCoverageTest {
                 if (AuditTrail.class.getName().equals(targetType)) {
                     return true;
                 }
-                if (!isReachableProductionMethod(targetType)) {
+                if (!isOwnProductionCodeSoTheWalkStaysBounded(targetType)) {
                     continue;
                 }
                 call.getTarget().resolveMember()
@@ -133,9 +110,7 @@ class ControllerAuditCoverageTest {
         return false;
     }
 
-    private boolean isReachableProductionMethod(String typeName) {
-        // Bound the walk to project code — chasing into Spring / Hibernate
-        // would blow up the search without changing the verdict.
+    private boolean isOwnProductionCodeSoTheWalkStaysBounded(String typeName) {
         return typeName.startsWith("ch.alpenflight.");
     }
 

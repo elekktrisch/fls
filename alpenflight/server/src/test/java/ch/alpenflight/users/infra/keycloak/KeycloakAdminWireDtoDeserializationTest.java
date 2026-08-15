@@ -13,52 +13,23 @@ import tools.jackson.databind.MapperFeature;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Guards the {@link KeycloakAdminClient} wire-DTOs against REAL Keycloak 26.5.7
- * response shapes when deserialised by a mapper configured exactly like the
- * production one (J-6b T-25).
- *
- * <p>Why this exists: the adapter is handed Spring Boot's auto-configured
- * {@code ObjectMapper}, which runs with
- * {@code spring.jackson.deserialization.fail-on-unknown-properties: true} and
- * {@code spring.jackson.mapper.accept-case-insensitive-properties: false}
- * (see {@code application.yml}). Keycloak's real role-mappings and user-list
- * responses are far richer than the {@code {id, name}} / {@code {id, username,
- * …}} projections these DTOs need.
- *
- * <p>The operator's #7 "Users menu 400" surfaced at the J-6b §4 gate as a 502:
- * {@code GET /api/v1/users} → {@code getRealmRoleMappings} → {@code readListOf}
- * threw {@code UnrecognizedPropertyException} on {@code composite} /
- * {@code clientRole} / {@code containerId} / {@code attributes}, which the
- * adapter mislabels "malformed JSON list for RealmRoleRef" → 502. T-15's IT
- * mocked the KC port so it never exercised the real role-mappings JSON.
- *
- * <p>Pinning {@code @JsonIgnoreProperties(ignoreUnknown = true)} on the wire
- * DTOs makes them independent of the global strict wire policy. These tests
- * fail (UnrecognizedPropertyException) without that annotation.
- */
 class KeycloakAdminWireDtoDeserializationTest {
 
-    /** Mirrors application.yml's two load-bearing deserialization flags. */
     private static final ObjectMapper PROD_LIKE_MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .disable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
             .build();
 
-    private static List<RealmRoleWire> readRoles(String body) {
+    private static List<RealmRoleWire> readRoles(String roleMappingsJson) {
         return PROD_LIKE_MAPPER.readValue(
-                body,
+                roleMappingsJson,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, RealmRoleWire.class));
     }
 
     @Test
     void parsesRealKeycloakRoleMappingsArrayWithRichFields() {
-        // Verbatim shape of
-        // GET /admin/realms/alpenflight/users/{id}/role-mappings/realm in
-        // Keycloak 26.5.7 — an ARRAY of full RoleRepresentation objects. This
-        // is the exact body that 502'd at the gate (run captured by T-24).
-        String body = """
+        String keycloak26RoleMappingsResponse = """
                 [
                   {
                     "id": "7d3f9c2a-1111-2222-3333-444455556666",
@@ -79,9 +50,11 @@ class KeycloakAdminWireDtoDeserializationTest {
                 ]
                 """;
 
-        List<RealmRoleWire> roles = readRoles(body);
+        List<RealmRoleWire> roles = readRoles(keycloak26RoleMappingsResponse);
 
-        assertThat(roles).hasSize(2);
+        assertThat(roles)
+                .as("the strict prod mapper must ignore the rich KC fields, not reject the body")
+                .hasSize(2);
         assertThat(roles.get(0).id())
                 .isEqualTo("7d3f9c2a-1111-2222-3333-444455556666");
         assertThat(roles.get(0).name()).isEqualTo("CLUB_ADMINISTRATOR");
@@ -93,16 +66,12 @@ class KeycloakAdminWireDtoDeserializationTest {
 
     @Test
     void parsesEmptyRoleMappingsArray() {
-        // A user with no realm roles mapped → KC returns [].
         assertThat(readRoles("[]")).isEmpty();
     }
 
     @Test
     void parsesRealKeycloakUserListWithRichFields() {
-        // GET /admin/realms/{realm}/users?q=clubId:... returns an ARRAY of
-        // verbose UserRepresentation objects (findUsersInClub). The fields
-        // below are the real KC 26.5.7 surface beyond the projection.
-        String body = """
+        String keycloak26UserListResponse = """
                 [
                   {
                     "id": "9d08ed9c-699a-4c26-9036-9f0bd378009d",
@@ -125,11 +94,13 @@ class KeycloakAdminWireDtoDeserializationTest {
                 """;
 
         List<UserWire> users = PROD_LIKE_MAPPER.readValue(
-                body,
+                keycloak26UserListResponse,
                 PROD_LIKE_MAPPER.getTypeFactory()
                         .constructCollectionType(List.class, UserWire.class));
 
-        assertThat(users).hasSize(1);
+        assertThat(users)
+                .as("the strict prod mapper must ignore the rich KC fields, not reject the body")
+                .hasSize(1);
         UserWire u = users.get(0);
         assertThat(u.id()).isEqualTo(UUID.fromString("9d08ed9c-699a-4c26-9036-9f0bd378009d"));
         assertThat(u.username()).isEqualTo("club-admin-a");

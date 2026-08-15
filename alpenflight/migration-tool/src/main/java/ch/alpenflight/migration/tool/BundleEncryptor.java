@@ -16,19 +16,6 @@ import java.security.SecureRandom;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Writes the ALPF wire-format envelope — the byte-exact inverse of
- * {@link BundleHeader#parse} plus the StreamingAead body. See
- * {@link BundleHeader} for the canonical byte layout.
- *
- * <p>The 32-byte AES-256 session key is freshly {@link SecureRandom}-drawn,
- * wrapped under the handshake RSA-4096 public key (RSA-OAEP-SHA256), and held
- * in {@link SecureBytes} so it zeros on every exit path.
- *
- * <p>Output hygiene: written to a {@code 0600} sibling temp file, then
- * atomically renamed onto {@code --output}; a partial write is deleted on
- * failure so a half-encrypted file is never left behind.
- */
 public final class BundleEncryptor {
 
     private static final int SESSION_KEY_BYTES = 32;
@@ -40,14 +27,6 @@ public final class BundleEncryptor {
         this.cipher = cipher;
     }
 
-    /**
-     * Encrypt {@code plaintextTarGz} into {@code output} under the handshake.
-     *
-     * @param output         final destination ({@code --output}).
-     * @param plaintextTarGz the bundle plaintext temp file (tar.gz).
-     * @param uploadId       StreamingAead AAD.
-     * @param publicKeyDer   RSA-4096 SPKI DER for the session-key wrap.
-     */
     public void encryptTo(Path output, Path plaintextTarGz, UUID uploadId, byte[] publicKeyDer) {
         Path tmp = siblingTemp(output);
         byte[] sessionKey = new byte[SESSION_KEY_BYTES];
@@ -69,17 +48,13 @@ public final class BundleEncryptor {
 
     private void writeEnvelope(Path tmp, Path plaintextTarGz, UUID uploadId,
                                SecureBytes session, byte[] wrapped) throws IOException {
-        createSecureFile(tmp);
+        createOwnerOnlyReadableFile(tmp);
         try (OutputStream raw = new BufferedOutputStream(Files.newOutputStream(tmp))) {
             raw.write(BundleHeader.magic());
             raw.write(BundleHeader.CURRENT_VERSION);
             raw.write((wrapped.length >>> 8) & 0xFF);
             raw.write(wrapped.length & 0xFF);
             raw.write(wrapped);
-            // The encrypting stream wraps `raw`; closing it flushes the final
-            // AEAD frame. Do NOT let it close `raw` before the header flushes —
-            // header bytes are already written above, so frame + close order is
-            // header → body, matching the server's read order.
             try (OutputStream body = cipher.newEncryptingStream(session, uploadId, raw);
                  InputStream plaintext = Files.newInputStream(plaintextTarGz)) {
                 plaintext.transferTo(body);
@@ -93,13 +68,11 @@ public final class BundleEncryptor {
         return parent.resolve(name);
     }
 
-    /** Create the file 0600 up front so plaintext-adjacent ciphertext is never world-readable. */
-    private static void createSecureFile(Path file) throws IOException {
+    private static void createOwnerOnlyReadableFile(Path file) throws IOException {
         try {
             Files.createFile(file, PosixFilePermissions.asFileAttribute(Set.of(
                     PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)));
         } catch (UnsupportedOperationException nonPosix) {
-            // Controlled host — accept default perms where POSIX modes are unavailable.
             Files.createFile(file);
         }
     }

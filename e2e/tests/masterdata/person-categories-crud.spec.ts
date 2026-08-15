@@ -1,10 +1,3 @@
-// Spec #31: PersonCategory CRUD via /masterdata/personCategories.
-// UI is fls-editable-tree (not ng-table); mutations driven by native
-// window.prompt / window.confirm.
-//
-// TODO testid: `tree-row`, `tree-row-edit`, `tree-row-delete` on the
-// .editable-tree-row and its manipulation anchors.
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, getBearerToken } from '../../test-data';
@@ -24,12 +17,9 @@ async function waitForTreeReady(page: Page): Promise<void> {
 test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
   const id = testId(testInfo);
-  // Disjoint substrings (see TEST_WRITING.md §2).
   const NAME_INITIAL = `Cat-${id.short}-A`;
   const NAME_EDITED  = `Cat-${id.short}-B`;
 
-  // Pre-clean prior-run categories with either name. The endpoint mirrors the
-  // SPA's PersonCategoryService.
   const token = await getBearerToken(loggedInPage);
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const listRes = await page.request.get(`${API_BASE}/api/v1/personcategories`, { headers });
@@ -50,7 +40,6 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) 
     await expect(rowByName(page, name)).toHaveCount(1);
   }
 
-  // CREATE — the trailing root-level "+" lives outside any .editable-tree-row.
   const rootAddButton = page
     .locator('.tree-node-manipulation-link')
     .filter({ hasNot: page.locator('xpath=ancestor::div[contains(@class, "editable-tree-row")]') })
@@ -63,18 +52,9 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) 
   await rootAddButton.scrollIntoViewIfNeeded();
   await rootAddButton.click();
 
-  // $route.reload() rebuilds the tree; wait for our new row to appear.
   await expect(rowByName(page, NAME_INITIAL)).toHaveCount(1, { timeout: 10_000 });
   await waitForTreeReady(page);
 
-  // EDIT — anchors inside a row are: edit (pencil), add (+), delete (trash).
-  //
-  // Wrinkle: the manipulation-link is `display:none` at viewport ≥870px and
-  // only the row's `:hover` reveals it (flsgui.css:613-639). Hover before
-  // scrolling+clicking, otherwise scrollIntoViewIfNeeded fails on "element
-  // is not visible". Force the click since the element is technically
-  // invisible by CSS rule even when hovered (Playwright's stability check
-  // is finicky about hover-triggered visibility).
   const createdRow = rowByName(page, NAME_INITIAL);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('prompt');
@@ -90,7 +70,6 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) 
   await expect(rowByName(page, NAME_INITIAL)).toHaveCount(0);
   await waitForTreeReady(page);
 
-  // DELETE — same hover+force pattern as EDIT above.
   const editedRow = rowByName(page, NAME_EDITED);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('confirm');
@@ -104,7 +83,6 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) 
 
   await expect(rowByName(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });
 
-  // Seeded categories must remain after our delete.
   await waitForTreeReady(page);
   for (const name of SEEDED) {
     await expect(rowByName(page, name)).toHaveCount(1);

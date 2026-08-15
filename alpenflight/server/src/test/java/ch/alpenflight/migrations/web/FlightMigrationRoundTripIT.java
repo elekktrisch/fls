@@ -42,48 +42,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-2 T-07 — the {@code Flight} + {@code FlightCrew} migrate-link round-trip
- * proof: a legacy→export→ingest round-trip exercised against the REAL server
- * ingest pipeline, mirroring {@link AircraftMigrationRoundTripIT} but for the
- * FLIGHT aggregate (+ its {@code FlightCrew} children, + the
- * glider↔tow pair). Hand-orders the tar entries via
- * {@code MigrationBundleTestFactory.buildBundleWithEntries}; the producer tar
- * ordering is left to {@link FlightRealProducerRoundTripIT}.
- *
- * <p>The FLIGHT / FLIGHT_CREW NDJSON is shaped EXACTLY as the production mappers
- * emit it over the {@code MapperLegacyBindings.FLIGHT} / {@code FLIGHT_CREW}
- * producer SELECTs (T-07): {@code legacy_guid} = the legacy {@code FlightId}
- * (FLIGHT is non-fan-out FULL_PORT, so {@code legacy_guid} → {@code id}),
- * {@code operating_club_id} = the legacy {@code OwnerId} (NOT {@code OwnerClubId}
- * — the producer-SELECT catch this task fixed), {@code aircraft_id} =
- * cross-tenant Aircraft, {@code start/ldg_location_id} = the per-club Location
- * replica, reference-lookup columns ({@code start_type_id},
- * {@code process_state_id}, {@code flight_cost_balance_type_id},
- * {@code flight_crew_type_id}) as the synthetic {@code new UUID(0, legacyIntId)}.
- *
- * <p>Asserts the load-bearing migration invariants T-07's binding exists to prove:
- * <ul>
- *   <li><strong>Tow self-FK.</strong> The glider's {@code tow_flight_id} resolves
- *       to the migrated tow row (FLIGHT non-fan-out: {@code legacy_guid} preserved
- *       as {@code id}, so the legacy tow GUID == the tow row's id). A non-towed
- *       motor flight carries {@code tow_flight_id = null} from the empty-guid
- *       sentinel (oracle #18).</li>
- *   <li><strong>FlightCrew nesting.</strong> Crew children nest under their flight
- *       with the cross-tenant {@code person_id} resolved and
- *       {@code flight_crew_type_id} → the real V3 seed PK.</li>
- *   <li><strong>Operating-club per-flight</strong> (from legacy {@code OwnerId}),
- *       aircraft FK cross-tenant resolve, start/ldg Location FK → the
- *       tenant-scoped fan-out replica for the operating club.</li>
- *   <li><strong>Air-state lossy</strong> (S-060): legacy {@code AirStateId} is
- *       NOT migrated; only a {@code FlightPlanOpen(5)} flight carries
- *       {@code flight_plan_opened_on}.</li>
- *   <li><strong>{@code flight_date} / {@code created_at} carried;
- *       {@code locked_at} (T-02 net-new).</strong> A migrated Locked flight
- *       ({@code ProcessStateId >= 40}) carries {@code locked_at = ModifiedOn}; a
- *       still-Valid flight ports {@code locked_at = null}.</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -97,16 +55,18 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
-    // Real Flyway-seed PKs the reference-lookup resolver must land on.
     private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
     private static final int LEGACY_AIRCRAFT_TYPE_TOW = 2;
     private static final int LEGACY_AIRCRAFT_TYPE_MOTOR = 4;
+    private static final int LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES = LEGACY_AIRCRAFT_TYPE_GLIDER;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER = 1;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW = 2;
+    private static final int LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR = 4;
+    private static final String NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER = null;
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
-    // Legacy AircraftStartType.TowingByAircraft = 1 (aerotow); maps to V2 AEROTOW.
-    // J-2 T-40 parity fix: was 2 (WinchLaunch) under the swapped convention.
-    private static final int LEGACY_START_TYPE_AEROTOW = 1; // -> V2 AEROTOW
+    private static final int LEGACY_START_TYPE_AEROTOW = 1;
     private static final UUID SEED_START_TYPE_AEROTOW =
             UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1");
 
@@ -128,8 +88,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_CREW_TYPE_CO_PILOT =
             UUID.fromString("019e2e15-2c00-76b1-8000-0000000036b1");
 
-    // Legacy AirState FlightPlanOpen(5) — the only air-state value whose
-    // timestamp survives V13 (S-060).
     private static final int LEGACY_AIR_STATE_NEW = 0;
     private static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
     private static final int LEGACY_AIR_STATE_LANDED = 20;
@@ -162,17 +120,12 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         legacyCountryId = UUID.randomUUID();
         legacyPilotPersonId = UUID.randomUUID();
         legacyCoPilotPersonId = UUID.randomUUID();
-        String tag = userSub.toString().substring(0, 5);
-        testClubKey = "FLM-" + tag;
-        testClubSlug = "flm-" + tag;
-        // ux_aircraft_immatriculation is regulator-GLOBALLY-unique. Own a
-        // per-run immat namespace (the V36 fixture-namespace convention)
-        // instead of the showcase fixtures' deterministic HB-TOW1/HB-MOT1 —
-        // single-fork suite runs share one Postgres container, and a prior
-        // ShowcaseSeederIT class legitimately leaves its seed behind.
-        gliderImmat = ("HB-G" + tag).toUpperCase(Locale.ROOT);
-        towImmat = ("HB-T" + tag).toUpperCase(Locale.ROOT);
-        motorImmat = ("HB-M" + tag).toUpperCase(Locale.ROOT);
+        String perRunNamespaceForGloballyUniqueKeysAndImmats = userSub.toString().substring(0, 5);
+        testClubKey = "FLM-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        testClubSlug = "flm-" + perRunNamespaceForGloballyUniqueKeysAndImmats;
+        gliderImmat = ("HB-G" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
+        towImmat = ("HB-T" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
+        motorImmat = ("HB-M" + perRunNamespaceForGloballyUniqueKeysAndImmats).toUpperCase(Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -192,7 +145,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         String clubsByOwner =
                 "SELECT id FROM t_club WHERE deployment_id IN "
                         + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
-        // Children before parents; crew + flights before aircraft/location/types.
         jdbc.update("DELETE FROM t_flight_crew WHERE flight_id IN "
                 + "(SELECT id FROM t_flight WHERE operating_club_id IN (" + clubsByOwner + "))",
                 userSub.toString());
@@ -258,8 +210,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         entityPolicies.put(EntityType.FLIGHT, fullPortPolicy());
         entityPolicies.put(EntityType.FLIGHT_CREW, fullPortPolicy());
 
-        // The Location's fanned-out replica id in this club — the composite
-        // (legacy_guid, club_id) the start/ldg FK resolves against.
         UUID locationReplicaId = Coercions.deriveFanOutId(legacyLocationId, legacyClubId);
 
         Map<String, byte[]> tarEntries = new LinkedHashMap<>();
@@ -267,7 +217,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
         tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        // START_TYPE SYSTEM_GLOBAL map: synthetic UUID(0, legacyId) -> real seed PK.
         tarEntries.put("legacy_id_map/START_TYPE.pgcopy",
                 pgcopyMap(new UUID(0L, LEGACY_START_TYPE_AEROTOW), SEED_START_TYPE_AEROTOW));
         tarEntries.put("CLUB.ndjson",
@@ -278,17 +227,14 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("PERSON.ndjson", concat(
                 personNdjson(legacyPilotPersonId, legacyCountryId, "Pilot", "Glider"),
                 personNdjson(legacyCoPilotPersonId, legacyCountryId, "CoPilot", "Glider")));
-        // Location fan-out (one replica for this club) + its composite id-map.
         tarEntries.put("LOCATION.ndjson",
                 locationNdjson(legacyLocationId, legacyClubId, legacyCountryId, "LSZH"));
         tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(legacyLocationId, legacyClubId, locationReplicaId)));
-        // FLIGHT_TYPE (FULL_PORT, non-fan-out): legacy_guid -> id.
         tarEntries.put("FLIGHT_TYPE.ndjson",
                 flightTypeNdjson(legacyFlightTypeId, legacyClubId, "Schulung"));
         tarEntries.put("legacy_id_map/FLIGHT_TYPE.pgcopy",
                 pgcopyMap(legacyFlightTypeId, legacyFlightTypeId));
-        // Three aircraft (glider / tow / motor), all cross-tenant non-fan-out.
         tarEntries.put("AIRCRAFT.ndjson", concat(
                 aircraftNdjson(legacyGliderAircraftId, legacyClubId, gliderImmat,
                         LEGACY_AIRCRAFT_TYPE_GLIDER),
@@ -300,32 +246,20 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 new MapRow(legacyGliderAircraftId, legacyGliderAircraftId),
                 new MapRow(legacyTowAircraftId, legacyTowAircraftId),
                 new MapRow(legacyMotorAircraftId, legacyMotorAircraftId)));
-        // FLIGHT (non-fan-out): legacy_guid -> id. The GLIDER is emitted BEFORE
-        // its tow — the real-bundle order that 500'd on fk_flight_tow_flight_id
-        // before the S-141 two-pass (J-2 T-41). A single INSERT pass would bind
-        // tow_flight_id while the tow row does not yet exist → FK violation; the
-        // two-pass INSERTs both with NULL, then UPDATEs the link.
         tarEntries.put("FLIGHT.ndjson", concat(
-                // Glider flight: tow_flight_id -> the tow flight (which streams
-                // AFTER it); FlightPlanOpen(5) air-state -> flight_plan_opened_on
-                // survives; Locked(40) -> locked_at.
                 flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
                         legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(),
-                        /* flightAircraftType */ 1, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
                         LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
-                // Tow flight (TOW type, no tow_flight_id, NEW air-state, Valid).
                 flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
-                        legacyLocationId, legacyFlightTypeId, /* towFlightId */ null,
-                        /* flightAircraftType */ 2, LEGACY_AIR_STATE_LANDED,
+                        legacyLocationId, legacyFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-01"),
-                // Motor flight: not towed. The producer mapper already collapsed
-                // the legacy empty-guid (00000000-…) TowFlightId to null
-                // (Coercions.writeOptionalGuidString, asserted at the producer
-                // layer in FlightMapperTest), so the NDJSON the ingest sees carries
-                // tow_flight_id = null here. Valid, NEW air-state.
                 flightNdjson(legacyMotorFlightId, legacyClubId, legacyMotorAircraftId,
-                        legacyLocationId, legacyFlightTypeId, /* towFlightId */ null,
-                        /* flightAircraftType */ 4, LEGACY_AIR_STATE_NEW,
+                        legacyLocationId, legacyFlightTypeId,
+                        NOT_TOWED_EMPTY_GUID_COLLAPSED_BY_PRODUCER,
+                        LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR, LEGACY_AIR_STATE_NEW,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-02")));
         tarEntries.put("legacy_id_map/FLIGHT.pgcopy", pgcopyMap2(
                 new MapRow(legacyTowFlightId, legacyTowFlightId),
@@ -350,9 +284,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
         UUID newClub = clubIdsByKey(deploymentId).get(key);
 
-        // (1) Glider flight: operating-club per-flight, aircraft cross-tenant
-        // resolve, start/ldg Location -> the fan-out replica, tow self-FK ->
-        // the migrated tow row, FlightPlanOpen timestamp survives, locked_at set.
         Map<String, Object> glider = jdbc.queryForMap(
                 "SELECT id, operating_club_id, aircraft_id, start_location_id, "
                         + "ldg_location_id, flight_type_id, start_type_id, tow_flight_id, "
@@ -385,14 +316,12 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("tow self-FK resolved to the migrated tow flight row via the "
                         + "S-141 two-pass UPDATE (glider INSERTed before its tow)")
                 .isEqualTo(legacyTowFlightId);
-        // The LINK is real, not id-equality by luck: the tow_flight_id points at
-        // an actual migrated TOW-type row (flight_aircraft_type_id=2).
         Map<String, Object> linkedTow = jdbc.queryForMap(
                 "SELECT id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
                 glider.get("tow_flight_id").toString());
         assertThat(((Number) linkedTow.get("flight_aircraft_type_id")).shortValue())
                 .as("the glider's tow_flight_id resolves to a real migrated TOW flight")
-                .isEqualTo((short) 2);
+                .isEqualTo((short) LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW);
         assertThat(UUID.fromString(glider.get("process_state_id").toString()))
                 .as("process_state_id resolved to the real V3 LOCKED seed PK")
                 .isEqualTo(SEED_PROCESS_STATE_LOCKED);
@@ -410,8 +339,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("locked_at set for a migrated Locked(40) flight (= ModifiedOn proxy)")
                 .isNotNull();
 
-        // (2) FlightCrew children nested under the glider with resolved cross-tenant
-        // person FKs + flight_crew_type_id -> the real V3 seed PK.
         List<Map<String, Object>> crew = jdbc.queryForList(
                 "SELECT person_id, flight_crew_type_id FROM t_flight_crew "
                         + "WHERE flight_id = ?::uuid ORDER BY flight_crew_type_id",
@@ -429,8 +356,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("CO_PILOT crew type -> the real V3 seed PK")
                 .isEqualTo(SEED_CREW_TYPE_CO_PILOT);
 
-        // (3) Tow flight: NOT itself towed, Valid (not Locked) so locked_at null,
-        // LANDED air-state -> flight_plan_opened_on null (air-state lossy).
         Map<String, Object> tow = jdbc.queryForMap(
                 "SELECT tow_flight_id, process_state_id, flight_plan_opened_on, locked_at "
                         + "FROM t_flight WHERE id = ?::uuid", legacyTowFlightId.toString());
@@ -444,23 +369,17 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("a still-Valid flight has no locked_at (bill gate never fires on import)")
                 .isNull();
 
-        // (4) Motor flight: empty-guid tow_flight_id -> null (oracle #18).
         Map<String, Object> motor = jdbc.queryForMap(
                 "SELECT tow_flight_id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
                 legacyMotorFlightId.toString());
         assertThat(motor.get("tow_flight_id"))
-                .as("empty-guid (00000000-…) tow FK ports as null")
+                .as("a non-towed flight lands with tow_flight_id null (the producer already "
+                        + "collapsed the legacy empty-guid 00000000-… sentinel)")
                 .isNull();
         assertThat(((Number) motor.get("flight_aircraft_type_id")).shortValue())
                 .as("MOTOR sparse-enum (4) passed through verbatim")
-                .isEqualTo((short) 4);
+                .isEqualTo((short) LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR);
 
-        // (5) J-7 RM-2: the post-commit per-club rebuild backfilled the
-        // flight-report read-model. The bundle's FLIGHT/FLIGHT_CREW rows land
-        // via JDBC inside the ingest transaction and never pass
-        // FlightRepository.save — without the rebuild a migrated club's
-        // report read-model would be silently empty (the fanout
-        // legacy→migrate→reports-parity chain depends on these rows).
         Integer reportRows = jdbc.queryForObject(
                 "SELECT count(*) FROM t_flight_report_row WHERE operating_club_id = ?::uuid",
                 Integer.class, newClub.toString());
@@ -491,7 +410,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         assertThat(gliderReportRow.get("tow_immatriculation")).isEqualTo(towImmat);
     }
 
-    // ---- NDJSON builders shaped as the production mappers emit -------------
 
     private byte[] flightNdjson(UUID legacyFlightId, UUID legacyClubId, UUID aircraftId,
                                 UUID locationId, UUID flightTypeId, String towFlightId,
@@ -525,7 +443,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         row.put("nr_of_ldgs_on_start_location", 1);
         row.put("no_start_time_information", false);
         row.put("no_ldg_time_information", false);
-        // The mapper translates legacy AirStateId==5 -> ModifiedOn; else null.
         if (legacyAirStateId == LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN) {
             row.put("flight_plan_opened_on", Instant.parse(flightDate + "T07:30:00Z").toString());
         } else {
@@ -552,7 +469,6 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         row.putNull("modified_by_user_id");
         row.putNull("deleted_on");
         row.putNull("deleted_by_user_id");
-        // The mapper sets locked_at = ModifiedOn for ProcessStateId >= 40.
         if (legacyProcessStateId >= LEGACY_PROCESS_STATE_LOCKED) {
             row.put("locked_at", modifiedOn);
         } else {
@@ -609,16 +525,15 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     }
 
     private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId,
-                                  String immatriculation, int legacyAircraftTypeForImmat)
+                                  String immatriculation,
+                                  int legacyAirframeTypeDecidingIsTowingAircraft)
             throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
         row.put("managing_club_id", legacyClubId.toString());
         row.put("owner_club_id", legacyClubId.toString());
-        // AircraftType is the aircraft's airframe type (not the flight discriminator);
-        // any glider seed PK resolves — only the FK target matters for this IT.
         row.put("aircraft_type_id",
-                Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
+                Coercions.legacyIntIdToUuidString(LEGACY_AIRFRAME_TYPE_ANY_SEED_RESOLVES));
         row.put("manufacturer_name", "Schleicher");
         row.put("aircraft_model", "ASK 21");
         row.put("immatriculation", immatriculation);
@@ -638,7 +553,8 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
         row.put("is_towing_or_winch_required", false);
         row.put("is_towing_start_allowed", true);
         row.put("is_winch_start_allowed", true);
-        row.put("is_towing_aircraft", legacyAircraftTypeForImmat == LEGACY_AIRCRAFT_TYPE_TOW);
+        row.put("is_towing_aircraft",
+                legacyAirframeTypeDecidingIsTowingAircraft == LEGACY_AIRCRAFT_TYPE_TOW);
         row.put("is_fast_entry_record", false);
         row.putNull("comment");
         row.putNull("daec_index");

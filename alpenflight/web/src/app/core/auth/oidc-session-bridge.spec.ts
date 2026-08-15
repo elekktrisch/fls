@@ -95,10 +95,6 @@ describe('applyClaimsToSession', () => {
   });
 
   it('settles to unauthenticated (without firing bus) when claims are null on cold-start (loading)', () => {
-    // Cold-start path: withAppInitializerAuthCheck completes with no
-    // principal; userData() emits null; SessionStore is still 'idle'.
-    // markUnauthenticated lets the route guard fall through to
-    // oidcSecurity.authorize() instead of deferring forever.
     const session = fakeSession({ authenticated: false, loading: true });
 
     applyClaimsToSession(null, session);
@@ -109,8 +105,6 @@ describe('applyClaimsToSession', () => {
   });
 
   it('no-op when claims are null AND status is already settled-unauthenticated', () => {
-    // Steady state after the cold-start transition above. Subsequent
-    // userData() emissions of null must NOT keep calling markUnauthenticated.
     const session = fakeSession({ authenticated: false, loading: false });
 
     applyClaimsToSession(null, session);

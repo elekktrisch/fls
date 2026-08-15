@@ -3,34 +3,13 @@ import { expect, test } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-/**
- * The inline as-you-type error region (`af-field-errors` alert) under a field,
- * scoped to the wrapping `af-form-field` so a sibling field's error never leaks
- * into the assertion.
- */
 function fieldErrors(page: Page, testId: string): Locator {
   return page.locator('af-form-field', { has: page.getByTestId(testId) }).getByRole('alert');
 }
 
-/**
- * The header Save control's native `<button>` — `af-button` renders the
- * disableable element inside its host, so `toBeDisabled`/`toBeEnabled` must
- * target the inner button, not the custom-element host.
- */
 function saveButton(page: Page): Locator {
   return page.getByTestId('flight-submit-header').locator('button');
 }
-
-/**
- * Flights-hardening inner-loop spec (#229 + edit-form validation), mock-auth.
- *
- * The fast feedback half of the four hardening flows (create-persists, off-today
- * post-save jump, valid-on-load, as-you-type gating). The full real-chain proof
- * lives in `tests/real-idp/flight-migration-parity.spec.ts` (the per-push lane).
- *
- * Mock-auth chromium project: principal is a mocked SYSTEM_ADMINISTRATOR, all
- * `/api/v1/*` calls intercepted via `page.route` (no live backend).
- */
 
 const AC_GLIDER = 'ac-019e30c3-2c00-7001-8000-000000000a01';
 const PERSON_PILOT = 'pn-019e30c3-2c00-7001-8000-000000000001';
@@ -200,7 +179,7 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flights-table')).toBeVisible();
   });
 
-  test('[edge] a flight dated OFF today is discoverable via the date-range filter', async ({
+  test('[edge] a flight dated OFF today is not listed under the today-default range; the date-range filter is present to widen it', async ({
     page,
   }) => {
     await stubMasterdata(page);
@@ -232,9 +211,6 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flights-table')).toBeVisible();
     await expect(page.getByTestId('flights-date-range')).toBeVisible();
 
-    // The today-default range (legacy parity) omits the next-week flight: the
-    // initial GET carries from=to=today, so the off-today row is NOT listed (it
-    // is hidden by the default range — discoverable via the filter, not lost).
     await expect(page.getByTestId(`flights-row-${FLIGHT_ID}`)).toHaveCount(0);
   });
 
@@ -260,8 +236,6 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await expect(saveButton(page)).toBeEnabled();
 
-    // Launch step: the populated required fields (flightDate, startType, start
-    // location) carry NO stale inline error after the post-hydrate revalidate.
     await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
     await expect(fieldErrors(page, 'flight-edit-startType')).toHaveCount(0);
     await expect(fieldErrors(page, 'flight-edit-startLocation')).toHaveCount(0);
@@ -269,8 +243,6 @@ test.describe('J-2b flights hardening', () => {
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
 
-    // Glider step: aircraft + flightType + pilot + landings all populated → no
-    // residual "Entry required." inline error.
     await expect(fieldErrors(page, 'flight-edit-glider-aircraft')).toHaveCount(0);
     await expect(fieldErrors(page, 'flight-edit-glider-flightType')).toHaveCount(0);
     await expect(fieldErrors(page, 'flight-edit-glider-pilot')).toHaveCount(0);
@@ -299,15 +271,11 @@ test.describe('J-2b flights hardening', () => {
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await expect(saveButton(page)).toBeEnabled();
 
-    // Clear flightDate WITHOUT blurring — the inline "Entry required." surfaces
-    // after the ~200ms debounce and Save is gated on the now-invalid form.
     const flightDate = page.getByTestId('flight-edit-flightDate').locator('input');
     await flightDate.fill('');
     await expect(fieldErrors(page, 'flight-edit-flightDate')).toBeVisible();
     await expect(saveButton(page)).toBeDisabled();
 
-    // Re-entering a valid value clears the inline message (debounced) and
-    // re-enables Save.
     await flightDate.fill(TODAY);
     await expect(fieldErrors(page, 'flight-edit-flightDate')).toHaveCount(0);
     await expect(saveButton(page)).toBeEnabled();
@@ -342,8 +310,6 @@ test.describe('J-2b flights hardening', () => {
     await page.route('**/api/v1/flights**', (route: Route) => {
       const req = route.request();
       const url = new URL(req.url());
-      // The broad glob also catches the sub-path routes registered above
-      // (new-template / last-context); defer those to their own handlers.
       if (url.pathname !== '/api/v1/flights') {
         return route.fallback();
       }
@@ -354,8 +320,6 @@ test.describe('J-2b flights hardening', () => {
           body: JSON.stringify({ id: 'fl-new', version: 1, flightDate: NEXT_WEEK }),
         });
       }
-      // GET list: the today-default range omits the off-today row; the
-      // "View it →" jump widens to NEXT_WEEK and the row appears.
       const from = url.searchParams.get('from');
       const inRange = from === NEXT_WEEK;
       return route.fulfill({

@@ -1,41 +1,11 @@
 import { type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-/**
- * S-051 Persons add-flow parity port. Maps the legacy
- * `e2e/tests/masterdata/persons-add-modal.spec.ts` semantics onto the new
- * stack — observable behavior only, NOT legacy URL shape or response
- * envelope (ADR 0022).
- *
- * Legacy oracle: open modal from User-edit page; fill firstname / lastname
- * / email; submit; assert the new person appears in /masterdata/persons.
- *
- * New-stack mapping:
- *   - "Open add-person modal from User-edit" → "Navigate to /persons/new"
- *     (route owns the form; the modal flavor is a follow-up consumed by
- *     User-create + Flight-crew picker per the refinement).
- *   - `POST /api/v1/persons/page/{skip}/{take}` filter envelope → `GET
- *     /api/v1/persons?…` (per ADR 0005).
- *   - `#Firstname` / `#Lastname` / `#Email` id selectors → `data-testid`
- *     handles on the form atoms (greenfield gets the testids the legacy
- *     lacks).
- *
- * Stack: booted under the `mock-auth` Angular configuration; principal is
- * a mocked SYSTEM_ADMINISTRATOR so the mutation affordances render. All
- * `/api/v1/*` calls are intercepted via `page.route` — no live backend.
- */
-
 interface MockMemberState {
   id: string;
   name: string;
 }
 
-/**
- * Build a single-key object only when `value` is defined — so an optional
- * (`?:`) target property is omitted rather than set to `undefined`. Lets the
- * mock backend copy optional request fields through under the e2e tsconfig's
- * `exactOptionalPropertyTypes`, which rejects an explicit `key: undefined`.
- */
 function optional<K extends string, V>(
   key: K,
   value: V | undefined,
@@ -196,10 +166,6 @@ function toListItem(p: MockPerson): MockPersonListItem {
 }
 
 async function stubReferenceData(page: import('@playwright/test').Page): Promise<void> {
-  // The bootstrap prefetch pulls these system-global lookups; we route to
-  // empty arrays so the SessionStore prefetch resolves cleanly. Persons
-  // doesn't consume them on the rendered surface, but the prefetch fires
-  // on auth.
   for (const path of [
     'countries',
     'club-states',
@@ -298,8 +264,6 @@ function setupPersonsBackend(persons: MockPerson[]) {
             {
               id: `019e30c3-2c00-7002-8000-${String(nextId).padStart(12, '0')}`,
               clubId: CLUB_A_ID,
-              // exactOptionalPropertyTypes: optional fields are spread in only
-              // when present (an explicit `: undefined` is rejected for `?:` props).
               ...optional('memberNumber', body.initialClubMembership.memberNumber),
               ...optional('memberStateId', body.initialClubMembership.memberStateId),
               ...optional(
@@ -379,13 +343,6 @@ function setupPersonsBackend(persons: MockPerson[]) {
       });
       return;
     }
-    // J-26 T-04 forked-update: the edit-page Save now PUTs the caller-tenant
-    // PersonClub via `PUT /persons/{id}/clubs/current` whenever the form
-    // carries a hydrated membership (seedPerson has one). Without this handler
-    // the membership half falls through to the live mock-auth network → 401,
-    // the store errorPatches, no `person.updated` fires, and the edit page
-    // never navigates back to /persons. Full-replace + echo the authoritative
-    // person, mirroring the membership spec.
     if (method === 'PUT' && clubsCurrentMatch) {
       const person = persons.find((p) => p.id === clubsCurrentMatch[1]);
       const pc = person?.memberships[0];
@@ -460,8 +417,6 @@ test('persons: creating a new person via /persons/new appears in the list', asyn
   await page.getByTestId('persons-new-button').click();
   await expect(page).toHaveURL('/persons/new');
 
-  // Fill the parity-spec required fields (firstname / lastname / email)
-  // + the member-state picker (the new tenant-scoped reference dropdown).
   await page.getByTestId('firstname-input').locator('input').fill('Marc');
   await page.getByTestId('lastname-input').locator('input').fill('Aurel');
   await page.getByTestId('email-input').locator('input').fill('marc.aurel@example.test');
@@ -470,7 +425,6 @@ test('persons: creating a new person via /persons/new appears in the list', asyn
   await page.getByTestId('person-save-button').click();
   await expect(page).toHaveURL('/persons');
 
-  // New row visible in the list (lastname, firstname per the formatter).
   await expect(page.getByText('Aurel, Marc')).toBeVisible();
 });
 

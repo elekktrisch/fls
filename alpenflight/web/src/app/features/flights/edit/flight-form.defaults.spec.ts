@@ -55,9 +55,7 @@ describe('flight-form.defaults', () => {
 
     it('overlays last-context only on empty fields (template wins over context)', () => {
       const snap = buildDefaultsForNew(TEMPLATE_WITH_DEFAULTS, LAST_CONTEXT_FULL, {});
-      // Template's flightTypeId stays — last-context never overwrites.
       expect(snap.glider.flightTypeId).toBe('ft-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
-      // last-context fills empty fields.
       expect(snap.glider.pilotPersonId).toBe('pn-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
       expect(snap.glider.outboundRoute).toBe('route-out');
     });
@@ -94,18 +92,15 @@ describe('flight-form.defaults', () => {
       expect(snap.glider.invoiceRecipientPersonId).toBe('pn-cccccccc-cccc-cccc-cccc-cccccccccccc');
       expect(snap.glider.ldgLocationId).toBe('loc-cccccccc-cccc-cccc-cccc-cccccccccccc');
       expect(snap.glider.inboundRoute).toBe('route-in');
-      // aircraftId is the explicit user pick — never borrowed from context.
       expect(snap.glider.aircraftId).toBeNull();
     });
 
     it('leaves tow at its blank base when last-context carries no tow', () => {
-      // Omit `tow` (exactOptionalPropertyTypes forbids `tow: undefined`).
       const { tow: _omit, ...ctxNoTow } = LAST_CONTEXT_FULL;
       void _omit;
       const snap = buildDefaultsForNew(TEMPLATE_BLANK, ctxNoTow, {});
       expect(snap.tow.aircraftId).toBeNull();
       expect(snap.tow.flightTypeId).toBeNull();
-      // The glider half still overlays from context.
       expect(snap.glider.flightTypeId).toBe('ft-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
     });
 

@@ -31,17 +31,6 @@ import java.util.Locale;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Seeds the shared delivery write-side scenario both the book and delete ITs drive:
- * a Locked, &gt;3-day-old glider flight linked to a Locked tow, a crew pilot with a
- * flight-time credit, and a single deterministic flight-time {@code AccountingRuleFilter}.
- * The caller runs {@code POST /api/v1/deliveries/create} (so the engine produces the
- * Prepared delivery + flips both flights to {@code DeliveryPrepared} + draws the credit);
- * {@link #findDeliveryFor} resolves the created delivery's id from the create response.
- *
- * <p>One seam, two consumers: extracting it here keeps the duplicate-token ratchet flat
- * as the second write IT lands.
- */
 public final class DeliveryWriteFixture {
 
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
@@ -79,14 +68,8 @@ public final class DeliveryWriteFixture {
         this.credits = credits;
     }
 
-    /** The seeded ids needed by the write ITs to assert flight + credit side effects. */
     public record Seed(UUID flightId, UUID towFlightId, UUID creditId) {}
 
-    /**
-     * Seeds the eligible glider+tow flights, crew, credit and rule filter under
-     * {@code clubId} and returns the ids. The caller still drives the create endpoint;
-     * {@link #findDeliveryFor} extracts the resulting delivery id.
-     */
     public Seed seedEligibleGliderWithTow(UUID clubId) {
         String gliderImmat = "HB-G" + suffix();
         UUID glider = seedAircraft(clubId, gliderImmat);
@@ -105,7 +88,6 @@ public final class DeliveryWriteFixture {
         return new Seed(gliderFlight, towFlight, creditId);
     }
 
-    /** The id of the delivery the create response produced for {@code flightId}. */
     public static UUID findDeliveryFor(com.fasterxml.jackson.databind.JsonNode createBody, UUID flightId) {
         for (com.fasterxml.jackson.databind.JsonNode delivery : createBody) {
             if (FlightId.of(flightId).toExternal().equals(delivery.get("flight").get("flightId").asText())) {

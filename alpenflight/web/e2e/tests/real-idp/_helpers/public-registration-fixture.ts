@@ -7,68 +7,27 @@ import { fillKcLogin } from './kc-form';
 import { freshTestUser, type TestUser } from './test-user';
 import { ACTIVE_CLUB_STATE_ID, CH_COUNTRY_ID, captureSysadminBearer } from './two-club-fixture';
 
-/**
- * The club an anonymous J-17 registration is proved against, seeded entirely
- * through the production HTTP surfaces (ADR 0027 §3) — club create, club
- * update, location create, aircraft register, discovery-day publish. No raw
- * SQL and no Flyway addition: a happy-path registration writes a Person, a
- * membership, a reservation and two mails, so a club carrying it in the SHARED
- * clean seed would hand every other journey's gate a surprise registrant and an
- * unexpected outbound mail.
- *
- * `seed-club-1` cannot stand in either: `public-routes.spec.ts` pins it at the
- * unavailable panel (`public_registration_enabled = false`), which is the
- * route-reachability proof, not this one.
- *
- * <h2>Exactly one double-seater glider</h2>
- *
- * The legacy aircraft pick is a `FirstOrDefault` with no `ORDER BY`
- * (`RegistrationService.cs:152-156`), so a club with two eligible gliders makes
- * "the reservation names THIS aircraft" a DB-order coin flip. The seed
- * registers one, and the club is fresh, so the assertion is deterministic.
- *
- * <h2>...or none at all</h2>
- *
- * {@link seedPublicRegistrationClubWithoutDoubleSeater} provisions the same club
- * minus the aircraft. The reservation-skip AC needs a club that genuinely cannot
- * be booked against — deleting or hiding the glider afterwards would leave the
- * registration proving something about aircraft state rather than about a club
- * that never had one. It keeps its homebase, so the organiser mail must name the
- * missing double-seater and NOT the missing homebase.
- */
-
 const CLUB_ADMINISTRATOR_ROLE = 'CLUB_ADMINISTRATOR';
 
-/** Legacy's eligible-aircraft predicate: club-owned, pure glider, two seats. */
 const GLIDER_TYPE_CODE = 'GLIDER';
 const DOUBLE_SEATER_SEATS = 2;
 
 export interface PublicRegistrationClub {
-  /** Raw club UUID — the form the `clubId` claim and `@TenantId` carry. */
   clubId: string;
-  /** External `clb-<uuid>` form — the form club routes and DTOs carry. */
   externalClubId: string;
   clubName: string;
   slug: string;
-  /** The club's organiser-notification recipient (T-05's recipient list). */
   operatorEmail: string;
-  /** External `loc-<uuid>` — the club homebase the reservation is booked at. */
   homebaseId: string;
   homebaseName: string;
-  /** The single published discovery-flight day, `yyyy-MM-dd`. */
   eventDate: string;
-  /** The club's own administrator — drives its club-admin screens in a browser. */
   admin: TestUser;
-  /** `Bearer …` for the club's own administrator — reads the written rows back. */
   adminAuthorization: string;
-  /** `Bearer …` for the seeded sysadmin, so a second seed skips its login. */
   sysadminAuthorization: string;
   dispose: () => Promise<void>;
 }
 
-/** The registrable club a discovery reservation can actually be booked at. */
 export interface PublicRegistrationClubWithDoubleSeater extends PublicRegistrationClub {
-  /** External `ac-<uuid>` — the club's only eligible double-seater glider. */
   gliderId: string;
   gliderImmatriculation: string;
 }
@@ -87,25 +46,12 @@ function nonce(): string {
   return randomUUID().replace(/-/g, '').slice(0, 8);
 }
 
-/**
- * A far-future date, distinct per call: a fixed one would already be published
- * on a retry and the duplicate-date 409 would read as a failure of the publish
- * path rather than of the fixture.
- */
 export function discoveryDayDate(): string {
   const day = new Date();
   day.setUTCDate(day.getUTCDate() + 400 + Math.floor(Math.random() * 300));
   return day.toISOString().slice(0, 10);
 }
 
-/**
- * The registrant block exactly as the browser posts it (`toRegistrantDetails`
- * in `registrant-form.ts`): `firstname` / `lastname` / `zip`, and no
- * `invoiceRecipient` or `sendCouponToInvoiceAddress` key while the invoice
- * address is the registrant's own. The object mapper rejects unknown
- * properties, so a body shaped like the FE form model would 400 — which is why
- * this lives beside the seed rather than being re-typed per call site.
- */
 export function registrantWireBody(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
@@ -151,12 +97,6 @@ async function createJson<T>(
   return (await res.json()) as T;
 }
 
-/**
- * Log the freshly-minted club administrator in through the SPA + real Keycloak
- * and capture the Bearer the OIDC interceptor attaches to its own `/api/v1/*`
- * calls. No realm client grants the resource-owner-password flow, so a browser
- * login is the only way to a real tenant-scoped token.
- */
 async function captureClubAdminBearer(
   browser: Browser,
   baseURL: string,
@@ -174,8 +114,6 @@ async function captureClubAdminBearer(
     await page.waitForURL(/\/realms\/alpenflight\//);
     await fillKcLogin(page, admin.email, admin.password);
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
-    // A club-admin read surface, so an authed `/api/v1/*` call is guaranteed to
-    // fire even if the shell's bootstrap prefetch changes.
     await page.goto('/locations');
     return (await bearerRequest).headers()['authorization']!;
   } finally {
@@ -208,17 +146,6 @@ interface ReferenceRow {
   code: string;
 }
 
-/**
- * Provision the whole happy-path fixture and hand back the handles the two
- * anonymous flows assert against. Every value is read back off the club
- * projection before returning, so a seed that silently failed to take (the club
- * PUT is full-replace — an omitted key clears) fails HERE, naming the field,
- * rather than surfacing as a mysterious skipped reservation later.
- *
- * Each call provisions a FRESH club: a Playwright retry re-runs `beforeAll`, and
- * a run-stable slug would 409 on the unique index. Clubs accumulate harmlessly,
- * as they already do for `two-club-fixture`'s club B.
- */
 export async function seedPublicRegistrationClub(
   browser: Browser,
   baseURL: string,
@@ -231,10 +158,6 @@ export async function seedPublicRegistrationClub(
   return { ...club, gliderId: glider.id, gliderImmatriculation: glider.immatriculation };
 }
 
-/**
- * The same club with no aircraft at all — the reservation-skip subject. Returns
- * the base shape, so a spec cannot reach for a glider id this club has not got.
- */
 export async function seedPublicRegistrationClubWithoutDoubleSeater(
   browser: Browser,
   baseURL: string,
@@ -247,7 +170,6 @@ export async function seedPublicRegistrationClubWithoutDoubleSeater(
   return club;
 }
 
-/** Bearers a prior seed already paid a browser login for. */
 export interface SeedReuse {
   sysadminAuthorization?: string;
 }
@@ -317,20 +239,19 @@ async function seedClub(
     const eventDate = discoveryDayDate();
     await createJson(api, '/api/v1/discovery-flight-days', adminAuthorization, { eventDate });
 
-    // Full-replace PUT: every field the club must keep travels on this body, or
-    // the save clears it.
     const operatorEmail = `e2e-${runId()}-organiser-${tag}@example.com`;
+    const everyFieldTheClubMustKeep = {
+      name: clubName,
+      slug,
+      publicRegistrationEnabled: true,
+      countryId: CH_COUNTRY_ID,
+      clubStateId: ACTIVE_CLUB_STATE_ID,
+      discoveryFlightOperatorEmail: operatorEmail,
+      homebaseId: homebase.id,
+    };
     const configured = await api.put(`/api/v1/clubs/${externalClubId}`, {
       headers: { authorization: adminAuthorization, 'content-type': 'application/json' },
-      data: {
-        name: clubName,
-        slug,
-        publicRegistrationEnabled: true,
-        countryId: CH_COUNTRY_ID,
-        clubStateId: ACTIVE_CLUB_STATE_ID,
-        discoveryFlightOperatorEmail: operatorEmail,
-        homebaseId: homebase.id,
-      },
+      data: everyFieldTheClubMustKeep,
     });
     if (!configured.ok()) {
       throw new Error(
@@ -358,9 +279,6 @@ async function seedClub(
       );
     }
 
-    // Names come off the stored projections, not the request literals: the
-    // spec asserts them against the rendered heading and the mail bodies, and a
-    // server-side normalisation would otherwise make those assertions fiction.
     return {
       clubId,
       externalClubId,

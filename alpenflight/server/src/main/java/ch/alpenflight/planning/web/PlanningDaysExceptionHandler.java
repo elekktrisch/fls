@@ -12,28 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates {@code PlanningDay} domain exceptions to RFC 7807 problem
- * responses (J-6 T-04). Holds the only Spring-web coupling of the planning error
- * vocabulary — the domain exception types stay free of {@code @ResponseStatus}
- * (ADR 0023). Mirrors {@code AircraftReservationsExceptionHandler}.
- *
- * <ul>
- *   <li>{@link PlanningDayConflictException} → <strong>409</strong>
- *       (key {@code planning.day.duplicate}) — duplicate club+date+location.</li>
- *   <li>{@link InvalidPlanningDateException} → <strong>422</strong>
- *       (key {@code planning.day.date}) — planning date outside the sane range.</li>
- *   <li>{@link PlanningRuleRangeException} → <strong>422</strong>
- *       (key {@code planning.rule.range}) — bulk rule range over the span cap.</li>
- *   <li>{@link PlanningDayNotFoundException} → 404 (also the cross-tenant case).</li>
- *   <li>{@link IllegalArgumentException} → 400 (missing/invalid factory args,
- *       a crew role with no seeded club type).</li>
- * </ul>
- *
- * <p>The admin-or-creator gate throws {@code AccessDeniedException} from the
- * service; that is intentionally NOT handled here — Spring Security's
- * {@code ExceptionTranslationFilter} maps it to 403 downstream of MVC.
- */
 @RestControllerAdvice(assignableTypes = PlanningDaysController.class)
 class PlanningDaysExceptionHandler {
 

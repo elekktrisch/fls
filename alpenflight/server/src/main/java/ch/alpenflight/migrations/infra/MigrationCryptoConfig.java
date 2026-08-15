@@ -23,44 +23,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
-/**
- * S-140 master-keyset bootstrap. Reads the env-pinned Tink JSON keyset
- * once at startup, instantiates an {@link Aead} primitive bound to it,
- * and publishes the primitive as a Spring bean. Reused by S-141 for
- * bundle decryption (StreamingAead can hang off the same {@link KeysetHandle}).
- *
- * <p>Sourcing:
- * <ul>
- *   <li>{@code ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE = inline}
- *       (default) — {@code ALPENFLIGHT_MIGRATION_MASTER_KEYSET} is a
- *       base64-encoded Tink JSON keyset.</li>
- *   <li>{@code ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE = file} —
- *       the env var is a filesystem path to the raw Tink JSON keyset.</li>
- * </ul>
- *
- * <p>Generate a fresh keyset locally:
- * <pre>{@code
- *   tinkey create-keyset --key-template AES256_GCM --out keyset.json
- *   base64 -w0 keyset.json   # → ALPENFLIGHT_MIGRATION_MASTER_KEYSET=<value>
- * }</pre>
- *
- * <p>Fail-fast on missing / malformed: any error during
- * {@link #migrationMasterKeyAead} surfaces as a {@code BeanCreationException}
- * at app start.
- */
 @Configuration
 public class MigrationCryptoConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(MigrationCryptoConfig.class);
 
-    /**
-     * Source mode for the keyset. {@link #INLINE} + {@link #FILE} are the
-     * production-safe shapes (env-pinned material); {@link #EPHEMERAL} is
-     * the dev / smoke-bootstrap escape hatch — a fresh keyset is generated
-     * at startup, logged loudly, and discarded on JVM exit. Any production
-     * deployment using {@code EPHEMERAL} would lose every previously-issued
-     * row's private key on the next restart; the warning log says so.
-     */
     public enum Source { INLINE, FILE, EPHEMERAL }
 
     private final Source source;
@@ -80,12 +47,6 @@ public class MigrationCryptoConfig {
         this.environment = environment;
     }
 
-    /**
-     * Master keyset is loaded ONCE here; rotation requires a rolling JVM
-     * restart (the bean is constructed at {@code @Bean} factory time and
-     * cached for the app lifetime). Active-rotation-without-restart is a
-     * future story.
-     */
     @Bean
     Aead migrationMasterKeyAead() throws GeneralSecurityException, IOException {
         AeadConfig.register();
@@ -126,13 +87,6 @@ public class MigrationCryptoConfig {
         return aead;
     }
 
-    /**
-     * S-139: {@link TinkMigrationBundleCipher} moved to the
-     * {@code migration-bundle} module (Spring-free, for standalone-jar reuse),
-     * so it is no longer a {@code @Component}. Declare it explicitly here so
-     * {@code MigrationBundleIngestService}'s {@link MigrationBundleCipher}
-     * constructor injection still resolves.
-     */
     @Bean
     MigrationBundleCipher migrationBundleCipher() {
         return new TinkMigrationBundleCipher();

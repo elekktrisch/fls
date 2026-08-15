@@ -28,16 +28,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Schema-shape assertions for the V4__reservations_planning_accounting
- * migration (S-014). Shares the Postgres container with the other
- * migration tests so Spring's context cache reuses the same boot.
- *
- * <p>Layer: SQL/Postgres-introspection via {@code information_schema} +
- * {@code pg_catalog}. The story is parity-by-reshape (no legacy URL/JSON
- * shape to preserve); reference-seed enum values pinned via legacy-code
- * citations rather than runtime fixtures.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
@@ -47,7 +37,6 @@ class ReservationsBaselineIntegrationTest {
     private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static JsonNode canonicalSeeds;
 
-    /** The 12 in-scope domain tables (5 aggregate roots + 3 internal entities + 2 per-club ref + 2 system-global ref). */
     private static final List<String> S014_DOMAIN_TABLES = List.of(
             "t_aircraft_reservation", "t_aircraft_reservation_type",
             "t_planning_day", "t_planning_day_assignment", "t_planning_day_assignment_type",
@@ -55,12 +44,9 @@ class ReservationsBaselineIntegrationTest {
             "t_delivery", "t_delivery_item",
             "t_delivery_creation_test", "t_delivery_creation_test_item");
 
-    /** 3 internal-entity tables — no aggregate prefix; cross boundaries only via parent. */
     private static final List<String> S014_INTERNAL_ENTITIES = List.of(
             "t_delivery_item", "t_planning_day_assignment", "t_delivery_creation_test_item");
 
-    /** TENANT_SCOPED tables in S-014 (10 = 5 roots + 3 internals + 2 per-club ref tables).
-     * Each must carry operating_club_id uuid NOT NULL → club(id). */
     private static final List<String> S014_TENANT_SCOPED_TABLES = List.of(
             "t_aircraft_reservation", "t_aircraft_reservation_type",
             "t_planning_day", "t_planning_day_assignment", "t_planning_day_assignment_type",
@@ -68,9 +54,10 @@ class ReservationsBaselineIntegrationTest {
             "t_delivery", "t_delivery_item",
             "t_delivery_creation_test", "t_delivery_creation_test_item");
 
-    /** SYSTEM_GLOBAL reference tables (no operating_club_id). */
     private static final List<String> S014_SYSTEM_GLOBAL_REF_TABLES = List.of(
             "t_accounting_rule_filter_type", "t_accounting_unit_type");
+
+    private static final String DEV_SEED_UUID_BAND_PREFIX = "019e30c3-";
 
     @BeforeAll
     static void loadCanonicalSeeds() throws Exception {
@@ -93,11 +80,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Autowired DataSource dataSource;
 
-    // ============================================================================
-    // Table presence + counter + extension
-    // ============================================================================
 
-    /** AC1 — all 12 domain tables present. */
     @Test
     void all_12_domain_tables_present() throws Exception {
         Set<String> actual = new LinkedHashSet<>();
@@ -206,9 +189,6 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection()) {
             for (String t : S014_TENANT_SCOPED_TABLES) {
                 assertColumnNotNull(conn, t, "operating_club_id", "uuid");
-                // delivery_item / planning_day_assignment / delivery_creation_test_item
-                // denormalize operating_club_id from their parent aggregate but still
-                // FK directly to club(id) for symmetry with @TenantId at S-022.
                 assertFkDeleteRule(t, "operating_club_id", "RESTRICT");
             }
         }
@@ -234,9 +214,6 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Delivery state machine + numbering invariants
-    // ============================================================================
 
     @Test
     void delivery_process_state_id_is_smallint() throws Exception {
@@ -301,7 +278,6 @@ class ReservationsBaselineIntegrationTest {
                 });
     }
 
-    /** Free-text delivery_number: duplicate values (incl. non-numeric) in one club must be accepted. */
     @Test
     void delivery_number_is_free_text_and_permits_duplicates() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
@@ -318,13 +294,9 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // Booked-state preconditions (delivery_number, delivered_on, recipient
-    // snapshot) + batch_id range guard moved to Delivery.book() + BatchId VO
-    // at S-064 / S-022 per ADR 0022 directive 2.
 
-    /** delivery.batch_id partial UNIQUE per club: same non-zero batch_id collides; cross-club ok. */
     @Test
-    void delivery_batch_id_partial_unique_per_club() throws Exception {
+    void delivery_batch_id_unique_per_club_except_the_default_zero() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
@@ -332,7 +304,6 @@ class ReservationsBaselineIntegrationTest {
                 String clubB = seedMinimalClub(conn, "TST_BUB");
                 insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_42"), clubA, 42);
                 insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_B_42"), clubB, 42);
-                // Default batch_id=0 must NOT collide (predicate excludes it).
                 insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_0_first"), clubA, 0);
                 insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_0_second"), clubA, 0);
 
@@ -348,11 +319,6 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // delivery_item FKs + partial UNIQUE
-    // (money-math CHECKs + generated total_amount column dropped per ADR 0022
-    // directive 2; DeliveryItem.totalAmount() compute-on-read at S-022)
-    // ============================================================================
 
     @Test
     void delivery_item_article_fk_restrict() throws Exception {
@@ -376,13 +342,7 @@ class ReservationsBaselineIntegrationTest {
                 });
     }
 
-    // ============================================================================
-    // aircraft_reservation (cross-tenant aircraft FK per amendment)
-    // ============================================================================
 
-    // end > start (incl. the empty-range degenerate where lower=upper produces
-    // a GiST-invisible empty range) lives on AircraftReservation constructor
-    // + validateDuration() at S-064 per ADR 0022 directive 2.
 
     @Test
     void aircraft_reservation_has_generated_tstzrange_column() throws Exception {
@@ -418,11 +378,6 @@ class ReservationsBaselineIntegrationTest {
                 });
     }
 
-    /**
-     * 2026-05-16 Aircraft-cross-tenant amendment: aircraft_reservation.aircraft_id
-     * is a cross-tenant FK; the column comment must say so explicitly so future
-     * implementers + S-024 leakage CI know to bypass the @TenantId roster.
-     */
     @Test
     void aircraft_reservation_aircraft_id_cross_tenant_column_comment() throws Exception {
         String comment = columnComment("t_aircraft_reservation", "aircraft_id");
@@ -452,9 +407,6 @@ class ReservationsBaselineIntegrationTest {
         assertFkDeleteRule("t_aircraft_reservation", "location_id", "RESTRICT");
     }
 
-    // ============================================================================
-    // planning_day + assignment
-    // ============================================================================
 
     @Test
     void planning_day_unique_per_club_date_location_partial() throws Exception {
@@ -476,7 +428,6 @@ class ReservationsBaselineIntegrationTest {
         assertFkDeleteRule("t_planning_day_assignment", "planning_day_id", "CASCADE");
     }
 
-    /** Sacred-cow cross-tenant Person FK: RESTRICT to preserve planning history. */
     @Test
     void planning_day_assignment_person_fk_restrict() throws Exception {
         assertFkDeleteRule("t_planning_day_assignment", "assigned_person_id", "RESTRICT");
@@ -504,9 +455,6 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // accounting_rule_filter — jsonb config + GIN + sort_indicator
-    // ============================================================================
 
     @Test
     void accounting_rule_filter_filter_config_is_jsonb_not_null() throws Exception {
@@ -571,16 +519,9 @@ class ReservationsBaselineIntegrationTest {
         assertFkDeleteRule("t_accounting_rule_filter", "filter_type_id", "RESTRICT");
     }
 
-    // ============================================================================
-    // Reference seeds — assert against canonical-UUID JSON
-    // ============================================================================
 
     @Test
     void accounting_rule_filter_type_seeded_with_10_canonical_codes() throws Exception {
-        // V4 seeded indices 0..7 (legacy 10..80); V42 (J-8 T-09) added
-        // DO_NOT_INVOICE (legacy 5) + START_TAX (legacy 55) so all 10 filter-type
-        // legacy ids resolve to a seeded reference row (else a type-5/55 migrated
-        // AccountingRuleFilter FK-fails at fanout via fk_arf_filter_type_id).
         List<String> expectedCodes = List.of(
                 "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
                 "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME",
@@ -628,31 +569,13 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    /**
-     * Per-club ref tables: the STRUCTURAL migration (V4) does NOT seed reservation
-     * types — operators get them via migration import or the future masterdata
-     * screen. The ONE tolerated row is the J-5 T-17 dev/test seed
-     * (`V31__dev_reservation_type_seed.sql`): a default "Allgemein" type bound to
-     * seed-club-1 so the clean-seed UI create→type-picker e2e has a pickable type
-     * (a clean realm club otherwise has zero types → an empty form dropdown). Same
-     * dev/test-only posture as the V8/V26/V29 dev-user seeds — bound to the
-     * canonical dev club, absent in any real prod tenant. The guard still catches
-     * any UNEXPECTED structural seeding.
-     */
     @Test
     void aircraft_reservation_type_only_the_dev_seed_present() throws Exception {
-        // Filter to the SEED-BAND ids (`019e30c3-…`): V4 seeds ZERO types structurally,
-        // and the V31 dev-seed adds exactly the seed-band `Allgemein` row. Sibling
-        // reservation ITs (migration round-trip ingest, the LeakageSweep sweep factory)
-        // legitimately leave RANDOM/faker-UUID type rows in the SHARED Testcontainers
-        // DB, so an unfiltered `containsExactly` is brittle in the full suite. Scoping
-        // to the seed band keeps the structural guarantee (no V4 seed; exactly the V31
-        // Allgemein seed row is present) without depending on other tests not inserting.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT id::text, operating_club_id::text, reservation_type_name "
                                 + "FROM t_aircraft_reservation_type "
-                                + "WHERE id::text LIKE '019e30c3-%'")) {
+                                + "WHERE id::text LIKE '" + DEV_SEED_UUID_BAND_PREFIX + "%'")) {
             List<String> rows = new ArrayList<>();
             while (rs.next()) {
                 rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3));
@@ -666,22 +589,13 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    /**
-     * V4 seeds ZERO assignment types structurally (per-club ref data — a migrated
-     * club brings its own, a clean-seed club is seeded by the V34 dev-seed). Same
-     * de-brittle as the reservation-type sibling above (J-5 T-30): scope to the
-     * seed band, asserting exactly the three V34 dev-seed rows
-     * (Segelflugleiter/Schlepppilot/Fluglehrer for seed-club-1) and no structural
-     * V4 seeding — random/faker-UUID rows other planning ITs leave in the shared
-     * container are ignored.
-     */
     @Test
     void planning_day_assignment_type_only_the_dev_seed_present() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT id::text, operating_club_id::text, assignment_type_name "
                                 + "FROM t_planning_day_assignment_type "
-                                + "WHERE id::text LIKE '019e30c3-%' "
+                                + "WHERE id::text LIKE '" + DEV_SEED_UUID_BAND_PREFIX + "%' "
                                 + "ORDER BY id::text")) {
             List<String> rows = new ArrayList<>();
             while (rs.next()) {
@@ -698,9 +612,6 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // delivery_creation_test (harness)
-    // ============================================================================
 
     @Test
     void delivery_creation_test_flight_fk_cascade() throws Exception {
@@ -787,10 +698,6 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void delivery_creation_test_matched_filter_ids_are_uuid_array_not_fk() throws Exception {
-        // V43 retyped both arrays bigint[] -> uuid[]: the J-9 engine + the J-8
-        // AccountingRuleFilter use UUID ids, and the harness links matched rules
-        // to /accountingrules/<uuid>, which a bigint[] could not hold. Still NOT
-        // FK-enforced — a deleted filter is a legitimate regression signal.
         for (String col : List.of("expected_matched_filter_ids", "last_test_matched_filter_ids")) {
             try (Connection conn = dataSource.getConnection();
                     var stmt = conn.prepareStatement(
@@ -816,9 +723,6 @@ class ReservationsBaselineIntegrationTest {
         assertFkDeleteRule("t_delivery_creation_test_item", "delivery_creation_test_id", "CASCADE");
     }
 
-    // ============================================================================
-    // Aggregate-root column comments cite ADR 0019 + the aggregate-prefix
-    // ============================================================================
 
     @Test
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
@@ -851,15 +755,7 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // ADR 0022 directive 2 — schema-wide post-conditions across V1-V4 baseline.
-    // Business-logic CHECKs dropped in place (no V5 needed); only the explicitly
-    // retained set survives (named + paired with COMMENT ON CONSTRAINT marker).
-    // delivery_item.total_amount GENERATED column dropped; ix_dli_delivery
-    // re-created without total_amount in INCLUDE.
-    // ============================================================================
 
-    /** The 3 CHECK constraints explicitly retained as ADR 0022 deviations. */
     private static final Set<String> RETAINED_BUSINESS_LOGIC_CHECKS = Set.of(
             "ck_person_email_private_shape",
             "ck_person_email_business_shape",
@@ -938,13 +834,7 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Helpers
-    // ============================================================================
 
-    // Schema-introspection helpers live in MigrationAssertions; thin local wrappers
-    // delegate so existing call sites stay compact. Future migration stories should
-    // call the static helpers directly.
 
     private List<String> indexDefs(String table) throws SQLException {
         return MigrationAssertions.indexDefs(dataSource, table);
@@ -1002,12 +892,6 @@ class ReservationsBaselineIntegrationTest {
                 "no canonical UUID for " + table + " " + keyField + "=" + keyValue);
     }
 
-    /**
-     * Insert a minimal club row (and return its id as text) so DML tests can
-     * provoke CHECK / FK violations without depending on the prior story's
-     * fixtures. Each call uses a fresh club_key so cross-test isolation holds
-     * even within a savepoint-free path.
-     */
     private String seedMinimalClub(Connection conn, String clubKey) throws SQLException {
         String chId = canonicalSeedUuid("t_country", "iso2", "CH");
         String clubStateActive = canonicalSeedUuid("t_club_state", "code", "ACTIVE");
@@ -1051,7 +935,6 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    /** Deterministic non-canonical test UUID derived from {table, key} hash. */
     private static String newDeterministicUuid(String table, String key) {
         int h = (table + ":" + key).hashCode();
         long abs = Math.abs((long) h);

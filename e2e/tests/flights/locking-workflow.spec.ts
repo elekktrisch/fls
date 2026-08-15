@@ -1,36 +1,3 @@
-// e2e/tests/22-flight-locking-workflow.spec.ts
-//
-// Plan row #22: Flight locking workflow.
-//
-// Exercises the lock step of `DailyFlightValidationJob`:
-//   Valid(30) -> Locked(40) for flights whose CreatedOn is at least 2 days
-//   in the past.
-//
-// Trigger:  GET /api/v1/workflows/flightvalidation
-//           (FLS.Server.Web/Controllers/WorkflowsController.cs:81)
-// Job:      DailyFlightValidationJob -> FlightService.LockFlights(clubId)
-//           (FlightService.cs:1145)
-// Gate:     LockFlights uses `DateTime.Today.AddDays(-2)` and filters on
-//           `flight.CreatedOn <= lockingDate` (FlightService.cs:1157,1164).
-//
-// =============================================================================
-// TIME-GATE DEPENDENCY
-// =============================================================================
-// This spec depends on the deterministic fixture in
-// `flsserver/database/FLSTest/3 insert/_test-fixture.sql` section 5 ("Historical
-// flight"). That fixture seeds flight `F1500005-0000-0000-0000-000000000001`
-// with `ProcessStateId = 30` (Valid) and `CreatedOn = @anchor + 7 minutes`
-// where `@anchor = 2026-01-01`. Because the anchor is fixed in the past and
-// well over two days behind wall-clock, the flight ages naturally on every
-// `freshDb` re-seed and satisfies the >=2 day gate without clock manipulation.
-//
-// If the anchor in the fixture is ever moved into the future (within the last
-// two days of today's date), this spec will detect that the flight is
-// ineligible and `test.skip` with a clear reason — per the task brief, we do
-// NOT add new fixture seed in this batch.
-//
-// See SERVER.md sec. 1 (workflow trigger mechanism) and sec. 2 (state machine).
-
 import { test, expect } from "../../fixtures";
 import type { Page } from "@playwright/test";
 
@@ -39,7 +6,6 @@ import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
 const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 
-// Mirror of FLS.Data.WebApi.Flight.FlightProcessState.
 const ProcessState = {
   NotProcessed: 0,
   Invalid: 28,
@@ -52,16 +18,6 @@ async function getFlight(
   token: string,
   flightId: string,
 ): Promise<{ ProcessStateId: number; CreatedOn?: string }> {
-  // 30s per-call: under workers:6 burst the default 10s tripped before
-  // Mono finished servicing the request, surfacing as a TimeoutError and
-  // tearing the test down before the poll loop's own 5s deadline could
-  // even start. The flight read is cheap server-side; the headroom only
-  // covers thread-pool contention, not a slow query.
-  //
-  // Under contention even the 30s per-call can throw a transient TimeoutError,
-  // which would tear the test down. The read is idempotent, so retry the whole
-  // request via toPass — readiness, not a slow query.
-  // res.json() is untyped; the callers below read nested optional fields.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let body: any;
   await expect(async () => {
@@ -78,9 +34,6 @@ async function getFlight(
     ).toBeTruthy();
     body = await res.json();
   }).toPass({ timeout: 60_000 });
-  // For glider flights, ProcessStateId is nested under GliderFlightDetailsData,
-  // not at the FlightDetails root. (Motor flights would use the Motor variant.)
-  // CreatedOn is the same on root and nested; the root value is canonical.
   return {
     ProcessStateId: body?.GliderFlightDetailsData?.ProcessStateId,
     CreatedOn: body?.CreatedOn ?? body?.GliderFlightDetailsData?.CreatedOn,
@@ -92,8 +45,7 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
 }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
-  // Create a Valid flight aged 3+ days so the workflow's >=2-day gate clears.
-  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(
+  const { flightId: ownedFlightId } = await ensureGliderFlight(
     loggedInPage.request,
     token,
     {
@@ -103,20 +55,12 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
     },
   );
 
-  // -------------------------------------------------------------------------
-  // Precondition: test flight is Valid (30) and aged >= 2 days.
-  // -------------------------------------------------------------------------
-  const before = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const before = await getFlight(loggedInPage, token, ownedFlightId);
 
-  // The flight must be Valid to be eligible for locking.
   expect(before.ProcessStateId, "test flight should start as Valid (30)").toBe(
     ProcessState.Valid,
   );
 
-  // Confirm the time gate is met: CreatedOn must be at least 2 days behind
-  // today (server compares `DbFunctions.TruncateTime(flight.CreatedOn) <=
-  // today - 2`). If the fixture anchor was moved forward, skip with a clear
-  // diagnostic rather than reporting a misleading failure.
   if (before.CreatedOn) {
     const createdOn = new Date(before.CreatedOn);
     const twoDaysAgo = new Date();
@@ -130,9 +74,6 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Trigger the workflow.
-  // -------------------------------------------------------------------------
   const workflowRes = await loggedInPage.request.get(
     `${API_BASE}/api/v1/workflows/flightvalidation`,
     { headers: { Authorization: `Bearer ${token}` }, timeout: 30_000 },
@@ -142,15 +83,10 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
     `GET /api/v1/workflows/flightvalidation -> ${workflowRes.status()}`,
   ).toBeTruthy();
 
-  // -------------------------------------------------------------------------
-  // Poll the flight until ProcessStateId flips to Locked (40). The workflow
-  // endpoint returns synchronously (WorkflowsController.cs:85), but EF6
-  // change-tracking + write commit can take a beat under load. 5s is enough.
-  // -------------------------------------------------------------------------
   const deadline = Date.now() + 5000;
   let latest = before;
   while (Date.now() < deadline) {
-    latest = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+    latest = await getFlight(loggedInPage, token, ownedFlightId);
     if (latest.ProcessStateId === ProcessState.Locked) break;
     await new Promise((r) => setTimeout(r, 200));
   }

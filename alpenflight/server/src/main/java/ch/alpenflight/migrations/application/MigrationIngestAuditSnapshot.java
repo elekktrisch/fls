@@ -4,14 +4,6 @@ import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Audit snapshot record for the three {@code MIGRATION_INGEST_*} actions.
- * Tiny by design — ids + ints + bounded enum codes only; never display
- * names, never PII from the bundle. The {@code audit.redaction.entities.
- * MigrationIngestAuditSnapshot.allow} list in {@code application.yml} is
- * the structural redaction gate: a field added here without an allow-list
- * update surfaces as {@code [redacted]} on the audit row.
- */
 public record MigrationIngestAuditSnapshot(
         UUID uploadId,
         @Nullable UUID deploymentId,

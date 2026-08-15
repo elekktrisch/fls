@@ -53,8 +53,6 @@ class UsersExceptionHandler {
 
     @ExceptionHandler(UserDirectoryException.class)
     ResponseEntity<ProblemDetail> handleKc(UserDirectoryException e) {
-        // 502: the upstream IdP failed mid-flow. Don't bubble the cause text —
-        // KC error payloads occasionally include the user's email.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
         pd.setType(TYPE_KC_UPSTREAM);
         pd.setTitle("Keycloak admin call failed");

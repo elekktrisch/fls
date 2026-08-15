@@ -6,12 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 
-/**
- * Companion to {@link PostgresIntegrationTestSmokeIT} that covers the
- * absent-{@link WithTenant} branch. Lives in its own class because the
- * smoke IT carries a class-level {@code @WithTenant} default, which would
- * mask the no-context behaviour.
- */
 @Import(TenantContextProbe.class)
 class UnannotatedTenantContextIT extends PostgresIntegrationTest {
 

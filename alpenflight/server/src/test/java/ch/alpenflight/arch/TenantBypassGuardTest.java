@@ -8,24 +8,6 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
-/**
- * Structural guard: production code must not call
- * {@link TenantContextCarrier#set(java.util.UUID)} from outside
- * {@code platform.tenancy} — that method exists so the resolver in
- * {@code src/main/java} can be wired to a thread-local carrier the test
- * support layer + {@code Tenants.runAs} push into. An unscoped production
- * caller could bypass the JWT-driven resolver branch and silently set the
- * effective tenant for the current thread.
- *
- * <p>The method is intentionally {@code public} (the test-side caller
- * {@code ch.alpenflight.server.testsupport.TenantTestContext} lives in a
- * different package). ArchUnit's {@code DoNotIncludeTests} import option
- * scopes this check to {@code src/main/java} only, so the test caller is
- * not flagged.
- *
- * <p>Lives outside {@link LayeringRulesTest} because it guards a single
- * named method rather than a per-module dependency direction.
- */
 @AnalyzeClasses(
         packages = "ch.alpenflight",
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})

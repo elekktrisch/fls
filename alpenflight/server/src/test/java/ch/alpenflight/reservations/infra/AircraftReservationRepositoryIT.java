@@ -21,28 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence-level proof of the J-5 conflict GiST probe + soft-delete
- * exclusion (T-04), driven through the real {@code @TenantId} discriminator via
- * {@link Tenants#runAs}. The aggregate's pure {@code conflictsWith} predicate
- * has its own domain unit test; this IT proves the native {@code &&}
- * range-overlap query against the V4 generated {@code reservation_range} column
- * agrees with it and respects soft-delete + tenant scoping.
- *
- * <p>Each test owns its data: {@code @BeforeEach} deletes the test clubs'
- * reservation rows first (they FK to aircraft with {@code ON DELETE RESTRICT},
- * so they must go before {@link TwoClubFixture#seed()} wipes the seed aircraft),
- * then re-seeds two clubs + an aircraft per club + a shared pilot + a location.
- */
 class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_ARV_";
     private static final String KEY_PREFIX = "IT_AV_";
 
-    // Booking windows: B follows A adjacently ([)), C overlaps A.
     private static final Instant A_START = Instant.parse("2026-07-01T08:00:00Z");
     private static final Instant A_END = Instant.parse("2026-07-01T10:00:00Z");
-    private static final Instant ADJACENT_START = A_END; // == A_END → no conflict
+    private static final Instant ADJACENT_START = A_END;
     private static final Instant ADJACENT_END = Instant.parse("2026-07-01T12:00:00Z");
     private static final Instant OVERLAP_START = Instant.parse("2026-07-01T09:00:00Z");
     private static final Instant OVERLAP_END = Instant.parse("2026-07-01T11:00:00Z");
@@ -64,9 +50,6 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        // The fixture mints the two clubs and clears all their tenant-scoped
-        // children (reservations FK to aircraft with RESTRICT) in one global
-        // child→parent pass before re-minting.
         TwoClubFixture fixture =
                 new TwoClubFixture(jdbc, clubs, countries, clubStates, NAME_PREFIX, KEY_PREFIX);
         fixture.seed();
@@ -87,25 +70,21 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
         assertThat(existingId).isNotNull();
 
         Tenants.runAs(clubA, () -> {
-            // Overlapping window on the SAME aircraft → conflict.
             assertThat(reservations.existsActiveConflict(
                     aircraftA, new Range(OVERLAP_START, OVERLAP_END), null))
                     .as("overlapping range on the same aircraft conflicts")
                     .isTrue();
 
-            // Adjacent half-open range (end == next.start) → no conflict.
             assertThat(reservations.existsActiveConflict(
                     aircraftA, new Range(ADJACENT_START, ADJACENT_END), null))
                     .as("adjacent [) range (end == next.start) does not conflict")
                     .isFalse();
 
-            // Same overlapping window on a DIFFERENT aircraft → no conflict.
             assertThat(reservations.existsActiveConflict(
                     aircraftB, new Range(OVERLAP_START, OVERLAP_END), null))
                     .as("overlap on a different aircraft does not conflict")
                     .isFalse();
 
-            // Self-exclusion: the row being edited does not conflict with itself.
             assertThat(reservations.existsActiveConflict(
                     aircraftA, new Range(A_START, A_END), existingId))
                     .as("editing the overlapping row in place is self-excluded")
@@ -151,8 +130,6 @@ class AircraftReservationRepositoryIT extends PostgresIntegrationTest {
             List<ListRow> all = reservations.findAllActiveListRows();
             assertThat(all).extracting(ListRow::id).contains(saved.getId());
 
-            // Range view: a window overlapping the booking returns it; an
-            // adjacent-only window does not.
             assertThat(reservations.findActiveListRowsByAircraftInRange(
                     aircraftA, new Range(OVERLAP_START, OVERLAP_END)))
                     .extracting(ListRow::id)

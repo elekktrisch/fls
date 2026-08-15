@@ -10,13 +10,6 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * Witness implementation of {@link CrossTenantNotFoundContract} against the
- * {@link LocationsService} surface (the {@code /api/v1/locations} controller).
- * Today's only tenant-scoped controller — when S-046 (Aircraft admin) and
- * future tenant-scoped controllers land, they extend the contract and the
- * IDOR-gate witness propagates without a per-controller test rewrite.
- */
 class LocationsCrossTenantNotFoundIT extends CrossTenantNotFoundContract {
 
     @Autowired private LocationsService locations;

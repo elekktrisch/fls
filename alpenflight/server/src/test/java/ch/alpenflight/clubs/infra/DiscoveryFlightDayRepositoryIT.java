@@ -23,14 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Round-trip + schema proof for {@link DiscoveryFlightDay}. Covers what crosses
- * the DB: the {@code ux_discovery_flight_day_club_date} partial UNIQUE, the
- * {@code @TenantId} boundary, and the bookable-days read — driven through the
- * production {@link Tenants#runAs} window with no authenticated principal,
- * which is how the anonymous public form will reach it. The date rules
- * themselves are unit-tested (DiscoveryFlightDayTest).
- */
 class DiscoveryFlightDayRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_DFD_";

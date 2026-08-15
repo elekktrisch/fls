@@ -13,32 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Per-club Person association: legacy {@code PersonClub} (composite key
- * {@code (PersonId, ClubId)}) → {@code t_person_club} (surrogate
- * {@code id UUID PRIMARY KEY}).
- *
- * <p>Leaf junction — no other identity-group entity FKs into PersonClub
- * — so S-141 does NOT populate a {@code legacy_id_map_person_club} temp
- * table. The PreparedStatement bind shape is purely the wire columns;
- * the surrogate {@code id} is minted by S-141's INSERT layer (UUID v7).
- *
- * <p>Per the design notes: legacy {@code IsActive} (operational
- * soft-disable) and {@code IsDeleted} (tombstone) are <strong>different
- * states</strong> and both ported (the inactive-but-not-deleted state
- * is meaningful — flagged member who has not been tombstoned). The
- * mapper round-trips {@code is_active}; the deletion flag flows via
- * {@code deleted_on}.
- *
- * <p>{@code member_number} is per-Club PII — the S-027 audit-redaction
- * coverage gate (owned by S-186) asserts it lands in the redacted-field
- * set.
- *
- * <p>Legacy person-wide licence booleans ({@code HasMotorPilotLicence}
- * etc.) live on the Person aggregate; PersonClub carries
- * <em>per-Club operational roles</em> with the same boolean names but
- * different semantics — do NOT cross-wire.
- */
 public final class PersonClubMapper implements Mapper {
 
     static final String PERSON_ID = "person_id";
@@ -85,15 +59,12 @@ public final class PersonClubMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
-        // member_state_id is orphan-nulled producer-side (MEMBER_STATE is not in the
-        // migrated set), so it is NOT a resolved FK — mirrors the credit
-        // transaction's nulled balanced_delivery_id, which likewise omits Delivery.
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.PERSON, EntityType.CLUB);
     }
 

@@ -10,21 +10,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/**
- * {@code GET /api/v1/me/events} — the principal-scoped Server-Sent Events
- * stream (S-176), the live-update channel for the dashboard.
- *
- * <p>Sits under the standard Bearer filter chain ({@code /api/v1/**} is
- * {@code .authenticated()} in {@code platform.security.SecurityConfig}), so
- * an anonymous / no-token request is rejected by the resource server before
- * reaching this method — no anonymous stream. The principal is bound from
- * the validated JWT; the stream is keyed by its {@code sub}, so a caller can
- * only ever subscribe to their own events.
- *
- * <p>Transport is Servlet-stack Spring MVC {@link SseEmitter} (carve, J-3) —
- * no WebFlux. The heartbeat + per-{@code sub} connection cap live in the
- * bus; this controller only opens the stream.
- */
 @RestController
 @Tag(name = "me", description = "Authenticated-principal view")
 class MeEventsController {

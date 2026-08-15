@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/ops/dev-up-full.sh
-#
-# One-shot orchestrator: brings up infra (Mailpit) + legacy (MSSQL) + seeds
-# the legacy DB + brings up the AlpenFlight target stack (Postgres + pgAdmin
-# + Keycloak) with Flyway migrations applied. Idempotent.
-#
-# Composed from four single-purpose scripts; edit those, not this:
-#
-#   alpenflight/ops/dev-up-infra.sh         shared network + Mailpit
-#   e2e/scripts/dev-up.sh                   legacy MSSQL
-#   e2e/scripts/seed.sh                     legacy FLSTest seed
-#   alpenflight/ops/dev-up-alpenflight.sh   Postgres + pgAdmin + Keycloak + Flyway
-#
-# Requires: Docker Engine 27+ with compose-v2 plugin, Java 25 (sdkman),
-# the committed Gradle wrapper.
-#
-# Tear-down order: alpenflight-dev → fls-e2e → alpenflight-infra (target →
-# legacy → infra). Reverse order leaves orphan containers attached to a
-# removed-and-recreated network. See alpenflight/ops/README.md § Tear-down.
 
 set -euo pipefail
 

@@ -27,8 +27,6 @@ class DeliveryMapperTest extends AbstractMapperContractTest<DeliveryMapper> {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("DeliveryId", randomUuidString(faker));
         row.put("ClubId", randomUuidString(faker));
-        // Producer-aliased columns — the JOIN to Flights derives
-        // ResolvedProcessStateId from ProcessStateId + IsFurtherProcessed.
         row.put("ResolvedProcessStateId", 20);
         row.put("FlightId", randomUuidString(faker));
         row.put("RecipientPersonId", randomUuidString(faker));
@@ -62,14 +60,12 @@ class DeliveryMapperTest extends AbstractMapperContractTest<DeliveryMapper> {
 
     @Test
     void declaresClubFlightAndPersonAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.FLIGHT, EntityType.PERSON);
     }
 
     @Test
     void recipientColumnsAreSentinelsNotParityIgnored() {
-        // Frozen-snapshot invariant per Swiss OR Art. 957a — the parity oracle
-        // must compare recipient_* values exactly, never skip them.
         var ignored = ParityMarkers.ignored(DeliveryMapper.class);
         assertThat(ignored)
                 .as("recipient_* columns are Swiss OR Art. 957a frozen snapshots — "

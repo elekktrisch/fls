@@ -12,9 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global ClubState catalog.
- */
 @RestController
 @RequestMapping(path = "/api/v1/club-states", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "ClubStates", description = "Club lifecycle-state catalog.")

@@ -30,22 +30,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Authz matrix for the Article REST surface under the S-159 model:
- *
- * <ul>
- *   <li><strong>Tenant scoping is structural</strong> via Hibernate's
- *       {@code @TenantId} discriminator on {@code Article.operatingClubId}.
- *       Cross-club access is invisible (404), not 403 — the IDOR contract.</li>
- *   <li><strong>Role gates</strong> on the controller: CLUB_ADMINISTRATOR
- *       for register / update / soft-delete; reads open to any authenticated
- *       principal so the future Flight / DeliveryItem picker can fetch the
- *       catalogue without an elevated role.</li>
- *   <li><strong>SYSTEM_ADMINISTRATOR has no rights here</strong> — sysadmin
- *       lacks a tenant context (no clubId claim) and is denied at the role
- *       gate on every write (403, not 404).</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -163,7 +147,6 @@ class ArticlesAuthorizationIT extends PostgresIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ----- helpers -----
 
     private String mintToken(@Nullable String clubId, String role) {
         Consumer<com.nimbusds.jwt.JWTClaimsSet.Builder> body = c -> {

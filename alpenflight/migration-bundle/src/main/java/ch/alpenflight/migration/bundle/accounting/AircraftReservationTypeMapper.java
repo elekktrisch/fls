@@ -14,15 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped per-club reference: legacy
- * {@code AircraftReservationTypes.AircraftReservationTypeId} →
- * {@code t_aircraft_reservation_type.id}. {@code operating_club_id} is
- * the {@code @TenantId} discriminator per V4.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class AircraftReservationTypeMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -56,21 +47,17 @@ public final class AircraftReservationTypeMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB);
     }
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // operating_club_id → CLUB is off-convention (the @TenantId; the default
-        // resolver would look for a non-existent club_id column and leave
-        // operating_club_id carrying the verbatim legacy GUID → fk_arvt_operating_
-        // club_id FK violation on INSERT, sqlstate 23503).
         return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 

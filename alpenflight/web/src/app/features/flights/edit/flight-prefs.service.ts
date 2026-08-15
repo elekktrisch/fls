@@ -49,24 +49,9 @@ function asPromise<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-/**
- * OIDC-`sub`-scoped flight form preferences. Persisted in IndexedDB (not
- * localStorage — replaces the legacy raw-localStorage flight prefs per the
- * `web/CLAUDE.md` no-localStorage policy).
- *
- * Architectural intent ("Dexie-backed" in S-062c design): origin-scoped,
- * sub-keyed, wipe-on-logout / tenant-switch. Implemented as a thin native
- * IDB wrapper to avoid a new dependency; swap to Dexie when S-062h ships
- * the drafts store and the SW mutation queue.
- *
- * The service is best-effort: reads return `null` / empty on any IDB error,
- * writes silently swallow. Prefs are a UX convenience, not durable state.
- */
 @Injectable({ providedIn: 'root' })
 export class FlightPrefsService {
   constructor() {
-    // Session-lifecycle wipe: drain on logout AND tenant-switch per the
-    // Security plan's shared-workstation PII boundary.
     const bus = inject(MUTATION_BUS);
     const destroyRef = inject(DestroyRef);
     bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
@@ -103,25 +88,20 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
-      // best-effort
+      return;
     }
   }
 
-  /**
-   * Record the chosen tow-pilot per tow-aircraft. Matches legacy
-   * `towPilotByAircraftId[aircraftId]` map (`FlightsController.js:350-352`).
-   */
   async recordTowPilot(sub: string, aircraftId: string, personId: string): Promise<void> {
     try {
       const current = await this.get(sub);
       const map = { ...(current.towPilotByAircraftId ?? {}), [aircraftId]: personId };
       await this.update(sub, 'towPilotByAircraftId', map);
     } catch {
-      // best-effort
+      return;
     }
   }
 
-  /** Wipe all prefs for the given sub. Called on logout + tenant-switch. */
   async clear(sub: string): Promise<void> {
     try {
       const db = await openDb();
@@ -132,11 +112,10 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
-      // best-effort
+      return;
     }
   }
 
-  /** Wipe ALL prefs across all subs. For tests + tenant-switch worst case. */
   async clearAll(): Promise<void> {
     try {
       const db = await openDb();
@@ -147,7 +126,7 @@ export class FlightPrefsService {
         db.close();
       }
     } catch {
-      // best-effort
+      return;
     }
   }
 }

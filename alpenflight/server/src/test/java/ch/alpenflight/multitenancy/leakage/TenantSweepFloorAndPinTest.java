@@ -12,30 +12,8 @@ import org.hibernate.Version;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Harness-sanity guards for the S-024 sweep. Pure JUnit — no Spring context,
- * no Docker. Two assertions:
- *
- * <ul>
- *   <li><strong>Floor.</strong> Reflective discovery returns at least the
- *       known minimum count of {@code @TenantId}-bearing entities. Catches a
- *       classpath / annotation regression that would silently produce an
- *       empty sweep (false-green).</li>
- *   <li><strong>Hibernate version pin.</strong> The bundled Hibernate's
- *       major version matches {@code tenant-rules.yaml::hibernate_pin}. The
- *       {@code @TenantId} discriminator's null-handling semantics changed
- *       between 5.x and 6.x (ADR 0008 footnote); pinning makes a major-bump
- *       a single deliberate PR.</li>
- * </ul>
- */
 class TenantSweepFloorAndPinTest {
 
-    /**
-     * Today: {@code MemberState} (clubs) + {@code Location} (locations) +
-     * {@code MutationAuditEvent} (audit, S-027). Bump this constant
-     * opportunistically — boyscout — when a new {@code @TenantId} entity
-     * lands.
-     */
     private static final int TENANT_SCOPED_ENTITY_FLOOR = 14;
 
     @Test
@@ -71,7 +49,7 @@ class TenantSweepFloorAndPinTest {
                 .isNotNull();
 
         String runtime = Version.getVersionString();
-        String pinMajor = pin.split("\\.")[0]; // "7.x" → "7"
+        String pinMajor = pin.split("\\.")[0];
         assertThat(runtime)
                 .as("Bundled Hibernate %s must match tenant-rules.yaml hibernate_pin %s "
                         + "— @TenantId null-handling semantics changed between 5.x and 6.x.",

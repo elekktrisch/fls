@@ -46,7 +46,6 @@ describe('handshakeArtifactDownload', () => {
     const { body } = handshakeArtifactDownload(HANDSHAKE);
     const parsed = JSON.parse(body) as Record<string, unknown>;
 
-    // The export jar's RSA-OAEP wrap depends on the exact PEM armor + newlines.
     expect(parsed['publicKeyPem']).toBe(HANDSHAKE.publicKeyPem);
     expect(parsed['uploadId']).toBe(HANDSHAKE.uploadId);
     expect(parsed['format']).toBe(HANDSHAKE_ARTIFACT_FORMAT);
@@ -57,8 +56,6 @@ describe('handshakeArtifactDownload', () => {
   it('is the single source for download and clipboard so neither can emit a bare key', () => {
     const { body } = handshakeArtifactDownload(HANDSHAKE);
 
-    // A bare PEM would lack the uploadId the server binds as AEAD associated
-    // data; the body must always be the combined JSON artifact.
     expect(body).not.toBe(HANDSHAKE.publicKeyPem);
     expect(JSON.parse(body)).toEqual(buildHandshakeArtifact(HANDSHAKE));
   });

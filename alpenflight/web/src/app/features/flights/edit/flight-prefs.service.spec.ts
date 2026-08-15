@@ -8,11 +8,6 @@ interface FakeRecord {
   prefs: Record<string, unknown>;
 }
 
-/**
- * Tiny in-memory IndexedDB stand-in. The service is a thin IDB wrapper —
- * the unit-testable surface is namespace-by-sub and the merge inside
- * `recordTowPilot`. The shim covers only the API the service touches.
- */
 class FakeStore {
   data = new Map<string, FakeRecord>();
   get(sub: string): FakeRequest<FakeRecord | undefined> {
@@ -132,7 +127,7 @@ describe('FlightPrefsService', () => {
   it('degrades gracefully when IndexedDB is unavailable', async () => {
     delete (globalThis as { indexedDB?: unknown }).indexedDB;
     expect(await svc.get('sub-x')).toEqual({});
-    await svc.update('sub-x', 'lastStartLocation', 'loc-z'); // no throw
-    await svc.clear('sub-x'); // no throw
+    await expect(svc.update('sub-x', 'lastStartLocation', 'loc-z')).resolves.toBeUndefined();
+    await expect(svc.clear('sub-x')).resolves.toBeUndefined();
   });
 });

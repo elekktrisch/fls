@@ -12,21 +12,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped per-club reference: legacy
- * {@code PersonCategories.PersonCategoryId} → {@code t_person_category.id}.
- *
- * <p>{@code parent_person_category_id} is a self-FK. V2 does NOT declare it
- * {@code DEFERRABLE}, so S-141 ingest splits this into a two-pass: first
- * pass inserts with {@code parent_person_category_id = NULL}; second pass
- * updates from the legacy parent → new UUID lookup after the
- * PERSON_CATEGORY pass completes. The self-FK is consequently NOT declared
- * in {@link #foreignKeys()} — declaring it would force a non-realizable
- * topological ordering. The structural FK to {@link EntityType#CLUB}
- * remains.
- *
- * <p>Reference-table parity coverage is full (no {@code @ParityIgnore}).
- */
 public final class PersonCategoryMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -54,12 +39,12 @@ public final class PersonCategoryMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB);
     }
 

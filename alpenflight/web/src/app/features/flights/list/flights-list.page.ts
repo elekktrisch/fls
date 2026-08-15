@@ -61,10 +61,10 @@ const PROCESS_STATE_LABEL: Readonly<Record<ProcessState, string>> = {
   [FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS]: 'Excluded',
 };
 
+const IMMAT_PLACEHOLDER_WHILE_AIRCRAFT_STORE_LOADS = '…';
+
 function formatLegacyDate(iso?: string): string {
   if (!iso || iso.length !== 10) return iso ?? '';
-  // Surface dd.MM.yyyy — parity with legacy `flights.html`
-  // (`flight.FlightDate | date:'dd.MM.yyyy'`).
   const [yyyy, mm, dd] = iso.split('-');
   return `${dd}.${mm}.${yyyy}`;
 }
@@ -113,14 +113,11 @@ function airStateTone(state: AirState): Tone {
 
 function processStateTone(state: ProcessState): Tone {
   switch (state) {
-    // Valid + downstream delivery states are operationally "done" / good.
     case FlightListItemProcessState.VALID:
     case FlightListItemProcessState.LOCKED:
     case FlightListItemProcessState.DELIVERY_PREPARED:
     case FlightListItemProcessState.DELIVERY_BOOKED:
       return 'ok';
-    // Operator-required-attention conditions surface red (distinct from
-    // amber/warn which marks in-flight transient states elsewhere).
     case FlightListItemProcessState.INVALID:
     case FlightListItemProcessState.DELIVERY_PREPARATION_ERROR:
       return 'danger';
@@ -159,21 +156,6 @@ function toneDotClass(tone: Tone): string {
   }
 }
 
-/**
- * Logbook (flight list). Visual reference: docs/modernization/design-reference
- * screens-logbook.jsx + screenshots/02-desktop-cards.png. Card-per-flight,
- * header row (date / type pill / air-state pill / duration), emphasis row
- * (aircraft immatriculation), labels grid (aircraft / takeoff / landing).
- *
- * Columns are grounded in legacy `flsweb/src/flights/flights.html`: FlightDate
- * (rendered dd.MM.yyyy), Immatriculation, takeoff/landing times, glider-flight
- * duration, AirState, ProcessState. Pilot / second-crew / locations / comments
- * / tow columns from legacy are deferred with the rest of the decoration set
- * (per S-062a "decorations deferred").
- *
- * Server-side date-range filter; air-state / aircraft-type narrowing is
- * client-side over the loaded page until `/flights/search` lands.
- */
 @Component({
   selector: 'af-flights-list',
   standalone: true,
@@ -211,9 +193,6 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
-      <!-- Post-save jump (Option B): a flight just saved on a date outside the
-        today-default range isn't in the current list; offer to widen the range
-        to it rather than silently hiding it (#229). -->
       @if (store.hasOffRangeSaved(); as _show) {
         <div
           class="mb-5 flex items-center justify-between gap-3 border border-brand-300 bg-brand-50 px-4 py-3 text-sm text-slate-800"
@@ -241,11 +220,6 @@ function toneDotClass(tone: Tone): string {
       }
 
       <div class="mb-5 border border-slate-200 bg-white p-4">
-        <!-- Single range picker (S-062e fix). The earlier two-single-picker
-          workaround existed only because nz-range-picker deadlocked the main
-          thread under zoneless Angular; af-date-picker now bridges the value
-          with a reference-stable array (date-value-bridge.ts), so the range
-          mode no longer busy-loops. -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <af-form-field label="Date range" for="FlightDateRange">
             <af-date-picker
@@ -270,9 +244,6 @@ function toneDotClass(tone: Tone): string {
             />
           </af-form-field>
 
-          <!-- Unified logbook: the aircraft-type filter (Glider / Tow / Motor)
-            is user-driven — motor flights live in this same list, so "Motor"
-            is just one of the selectable filter values. -->
           <af-form-field label="Aircraft type" for="FlightAircraftTypeFilter">
             <af-select
               inputId="FlightAircraftTypeFilter"
@@ -286,7 +257,7 @@ function toneDotClass(tone: Tone): string {
           </af-form-field>
         </div>
 
-        @if (hasActiveFilter()) {
+        @if (hasClearableFilter()) {
           <div class="mt-3 flex justify-end">
             <button
               type="button"
@@ -315,7 +286,7 @@ function toneDotClass(tone: Tone): string {
           </div>
         } @else if (store.visibleEntities().length === 0) {
           <div class="py-12 text-center text-sm text-slate-500" data-testid="flights-empty">
-            @if (isFiltered()) {
+            @if (resultIsNarrowed()) {
               <p class="m-0">No matching flights</p>
               <p class="m-0 mt-1 text-slate-400">No flights match the selected date range.</p>
               <button
@@ -340,7 +311,6 @@ function toneDotClass(tone: Tone): string {
                 (keydown.enter)="openEdit(fl.id)"
                 tabindex="0"
               >
-                <!-- header row: date · type pill · status pill · duration -->
                 <div class="flex items-center gap-3 flex-wrap text-sm">
                   <a
                     class="tabular font-medium text-slate-900 no-underline hover:text-brand-700"
@@ -438,9 +408,6 @@ function toneDotClass(tone: Tone): string {
                           </button>
                         </li>
                       } @else {
-                        <!-- Mirror the backend's state gate so the UI does
-                          not surface a Delete action that would 409. The
-                          process-state label tells the user why. -->
                         <li role="none">
                           <span
                             class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-400 cursor-not-allowed"
@@ -459,11 +426,6 @@ function toneDotClass(tone: Tone): string {
                   </nz-dropdown-menu>
                 </div>
 
-                <!-- emphasis row: aircraft immatriculation (legacy
-                  Immatriculation column). Pilot name (legacy PilotName
-                  + SecondCrewName) is intentionally absent — list DTO
-                  ships only aircraftId per S-062a; PIC name needs a
-                  person lookup that the list endpoint does not decorate. -->
                 <div class="flex items-baseline gap-2">
                   <span
                     class="tabular text-xl font-medium text-slate-900"
@@ -473,12 +435,6 @@ function toneDotClass(tone: Tone): string {
                   </span>
                 </div>
 
-                <!-- labels grid — Takeoff / Landing times (legacy
-                  parity columns we can resolve today). Aircraft immat
-                  is the emphasis row above, not repeated here. Pilot,
-                  location and comment surfaces are deferred with the
-                  rest of the decoration set (per S-062a "list
-                  decorations deferred"). -->
                 <dl class="grid grid-cols-2 gap-x-6 gap-y-2 m-0">
                   <div class="min-w-0">
                     <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
@@ -513,8 +469,6 @@ function toneDotClass(tone: Tone): string {
         (dismiss)="cancelDelete()"
       />
       @if (deleteError()) {
-        <!-- Hidden in normal flow because the dialog overlay covers the
-          page; kept for a11y readers + the e2e spec's testid hook. -->
         <p class="sr-only" data-testid="flights-delete-error">
           {{ deleteError() }}
         </p>
@@ -534,7 +488,7 @@ export class FlightsListPage {
     const total = this.store.entities().length;
     const visible = this.store.visibleEntities().length;
     if (total === 0) {
-      return this.isFiltered() ? 'No matching flights' : 'No flights yet';
+      return this.resultIsNarrowed() ? 'No matching flights' : 'No flights yet';
     }
     if (visible === total) {
       return `${total} ${total === 1 ? 'flight' : 'flights'}`;
@@ -552,12 +506,6 @@ export class FlightsListPage {
   }
 
   protected readonly dateRangeValue = computed<DateValue>(() => {
-    // Parse the stored ISO date-only strings as LOCAL midnight (not the
-    // `new Date('YYYY-MM-DD')` UTC-midnight default, which renders a day early
-    // in any negative-offset zone). Symmetric with the `isoDateFromLocal` write
-    // path below, so the range the picker displays is the range the store filters
-    // by — T-13: the picker drifted a day west of UTC and the model fell out of
-    // sync with the store's from/to.
     const from = localDateFromIso(this.store.dateFrom());
     const to = localDateFromIso(this.store.dateTo());
     return from && to ? [from, to] : null;
@@ -574,11 +522,8 @@ export class FlightsListPage {
   });
 
   protected aircraftImmat(id: string): string {
-    // Falls back to `…` while AircraftStore hydrates so the row never
-    // surfaces a raw UUID. The store is global + warmed by sibling
-    // navigation; first-paint races are bounded by SessionStore prefetch.
     const immat = this.aircraft.entityMap()[id]?.immatriculation;
-    return immat ?? '…';
+    return immat ?? IMMAT_PLACEHOLDER_WHILE_AIRCRAFT_STORE_LOADS;
   }
 
   protected aircraftTypeLabel(t: AcType): string {
@@ -622,7 +567,6 @@ export class FlightsListPage {
   }
 
   protected onDateRangeChange(value: DateValue): void {
-    // The range picker emits a [from,to] tuple or null on clear.
     if (Array.isArray(value)) {
       this.store.setDateRange({
         from: isoDateFromLocal(value[0]),
@@ -642,8 +586,6 @@ export class FlightsListPage {
   }
 
   protected onClearFilters(): void {
-    // Reset to the today-default baseline (legacy parity), not show-all — the
-    // today range is the resting state, so "Clear filters" returns there.
     const today = isoDateFromLocal(new Date());
     this.store.clearClientFilter();
     this.store.setDateRange({ from: today, to: today });
@@ -669,18 +611,10 @@ export class FlightsListPage {
     return `Soft-deletes ${acBit}${dateBit ? ` on ${dateBit}` : ''}.${towBit} Cannot be undone from the UI.`;
   });
 
-  // After a failed delete the dialog stays open so the user sees the
-  // outcome next to the action they just took; swap the body to the
-  // error message so the previously-confirmed prompt isn't misleading.
   protected readonly deleteDialogMessage = computed<string | null>(
     () => this.deleteError() ?? this.deletePromptMessage(),
   );
 
-  // Mirror the server's FlightStateGateException gate. Both the TERMINAL
-  // (DELIVERY_BOOKED) and ADMIN_REQUIRED (LOCKED + delivery-prep states)
-  // paths surface as 409 from the backend; the list page can't elevate the
-  // caller's role, so we suppress the affordance on every state the server
-  // would reject for the default CLUB_ADMINISTRATOR principal.
   private static readonly NON_DELETABLE_STATES: ReadonlySet<FlightListItemProcessState> =
     new Set<FlightListItemProcessState>([
       FlightListItemProcessState.DELIVERY_BOOKED,
@@ -713,9 +647,6 @@ export class FlightsListPage {
       await this.store.deleteOne(target.id, String(target.version));
       this.deleteTarget.set(null);
     } catch (e) {
-      // Keep the dialog open so the error renders next to the prompt the
-      // user just confirmed — the inline rose error inside the dialog is
-      // load-bearing context that doesn't get lost when they look away.
       const err = e as { status?: number; message?: string };
       if (err.status === 409) {
         this.deleteError.set(
@@ -731,16 +662,11 @@ export class FlightsListPage {
     }
   }
 
-  protected hasActiveFilter(): boolean {
-    return this.isRangeNarrowed() || this.hasClientFilter();
+  protected hasClearableFilter(): boolean {
+    return this.isRangeOffTodayBaseline() || this.hasClientFilter();
   }
 
-  // Empty-state copy: an active date range narrows the result, so an empty list
-  // is a no-MATCH, not an empty logbook. The today-default range counts here
-  // (unlike hasActiveFilter, which gates the Clear-filters affordance on an
-  // OFF-baseline range) — the only true-empty case is a fully cleared range
-  // (dateFrom/dateTo null) with no client filters.
-  protected isFiltered(): boolean {
+  protected resultIsNarrowed(): boolean {
     return this.store.dateFrom() !== null || this.store.dateTo() !== null || this.hasClientFilter();
   }
 
@@ -749,10 +675,7 @@ export class FlightsListPage {
     return f.airStates.length > 0 || f.processStateIds.length > 0 || f.aircraftTypes.length > 0;
   }
 
-  // The today-default range (legacy parity) is the baseline, not a user filter:
-  // only a range the user changed off today counts toward "active filters" (the
-  // Clear-filters affordance + the "no flights MATCH" empty copy).
-  private isRangeNarrowed(): boolean {
+  private isRangeOffTodayBaseline(): boolean {
     const today = isoDateFromLocal(new Date());
     return this.store.dateFrom() !== today || this.store.dateTo() !== today;
   }

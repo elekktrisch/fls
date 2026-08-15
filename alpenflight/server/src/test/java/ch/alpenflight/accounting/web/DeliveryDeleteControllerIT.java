@@ -41,15 +41,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP proof of {@code DELETE /api/v1/deliveries/{id}}. A
- * CLUB_ADMINISTRATOR deletes a Prepared delivery: the delivery + items disappear,
- * the billed flight AND its tow flip back to {@code Locked} (re-read from the DB —
- * the regression guard against the legacy never-{@code SaveChanges}d / wrong-tow-target
- * bugs), and the consumed flight-time credit is reversed (a new current transaction
- * appended, balance restored). The {@code >1-delivery-per-flight} guard rejects with
- * 409 and no mutation; non-admin → 401/403; missing → 404.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -159,7 +150,6 @@ class DeliveryDeleteControllerIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ----- seed -----
 
     private Scenario seedPreparedDeliveryWithTow() {
         DeliveryWriteFixture.Seed seed = write.seedEligibleGliderWithTow(clubA);
@@ -186,7 +176,6 @@ class DeliveryDeleteControllerIT extends PostgresIntegrationTest {
         });
     }
 
-    // ----- assertions / http -----
 
     private UUID flightProcessState(UUID flightId) {
         return jdbc.queryForObject("SELECT process_state_id FROM t_flight WHERE id = ?", UUID.class, flightId);

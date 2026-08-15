@@ -5,12 +5,6 @@ import java.time.LocalDate;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Bundle of editable operational fields handed to {@link Flight} factories
- * and {@link Flight#updateOperationalData}. Carrier-only; validation lives
- * on the aggregate. State-machine columns are deliberately absent (S-059
- * owns those).
- */
 public record FlightOperationalData(
         @Nullable LocalDate flightDate,
         @Nullable Instant startDateTime,

@@ -16,21 +16,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * Wraps the {@code runOnce} method of every {@link MeasuredJob}-annotated bean.
- * On each run it opens a {@link JobRun} record ({@code RUNNING}), proceeds, then
- * stamps {@code COMPLETED} (with the body's return value as summary) or
- * {@code FAILED} (with the throwable message). It also times the run into the
- * {@code fls_job_duration_seconds{job=…}} Micrometer histogram.
- *
- * <p>A job whose body throws is recorded {@code FAILED} and the throwable is
- * <strong>swallowed</strong> — the scheduler tick (or the "Run now" endpoint)
- * survives one bad job (J-15 AC-edge #8). The {@link JobRun} writes run in their
- * own {@code REQUIRES_NEW} transaction so the FAILED record commits even though
- * the body's transaction rolls back; programmatic {@link TransactionTemplate}
- * (not {@code @Transactional}) sidesteps the AOP self-invocation trap that would
- * otherwise ride the writes on the doomed transaction.
- */
 @Aspect
 @Component
 public class MeasuredJobAspect {
@@ -41,7 +26,7 @@ public class MeasuredJobAspect {
     private final JobRunRepository jobRuns;
     private final MeterRegistry meters;
     private final Clock clock;
-    private final TransactionTemplate requiresNew;
+    private final TransactionTemplate ownTxSoRunRecordSurvivesRollback;
 
     public MeasuredJobAspect(JobRunRepository jobRuns,
                              MeterRegistry meters,
@@ -50,8 +35,8 @@ public class MeasuredJobAspect {
         this.jobRuns = jobRuns;
         this.meters = meters;
         this.clock = clock;
-        this.requiresNew = new TransactionTemplate(txManager);
-        this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.ownTxSoRunRecordSurvivesRollback = new TransactionTemplate(txManager);
+        this.ownTxSoRunRecordSurvivesRollback.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Around("@within(measured) && execution(* runOnce(..))")
@@ -67,14 +52,12 @@ public class MeasuredJobAspect {
         } catch (Throwable failure) {
             sample.stop(timer(jobName, "failed"));
             recordFailed(runId, jobName, failure);
-            // Swallow: one failing job must not crash the scheduler tick or the
-            // "Run now" caller. The FAILED JobRun is the durable signal.
             return null;
         }
     }
 
     private UUID openRun(String jobName) {
-        JobRun run = requiresNew.execute(status -> jobRuns.save(JobRun.start(jobName, clock)));
+        JobRun run = ownTxSoRunRecordSurvivesRollback.execute(status -> jobRuns.save(JobRun.start(jobName, clock)));
         UUID id = run == null ? null : run.getId();
         if (id == null) {
             throw new IllegalStateException("JobRun id null after save for job " + jobName);
@@ -94,7 +77,7 @@ public class MeasuredJobAspect {
     }
 
     private void transition(UUID runId, Consumer<JobRun> mutation) {
-        requiresNew.executeWithoutResult(status ->
+        ownTxSoRunRecordSurvivesRollback.executeWithoutResult(status ->
                 jobRuns.findById(runId).ifPresent(run -> {
                     mutation.accept(run);
                     jobRuns.save(run);

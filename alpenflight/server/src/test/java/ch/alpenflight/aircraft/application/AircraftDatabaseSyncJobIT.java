@@ -23,21 +23,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Integration proof of the OGN device-database sync (S-088, J-15 AC #5) against a
- * recorded registry served over real HTTP — the client's transport and JSON
- * binding are exercised, not stubbed, but no live network is touched.
- *
- * <p>The fixture carries an entry for an aircraft we do not own, which is the
- * update-only assertion: the registry never creates aircraft.
- */
 class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
 
-    /** Matches the fixture's {@code HB-3000} entry (dash-insensitively). */
-    private static final String KNOWN_IMMATRICULATION = "HB-3000";
+    private static final String IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS = "HB-3000";
 
-    /** In the fixture, never in our fleet. */
-    private static final String UNKNOWN_IMMATRICULATION = "HB-9999";
+    private static final String IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS = "HB-9999";
 
     private static HttpServer ddbServer;
 
@@ -70,16 +60,12 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     @BeforeEach
     void removeOurFixtureAircraft() {
         seeded.clear();
-        dropSeeded(KNOWN_IMMATRICULATION, UNKNOWN_IMMATRICULATION);
+        dropSeeded(IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS,
+                IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS);
     }
 
-    /**
-     * Immatriculation is globally unique across tenants, so a leftover row here
-     * would collide with another spec's fixture — this test owns fixed
-     * immatriculations, so it has to hand them back.
-     */
     @AfterEach
-    void dropSeededAircraft() {
+    void dropSeededAircraftBecauseImmatriculationIsGloballyUniqueAcrossTenants() {
         dropSeeded(seeded.toArray(new String[0]));
     }
 
@@ -91,7 +77,7 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_updatesTheMatchedAircraft_andNeverCreatesOne() {
-        UUID matched = seedAircraft(KNOWN_IMMATRICULATION);
+        UUID matched = seedAircraft(IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS);
 
         AircraftDatabaseSyncJob.RunSummary summary = job.runOnce();
 
@@ -101,7 +87,7 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
         assertThat(synced.getCompetitionSign()).isEqualTo("7X");
         assertThat(summary.updatedCount()).isGreaterThanOrEqualTo(1);
 
-        assertThat(countOf(UNKNOWN_IMMATRICULATION))
+        assertThat(countOf(IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS))
                 .as("a registry entry we own no aircraft for is never created")
                 .isZero();
     }
@@ -118,7 +104,6 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
         assertThat(summary.unmatchedCount()).isGreaterThanOrEqualTo(1);
     }
 
-    // ---------------------------------------------------------------- helpers
 
     private long countOf(String immatriculation) {
         Long v = jdbc.queryForObject(

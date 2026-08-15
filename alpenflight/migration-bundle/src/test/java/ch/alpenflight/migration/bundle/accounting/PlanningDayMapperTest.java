@@ -45,9 +45,7 @@ class PlanningDayMapperTest extends AbstractMapperContractTest<PlanningDayMapper
 
     @Test
     void declaresClubAndLocationAsForeignKeys() {
-        // Location is tenant-scoped via composite legacy_id_map_location replica
-        // (S-185 pattern); no tenant bypass for PlanningDay itself.
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.CLUB, EntityType.LOCATION);
     }
 }

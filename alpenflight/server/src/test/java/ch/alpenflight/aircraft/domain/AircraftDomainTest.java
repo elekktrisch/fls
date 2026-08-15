@@ -214,13 +214,16 @@ class AircraftDomainTest {
     }
 
     @Test
-    void softDelete_setsTimestampOnce() {
+    void softDelete_isIdempotent_aSecondCallByAnotherActorChangesNothing() {
         Aircraft a = registered("HB-500");
         UUID actor = UUID.randomUUID();
         a.softDelete(actor, java.time.Clock.systemUTC());
         assertThat(a.isDeleted()).isTrue();
+
         a.softDelete(UUID.randomUUID(), java.time.Clock.systemUTC());
-        // re-soft-delete is a no-op; first actor wins
+        assertThat(a.isDeleted())
+                .as("re-deleting is a no-op: the aggregate stays deleted, the first actor wins")
+                .isTrue();
     }
 
     @Test

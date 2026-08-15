@@ -14,24 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped per-club reference: legacy {@code FlightTypes.FlightTypeId}
- * → {@code t_flight_type.id}. {@code operating_club_id} is the
- * {@code @TenantId} discriminator per V3.
- *
- * <p>Seed-vs-bundle reconciliation: S-138's
- * {@code ReferenceDataSeeder} pre-creates default flight types per Club
- * at trial-deployment provisioning ({@code ON CONFLICT
- * (operating_club_id, flight_type_name) DO NOTHING}). S-141 runs
- * provisioning first, then bundle ingest — for name collisions the
- * seeded UUID wins and the legacy {@code Flight.FlightTypeId} FK resolves
- * through the natural-key lookup. No mapper-side change required.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted},
- * {@code IsSummarizedSystemFlight} (no destination column — system-flight
- * concept did not survive the rewrite).
- */
 public final class FlightTypeMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -79,21 +61,17 @@ public final class FlightTypeMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB);
     }
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // operating_club_id (the @TenantId) is off-convention for the CLUB FK —
-        // the resolver's default would derive club_id and never rewrite the
-        // legacy GUID, leaving fk_flight_type_operating_club_id unresolved at
-        // INSERT (caught by FlightMigrationRoundTripIT, J-2 T-07).
         return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 

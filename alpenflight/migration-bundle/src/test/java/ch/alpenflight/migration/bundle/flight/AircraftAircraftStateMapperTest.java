@@ -46,7 +46,7 @@ class AircraftAircraftStateMapperTest
 
     @Test
     void declaresAircraftAsTheOnlyStructuralForeignKey() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("aircraft_state_id resolves through V3 seeded legacy_int_id "
                         + "map — not declared. noticed_by_person_id is in the "
                         + "TENANT_BYPASS_ALLOW_LIST set, not foreignKeys.")

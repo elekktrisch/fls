@@ -35,6 +35,8 @@ export type FlightTypeDetailLoaded = FlightTypeDetail & { id: string };
 
 export type SaveErrorKind = 'name-duplicate' | 'code-duplicate' | 'forbidden' | 'other';
 
+const NEVER_EMPTY_SAVE_ERROR = 'Save failed. Please retry.';
+
 interface FlightTypesExtraState {
   selectedId: string | null;
   selectedDetail: FlightTypeDetailLoaded | null;
@@ -71,12 +73,6 @@ function withDetailId(d: FlightTypeDetail): FlightTypeDetailLoaded {
   return d as FlightTypeDetailLoaded;
 }
 
-/**
- * Project the detail payload onto the list-row shape for optimistic post-save
- * updates. List rows expose the 3 `isFor*Flights` flags + `isFlightCostBalanceSelectable`
- * so the list view can render flag badges without a follow-up GET. The
- * post-mutation `loadAll()` then settles to authoritative values.
- */
 function listItemFromDetail(d: FlightTypeDetailLoaded): FlightTypeItem {
   const item: FlightTypeItem = {
     id: d.id,
@@ -225,9 +221,6 @@ function errorPatch(
   req: Pick<FlightTypeCreateRequest, 'flightTypeName' | 'flightCode'> | null,
 ): { saveError: string; saveErrorKind: SaveErrorKind } {
   if (e.status === 409) {
-    // Route by the problem-detail `field` (J-26 T-05): the server
-    // discriminates name vs code conflicts — they no longer collapse onto
-    // flightTypeName. An absent/unknown field keeps the name-duplicate shape.
     const field = (e.error as { field?: string } | null)?.field;
     if (field === 'flightCode') {
       return {
@@ -257,9 +250,5 @@ function errorPatch(
       saveErrorKind: 'other',
     };
   }
-  // `HttpErrorResponse.message` can be empty on network drops / aborts;
-  // a falsy saveError silently re-enables Save (the `if (!err) return;`
-  // guard short-circuits the reset effect). Fall back to a non-empty
-  // string so the UI surfaces *something* every time.
-  return { saveError: e.message || 'Save failed. Please retry.', saveErrorKind: 'other' };
+  return { saveError: e.message || NEVER_EMPTY_SAVE_ERROR, saveErrorKind: 'other' };
 }

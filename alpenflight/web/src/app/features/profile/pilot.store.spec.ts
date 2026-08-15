@@ -11,16 +11,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { PilotStore } from './pilot.store';
 
-/**
- * Logic test for the Pilot-tab store (J-4 T-09): `getMyLicences` hydrates the
- * licence/medical view (flags default false, dates default empty), `save()`
- * round-trips through `updateMyLicences` and reflects the persisted projection,
- * and a `profile.updated` event is emitted so the session re-reads `/me`. The
- * form DOM + the real PATCH wiring are proven by the real-idp e2e
- * (`profile/self-edit.spec.ts`). Per web testing posture (CLAUDE.md §8) this is
- * a store/logic spec, no template rendering.
- */
-
 const LICENCES_BASE: MePersonLicencesResponse = {
   hasGliderPilotLicence: true,
   hasTowPilotLicence: false,
@@ -82,7 +72,6 @@ describe('PilotStore', () => {
     expect(view?.hasGliderPilotLicence).toBe(true);
     expect(view?.licenceNumber).toBe('CH-GLD-0001');
     expect(view?.medicalClass2ExpireDate).toBe('2027-09-30');
-    // Absent flags / dates default sanely.
     expect(view?.hasMotorPilotLicence).toBe(false);
     expect(view?.medicalClass1ExpireDate).toBe('');
     expect(store.canSave()).toBe(true);

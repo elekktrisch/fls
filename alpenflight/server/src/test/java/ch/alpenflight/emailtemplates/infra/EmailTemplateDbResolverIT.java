@@ -17,20 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Proves the send-time resolver chain prefers a club's DB override over the
- * S-082 Thymeleaf file default, and that the preference is tenant-scoped.
- *
- * <p>Renders through the production {@link TemplatedMailService} send path — the
- * same logical template name the senders pass ({@code planningday-ok}) — so the
- * override applies without a redeploy. The model satisfies the file default's
- * expressions; an override body is plain HTML, so the override case needs none.
- */
 class EmailTemplateDbResolverIT extends PostgresIntegrationTest {
 
     private static final UUID CLUB_A = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID CLUB_B = UUID.fromString("019e30c3-2c00-7001-8000-0000000ab302");
     private static final String TEMPLATE_KEY = "planningday-ok";
+    private static final String TEXT_ONLY_THE_FILE_DEFAULT_RENDERS = "Flugbetriebstag";
     private static final String LOCALE = "de";
 
     @Autowired TemplatedMailService mail;
@@ -52,14 +44,14 @@ class EmailTemplateDbResolverIT extends PostgresIntegrationTest {
 
         String html = Tenants.runAs(CLUB_A, () -> mail.render(TEMPLATE_KEY, sampleModel()));
 
-        assertThat(html).contains("Overridden body").doesNotContain("Flugbetriebstag");
+        assertThat(html).contains("Overridden body").doesNotContain(TEXT_ONLY_THE_FILE_DEFAULT_RENDERS);
     }
 
     @Test
     void noOverride_fallsThroughToFileDefault() {
         String html = Tenants.runAs(CLUB_A, () -> mail.render(TEMPLATE_KEY, sampleModel()));
 
-        assertThat(html).contains("Flugbetriebstag");
+        assertThat(html).contains(TEXT_ONLY_THE_FILE_DEFAULT_RENDERS);
     }
 
     @Test
@@ -70,7 +62,7 @@ class EmailTemplateDbResolverIT extends PostgresIntegrationTest {
 
         String htmlB = Tenants.runAs(CLUB_B, () -> mail.render(TEMPLATE_KEY, sampleModel()));
 
-        assertThat(htmlB).contains("Flugbetriebstag").doesNotContain("Club A override");
+        assertThat(htmlB).contains(TEXT_ONLY_THE_FILE_DEFAULT_RENDERS).doesNotContain("Club A override");
     }
 
     private static Map<String, Object> sampleModel() {

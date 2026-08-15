@@ -14,47 +14,26 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The single known dataset behind the FlightReports Excel parity check (J-7 T-08).
- * Both sides of the harness derive from this:
- *
- * <ul>
- *   <li>{@link FlightReportGoldenFixture} renders these rows BY HAND into the
- *       committed golden {@code .xlsx} (the contract);</li>
- *   <li>{@link #result()} feeds the SAME rows to the production
- *       {@link FlightReportExcelWriter} so the harness compares writer-output ↔
- *       golden fixture.</li>
- * </ul>
- *
- * <p>Values are chosen to exercise every parity-load-bearing format string and the
- * documented oracle quirks: HH:MM time, [H]:MM duration that exceeds 24h on the tow
- * column-set so {@code [H]} matters, IsSoloFlight 0/1, StartType as the legacy
- * {@code AircraftStartType} int ({@code WINCH=2}, {@code AEROTOW=1} on the tow row),
- * raw AirState/ProcessState ints, a plain glider row AND an aerotow glider carrying
- * the nested TowFlight block (cols 19-30).
- *
- * <p>Fixed UUIDs + a fixed generation timestamp make the fixture deterministic — the
- * generator emits byte-identical output across runs, so {@link FlightReportGoldenFixtureTest}
- * can diff the committed snapshot.
- */
 final class FlightReportGoldenDataset {
 
     private FlightReportGoldenDataset() {}
 
-    /** Fixed C3 "Excel Erstellt:" timestamp (UTC wall-clock) — deterministic fixture. */
     static final LocalDateTime GENERATED_AT_UTC = LocalDateTime.of(2026, 6, 9, 14, 30, 15);
 
-    /** The generation instant the writer is handed (UTC wall-clock of {@link #GENERATED_AT_UTC}). */
     static final Instant GENERATED_AT = GENERATED_AT_UTC.toInstant(ZoneOffset.UTC);
 
-    /** Header labels — the writer's exact legacy order (asserted equal via the harness). */
     static final String[] HEADERS = legacyHeaders();
+
+    private static final int LEGACY_START_TYPE_AEROTOW = 1;
+    private static final int LEGACY_START_TYPE_WINCH_LAUNCH = 2;
+
+    private static final long TOW_DURATION_SECONDS_BEYOND_24H_SO_THE_BRACKET_H_FORMAT_MATTERS =
+            25 * 3600;
 
     private static final UUID GLIDER_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000001");
     private static final UUID AEROTOW_GLIDER_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000002");
     private static final UUID TOW_ID = UUID.fromString("019e30c5-0000-7001-8000-000000000003");
 
-    /** Plain glider: winch launch (StartType 2), dual crew, not solo. */
     private static GoldenRow plainGlider() {
         return new GoldenRow(
                 GLIDER_ID.toString(),
@@ -62,51 +41,50 @@ final class FlightReportGoldenDataset {
                 "HB-3210",
                 "Tester Anna",
                 "Copilot Beat",
-                1,    // airState
-                2,    // processState
+                1,
+                2,
                 "SCH",
                 "Schul",
-                LocalDateTime.of(2026, 5, 15, 8, 5),   // start 08:05 UTC
-                LocalDateTime.of(2026, 5, 15, 9, 35),  // ldg 09:35 UTC
-                90 * 60,    // 1:30 duration
-                false,      // not solo
-                2,          // StartType WINCH=2 (legacy AircraftStartType.WinchLaunch)
+                LocalDateTime.of(2026, 5, 15, 8, 5),
+                LocalDateTime.of(2026, 5, 15, 9, 35),
+                90 * 60,
+                false,
+                LEGACY_START_TYPE_WINCH_LAUNCH,
                 "Birrfeld",
                 "Birrfeld",
                 "Schulflug Doppelsitzer",
                 null);
     }
 
-    /** Aerotow glider (StartType 1) carrying the nested tow block; tow duration > 24h to exercise [H]. */
     private static GoldenRow aerotowGlider() {
         GoldenTow tow = new GoldenTow(
                 TOW_ID.toString(),
                 "HB-TOW",
                 "Towpilot Carl",
                 LocalDateTime.of(2026, 5, 15, 10, 0),
-                LocalDateTime.of(2026, 5, 16, 11, 0),   // 25h span → [H]:MM must show 25:00
-                25 * 3600,
+                LocalDateTime.of(2026, 5, 16, 11, 0),
+                TOW_DURATION_SECONDS_BEYOND_24H_SO_THE_BRACKET_H_FORMAT_MATTERS,
                 "Birrfeld",
                 "Birrfeld",
                 "SLEP",
                 "Schlepp",
-                1,    // airState
-                2);   // processState
+                1,
+                2);
         return new GoldenRow(
                 AEROTOW_GLIDER_ID.toString(),
                 LocalDate.of(2026, 5, 15),
                 "HB-1801",
                 "Tester Anna",
-                null,       // solo, no second crew
+                null,
                 1,
                 2,
                 "STR",
                 "Streckenflug",
                 LocalDateTime.of(2026, 5, 15, 10, 0),
-                LocalDateTime.of(2026, 5, 15, 13, 45),  // 3:45
+                LocalDateTime.of(2026, 5, 15, 13, 45),
                 225 * 60,
-                true,       // solo
-                1,          // StartType AEROTOW=1 (legacy AircraftStartType.Towing)
+                true,
+                LEGACY_START_TYPE_AEROTOW,
                 "Birrfeld",
                 "Schänis",
                 "Soloflug mit Schlepp",
@@ -117,7 +95,6 @@ final class FlightReportGoldenDataset {
         return List.of(plainGlider(), aerotowGlider());
     }
 
-    /** The same rows as a {@link FlightReportResult} for the production writer. */
     static FlightReportResult result() {
         return new FlightReportResult(
                 List.of(toRecord(plainGlider()), toRecord(aerotowGlider())),
@@ -179,7 +156,6 @@ final class FlightReportGoldenDataset {
         };
     }
 
-    /** One report row, value-only (no POI). */
     record GoldenRow(
             String flightId,
             LocalDate flightDate,
@@ -200,7 +176,6 @@ final class FlightReportGoldenDataset {
             String flightComment,
             @Nullable GoldenTow tow) {}
 
-    /** The nested tow block, value-only. */
     record GoldenTow(
             String towFlightId,
             String immatriculation,

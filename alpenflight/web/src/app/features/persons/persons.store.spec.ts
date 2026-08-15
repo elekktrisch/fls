@@ -16,14 +16,6 @@ import type {
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { PersonsStore } from './persons.store';
 
-/**
- * J-26 T-04 — the forked update: Save must persist BOTH the Person fields
- * (PUT /persons/{id}) and the caller-tenant membership fields
- * (PUT /persons/{id}/clubs/current). Before the fix the membership half was
- * silently dropped (data loss): the form hydrated + toasted success, but the
- * clubs/current endpoint was never called.
- */
-
 const PERSON_ID = 'pn-019e30c3-2c00-7001-8000-000000000a01';
 
 const seedMembership: PersonClubResponse = {
@@ -102,7 +94,6 @@ const membershipReq: PersonClubRequest = {
   isGliderPilot: true,
   isGliderTrainee: false,
   isPassenger: false,
-  // Echoed (not form-exposed) flags — the server PUT is a full replace.
   isWinchOperator: true,
   isMotorInstructor: false,
   receiveFlightReports: true,
@@ -153,8 +144,6 @@ describe('PersonsStore — forked update (person + current-club membership)', ()
   it('PUTs the person THEN clubs/current, patches state from the membership response, and emits person.updated once', () => {
     const calls: string[] = [];
     let membershipPayload: PersonClubRequest | null = null;
-    // The membership PUT runs SECOND, so its PersonResponse reflects both
-    // halves — it must be the authoritative detail/list patch source.
     const afterBoth: PersonResponse = {
       ...seedDetail,
       memberships: [
@@ -167,9 +156,6 @@ describe('PersonsStore — forked update (person + current-club membership)', ()
         },
       ],
     };
-    // The post-mutation loadAll() re-fetches the list; the mock backend must
-    // reflect the membership update there too (the locations-spec pattern),
-    // else the refresh resets the patched row back to the seed.
     let listState: PersonListItem[] = [seedListItem];
     const bus = configure(
       personsServiceStub({
@@ -240,21 +226,12 @@ describe('PersonsStore — forked update (person + current-club membership)', ()
     const store = TestBed.inject(PersonsStore);
     store.update({ id: PERSON_ID, req: updateReq, membership: membershipReq });
 
-    // No false success: no bus event (so the edit page does NOT navigate
-    // away), and the failure is surfaced on saveError.
     expect(events).toEqual([]);
     expect(store.saveError()).not.toBeNull();
     expect(store.saveErrorKind()).not.toBeNull();
   });
 });
 
-/**
- * J-26 T-23 — the store `errorPatch` is now routed through the shared
- * `classifyApiError` rule table (shared/util/form/error-patch.ts). These cases
- * pin the discriminant `saveErrorKind` the edit page binds inline so the fold
- * stays byte-identical to the prior hand-rolled cascade. Driven through the
- * public `update` path (the person PUT throws the crafted error).
- */
 describe('PersonsStore — errorPatch classification (J-26 T-23 classifyApiError fold)', () => {
   afterEach(() => TestBed.resetTestingModule());
 

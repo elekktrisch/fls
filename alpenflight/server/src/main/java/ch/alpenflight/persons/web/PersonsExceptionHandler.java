@@ -11,11 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Persons-module domain exceptions to RFC 7807 problem
- * responses. Domain types stay annotation-free in {@code persons.domain}
- * per ADR 0023; the HTTP mapping lives here.
- */
 @RestControllerAdvice(assignableTypes = {PersonsController.class, MemberStatesController.class})
 class PersonsExceptionHandler {
 

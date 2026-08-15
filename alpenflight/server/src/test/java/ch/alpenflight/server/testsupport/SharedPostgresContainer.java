@@ -1,32 +1,5 @@
 package ch.alpenflight.server.testsupport;
 
-/**
- * JVM-wide singleton Postgres test container. One container is started lazily
- * on first reference and lives for the duration of the JVM (shutdown hook in
- * {@link PostgresTestContainerLifecycle#start()} tears it down).
- *
- * <p>Every {@code @SpringBootTest} that needs a real database wires to
- * {@link #INSTANCE} via {@code @DynamicPropertySource}. Sharing one container
- * across the whole test suite:
- * <ul>
- *   <li>Eliminates 5-10s of per-class container startup overhead.</li>
- *   <li>Lets Spring's context cache hit across classes that register
- *       identical datasource properties.</li>
- *   <li>Makes Flyway's {@code migrate()} idempotent across classes — V1+V2
- *       are applied once; subsequent class boots see the schema already in
- *       place via {@code flyway_schema_history}.</li>
- * </ul>
- *
- * <p>Replaced the prior per-class-static pattern + the H2-with-MODE=PostgreSQL
- * fallback in {@code application-test.yml}. H2 even in PG-compat mode could
- * not parse {@code TEXT[]}, partial indexes, or {@code COMMENT ON COLUMN};
- * the test profile no longer needs a portable schema target — every test
- * exercises the production database engine.
- *
- * <p>Tests still mark themselves {@code @EnabledIf("dockerAvailable")} so
- * a contributor without Docker can run {@code ./gradlew check} cleanly —
- * tests skip rather than fail. The condition is the {@link #AVAILABLE} flag.
- */
 public final class SharedPostgresContainer {
 
     public static final PostgresTestContainerLifecycle INSTANCE = new PostgresTestContainerLifecycle();
@@ -34,20 +7,6 @@ public final class SharedPostgresContainer {
 
     private SharedPostgresContainer() {}
 
-    /**
-     * JUnit Jupiter {@code @EnabledIf} hook — every DB-dependent {@code @SpringBootTest}
-     * class references this method via {@code @EnabledIf("ch.alpenflight.server.testsupport.SharedPostgresContainer#available")}
-     * so the per-class {@code dockerAvailable()} boilerplate stays in one place.
-     *
-     * <p><strong>CI fail-loud guard.</strong> If the container failed to start AND
-     * the {@code CI} env var is set (GitHub Actions / GitLab / CircleCI / etc.),
-     * throw instead of returning {@code false}. Otherwise CI would happily skip
-     * every DB-touching test on a transient Docker daemon hiccup and report
-     * green with N silently-skipped specs — exactly the kind of false-pass this
-     * gate is supposed to prevent. Dev machines (no {@code CI} env var) keep the
-     * graceful-skip behavior so a contributor without Docker can still run
-     * {@code ./gradlew check}.
-     */
     public static boolean available() {
         if (!AVAILABLE && System.getenv("CI") != null) {
             throw new IllegalStateException(
@@ -56,8 +15,6 @@ public final class SharedPostgresContainer {
                             + "(stderr) and check the runner's Docker daemon (`docker info`).");
         }
         if (!AVAILABLE && PostgresTestContainerLifecycle.externalConfigured()) {
-            // External-PG mode is explicit intent (DATASOURCE_URL set): a broken
-            // external DB must FAIL the run, not silently skip every DB test.
             throw new IllegalStateException(
                     "External-PG test mode is configured (DATASOURCE_URL) but the external test "
                             + "database did not come up: " + STARTUP_ERROR);

@@ -13,21 +13,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/**
- * Minimal request-id propagation — generate a UUID v7 per request, populate
- * the {@code requestId} MDC key, echo it on the response as
- * {@code X-Request-Id}. Honors an inbound {@code X-Request-Id} header when
- * present so end-to-end correlation across a proxy chain works on day one.
- *
- * <p>S-031 owns the long-term correlation-ID story (structured JSON logging
- * + sampling); until that ships, S-027's audit listener reads this MDC key
- * to stamp {@code mutation_audit_event.request_id}. The MDC key name
- * ({@code requestId}) matches the {@code request_id} placeholder already
- * reserved in {@code logback-spring.xml}.
- *
- * <p>{@link Ordered#HIGHEST_PRECEDENCE} so the MDC key is set before
- * Spring Security and any downstream filter logs.
- */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class RequestIdFilter extends OncePerRequestFilter {
@@ -53,11 +38,6 @@ class RequestIdFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * Accept an inbound header only if it's printable + bounded. Defends
-     * against header-injection (CR/LF), oversize correlation strings, and
-     * malicious operators tagging downstream rows with arbitrary content.
-     */
     private static @Nullable String sanitiseInbound(@Nullable String raw) {
         if (raw == null) {
             return null;

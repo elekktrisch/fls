@@ -8,27 +8,11 @@ import { MeEventsService } from '../events';
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 import { SessionStore } from '../session/session.store';
 
-import { decrement, isPendingSubmit } from './join-requests-badge.logic';
+import { decrementClampedAtZero, isPendingSubmit } from './join-requests-badge.logic';
 
+// ext: server SSE `event:` name
 const JOIN_REQUEST_STATUS_CHANGED = 'join-request.status-changed';
 
-/**
- * Live own-club pending join-request count for the nav badge. Constructed by the
- * app shell so the badge tracks on EVERY page, not just `/join-requests`.
- *
- * Seed + deltas:
- * - seed via `listPending` once the principal resolves to a club admin (the
- *   call is admin-only — gating avoids a non-admin 403);
- * - `+1` on each `join-request.status-changed` SSE frame (the admin channel
- *   only receives PENDING submits, S-178 `JoinRequestSseListener`);
- * - `-1` on a `join-request.decided` bus event (the admin's own approve/deny —
- *   not echoed back over their SSE channel);
- * - reset + re-seed on logout / tenant-switch.
- *
- * Reuses J-3's session-scoped {@link MeEventsService} (the same `/api/v1/me/events`
- * stream the pilot join-pending page consumes). The stream's open/close is owned
- * by the session lifecycle; this service only subscribes/unsubscribes.
- */
 @Injectable({ providedIn: 'root' })
 export class JoinRequestsBadgeService {
   private readonly api = inject(JoinRequestsService);
@@ -38,7 +22,6 @@ export class JoinRequestsBadgeService {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly _count = signal(0);
-  /** Pending own-club join requests; rendered as the nav badge count. */
   readonly count: Signal<number> = this._count.asReadonly();
 
   private sseSub: Subscription | null = null;
@@ -46,7 +29,7 @@ export class JoinRequestsBadgeService {
   constructor() {
     this.bus.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((evt) => {
       if (evt.kind === 'join-request.decided') {
-        this._count.update(decrement);
+        this._count.update(decrementClampedAtZero);
       } else if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
         this._count.set(0);
         this.stop();
@@ -73,7 +56,6 @@ export class JoinRequestsBadgeService {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => this._count.set(items.length),
-        // A failed seed leaves the count at zero; an SSE frame still bumps it.
         error: () => undefined,
       });
     this.sseSub = this.events

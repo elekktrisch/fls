@@ -12,11 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global AircraftState catalog. Rows
- * are Flyway-managed (V3 seed — 7 rows: OK, INFORMATION, ATTENTION,
- * MALFUNCTION, MAINTENANCE, UNINSURED, END_OF_LIFE).
- */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft-states", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "AircraftStates", description = "Aircraft-state reference catalog.")

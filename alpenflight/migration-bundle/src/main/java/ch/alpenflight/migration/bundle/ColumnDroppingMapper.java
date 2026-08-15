@@ -9,14 +9,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Test-harness decorator that drops one column from a mapper's
- * {@link #columns()} while delegating everything else. Used by the
- * mutation-smoke self-test ({@code @Tag("parity-meta")}): wrapping a real
- * mapper and round-tripping it must make the diff fail and name the dropped
- * column — proving the sampled diff actually bites. Fails fast if the column
- * isn't one the delegate declares, so the self-test can't silently no-op.
- */
 public final class ColumnDroppingMapper implements Mapper {
 
     private final Mapper delegate;
@@ -26,7 +18,7 @@ public final class ColumnDroppingMapper implements Mapper {
     public ColumnDroppingMapper(Mapper delegate, String droppedColumn) {
         this.delegate = delegate;
         this.droppedColumn = droppedColumn;
-        String[] declared = delegate.columns();
+        String[] declared = delegate.wireColumns();
         if (Arrays.stream(declared).noneMatch(droppedColumn::equals)) {
             throw new IllegalArgumentException(
                     "Cannot drop column " + droppedColumn + " — " + delegate.entityType()
@@ -43,13 +35,13 @@ public final class ColumnDroppingMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return remainingColumns.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
-        return delegate.foreignKeys();
+    public List<EntityType> foreignKeyTargets() {
+        return delegate.foreignKeyTargets();
     }
 
     @Override

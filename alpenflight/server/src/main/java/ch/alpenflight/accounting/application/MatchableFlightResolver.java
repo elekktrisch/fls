@@ -27,23 +27,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/**
- * Resolves a tenant-scoped {@link Flight} aggregate (and its crew) into the
- * pure-data {@link MatchableFlight} the rules-engine matcher + stages consume.
- * Every fk UUID the {@code Flight} stores is turned into the string the legacy
- * filter holds: aircraft → immatriculation + homebase ICAO; flight-type →
- * FlightCode + name; start/ldg location → ICAO; crew person → PersonClub
- * member-number + member-state (for the delivery's club); cost-balance-type →
- * legacy int; the FlightCostInvoiceRecipient crew + the pilot → {@link Recipient}
- * value objects.
- *
- * <p>The reference-row resolutions go through each module's published repository
- * port (the modules are OPEN, ADR 0023). Crew member-number / member-state are
- * left {@code null} on the {@link MatchableCrew} when the crew person has no
- * active PersonClub for the delivery's club; the matcher fails loud
- * ({@code MissingPersonClubException}) only when a crew-scoped condition needs
- * the value — exactly as legacy resolved {@code PersonClubs.First(...)} lazily.
- */
 @Component
 class MatchableFlightResolver {
 
@@ -106,13 +89,6 @@ class MatchableFlightResolver {
                 .build();
     }
 
-    /**
-     * The flight's zero-based duration in seconds — legacy
-     * {@code FlightDurationZeroBased}: {@code round(ldg - start)} when both are
-     * present, {@code 0} when there is no start time. A stored, locked flight (the
-     * dry-run / run-test input) carries both timestamps; the legacy "now − start"
-     * open-flight branch has no meaning for a billed flight, so it is not ported.
-     */
     int flightDurationZeroBasedSeconds(Flight flight) {
         var start = flight.getStartDateTime();
         var ldg = flight.getLdgDateTime();
@@ -123,7 +99,6 @@ class MatchableFlightResolver {
         return (int) Math.round(seconds);
     }
 
-    /** Legacy {@code EngineEnd - EngineStart} counter delta (each {@code GetValueOrDefault}). */
     int engineRunningTimeSeconds(Flight flight) {
         long end = orZero(flight.getEngineEndOperatingCounterInSeconds());
         long start = orZero(flight.getEngineStartOperatingCounterInSeconds());
@@ -154,9 +129,6 @@ class MatchableFlightResolver {
         return resolved;
     }
 
-    // Hibernate scopes the loaded Person's personClubs collection to the caller's
-    // tenant (= the delivery's club, since the engine runs tenant-scoped), so the
-    // active membership IS the club's — the legacy PersonClubs.First(ClubId==clubId).
     private @Nullable PersonClub membershipForDeliveryClub(UUID personId) {
         return persons.findActiveById(personId)
                 .flatMap(p -> p.getActivePersonClubs().stream().findFirst())
@@ -175,12 +147,6 @@ class MatchableFlightResolver {
         return null;
     }
 
-    /**
-     * Builds a {@link Recipient} for the flight's crew member of the given crew
-     * type (FlightCostInvoiceRecipient or pilot) — the legacy fallback rules'
-     * resolution. {@code null} when the flight carries no such crew row or the
-     * person can't be loaded, mirroring legacy leaving the recipient unset.
-     */
     @Nullable Recipient crewRecipient(Flight flight, UUID crewTypeId) {
         for (FlightCrew row : flight.getCrew()) {
             if (row.isDeleted() || !crewTypeId.equals(row.getFlightCrewTypeId())) {

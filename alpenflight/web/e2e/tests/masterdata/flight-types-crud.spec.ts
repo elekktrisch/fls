@@ -1,24 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-/**
- * FlightType CRUD shape. Greenfield spec (no legacy oracle — the legacy
- * `flsweb/.../master-data/flight-types` was a thin AngularJS list view; the
- * new UX is the contract per S-053). Booted under the `mock-auth` Angular
- * configuration; the principal is a mocked SYSTEM_ADMINISTRATOR so the
- * mutation affordances render even though sysadmin would 403 against a
- * live backend (the role gate lives on the server per S-159, not the
- * client). All `/api/v1/*` calls are intercepted via `page.route` — no live
- * backend.
- *
- * Coverage:
- *   - List + seed-row visibility.
- *   - Create round-trip.
- *   - Edit round-trip persists across reload.
- *   - 409 on duplicate name surfaces inline.
- *   - Soft-delete removes the row.
- */
-
 interface MockFlightTypeDetail {
   id: string;
   flightTypeName: string;
@@ -252,7 +234,6 @@ test('flight-types: editing the seeded row updates the list (UI round-trip)', as
 });
 
 test('flight-types: 409 on duplicate name surfaces inline', async ({ page }, testInfo) => {
-  // The duplicate-name POST is deliberately rejected; the browser logs the 409.
   allowConsoleErrors(testInfo, /\b409\b/);
   const items: MockFlightTypeDetail[] = [{ ...schulflugSeed }];
   await stubReferenceData(page);

@@ -55,14 +55,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP proof of {@code POST /api/v1/deliveries/create}: a
- * CLUB_ADMINISTRATOR triggers create, the rules engine produces one delivery per
- * eligible flight (Locked, glider, {@code created_on <= today - 3d}), the flight
- * flips to {@code DeliveryPrepared}, and the billed pilot's flight-time credit is
- * drawn down (a new {@code IsCurrent} transaction appended). Role-gated and
- * tenant-scoped (club B's eligible flight is invisible to club A's create).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -79,6 +71,9 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7268-8000-000000004268");
     private static final int LEGACY_FLIGHT_TIME = 30;
     private static final long CREDIT_BALANCE_SECONDS = 5_400L;
+
+    private static final Instant CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR =
+            Instant.parse("2026-01-01T00:00:00Z");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -159,7 +154,6 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
                 .isZero();
     }
 
-    // ----- seed -----
 
     private Scenario seedEligibleFlight(UUID clubId, String immatriculation) {
         UUID aircraft = seedAircraft(clubId, immatriculation);
@@ -194,9 +188,8 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
                     Instant.parse("2026-05-16T00:00:00Z"));
             return flights.save(flight).getId();
         });
-        // created_on is DB-defaulted to now(); backdate it past the 3-day eligibility floor.
         jdbc.update("UPDATE t_flight SET created_on = ? WHERE id = ?",
-                java.sql.Timestamp.from(Instant.parse("2026-01-01T00:00:00Z")), flightId);
+                java.sql.Timestamp.from(CREATED_ON_WELL_PAST_THE_THREE_DAY_ELIGIBILITY_FLOOR), flightId);
         return flightId;
     }
 
@@ -262,7 +255,6 @@ class DeliveryCreateControllerIT extends PostgresIntegrationTest {
         });
     }
 
-    // ----- assertions / http -----
 
     private UUID flightProcessState(UUID flightId) {
         return jdbc.queryForObject("SELECT process_state_id FROM t_flight WHERE id = ?", UUID.class, flightId);

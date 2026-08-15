@@ -9,29 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The rules-engine's resolved view of a {@link ch.alpenflight.flights.domain.Flight}
- * — every facet the matcher compares already turned from its stored id into the
- * string the legacy filter holds.
- *
- * <p>The legacy {@code BaseAccountingRule} matched a flight against a filter by
- * its <em>resolved</em> values: aircraft by immatriculation, flight-type by
- * {@code FlightCode}, locations by ICAO, crew by PersonClub member-number — none
- * of which live on the alpenflight {@code Flight} aggregate (it stores only the
- * fk ids). Resolving those references (immat / code / ICAO / member#) is the
- * engine orchestrator's job (T-12), which loads the reference rows and builds
- * this value object; the matcher then operates on pure data, with no JPA / no
- * reference-data dependency. Constructing one directly is how a unit test drives
- * the matcher without a DB.
- *
- * <p>The four string facets the legacy oracle case-folds (immatriculation,
- * flight-type code, the two location ICAOs) are NOT folded here — they are
- * compared case-insensitively inside the matcher so this value object stays a
- * faithful snapshot of the resolved strings.
- */
 public final class MatchableFlight {
 
-    // .NET Convert.ToDecimal(double) keeps 15 significant digits.
     private static final MathContext DOTNET_DOUBLE_TO_DECIMAL =
             new MathContext(15, RoundingMode.HALF_EVEN);
 
@@ -85,10 +64,6 @@ public final class MatchableFlight {
         return new Builder(flightAircraftType);
     }
 
-    /**
-     * The sparse aircraft-type bit the legacy bitmask test runs against:
-     * GLIDER=1, TOW=2, MOTOR=4 (see {@link FlightAircraftType#legacyId()}).
-     */
     public int flightAircraftTypeBit() {
         return flightAircraftType.legacyId();
     }
@@ -101,12 +76,6 @@ public final class MatchableFlight {
         return flightTypeCode;
     }
 
-    /**
-     * The human flight-type name (legacy {@code FlightType.FlightTypeName}), used
-     * only in an emitted line's {@code itemText} when a filter sets
-     * {@code includeFlightTypeName} — distinct from {@link #flightTypeCode()},
-     * which the matcher compares.
-     */
     public @Nullable String flightTypeName() {
         return flightTypeName;
     }
@@ -127,11 +96,6 @@ public final class MatchableFlight {
         return aircraftHomebase;
     }
 
-    /**
-     * Whether the flight carries an aircraft reference at all. Legacy treats a
-     * flight with no Aircraft as: no homebase condition added (warn only), so
-     * the homebase facet then never excludes / never includes it.
-     */
     public boolean aircraftPresent() {
         return aircraftPresent;
     }
@@ -148,122 +112,54 @@ public final class MatchableFlight {
         return crew;
     }
 
-    /**
-     * The legacy {@code FlightCostBalanceTypeId} as its legacy int (resolved
-     * from the flight's cost-balance-type reference by the engine orchestrator;
-     * {@code 0} when the flight has none, mirroring {@code GetValueOrDefault}).
-     * The two recipient fallback rules switch on it: CostsPaidByPerson=5 →
-     * invoice-recipient crew member; PilotPaysAllCosts=1 / NoInstructorFee=4 →
-     * pilot.
-     */
     public int flightCostBalanceTypeId() {
         return flightCostBalanceTypeId;
     }
 
-    /**
-     * The pre-resolved recipient for the flight's {@code FlightCostInvoiceRecipient}
-     * crew member (legacy FlightCrewType=10), or {@code null} when the flight
-     * carries no such crew row. Resolution (person → name + member-number) is
-     * the orchestrator's (T-12) job so the fallback rules stay JPA-free.
-     */
     public @Nullable Recipient flightCostInvoiceRecipient() {
         return flightCostInvoiceRecipient;
     }
 
-    /**
-     * The pre-resolved recipient for the flight's pilot, or {@code null} when
-     * unresolved. Same orchestrator-resolves-it contract as
-     * {@link #flightCostInvoiceRecipient()}.
-     */
     public @Nullable Recipient pilot() {
         return pilot;
     }
 
-    /**
-     * The flight's zero-based duration in seconds (legacy
-     * {@code FlightDurationZeroBased.TotalSeconds}) — the value the landing/tax
-     * stages run their min-exclusive/max-inclusive {@code Between} window against.
-     */
     public int flightDurationSeconds() {
         return flightDurationSeconds;
     }
 
-    /**
-     * The flight's zero-based duration in fractional minutes — the value
-     * InstructorFee / AdditionalFuelFee pass through {@code quantityFrom(.., MIN)}.
-     *
-     * <p>Bit-exact with legacy {@code Convert.ToDecimal(FlightDurationZeroBased.TotalMinutes)}:
-     * .NET computes {@code TotalMinutes} as a {@code double} (seconds / 60.0) then
-     * {@code Convert.ToDecimal(double)} rounds it to 15 significant digits. The
-     * same double division + 15-sig-digit rounding reproduces that decimal so a
-     * migrated flight's instructor/fuel quantity diffs bit-exact.
-     */
     public BigDecimal flightDurationMinutes() {
         return new BigDecimal(flightDurationSeconds / 60.0, DOTNET_DOUBLE_TO_DECIMAL);
     }
 
-    /**
-     * The instructor's display name (legacy {@code Flight.InstructorDisplayName}),
-     * used only in the InstructorFee line's {@code itemText}; {@code null} when the
-     * flight carries no instructor.
-     */
     public @Nullable String instructorDisplayName() {
         return instructorDisplayName;
     }
 
-    /**
-     * The flight's landing count (legacy {@code NrOfLdgs}), the LandingTax line
-     * quantity; {@code null} reproduces the legacy {@code GetValueOrDefault(1)}.
-     */
     public @Nullable Integer nrOfLdgs() {
         return nrOfLdgs;
     }
 
-    /**
-     * Landings made at the flight's start location (legacy
-     * {@code NrOfLdgsOnStartLocation}) — the LandingTaxOnStartLocation line
-     * quantity; that second pass is forced off when this is {@code <= 0}.
-     */
     public @Nullable Integer nrOfLdgsOnStartLocation() {
         return nrOfLdgsOnStartLocation;
     }
 
-    /**
-     * Whether the flight lacks start-time information (legacy
-     * {@code NoStartTimeInformation}); with {@link #noLdgTimeInformation()} it
-     * makes LandingTax skip its duration window ("assume in the air").
-     */
     public boolean noStartTimeInformation() {
         return noStartTimeInformation;
     }
 
-    /** Whether the flight lacks landing-time information (legacy {@code NoLdgTimeInformation}). */
     public boolean noLdgTimeInformation() {
         return noLdgTimeInformation;
     }
 
-    /**
-     * Whether this is a glider flight — the legacy
-     * {@code FlightAircraftType == GliderFlight} test the no-landing-tax
-     * suppression reads, derived from the aircraft-type bit (GLIDER=1).
-     */
     public boolean isGlider() {
         return flightAircraftType == FlightAircraftType.GLIDER;
     }
 
-    /** Whether this is a tow flight (legacy {@code FlightAircraftType == TowFlight}, TOW=2). */
     public boolean isTow() {
         return flightAircraftType == FlightAircraftType.TOW;
     }
 
-    /**
-     * A copy with {@code ldgLocationIcao} swapped to the given value — how the
-     * LandingTaxOnStartLocation second pass re-runs the existing matcher with the
-     * flight's START-location ICAO standing in for the landing location (the
-     * legacy override checks the start location against the SAME ldg-location
-     * set; the matcher's null-ldg-location warn-only branch mirrors the override's
-     * null-start-location warn).
-     */
     public MatchableFlight withLdgLocationIcao(@Nullable String value) {
         return new Builder(flightAircraftType)
                 .immatriculation(immatriculation)
@@ -289,14 +185,6 @@ public final class MatchableFlight {
                 .build();
     }
 
-    /**
-     * One resolved crew row. {@code memberNumber} / {@code memberStateId} are
-     * the values resolved from the crew person's PersonClub for the delivery's
-     * club; a {@code null} signals the person has NO PersonClub for that club —
-     * the legacy {@code PersonClubs.First(...)} would throw, which the matcher
-     * reproduces ({@link MissingPersonClubException}) when a crew-scoped
-     * condition needs the value.
-     */
     public record MatchableCrew(
             String flightCrewTypeId,
             @Nullable String memberNumber,

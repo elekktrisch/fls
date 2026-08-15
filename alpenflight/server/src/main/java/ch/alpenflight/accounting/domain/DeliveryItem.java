@@ -10,22 +10,6 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal billing line owned by {@link Delivery}, mapping the EXISTING
- * V4 table {@code t_delivery_item}. One invoice line — engine output, never
- * hand-editable. It dies with its parent ({@code ON DELETE CASCADE}) and is
- * loaded only through the {@link Delivery#getItems()} ordered set.
- *
- * <p>NOT a tenant-discriminated aggregate root: the denormalized
- * {@code operating_club_id} is a plain column (the DeliveryCreationTestItem /
- * PlanningDayAssignment internal-child pattern), so it carries no {@code @TenantId}
- * and is not an S-024 leakage-sweep participant — the parent's {@code @TenantId}
- * scopes the whole graph.
- *
- * <p>{@code article_number} + {@code unit_type_code} are frozen snapshots per
- * Swiss OR Art. 957a — never re-resolved from {@code article_id}. Read-only this
- * iteration: column mapping + getters, no write factory.
- */
 @Entity
 @Table(name = "t_delivery_item")
 public class DeliveryItem {
@@ -40,9 +24,6 @@ public class DeliveryItem {
     @Column(name = "position", nullable = false)
     private int position;
 
-    // Nullable: a migrated line whose free-text legacy ArticleNumber matched no
-    // live article is kept with a null article_id (the article_number snapshot
-    // is preserved). Engine-created lines always resolve a non-null article.
     @Column(name = "article_id")
     private @Nullable UUID articleId;
 
@@ -68,16 +49,8 @@ public class DeliveryItem {
     private String unitTypeCode = "";
 
     protected DeliveryItem() {
-        // JPA.
     }
 
-    /**
-     * Builds a billing line from one engine-emitted {@link DeliveryItemDetails}.
-     * The {@code articleNumber} + {@code unitTypeCode} are frozen verbatim from the
-     * engine output (OR Art. 957a snapshots); {@code articleId} is the resolved
-     * article for the line; {@code unitPrice} is left ZERO (the engine computes
-     * quantity, not price — pricing is a downstream Proffix concern).
-     */
     static DeliveryItem fromEngineLine(UUID operatingClubId, UUID articleId, DeliveryItemDetails line) {
         DeliveryItem item = new DeliveryItem();
         item.operatingClubId = operatingClubId;

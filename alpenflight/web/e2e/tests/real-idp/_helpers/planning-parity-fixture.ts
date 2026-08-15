@@ -11,39 +11,8 @@ import {
   type TestUser,
 } from './test-user';
 
-/** seed-club-1 (V5 walking skeleton) — the @TenantId club every planning row is scoped to. */
 const SEED_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 
-/**
- * J-6 planning real-chain fixture — the clean-seed masterdata seeder for the
- * `planning-migration-parity.spec.ts` clean-seed half (T-13 capture pull-forward).
- *
- * The V34 dev seed (`V34__dev_planning_seed.sql`) already plants 2 sample future
- * planning days (e01 weekday/full-crew at Bern-Belp · e02 weekend/bare at Thun)
- * + 2 locations + 3 crew persons + 3 assignment types on seed-club-1 — so the
- * `/planning` future-days LIST renders non-empty against a clean realm without
- * any per-spec seeding. That seed is what the list-render capture asserts on.
- *
- * What V34 does NOT give us: the 3 seed crew persons (b1/b2/b3) carry NO
- * PersonClub membership, so they never surface in `/api/v1/persons` (the person
- * listitem read pivots FROM PersonClub — J-2 T-20) and are therefore NOT
- * pickable in the create/edit form's 3 crew `<af-select>`s. To drive the FULL
- * "create a day with date + location + 3-role crew + remarks" capture through
- * the real UI, this fixture seeds — as `clubadmin4`, through the REAL create
- * APIs (no mocking) — a FRESH location + 3 crew persons WITH a seed-club-1
- * membership so the pickers offer them. The fresh location also keeps the
- * happy-create off the V34 seed days' (date, location) so it never trips the
- * duplicate-409 (V4 ux_pln_club_date_loc) by accident.
- *
- * PRINCIPAL: reuses the J-5 `clubadmin4` (seed-club-1) helpers from
- * `reservation-parity-fixture.ts` — the same journey-agnostic seed-club-1
- * CLUB_ADMINISTRATOR principal (`loginAsReservationAdmin` /
- * `captureReservationAdminBearer`). Planning admin screens are ClubAdmin-gated,
- * so a real ClubAdmin is the correct low-privilege-appropriate principal here
- * (the PILOT-vs-creator authz delete/update probe stays T-16).
- */
-
-/** Canonical reference seeds (V2/V3) the create requests reference. */
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const GRASS_RUNWAY_LOCATION_TYPE_ID = '019e2e15-2c00-72c9-8000-0000000032c9';
 const GLIDER_AIRCRAFT_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
@@ -56,19 +25,9 @@ function runId(): string {
   return id;
 }
 
-/**
- * seed-club-1's planning-day notification address — the recipient the imminent
- * (day+1) pass of `PlanningDayNotificationJob` mails (`Club.getPlanningDayInfoMailTo`).
- * Set on seed-club-1 by `V34__dev_planning_seed.sql` so the club opts in
- * (`wantsPlanningDayNotifications` = a non-blank address). The T-16 notification
- * real-idp case fires the guarded run-now affordance and asserts THIS address
- * receives the `planningday-ok`/`-cancel` mail via mailpit. Must match the V34 seed.
- */
+// ext: must match V34__dev_planning_seed.sql
 export const SEED_CLUB_NOTIFICATION_ADDRESS = 'flugbetrieb@seed-club-1.example';
 
-/** A monotonic per-process counter so two `shortTag()` calls in the same
- *  millisecond (e.g. several `seedFreshPlanningLocation`s in one `beforeAll`)
- *  still produce DISTINCT tags — distinct location names → distinct rows. */
 let shortTagSeq = 0;
 
 function shortTag(): string {
@@ -92,43 +51,22 @@ async function postJson(
   return (await res.json()) as Record<string, unknown>;
 }
 
-/** The masterdata a clean-seed planning day references (all SPA-prefixed ids). */
 export interface PlanningMasterdata {
-  /** `loc-<uuid>` a FRESH seed-club-1 location (distinct from the V34 seed days). */
   locationId: string;
   locationName: string;
-  /** `pn-<uuid>` instructor person (with a seed-club-1 membership → pickable). */
   instructorId: string;
   instructorName: string;
-  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
   instructorEmail: string;
-  /** `pn-<uuid>` tow-pilot person (with a seed-club-1 membership → pickable). */
   towPilotId: string;
   towPilotName: string;
-  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
   towPilotEmail: string;
-  /** `pn-<uuid>` flight-operator person (with a seed-club-1 membership → pickable). */
   flightOpId: string;
   flightOpName: string;
-  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
   flightOpEmail: string;
-  /**
-   * `ac-<uuid>` a fresh aircraft seed-club-1 manages + its immat — so the inline
-   * per-day reservations panel can be POPULATED with a real J-5 reservation on the
-   * captured planning day (T-16 populated-list parity shot). The aircraft is also
-   * run-tagged so a retry's re-seed never collides on the immat unique index.
-   */
   aircraftId: string;
   aircraftImmat: string;
 }
 
-/**
- * Seed one crew person WITH a seed-club-1 membership (→ pickable in /persons) and
- * a UNIQUE-per-run private email. `Person.emailForCommunication()` returns the
- * private email (`preferMailToBusinessMail=false`), so the week-ahead (day+7)
- * notification pass mails this exact address — unique-per-run so the mailpit
- * `to:` match is unambiguous (the mailpit-client fails loud on >1 match).
- */
 async function seedCrewPerson(
   api: APIRequestContext,
   bearer: string,
@@ -162,26 +100,6 @@ async function seedCrewPerson(
   return { id: String(person['id']), name: `${firstname} ${lastname}`, email };
 }
 
-/**
- * Seed (as `clubadmin4`, through the REAL create API — no mocking) a FRESH
- * seed-club-1 location with a UNIQUE-per-run name, distinct from the V34 seed
- * days AND from every other location seeded this run. Returns the SPA-prefixed
- * id + the unique name (the create/edit/wizard `<af-select>`s search by this
- * exact name to pick it out of the virtualised long list).
- *
- * COLLISION ISOLATION (T-21): the clean-seed block runs ~8 tests serially that
- * each create planning days on the shared, never-truncated seed-club-1 tenant,
- * picking future dates via `dayKeyFromToday`/`nextSaturdayFromToday`. Two of
- * them bulk-create EVERY Sat/Sun in a window (the duplicate-409 rule-wizard
- * skip-probe [:527] over [day+15, day+36] and the setup-wizard [:599] over
- * [day+20, day+34]). The `ux_pln_club_date_loc` unique key is (club, date,
- * location) — so when a single-date test's date lands on a Sat/Sun inside a
- * wizard window AT THE SAME LOCATION, its create 409s. This is wall-clock
- * dependent (it depends what weekday a given offset lands on today). Giving each
- * day-creating test its OWN location removes the (club, date, location) overlap
- * entirely: no two tests share a location's date space, so no date offset can
- * collide regardless of the calendar date the suite runs on.
- */
 export async function seedFreshPlanningLocation(
   api: APIRequestContext,
   bearer: string,
@@ -201,18 +119,6 @@ export async function seedFreshPlanningLocation(
   return { locationId: String(location['id']), locationName };
 }
 
-/**
- * Seed (as `clubadmin4`, through the REAL create APIs — no mocking) the
- * masterdata the clean-seed planning create/edit chain references: a FRESH
- * location + 3 crew persons WITH a seed-club-1 membership so the form's 3 crew
- * `<af-select>`s offer them. All names are run-tagged so a retry's re-seed never
- * collides on a unique index, and the fresh location keeps the happy-create off
- * the V34 seed days' (date, location).
- *
- * This location is the DEFAULT (happy-create) location; the collision-prone
- * day-creating tests each take their OWN `seedFreshPlanningLocation` so no two
- * tests' (date, location) spaces overlap (T-21 isolation — see that helper).
- */
 export async function seedPlanningMasterdata(
   api: APIRequestContext,
   bearer: string,
@@ -255,9 +161,6 @@ export async function seedPlanningMasterdata(
     {},
   );
 
-  // A fresh aircraft seed-club-1 manages — the inline reservations panel's
-  // populated-list parity shot (T-16) reserves THIS aircraft on the captured
-  // planning day so ≥1 `<af-reservation-row>` renders.
   const aircraftImmat = `HB-P${tag.slice(-3)}`;
   const aircraft = await postJson(api, bearer, '/api/v1/aircraft', {
     aircraftTypeId: GLIDER_AIRCRAFT_TYPE_ID,
@@ -288,22 +191,9 @@ export async function seedPlanningMasterdata(
   };
 }
 
-/**
- * Create a J-5 `AircraftReservation` on the GIVEN planning day's exact date +
- * location through the REAL reservations create API (no mocking), so the planning
- * edit screen's inline per-day reservations panel renders a POPULATED list (the
- * J-5 read-side join is `listAircraftReservationsForDay(date)` filtered to
- * `r.locationId === locationId` — `planning.store.ts:210-223`; the reservation
- * MUST be on the day's exact date + location to surface). Reserves a midday UTC
- * window (10:00–11:00Z) on `planningDate` so it overlaps that UTC day regardless
- * of the runner's local zone. Returns the created reservation id so the caller
- * tracks it for afterAll cleanup (the shared seed-club-1 tenant is never
- * truncated).
- *
- * @param reservationTypeId the V31-seeded default type (read via
- *   `fetchReservationTypeId` from the reservation fixture) — the create request's
- *   `reservationTypeId`.
- */
+const MIDDAY_UTC_WINDOW_START = 'T10:00:00Z';
+const MIDDAY_UTC_WINDOW_END = 'T11:00:00Z';
+
 export async function seedReservationOnPlanningDay(
   api: APIRequestContext,
   bearer: string,
@@ -322,8 +212,8 @@ export async function seedReservationOnPlanningDay(
       pilotPersonId: args.pilotPersonId,
       locationId: args.locationId,
       reservationTypeId: args.reservationTypeId,
-      start: `${args.planningDate}T10:00:00Z`,
-      end: `${args.planningDate}T11:00:00Z`,
+      start: `${args.planningDate}${MIDDAY_UTC_WINDOW_START}`,
+      end: `${args.planningDate}${MIDDAY_UTC_WINDOW_END}`,
       isAllDay: false,
       remarks: 'J-6 inline-panel parity reservation',
     },
@@ -340,34 +230,14 @@ export async function seedReservationOnPlanningDay(
   return new URL(location, 'http://localhost').pathname.split('/').pop() ?? '';
 }
 
-// ===========================================================================
-// REAL LOW-PRIVILEGE PILOT — for the delete/update authz probe. The oracle:
-// delete/update is gated to `CLUB_ADMINISTRATOR` OR the record creator
-// (`PlanningDayService.cs:407-425`). The mock-admin principal is admin-everything
-// and HIDES this gate ([[project_real_idp_real_roles_catches_authz_gaps]]); a real
-// PILOT bound to seed-club-1 — neither admin NOR the day's creator — must be
-// FORBIDDEN (403) from deleting a clubadmin4-created day. Provisioned the
-// two-club-fixture way: a fresh `e2e-…@example.com` KC user (swept by teardown)
-// with the `clubId` attribute set to seed-club-1's UUID (the realm maps it to a
-// `clubId` claim the backend parses directly as the tenant) + the PILOT realm role.
-// ===========================================================================
-
 const PILOT_ROLE = 'PILOT';
 
-/** A loginable real PILOT bound to seed-club-1 (a low-privilege, non-admin principal). */
 export interface SeedClubPilot {
   user: TestUser;
   kcUserId: string;
-  /** Remove the KC user (call in afterAll). */
   dispose: () => Promise<void>;
 }
 
-/**
- * Provision a real PILOT (realm role `PILOT`, no admin) bound to seed-club-1, so
- * the delete-authz probe drives a genuinely low-privilege principal. Disjoint
- * per call (run-id + fresh nonce) so a co-located spec / retry never collides on
- * `ux_user_username_lower_alive`.
- */
 export async function provisionSeedClubPilot(): Promise<SeedClubPilot> {
   const id = process.env['E2E_RUN_ID'];
   if (!id) {
@@ -391,11 +261,6 @@ export async function provisionSeedClubPilot(): Promise<SeedClubPilot> {
   };
 }
 
-/**
- * Log the PILOT in through the SPA + real Keycloak and capture the Bearer the
- * OIDC interceptor attaches to its first `/api/v1/*` read — so the spec can issue
- * a direct REST delete as the PILOT identity and assert the 403 authz gate.
- */
 export async function captureSeedClubPilotBearer(
   browser: Browser,
   baseURL: string,
@@ -409,8 +274,6 @@ export async function captureSeedClubPilotBearer(
       return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
     });
     await loginAsSeedClubPilot(page, pilot);
-    // The planning list issues GET /api/v1/planning-days/overview/future, stamped
-    // by the interceptor with the PILOT's Bearer.
     await page.goto('/planning');
     const req = await bearerPromise;
     return req.headers()['authorization']!;
@@ -419,7 +282,6 @@ export async function captureSeedClubPilotBearer(
   }
 }
 
-/** Drive the PILOT through the SPA login form (real Keycloak), landing authed. */
 export async function loginAsSeedClubPilot(page: Page, pilot: SeedClubPilot): Promise<void> {
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();

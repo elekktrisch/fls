@@ -23,11 +23,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Full-stack HTTP integration test for the ClubState reference-data read
- * surface. Exercises the V2-seeded {@code club_state} catalog (ACTIVE,
- * SUSPENDED, etc.) through the production filter chain.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)

@@ -11,29 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates DeliveryCreationTest exceptions to RFC 7807 problem responses,
- * scoped to {@link DeliveryCreationTestsController}.
- *
- * <ul>
- *   <li>{@link DeliveryCreationTestNotFoundException} (application) → {@code 404}
- *       — also the cross-tenant case: the {@code @TenantId} filter makes another
- *       club's row invisible, so a cross-tenant id is a uniform 404, never a 403
- *       that would confirm the row exists.</li>
- *   <li>{@link FlightNotFoundException} (flights domain) → {@code 404} — the
- *       dry-run endpoint resolves a flight directly; a missing / cross-tenant
- *       flight id is the same uniform 404 (the Flights handler is scoped to its
- *       own controller, so this surface re-maps it locally).</li>
- *   <li>{@link InvalidDeliveryCreationTestException} (domain) → {@code 400} — the
- *       aggregate's invariants (testName non-blank, flightId present, length cap).
- *       Bean-validation ({@code @NotBlank}/{@code @NotNull}/{@code @Size}) catches
- *       these at the boundary in normal flow; this is the defence-in-depth net for
- *       a bypassed validator.</li>
- * </ul>
- *
- * <p>The exception types stay free of {@code @ResponseStatus} (ADR 0023) — the
- * web-layer coupling lives only here.
- */
 @RestControllerAdvice(assignableTypes = DeliveryCreationTestsController.class)
 class DeliveryCreationTestsExceptionHandler {
 

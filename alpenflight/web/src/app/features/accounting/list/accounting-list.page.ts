@@ -11,13 +11,6 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 import { SessionStore } from '../../../core/session/session.store';
 import { AccountingStore } from '../accounting.store';
 
-/**
- * AccountingRuleFilter list (`/accountingrules`). Columns: name · type · active ·
- * target (the server-derived display string). A "new" entry point and per-row
- * navigation into the edit form (T-12). The filter-type column resolves the
- * row's `filterTypeId` (uuid) to the seeded type name via the reference-data
- * catalog — empty when unresolved (it never blocks the row's identity columns).
- */
 @Component({
   selector: 'af-accounting-list',
   standalone: true,

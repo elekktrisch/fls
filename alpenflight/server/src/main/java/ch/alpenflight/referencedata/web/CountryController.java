@@ -12,11 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global Country catalog. Rows are
- * Flyway-managed (V2 seed); the API never writes here. Authenticated
- * users (any role) may read — every SPA form needs the dropdown.
- */
 @RestController
 @RequestMapping(path = "/api/v1/countries", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Countries", description = "ISO-3166 country catalog.")

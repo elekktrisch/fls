@@ -21,20 +21,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link FlightType} aggregate. Tenant scoping
- * (S-159) is structural via Hibernate's {@code @TenantId} discriminator on
- * {@code FlightType.operatingClubId}; role-within-tenant gates live on the
- * controller as {@code @PreAuthorize("hasRole(...)")}.
- *
- * <p>Name uniqueness is per-tenant (V11 partial UNIQUE on
- * {@code (operating_club_id, flight_type_name) WHERE deleted_on IS NULL}).
- * The service does a UX pre-check + relies on the index for races; a
- * collision throws {@link DuplicateFlightTypeNameException} → 409.
- *
- * <p>Mutations emit {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
- * {@link AuditAction#DELETE} via {@link AuditTrail}.
- */
 @Service
 @Transactional
 public class FlightTypesService {
@@ -88,7 +74,8 @@ public class FlightTypesService {
                 req.isCouponNumberRequired(),
                 req.isForAircraftReservationType(),
                 req.minNrOfAircraftSeatsRequired());
-        FlightTypeDetail created = FlightTypeMapper.toDetail(persist(ft, name));
+        FlightTypeDetail created =
+                FlightTypeMapper.toDetail(saveAndFlushTranslatingDuplicateName(ft, name));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -122,7 +109,8 @@ public class FlightTypesService {
                 req.isForAircraftReservationType());
         ft.changeMinSeats(req.minNrOfAircraftSeatsRequired());
 
-        FlightTypeDetail after = FlightTypeMapper.toDetail(persist(ft, name));
+        FlightTypeDetail after =
+                FlightTypeMapper.toDetail(saveAndFlushTranslatingDuplicateName(ft, name));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -142,12 +130,9 @@ public class FlightTypesService {
                 .orElseThrow(() -> new FlightTypeNotFoundException(id));
     }
 
-    private FlightType persist(FlightType ft, String name) {
+    private FlightType saveAndFlushTranslatingDuplicateName(FlightType ft, String name) {
         try {
             FlightType saved = flightTypes.save(ft);
-            // Flush so the partial-UNIQUE race surfaces synchronously from
-            // this catch, not at tx commit. Same pattern as Aircraft's
-            // immatriculation collision path.
             flightTypes.flush();
             return saved;
         } catch (DataIntegrityViolationException e) {
@@ -161,18 +146,8 @@ public class FlightTypesService {
         }
     }
 
-    /**
-     * UX pre-check for the V3 partial UNIQUE {@code ux_flight_type_club_code}
-     * — the common duplicate-code case answers a clean 409 without ever
-     * hitting the constraint. Normalization mirrors the aggregate's
-     * {@code assignFlightCode} (strip; blank → no code, never a conflict).
-     * The race window is covered by the DataIntegrityViolation net in
-     * {@code FlightTypesExceptionHandler}.
-     *
-     * @param self the row being updated (its own code is not a conflict);
-     *             {@code null} on create
-     */
-    private void requireCodeAvailable(@Nullable String rawCode, @Nullable FlightTypeId self) {
+    private void requireCodeAvailable(@Nullable String rawCode,
+                                      @Nullable FlightTypeId updatedRowIdOrNullOnCreate) {
         if (rawCode == null) {
             return;
         }
@@ -181,7 +156,8 @@ public class FlightTypesService {
             return;
         }
         flightTypes.findActiveByCode(code)
-                .filter(other -> self == null || !sameRow(other, self))
+                .filter(other -> updatedRowIdOrNullOnCreate == null
+                        || !sameRow(other, updatedRowIdOrNullOnCreate))
                 .ifPresent(other -> {
                     throw new DuplicateFlightTypeCodeException(code);
                 });

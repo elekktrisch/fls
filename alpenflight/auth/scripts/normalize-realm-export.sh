@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/auth/scripts/normalize-realm-export.sh
-#
-# Merge partial-export + users + per-user role mappings into a single
-# deterministic realm-export.json. Strips volatile fields (timestamps,
-# private keys), injects dev-only passwords for seed users, sorts keys.
-#
-# Inputs: 3 JSON files (partial realm, users array, user→roles map).
-# Output: assembled realm export to stdout.
-#
-# Invoked by export-realm.sh; safe to call directly for diff debugging.
 
 set -euo pipefail
 
@@ -28,107 +18,72 @@ partial = json.load(open(sys.argv[1]))
 users = json.load(open(sys.argv[2]))
 user_roles = json.load(open(sys.argv[3]))
 
-# Dev-only passwords baked alongside the realm. `<username>-dev-2026!` form
-# satisfies the realm `passwordPolicy` shipped in S-134 (length(12) +
-# specialChars(1) + notUsername); README marks dev-only and instructs rotation
-# at deploy. CI grep rejects any password not in this allow-set or any user
-# outside this set carrying a hardcoded credential.
-DEV_PASSWORDS = {
+DEV_ONLY_PASSWORDS_SATISFYING_THE_REALM_PASSWORD_POLICY = {
     'sysadmin': 'sysadmin-dev-2026!',
     'clubadmin1': 'clubadmin1-dev-2026!',
     'pilot1': 'pilot1-dev-2026!',
 }
 
-# Drop fields that change on every boot/export.
-VOLATILE_USER = ['createdTimestamp', 'notBefore']
-VOLATILE_REALM = ['createdTimestamp']
+USER_FIELDS_THAT_CHANGE_ON_EVERY_BOOT_AND_EXPORT = ['createdTimestamp', 'notBefore']
+REALM_FIELDS_THAT_CHANGE_ON_EVERY_BOOT_AND_EXPORT = ['createdTimestamp']
 
 for u in users:
-    for f in VOLATILE_USER:
+    for f in USER_FIELDS_THAT_CHANGE_ON_EVERY_BOOT_AND_EXPORT:
         u.pop(f, None)
-    if u['username'] in DEV_PASSWORDS:
+    if u['username'] in DEV_ONLY_PASSWORDS_SATISFYING_THE_REALM_PASSWORD_POLICY:
         u['credentials'] = [{
             'type': 'password',
-            'value': DEV_PASSWORDS[u['username']],
+            'value': DEV_ONLY_PASSWORDS_SATISFYING_THE_REALM_PASSWORD_POLICY[u['username']],
             'temporary': False,
         }]
     if u['username'] in user_roles:
         u['realmRoles'] = sorted(user_roles[u['username']])
 
-for f in VOLATILE_REALM:
+for f in REALM_FIELDS_THAT_CHANGE_ON_EVERY_BOOT_AND_EXPORT:
     partial.pop(f, None)
 
-# Keycloak's partial-export does NOT carry loginTheme/accountTheme/
-# emailTheme when the realm holds them as plain root-level keys
-# (verified empirically against K26.5). Re-inject post-export so the
-# committed JSON stays zero-diff across round-trips.
-#
-# Failure mode worth knowing: if an operator deliberately unsets a theme
-# via the admin UI to debug a stock-theme regression, this re-injection
-# silently masks that intent in the committed export. To investigate
-# stock-theme behavior, edit this block first.
-#
-# Keep THEME_NAME aligned with check-realm-shape.sh + the
-# alpenflight/auth/themes/<name>/ directory.
-THEME_NAME = 'alpenflight'
-partial['loginTheme'] = THEME_NAME
-partial['accountTheme'] = THEME_NAME
-partial['emailTheme'] = THEME_NAME
+THEME_NAME_DROPPED_BY_PARTIAL_EXPORT_AND_ASSERTED_BY_CHECK_REALM_SHAPE = 'alpenflight'
+partial['loginTheme'] = THEME_NAME_DROPPED_BY_PARTIAL_EXPORT_AND_ASSERTED_BY_CHECK_REALM_SHAPE
+partial['accountTheme'] = THEME_NAME_DROPPED_BY_PARTIAL_EXPORT_AND_ASSERTED_BY_CHECK_REALM_SHAPE
+partial['emailTheme'] = THEME_NAME_DROPPED_BY_PARTIAL_EXPORT_AND_ASSERTED_BY_CHECK_REALM_SHAPE
 
-# Strip private signing key — Keycloak regenerates on first --import-realm.
-# CI guard rejects any export with privateKey / privateKeyPem present.
+PRIVATE_KEY_FIELDS_KEYCLOAK_REGENERATES_ON_FIRST_IMPORT_REALM = ['privateKey', 'privateKeyPem']
+
 if 'components' in partial:
     keys = partial['components'].get('org.keycloak.keys.KeyProvider', [])
     for k in keys:
         cfg = k.get('config', {})
-        cfg.pop('privateKey', None)
-        cfg.pop('privateKeyPem', None)
+        for f in PRIVATE_KEY_FIELDS_KEYCLOAK_REGENERATES_ON_FIRST_IMPORT_REALM:
+            cfg.pop(f, None)
 
-# Per-client cleanup: drop notBefore + any auto-generated secret for clients
-# that don't need one (public + bearer-only). Only the proffix machine
-# client legitimately carries a (dev) secret. The REST partial-export masks
-# secrets as "**********" — restore the canonical dev value so first-boot
-# from this committed JSON gives a usable client_credentials grant.
-DEV_CLIENT_SECRETS = {
+DEV_CLIENT_SECRETS_RESTORED_OVER_THE_EXPORTS_MASKED_PLACEHOLDER = {
     'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
 }
 
-# Re-inject build-arg placeholders for client baseUrls. Keycloak's
-# partial-export emits the *resolved* baseUrl (e.g. http://localhost:4200/),
-# but the committed file needs the ${VAR} marker that the Dockerfile's
-# `RUN sed` substitutes at image build — without re-injection, round-trip
-# would bake a literal URL and check-realm-shape.sh would fail loudly.
-# Sibling to the DEV_CLIENT_SECRETS restoration above. Note: this is the
-# bash-style ${VAR} marker (NOT Keycloak's ${env:VAR} — that substitution
-# layer doesn't cover client.baseUrl).
-DEV_CLIENT_BASE_URLS = {
+DEV_CLIENT_BASE_URL_BUILD_ARG_PLACEHOLDERS_THE_DOCKERFILE_SED_RESTORES = {
     'alpenflight-web': '${ALPENFLIGHT_WEB_BASE_URL}',
 }
 
 for c in partial.get('clients', []):
     c.pop('notBefore', None)
-    if c.get('clientId') in DEV_CLIENT_BASE_URLS:
-        c['baseUrl'] = DEV_CLIENT_BASE_URLS[c['clientId']]
+    if c.get('clientId') in DEV_CLIENT_BASE_URL_BUILD_ARG_PLACEHOLDERS_THE_DOCKERFILE_SED_RESTORES:
+        c['baseUrl'] = DEV_CLIENT_BASE_URL_BUILD_ARG_PLACEHOLDERS_THE_DOCKERFILE_SED_RESTORES[c['clientId']]
     if c.get('publicClient') or c.get('bearerOnly'):
         c.pop('secret', None)
         continue
-    if c.get('clientId') in DEV_CLIENT_SECRETS:
-        c['secret'] = DEV_CLIENT_SECRETS[c['clientId']]
+    if c.get('clientId') in DEV_CLIENT_SECRETS_RESTORED_OVER_THE_EXPORTS_MASKED_PLACEHOLDER:
+        c['secret'] = DEV_CLIENT_SECRETS_RESTORED_OVER_THE_EXPORTS_MASKED_PLACEHOLDER[c['clientId']]
 
-# Final assembly + deterministic sort.
 partial['users'] = sorted(users, key=lambda u: u['username'])
 
-def deep_sort_string_arrays(obj):
-    """Sort arrays whose elements are ALL strings — Keycloak treats these as
-    sets and emits them in non-deterministic order. Leaves arrays of objects
-    untouched (those carry semantic order, e.g. authentication flows)."""
+def deep_sort_string_only_arrays_which_keycloak_emits_unordered(obj):
     if isinstance(obj, dict):
-        return {k: deep_sort_string_arrays(v) for k, v in obj.items()}
+        return {k: deep_sort_string_only_arrays_which_keycloak_emits_unordered(v) for k, v in obj.items()}
     if isinstance(obj, list):
         if obj and all(isinstance(x, str) for x in obj):
             return sorted(obj)
-        return [deep_sort_string_arrays(x) for x in obj]
+        return [deep_sort_string_only_arrays_which_keycloak_emits_unordered(x) for x in obj]
     return obj
 
-print(json.dumps(deep_sort_string_arrays(partial), indent=2, sort_keys=True))
+print(json.dumps(deep_sort_string_only_arrays_which_keycloak_emits_unordered(partial), indent=2, sort_keys=True))
 PYEOF

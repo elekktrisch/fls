@@ -2,13 +2,6 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 
-/**
- * Minimal confirmation dialog. Consumed by the wizard's Esc-dirty-confirm
- * prompt and reused by S-062h's draft-restore + 412 conflict-diff prompts.
- *
- * The visible-flag is owned by the host so this stays a passive renderer
- * the host can re-locate (overlay vs inline) later without touching the API.
- */
 @Component({
   selector: 'af-dialog',
   standalone: true,
@@ -35,11 +28,6 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
               {{ message() }}
             </p>
           }
-          <!--
-            Optional projected body. Hosts that need richer content than the
-            single message line (S-062h's per-field conflict diff) project it
-            here; the confirm/dismiss footer below is reused as-is.
-          -->
           <div class="empty:hidden mb-4">
             <ng-content />
           </div>
@@ -63,13 +51,11 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
 })
 export class AfDialogComponent {
   readonly visible = input<boolean>(false);
-  /** Widen the panel for richer projected bodies (e.g. the conflict diff). */
   readonly wide = input<boolean>(false);
   readonly title = input<string>('Confirm');
   readonly message = input<string | null>(null);
   readonly confirmLabel = input<string>('Confirm');
   readonly dismissLabel = input<string>('Cancel');
-  /** Override so a host can target its own submit testid (e.g. approve-modal-submit). */
   readonly confirmTestid = input<string>('af-dialog-confirm');
   readonly confirmDisabled = input<boolean>(false);
 

@@ -47,14 +47,11 @@ class AircraftReservationTypeMapperTest
 
     @Test
     void declaresOnlyClubAsForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 
     @Test
     void declaresOperatingClubIdAsOffConventionClubForeignKeyColumn() {
-        // Regression for J-5 T-22: operating_club_id is the @TenantId, not the
-        // convention club_id — without this declaration the resolver leaves it
-        // carrying the verbatim legacy GUID → fk_arvt_operating_club_id (23503).
         assertThat(mapper.foreignKeyColumns())
                 .extracting(fk -> fk.column() + "->" + fk.target())
                 .containsExactly("operating_club_id->" + EntityType.CLUB);

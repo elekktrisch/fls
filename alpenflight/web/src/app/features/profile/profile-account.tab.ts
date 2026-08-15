@@ -27,16 +27,6 @@ type AccountForm = FormGroup<{
   languageId: FormControl<string>;
 }>;
 
-/**
- * Account tab of `/profile` (J-4 T-05). Edits the caller's own User aggregate
- * self-fields — friendlyName, notificationEmail, phoneNumber, languageId — via
- * {@code PATCH /api/v1/me/profile}. Username + clubId render read-only (they
- * are identity-binding / admin-owned). A saved language change flips the SPA's
- * active locale (the {@link AccountStore} drives {@code LocaleService}).
- *
- * testid contract (T-01 spec): the editable controls carry
- * `profile-account-{friendlyName,notificationEmail,phone,language}`.
- */
 @Component({
   selector: 'af-profile-account-tab',
   standalone: true,
@@ -59,7 +49,6 @@ type AccountForm = FormGroup<{
         data-testid="profile-account-form"
         class="max-w-2xl flex flex-col gap-3"
       >
-        <!-- Read-only identity fields (admin / Keycloak owned). -->
         <af-form-field [label]="t('username')" for="ProfileUsername">
           <af-input
             inputId="ProfileUsername"
@@ -81,7 +70,6 @@ type AccountForm = FormGroup<{
           />
         </af-form-field>
 
-        <!-- Editable self-fields. -->
         <af-form-field
           [label]="t('friendlyName')"
           for="ProfileFriendlyName"
@@ -176,18 +164,9 @@ export class ProfileAccountTab {
       validators: [Validators.required, Validators.email, Validators.maxLength(256)],
     }),
     phoneNumber: this.fb.control('', { validators: [Validators.maxLength(30)] }),
-    // Required per legacy parity (flsweb profile.html:61 marked the language
-    // selectize `required`; the server-side @NotNull stays the authoritative
-    // gate) — J-26 T-08 restored the client validator.
     languageId: this.fb.control('', { validators: [Validators.required] }),
   });
 
-  // Inline validation WHILE TYPING (J-26 T-12, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings (silent
-  // until blur/submit) and binding the previously-silent phone field (maxLength
-  // only). The languageId required validator (T-08) is preserved and now renders
-  // its error live (clear → error → re-pick recovers).
   protected readonly friendlyNameErrors = liveFieldErrors(this.form.controls.friendlyName);
   protected readonly notificationEmailErrors = liveFieldErrors(
     this.form.controls.notificationEmail,
@@ -196,8 +175,6 @@ export class ProfileAccountTab {
   protected readonly languageIdErrors = liveFieldErrors(this.form.controls.languageId);
 
   constructor() {
-    // Hydrate the form whenever the store's view lands (initial load + after a
-    // save reflects the persisted projection).
     effect(() => {
       const view = this.store.view();
       if (view !== null) {

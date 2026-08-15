@@ -23,107 +23,39 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-8 T-10 — the AccountingRuleFilter producer-side collision/renumber proof.
- *
- * <p>V4's {@code ux_arf_club_sort_partial} partial UNIQUE
- * ({@code (operating_club_id, sort_indicator) WHERE deleted_on IS NULL}) forbids
- * per-club {@code sort_indicator} duplicates, but the legacy
- * {@code AccountingRuleFilters.SortIndicator} is dup-prone {@code int NULL} — the
- * legacy has no such constraint. ACCOUNTING_RULE_FILTER is NOT fan-out, so two
- * legacy rows in ONE club sharing a {@code SortIndicator} (or a NULL one) resolve
- * to the SAME provisioned club → the 2nd INSERT violates
- * {@code ux_arf_club_sort_partial} with {@code sqlstate 23505} — the §4 fanout
- * gate blocker the synth bundle never catches (it aliases columns and never runs
- * the producer SELECT, {@code project_synth_bundle_doesnt_validate_producer_select}).
- *
- * <p>The fix is the renumber the {@code AccountingRuleFilterMapper} Javadoc
- * promises: the bound producer SELECT assigns each LIVE row a dense, distinct
- * {@code sort_indicator} per club via {@code ROW_NUMBER() OVER (PARTITION BY
- * ClubId ORDER BY SortIndicator, CreatedOn, AccountingRuleFilterId)} over the
- * rows the partial index covers ({@code WHERE IsDeleted = 0}), so the duplicate
- * never reaches the ingest with a colliding indicator. This IT runs the REAL
- * bound producer SELECT ({@link MapperLegacyBindings#selectForProducer}) against
- * a legacy-shaped {@code AccountingRuleFilters} staging table seeded with two
- * collision rows + a NULL-indicator row + a soft-deleted row in one club, and a
- * distinct row + a dirty-target row in another club, and asserts the renumber +
- * soft-delete-drop + the dirty-target gate.
- *
- * <p><strong>Dirty-target gate.</strong> The real legacy
- * {@code ArticleTarget}/{@code RecipientTarget} {@code nvarchar(max)} columns
- * hold non-JSON values ({@code ''}, {@code 'null'}, stray text) wherever the C#
- * layer wrote no target. Bare {@code JSON_VALUE} over those aborts the WHOLE
- * cursor on MSSQL with error 13609 ("JSON text is not properly formatted") — the
- * §4 fanout blocker the synth bundle's aliased columns never surface. The
- * producer SELECT gates each extraction behind a structural JSON-shape check so a
- * non-object/array value yields a NULL target instead of aborting; the staging
- * columns here are {@code TEXT} (the real {@code nvarchar(max)}, not jsonb) so the
- * dirty value can be seeded.
- *
- * <p><strong>Requires PostgreSQL 17 (CI's pinned container + the real legacy
- * MSSQL producer).</strong> The producer SELECT extracts the scalar
- * article/recipient targets via SQL/JSON {@code JSON_VALUE}, which is native to
- * MSSQL (the real producer) and PG 17 (CI). It is NOT available on PG 15, so a
- * dev box running the suite against an older LAN Postgres must run this IT
- * against the PG-17 Testcontainer ({@code ALPENFLIGHT_TEST_FORCE_DOCKER=1}); CI
- * always takes the PG-17 path. The round-trip ingest of the renumbered output is
- * proven by {@link AccountingRuleFilterMigrationRoundTripIT}.
- */
 @Tag("slow")
 class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
 
     @Autowired JdbcTemplate jdbc;
 
+    private static final int LIVE = 0;
+    private static final int SOFT_DELETED = 1;
+    private static final int COLLIDING_LEGACY_SORT_INDICATOR = 5;
+    private static final String DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER = "";
+    private static final long LEGACY_MIN_FLIGHT_TIME_SECONDS_BILLS_FROM_ZERO = 0L;
+    private static final long LEGACY_UNBOUNDED_MAX_FLIGHT_TIME_SENTINEL = Long.MAX_VALUE;
+    private static final int MINIMUM_SUPPORTED_POSTGRES_MAJOR_FOR_SQL_JSON_VALUE = 17;
+
     private final UUID clubA = UUID.randomUUID();
     private final UUID clubB = UUID.randomUUID();
 
-    // Two live rows in clubA sharing SortIndicator 5 — collide on the partial UNIQUE.
     private final UUID dupEarlier = UUID.randomUUID();
     private final UUID dupLater = UUID.randomUUID();
-    // A live row in clubA with a NULL SortIndicator — legacy permits it; the
-    // renumber must give it a concrete distinct index (NULLs sort first).
     private final UUID nullSortRow = UUID.randomUUID();
-    // A soft-deleted (IsDeleted=1) row in clubA — must be DROPPED (the partial
-    // index covers only deleted_on IS NULL; including it would consume a live
-    // index / collide).
     private final UUID softDeletedRow = UUID.randomUUID();
-    // A live row in clubB also with SortIndicator 5 — a DIFFERENT club, so NOT a
-    // collision; must survive untouched (the renumber partitions on ClubId).
     private final UUID otherClubRow = UUID.randomUUID();
-    // A live row in clubB whose ArticleTarget/RecipientTarget are dirty non-JSON
-    // strings (the real legacy '' the C# layer leaves when no target is set).
-    // Bare JSON_VALUE over these aborts the WHOLE cursor on MSSQL (error 13609);
-    // the structural JSON-shape gate must yield NULL targets instead.
     private final UUID dirtyTargetRow = UUID.randomUUID();
-    // A live glider-scoped FlightTime (type 30) row in clubB carrying the legacy
-    // FlightTime predicate the §4 `FlightTime: Glider per minute` fixture defines:
-    // min=0, max=Long.MAX (the legacy "unbounded" sentinel) — both BIGINT, the
-    // real column type. Reading them as Integer aborts the cursor on pgjdbc; the
-    // mapper must read Long + clamp so the predicate round-trips and the engine
-    // matches a glider flight (delivery-creation-test-parity.spec.ts:577).
     private final UUID gliderFlightTimeRow = UUID.randomUUID();
 
     @BeforeEach
     void seedLegacyShapedStagingTable() {
-        // The bound producer SELECT extracts the JSON-blob target scalars via
-        // SQL/JSON JSON_VALUE — native to MSSQL (the real producer) + PG 17 (CI's
-        // pinned container) but absent before PG 15. A dev box pointed at an older
-        // LAN Postgres SKIPS this IT (not fails); CI's PG-17 container always runs
-        // it, and a local run can force PG 17 via ALPENFLIGHT_TEST_FORCE_DOCKER=1.
         Integer pgMajor = jdbc.queryForObject(
                 "SELECT current_setting('server_version_num')::int / 10000", Integer.class);
-        assumeTrue(pgMajor != null && pgMajor >= 17,
+        assumeTrue(pgMajor != null && pgMajor >= MINIMUM_SUPPORTED_POSTGRES_MAJOR_FOR_SQL_JSON_VALUE,
                 "AccountingRuleFilter producer SELECT uses SQL/JSON JSON_VALUE — "
                         + "requires PostgreSQL 17 (CI container + the real MSSQL producer); "
                         + "current major = " + pgMajor);
 
-        // A legacy-shaped staging table standing in for the MSSQL
-        // AccountingRuleFilters the producer SELECT reads. Unquoted mixed-case
-        // identifiers fold to lowercase in Postgres, matching the unquoted names
-        // in the bound SELECT. ArticleTarget/RecipientTarget are TEXT (the real
-        // legacy nvarchar(max)) — NOT jsonb — so a dirty non-JSON value ('',
-        // 'null', stray text) the C# layer left can be seeded, exercising the
-        // structural JSON-shape gate the producer SELECT applies before JSON_VALUE.
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS AccountingRuleFilters (
                     AccountingRuleFilterId UUID PRIMARY KEY,
@@ -183,25 +115,23 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 """);
         jdbc.update("DELETE FROM AccountingRuleFilters");
 
-        // clubA: two live rows sharing SortIndicator 5 + a NULL-indicator row.
-        insertRow(dupEarlier, clubA, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+        insertRow(dupEarlier, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2020-01-01 08:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(dupLater, clubA, 5, Timestamp.valueOf("2021-06-15 09:30:00"), 0,
+        insertRow(dupLater, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2021-06-15 09:30:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), 0,
+        insertRow(nullSortRow, clubA, null, Timestamp.valueOf("2019-01-01 00:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        // clubA: a soft-deleted row also at indicator 5 — must be dropped.
-        insertRow(softDeletedRow, clubA, 5, Timestamp.valueOf("2018-01-01 00:00:00"), 1,
+        insertRow(softDeletedRow, clubA, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2018-01-01 00:00:00"), SOFT_DELETED,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        // clubB: a live row at indicator 5 — a different club, NOT a collision.
-        insertRow(otherClubRow, clubB, 5, Timestamp.valueOf("2020-01-01 08:00:00"), 0,
+        insertRow(otherClubRow, clubB, COLLIDING_LEGACY_SORT_INDICATOR,
+                Timestamp.valueOf("2020-01-01 08:00:00"), LIVE,
                 ARTICLE_TARGET_JSON, RECIPIENT_TARGET_JSON);
-        // clubB: a live row whose targets are the dirty legacy '' — bare JSON_VALUE
-        // would abort the entire cursor (MSSQL 13609); the gate must NULL them.
-        insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), 0,
-                "", "");
-        // clubB: the §4 `FlightTime: Glider per minute` fixture predicate — glider-
-        // scoped, min=0, max=Long.MAX, BIGINT time columns, MIN unit (10).
+        insertRow(dirtyTargetRow, clubB, 7, Timestamp.valueOf("2020-02-01 08:00:00"), LIVE,
+                DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER,
+                DIRTY_NON_JSON_TARGET_LEFT_BY_THE_LEGACY_LAYER);
         insertGliderFlightTimeRow(gliderFlightTimeRow, clubB, 9,
                 Timestamp.valueOf("2020-03-01 08:00:00"));
     }
@@ -224,7 +154,6 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
 
         List<Map<String, Object>> rows = jdbc.queryForList(select);
 
-        // The soft-deleted row is dropped; 6 live rows survive (3 in clubA + 3 in clubB).
         List<UUID> survivingIds = rows.stream()
                 .map(r -> UUID.fromString(r.get("accountingrulefilterid").toString()))
                 .sorted()
@@ -237,8 +166,6 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         otherClubRow, dirtyTargetRow, gliderFlightTimeRow)
                 .doesNotContain(softDeletedRow);
 
-        // The 3 live clubA rows each carry a DISTINCT sort_indicator post-renumber —
-        // so the 2nd/3rd INSERT no longer 23505s on ux_arf_club_sort_partial.
         List<Integer> clubASortIndicators = rows.stream()
                 .filter(r -> r.get("clubid").toString().equals(clubA.toString()))
                 .map(r -> ((Number) r.get("sortindicator")).intValue())
@@ -249,9 +176,6 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         + "1..N (collision + NULL resolved) — else the 2nd would 23505")
                 .containsExactly(1, 2, 3);
 
-        // The earlier-CreatedOn dup keeps a lower index than the later dup (ORDER BY
-        // SortIndicator, CreatedOn). The NULL-indicator row sorts first (NULLs first
-        // in the SortIndicator ASC ordering) → index 1.
         Map<UUID, Integer> indicatorById = new java.util.HashMap<>();
         for (Map<String, Object> r : rows) {
             indicatorById.put(UUID.fromString(r.get("accountingrulefilterid").toString()),
@@ -264,18 +188,11 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 .as("the earlier-CreatedOn collision row precedes the later one")
                 .isLessThan(indicatorById.get(dupLater));
 
-        // clubB's rows are untouched by clubA's renumber (partition on ClubId) — they
-        // get their own per-club indices 1..3.
         assertThat(List.of(indicatorById.get(otherClubRow), indicatorById.get(dirtyTargetRow),
                 indicatorById.get(gliderFlightTimeRow)))
                 .as("clubB's rows are renumbered within their OWN club (partition on ClubId)")
                 .containsExactlyInAnyOrder(1, 2, 3);
 
-        // The dirty-target row survives with NULL targets — bare JSON_VALUE over its
-        // '' ArticleTarget/RecipientTarget would have aborted the WHOLE cursor
-        // (MSSQL 13609); the structural JSON-shape gate NULLs them instead. This is
-        // the real-legacy dirty value (the 100-Insert N'' rows) the synth bundle's
-        // aliased columns never exercise.
         Map<String, Object> dirty = rows.stream()
                 .filter(r -> r.get("accountingrulefilterid").toString()
                         .equals(dirtyTargetRow.toString()))
@@ -290,7 +207,6 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 .isNull();
         assertThat(dirty.get("recipientname")).isNull();
 
-        // The JSON-blob target scalars are extracted via JSON_VALUE (PG 17 / MSSQL).
         Map<String, Object> earlier = rows.stream()
                 .filter(r -> r.get("accountingrulefilterid").toString().equals(dupEarlier.toString()))
                 .findFirst()
@@ -412,10 +328,6 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                 isDeleted);
     }
 
-    // The §4 `FlightTime: Glider per minute` predicate, every facet useAllExcept +
-    // empty (matches any glider flight): glider-scoped, min=0, max=Long.MAX (the
-    // legacy unbounded sentinel) — BOTH BIGINT (the real DBUpdate v1.9.14 type),
-    // MIN unit (10), ArticleTarget 5001.
     private void insertGliderFlightTimeRow(UUID id, UUID club, int sortIndicator,
             Timestamp createdOn) {
         jdbc.update("""
@@ -449,7 +361,7 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         false, false, false,
                         false, false,
                         false, NULL,
-                        0, 9223372036854775807,
+                        ?, ?,
                         NULL, NULL,
                         true, '[]',
                         true, '[]',
@@ -465,6 +377,8 @@ class AccountingRuleFilterProducerDedupeIT extends PostgresIntegrationTest {
                         NULL, NULL, 0)
                 """,
                 id, club, sortIndicator, GLIDER_ARTICLE_TARGET_JSON,
+                LEGACY_MIN_FLIGHT_TIME_SECONDS_BILLS_FROM_ZERO,
+                LEGACY_UNBOUNDED_MAX_FLIGHT_TIME_SENTINEL,
                 createdOn, createdOn);
     }
 }

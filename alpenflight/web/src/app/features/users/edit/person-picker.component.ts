@@ -24,18 +24,6 @@ type PickerForm = FormGroup<{
   birthday: FormControl<string>;
 }>;
 
-/**
- * Inline Person picker for the User invite form. Drives lookup state
- * through `UsersStore` — the only entry point for `personId` on the wire.
- * Reuses S-051's exact-match `POST /api/v1/persons/lookup`; never
- * `GET /api/v1/persons?q=` (enumeration risk; the lookup endpoint is
- * rate-limited + audited on both hit and miss).
- *
- * Two-input rule: email OR the full identity triple
- * (firstname + lastname + birthday). Mixed / partial triples are rejected
- * by the backend with 400; the form disables Search until one side has
- * the data it needs.
- */
 @Component({
   selector: 'af-user-person-picker',
   standalone: true,
@@ -83,7 +71,7 @@ type PickerForm = FormGroup<{
               autocomplete="email"
             />
           </af-form-field>
-          <div class="grid grid-cols-3 gap-2" [class.opacity-50]="emailMode()">
+          <div class="grid grid-cols-3 gap-2" [class.opacity-50]="searchesByEmail()">
             <af-form-field label="First name" for="LookupFirstname">
               <af-input
                 inputId="LookupFirstname"
@@ -176,12 +164,9 @@ export class UserPersonPickerComponent {
     birthday: this.fb.control(''),
   });
 
-  // Track form values as a signal so template predicates re-evaluate.
   private readonly formValue = signal(this.form.getRawValue());
 
-  // Visual two-input mutex: when email has content, the identity-triple
-  // group dims; same the other way. Backend's precedence is email-first.
-  protected readonly emailMode = computed(() => this.formValue().email.trim().length > 0);
+  protected readonly searchesByEmail = computed(() => this.formValue().email.trim().length > 0);
 
   protected readonly canSearch = computed(() => {
     const v = this.formValue();

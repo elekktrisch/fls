@@ -12,17 +12,6 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal child of {@link PersonFlightTimeCredit}: one balance
- * snapshot. The engine reads only the single {@code IsCurrent} row
- * ({@code AircraftFlightTimeRule.cs:61}); the partial UNIQUE
- * {@code ux_pftc_transaction_current} on {@code (credit_id) WHERE is_current}
- * is the structural backstop for the "exactly one current" invariant.
- *
- * <p>{@code currentFlightTimeBalanceInSeconds} is nullable — {@code null} means
- * unlimited ({@code NoFlightTimeLimit}). {@code balancedDelivery} is a nullable
- * back-reference left null when the linked Delivery is not migrated.
- */
 @Entity
 @Table(name = "t_person_flight_time_credit_transaction")
 public class PersonFlightTimeCreditTransaction {
@@ -66,7 +55,6 @@ public class PersonFlightTimeCreditTransaction {
     private @Nullable UUID deletedByUserId;
 
     protected PersonFlightTimeCreditTransaction() {
-        // JPA.
     }
 
     static PersonFlightTimeCreditTransaction current(PersonFlightTimeCredit credit,
@@ -80,16 +68,6 @@ public class PersonFlightTimeCreditTransaction {
         return tx;
     }
 
-    /**
-     * The new {@code IsCurrent} balance row a delivery create writes when it
-     * consumes {@code consumedSeconds} from this credit
-     * ({@code AircraftFlightTimeRule.cs:73-184}, {@code DeliveryService.cs:201-216}).
-     * {@code flightTimeBalanceInSeconds} is the negated consumed delta;
-     * {@code currentFlightTimeBalanceInSeconds} the new remaining balance
-     * (null for an unlimited credit, {@code old - consumed} floored at 0
-     * otherwise); {@code balancedDeliveryId} links it to the delivery so a later
-     * delete can reverse it.
-     */
     static PersonFlightTimeCreditTransaction consumption(PersonFlightTimeCredit credit,
                                                          boolean unlimited,
                                                          @Nullable Long oldBalanceSeconds,
@@ -109,16 +87,6 @@ public class PersonFlightTimeCreditTransaction {
         return tx;
     }
 
-    /**
-     * The new {@code IsCurrent} balance row that reverses a delivery delete
-     * ({@code DeliveryService.cs:1257-1269}): it adds {@code restoredSeconds}
-     * back onto the credit. {@code flightTimeBalanceInSeconds} is the positive
-     * restored delta (the negation of the original consumption's negated delta);
-     * {@code currentFlightTimeBalanceInSeconds} the new remaining balance (null
-     * for an unlimited credit, {@code old + restored} otherwise). It keeps the
-     * original transaction's {@code balancedDeliveryId} so the audit trail still
-     * links the reversal to the deleted delivery.
-     */
     static PersonFlightTimeCreditTransaction reversal(PersonFlightTimeCredit credit,
                                                       boolean unlimited,
                                                       @Nullable Long oldBalanceSeconds,

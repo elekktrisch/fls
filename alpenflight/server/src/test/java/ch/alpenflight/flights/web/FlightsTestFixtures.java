@@ -9,12 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Shared seed helpers + canonical reference UUIDs for the Flight ITs. The
- * Flights ITs need a tenant-scoped Aircraft row to anchor the
- * {@code aircraft_id} FK; the seed migration only ships reference data,
- * so each IT seeds its own minimal Aircraft up-front.
- */
 final class FlightsTestFixtures {
 
     static final String SEED_AIRCRAFT_TYPE_GLIDER =
@@ -25,6 +19,9 @@ final class FlightsTestFixtures {
     private static final AtomicInteger IMMAT_COUNTER = new AtomicInteger(0);
     private static final AtomicInteger AIRCRAFT_COUNTER = new AtomicInteger(0);
 
+    private static final String TEST_FIXTURE_AIRCRAFT_ID_PREFIX = "019e2e15-2c00-7e15-8000-";
+    private static final long TEST_FIXTURE_ID_SLOT_BASE = 0xff_0000_0000L;
+
     private FlightsTestFixtures() {}
 
     static String uniqueImmatriculation() {
@@ -33,13 +30,6 @@ final class FlightsTestFixtures {
         return "HB-FT" + letter + String.format("%02d", n % 100);
     }
 
-    /**
-     * Inserts a minimal Aircraft row under the given managing tenant and
-     * returns the new id. Used by ITs that need a writable
-     * {@code aircraft_id} FK for Flight rows. Reference data
-     * ({@code aircraft_type}) is V3-seeded; clubs are V5-seeded or seeded
-     * by the calling fixture.
-     */
     static UUID seedAircraftFor(JdbcTemplate jdbc, UUID managingClubId) {
         UUID id = newAircraftId();
         jdbc.update("""
@@ -59,10 +49,6 @@ final class FlightsTestFixtures {
         return id;
     }
 
-    /**
-     * Inserts a minimal Person row + per-tenant PersonClub row, returns the
-     * Person id. Used by ITs exercising FlightCrew.
-     */
     static UUID seedPersonInClub(JdbcTemplate jdbc, UUID clubId) {
         UUID personId = UUID.randomUUID();
         UUID pcId = UUID.randomUUID();
@@ -76,7 +62,6 @@ final class FlightsTestFixtures {
         return personId;
     }
 
-    /** Inserts a minimal Person row WITHOUT any PersonClub — cross-tenant ride-through anchor. */
     static UUID seedPersonNoMembership(JdbcTemplate jdbc) {
         UUID personId = UUID.randomUUID();
         jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
@@ -84,11 +69,6 @@ final class FlightsTestFixtures {
         return personId;
     }
 
-    /**
-     * Minimal create payload — only the required fields (aircraftType +
-     * aircraftId) and a sensible default flightDate. Caller can extend
-     * before posting.
-     */
     static Map<String, Object> createPayload(String flightAircraftType,
                                              String aircraftIdExternal,
                                              @Nullable String flightDateIso) {
@@ -98,13 +78,16 @@ final class FlightsTestFixtures {
         if (flightDateIso != null) {
             body.put("flightDate", flightDateIso);
         }
-        // Primitive booleans on the DTO — Jackson 3 rejects null for these,
-        // so fill explicitly with false defaults.
+        putBooleanFlagsThatJacksonRejectsAsNullBecauseTheDtoFieldsArePrimitive(body);
+        body.put("crew", new ArrayList<>());
+        return body;
+    }
+
+    private static void putBooleanFlagsThatJacksonRejectsAsNullBecauseTheDtoFieldsArePrimitive(
+            Map<String, Object> body) {
         body.put("isSoloFlight", false);
         body.put("noStartTimeInformation", false);
         body.put("noLdgTimeInformation", false);
-        body.put("crew", new ArrayList<>());
-        return body;
     }
 
     static Map<String, Object> crewItem(String personIdExternal, String crewTypeId) {
@@ -120,13 +103,8 @@ final class FlightsTestFixtures {
         return out;
     }
 
-    /**
-     * Cleans Flight + FlightCrew rows under the given clubs. Pre-clean
-     * convention per ADR 0021 — call from {@code @BeforeEach}.
-     */
     static void cleanFlightRowsFor(JdbcTemplate jdbc, UUID... clubIds) {
         for (UUID clubId : clubIds) {
-            // FK ON DELETE CASCADE on flight_crew → flight handles crew cleanup.
             jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid",
                     clubId.toString());
         }
@@ -134,8 +112,7 @@ final class FlightsTestFixtures {
 
     private static UUID newAircraftId() {
         int n = AIRCRAFT_COUNTER.incrementAndGet();
-        // Stable per-process unique slot under the 019e2e15-* test-fixture prefix.
-        String suffix = String.format("%012x", 0xff_0000_0000L + n);
-        return UUID.fromString("019e2e15-2c00-7e15-8000-" + suffix);
+        String perProcessUniqueSlot = String.format("%012x", TEST_FIXTURE_ID_SLOT_BASE + n);
+        return UUID.fromString(TEST_FIXTURE_AIRCRAFT_ID_PREFIX + perProcessUniqueSlot);
     }
 }

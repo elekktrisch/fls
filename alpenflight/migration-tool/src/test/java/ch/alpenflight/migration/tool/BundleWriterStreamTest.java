@@ -15,30 +15,17 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Guards the producer's multi-fetch-window streaming path (J-0c T-13). The
- * export streams each entity through a per-row {@link JsonGenerator} sharing one
- * buffered {@link java.io.OutputStream} over an NIO file channel. COUNTRY (196
- * real rows) streamed 114 fine then died with {@code ClosedChannelException} at
- * a buffer-flush boundary: Jackson's default {@code AUTO_CLOSE_TARGET} let the
- * FIRST row's {@code gen.close()} close the shared stream, and the closed-channel
- * write only surfaced once the 8 KB {@code BufferedOutputStream} flushed
- * mid-stream. This drives many more rows than fit in that buffer (no live MSSQL,
- * a {@link Proxy}-backed forward-only fake cursor) so a regression re-closing the
- * target reproduces here instead of only on the nightly real chain.
- */
 class BundleWriterStreamTest {
 
     @TempDir
     Path workDir;
 
-    /** Far beyond the 8 KB BufferedOutputStream + the 1000-row fetch window. */
-    private static final int ROWS = 5000;
+    private static final int ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS = 5000;
 
     @Test
     void streamsEveryRowAcrossManyBufferFlushesWithoutClosingTheTarget() throws Exception {
         BundleWriter writer = new BundleWriter(null, workDir, false);
-        ResultSet cursor = forwardOnlyCursor(ROWS);
+        ResultSet cursor = forwardOnlyCursor(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
         Mapper mapper = countingMapper();
 
         EntityStreamResult[] result = new EntityStreamResult[1];
@@ -49,17 +36,17 @@ class BundleWriterStreamTest {
 
         assertThat(result[0].rowCount())
                 .as("every fake row streamed, none lost to a premature channel close")
-                .isEqualTo(ROWS);
+                .isEqualTo(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
 
         List<String> lines = Files.readAllLines(result[0].ndjsonTempFile(), StandardCharsets.UTF_8);
         assertThat(lines)
                 .as("one NDJSON line per row, last row present (not truncated mid-stream)")
-                .hasSize(ROWS);
+                .hasSize(ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS);
         assertThat(lines.get(0)).isEqualTo("{\"row\":0}");
-        assertThat(lines.get(ROWS - 1)).isEqualTo("{\"row\":" + (ROWS - 1) + "}");
+        int lastRow = ROWS_SPANNING_MANY_BUFFER_FLUSHES_AND_FETCH_WINDOWS - 1;
+        assertThat(lines.get(lastRow)).isEqualTo("{\"row\":" + lastRow + "}");
     }
 
-    /** A forward-only ResultSet over {@code rows} rows; only next()/getInt used. */
     private static ResultSet forwardOnlyCursor(int rows) {
         int[] cursor = {-1};
         return (ResultSet) Proxy.newProxyInstance(
@@ -89,7 +76,6 @@ class BundleWriterStreamTest {
                 });
     }
 
-    /** Writes {@code {"row":<i>}} per row; reads only the proxied getInt. */
     private static Mapper countingMapper() {
         return new Mapper() {
             @Override
@@ -98,12 +84,12 @@ class BundleWriterStreamTest {
             }
 
             @Override
-            public String[] columns() {
+            public String[] wireColumns() {
                 return new String[] {"row"};
             }
 
             @Override
-            public List<EntityType> foreignKeys() {
+            public List<EntityType> foreignKeyTargets() {
                 return List.of();
             }
 

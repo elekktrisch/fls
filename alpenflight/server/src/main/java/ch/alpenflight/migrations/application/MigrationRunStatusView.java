@@ -7,12 +7,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * SPA-facing view of a {@link MigrationRun} for the status-poll endpoint.
- * Pure DTO — no domain references on the wire. The {@code occurredAt}
- * field is the run's terminal timestamp (completed_at) when terminal,
- * otherwise the start timestamp.
- */
 public record MigrationRunStatusView(
         UUID uploadId,
         MigrationRunState state,

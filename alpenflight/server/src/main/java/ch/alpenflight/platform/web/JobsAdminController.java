@@ -20,24 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * System-administrator-only scheduled-jobs console API.
- *
- * <ul>
- *   <li>{@code GET /} lists every registered business job with its cron + last-run.</li>
- *   <li>{@code POST /{name}/run} runs one on demand and returns the resulting run.</li>
- * </ul>
- *
- * <p>Both are {@code SYSTEM_ADMINISTRATOR}-gated: the jobs run unscoped across
- * every club (cross-tenant), so a club admin must not trigger them — the
- * load-bearing negative (J-15 AC7). The console is sysadmin-only, not
- * club-scoped like {@code /system/logs}.
- *
- * <p>{@link AuditedBy} names {@code measuredJobAspect} as the audit-of-record:
- * every run persists a {@link ch.alpenflight.platform.scheduling.JobRun}
- * (started → completed/failed) via that AOP hand-off, which the
- * {@code ControllerAuditCoverageTest} DFS can't traverse.
- */
 @RestController
 @RequestMapping(path = "/api/v1/admin/jobs", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Admin Jobs", description = "System-administrator scheduled-jobs console.")

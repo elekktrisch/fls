@@ -17,22 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * One-shot snapshot writer that points at a reachable Postgres (e.g.
- * {@code 192.168.178.97:5432} via {@code DATASOURCE_*} env vars) instead
- * of the Testcontainers-driven shared container. Invocation:
- *
- * <pre>{@code
- *   DATASOURCE_URL=jdbc:postgresql://192.168.178.97:5432/alpenflight \
- *   DATASOURCE_USER=alpenflight \
- *   DATASOURCE_PASSWORD=alpenflight \
- *   ALPENFLIGHT_OPENAPI_REFRESH_REMOTE=true \
- *   ./gradlew :test --tests OpenApiSnapshotWriterUsingRemotePostgres
- * }</pre>
- *
- * <p>Disabled by default — opt in only when regenerating the snapshot
- * outside the normal Testcontainers path.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles("test")

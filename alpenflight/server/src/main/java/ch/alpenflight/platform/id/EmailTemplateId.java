@@ -4,13 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code EmailTemplate} aggregate root. Wraps a
- * {@link UUID} so service / controller / DTO signatures cannot accidentally
- * accept another aggregate's UUID in an {@code EmailTemplate} slot.
- *
- * <p>External form is {@code eml-<uuid>} per ADR 0019 (pinned in V47).
- */
 @Schema(
         type = "string",
         pattern = "^eml-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

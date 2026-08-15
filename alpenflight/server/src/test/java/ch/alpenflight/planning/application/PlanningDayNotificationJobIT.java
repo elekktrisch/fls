@@ -28,24 +28,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the planning-day notification job + the guarded run-now
- * affordance (J-6 T-10c, S-086 {@code [happy/email]} AC). Asserts against the
- * {@code @Primary} captured-outbox {@link CapturedMailSender} (T-10a) — no live
- * SMTP / mailpit needed.
- *
- * <ul>
- *   <li>The two exact-date passes for an opted-in club: a day+1 <em>with</em> a
- *       reservation → {@code planningday-ok} to the club address; a day+1
- *       <em>without</em> a reservation (and the club's reservation-less flag
- *       false) → {@code planningday-cancel} to the club address; a day+7 with an
- *       assigned person (email set) → {@code planningday-assignment-notification}
- *       to that person.</li>
- *   <li>The {@code POST .../notifications/run} authz: a {@code CLUB_ADMINISTRATOR}
- *       triggers it (200); a non-admin (PILOT) is forbidden (403); the run is
- *       tenant-scoped (the caller's own club only).</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, CapturedMailSender.Config.class})
@@ -72,7 +54,6 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
     @BeforeEach
     void seed() {
         outbox.clear();
-        // Own-rows pre-clean (RESTRICT FKs); scope to these IT clubs.
         for (UUID club : List.of(CLUB_A, CLUB_B)) {
             jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id = ?::uuid", club.toString());
             jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid",
@@ -88,20 +69,15 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
         insertClub(CLUB_B, "njbravo", null, false);
         locationA = seedLocation(CLUB_A, "Bern-Belp");
         instructorTypeId = seedAssignmentType(CLUB_A, "fluglehrer");
-        // A person with a private email → the week-ahead assignee recipient.
         assignedPersonId = seedPerson("Anna", "Assignee", "anna@pilot.example", null, false);
     }
 
     @Test
     void both_passes_send_ok_cancel_and_assignment_mails_to_the_right_recipients() {
-        // day+1 WITH a reservation → planningday-ok to the club address.
         UUID dayWithReservation = seedPlanningDay(CLUB_A, DAY_PLUS_1, locationA);
         seedReservation(CLUB_A, locationA, DAY_PLUS_1);
-        // A SECOND day+1 at a different location WITHOUT a reservation + club flag
-        // false → planningday-cancel to the club address.
-        UUID location2 = seedLocation(CLUB_A, "Thun");
-        seedPlanningDay(CLUB_A, DAY_PLUS_1, location2);
-        // day+7 with an assigned instructor (email set) → assignment notification.
+        UUID locationWhoseDayHasNoReservation = seedLocation(CLUB_A, "Thun");
+        seedPlanningDay(CLUB_A, DAY_PLUS_1, locationWhoseDayHasNoReservation);
         UUID weekAheadDay = seedPlanningDay(CLUB_A, DAY_PLUS_7, locationA);
         seedAssignment(weekAheadDay, CLUB_A, instructorTypeId, assignedPersonId);
 
@@ -133,8 +109,6 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
 
     @Test
     void cancel_when_no_reservation_but_ok_when_club_allows_reservationless_days() {
-        // Flip CLUB_A to allow reservation-less days → the day+1 with no
-        // reservation now sends OK instead of cancel (the Club.shouldSendPlanningDayOk rule).
         jdbc.update("UPDATE t_club SET use_planning_day_without_reservations = true WHERE id = ?::uuid",
                 CLUB_A.toString());
         seedPlanningDay(CLUB_A, DAY_PLUS_1, locationA);
@@ -144,7 +118,10 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
         assertThat(summary.imminentMailCount()).isEqualTo(1);
         List<MailMessage> sent = outbox.sent();
         assertThat(sent).hasSize(1);
-        assertThat(sent.get(0).subject()).isEqualTo("Flugbetriebstag findet statt");
+        assertThat(sent.get(0).subject())
+                .as("the club allows reservation-less days, so the day+1 without a reservation "
+                        + "sends OK instead of the cancel")
+                .isEqualTo("Flugbetriebstag findet statt");
         assertThat(sent.get(0).to()).containsExactly(CLUB_MAIL);
     }
 
@@ -152,7 +129,6 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
     void run_now_endpoint_is_clubAdmin_gated_and_tenant_scoped() {
         seedPlanningDay(CLUB_A, DAY_PLUS_1, locationA);
 
-        // Non-admin (PILOT) → 403.
         String pilotToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_A.toString())
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
@@ -160,7 +136,6 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
         assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(outbox.sent()).as("a forbidden call sent nothing").isEmpty();
 
-        // ClubAdmin of CLUB_A → 200, mails for CLUB_A's day only (tenant-scoped).
         String adminToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_A.toString())
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
@@ -172,7 +147,6 @@ class PlanningDayNotificationJobIT extends PostgresIntegrationTest {
         assertThat(outbox.sent().get(0).to()).containsExactly(CLUB_MAIL);
     }
 
-    // ----- helpers -----
 
     private ResponseEntity<String> runNow(String token) {
         return rest.exchange(

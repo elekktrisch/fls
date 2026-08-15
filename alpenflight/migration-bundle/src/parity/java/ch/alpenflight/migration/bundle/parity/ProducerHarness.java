@@ -16,20 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Producer side of the round-trip: invoke {@link Mapper#writeNdjson} once
- * per row over the legacy {@link Connection}, gather per-entity NDJSON
- * streams, and emit a {@code tar.gz} envelope via {@link BundleStream}.
- *
- * <p>The {@code SELECT} per entity is hand-curated against the legacy table
- * name + the legacy column list the mapper reads. {@link MapperLegacyBindings}
- * holds the binding so it lives alongside the mapper rather than scattered.
- *
- * <p><strong>In-process producer is the temporary affordance.</strong>
- * Until {@code :migration-tool:shadowJar} (S-139) lands, this class wires
- * the producer side directly. The sibling task {@code S-139a} swaps in
- * {@code ProcessBuilder} invocation once the JAR exists.
- */
 public final class ProducerHarness {
 
     private static final JsonFactory JSON_FACTORY = new JsonFactory();
@@ -57,18 +43,15 @@ public final class ProducerHarness {
         try (PreparedStatement ps = legacyConnection.prepareStatement(selectStatement);
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                emitOneRow(mapper, rs, sink);
+                emitOneRowAsItsOwnNdjsonLine(mapper, rs, sink);
             }
         }
         return sink.toByteArray();
     }
 
-    private static void emitOneRow(Mapper mapper, ResultSet rs, ByteArrayOutputStream sink)
+    private static void emitOneRowAsItsOwnNdjsonLine(
+            Mapper mapper, ResultSet rs, ByteArrayOutputStream sink)
             throws IOException, SQLException {
-        // Per-row generator — the harness pays the allocation cost; the
-        // hot-path mapper does not, matching the production producer where
-        // S-139 will pool the generator. Trades throughput for diff
-        // clarity (one self-contained line per row).
         try (JsonGenerator gen = JSON_FACTORY.createGenerator(sink)) {
             mapper.writeNdjson(rs, gen);
         }

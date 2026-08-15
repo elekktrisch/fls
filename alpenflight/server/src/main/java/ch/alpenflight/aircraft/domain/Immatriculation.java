@@ -3,18 +3,6 @@ package ch.alpenflight.aircraft.domain;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/**
- * Aircraft immatriculation value object. Regulator-shape input ({@code A-Z},
- * {@code 0-9}, hyphen), 2-15 chars, case-folded uppercase on bind. The
- * canonical stored form is the user-entered value upper-cased; the
- * <em>normalized</em> form (dash-stripped uppercase) drives matching in the
- * accounting rules engine (R3) — both legacy and new code normalize on read.
- *
- * <p>Per ADR 0022 directive 2 the format invariant lives in this VO, not as
- * a DB CHECK constraint. V3's partial unique on
- * {@code immatriculation WHERE deleted_on IS NULL} is the structural
- * uniqueness guard (global, regulator-convention).
- */
 public final class Immatriculation {
 
     public static final int MAX_LENGTH = 15;
@@ -48,12 +36,10 @@ public final class Immatriculation {
         return new Immatriculation(upper);
     }
 
-    /** Stored form: trimmed, upper-cased; hyphens preserved. */
-    public String normalized() {
+    public String storedUppercaseKeepingHyphens() {
         return stored;
     }
 
-    /** Matching form for R3 rules-engine lookups: dash-stripped uppercase. */
     public static String forMatching(String raw) {
         if (raw == null) {
             return "";

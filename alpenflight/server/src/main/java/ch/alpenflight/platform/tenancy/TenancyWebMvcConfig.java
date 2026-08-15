@@ -4,11 +4,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * Glue config — wires {@link AuditTargetTenantInterceptor} into the
- * {@code /api/v1/**} request chain so the audit-target-tenant hint is
- * published before controller-argument validation runs.
- */
 @Configuration
 class TenancyWebMvcConfig implements WebMvcConfigurer {
 

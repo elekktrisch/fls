@@ -14,34 +14,15 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.util.ClassUtils;
 
-/**
- * Reflective discovery of {@code @TenantId}-bearing entity classes under the
- * {@code ch.alpenflight} root package. Used by the S-024 leakage sweep to
- * parameterize over every tenant-scoped JPA entity without a hardcoded
- * roster — adding a new entity = stamp {@code @TenantId} + register a row
- * builder (see {@link TenantScopedRowBuilders}); the sweep auto-includes.
- *
- * <p>Pure classpath scan (Spring's {@link ClassPathScanningCandidateComponentProvider}).
- * Not Spring-context-dependent; can be invoked from plain JUnit tests.
- *
- * <p>Convention for the resolved table name: {@code @Table(name=...)} when
- * present; otherwise lowercase + snake_case of the simple class name
- * (e.g. {@code MemberState} → {@code member_state}). S-024 boot-time
- * assertion catches drift between the convention and {@code @Table} overrides.
- */
 public final class TenantScopedEntityCatalog {
 
     private TenantScopedEntityCatalog() {}
 
-    /** Returns the @TenantId-bearing entity classes, sorted by FQN for stable iteration. */
     public static List<Class<?>> discoverTenantScopedEntities() {
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false) {
                     @Override
                     protected boolean isCandidateComponent(AnnotatedBeanDefinition beanDefinition) {
-                        // Entities aren't @Component-stereotyped; widen the default
-                        // accept-rule to "anything with a class name". The
-                        // AnnotationTypeFilter below already gates on @Entity.
                         return beanDefinition.getMetadata().isIndependent();
                     }
                 };
@@ -67,7 +48,6 @@ public final class TenantScopedEntityCatalog {
         return List.copyOf(out);
     }
 
-    /** Returns the resolved table name for an entity ({@code @Table(name=…)} or snake_case). */
     public static String resolveTableName(Class<?> entityClass) {
         Table table = entityClass.getAnnotation(Table.class);
         if (table != null && !table.name().isEmpty()) {
@@ -76,13 +56,6 @@ public final class TenantScopedEntityCatalog {
         return camelToSnake(entityClass.getSimpleName());
     }
 
-    /**
-     * Returns the DB column name backing the {@code @TenantId} field. Most
-     * tenant-scoped entities use {@code club_id}; the audit-trail entity
-     * uses {@code tenant_club_id} to emphasise per-row "operating tenant"
-     * semantics distinct from a domain FK. Resolution: {@code @Column(name=…)}
-     * if present; otherwise snake_case of the field name.
-     */
     public static String resolveTenantColumnName(Class<?> entityClass) {
         for (Field f : entityClass.getDeclaredFields()) {
             if (!f.isAnnotationPresent(TenantId.class)) {

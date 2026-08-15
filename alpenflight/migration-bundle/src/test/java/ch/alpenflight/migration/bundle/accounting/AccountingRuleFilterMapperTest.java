@@ -15,6 +15,11 @@ import org.junit.jupiter.api.Test;
 class AccountingRuleFilterMapperTest
         extends AbstractMapperContractTest<AccountingRuleFilterMapper> {
 
+    private static final String ARTICLE_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_ARTICLE_TARGET =
+            "4001";
+    private static final String MEMBER_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_RECIPIENT_TARGET =
+            "1042";
+
     private final AccountingRuleFilterMapper mapper = new AccountingRuleFilterMapper();
 
     @Override
@@ -35,13 +40,9 @@ class AccountingRuleFilterMapperTest
         row.put("SortIndicator", 100);
         row.put("StopRuleEngineWhenRuleApplied", false);
         row.put("IsChargedToClubInternal", false);
-        // The producer SELECT extracts these scalars from the legacy JSON blobs
-        // via JSON_VALUE, so the cursor delivers the bare scalar (not the blob):
-        // ArticleTarget = ArticleNumber, RecipientTarget = member-number, and
-        // DeliveryLineText / RecipientName ride filter_config.
-        row.put("ArticleTarget", "4001");
+        row.put("ArticleTarget", ARTICLE_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_ARTICLE_TARGET);
         row.put("DeliveryLineText", "Flight time charge");
-        row.put("RecipientTarget", "1042");
+        row.put("RecipientTarget", MEMBER_NUMBER_THE_PRODUCER_JSON_VALUES_OUT_OF_RECIPIENT_TARGET);
         row.put("RecipientName", "Club Treasurer");
 
         row.put("IsRuleForGliderFlights", true);
@@ -62,9 +63,6 @@ class AccountingRuleFilterMapperTest
         row.put("MinEngineTimeInSecondsMatchingValue", null);
         row.put("MaxEngineTimeInSecondsMatchingValue", null);
 
-        // Boolean-pair predicates: inversion flag + JSON-array list (the legacy
-        // C# serialises these as JsonConvert.SerializeObject(List<…>), so the
-        // cursor delivers a JSON array string — strings, ints, and guids alike).
         row.put("UseRuleForAllAircraftsExceptListed", false);
         row.put("MatchedAircraftImmatriculations", "[\"HB-1234\",\"HB-5678\",\"HB-9999\"]");
         row.put("UseRuleForAllStartTypesExceptListed", true);
@@ -76,8 +74,6 @@ class AccountingRuleFilterMapperTest
         row.put("UseRuleForAllLdgLocationsExceptListed", false);
         row.put("MatchedLdgLocations", "[\"LSZH\"]");
         row.put("UseRuleForAllClubMemberNumbersExceptListed", false);
-        // Legacy serialises List<int> for the int-typed match-lists — surfaces
-        // as a uniform String[] (matching FilterConfig.MatchList).
         row.put("MatchedClubMemberNumbers", "[1001,1002,1003]");
         row.put("UseRuleForAllFlightCrewTypesExceptListed", false);
         row.put("MatchedFlightCrewTypes", "[1]");
@@ -105,18 +101,12 @@ class AccountingRuleFilterMapperTest
     }
 
     @Test
-    void declaresOnlyClubAsForeignKey() {
-        // filter_type_id + accounting_unit_type_id resolve via V4-seeded
-        // legacy_int_id — outside EntityType (they ride referenceLookups()).
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
+    void declaresOnlyClubAsForeignKeySinceFilterAndUnitTypeRideReferenceLookups() {
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 
     @Test
-    void resolvesFilterTypeAndUnitTypeViaReferenceLookups() {
-        // T-10 (T-09 finding): without referenceLookups() the ingest leaves the
-        // synthetic new UUID(0, legacyIntId) verbatim and the row FK-violates
-        // fk_arf_filter_type_id at INSERT for EVERY type. The mapper resolves both
-        // ref columns against their V4/V42-seeded legacy_int_id tables.
+    void resolvesFilterTypeAndUnitTypeViaReferenceLookupsSoSyntheticUuidsCannotReachTheInsert() {
         assertThat(mapper.referenceLookups())
                 .extracting(
                         ch.alpenflight.migration.bundle.ReferenceLookup::column,
@@ -148,8 +138,6 @@ class AccountingRuleFilterMapperTest
         assertThat(config.get("minFlightTimeInSecondsMatchingValue").asInt()).isZero();
         assertThat(config.get("maxFlightTimeInSecondsMatchingValue").asInt()).isEqualTo(1800);
 
-        // T-03/T-10: the descriptive text travelling with the targets, extracted
-        // by the producer SELECT from the legacy JSON blobs, rides filter_config.
         assertThat(config.get("deliveryLineText").asText())
                 .as("DeliveryLineText (from ArticleTarget JSON) rides filter_config")
                 .isEqualTo("Flight time charge");

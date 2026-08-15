@@ -1,11 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
-/**
- * Landing page for the OIDC Authorization Code redirect. Renders a small
- * "Signing in…" placeholder while `checkAuth()` finishes processing the
- * `?code=…&state=…` query string; the bridge then promotes SessionStore
- * to `'authenticated'` and the router's default route handles redirection.
- */
 @Component({
   selector: 'af-auth-callback',
   template: `

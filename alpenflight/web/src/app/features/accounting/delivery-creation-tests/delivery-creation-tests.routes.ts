@@ -13,7 +13,6 @@ export const DELIVERY_CREATION_TESTS_ROUTES: Routes = [
       ),
   },
   {
-    // Placeholder edit shell (T-17 fills the dry-run / save / run flow).
     path: 'new',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },

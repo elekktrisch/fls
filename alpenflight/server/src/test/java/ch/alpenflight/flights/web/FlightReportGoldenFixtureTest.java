@@ -9,17 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.junit.jupiter.api.Test;
 
-/**
- * Guards the committed golden fixture (J-7 T-08, story S-096): the checked-in
- * {@code excel-parity/flight-reports-legacy-golden.xlsx} must stay cell-parity-equal
- * to what {@link FlightReportGoldenFixture} generates. This stops the fixture from
- * drifting away from the documented S-093/oracle contract unnoticed — if the
- * generator (the contract-in-code) and the committed bytes diverge, this fails with
- * the exact mismatching cells.
- *
- * <p>Plain JUnit/AssertJ (no Postgres/Spring) — runs in {@code check} via the
- * standard {@code test} task.
- */
 class FlightReportGoldenFixtureTest {
 
     @Test
@@ -52,7 +41,7 @@ class FlightReportGoldenFixtureTest {
 
     private static byte[] generate() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        FlightReportGoldenFixture.write(out);
+        FlightReportGoldenFixture.writeContractByHandNotViaTheProductionWriter(out);
         return out.toByteArray();
     }
 }

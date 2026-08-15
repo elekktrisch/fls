@@ -37,28 +37,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Integration proof of the daily validation + lock job (S-083, J-15 AC #3): a
- * cross-tenant "Run now" validates every unprocessed flight and locks the
- * gate-eligible valid ones, in both clubs, without touching flights that must
- * not move.
- *
- * <p>The negative seeds carry the weight — a flight one day inside the lock gate
- * and a flight that cannot validate are asserted to STAY where they are, so a job
- * that indiscriminately locked or validated everything would red here.
- */
 class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
-    /** {@code t_start_type} WINCH_LAUNCH id (V2 seed, fixed canonical UUID). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
 
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
 
-    /** Past the {@link FlightGatePolicy} lock gate ({@code flight_date <= today - 2}). */
     private static final LocalDate LOCKABLE_DAY = TODAY.minusDays(5);
 
-    /** One day short of the lock gate — the narrowing assertion's negative seed. */
     private static final LocalDate TOO_RECENT_DAY = TODAY.minusDays(1);
 
     @Autowired JdbcTemplate jdbc;
@@ -88,25 +75,28 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void runOnce_validatesUnprocessedAndLocksGateEligible_acrossClubs() {
-        UUID unprocessed = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
-        UUID lockable = seedFlight(clubA, FlightProcessState.VALID, LOCKABLE_DAY, true);
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
-        UUID tooRecent = seedFlight(clubA, FlightProcessState.VALID, TOO_RECENT_DAY, true);
-        UUID otherClub = seedFlight(clubB, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
+        UUID unprocessed = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID lockable = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.VALID, LOCKABLE_DAY);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID tooRecent = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.VALID, TOO_RECENT_DAY);
+        UUID otherClub = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubB, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         RunSummary summary = job.runOnce();
 
-        // A complete unprocessed flight validates; it stays VALID because its
-        // flying day is inside the lock gate.
         assertThat(stateOf(clubA, unprocessed)).isEqualTo(FlightProcessState.VALID);
-        // A valid flight past the gate locks.
         assertThat(stateOf(clubA, lockable)).isEqualTo(FlightProcessState.LOCKED);
-        // A flight the validator rejects lands INVALID, not VALID.
         assertThat(stateOf(clubA, incomplete)).isEqualTo(FlightProcessState.INVALID);
-        // The gate narrows: one day short of it, a valid flight is left alone.
-        assertThat(stateOf(clubA, tooRecent)).isEqualTo(FlightProcessState.VALID);
-        // The run is cross-tenant — the second club's flight is processed too.
-        assertThat(stateOf(clubB, otherClub)).isEqualTo(FlightProcessState.VALID);
+        assertThat(stateOf(clubA, tooRecent))
+                .as("one day short of the lock gate stays VALID — the job locks nothing blindly")
+                .isEqualTo(FlightProcessState.VALID);
+        assertThat(stateOf(clubB, otherClub))
+                .as("the run reaches the second club too")
+                .isEqualTo(FlightProcessState.VALID);
 
         assertThat(summary.validatedCount()).isGreaterThanOrEqualTo(2);
         assertThat(summary.invalidatedCount()).isGreaterThanOrEqualTo(1);
@@ -115,8 +105,10 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void validationStampsOutcomeOnTheFlight() {
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
-        UUID complete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, true);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
+        UUID complete = seedFlightWithTheCrewAWinchLaunchNeeds(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         job.runOnce();
 
@@ -131,7 +123,8 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
 
     @Test
     void repeatedRunIsIdempotent_stillInvalidFlightStaysInvalid() {
-        UUID incomplete = seedFlight(clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY, false);
+        UUID incomplete = seedFlightWithoutCrewSoTheValidatorRejectsIt(
+                clubA, FlightProcessState.NOT_PROCESSED, TOO_RECENT_DAY);
 
         job.runOnce();
         Instant firstPass = flightOf(clubA, incomplete).getValidatedOn();
@@ -141,11 +134,6 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
         assertThat(flightOf(clubA, incomplete).getValidatedOn()).isAfterOrEqualTo(firstPass);
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + repositories
-    // under TenantTestContext.runAs (ADR 0027 §3); read-only JDBC only for
-    // reference-data id lookups.
 
     private FlightProcessState stateOf(UUID clubId, UUID flightId) {
         return flightOf(clubId, flightId).getProcessState();
@@ -156,19 +144,21 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
                 .orElseThrow(() -> new AssertionError("no flight " + flightId)));
     }
 
-    /**
-     * A glider flight in the given state. {@code withPilot} false omits the crew,
-     * which is what makes the flight fail validation.
-     */
+    private UUID seedFlightWithTheCrewAWinchLaunchNeeds(UUID clubId, FlightProcessState state,
+                                                        LocalDate date) {
+        return seedFlight(clubId, state, date,
+                List.of(crew(seedPerson(), FlightCrewTypeIds.PILOT_OR_STUDENT),
+                        crew(seedPerson(), FlightCrewTypeIds.WINCH_OPERATOR)));
+    }
+
+    private UUID seedFlightWithoutCrewSoTheValidatorRejectsIt(UUID clubId, FlightProcessState state,
+                                                              LocalDate date) {
+        return seedFlight(clubId, state, date, List.of());
+    }
+
     private UUID seedFlight(UUID clubId, FlightProcessState state, LocalDate date,
-                            boolean withPilot) {
+                            List<CrewMemberSpec> crew) {
         ClubSeed seed = seedFor(clubId);
-        // A winch-launched glider needs a winch operator as well as a pilot, else
-        // the validator rejects it — the complete seed carries both.
-        List<CrewMemberSpec> crew = withPilot
-                ? List.of(crew(seedPerson(), FlightCrewTypeIds.PILOT_OR_STUDENT),
-                          crew(seedPerson(), FlightCrewTypeIds.WINCH_OPERATOR))
-                : List.of();
         FlightOperationalData ops = ops(date, seed.location(), seed.flightType());
         return TenantTestContext.runAs(clubId, () -> {
             Flight flight = Flight.createGlider(seed.aircraft(), state.id(), ops);
@@ -177,7 +167,6 @@ class DailyFlightValidationJobIT extends PostgresIntegrationTest {
         });
     }
 
-    /** The club's aircraft / location / flight-type, created once per test. */
     private ClubSeed seedFor(UUID clubId) {
         return clubSeeds.computeIfAbsent(clubId, id ->
                 new ClubSeed(seedAircraft(id), seedLocation(id, "Base"), seedFlightType(id)));

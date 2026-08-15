@@ -15,13 +15,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.Test;
 
-/**
- * Producer-side LOCATION composite id-map (J-0b T-04). {@link BundleWriter}
- * must emit a 3-column {@code (legacy_guid, club_id, id)} pgcopy for fan-out
- * entities ({@link EntityType#fansOut()}) — one entry per fanned-out replica —
- * so T-07's {@code ForeignKeyResolver} resolves
- * {@code (legacy LocationId, referencer's club) -> replica id}.
- */
 class BundleWriterFanOutIdMapTest {
 
     private static final int HEADER_LENGTH = 11 + 4 + 4;
@@ -38,8 +31,6 @@ class BundleWriterFanOutIdMapTest {
         UUID replicaA = Coercions.deriveFanOutId(sharedLocation, clubA);
         UUID replicaB = Coercions.deriveFanOutId(sharedLocation, clubB);
 
-        // One shared legacy Location fanned out across two clubs — exactly the
-        // two wire rows LocationMapper.writeNdjson emits.
         Path ndjson = workDir.resolve("location.ndjson");
         Files.writeString(ndjson,
                 fanOutLine(replicaA, sharedLocation, clubA) + "\n"
@@ -77,11 +68,6 @@ class BundleWriterFanOutIdMapTest {
 
     @Test
     void personClubBundleAssemblesWithoutAnIdentityMap() throws Exception {
-        // PERSON_CLUB's legacy composite PK (PersonId, ClubId) reshapes to a
-        // surrogate id minted at INSERT, so its producer SELECT projects no
-        // legacy_guid and nothing FKs to the membership by its new id. The
-        // assembly must therefore NOT attempt writeIdentityPgcopy for it —
-        // doing so fails closed with "no legacy_guid; cannot build id map".
         Path ndjson = workDir.resolve("person_club.ndjson");
         Files.writeString(ndjson,
                 "{\"person_id\":\"" + UUID.randomUUID()
@@ -103,10 +89,6 @@ class BundleWriterFanOutIdMapTest {
 
     @Test
     void describeNamesTheClassAndCauseChainEvenWhenMessageIsNull() {
-        // J-0c T-12: COUNTRY failed live with "Failed streaming entity COUNTRY:
-        // null" — getMessage() was null (NPE-shaped). describe() must surface
-        // the exception CLASS plus the full cause chain so a null-message
-        // throwable no longer collapses to a bare ": null".
         NullPointerException npe = new NullPointerException();
         assertThat(BundleWriter.describe(npe))
                 .as("null-message throwable still names its type")
@@ -126,7 +108,6 @@ class BundleWriterFanOutIdMapTest {
                 + "\",\"club_id\":\"" + clubId + "\"}";
     }
 
-    /** Parse 3-column PGCOPY rows into [guidMsb, guidLsb, clubMsb, clubLsb, idMsb, idLsb]. */
     private static List<long[]> readThreeColumnRows(byte[] bytes) {
         List<long[]> rows = new ArrayList<>();
         ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);

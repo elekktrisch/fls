@@ -14,35 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped planning role assignment: legacy
- * {@code PlanningDayAssignments.PlanningDayAssignmentId} →
- * {@code t_planning_day_assignment.id}. {@code operating_club_id}
- * (denormalised from the linked {@code planning_day} per V4) is the
- * {@code @TenantId} discriminator.
- *
- * <p>{@code assigned_person_id} → cross-tenant {@link EntityType#PERSON}
- * (FK RESTRICT per V4). Declared in
- * {@link ch.alpenflight.migration.bundle.Manifest}'s
- * {@code TENANT_BYPASS_ALLOW_LIST}; the per-bundle Person sub-map handles
- * the rewrite at ingest.
- *
- * <p>{@code planning_day_id} → {@link EntityType#PLANNING_DAY}. The producer
- * SELECT REMAPS a dropped duplicate day's assignment onto the kept-first
- * surviving day (J-6 T-16, the 23503 fix) AND dedupe-keep-firsts on the
- * POST-REMAP {@code (planning_day_id, assigned_person_id, assignment_type_id)}
- * composite (J-7 T-17, the {@code ux_pda_composite} 23505 fix — two duplicate
- * days' assignments sharing a {@code (person, type)} would collapse onto the one
- * survivor and collide), recording each dropped row as a
- * {@code PLANNING_DAY_ASSIGNMENT_DUPLICATE} warning. The dedupe prefers a live
- * (non-{@code DeletedOn}) assignment over a soft-deleted one. Mapper passes
- * through; both the remap and the composite dedupe run in the producer SELECT
- * before any bundle row reaches this mapper.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- * Legacy {@code Remarks} maps to the new {@code info} column.
- */
 public final class PlanningDayAssignmentMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -75,12 +46,12 @@ public final class PlanningDayAssignmentMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(
                 EntityType.CLUB,
                 EntityType.PLANNING_DAY,
@@ -90,11 +61,6 @@ public final class PlanningDayAssignmentMapper implements Mapper {
 
     @Override
     public List<ForeignKeyColumn> foreignKeyColumns() {
-        // Off-convention FK columns (J-6 T-11) — none fan out. PLANNING_DAY uses
-        // the convention column planning_day_id (matches), so it is NOT declared
-        // here; the resolver derives it. assigned_person_id → PERSON and
-        // assignment_type_id → PLANNING_DAY_ASSIGNMENT_TYPE are off-convention, and
-        // operating_club_id → CLUB is the @TenantId (not the convention club_id).
         return List.of(
                 new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
                 new ForeignKeyColumn(ASSIGNED_PERSON_ID, EntityType.PERSON),
@@ -107,8 +73,6 @@ public final class PlanningDayAssignmentMapper implements Mapper {
             throws SQLException, IOException {
         target.writeStartObject();
         target.writeStringField(LEGACY_GUID, source.getString("PlanningDayAssignmentId"));
-        // OperatingClubId denormalised producer-side via JOIN to PlanningDays
-        // per V4 schema's planning_day_assignment.operating_club_id rule.
         target.writeStringField(OPERATING_CLUB_ID, source.getString("OperatingClubId"));
         target.writeStringField(PLANNING_DAY_ID, source.getString("AssignedPlanningDayId"));
         target.writeStringField(ASSIGNED_PERSON_ID, source.getString("AssignedPersonId"));

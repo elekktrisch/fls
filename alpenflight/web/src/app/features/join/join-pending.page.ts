@@ -25,34 +25,10 @@ import { JoinStore } from './join.store';
 
 const JOIN_REQUEST_STATUS_CHANGED = 'join-request.status-changed';
 
-// Graduation depends on the pilot's `t_user` (with its `club_id`) being
-// visible on `/me`. The approve tx commits that row before returning, but the
-// pilot's browser resolves it on its own timeline: under load the just-created
-// row can lag the pilot's next `/me` (JIT-materialisation contention), so a
-// single `/me` read can still see a null `clubId`. Re-read on an interval until
-// the tenant resolves — the fast path is still the SSE-driven first read.
 const GRADUATION_POLL_INTERVAL_MS = 1_500;
 
-// Hard cap on graduation polls so a never-resolving tenant (a genuinely
-// stalled/failed materialisation, not just lag) stops re-reading `/me` instead
-// of spinning until the page is destroyed. 40 × 1.5s ≈ 60s — well past the
-// approve commit + JIT settle window, still bounded.
 const GRADUATION_POLL_MAX_ATTEMPTS = 40;
 
-/**
- * Pilot `/join/pending` waiting screen (T-11). Reads the pilot's own request
- * (`GET /me/join-request`) on load and renders the requested club's public
- * projection (name / city / logo — null logo falls back to an initials avatar),
- * the submitted-at date, an optional note echo, and a Withdraw action.
- *
- * <p>While open it subscribes to the per-principal SSE channel
- * (`join-request.status-changed`, J-3 infra) and reacts to the committed
- * decision without a reload: <b>approved</b> force-refreshes the OIDC token (so
- * the new {@code clubId} claim lands) then routes to {@code /start};
- * <b>denied</b> re-reads the request to surface the deny reason + a
- * "try a different code" CTA back to {@code /join}; <b>withdrawn</b> returns to
- * {@code /join}.
- */
 @Component({
   selector: 'af-join-pending',
   standalone: true,
@@ -154,7 +130,6 @@ export class JoinPendingPageComponent implements OnInit {
   });
   protected readonly denied = computed(() => this.store.request()?.status === 'DENIED');
 
-  // First two letters of the club name as a logo fallback (null `logoUrl`).
   protected readonly initials = computed(() => this.clubName().slice(0, 2).toUpperCase());
 
   ngOnInit(): void {
@@ -165,27 +140,14 @@ export class JoinPendingPageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.#destroyRef))
       .subscribe((event) => this.#onStatusChanged(event.data));
 
-    // Background safety net: graduate even if the approval SSE frame is never
-    // delivered (dropped stream, reconnect gap). The poll refreshes the token on
-    // an interval and completes the moment it carries a `clubId`, so a missed
-    // frame degrades from "stranded on /join/pending forever" to "graduates
-    // within one poll interval".
     this.#graduateWhenTenantResolves();
   }
 
-  // Set when the pilot withdraws from THIS page: the eager `toJoin()` below
-  // already routes them away, so the SSE `withdrawn` echo that lands a moment
-  // later must NOT fire a second `/join` navigation — by then a re-submit may
-  // already be navigating to `/join/pending`, and the colliding nav logs
-  // `AbortError: Transition was skipped`.
   #withdrawHandledLocally = false;
 
   protected withdraw(): void {
     const id = this.store.request()?.id;
     if (!id) return;
-    // The store clears the held request on a successful withdraw. Navigate
-    // eagerly so the pilot moves even if their SSE stream lags; the echo's
-    // redundant nav is suppressed by the flag.
     this.#withdrawHandledLocally = true;
     this.store.withdraw(id);
     void this.toJoin();
@@ -202,13 +164,9 @@ export class JoinPendingPageComponent implements OnInit {
         this.#graduateWhenTenantResolves();
         break;
       case 'show-denied':
-        // The SSE frame carries no reason — re-read the request to surface the
-        // deny reason on the page; the `denied()` computed flips the view.
         this.store.loadMine();
         break;
       case 'to-join':
-        // A local withdraw already routed to `/join`; ignore the echo so it
-        // can't collide with a re-submit's `/join/pending` navigation.
         if (this.#withdrawHandledLocally) break;
         void this.toJoin();
         break;
@@ -217,35 +175,17 @@ export class JoinPendingPageComponent implements OnInit {
     }
   }
 
-  // True once a graduation poll is already running — the SSE `approved` frame
-  // and the on-load background net can both start it, and only one navigation
-  // to /start should be scheduled.
   #graduationPollActive = false;
 
-  // Drive the pilot to /start reliably, gating on the ACCESS TOKEN carrying the
-  // `clubId` claim — the interceptor's source of truth. Approve writes the KC
-  // `clubId` attribute (durable pre-commit) + commits the t_user; graduation is
-  // complete only once the pilot's refreshed token projects that attribute, so
-  // /start's tenant-scoped dashboard calls carry a tenant and don't 403.
-  //
-  // Poll rather than react once: `forceRefreshSession` on each tick re-fetches
-  // the token, so a KC attribute or t_user that lags this browser under load
-  // still lands within an interval — closing both the SSE-miss and the JIT-lag
-  // races that a single event + single /me left open.
   #graduateWhenTenantResolves(): void {
     if (this.#graduationPollActive) return;
     this.#graduationPollActive = true;
 
-    // Stop polling once the request turns DENIED — the token will never carry a
-    // clubId, and the denied view owns the screen from here.
     const denied = toObservable(this.denied, { injector: this.#injector }).pipe(
       filter((isDenied) => isDenied),
       take(1),
     );
 
-    // `timer(0, …)` refreshes immediately, then each interval; the poll ends the
-    // instant the token carries a clubId, the request is denied, or the attempt
-    // cap is hit (a genuinely stalled materialisation, not just lag).
     timer(0, GRADUATION_POLL_INTERVAL_MS)
       .pipe(
         take(GRADUATION_POLL_MAX_ATTEMPTS),
@@ -255,9 +195,6 @@ export class JoinPendingPageComponent implements OnInit {
         filter((clubId) => clubId !== null),
         take(1),
         takeUntil(denied),
-        // The refreshed token's clubId propagates to the SessionStore via the
-        // OIDC userData effect; also load /me so /start's Person-scoped reads
-        // have the linked personId in place before the dashboard renders.
         tap(() => this.#session.loadMe()),
         takeUntilDestroyed(this.#destroyRef),
       )

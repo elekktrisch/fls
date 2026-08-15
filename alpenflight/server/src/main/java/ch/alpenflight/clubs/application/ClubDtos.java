@@ -12,14 +12,6 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Clubs REST surface. Records (immutable, explicit field set);
- * mass-assignment is structurally impossible because the controller binds to
- * the record, not to {@link Club}.
- *
- * <p>Bean Validation here is fast-fail at the HTTP boundary; the aggregate
- * re-validates per ADR 0022 directive 2.
- */
 public final class ClubDtos {
 
     private ClubDtos() {}

@@ -3,7 +3,7 @@ import enLocale from '../../../../../i18n/en';
 import frLocale from '../../../../../i18n/fr';
 import itLocale from '../../../../../i18n/it';
 
-import { errorTranslationKey, errorsToKeys } from './field-errors';
+import { errorTranslationKey, errorsToAbsoluteTranslationKeys } from './field-errors';
 
 describe('errorTranslationKey', () => {
   it('maps the canonical Angular validator names', () => {
@@ -24,11 +24,6 @@ describe('errorTranslationKey', () => {
 });
 
 describe('canonical error keys resolve in every shipped locale (J-26 T-08)', () => {
-  // The validator names that reach <af-field-errors> today: the Angular
-  // built-ins used across the edit forms + the synthetic `duplicate` key the
-  // stores set on 409. `errorTranslationKey` maps each onto `common.errors.*`;
-  // the component renders the key through transloco, so a missing entry in any
-  // locale file would put a raw i18n key (or the de fallback) on screen.
   const VALIDATOR_NAMES = [
     'required',
     'minlength',
@@ -66,14 +61,17 @@ describe('canonical error keys resolve in every shipped locale (J-26 T-08)', () 
   }
 });
 
-describe('errorsToKeys', () => {
+describe('errorsToAbsoluteTranslationKeys', () => {
   it('returns empty list when errors is null', () => {
-    expect(errorsToKeys(null)).toEqual([]);
-    expect(errorsToKeys(undefined)).toEqual([]);
+    expect(errorsToAbsoluteTranslationKeys(null)).toEqual([]);
+    expect(errorsToAbsoluteTranslationKeys(undefined)).toEqual([]);
   });
 
   it('returns translation keys in registration order', () => {
-    const keys = errorsToKeys({ required: true, minlength: { requiredLength: 3 } });
+    const keys = errorsToAbsoluteTranslationKeys({
+      required: true,
+      minlength: { requiredLength: 3 },
+    });
     expect(keys).toEqual(['common.errors.required', 'common.errors.minlength']);
   });
 });

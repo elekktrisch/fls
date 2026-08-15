@@ -12,13 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Read-only REST surface for the system-global CounterUnitType catalog.
- * Rows are Flyway-managed (V2 seed — 4 rows: HOURS_DECIMAL, HOURS_MINUTES,
- * LANDINGS, STARTS). Drives the operating-counter unit dropdowns on the
- * Aircraft Add form (per design notes — counters can't be recorded without
- * the unit set first).
- */
 @RestController
 @RequestMapping(path = "/api/v1/counter-unit-types", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "CounterUnitTypes", description = "Counter-unit-type reference catalog.")

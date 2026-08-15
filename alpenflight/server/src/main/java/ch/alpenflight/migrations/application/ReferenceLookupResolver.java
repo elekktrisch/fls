@@ -16,35 +16,8 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Per-bundle resolver for a mapper's {@link Mapper#referenceLookups()} columns.
- * Each such column carries the synthetic {@code new UUID(0, legacyIntId)}
- * encoding ({@code ch.alpenflight.migration.bundle.Coercions#legacyIntIdToUuidString})
- * for a FLIGHT-group lookup row that ships in the V2/V3 Flyway seed — never in
- * a bundle, so there is no {@code legacy_id_map_<entity>} temp table to join.
- * Instead this resolver decodes the synthetic UUID back to its {@code int} and
- * looks up the real seed PK via {@code SELECT id FROM <seedTable> WHERE
- * legacy_int_id = ?} (the {@code ux_<seedTable>_legacy_int_id} unique index
- * makes it a point lookup).
- *
- * <p>Sibling to {@link ForeignKeyResolver}, kept distinct because the targets
- * are not {@link ch.alpenflight.migration.bundle.EntityType} bundle entities.
- * Walked from {@link EntityStreamIngestor#ingestEntityNdjson} right after the
- * FK rewrite, before {@code readEntity} binds the row.
- *
- * <p><strong>Fail-closed:</strong> unlike a FULL_PORT FK (whose miss the
- * downstream FK constraint surfaces naturally), an unknown {@code legacy_int_id}
- * here aborts the ingest with a clear error rather than letting the verbatim
- * synthetic UUID reach the INSERT and FK-violate against the seed PK with an
- * opaque constraint message. A NULL column (optional legacy ref) is skipped.
- *
- * <p>Stateful — caches one prepared statement per seed table, scoped to the
- * ingest connection. Closed by {@link #close} when the per-bundle ingest
- * completes.
- */
 final class ReferenceLookupResolver implements AutoCloseable {
 
-    /** The synthetic encoding only uses the low 64 bits; the high bits must be 0. */
     private static final long SYNTHETIC_HIGH_BITS = 0L;
     private static final Pattern SEED_TABLE_ALLOWLIST = Pattern.compile("^[A-Za-z0-9_]+$");
 
@@ -55,10 +28,6 @@ final class ReferenceLookupResolver implements AutoCloseable {
         this.connection = connection;
     }
 
-    /**
-     * Walk the mapper's reference-lookup columns and rewrite each present
-     * synthetic UUID to the resolved seed PK. Mutates {@code row} in place.
-     */
     void rewriteReferenceLookups(Mapper mapper, ObjectNode row) throws SQLException {
         for (ReferenceLookup lookup : mapper.referenceLookups()) {
             JsonNode currentValue = row.get(lookup.column());
@@ -127,7 +96,6 @@ final class ReferenceLookupResolver implements AutoCloseable {
             try {
                 ps.close();
             } catch (SQLException ignored) {
-                // Connection close-time releases whatever leaked.
             }
         }
         lookups.clear();

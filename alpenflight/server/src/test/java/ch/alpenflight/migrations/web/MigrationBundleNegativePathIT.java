@@ -33,15 +33,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-141b negative-path integration tests for the bundle-ingest endpoint.
- * Each test asserts the SPA-facing error code + HTTP status for a
- * specific failure shape — the controller never emits an opaque 500.
- *
- * <p>Shares the {@code @SpringBootTest} annotation surface with
- * {@link MigrationBundleIngestIT} so Spring's context cache hits across
- * both classes (no second boot).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -53,6 +44,10 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
     private static final UUID SEED_CLUB_STATE_ACTIVE = UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8");
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
+
+    private static final int WRAPPED_KEY_LEN_ABOVE_MAX = 65535;
+    private static final int WRAPPED_KEY_LEN_BELOW_MIN = 0;
+    private static final int DROPPED_TAIL_BYTES_TAKING_THE_AEAD_TAG_WITH_THEM = 256;
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -110,7 +105,8 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
 
-        byte[] hostilePrefix = MigrationBundleTestFactory.buildHeaderOnlyPrefix(0);
+        byte[] hostilePrefix =
+                MigrationBundleTestFactory.buildHeaderOnlyPrefix(WRAPPED_KEY_LEN_BELOW_MIN);
 
         ResponseEntity<String> res = postBundle(uploadId, hostilePrefix, verifiedToken);
 
@@ -123,9 +119,8 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
 
-        // 65535 > MAX_WRAPPED_KEY_LEN (1024) — should reject before reading
-        // any further body bytes.
-        byte[] hostilePrefix = MigrationBundleTestFactory.buildHeaderOnlyPrefix(65535);
+        byte[] hostilePrefix =
+                MigrationBundleTestFactory.buildHeaderOnlyPrefix(WRAPPED_KEY_LEN_ABOVE_MAX);
 
         ResponseEntity<String> res = postBundle(uploadId, hostilePrefix, verifiedToken);
 
@@ -141,17 +136,16 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
 
         byte[] completeBundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Truncated IT", soleClub());
-        // Drop the trailing 256 bytes — the AEAD tag + half the body slab.
-        byte[] truncated = MigrationBundleTestFactory.truncatedBundle(completeBundle, 256);
+        byte[] truncated = MigrationBundleTestFactory.truncatedBundle(
+                completeBundle, DROPPED_TAIL_BYTES_TAKING_THE_AEAD_TAG_WITH_THEM);
 
         ResponseEntity<String> res = postBundle(uploadId, truncated, verifiedToken);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        // Streaming AEAD may surface the truncation as either a tag-tampering
-        // detection (BUNDLE_DECRYPT_AEAD_TAG_FAILED) or as a tar-layer read
-        // failure when the truncated body still parses past the AEAD layer —
-        // both are valid "bundle bytes incomplete" surfaces for the SPA.
         assertThat(errorCodeOf(res))
+                .as("streaming AEAD surfaces an incomplete body at whichever layer notices "
+                        + "first — all three codes are a valid 'bundle bytes incomplete' "
+                        + "surface for the SPA")
                 .isIn("BUNDLE_TRUNCATED", "BUNDLE_DECRYPT_AEAD_TAG_FAILED",
                         "BUNDLE_TAR_PARSE_FAILED");
     }
@@ -170,14 +164,14 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                         firstRes.getBody())
                 .isEqualTo(HttpStatus.OK);
 
-        // The first POST provisioned a Deployment — that triggers the
-        // pre-decrypt DEPLOYMENT_EXISTS guard ahead of the upload-state
-        // check on a re-POST. Tear the Deployment down so the re-POST
-        // surfaces the upload-state check (the AC9b-relevant case the SPA
-        // sees when a deployment is deleted between POSTs). The first
-        // POST's t_migration_run row carries the now-stale deployment_id
-        // FK — drop it first so the t_deployment delete doesn't violate
-        // t_migration_run_deployment_id_fkey.
+        deleteFirstPostsDeploymentSoTheRePostReachesTheUploadStateCheck();
+
+        ResponseEntity<String> secondRes = postBundle(uploadId, first, verifiedToken);
+        assertThat(secondRes.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(errorCodeOf(secondRes)).isEqualTo("BUNDLE_ALREADY_CONSUMED");
+    }
+
+    private void deleteFirstPostsDeploymentSoTheRePostReachesTheUploadStateCheck() {
         jdbc.update("DELETE FROM t_migration_run WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)",
                 userSub.toString());
@@ -192,10 +186,6 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)",
                 userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
-
-        ResponseEntity<String> secondRes = postBundle(uploadId, first, verifiedToken);
-        assertThat(secondRes.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(errorCodeOf(secondRes)).isEqualTo("BUNDLE_ALREADY_CONSUMED");
     }
 
     @Test
@@ -210,10 +200,11 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        // S-141b AC9(c): the distinct 400 surfaces here, not the catch-all
-        // MANIFEST_INVALID Jackson would emit if BundleManifest's constructor
-        // still enforced non-empty clubs.
-        assertThat(errorCodeOf(res)).isEqualTo("MANIFEST_EMPTY_CLUBS");
+        assertThat(errorCodeOf(res))
+                .as("the empty-clubs manifest reaches the orchestrator's own guard and gets "
+                        + "its distinct code, not the catch-all MANIFEST_INVALID a record "
+                        + "constructor rejection would surface")
+                .isEqualTo("MANIFEST_EMPTY_CLUBS");
     }
 
     @Test
@@ -222,9 +213,6 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
-        // The legacy_id_map/ prefix would normally route into copyLegacyIdMap;
-        // rejectUnsafeTarName MUST fire first because the name contains "..".
-        // AC9(a) regression guard.
         byte[] hostilePayload = "garbage".getBytes(UTF_8);
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithRawTarEntry(
                 cipher, uploadId, publicKeyDer, "Traversal IT", soleClub(),
@@ -239,11 +227,6 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
 
     @Test
     void deployment_exists_pre_decrypt_guard_skips_rsa_unwrap() throws Exception {
-        // Seed an active Deployment for this caller — the pre-decrypt guard
-        // fails fast with 409 before allocating RSA + AEAD context. Skip
-        // the primary_club_id (nullable, see V21) so the FK to t_club
-        // doesn't force a Club fixture; the guard only consults
-        // ux_deployment_owner_active.
         UUID existingDeploymentId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_deployment (id, name, owner_keycloak_sub,
@@ -271,28 +254,22 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         assertThat(body.get("errorCode").asText()).isEqualTo("DEPLOYMENT_EXISTS");
         assertThat(body.get("existingDeploymentId").asText()).isEqualTo(existingDeploymentId.toString());
 
-        // The upload row must remain AWAITING_UPLOAD-or-FAILED — DEPLOYMENT_EXISTS
-        // is a structural conflict (caller-owned Deployment exists), so the
-        // recorder flips the upload to FAILED. The bundle never reaches decrypt.
         Map<String, Object> upload = jdbc.queryForMap(
                 "SELECT state, consumed_at FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
-        assertThat(upload.get("consumed_at")).isNull();
+        assertThat(upload.get("consumed_at"))
+                .as("the guard fired before decrypt — the bundle bytes were never consumed")
+                .isNull();
         assertThat(upload.get("state")).isEqualTo("FAILED");
     }
 
     @Test
-    void multi_club_progress_records_actual_club_for_tenant_scoped_writes() throws Exception {
+    void multi_club_bundle_provisions_both_clubs_and_completes_with_progress_fields_cleared()
+            throws Exception {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
-        // Two Clubs — manifest carries both; no NDJSON streams are sent so
-        // noteCurrent is never called. The test asserts the run reaches
-        // COMPLETED with currentEntity / currentClubId both cleared by
-        // markCompleted (the FSM contract). Multi-Club provisioning is the
-        // load-bearing assertion here; the per-entity noteCurrent fork is
-        // covered by the parity round-trip IT which carries actual NDJSON.
         String tag2 = (userSub.toString().substring(0, 5) + "2");
         List<BundleManifest.ClubDeclaration> clubs = List.of(
                 clubDeclaration("Club A IT", testClubSlug, testClubKey),
@@ -308,25 +285,20 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         JsonNode body = JSON.readTree(res.getBody());
         assertThat(body.get("clubIds").size()).isEqualTo(2);
 
-        // Run completed cleanly: noteCurrent was never called (no NDJSON),
-        // so current_entity / current_club_id are both null per markCompleted.
         Map<String, Object> run = jdbc.queryForMap(
                 "SELECT state, current_entity, current_club_id FROM t_migration_run "
                         + "WHERE upload_id = ?::uuid",
                 uploadId.toString());
         assertThat(run.get("state")).isEqualTo("COMPLETED");
-        assertThat(run.get("current_entity")).isNull();
+        assertThat(run.get("current_entity"))
+                .as("markCompleted clears the progress fields (this bundle carries no NDJSON, "
+                        + "so nothing ever set them)")
+                .isNull();
         assertThat(run.get("current_club_id")).isNull();
     }
 
     @Test
     void ndjson_parse_failure_rolls_back_cleanly_with_audit_trail() throws Exception {
-        // Malformed NDJSON in a tar entry — the orchestrator routes through
-        // entityStreamIngestor.ingestEntityNdjson which throws
-        // BundleIngestException(NDJSON_PARSE_FAILED). Asserts the full
-        // rollback trail invariants the mapper-failure path would also
-        // satisfy: no Deployment, run state FAILED, MIGRATION_INGEST_FAILED
-        // audit row recorded by the REQUIRES_NEW recorder.
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
@@ -350,17 +322,14 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(errorCodeOf(res)).isEqualTo("NDJSON_PARSE_FAILED");
 
-        // No Deployment / Club / FlightType / MemberState — the whole
-        // single-txn ingest rolled back atomically.
         Integer deploymentCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
                 Integer.class, userSub.toString());
-        assertThat(deploymentCount).isZero();
+        assertThat(deploymentCount)
+                .as("the whole single-txn ingest rolled back — no Deployment, Club, "
+                        + "FlightType or MemberState survives the NDJSON failure")
+                .isZero();
 
-        // The run row was INSERTed inside the failed txn and rolled back —
-        // recordFailure's findById(runId) returns empty and does NOT
-        // resurrect a row. The upload state + audit trail are the load-
-        // bearing post-condition.
         Integer runCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_migration_run WHERE upload_id = ?::uuid",
                 Integer.class, uploadId.toString());
@@ -370,29 +339,24 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                         + "the outer txn dropped")
                 .isZero();
 
-        // Upload flipped to FAILED by recordFailure (REQUIRES_NEW survives
-        // the outer rollback), private key wiped.
         Map<String, Object> upload = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
         assertThat(upload.get("state")).isEqualTo("FAILED");
         assertThat(upload.get("private_key_ciphertext")).isNull();
 
-        // Exactly one MIGRATION_INGEST_FAILED audit (the STARTED row landed
-        // inside the failed txn and rolled back; only the REQUIRES_NEW
-        // FAILED row from recordFailure survives).
         Integer failedAudit = jdbc.queryForObject(
                 "SELECT count(*) FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid "
                         + "AND action = 'MIGRATION_INGEST_FAILED'",
                 Integer.class, uploadId.toString());
-        assertThat(failedAudit).isEqualTo(1);
+        assertThat(failedAudit)
+                .as("only the REQUIRES_NEW failure audit survives — the STARTED row landed "
+                        + "inside the rolled-back txn")
+                .isEqualTo(1);
     }
 
     @Test
-    void note_current_writes_null_for_system_global_entity() throws Exception {
-        // Empty NDJSON stream — exercises the noteCurrent path without
-        // requiring real mapped data. SYSTEM_GLOBAL_RESOLVE entries write
-        // null for current_club_id (S-141b Fork 2).
+    void system_global_entry_with_no_club_scope_completes_the_run() throws Exception {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
@@ -408,8 +372,6 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 cipher, uploadId, publicKeyDer, "System-global IT",
                 List.of(soleClub()),
                 entityPolicies,
-                // Empty NDJSON file — drains zero rows, but noteCurrent still
-                // fires (the dispatch is per tar entry, not per row).
                 Map.of("COUNTRY.ndjson", new byte[0]));
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
@@ -418,16 +380,13 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 .as("system-global entry path failed; body=%s", res.getBody())
                 .isEqualTo(HttpStatus.OK);
 
-        // The run reaches COMPLETED. noteCurrent was called once
-        // (entityType=COUNTRY, clubId=null per SYSTEM_GLOBAL_RESOLVE), then
-        // markCompleted cleared both fields. So the post-completion row
-        // has both null — but the noteCurrent invocation can't be observed
-        // directly. The IT proves the SYSTEM_GLOBAL path doesn't NPE / fail
-        // due to "null clubId" defenses elsewhere.
         Map<String, Object> run = jdbc.queryForMap(
                 "SELECT state FROM t_migration_run WHERE upload_id = ?::uuid",
                 uploadId.toString());
-        assertThat(run.get("state")).isEqualTo("COMPLETED");
+        assertThat(run.get("state"))
+                .as("a SYSTEM_GLOBAL_RESOLVE entry progresses with a null club scope instead "
+                        + "of failing the run")
+                .isEqualTo("COMPLETED");
     }
 
     private JsonNode mintHandshake() throws Exception {

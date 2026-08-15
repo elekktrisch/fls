@@ -11,16 +11,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-/**
- * Belt-and-braces guard that nothing under {@code src/main/java} imports any
- * type from the test-support package. Maven test-scope already enforces this
- * structurally; the test exists so a future build-tool reshuffle (e.g. a
- * mistakenly-promoted source set) fails the build loudly instead of silently
- * shipping a test-only annotation like {@link WithTenant} into production.
- *
- * <p>Pure filesystem walk — no Spring context, no Docker. Mirrors the shape
- * of {@code RebrandConventionsTest}.
- */
 class TestSupportPackageBoundaryTest {
 
     private static final String FORBIDDEN_IMPORT_PREFIX = "ch.alpenflight.server.testsupport";

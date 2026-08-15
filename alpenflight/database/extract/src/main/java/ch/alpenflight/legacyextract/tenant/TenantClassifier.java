@@ -12,23 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Classifies every legacy table into one of the six {@link TenantScope} buckets.
- * Pure function — takes the extractor's already-emitted {@code tables.json},
- * {@code columns.json}, {@code fks.json} plus the committed
- * {@code tenant-rules.yaml} overrides; emits {@code tenant-classification.json}.
- *
- * <p>Assignment rule (first match wins):
- * <ol>
- *   <li>YAML override {@code kind:} pins the bucket directly.</li>
- *   <li>Table has a {@code ClubId} column → {@link TenantScope#TENANT_SCOPED}.</li>
- *   <li>FK from this table reaches a {@code TENANT_SCOPED} table within 1 hop
- *       → {@link TenantScope#INDIRECT_TENANT}.</li>
- *   <li>Else: the implementer must add a YAML override. We refuse to silently
- *       classify unknown tables — surface as a build failure so reviewers
- *       see + decide.</li>
- * </ol>
- */
 public final class TenantClassifier {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -42,15 +25,6 @@ public final class TenantClassifier {
 
     private TenantClassifier() {}
 
-    /**
-     * Build the classification for every entity in {@code tablesJson}.
-     *
-     * @param tablesJson  parsed {@code tables.json} (array of {@code schema_name, table_name, object_type})
-     * @param columnsJson parsed {@code columns.json}
-     * @param fksJson     parsed {@code fks.json}
-     * @param rulesYaml   parsed {@code tenant-rules.yaml}; may be null/empty for a no-override run
-     * @return ordered list, sorted by legacy table name
-     */
     public static List<TenantClassificationRecord> classify(
             JsonNode tablesJson,
             JsonNode columnsJson,
@@ -61,8 +35,6 @@ public final class TenantClassifier {
         Map<String, Set<String>> fkTargets = buildFkTargetIndex(fksJson);
         JsonNode overrides = rulesYaml != null ? rulesYaml.path("overrides") : null;
 
-        // Phase 1: assign tenant-scoped via column presence so the FK-hop
-        // resolution in phase 2 has a deterministic anchor.
         Set<String> tenantScoped = new java.util.HashSet<>();
         for (JsonNode t : tablesJson) {
             String name = t.get("table_name").asText();
@@ -70,9 +42,6 @@ public final class TenantClassifier {
                 tenantScoped.add(name);
             }
         }
-        // Apply YAML kind:tenant-scoped overrides into the tenant-scoped set
-        // (so an FK target like Aircrafts.OwnerClubId — which the column-check
-        // catches — is reachable for INDIRECT_TENANT detection on Flights).
         if (overrides != null && overrides.isObject()) {
             overrides.fields().forEachRemaining(e -> {
                 if ("tenant-scoped".equals(e.getValue().path("kind").asText())) {
@@ -81,7 +50,6 @@ public final class TenantClassifier {
             });
         }
 
-        // Phase 2: classify each table.
         List<TenantClassificationRecord> out = new ArrayList<>();
         List<String> unclassified = new ArrayList<>();
         var sortedTableNames = new java.util.TreeSet<String>();
@@ -92,7 +60,7 @@ public final class TenantClassifier {
             TenantScope legacyScope;
             try {
                 legacyScope = computeLegacyScope(name, columnsPerTable, fkTargets, tenantScoped, override);
-            } catch (IllegalStateException ise) {
+            } catch (IllegalStateException noClassificationRuleMatched) {
                 unclassified.add(name);
                 continue;
             }
@@ -102,7 +70,7 @@ public final class TenantClassifier {
 
             String targetEntity = override != null && override.hasNonNull("target_entity")
                     ? override.get("target_entity").asText()
-                    : defaultTargetEntity(name);
+                    : singularizeLegacyTableName(name);
 
             String rationaleRef = override != null ? override.path("rationale_ref").asText(null) : null;
             String tenantColumn = targetScope == TenantScope.TENANT_SCOPED ? "club_id" : null;
@@ -145,9 +113,6 @@ public final class TenantClassifier {
         return out;
     }
 
-    /**
-     * Convenience: load YAML rules from a file path; null-tolerant.
-     */
     public static JsonNode loadRules(Path yamlPath) throws IOException {
         if (yamlPath == null || !Files.exists(yamlPath)) {
             return null;
@@ -162,7 +127,6 @@ public final class TenantClassifier {
             Set<String> tenantScoped,
             JsonNode override) {
 
-        // Step 1: YAML kind override wins outright.
         if (override != null && override.hasNonNull("kind")) {
             return switch (override.get("kind").asText()) {
                 case "reference" -> TenantScope.REFERENCE_DATA;
@@ -176,21 +140,17 @@ public final class TenantClassifier {
             };
         }
 
-        // Step 2: column-presence rule.
-        Set<String> cols = columnsPerTable.get(name);
-        if (hasClubIdColumn(cols) || hasOwnerClubIdColumn(cols)) {
+        Set<String> columns = columnsPerTable.get(name);
+        if (hasClubIdColumn(columns) || hasOwnerClubIdColumn(columns)) {
             return TenantScope.TENANT_SCOPED;
         }
 
-        // Step 3: FK-hop rule.
-        Set<String> targets = fkTargets.getOrDefault(name, Set.of());
-        for (String target : targets) {
-            if (tenantScoped.contains(target)) {
+        for (String fkTarget : fkTargets.getOrDefault(name, Set.of())) {
+            if (tenantScoped.contains(fkTarget)) {
                 return TenantScope.INDIRECT_TENANT;
             }
         }
 
-        // Step 4: refuse to classify.
         throw new IllegalStateException(
                 "tenant-rules.yaml: no override for table '" + name
                         + "', no ClubId/OwnerClubId column, no FK to a tenant-scoped table. "
@@ -201,16 +161,16 @@ public final class TenantClassifier {
         return scope == TenantScope.TENANT_SCOPED || scope == TenantScope.INDIRECT_TENANT;
     }
 
-    private static String defaultTargetEntity(String legacyTable) {
-        // Most legacy table names are plural; the target JPA entity is singular.
-        // For singular legacy names (PersonClub, FlightCrew, SystemData, …),
-        // keep the name as-is.
+    private static String singularizeLegacyTableName(String legacyTable) {
         if (legacyTable.endsWith("ies") && legacyTable.length() > 3) {
             return legacyTable.substring(0, legacyTable.length() - 3) + "y";
         }
         if (legacyTable.endsWith("es") && legacyTable.length() > 2) {
-            char last = legacyTable.charAt(legacyTable.length() - 3);
-            if (last == 's' || last == 'x' || last == 'z' || last == 'h') {
+            char characterPrecedingTheEsSuffix = legacyTable.charAt(legacyTable.length() - 3);
+            if (characterPrecedingTheEsSuffix == 's'
+                    || characterPrecedingTheEsSuffix == 'x'
+                    || characterPrecedingTheEsSuffix == 'z'
+                    || characterPrecedingTheEsSuffix == 'h') {
                 return legacyTable.substring(0, legacyTable.length() - 2);
             }
         }
@@ -237,23 +197,23 @@ public final class TenantClassifier {
     }
 
     private static Map<String, Set<String>> buildColumnIndex(JsonNode columnsJson) {
-        Map<String, Set<String>> idx = new LinkedHashMap<>();
-        for (JsonNode c : columnsJson) {
-            String table = c.get("table_name").asText();
-            String column = c.get("column_name").asText();
-            idx.computeIfAbsent(table, k -> new java.util.HashSet<>()).add(column);
+        Map<String, Set<String>> columnNamesPerTable = new LinkedHashMap<>();
+        for (JsonNode column : columnsJson) {
+            String table = column.get("table_name").asText();
+            String columnName = column.get("column_name").asText();
+            columnNamesPerTable.computeIfAbsent(table, k -> new java.util.HashSet<>()).add(columnName);
         }
-        return idx;
+        return columnNamesPerTable;
     }
 
     private static Map<String, Set<String>> buildFkTargetIndex(JsonNode fksJson) {
-        Map<String, Set<String>> idx = new LinkedHashMap<>();
+        Map<String, Set<String>> fkTargetsPerTable = new LinkedHashMap<>();
         for (JsonNode fk : fksJson) {
             String source = fk.get("table").asText();
             String target = fk.get("referenced_table").asText();
-            idx.computeIfAbsent(source, k -> new java.util.HashSet<>()).add(target);
+            fkTargetsPerTable.computeIfAbsent(source, k -> new java.util.HashSet<>()).add(target);
         }
-        return idx;
+        return fkTargetsPerTable;
     }
 
     private static String resolveIndirectPath(String table, JsonNode fksJson, Set<String> tenantScoped) {

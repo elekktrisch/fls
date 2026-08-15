@@ -15,21 +15,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 
-/**
- * {@link AuditTrail} adapter — captures actor + tenant context on the
- * publishing thread (where the SecurityContext is still live), then
- * publishes a {@link MutationAuditRequest} for the
- * {@link MutationAuditEventListener} to write after the caller's
- * transaction commits. The listener runs in a separate
- * {@code REQUIRES_NEW} transaction so success rows survive partial rollbacks
- * and so 5xx-inside-a-transaction still leaves the failed-row gap visible
- * to the synthetic-failure filter.
- *
- * <p>{@code systemActor} flag distinguishes "user X acted in tenant T" from
- * "scheduled job acted on tenant T's data" — set when there's no
- * authenticated JWT principal (anonymous public flows + future scheduled
- * jobs). S-056 surfaces the column verbatim.
- */
 @Service
 public class AuditTrailService implements AuditTrail {
 
@@ -47,8 +32,6 @@ public class AuditTrailService implements AuditTrail {
 
     @Override
     public void record(AuditAction action, AuditedTarget target) {
-        // Success path → transactional event: AFTER_COMMIT listener fires
-        // only if the caller's @Transactional service method commits.
         publisher.publishEvent(build(action, target, false, null, null));
     }
 
@@ -57,11 +40,6 @@ public class AuditTrailService implements AuditTrail {
                              AuditedTarget target,
                              int httpStatus,
                              String failureReason) {
-        // Failure path → non-transactional wrapped event: the originating
-        // call has either rolled back or been served entirely outside a
-        // tx (validation 400, security 401/403, filter-emitted synthetic).
-        // Wrapping in SyntheticFailedMutation routes to the plain
-        // @EventListener method on MutationAuditEventListener.
         publisher.publishEvent(new MutationAuditEventListener.SyntheticFailedMutation(
                 build(action, target, true, httpStatus, failureReason)));
     }
@@ -72,16 +50,10 @@ public class AuditTrailService implements AuditTrail {
                                        @Nullable Integer httpStatus,
                                        @Nullable String failureReason) {
         ActorResolver.Actor actor = actorResolver.resolve();
-        // The system-actor flag is driven by the authentication TYPE, not by
-        // the shape of the sub claim — federated IdPs hand us non-UUID subs
-        // (Google numeric, Auth0 custom) and would otherwise be silently
-        // misclassified as scheduled-job / OGN writes.
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean systemActor = !(auth instanceof JwtAuthenticationToken && auth.isAuthenticated());
         UUID tenant = resolvedTenant();
         Instant occurredAt = Instant.now(clock);
-        // MDC key set by RequestIdFilter; null in non-HTTP origins (jobs,
-        // ingestion) until those callers populate the key themselves.
         String requestId = MDC.get("requestId");
         return new MutationAuditRequest(
                 action,
@@ -97,19 +69,11 @@ public class AuditTrailService implements AuditTrail {
                 failureReason);
     }
 
-    /**
-     * Returns the operating tenant for the row. NO_TENANT (nil UUID) signals
-     * "no tenant resolved" — for true cross-tenant system events, the row's
-     * {@code tenant_club_id} is NULL in DB. The listener translates.
-     */
     private @Nullable UUID resolvedTenant() {
         UUID t = TenantContextCarrier.current().orElse(null);
         if (t != null) {
             return t;
         }
-        // Resolver would otherwise return NO_TENANT for an unauthenticated
-        // / cross-tenant call. Pass through null so the listener leaves the
-        // DB column null (forensic "no tenant" semantics).
         return null;
     }
 }

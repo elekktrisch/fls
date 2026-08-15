@@ -26,13 +26,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * HTTP slice for {@code PATCH /api/v1/me/profile} — the caller-scoped
- * Account self-edit (J-4 T-04). The endpoint takes NO {@code :id}: the User
- * being edited is resolved from the JWT {@code sub}, so the isolation test
- * below is the structural proof that a caller can only ever mutate their own
- * row.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -70,24 +63,24 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
-        // Response reuses the /me projection shape — reflects persisted state.
         assertThat(body.get("email").asText()).isEqualTo("new@example.com");
         assertThat(body.get("username").asText()).isEqualTo("meprof-it-a");
-        // J-4: the projection now carries the Account self-fields so the SPA
-        // form reflects the round-trip (and reads back on reload) without a
-        // second endpoint. languageCode is the BCP-47 of the chosen language.
         assertThat(body.get("friendlyName").asText()).isEqualTo("New Name");
         assertThat(body.get("phoneNumber").asText()).isEqualTo("+41 22 222");
         assertThat(body.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
-        assertThat(body.get("languageCode").asText()).isEqualTo("en");
+        assertThat(body.get("languageCode").asText())
+                .as("the PATCH response reuses the /me projection, which carries the Account "
+                        + "self-fields (languageCode = BCP-47 of the chosen language) so the "
+                        + "SPA form reflects the round-trip without a second endpoint")
+                .isEqualTo("en");
 
-        // Persisted: a fresh GET /me reflects the change.
         JsonNode reread = readJson(get("/api/v1/me", token));
-        assertThat(reread.get("email").asText()).isEqualTo("new@example.com");
+        assertThat(reread.get("email").asText())
+                .as("a fresh GET /me reflects the persisted change")
+                .isEqualTo("new@example.com");
         assertThat(reread.get("friendlyName").asText()).isEqualTo("New Name");
         assertThat(reread.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
 
-        // Direct row read: self-fields updated, remarks (admin-only) untouched.
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email, phone_number, language_id, remarks "
                         + "FROM t_user WHERE id = ?::uuid", userId.toString());
@@ -102,9 +95,6 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
 
     @Test
     void patchProfile_resolvesCallerFromJwt_neverTouchesAnotherPrincipalsRow() {
-        // Two principals. The endpoint has no :id path param — the row to edit
-        // is resolved from principal A's JWT sub. Principal B's row must be
-        // untouched: cross-principal edit is structurally impossible.
         UUID subA = UUID.randomUUID();
         UUID subB = UUID.randomUUID();
         UUID userA = seedUser(subA, "meprof-it-self", "A Name",
@@ -112,24 +102,24 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
         UUID userB = seedUser(subB, "meprof-it-other", "B Name",
                 "b@example.com", "+41 0 b", "remarks-b", LANG_DE_UUID);
 
-        // A PATCHes with A's token — no id in the URL, nothing of B's in the body.
         ResponseEntity<String> res = patch("/api/v1/me/profile", Map.of(
                 "friendlyName", "A Edited",
                 "notificationEmail", "a-edited@example.com",
                 "languageId", LANG_EN_UUID.toString()), pilotToken(subA));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // A's row changed.
         Map<String, Object> rowA = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email FROM t_user WHERE id = ?::uuid",
                 userA.toString());
         assertThat(rowA.get("notification_email")).isEqualTo("a-edited@example.com");
 
-        // B's row is completely untouched — the caller could not reach it.
         Map<String, Object> rowB = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email FROM t_user WHERE id = ?::uuid",
                 userB.toString());
-        assertThat(rowB.get("friendly_name")).isEqualTo("B Name");
+        assertThat(rowB.get("friendly_name"))
+                .as("principal B's row is untouched — the endpoint carries no :id, so the "
+                        + "row to edit can only ever be the caller's own")
+                .isEqualTo("B Name");
         assertThat(rowB.get("notification_email")).isEqualTo("b@example.com");
     }
 
@@ -152,11 +142,12 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
                 "languageId", LANG_DE_UUID.toString()), token);
         assertThat(badEmail.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
-        // Nothing persisted from either rejected request.
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT friendly_name, notification_email FROM t_user WHERE keycloak_sub = ?::uuid",
                 kcSub.toString());
-        assertThat(row.get("friendly_name")).isEqualTo("Val Name");
+        assertThat(row.get("friendly_name"))
+                .as("nothing persisted from either rejected request")
+                .isEqualTo("Val Name");
         assertThat(row.get("notification_email")).isEqualTo("val@example.com");
     }
 

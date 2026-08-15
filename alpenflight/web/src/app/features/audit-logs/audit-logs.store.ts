@@ -102,9 +102,6 @@ export const AuditLogsStore = signalStore(
 
     return {
       loadPage,
-      // A key set to `undefined` clears that single filter — the merge deletes it
-      // rather than storing `undefined`, keeping `AuditFilters` strict under
-      // exactOptionalPropertyTypes.
       setFilters(partial: { [K in keyof AuditFilters]?: AuditFilters[K] | undefined }): void {
         const next: AuditFilters = { ...store.filters() };
         for (const [key, value] of Object.entries(partial) as [keyof AuditFilters, unknown][]) {

@@ -21,33 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * {@code GET + PATCH /api/v1/me/person/licences} — the caller-scoped Person
- * licence/medical self-edit (J-4 T-08, the FADP-sensitive Pilot tab). A
- * logged-in principal reads + edits their OWN Person aggregate's licence flags,
- * licence number, medical / instructor / part-M expiry dates and glider
- * start-permission flags.
- *
- * <p><strong>No {@code :id} path param.</strong> The Person is resolved from the
- * JWT {@code sub} → the caller's {@code t_user} row → its {@code person_id} (via
- * {@link MeService#resolve}), never from the request — so a caller can only ever
- * read / mutate their own linked Person. Contact / name / membership fields are
- * NOT on the request DTO; they are preserved unchanged.
- *
- * <p>The PATCH emits a {@code person.licences_updated} audit event with a
- * READABLE before/after diff (AC4): {@link PersonsService#updateOwnLicences}
- * records it under the {@code PersonLicences} audit entity type, which carries
- * an explicit allow-list (unlike the deny-all {@code Person} type), so a
- * sysadmin reading {@code t_mutation_audit_event} sees the changed licence /
- * medical fields — the FADP-sensitive provenance the journey requires.
- *
- * <p>If the caller's user row has no linked Person ({@code person_id} null) both
- * surfaces fail closed with {@link NoLinkedPersonException} → 409 (the SPA shell
- * also gates the tab, but the endpoint is safe on its own).
- *
- * <p>Authz: any authenticated principal — the surface is principal-scoped by
- * construction, like {@code GET /api/v1/me}.
- */
 @RestController
 @RequestMapping(path = "/api/v1/me", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "me", description = "Authenticated-principal view")
@@ -93,27 +66,27 @@ class MePersonLicencesController {
             @AuthenticationPrincipal Jwt jwt) {
         UUID personId = resolveOwnPersonId(jwt);
         personsService.updateOwnLicences(personId, new SelfLicencesUpdate(
-                f(req.hasMotorPilotLicence()), f(req.hasTowPilotLicence()),
-                f(req.hasGliderInstructorLicence()), f(req.hasGliderPilotLicence()),
-                f(req.hasGliderTraineeLicence()), f(req.hasGliderPaxLicence()), f(req.hasTmgLicence()),
-                f(req.hasWinchOperatorLicence()), f(req.hasMotorInstructorLicence()),
-                f(req.hasPartMLicence()),
+                flagOrFalse(req.hasMotorPilotLicence()), flagOrFalse(req.hasTowPilotLicence()),
+                flagOrFalse(req.hasGliderInstructorLicence()), flagOrFalse(req.hasGliderPilotLicence()),
+                flagOrFalse(req.hasGliderTraineeLicence()), flagOrFalse(req.hasGliderPaxLicence()),
+                flagOrFalse(req.hasTmgLicence()), flagOrFalse(req.hasWinchOperatorLicence()),
+                flagOrFalse(req.hasMotorInstructorLicence()),
+                flagOrFalse(req.hasPartMLicence()),
                 req.licenceNumber(),
                 req.medicalClass1ExpireDate(), req.medicalClass2ExpireDate(),
                 req.medicalLaplExpireDate(),
                 req.gliderInstructorLicenceExpireDate(), req.motorInstructorLicenceExpireDate(),
                 req.partMLicenceExpireDate(),
-                f(req.hasGliderTowingStartPermission()), f(req.hasGliderSelfStartPermission()),
-                f(req.hasGliderWinchStartPermission()),
-                f(req.receiveOwnedAircraftStatisticReports())));
-        // Re-read so the SPA reflects persisted state on the PATCH response.
+                flagOrFalse(req.hasGliderTowingStartPermission()),
+                flagOrFalse(req.hasGliderSelfStartPermission()),
+                flagOrFalse(req.hasGliderWinchStartPermission()),
+                flagOrFalse(req.receiveOwnedAircraftStatisticReports())));
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MePersonLicencesResponse.from(personsService.getOwnLicences(personId)));
     }
 
-    /** Coerce a nullable wire flag to a primitive — absent / null → false. */
-    private static boolean f(@org.jspecify.annotations.Nullable Boolean b) {
+    private static boolean flagOrFalse(@org.jspecify.annotations.Nullable Boolean b) {
         return Boolean.TRUE.equals(b);
     }
 

@@ -1,41 +1,30 @@
 #!/usr/bin/env bash
-#
-# preflight — run the FULL local CI-equivalent in sequence, locally.
-#
-# WHY (T-43): the dev box is Alpine/musl. Playwright's bundled chromium can't
-# launch under musl, so e2e/gallery checks were CI-only → slow serial round-
-# trips (push → wait for CI → red → fix → push …). With the apk system chromium
-# installed (`apk add chromium nss freetype harfbuzz ttf-freefont`) the same
-# checks run locally. This script runs the comprehensive set — NOT a focused
-# subset — failing on the FIRST red but exercising the whole suite, so a worker
-# verifies locally before reporting `done` instead of round-tripping CI.
-#
-# It mirrors what the gate actually checks, and deliberately runs the WHOLE
-# server suite (`./gradlew test`) — the focused-run blind spot that has hidden
-# whole-module guards (LeakageSweepIT, arch-guards) that only fire on the full
-# build.
-#
-# USAGE
-#   scripts/preflight.sh                 # full run: backend + web + gallery + e2e
-#   scripts/preflight.sh --web-only      # skip the heavy backend (fast web loop)
-#   scripts/preflight.sh --no-e2e        # everything except the chromium e2e suite
-#   scripts/preflight.sh --backend-only  # only ./gradlew test
-#
-# e2e runs ONLY if a launchable chromium is resolvable (env override or an apk
-# system chromium at a probed path); otherwise the e2e stage is SKIPPED with a
-# note (it completes after the operator's `apk add chromium`).
-#
-# Fails on the first red (set -e). Each stage prints a banner so the failing
-# stage is obvious in the log.
 
 set -euo pipefail
 
-# ── locate the dirs (script lives in alpenflight/web/scripts/) ───────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVER_DIR="$(cd "${WEB_DIR}/../server" && pwd)"
+REPO_ROOT="$(cd "${WEB_DIR}/../.." && pwd)"
 
-# ── flags ────────────────────────────────────────────────────────────────────
+usage() {
+  cat <<'USAGE'
+preflight — the local CI-equivalent, stage by stage, failing on the first red.
+
+  scripts/preflight.sh                 comment-policy + backend + web + gallery + e2e
+  scripts/preflight.sh --web-only      skip ./gradlew test
+  scripts/preflight.sh --no-e2e        everything except the chromium e2e suite
+  scripts/preflight.sh --backend-only  only the comment-policy stage + ./gradlew test
+
+The comment-policy stage (strip.mjs --check over alpenflight/ + e2e/) runs first in
+every scope — it is the local half of the CI guard that reds on a re-added comment,
+and it costs about a second.
+
+The e2e stage is skipped (not failed) when no launchable chromium is resolvable
+via PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH or a probed apk system chromium.
+USAGE
+}
+
 RUN_BACKEND=1
 RUN_WEB=1
 RUN_GALLERY=1
@@ -46,7 +35,7 @@ for arg in "$@"; do
     --web-only)     RUN_BACKEND=0 ;;
     --backend-only) RUN_WEB=0; RUN_GALLERY=0; RUN_E2E=0 ;;
     --no-e2e)       RUN_E2E=0 ;;
-    -h|--help)      sed -n '2,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help)      usage; exit 0 ;;
     *) echo "preflight: unknown flag '$arg' (see --help)" >&2; exit 2 ;;
   esac
 done
@@ -54,16 +43,20 @@ done
 banner() { printf '\n\033[1;36m━━ preflight: %s ━━\033[0m\n' "$1"; }
 note()   { printf '\033[0;33m   %s\033[0m\n' "$1"; }
 
-# ── 1. backend — the WHOLE server suite ──────────────────────────────────────
-if [ "$RUN_BACKEND" = 1 ]; then
-  banner "backend — ./gradlew test (whole server suite)"
-  # Source DATASOURCE_* per the repo convention (JPA-booting tasks need them).
+source_datasource_env_the_jpa_booting_tasks_need() {
   # shellcheck disable=SC1090
   [ -f "${HOME}/.bashrc" ] && source "${HOME}/.bashrc" || true
+}
+
+banner "comment policy — strip.mjs --check (no human-written comments in alpenflight/ + e2e/)"
+( cd "${REPO_ROOT}" && node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e )
+
+if [ "$RUN_BACKEND" = 1 ]; then
+  banner "backend — ./gradlew test (whole server suite)"
+  source_datasource_env_the_jpa_booting_tasks_need
   ( cd "${SERVER_DIR}" && ./gradlew test --no-daemon --console=plain )
 fi
 
-# ── 2. web — lint + tsc + build + generate-api drift ─────────────────────────
 if [ "$RUN_WEB" = 1 ]; then
   banner "web — lint"
   ( cd "${WEB_DIR}" && pnpm lint )
@@ -85,7 +78,6 @@ if [ "$RUN_WEB" = 1 ]; then
   }
 fi
 
-# ── 3. proof-gallery — generator unit tests + browserless link check ──────────
 if [ "$RUN_GALLERY" = 1 ]; then
   banner "proof-gallery — generator unit tests (vitest)"
   ( cd "${WEB_DIR}" && pnpm test:scripts )
@@ -95,7 +87,6 @@ if [ "$RUN_GALLERY" = 1 ]; then
       --config=e2e/playwright.config.ts --project=proof-gallery-links )
 fi
 
-# ── 4. e2e — mock-auth chromium suite (only if a chromium is launchable) ──────
 if [ "$RUN_E2E" = 1 ]; then
   banner "e2e — mock-auth chromium suite"
   CHROMIUM_PATH=""

@@ -34,7 +34,6 @@ const ACTION_OPTIONS: readonly AfSelectOption<AuditAction>[] = (
   Object.values(ListAuditEventsAction) as AuditAction[]
 ).map((value) => ({ value, label: actionLabel(value) }));
 
-/** Whole-day UTC bounds so an `occurredAt` instant on the picked day sits in range. */
 function startOfDayIso(date: Date): string {
   return `${startOfLocalDateOnly(date)}T00:00:00.000Z`;
 }
@@ -307,8 +306,6 @@ export class AuditLogsListPage implements OnInit {
   protected readonly formatWhen = formatIsoDateTime;
   protected readonly actionOptions = ACTION_OPTIONS;
 
-  // View-only state: which row's before/after payload is currently expanded.
-  // One at a time — kept on the page, not the store (it's not domain state).
   protected readonly expandedRowId = signal<string | null>(null);
 
   protected readonly selectedAction = computed<AuditAction | null>(
@@ -317,9 +314,6 @@ export class AuditLogsListPage implements OnInit {
 
   protected readonly targetInput = signal<string>(this.store.filters().targetEntityType ?? '');
 
-  // The from/to date-pickers surface the ISO instant boundaries as calendar days:
-  // the store holds a start-of-day (from) / end-of-day (to) instant, so map it back
-  // to the local date the user picked. Only the date component is user-facing.
   protected readonly fromValue = computed<Date | null>(() =>
     localDateFromIso(this.store.filters().occurredFrom?.slice(0, 10)),
   );
@@ -328,8 +322,6 @@ export class AuditLogsListPage implements OnInit {
   );
 
   constructor() {
-    // Debounce the free-text target filter (per-keystroke otherwise); skip the seed
-    // emission + no-op re-emits so a cleared/unchanged value never reloads.
     toObservable(this.targetInput)
       .pipe(skip(1), debounceTime(250), distinctUntilChanged(), takeUntilDestroyed())
       .subscribe((raw) => {

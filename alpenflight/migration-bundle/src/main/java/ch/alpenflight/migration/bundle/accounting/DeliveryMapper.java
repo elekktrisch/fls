@@ -14,46 +14,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped invoice-delivery aggregate root: legacy
- * {@code Deliveries.DeliveryId} → {@code t_delivery.id}. Swiss OR
- * Art. 957a 10-year retention — tombstones ported, frozen
- * {@code recipient_*} snapshots immutable post-Booked transition.
- *
- * <p>{@code process_state_id SMALLINT NOT NULL DEFAULT 10} is resolved
- * producer-side by JOIN to legacy {@code Flights.ProcessStateId} +
- * {@code Deliveries.IsFurtherProcessed} per the V4 schema header
- * cutover mapping:
- * {@code IsFurtherProcessed=true → 20 (Booked)} wins on conflict;
- * {@code Flights.ProcessStateId 60 → 20 (Booked)};
- * {@code 50 → 10 (Prepared)}; {@code 45 → 30 (Error)};
- * everything else → {@code 10 (Prepared)} default. Mapper reads the
- * resolved SMALLINT verbatim from the producer-aliased column.
- *
- * <p>{@code delivery_number VARCHAR(100) NULL} — legacy
- * {@code DeliveryNumber NVARCHAR(100)} is free-text (externally supplied at
- * booking; the workflow job stamps non-numeric values like
- * {@code "Workflow {ts}"}), preserved verbatim.
- *
- * <p>9 frozen {@code recipient_*} columns straight passthrough — Swiss
- * OR Art. 957a immutability. Pre-snapshot legacy rows
- * ({@code RecipientPersonId NOT NULL} + {@code recipient_*} NULL) pass
- * through with NULL recipient_*; S-064 read-side handles
- * lookup-from-Person for Prepared state only. Booked rows preserve
- * frozen NULLs (legal-record over data hygiene).
- *
- * <p>{@code flight_id} resolves via {@code legacy_id_map_flight}
- * (intra-bundle — FLIGHT precedes DELIVERY in {@link EntityType} order).
- * {@code recipient_person_id} → cross-tenant {@link EntityType#PERSON}
- * (FK SET-NULL ride-through; declared in
- * {@link ch.alpenflight.migration.bundle.Manifest}'s
- * {@code TENANT_BYPASS_ALLOW_LIST}).
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted},
- * {@code IsFurtherProcessed} (collapsed into derived
- * {@code process_state_id}).
- */
 public final class DeliveryMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -113,12 +73,12 @@ public final class DeliveryMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB, EntityType.FLIGHT, EntityType.PERSON);
     }
 

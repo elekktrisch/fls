@@ -10,12 +10,6 @@ import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.javamail.JavaMailSender;
 
-/**
- * Unit-covers the {@link SmtpMailSender} kill-switch (ADR 0013 / J-6 T-10a):
- * with {@code alpenflight.mail.enabled=false} the send is a no-op (no SMTP
- * dispatch); when enabled it builds a MIME message and hands it to the
- * {@link JavaMailSender}. The render→outbox seam is the {@code TemplatedMailServiceIT}.
- */
 class SmtpMailSenderUnitTest {
 
     @Test

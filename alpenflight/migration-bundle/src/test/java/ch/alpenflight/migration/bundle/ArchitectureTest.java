@@ -3,6 +3,7 @@ package ch.alpenflight.migration.bundle;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -17,12 +18,6 @@ import java.sql.Statement;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * Module-level structural rules. The declarative rules are pure ArchUnit;
- * the EntityType ingest-order rule walks {@code Mapper.foreignKeys()} at
- * runtime, so it lives as a JUnit test on the same class — same enforcement
- * window, one file to read.
- */
 @AnalyzeClasses(
         packages = "ch.alpenflight.migration.bundle",
         importOptions = ImportOption.DoNotIncludeTests.class)
@@ -138,22 +133,13 @@ public class ArchitectureTest {
                             + "JPA dependency the library refuses by design.")
                     .allowEmptyShould(true);
 
-    /**
-     * Concrete-mapper registry the ingest-order check walks. The registry
-     * itself lives on {@link KnownMappers} in the main source set so the
-     * server-side {@code MapperVsSchemaCompatibilityTest} (S-187) can
-     * consume it without copying. Drift guard
-     * ({@link #knownMappersListCoversEveryConcreteMapperOnTheClasspath()})
-     * stays here — it scans the classpath structurally, which is a test
-     * concern.
-     */
     private static final List<Mapper> KNOWN_MAPPERS = KnownMappers.all();
 
     @Test
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {
         for (Mapper mapper : KNOWN_MAPPERS) {
             int selfOrdinal = mapper.entityType().ordinal();
-            for (EntityType target : mapper.foreignKeys()) {
+            for (EntityType target : mapper.foreignKeyTargets()) {
                 assertThat(target.ordinal())
                         .as("%s declares FK to %s but %s.ordinal() >= %s.ordinal() — "
                                 + "ingest cannot resolve the FK target before the source. "
@@ -175,12 +161,7 @@ public class ArchitectureTest {
                 .filter(javaClass -> !javaClass.isInterface())
                 .filter(javaClass -> !javaClass.getModifiers().contains(
                         com.tngtech.archunit.core.domain.JavaModifier.ABSTRACT))
-                // Decorators that wrap another Mapper (e.g. the mutation-smoke
-                // ColumnDroppingMapper) are harness adapters, not entity
-                // mappers — they bind no legacy table and must not appear in
-                // KNOWN_MAPPERS, which the ingest-order rule walks per entity.
-                .filter(javaClass -> javaClass.getFields().stream()
-                        .noneMatch(field -> field.getRawType().isAssignableTo(Mapper.class)))
+                .filter(javaClass -> !isHarnessDecoratorWrappingAnotherMapper(javaClass))
                 .map(javaClass -> javaClass.getFullName())
                 .toList();
         var registered = KNOWN_MAPPERS.stream()
@@ -191,5 +172,10 @@ public class ArchitectureTest {
                         + "A new concrete Mapper on the classpath must be registered here "
                         + "(or the ingest-order rule silently skips it).")
                 .containsAll(concreteMapperFqns);
+    }
+
+    private static boolean isHarnessDecoratorWrappingAnotherMapper(JavaClass javaClass) {
+        return javaClass.getFields().stream()
+                .anyMatch(field -> field.getRawType().isAssignableTo(Mapper.class));
     }
 }

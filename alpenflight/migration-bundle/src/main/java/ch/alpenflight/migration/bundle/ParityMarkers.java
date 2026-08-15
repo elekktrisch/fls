@@ -7,21 +7,14 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/**
- * Reflective extractor for column-level parity markers ({@link ParityIgnore}
- * / {@link ParitySentinel}). Consumed by the parity oracle harness (S-187)
- * at class-init time — once per mapper class, never per-row.
- */
 public final class ParityMarkers {
 
     private ParityMarkers() { }
 
-    /** Columns annotated {@link ParityIgnore} — sampled-value diff opts these out. */
     public static Set<String> ignored(Class<? extends Mapper> mapperClass) {
         return columnsAnnotatedWith(mapperClass, ParityIgnore.class);
     }
 
-    /** Columns annotated {@link ParitySentinel} — strict-equality diff opts these in. */
     public static Set<String> sentinels(Class<? extends Mapper> mapperClass) {
         return columnsAnnotatedWith(mapperClass, ParitySentinel.class);
     }

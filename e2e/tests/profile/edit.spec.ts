@@ -1,44 +1,3 @@
-/**
- * e2e/tests/18-profile-edit.spec.ts
- *
- * Plan row #18: Edit the logged-in user's own Person record via /profile
- * and assert persistence.
- *
- * Approach: drive the AngularJS profile page at `/profile`. The page is
- * composed of TWO forms — a password/user-settings form (left), and a
- * person-edit form (right) that only renders when `myUser.PersonId` is
- * truthy. We target the right-hand form and mutate three non-critical
- * fields: `AddressLine1`, `MobilePhoneNumber`, `PrivatePhoneNumber`. We
- * deliberately do NOT touch the Email / PrivateEmail fields — changing
- * the user's communication email could trigger a re-confirmation cycle
- * server-side (see `UsersController.UpdateUserDetails` / email-confirm
- * mailer wiring).
- *
- * Test data wrinkle: the canonical `testclubadmin` user has
- * `Users.PersonId = NULL` in the seed (see
- * `flsserver/database/FLSTest/3 insert/4 or 5 Insert Test Data.sql:106`),
- * so `myUser.PersonId` is falsy out of the box and the `<fls-person-form>`
- * is never rendered (`ng-if="myUser.PersonId"` in `profile.html:75`).
- * The fixture file does not patch this. To exercise the UI, the test
- * first picks an existing TestClub Person via SQL, points `testclubadmin`
- * at it (UPDATE Users SET PersonId = ...), and patches the
- * `ngStorage-user` sessionStorage entry that the `loggedInPage` fixture
- * injected so `AuthService.getUser()` sees the new PersonId.
- *
- * Persistence is asserted two ways:
- *   1. API readback via `GET /api/v1/persons/{id}` using the bearer token
- *      from sessionStorage.
- *   2. Page reload of `/profile` — re-reads the inputs to confirm the
- *      values come back from the server, not from any client-side cache.
- *
- * Endpoint hit by the form save: `PUT /api/v1/persons/{personId}` (via
- * the `X-HTTP-Method-Override: PUT` POST that `PersonPersister.savePerson`
- * emits — see `PersonsServices.js:161-170`).
- *
- * TODO testid: the person form's Save button has no `data-testid`. We
- * scope to the right-hand `<form>` (the one carrying `<fls-person-form>`)
- * and click its `button[type="submit"]`.
- */
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import sql from 'mssql';
 import type { Page } from '@playwright/test';
@@ -76,9 +35,6 @@ async function getBearerToken(page: Page): Promise<string> {
 test('profile-edit: testclubadmin updates own Person and reload confirms persistence', async ({ loggedInPage }) => {
   const page = loggedInPage;
 
-  // 1. Link testclubadmin to an existing TestClub Person, and capture that
-  //    PersonId for the rest of the test. We pick any Persons row that is
-  //    a TestClub member (PersonClub.ClubId = TestClub).
   const personId = await withPool(async pool => {
     const r = await pool.request().query(`
       DECLARE @pid uniqueidentifier =
@@ -95,8 +51,6 @@ test('profile-edit: testclubadmin updates own Person and reload confirms persist
   });
   expect(personId, 'expected to find a TestClub Person to attach').toBeTruthy();
 
-  // 2. Mirror the change into ngStorage-user so AuthService.getUser() sees
-  //    the new PersonId before ProfileController evaluates ng-if.
   await page.goto('/#/main');
   await page.evaluate((pid) => {
     const raw = sessionStorage.getItem('ngStorage-user');
@@ -106,24 +60,18 @@ test('profile-edit: testclubadmin updates own Person and reload confirms persist
     sessionStorage.setItem('ngStorage-user', JSON.stringify(u));
   }, personId);
 
-  // 3. Navigate to /profile and wait for the person form to render.
   await gotoRoute(page, '/profile');
   const personForm = page.locator('form[name="personForm"]');
   await personForm.waitFor({ state: 'visible', timeout: 15_000 });
-  // Wait until the controller has loaded the person and the input is populated.
   await page.locator('#AddressLine1').waitFor({ state: 'visible' });
   await expect(page.locator('#Firstname')).not.toHaveValue('');
 
-  // 4. Edit the three non-critical fields, then submit.
   await page.locator('#AddressLine1').fill(NEW_ADDR);
   await page.locator('#MobilePhoneNumber').fill(NEW_MOBILE);
   await page.locator('#PrivatePhoneNumber').fill(NEW_PHONE);
 
-  // Person form's submit button is scoped to that form (the user-settings
-  // form has its own type="submit" for password updates).
   await personForm.locator('button[type="submit"]').click();
 
-  // 5. API-side readback — confirms the PUT landed and was persisted.
   const token = await getBearerToken(page);
   await expect(async () => {
     const res = await page.request.get(`${API_BASE}/api/v1/persons/${personId}`, {
@@ -136,7 +84,6 @@ test('profile-edit: testclubadmin updates own Person and reload confirms persist
     expect(body.PrivatePhoneNumber).toBe(NEW_PHONE);
   }).toPass({ timeout: 10_000 });
 
-  // 6. Reload the route — values should come back from the server.
   await gotoRoute(page, '/profile');
   await page.locator('#AddressLine1').waitFor({ state: 'visible' });
   await expect(page.locator('#AddressLine1')).toHaveValue(NEW_ADDR);

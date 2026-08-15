@@ -39,44 +39,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link PlanningDay} aggregate (J-6 T-04).
- * Mirrors {@code AircraftReservationsService}: a {@code @Transactional} service
- * over the domain port, mapping aggregate ↔ DTO and emitting an {@link
- * AuditTrail} event per mutation.
- *
- * <p><strong>Crew mapping (the load-bearing shape decision).</strong> The wire
- * DTO carries three fixed crew pickers but storage is the generic
- * typed-assignment model. {@link #roleTypeIds()} resolves each well-known
- * {@link PlanningRole} to its per-club {@link PlanningDayAssignmentType} id (by
- * the type's well-known German name); the write path upserts/clears each role's
- * assignment row via {@code PlanningDay.assignRole}, and the read path resolves
- * each assignment back to a role to populate the three nullable person-id slots.
- *
- * <p><strong>Dedup → 409.</strong> The repository's dedup-aware save surfaces a
- * duplicate {@code (club, date, location)} as the catchable
- * {@code PlanningDayConflictException} (→ 409 in the web layer), never a raw
- * constraint-violation 500.
- *
- * <p><strong>Permission gate.</strong> Update / delete are gated to a
- * {@code CLUB_ADMINISTRATOR} OR the record's creator (legacy
- * {@code PlanningDayService.cs:407-425}); a caller who is neither gets an
- * {@link AccessDeniedException} (→ 403). The {@code canUpdateRecord} /
- * {@code canDeleteRecord} flags on every detail DTO surface the same gate to the
- * UI (delete: admin-or-creator; update: admin-or-creator, matching legacy).
- */
 @Service
 @Transactional
 public class PlanningDaysService {
 
-    /**
-     * Audit entity-type string. The {@code planning.domain} package is not in
-     * the audit-redaction coverage roots, so its DTO snapshot default-denies on
-     * the redaction walk — PII-safe without an explicit allow-list.
-     */
     private static final String AUDIT_ENTITY_TYPE = "PlanningDay";
 
-    /** Legacy default paged-list size (100). A non-positive size falls back to this. */
     private static final int DEFAULT_PAGE_SIZE = 100;
     private static final int MAX_PAGE_SIZE = 500;
 
@@ -109,20 +77,6 @@ public class PlanningDaysService {
         return toDetail(loadOrThrow(id));
     }
 
-    /**
-     * Non-mutating uniqueness pre-check (J-6b T-05). Runs the SAME
-     * {@code (club, date, location)} dedup probe the save path enforces (the J-6
-     * {@code ux_pln_club_date_loc} 409) over the candidate (date, location), but
-     * persists nothing and raises nothing — it returns a field-level
-     * {@link PlanningDayValidationResult} the FE surfaces inline while editing,
-     * before a save round-trip (NO new rule; reuses
-     * {@link PlanningDayRepository#existsActiveForDayExcluding}). An edit passes its
-     * own id as {@code excludePlanningDayId} so it is not flagged against itself.
-     * Tenant-scoped: the probe carries the {@code @TenantId} predicate, so another
-     * club's day at the same (date, location) never conflicts. The duplicate keys
-     * on date + location and surfaces on the {@code planningDate} field — the day's
-     * primary identity (the FE attaches the inline message there).
-     */
     @Transactional(readOnly = true)
     public PlanningDayValidationResult validateUniqueness(PlanningDayValidateRequest req) {
         boolean duplicate = planningDays.existsActiveForDayExcluding(
@@ -136,34 +90,21 @@ public class PlanningDaysService {
 
     public PlanningDayDetail createPlanningDay(PlanningDayCreateRequest req) {
         UUID operatingClubId = resolveTenantOrThrow();
-        // validatePlanningDate() runs at construction → InvalidPlanningDateException (422).
         PlanningDay day = PlanningDay.create(
                 operatingClubId, req.planningDate(), req.locationId().value(), req.info());
         day.recordCreatedBy(currentPrincipal.userId().orElse(null));
         applyCrew(day, req.instructorPersonId(), req.towingPilotPersonId(),
                 req.flightOperatorPersonId());
-        // Dedup-aware save → PlanningDayConflictException (409) on duplicate.
         PlanningDayDetail created = toDetail(planningDays.save(day));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id(), created));
         return created;
     }
 
-    /**
-     * Bulk weekday-expansion (T-05; legacy {@code CreatePlanningDays}). The
-     * domain method {@link PlanningDay#expandRuleDates} owns the expansion + the
-     * range bound (ADR 0022 directive 2); this service just orchestrates:
-     * resolve the tenant, then for each matching date <em>skip</em> a day that
-     * already exists at the location (idempotent re-run, no 409) and persist the
-     * rest as bare days (no crew). Returns only the days actually created
-     * (mirroring legacy's {@code List<PlanningDayOverview>} — skipped days are
-     * not in the result).
-     */
     public List<PlanningDayDetail> bulkCreatePlanningDays(PlanningDayRuleRequest req) {
         UUID operatingClubId = resolveTenantOrThrow();
         UUID locationId = req.locationId().value();
         Set<DayOfWeek> weekdays = req.selectedWeekdays();
-        // Domain owns the expansion + the range bound (→ PlanningRuleRangeException 422).
         List<LocalDate> dates = PlanningDay.expandRuleDates(req.startDate(), req.endDate(), weekdays);
         if (dates.isEmpty()) {
             return List.of();
@@ -171,14 +112,11 @@ public class PlanningDaysService {
         UUID creator = currentPrincipal.userId().orElse(null);
         List<PlanningDayDetail> created = new ArrayList<>();
         for (LocalDate date : dates) {
-            // Skip-existing idempotent: a (club, date, location) already planned
-            // is left untouched (re-running the same rule is a no-op for it).
             if (planningDays.existsActiveForDay(date, locationId)) {
                 continue;
             }
             PlanningDay day = PlanningDay.create(operatingClubId, date, locationId, req.info());
             day.recordCreatedBy(creator);
-            // No default crew — bare days (J-6 oracle).
             PlanningDayDetail detail = toDetail(planningDays.save(day));
             auditTrail.record(AuditAction.CREATE,
                     AuditedTarget.created(AUDIT_ENTITY_TYPE, detail.id(), detail));
@@ -192,7 +130,6 @@ public class PlanningDaysService {
         requireCanMutate(day);
         PlanningDayDetail before = toDetail(day);
 
-        // reschedule re-runs validatePlanningDate() → InvalidPlanningDateException (422).
         day.reschedule(req.planningDate());
         day.reassignLocation(req.locationId().value());
         day.updateInfo(req.info());
@@ -215,14 +152,6 @@ public class PlanningDaysService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
     }
 
-    /**
-     * One SPA page of the tenant's future planning days (legacy {@code POST
-     * .../page/{start}/{size}}). The {@code Day.From} filter (default today)
-     * windows to days at or after it; rows are sorted {@code planning_date asc}
-     * (legacy default — the {@code sorting} map is honoured for completeness but
-     * a descending future list is not a load-bearing J-6 view). {@code totalRows}
-     * is the unpaged count of the same predicate.
-     */
     @Transactional(readOnly = true)
     public PlanningDayPage page(int pageStart, int pageSize, @Nullable PlanningDayPageRequest request) {
         int safeStart = Math.max(pageStart, 0);
@@ -233,13 +162,11 @@ public class PlanningDaysService {
         return new PlanningDayPage(items, page.pageStart(), page.pageSize(), page.totalRows());
     }
 
-    /** Future planning days ({@code planning_date >= today}) — the {@code overview/future} read. */
     @Transactional(readOnly = true)
     public List<PlanningDayDetail> overviewFuture() {
         return planningDays.findFutureListRows(today()).stream().map(this::toDetail).toList();
     }
 
-    // ----- crew mapping -----
 
     private void applyCrew(PlanningDay day,
                            @Nullable PersonId instructor,
@@ -255,8 +182,6 @@ public class PlanningDaysService {
                                    PlanningRole role, @Nullable PersonId person) {
         UUID typeId = typeIds.get(role);
         if (typeId == null) {
-            // The club has no seeded type for this role: a null person is a no-op
-            // (nothing to clear), but assigning one would have nowhere to land.
             if (person != null) {
                 throw new IllegalArgumentException(
                         "Club has no planning assignment type for role " + role
@@ -267,7 +192,6 @@ public class PlanningDaysService {
         day.assignRole(role, typeId, person == null ? null : person.value());
     }
 
-    /** The caller-club's well-known {@link PlanningRole} → assignment-type-id map. */
     private Map<PlanningRole, UUID> roleTypeIds() {
         Map<PlanningRole, UUID> map = new EnumMap<>(PlanningRole.class);
         for (PlanningDayAssignmentType type : assignmentTypes.findActiveTypes()) {
@@ -280,7 +204,6 @@ public class PlanningDaysService {
         return map;
     }
 
-    // ----- detail mapping -----
 
     private PlanningDayDetail toDetail(PlanningDay day) {
         Map<UUID, PlanningRole> typeRoles = typeIdRoles();
@@ -297,21 +220,12 @@ public class PlanningDaysService {
         return PlanningDayMapper.toDetail(day, id, crew, reservationCount, canMutate(day));
     }
 
-    /**
-     * The list-row overload — used by the page / overview reads. Re-reads the
-     * aggregate is avoided: the {@code ListRow} carries the day's own fields, and
-     * crew + reservation count are resolved per row. Crew resolution needs the
-     * aggregate's assignment rows, so the list reads load the day via {@code
-     * findActiveById} (tenant-scoped) to populate the three crew slots — the
-     * legacy overview DTO carries them too (J-6 oracle).
-     */
     private PlanningDayDetail toDetail(ListRow row) {
         PlanningDay day = planningDays.findActiveById(row.id())
                 .orElseThrow(() -> new PlanningDayNotFoundException(row.id()));
         return toDetail(day);
     }
 
-    /** The caller-club's assignment-type-id → well-known {@link PlanningRole} map. */
     private Map<UUID, PlanningRole> typeIdRoles() {
         Map<UUID, PlanningRole> map = new java.util.HashMap<>();
         for (PlanningDayAssignmentType type : assignmentTypes.findActiveTypes()) {
@@ -324,7 +238,6 @@ public class PlanningDaysService {
         return map;
     }
 
-    // ----- helpers -----
 
     private static @Nullable LocalDate filterFrom(@Nullable PlanningDayPageRequest request) {
         if (request == null || request.searchFilter() == null
@@ -350,15 +263,7 @@ public class PlanningDaysService {
         return Objects.requireNonNull(day.getLocationId(), "PlanningDay is missing locationId");
     }
 
-    // ----- permission gate (ClubAdmin OR record creator; legacy :407-425) -----
 
-    /**
-     * Whether the current caller may update/delete {@code day}: a
-     * {@code CLUB_ADMINISTRATOR} (or {@code SYSTEM_ADMINISTRATOR}) of the tenant,
-     * OR the record's creator. Drives both the {@code canUpdate/canDeleteRecord}
-     * DTO flags and the {@link #requireCanMutate} enforcement. Fail-closed: an
-     * unauthenticated / unresolvable caller cannot mutate.
-     */
     boolean canMutate(PlanningDay day) {
         Jwt jwt = currentPrincipal.jwt().orElse(null);
         if (jwt == null) {
@@ -372,7 +277,6 @@ public class PlanningDaysService {
         return creator != null && creator.equals(caller);
     }
 
-    /** Enforces {@link #canMutate}; a non-admin non-creator gets a 403. */
     private void requireCanMutate(PlanningDay day) {
         if (!canMutate(day)) {
             throw new AccessDeniedException(

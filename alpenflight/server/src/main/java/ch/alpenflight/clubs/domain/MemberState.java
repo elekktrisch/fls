@@ -9,20 +9,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Per-club lookup row for member statuses (e.g. "Active", "Suspended",
- * "Honorary"). Mapped to V2's {@code t_member_state} table; the discriminator
- * column {@code club_id} wears {@link TenantId} so Hibernate appends
- * {@code WHERE club_id = ?} to every read driven by the
- * {@link ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver}.
- *
- * <p>Worked example for S-022 — the resolver + {@code @TenantId} contract
- * proves end-to-end on this entity before the per-domain stories (S-049
- * Locations, S-050 Aircraft, …) extend the pattern. The mapping is
- * intentionally minimal (no soft-delete handling, no audit-column getters):
- * the story that owns per-club configuration of member statuses will
- * extend it without reshaping.
- */
 @Entity
 @Table(name = "t_member_state")
 public class MemberState {
@@ -41,7 +27,6 @@ public class MemberState {
     private String name = "";
 
     protected MemberState() {
-        // JPA.
     }
 
     public MemberState(String name) {

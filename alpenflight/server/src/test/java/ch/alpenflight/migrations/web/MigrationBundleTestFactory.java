@@ -22,19 +22,6 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
-/**
- * Test-only producer for S-141 ALPF wire-format bundles. Mirrors the
- * envelope shape S-139's JAR will emit; the integration tests use it as
- * a stand-in until the JAR ships.
- *
- * <p>Lives in {@code src/test/java}; ArchUnit's disk-sink ban applies
- * only to production code, so this class is free to use
- * {@link ByteArrayOutputStream}.
- *
- * <p>S-141b extensions support negative-path ITs (truncated bodies,
- * unsafe tar entries, planted plaintext markers, etc.) and the
- * multi-Club parity / progress flows.
- */
 final class MigrationBundleTestFactory {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -42,12 +29,6 @@ final class MigrationBundleTestFactory {
 
     private MigrationBundleTestFactory() { }
 
-    /**
-     * Build a minimal ALPF bundle for the walking-skeleton integration
-     * test: declare every EntityType as unmapped (no NDJSON entries),
-     * declare a single Club in the manifest, encrypt under the upload's
-     * RSA public key.
-     */
     static byte[] buildWalkingSkeletonBundle(MigrationBundleCipher cipher,
                                              UUID uploadId,
                                              byte[] rsaPublicKeyDer,
@@ -58,11 +39,6 @@ final class MigrationBundleTestFactory {
                 Map.of());
     }
 
-    /**
-     * Build a bundle whose manifest declares N Clubs, every EntityType
-     * unmapped — for multi-Club progress / provisioning tests that don't
-     * exercise the entity-payload path.
-     */
     static byte[] buildMultiClubSkeletonBundle(MigrationBundleCipher cipher,
                                                UUID uploadId,
                                                byte[] rsaPublicKeyDer,
@@ -74,13 +50,6 @@ final class MigrationBundleTestFactory {
                 Map.of());
     }
 
-    /**
-     * Build a bundle whose manifest declares the supplied entityPolicies +
-     * unmappedReason (covering every EntityType per Manifest's coverage
-     * gate) and whose tar carries the supplied NDJSON / pgcopy payloads
-     * after manifest.json. Used by the multi-Club progress IT and the
-     * parity round-trip IT.
-     */
     static byte[] buildBundleWithEntries(MigrationBundleCipher cipher,
                                          UUID uploadId,
                                          byte[] rsaPublicKeyDer,
@@ -105,13 +74,6 @@ final class MigrationBundleTestFactory {
                 tarEntriesAfterManifest);
     }
 
-    /**
-     * Build a manifest that declares zero Clubs and every entity as
-     * unmapped — exercises the orchestrator's MANIFEST_EMPTY_CLUBS guard
-     * (AC9c). BundleManifest's relaxed constructor allows {@code clubs=[]}
-     * past the record boundary so the orchestrator can surface the
-     * specific error.
-     */
     static byte[] buildEmptyClubsBundle(MigrationBundleCipher cipher,
                                         UUID uploadId,
                                         byte[] rsaPublicKeyDer,
@@ -121,12 +83,6 @@ final class MigrationBundleTestFactory {
                 Map.of());
     }
 
-    /**
-     * Build a wire-format prefix that declares the supplied wrapped-key
-     * length but stops short of any subsequent bytes — exercises the
-     * BUNDLE_HEADER_MALFORMED path when {@code wrappedKeyLen} is out of
-     * range (0 or > MAX_WRAPPED_KEY_LEN).
-     */
     static byte[] buildHeaderOnlyPrefix(int wrappedKeyLenField) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
@@ -140,12 +96,6 @@ final class MigrationBundleTestFactory {
         return out.toByteArray();
     }
 
-    /**
-     * Truncate the supplied wire-format bundle by removing the trailing
-     * {@code suffixBytesToDrop} bytes — exercises BUNDLE_TRUNCATED when
-     * the cipher cannot complete the AEAD body or the tar reader hits EOF
-     * mid-entry.
-     */
     static byte[] truncatedBundle(byte[] completeBundle, int suffixBytesToDrop) {
         if (suffixBytesToDrop <= 0 || suffixBytesToDrop >= completeBundle.length) {
             throw new IllegalArgumentException(
@@ -155,12 +105,6 @@ final class MigrationBundleTestFactory {
         return Arrays.copyOf(completeBundle, completeBundle.length - suffixBytesToDrop);
     }
 
-    /**
-     * Build a bundle whose tar carries an additional entry with the
-     * supplied (hostile) name after manifest.json — exercises
-     * BUNDLE_TAR_PARSE_FAILED via rejectUnsafeTarName when the name
-     * carries a {@code ..} segment or absolute-path marker. AC9(a).
-     */
     static byte[] buildBundleWithRawTarEntry(MigrationBundleCipher cipher,
                                              UUID uploadId,
                                              byte[] rsaPublicKeyDer,
@@ -189,13 +133,6 @@ final class MigrationBundleTestFactory {
                 unmappedReason);
     }
 
-    /**
-     * Wrap a pre-assembled {@code tar.gz} plaintext (e.g. one produced by the
-     * REAL {@code BundleWriter.assembleTarGz}, including its own manifest.json
-     * entry) in the ALPF wire envelope. Used by the real-producer round-trip IT
-     * (J-0b T-10) so it exercises the production tar-entry ordering rather than
-     * the hand-ordered {@link #wrapInTarGz}.
-     */
     static byte[] encryptTarGzPlaintext(MigrationBundleCipher cipher,
                                         UUID uploadId,
                                         byte[] rsaPublicKeyDer,

@@ -4,22 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Port of legacy {@code FlightService.cs:1073-1136} (ValidateFlightBasics)
- * + the start-type-specific arms at {@code :987-1039}.
- *
- * <p>Pure function: returns the list of error codes; mutating the flight's
- * {@code processState} based on the result is the caller's responsibility
- * (the daily validation job at S-083 or a future
- * {@code POST /flights/validate} endpoint). The aggregate's
- * {@link FlightProcessState} transitions still flow through the matrix
- * (S-059).
- *
- * <p>S-062a smoke depth only. Route-allow-list rules
- * ({@code FlightService.cs:1112-1136}) require resolved
- * {@code Location.InOutboundPoints} hydration and are deferred to S-101
- * along with multi-error-aggregation depth coverage.
- */
 public final class FlightValidator {
 
     private static final UUID START_TYPE_AEROTOW =
@@ -31,7 +15,6 @@ public final class FlightValidator {
 
     private FlightValidator() {}
 
-    /** Single error code; payload kept ID-only so renderers can localise. */
     public record ValidationError(String code) {}
 
     public static List<ValidationError> validate(Flight flight) {

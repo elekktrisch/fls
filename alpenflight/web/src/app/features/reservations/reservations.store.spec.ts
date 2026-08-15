@@ -103,6 +103,8 @@ function reservationsServiceStub(stubs: Partial<ApiStubs>): AircraftReservations
   return api as unknown as AircraftReservationsService;
 }
 
+const PAST_VALIDATE_DEBOUNCE_MS = 250;
+
 const validateProbe: AircraftReservationValidateRequest = {
   aircraftId: AC_ID,
   start: '2026-07-01T10:00:00Z',
@@ -168,8 +170,7 @@ describe('ReservationsStore', () => {
     );
     const store = TestBed.inject(ReservationsStore);
     store.goToPage(3);
-    // page 1 → offset 0 (init), page 3 → offset 40.
-    expect(offsets).toContain(40);
+    expect(offsets).toContain(2 * seedPage.pageSize);
   });
 
   it('delete emits reservation.deleted on the bus and refreshes', () => {
@@ -189,15 +190,10 @@ describe('ReservationsStore', () => {
     const callsBefore = offsets.length;
     store.delete(RES_ID);
     expect(events).toContainEqual({ kind: 'reservation.deleted', reservationId: RES_ID });
-    // refreshed: one extra page read after the delete.
     expect(offsets.length).toBeGreaterThan(callsBefore);
   });
 
   it('refetches the list when a reservation.created event fires on the bus (J-5 T-27)', () => {
-    // The root-scoped store does NOT re-init when the edit form navigates back
-    // to /reservations after a create, so it must refetch on the mutation-bus
-    // event — otherwise the just-created row never renders (the genuine app gap
-    // that red-ed the real-idp create spec). Mirrors the J-2 flight store.
     const offsets: number[] = [];
     const bus = configure(
       reservationsServiceStub({
@@ -207,8 +203,6 @@ describe('ReservationsStore', () => {
         },
       }),
     );
-    // Instantiate the store so its onInit bus subscription is wired (the return
-    // value is unused — the assertion reads `offsets` via the service stub).
     TestBed.inject(ReservationsStore);
     const callsBefore = offsets.length;
     bus.next({ kind: 'reservation.created', reservationId: RES_ID });
@@ -225,8 +219,6 @@ describe('ReservationsStore', () => {
         },
       }),
     );
-    // Instantiate the store so its onInit bus subscription is wired (the return
-    // value is unused — the assertion reads `offsets` via the service stub).
     TestBed.inject(ReservationsStore);
     const callsBefore = offsets.length;
     bus.next({ kind: 'reservation.updated', reservationId: RES_ID });
@@ -244,8 +236,7 @@ describe('ReservationsStore', () => {
       configure(reservationsServiceStub({ validate: () => of(fail) }));
       const store = TestBed.inject(ReservationsStore);
       store.validateOverlap(validateProbe);
-      // The store debounces the probe ~200ms before calling the endpoint.
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.overlapValidating()).toBe(false);
       expect(store.overlapMessage()).toBe('aircraft.reservation.overlap');
       expect(store.overlapErrors()).toEqual({ overlap: 'aircraft.reservation.overlap' });
@@ -260,7 +251,7 @@ describe('ReservationsStore', () => {
       configure(reservationsServiceStub({ validate: () => of({ valid: true }) }));
       const store = TestBed.inject(ReservationsStore);
       store.validateOverlap(validateProbe);
-      await vi.advanceTimersByTimeAsync(250);
+      await vi.advanceTimersByTimeAsync(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.overlapMessage()).toBeNull();
       expect(store.overlapErrors()).toBeNull();
     } finally {
@@ -274,7 +265,6 @@ describe('ReservationsStore', () => {
     expect(overlapResultToErrors({ valid: false, field: 'start', message: 'msg' })).toEqual({
       overlap: 'msg',
     });
-    // A failing result with no message still flags the field (truthy slot).
     expect(overlapResultToErrors({ valid: false })).toEqual({ overlap: true });
   });
 

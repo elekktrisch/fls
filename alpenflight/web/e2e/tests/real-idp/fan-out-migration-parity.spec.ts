@@ -9,74 +9,26 @@ import {
 } from './_helpers/fan-out-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-/**
- * J-0c T-03 — the AlpenFlight UI half of the fan-out migration parity proof,
- * against the REAL stack (live Keycloak auth + Spring + Postgres). The seed is
- * a SYNTHESIZED migrated bundle ingested through the REAL
- * `POST /api/v1/migrations/{id}/bundle` endpoint (no legacy stack yet — T-05
- * swaps in the real legacy-produced bundle). NO mocking: a `page.route`
- * interception here would defeat the seam (the fan-out keying + the Keycloak
- * provision-on-migrate slice must run live).
- *
- * The fixture (`seedFanOutParity`) ingests one shared legacy Location with a
- * RANDOM unique name (`J0C-<rand>`) referenced by 2 clubs → the ingest fans it
- * out to 2 `t_location` rows (one per provisioned club) and provisions one
- * loginable Keycloak club-admin per migrated club (T-02). This spec then
- * asserts the journey's load-bearing contract THROUGH THE REAL UI:
- *
- *   - [happy] Club-A admin logs in via real Keycloak → `/locations` shows the
- *     migrated Location under its random name; club-B admin logs in → sees its
- *     OWN copy under the SAME name (fan-out: each club has a copy).
- *   - [key-behavior] Renaming club-A's copy leaves club-B's copy UNCHANGED —
- *     proving the two are DISTINCT fanned-out rows, not one shared row.
- *   - [key-error] A direct cross-tenant `GET /api/v1/locations/{clubB_id}` while
- *     authenticated as club-A returns 404 (tenant isolation holds on migrated
- *     data — the row is invisible under A's scope, not 403).
- *
- * Each club runs in its own browser context (separate storageState / session)
- * so the two migrated CLUB_ADMINISTRATOR JWTs never bleed across the tenant
- * boundary.
- */
-
 const RENAMED_SUFFIX = ' (renamed by club A)';
 
-/**
- * Real-bundle mode (`J0C_BUNDLE_SOURCE=real`, the T-05 full chain): the bundle is
- * the `alpenflight-export` output, sealed to the workflow's handshake `uploadId`.
- * Unlike the synth path — which re-mints a fresh handshake/uploadId per attempt
- * (see `seedFanOutParity(..., testInfo.retry)`) — the spec CANNOT re-seal a
- * pre-encrypted bundle, so a Playwright retry would re-POST the SAME uploadId that
- * the first failed ingest already sealed FAILED → a 409 BUNDLE_PRIOR_RUN_FAILED
- * masking the REAL first-attempt cause. So in real-bundle mode we run with zero
- * retries: the real failure shows clearly. (Re-running `alpenflight-export`
- * against a fresh handshake on retry is the workflow's job, not the spec's.)
- * The synth path keeps the real-idp project's CI retry for genuine jitter.
- */
 const REAL_BUNDLE = (process.env['J0C_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
 
-/**
- * Per-test recorded context — the `real-idp` project's `video: 'on'` only
- * governs Playwright's auto-created `page`; these tests drive their own
- * `browser.newContext()` per club, so pass `recordVideo` explicitly to land
- * the green run's `.webm` for the proof gallery. Mirrors
- * `locations-crud-tenant-isolation.spec.ts`.
- */
+const SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY: { retries?: number } = REAL_BUNDLE
+  ? { retries: 0 }
+  : {};
+
+const LIVE_MIGRATION_SEED_TIMEOUT_MS = 120_000;
+
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
   testInfo: TestInfo,
 ): Promise<BrowserContext> {
   const context = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
-  // Guard every page this context opens, not just the fixture-injected one.
   context.on('page', (p) => watchConsoleErrors(p, testInfo));
   return context;
 }
 
-/**
- * Read the migrated Location's external id (`loc-<uuid>`) from its rendered
- * list row's `data-testid="location-row-<id>"`, scoped by the random name.
- * Asserts the row is present (= this club has its own fanned-out copy).
- */
 async function locationIdByName(page: Page, name: string): Promise<string> {
   await page.goto('/locations');
   await expect(page.getByTestId('locations-table')).toBeVisible();
@@ -91,11 +43,6 @@ async function locationIdByName(page: Page, name: string): Promise<string> {
   return id;
 }
 
-/**
- * Capture the Bearer the OIDC interceptor attaches to a `/api/v1/locations`
- * request so the spec can issue a direct cross-tenant GET with the same
- * principal's token.
- */
 async function bearerFromLocationsList(page: Page): Promise<string> {
   const reqPromise = page.waitForRequest(
     (req) =>
@@ -108,39 +55,18 @@ async function bearerFromLocationsList(page: Page): Promise<string> {
 }
 
 test.describe('Fan-out migration parity — migrated Location, two clubs (real-idp)', () => {
-  // One realm + one backend; seed once, run the parity asserts in order.
-  // Serial keeps the two migrated sessions from racing the rename/isolation
-  // ordering (club A must rename BEFORE club B re-checks its copy).
-  test.describe.configure({ mode: 'serial', ...(REAL_BUNDLE ? { retries: 0 } : {}) });
+  test.describe.configure({
+    mode: 'serial',
+    ...SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY,
+  });
 
   let fixture: FanOutParityFixture;
   let baseURL: string;
   let clubBLocationId: string;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    // The seed runs a Gradle seeder + a live migration ingest + a Keycloak
-    // fan-out provision (one club-admin per migrated club). On a maximally
-    // loaded fanout runner that legitimately exceeds the 45s per-test budget the
-    // hook inherits — a runner-perf cost, not a hang — so give the setup its own
-    // headroom. The 5s per-assertion `expect.timeout` stays the fail-fast lever.
-    testInfo.setTimeout(120_000);
+    testInfo.setTimeout(LIVE_MIGRATION_SEED_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    // Seeds through the REAL migration endpoint — fan-out + Keycloak provision
-    // both run live. ~30-60s (Gradle seeder + ingest); covered by the
-    // real-idp project's 60s timeout.
-    //
-    // REAL-bundle mode: route through the worker-scoped `ensureSharedMigrationBundle`
-    // singleton (J-8 T-17) so the SINGLE single-use real bundle is ingested EXACTLY
-    // ONCE regardless of which migrated-data spec the Playwright spec-sort runs first.
-    // The shared bundle carries the rows the J-5/J-6/J-8 migrated blocks read too, and
-    // `accounting-rules-parity` sorts BEFORE this file — so the consumer that wins the
-    // race triggers the ingest and this `beforeAll` shares the cached result instead of
-    // re-POSTing the same uploadId (which would 409 BUNDLE_PRIOR_RUN_FAILED).
-    //
-    // SYNTH mode (per-push/nightly): the migrated-data consumer blocks `test.skip` on
-    // `!useRealBundle()`, so NOTHING else ingests — keep the direct call with
-    // `testInfo.retry` so a Playwright retry re-handshakes a FRESH uploadId (a prior
-    // failed ingest sealed its upload FAILED).
     fixture = REAL_BUNDLE
       ? await ensureSharedMigrationBundle(browser, baseURL)
       : await seedFanOutParity(browser, request, baseURL, testInfo.retry);
@@ -174,8 +100,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     const page = await ctx.newPage();
     try {
       await loginAsMigratedAdmin(page, fixture.clubB);
-      // Club B has its OWN fanned-out copy under the SAME random name. Record
-      // its id for the rename-isolation + cross-tenant asserts below.
       clubBLocationId = await locationIdByName(page, fixture.locationName);
       expect(clubBLocationId).toBeTruthy();
     } finally {
@@ -190,14 +114,7 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     }
   });
 
-  // J-1 T-18 (operator-disabled 2026-06-03): this J-0c rename test times out at 60s on the
-  // MAXIMALLY-loaded fanout runner (legacy Mono + MSSQL + Keycloak + AlpenFlight + the co-located
-  // J-1 aircraft specs all on one box) — a runner-perf issue, NOT a correctness regression. The
-  // fan-out rename/distinct-rows parity is already proven for J-0c (PR #200, merged) and re-run in
-  // the dedicated nightly real-idp suite where it isn't load-starved. Skipped HERE only so the
-  // fanout goes green and deploys the paired legacy↔AlpenFlight gallery. Re-enable if the fanout
-  // gets its own runner / sharding (fanout-perf rider).
-  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
+  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows) [skipped: times out on the load-starved fanout runner; re-run in the nightly real-idp suite]', async ({
     browser,
   }, testInfo) => {
     expect(clubBLocationId, 'club B must have located its copy first').toBeTruthy();
@@ -205,7 +122,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      // (1) Club A renames its copy via the edit form.
       await loginAsMigratedAdmin(page, fixture.clubA);
       const clubAId = await locationIdByName(page, fixture.locationName);
       const updated = page.waitForResponse(
@@ -220,7 +136,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
       await page.getByTestId('locations-save-button').click();
       await updated;
       await expect(page).toHaveURL('/locations');
-      // Club A's list now shows the renamed copy.
       await expect(
         page.locator(`[data-testid="location-row-${clubAId}"]`).filter({ hasText: renamed }),
       ).toBeVisible();
@@ -235,14 +150,12 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
       });
     }
 
-    // (2) Club B's copy is UNCHANGED — still the original random name, same id.
     const ctxB = await newRecordedContext(browser, baseURL, testInfo);
     const pageB = await ctxB.newPage();
     try {
       await loginAsMigratedAdmin(pageB, fixture.clubB);
       await pageB.goto('/locations');
       await expect(pageB.getByTestId('locations-table')).toBeVisible();
-      // The original name still resolves to club B's SAME row id.
       const stillThere = pageB
         .locator(`[data-testid="location-row-${clubBLocationId}"]`)
         .filter({ hasText: fixture.locationName });
@@ -250,7 +163,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
         stillThere,
         'club B copy must still carry the ORIGINAL name (rename did not leak across the fan-out)',
       ).toBeVisible();
-      // And the renamed text must NOT appear in club B's list.
       await expect(
         pageB.locator('[data-testid^="location-row-"]').filter({ hasText: RENAMED_SUFFIX }),
       ).toHaveCount(0);
@@ -267,7 +179,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     const page = await ctx.newPage();
     try {
       await loginAsMigratedAdmin(page, fixture.clubA);
-      // Reuse club A's real Bearer to GET club B's migrated Location id.
       const bearer = await bearerFromLocationsList(page);
       const res = await ctx.request.get(`/api/v1/locations/${clubBLocationId}`, {
         headers: { authorization: bearer },

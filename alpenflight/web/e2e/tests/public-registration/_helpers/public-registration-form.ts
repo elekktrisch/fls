@@ -1,12 +1,5 @@
 import { type Page } from '@playwright/test';
 
-/**
- * One selector + endpoint vocabulary shared by both J-17 fidelities (the
- * mock inner-loop spec and the real-idp proof spec). Driving the same testids
- * from both means a renamed control breaks them together instead of letting
- * the cheap one drift green while the real chain rots.
- */
-
 export const CLUB_SLUG = 'alpine-soaring';
 export const DISABLED_CLUB_SLUG = 'registration-closed-club';
 export const UNKNOWN_CLUB_SLUG = 'no-such-club';
@@ -14,11 +7,6 @@ export const UNKNOWN_CLUB_SLUG = 'no-such-club';
 export const discoveryFlightPath = (slug: string): string => `/discovery-flight/${slug}`;
 export const scenicFlightPath = (slug: string): string => `/scenic-flight/${slug}`;
 
-/**
- * The unauthenticated surface. Kept under a `/public/` segment so the
- * `permitAll()` matchers stay a single prefix rather than a growing list of
- * individually-exempted paths.
- */
 export const publicApi = {
   club: (slug: string): string => `/api/v1/public/clubs/${slug}`,
   discoveryDays: (slug: string): string => `/api/v1/public/clubs/${slug}/discovery-flight-days`,
@@ -28,7 +16,6 @@ export const publicApi = {
     `/api/v1/public/clubs/${slug}/scenic-flight-registrations`,
 } as const;
 
-/** `data-testid`s the two public forms and their shared shell expose. */
 export const testId = {
   discoveryPage: 'discovery-flight-page',
   scenicPage: 'scenic-flight-page',
@@ -48,11 +35,6 @@ export const testId = {
   dayOption: (isoDate: string): string => `discovery-day-option-${isoDate}`,
 } as const;
 
-/**
- * Reactive-form control ids, label-associated through `<af-form-field>`. The
- * set is exactly what `PublicRegistrantDetails` carries — legacy's form has no
- * date of birth and the endpoint would drop one.
- */
 export const fieldId = {
   firstName: '#firstName',
   lastName: '#lastName',
@@ -97,7 +79,6 @@ export function registrant(overrides: Partial<Registrant> = {}): Registrant {
   };
 }
 
-/** The registrant fieldset both forms share. */
 export async function fillRegistrant(page: Page, r: Registrant): Promise<void> {
   await page.locator(fieldId.firstName).fill(r.firstName);
   await page.locator(fieldId.lastName).fill(r.lastName);
@@ -109,11 +90,6 @@ export async function fillRegistrant(page: Page, r: Registrant): Promise<void> {
   await page.locator(fieldId.remarks).fill(r.remarks);
 }
 
-/**
- * The invoice block, revealed by the "invoice address differs" toggle. Its
- * `notificationEmail` is the recipient the confirmation switches to, which is
- * the branch the parity assertion turns on.
- */
 export async function fillInvoiceAddress(page: Page, r: Registrant): Promise<void> {
   await page.getByTestId(testId.invoiceDiffers).check();
   await page.locator(fieldId.invoiceFirstName).fill(r.firstName);

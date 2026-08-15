@@ -15,20 +15,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Folds in S-123 — regression-lock the springdoc off-state under the prod
- * profile. Runs without any {@code SPRINGDOC_*} env vars set so that Spring's
- * relaxed binding cannot flip the endpoints on through environment leakage.
- * A 200 on either path in prod is a security / information-disclosure issue.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
                 "spring.profiles.active=prod",
-                // S-140 — prod normally rejects EPHEMERAL (operator footgun
-                // guard); the IT pairs source=EPHEMERAL with the explicit
-                // allow-in-prod override so the context boots without a
-                // real keyset. Real prod sets ALPENFLIGHT_MIGRATION_MASTER_KEYSET
-                // and never sets either of these.
                 "alpenflight.migration.master-keyset.source=EPHEMERAL",
                 "alpenflight.migration.master-keyset.allow-ephemeral-in-prod=true",
         })
@@ -38,14 +27,12 @@ import org.springframework.test.context.DynamicPropertySource;
 class OpenApiOffByDefaultIT {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void overrideDatasourceAndFlywayCredsToTheContainer(DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        // S-160 split points base spring.flyway.* at the MIGRATOR role; override
-        // to the container so boot-time Flyway connects with the container creds.
         r.add("spring.flyway.url", pg::jdbcUrl);
         r.add("spring.flyway.user", pg::username);
         r.add("spring.flyway.password", pg::password);
@@ -57,12 +44,16 @@ class OpenApiOffByDefaultIT {
     @Test
     void apiDocsReturns404UnderProdProfile() {
         ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode())
+                .as("a 200 here would disclose the whole API surface in prod")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
     void swaggerUiReturns404UnderProdProfile() {
         ResponseEntity<String> response = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode())
+                .as("no SPRINGDOC_* env var is set here, so relaxed binding cannot flip the UI on")
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

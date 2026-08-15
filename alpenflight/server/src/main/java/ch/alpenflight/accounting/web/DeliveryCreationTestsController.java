@@ -30,28 +30,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the {@code DeliveryCreationTest} aggregate — the rules-engine
- * regression harness (J-9, replacing legacy {@code masterdata/deliveryCreationTests/}).
- * The path keeps the legacy single-token form {@code /api/v1/deliverycreationtests}.
- *
- * <p>DeliveryCreationTest is <strong>tenant-scoped</strong> via Hibernate's
- * {@code @TenantId} discriminator on {@code DeliveryCreationTest.operatingClubId}
- * (ADR 0008). Reads and writes are filtered structurally to the caller's tenant;
- * a CLUB_ADMINISTRATOR of A asking for B's harness receives a {@code 404 Not
- * Found} — the row is invisible under A's scope, not a {@code 403} that would
- * confirm it exists.
- *
- * <p>Role gate: CLUB_ADMINISTRATOR for every endpoint (the harness is a club-admin
- * masterdata surface). Audit: every mutating method reaches
- * {@code AuditTrail.record} transitively through {@link DeliveryCreationTestsService}
- * (CREATE / UPDATE / DELETE), so {@code ControllerAuditCoverageTest} traces the
- * call chain without an explicit {@code @AuditedBy} escape.
- *
- * <p>The dry-run (capture expected) + run-test (run engine + diff) endpoints are
- * T-15; they extend this controller. {@code @Operation(operationId=...)} pins a
- * stable generated-client method name (orval) on every endpoint.
- */
 @RestController
 @RequestMapping(path = "/api/v1/deliverycreationtests", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "DeliveryCreationTests",

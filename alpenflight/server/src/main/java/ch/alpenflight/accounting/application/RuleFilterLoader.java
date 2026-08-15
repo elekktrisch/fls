@@ -19,24 +19,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-/**
- * Loads the caller-tenant's active {@link AccountingRuleFilter} rows ({@code ORDER
- * BY sort_indicator, id} — operator decision, deterministic) and resolves each
- * into the pure-data {@link RuleFilterInput} the engine stages consume, bucketed
- * by the filter's legacy filter-type int (5/10/20/30/40/50/55/60/70/80). Per
- * filter it resolves: {@code filterTypeId} UUID → legacy int (the bucket);
- * {@code accountingUnitTypeId} UUID → {@link AccountingUnitType} (line-emitting
- * buckets); {@code articleTarget} → article number; type-10 {@code recipientTarget}
- * member-number + {@code recipientName} → a self-contained {@link Recipient} VO
- * (enriched from a matching migrated Person when one exists), reproducing the
- * legacy {@code RecipientDetails} value object; null only when nothing identifies
- * the recipient (the legacy null-RecipientTarget throw).
- *
- * <p>Returns both bucketed views the orchestrator needs: the IgnoreFlight(5) +
- * Recipient(10) buckets (run in the short-circuit, before any line stage) and the
- * {@link RuleFilters} record the {@link ch.alpenflight.accounting.domain.DeliveryItemPipeline}
- * consumes.
- */
 @Component
 class RuleFilterLoader {
 
@@ -71,10 +53,10 @@ class RuleFilterLoader {
         Map<UUID, AccountingUnitType> unitByById = unitTypeByById();
         Map<Integer, List<RuleFilterInput>> byType = new HashMap<>();
 
-        for (AccountingRuleFilter filter : filters.findActiveForEngineOrdered()) {
+        for (AccountingRuleFilter filter : filters.findActiveForEngineOrderedBySortIndicatorThenId()) {
             Integer legacyType = filterTypeLegacyById.get(filter.getFilterTypeId());
             if (legacyType == null) {
-                continue; // unknown filter type — never bucketed, never applied.
+                continue;
             }
             byType.computeIfAbsent(legacyType, k -> new ArrayList<>())
                     .add(toInput(filter, legacyType, unitByById));
@@ -117,16 +99,6 @@ class RuleFilterLoader {
                 filter.getFilterConfig());
     }
 
-    // The legacy RecipientTarget is a self-contained RecipientDetails value object
-    // (DeliveryRecipientRule.cs:16-23 sets PersonId + RecipientName +
-    // PersonClubMemberNumber straight from the blob, no Person lookup, throwing
-    // only when the WHOLE blob is null). Real recipient rules route to a
-    // club-internal accounting ACCOUNT — PersonId=null + a synthetic member number
-    // (e.g. "999007") no Person owns — so a Person-FK lookup cannot resolve them.
-    // Mirror legacy: when a migrated Person matches the member number, enrich the
-    // recipient with its identity; otherwise fall back to the embedded value
-    // object (member number + recipient name). Return null only when nothing
-    // identifies the recipient, reproducing the legacy null-target throw.
     private @Nullable Recipient resolveRecipient(@Nullable String memberNumber,
                                                  @Nullable String recipientName) {
         String number = memberNumber == null || memberNumber.isBlank() ? null : memberNumber;
@@ -175,11 +147,6 @@ class RuleFilterLoader {
         return byType.getOrDefault(legacyType, List.of());
     }
 
-    /**
-     * The bucketed, fk-resolved filters for one delivery: the IgnoreFlight(5) +
-     * Recipient(10) lists the orchestrator runs in its short-circuit, plus the
-     * {@link RuleFilters} the line-item pipeline consumes.
-     */
     record LoadedFilters(
             List<RuleFilterInput> doNotInvoice,
             List<RuleFilterInput> recipient,

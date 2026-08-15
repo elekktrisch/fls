@@ -197,14 +197,8 @@ export class ArticlesEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
-  // J-26 T-10 — server-side number-duplicate routed through the `liveFieldErrors`
-  // async slot (rather than `setErrors`, which carries no `valueChanges` so the
-  // debounced stream would never re-read it). Cleared on retype (effect below).
   private readonly articleNumberDuplicate = signal<ValidationErrors | null>(null);
 
-  // Inline validation WHILE TYPING (J-26 T-10, via the J-6b `liveFieldErrors`
-  // infra): debounced ~200ms, replacing the touched-only bindings and binding
-  // the previously-silent `articleInfo` (maxLength(250) but no inline error).
   protected readonly articleNumberErrors = liveFieldErrors(this.form.controls.articleNumber, {
     asyncErrors$: toObservable(this.articleNumberDuplicate),
   });
@@ -294,11 +288,6 @@ function detailToFormValue(d: ArticleDetail): Partial<{
   };
 }
 
-/**
- * Build the wire payload from the form. {@code ArticleCreateRequest} and
- * {@code ArticleUpdateRequest} are structurally identical today; if they
- * diverge, narrow each caller back to its own builder rather than casting.
- */
 function formToWirePayload(form: ArticleForm): {
   articleNumber: string;
   articleName: string;

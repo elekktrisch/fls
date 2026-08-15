@@ -10,25 +10,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * The flight-process-state transition matrix is the parity oracle for
- * S-059, hand-transcribed from the legacy switch at {@code
- * FlightService.cs:1375-1444} (operator-driven) and the system-driven sites
- * in {@code FlightService.cs:900-1075} (validator), {@code :1140-1185}
- * (lock job), and {@code DeliveryService.cs:130-200} (delivery prep) /
- * {@code :340-360} (booking).
- *
- * <p>Trigger scoping matters — {@code Valid → Locked} is rejected for
- * {@link TransitionTrigger#OPERATOR} but accepted for
- * {@link TransitionTrigger#LOCK_JOB}; {@code Locked → DeliveryPrepared} is
- * a {@link TransitionTrigger#DELIVERY_PREP}-only edge; etc.
- */
 class FlightTransitionMatrixTest {
 
-    /** The full legal set, by trigger. Mirrors legacy exactly. */
     private static Stream<Arguments> legalTransitions() {
         return Stream.of(
-                // OPERATOR — FlightService.cs:1375-1444.
                 Arguments.of(TransitionTrigger.OPERATOR,
                         FlightProcessState.VALID, FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS),
                 Arguments.of(TransitionTrigger.OPERATOR,
@@ -44,10 +29,6 @@ class FlightTransitionMatrixTest {
                 Arguments.of(TransitionTrigger.OPERATOR,
                         FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS, FlightProcessState.VALID),
 
-                // VALIDATOR — FlightService.cs:1041-1050. May stamp Valid OR Invalid
-                // from NotProcessed; may stamp Invalid on a previously-Valid flight
-                // whose data was edited (ModifiedOn >= ValidatedOn); may re-validate
-                // an Invalid flight to Valid.
                 Arguments.of(TransitionTrigger.VALIDATOR,
                         FlightProcessState.NOT_PROCESSED, FlightProcessState.VALID),
                 Arguments.of(TransitionTrigger.VALIDATOR,
@@ -57,11 +38,9 @@ class FlightTransitionMatrixTest {
                 Arguments.of(TransitionTrigger.VALIDATOR,
                         FlightProcessState.VALID, FlightProcessState.INVALID),
 
-                // LOCK_JOB — FlightService.cs:1140-1185.
                 Arguments.of(TransitionTrigger.LOCK_JOB,
                         FlightProcessState.VALID, FlightProcessState.LOCKED),
 
-                // DELIVERY_PREP — DeliveryService.cs:130-200.
                 Arguments.of(TransitionTrigger.DELIVERY_PREP,
                         FlightProcessState.LOCKED, FlightProcessState.DELIVERY_PREPARED),
                 Arguments.of(TransitionTrigger.DELIVERY_PREP,
@@ -69,7 +48,6 @@ class FlightTransitionMatrixTest {
                 Arguments.of(TransitionTrigger.DELIVERY_PREP,
                         FlightProcessState.LOCKED, FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS),
 
-                // BOOKING — DeliveryService.cs:340-360.
                 Arguments.of(TransitionTrigger.BOOKING,
                         FlightProcessState.DELIVERY_PREPARED, FlightProcessState.DELIVERY_BOOKED));
     }
@@ -84,11 +62,6 @@ class FlightTransitionMatrixTest {
                 .isTrue();
     }
 
-    /**
-     * The negative oracle — every other (trigger, from, to) triple where
-     * {@code from != to} must be illegal. Same-state edges are exercised
-     * separately so the failure mode is distinguishable.
-     */
     @Test
     void every_unenumerated_transition_is_illegal() {
         Set<String> legal = legalTransitions()
@@ -98,7 +71,7 @@ class FlightTransitionMatrixTest {
             for (FlightProcessState from : FlightProcessState.values()) {
                 for (FlightProcessState to : FlightProcessState.values()) {
                     if (from == to) {
-                        continue; // exercised by same_state_is_always_illegal.
+                        continue;
                     }
                     String key = trigger + "|" + from + "|" + to;
                     boolean expected = legal.contains(key);
@@ -126,7 +99,7 @@ class FlightTransitionMatrixTest {
     @MethodSource("everyOtherStateAndTrigger")
     void delivery_booked_is_terminal(FlightProcessState to, TransitionTrigger trigger) {
         if (to == FlightProcessState.DELIVERY_BOOKED) {
-            return; // covered by same-state rule
+            return;
         }
         assertThat(FlightTransitionMatrix.isLegal(trigger, FlightProcessState.DELIVERY_BOOKED, to))
                 .as("DELIVERY_BOOKED -> %s under %s", to, trigger)
@@ -139,9 +112,7 @@ class FlightTransitionMatrixTest {
     }
 
     @Test
-    void enum_codes_match_legacy_smallints() {
-        // The codes are part of the public contract — the audit payload + e2e
-        // parity all key off them. Don't drift.
+    void enum_codes_match_the_legacy_smallints_that_audit_payloads_and_e2e_parity_key_off() {
         assertThat(FlightProcessState.NOT_PROCESSED.legacyCode()).isEqualTo((short) 0);
         assertThat(FlightProcessState.INVALID.legacyCode()).isEqualTo((short) 28);
         assertThat(FlightProcessState.VALID.legacyCode()).isEqualTo((short) 30);
@@ -154,27 +125,24 @@ class FlightTransitionMatrixTest {
 
     @Test
     void flight_transition_throws_on_illegal() {
-        // Cheap aggregate-level sanity: the method propagates the matrix
-        // decision. The matrix test above is the parity oracle.
-        Flight f = newGliderInState(FlightProcessState.NOT_PROCESSED);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.NOT_PROCESSED);
         assertThatThrownBy(() ->
                 f.transition(FlightProcessState.LOCKED, TransitionTrigger.OPERATOR))
                 .isInstanceOf(IllegalFlightTransitionException.class);
     }
 
     @Test
-    void flight_transition_applies_legal_change() {
-        Flight f = newGliderInState(FlightProcessState.VALID);
-        // Valid -> Locked stamps locked_at from the supplied instant (S-061).
-        java.time.Instant at = java.time.Instant.parse("2026-01-01T12:00:00Z");
-        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB, at);
+    void flight_transition_to_locked_stamps_lockedAt_from_the_supplied_instant() {
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.VALID);
+        java.time.Instant lockJobInstant = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB, lockJobInstant);
         assertThat(f.getProcessState()).isEqualTo(FlightProcessState.LOCKED);
-        assertThat(f.getLockedAt()).isEqualTo(at);
+        assertThat(f.getLockedAt()).isEqualTo(lockJobInstant);
     }
 
     @Test
     void flight_transition_rejects_same_state() {
-        Flight f = newGliderInState(FlightProcessState.VALID);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.VALID);
         assertThatThrownBy(() ->
                 f.transition(FlightProcessState.VALID, TransitionTrigger.OPERATOR))
                 .isInstanceOf(IllegalFlightTransitionException.class);
@@ -182,11 +150,11 @@ class FlightTransitionMatrixTest {
 
     @Test
     void bookDelivery_flipsPreparedToBooked_andRejectsFromNonPrepared() {
-        Flight prepared = newGliderInState(FlightProcessState.DELIVERY_PREPARED);
+        Flight prepared = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_PREPARED);
         prepared.bookDelivery();
         assertThat(prepared.getProcessState()).isEqualTo(FlightProcessState.DELIVERY_BOOKED);
 
-        Flight booked = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
+        Flight booked = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_BOOKED);
         assertThatThrownBy(booked::bookDelivery)
                 .as("an already-booked flight rejects re-booking")
                 .isInstanceOf(IllegalFlightTransitionException.class);
@@ -194,7 +162,7 @@ class FlightTransitionMatrixTest {
 
     @Test
     void delivery_booked_is_sink_at_aggregate_level() {
-        Flight f = newGliderInState(FlightProcessState.DELIVERY_BOOKED);
+        Flight f = gliderSeededDirectlyInState(FlightProcessState.DELIVERY_BOOKED);
         for (FlightProcessState to : FlightProcessState.values()) {
             if (to == FlightProcessState.DELIVERY_BOOKED) {
                 continue;
@@ -205,12 +173,7 @@ class FlightTransitionMatrixTest {
         }
     }
 
-    /**
-     * Builds a glider seeded with the given process state's UUID so the
-     * aggregate carries the matching enum before a transition is exercised.
-     * Bypasses the application flow which always stamps NOT_PROCESSED.
-     */
-    private static Flight newGliderInState(FlightProcessState state) {
+    private static Flight gliderSeededDirectlyInState(FlightProcessState state) {
         return Flight.createGlider(
                 java.util.UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1"),
                 state.id(),

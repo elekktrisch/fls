@@ -1,7 +1,3 @@
-// Spec #30: MemberState CRUD. Pencil-link table; trash icon raises a native confirm.
-//
-// TODO testid: form `Save`, list `+`, row-delete trash anchor.
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, getBearerToken } from '../../test-data';
@@ -28,11 +24,9 @@ async function waitForListReady(page: Page): Promise<void> {
 test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
   const id = testId(testInfo);
-  // Disjoint substrings — see TEST_WRITING.md §2.
   const createName  = `MemberState-${id.short}-A`;
   const renamedName = `MemberState-${id.short}-B`;
 
-  // Pre-clean.
   const token = await getBearerToken(loggedInPage);
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const listRes = await page.request.get(`${API_BASE}/api/v1/memberstates`, { headers });
@@ -46,7 +40,6 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage 
     }
   }
 
-  // CREATE
   await gotoRoute(page, LIST_PATH);
   await page.locator('.fls-new-button button').click();
   await page.waitForURL(/\/masterdata\/memberStates\/new$/, { timeout: 10_000 });
@@ -57,7 +50,6 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage 
   await waitForListReady(page);
   await expect(await findRowByName(page, createName)).toHaveCount(1, { timeout: 10_000 });
 
-  // EDIT
   const createdRow = await findRowByName(page, createName);
   await createdRow.locator('[data-testid="row-edit"]').click();
   await page.waitForURL(/\/masterdata\/memberStates\/[0-9a-f-]+$/i, { timeout: 10_000 });
@@ -71,7 +63,6 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage 
   await expect(await findRowByName(page, renamedName)).toHaveCount(1);
   await expect(await findRowByName(page, createName)).toHaveCount(0);
 
-  // DELETE — accept native confirm, wait for POST+DELETE roundtrip.
   page.once('dialog', dialog => dialog.accept());
   const renamedRow = await findRowByName(page, renamedName);
   const deletePromise = page.waitForResponse(r =>
@@ -80,7 +71,6 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage 
   await renamedRow.locator('a:has(.fa-trash-o)').click();
   await deletePromise;
 
-  // Re-navigate so ng-table re-fetches.
   await gotoRoute(page, '/masterdata/memberStates');
   await waitForListReady(page);
   await expect(await findRowByName(page, renamedName)).toHaveCount(0, { timeout: 10_000 });

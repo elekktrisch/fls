@@ -1,10 +1,5 @@
 package ch.alpenflight.flights.domain;
 
-/**
- * Thrown when a {@code PUT} carries an {@code If-Match} header whose value
- * differs from the stored {@link Flight#getVersion()}. Mapped to HTTP 412
- * Precondition Failed by the controller advice — RFC 7232 §3.1.
- */
 public class FlightVersionMismatchException extends RuntimeException {
 
     private final long expected;

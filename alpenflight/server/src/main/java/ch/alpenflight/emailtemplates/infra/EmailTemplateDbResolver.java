@@ -17,24 +17,6 @@ import org.thymeleaf.templateresolver.ITemplateResolver;
 import org.thymeleaf.templateresolver.TemplateResolution;
 import org.thymeleaf.templateresource.StringTemplateResource;
 
-/**
- * Send-time Thymeleaf resolver that prefers a club's DB override over the S-082
- * file default. Spring Boot's thymeleaf auto-config collects every
- * {@link ITemplateResolver} bean into the engine and consults them by ascending
- * {@code order}; this resolver sits ahead of the default file/classpath resolver
- * so an override wins, and returns {@code null} when no override exists so the
- * chain falls through to the file default — no redeploy needed either way.
- *
- * <p>The override is the caller-club's row, scoped by Hibernate's
- * {@code @TenantId} on {@link EmailTemplate}, so the lookup never crosses a
- * tenant boundary. The logical template name the senders pass
- * ({@code email/<stem>}) maps to {@code (template_key, language_locale)}: the
- * {@code email/} prefix is stripped to the key (canonicalized lower-case to
- * match the aggregate) and the locale is the single send-path locale every file
- * default is keyed under. The override applies uniformly by
- * {@code (tenant, key, locale)} for every template — the legacy quirk that
- * dropped {@code clubId} on three senders is not reproduced.
- */
 @Component
 public class EmailTemplateDbResolver implements ITemplateResolver {
 

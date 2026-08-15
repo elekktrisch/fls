@@ -27,9 +27,6 @@ class LocationMapperTest extends AbstractMapperContractTest<LocationMapper> {
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("LocationId", randomUuidString(faker));
-        // ClubId comes from the producer's per-Club fan-out — the legacy
-        // table has no club ownership; producer-side SELECT aliases the
-        // fan-out partner Club's id as ClubId on the cursor.
         row.put("ClubId", randomUuidString(faker));
         row.put("LocationName", faker.address().cityName() + " " + faker.aviation().airport());
         row.put("LocationShortName", faker.address().cityName());
@@ -65,7 +62,7 @@ class LocationMapperTest extends AbstractMapperContractTest<LocationMapper> {
 
     @Test
     void declaresClubAndCountryAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("Location is tenant-scoped via club_id per V7; FK to "
                         + "Country is SYSTEM_GLOBAL — both EntityType members "
                         + "must precede LOCATION in the topo order")

@@ -10,20 +10,6 @@ import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Maps the {@link PlanningDay} aggregate to the REST detail DTO (J-6 T-04). The
- * application-layer mapper — NOT the migration-bundle {@code PlanningDayMapper}
- * (which keys the legacy MSSQL export).
- *
- * <p>The three nullable crew person-id slots are projected from the generic
- * assignment rows: the service resolves each assignment's per-club type to a
- * well-known {@link PlanningRole} and hands the resulting {@code role → personId}
- * map here. The {@code numberOfAircraftReservations} is the service-computed
- * count (legacy {@code NumberOfAircraftReservations}, never stored); the
- * {@code canMutate} flag drives both {@code canUpdateRecord} and
- * {@code canDeleteRecord} (the update + delete gate is the same admin-or-creator
- * predicate — J-6 oracle).
- */
 final class PlanningDayMapper {
 
     private PlanningDayMapper() {}

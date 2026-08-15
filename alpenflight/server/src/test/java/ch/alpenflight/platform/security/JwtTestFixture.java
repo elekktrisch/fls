@@ -27,16 +27,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
-/**
- * Test-only JWT minting fixture. Registers a {@link JwtDecoder} backed by a
- * static RSA keypair and exposes {@link #mint(Consumer)} so tests can sign
- * tokens with arbitrary claims against the same key the decoder validates.
- *
- * <p>The {@code @Primary} {@code JwtDecoder} replaces the production decoder
- * for any {@code @SpringBootTest} that {@code @Import}s this configuration,
- * letting the full Spring Security chain run against synthesised tokens
- * without an OIDC discovery call to Keycloak.
- */
 @TestConfiguration
 public class JwtTestFixture {
 
@@ -70,13 +60,6 @@ public class JwtTestFixture {
         return sign(builder.build());
     }
 
-    /**
-     * Mint a token pre-shaped for the JIT first-login filter (S-169): sub
-     * is a bare UUID string, {@code clubId} claim set, identity claims
-     * ({@code preferred_username} / {@code given_name} / {@code email})
-     * defaulted. Roles default to {@code PILOT}. Tests override any of
-     * these via {@code extra}.
-     */
     public String mintJitReady(UUID sub, UUID clubId, Consumer<JWTClaimsSet.Builder> extra) {
         JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .issuer(TEST_ISSUER)

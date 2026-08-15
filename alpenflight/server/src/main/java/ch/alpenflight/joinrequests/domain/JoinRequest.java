@@ -15,27 +15,6 @@ import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Join-request aggregate root (S-178). One row per pilot's self-serve request to
- * join a club: the pilot {@link #submit submits}, an admin {@link #approve approves}
- * or {@link #deny denies}, or the pilot {@link #withdraw withdraws}.
- *
- * <p>Per ADR 0022 directive 2 the lifecycle FSM lives HERE, not the schema. A
- * request opens {@link JoinRequestStatus#PENDING} and moves once into exactly one
- * terminal state via a guarded mutator — any second transition is rejected with
- * {@link IllegalJoinRequestStateException}. The schema enforces only structure
- * (PK, the {@code club_id} FK, the {@code ux_join_request_alive} partial UNIQUE).
- *
- * <p>Tenant-scoped on {@code club_id} via Hibernate {@code @TenantId} (ADR 0008).
- * The submit path runs under a lookup-window context that fills this column for a
- * caller who has no tenant yet (T-05); every other read/write is tenant-filtered.
- *
- * <p>{@code keycloak_sub} / {@code email} / {@code friendlyName} come straight off
- * the authenticated principal at submit time — the caller has a Keycloak identity
- * but no {@code t_user} row. {@code note} and {@code decisionReason} are capped
- * free text (≤{@value #MAX_TEXT_LENGTH}) and {@code @AuditRedact} (hashed in the
- * audit ledger per S-027).
- */
 @Entity
 @Table(name = "t_join_request")
 public class JoinRequest {
@@ -83,7 +62,6 @@ public class JoinRequest {
     private @Nullable String decisionReason;
 
     protected JoinRequest() {
-        // JPA.
         this.id = new UUID(0, 0);
         this.keycloakSub = new UUID(0, 0);
         this.email = "";
@@ -93,20 +71,6 @@ public class JoinRequest {
         this.createdOn = Instant.EPOCH;
     }
 
-    /**
-     * Files a new pending request. The id is caller-minted (UUIDv7 at the
-     * service); identity, tenant, and timestamp are stamped once and never
-     * mutated. {@code note} is normalized + length-capped here so an over-long
-     * note never reaches persistence.
-     *
-     * @param id minted aggregate id (UUIDv7)
-     * @param keycloakSub the authenticated principal's KC subject
-     * @param email the principal's email (PII — redacted in audit)
-     * @param friendlyName the principal's display name (PII — redacted in audit)
-     * @param clubId the tenant — the club the code resolved to (S-177)
-     * @param note optional pilot note (≤{@value #MAX_TEXT_LENGTH}), nullable
-     * @param clock the submit-time source
-     */
     public static JoinRequest submit(UUID id, UUID keycloakSub, String email,
                                      String friendlyName, UUID clubId,
                                      @Nullable String note, Clock clock) {
@@ -122,38 +86,15 @@ public class JoinRequest {
         return r;
     }
 
-    /**
-     * Admin approves a pending request. Records the deciding user + decision
-     * time and moves to {@link JoinRequestStatus#APPROVED}. The cross-system
-     * side effects (KC attribute, {@code t_user}, Person) are the application
-     * service's job (T-06) — this only owns the state transition.
-     *
-     * @throws IllegalJoinRequestStateException if the request is not pending
-     */
     public void approve(UUID decidedByUserId, Clock clock) {
         decide(JoinRequestStatus.APPROVED, decidedByUserId, null, clock);
     }
 
-    /**
-     * Admin denies a pending request with an optional reason (≤{@value
-     * #MAX_TEXT_LENGTH}, shown to the pilot). Moves to {@link
-     * JoinRequestStatus#DENIED}.
-     *
-     * @throws IllegalJoinRequestStateException if the request is not pending
-     */
     public void deny(@Nullable String reason, UUID decidedByUserId, Clock clock) {
         decide(JoinRequestStatus.DENIED, decidedByUserId,
                 FreeText.normalize(reason, MAX_TEXT_LENGTH), clock);
     }
 
-    /**
-     * The pilot withdraws their own pending request. Moves to {@link
-     * JoinRequestStatus#WITHDRAWN}. A withdrawal records no deciding user (the
-     * pilot acted on their own request) and starts NO cooldown — the pilot may
-     * immediately re-submit.
-     *
-     * @throws IllegalJoinRequestStateException if the request is not pending
-     */
     public void withdraw(Clock clock) {
         decide(JoinRequestStatus.WITHDRAWN, null, null, clock);
     }

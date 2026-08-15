@@ -14,16 +14,6 @@ import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutati
 
 import { NotificationsStore } from './notifications.store';
 
-/**
- * Logic test for the Notifications-tab store (J-4 T-11): `getMyNotificationPrefs`
- * hydrates the 3-boolean view (absent flags default false), `save()` round-trips
- * through `updateMyNotificationPrefs` and reflects the persisted projection, and a
- * `profile.updated` event is emitted so the session re-reads `/me`. The form DOM +
- * the real PATCH wiring are proven by the real-idp e2e
- * (`profile/self-edit.spec.ts`). Per web testing posture (CLAUDE.md §8) this is a
- * store/logic spec, no template rendering.
- */
-
 const PREFS_BASE: MeNotificationPrefsResponse = {
   receiveFlightReports: true,
   receiveAircraftReservationNotifications: false,
@@ -80,7 +70,6 @@ describe('NotificationsStore', () => {
     const view = store.view();
     expect(view).not.toBeNull();
     expect(view?.receiveFlightReports).toBe(true);
-    // Absent flags default to false.
     expect(view?.receiveAircraftReservationNotifications).toBe(false);
     expect(view?.receivePlanningDayRoleReminder).toBe(false);
     expect(store.canSave()).toBe(true);

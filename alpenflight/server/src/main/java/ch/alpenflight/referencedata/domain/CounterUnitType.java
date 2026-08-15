@@ -7,15 +7,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Counter unit catalog (HOURS_DECIMAL, HOURS_MINUTES, LANDINGS, STARTS).
- * System-global; not tenant-scoped. Mapped to the V2 {@code t_counter_unit_type}
- * table; data lives in the V2 Flyway seed. Read-only.
- *
- * <p>Referenced by {@code aircraft.flight_operating_counter_unit_type_id} +
- * {@code aircraft.engine_operating_counter_unit_type_id} — the Add Aircraft
- * form needs the catalog as dropdown fuel.
- */
 @Entity
 @Table(name = "t_counter_unit_type")
 public class CounterUnitType {
@@ -36,7 +27,6 @@ public class CounterUnitType {
     private @Nullable String comment;
 
     protected CounterUnitType() {
-        // JPA.
     }
 
     public @Nullable UUID getId() {

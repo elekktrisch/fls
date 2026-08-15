@@ -1,10 +1,3 @@
-// Helpers for self-contained tests — see e2e/TEST_WRITING.md.
-//
-//   - ensureGliderFlight: idempotent create-or-find a flight identified by
-//     Comment. Supports optional state + CreatedOn overrides via SQL.
-//   - withPool: raw SQL escape hatch for columns the public API won't let
-//     you set (LockedOn, ValidatedOn, …).
-//   - getBearerToken / authHeaders: read the cached token off sessionStorage.
 import type { APIRequestContext, Page } from "@playwright/test";
 import sql from "mssql";
 
@@ -31,7 +24,6 @@ export async function withPool<T>(
   }
 }
 
-/** Pull the bearer token off the loggedInPage's sessionStorage. */
 export async function getBearerToken(page: Page): Promise<string> {
   const token = await page.evaluate(() => {
     const raw = sessionStorage.getItem("ngStorage-loginResult");
@@ -56,17 +48,11 @@ export function authHeaders(token: string): Record<string, string> {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Flights
-// ---------------------------------------------------------------------------
-
-/** Find a glider flight by exact Comment match, or null. */
 export async function findFlightByComment(
   request: APIRequestContext,
   token: string,
   comment: string,
 ): Promise<{ FlightId: string } | null> {
-  // SQL is simpler than the paged endpoint here (no date-range envelope).
   return await withPool(async (pool) => {
     const r = await pool
       .request()
@@ -78,22 +64,12 @@ export async function findFlightByComment(
 }
 
 export type EnsureGliderFlightOpts = {
-  /** Unique Comment used to look up the flight. */
   comment: string;
-  /** Optional explicit start date; default = today. */
   flightDate?: Date;
-  /** If set, UPDATE the flight to land at this ProcessStateId after creation. */
   processStateId?: number;
-  /** If set, UPDATE CreatedOn to be this many days in the past (for time-gated workflow tests). */
   createdOnDaysAgo?: number;
 };
 
-/**
- * Idempotent upsert of a self-launch glider flight identified by Comment.
- * Picks HB-3407 (preferred) or a 2-seat no-engine glider; first seeded glider
- * pilot; the club's homebase (or LSZK/first) start/landing location so the
- * location-scoped flight report counts it.
- */
 export async function ensureGliderFlight(
   request: APIRequestContext,
   token: string,
@@ -154,13 +130,7 @@ export async function ensureGliderFlight(
   const ftype =
     ftypeList.find((t) => !t.IsPassengerFlight && !t.InstructorRequired) ??
     ftypeList[0];
-  // The location-scoped flight report (FlightReportsController location-flights-*
-  // → FlightReportService) filters on StartLocationId/LdgLocationId == the club's
-  // HomebaseId, and the running club's homebase drifts under the accumulating
-  // legacy-suite state (not fixed at LSZK). Anchor the seeded flight to the club's
-  // ACTUAL homebase so it is genuinely counted, falling back to LSZK/first only
-  // when the club has no homebase set.
-  const loc =
+  const clubHomebaseOrFallbackLocation =
     locList.find((l) => l.LocationId === club.HomebaseId) ??
     locList.find((l) => l.IcaoCode === "LSZK") ??
     locList[0];
@@ -177,15 +147,15 @@ export async function ensureGliderFlight(
     const body = {
       FlightId: "00000000-0000-0000-0000-000000000000",
       FlightDate: flightDate.toISOString().slice(0, 10),
-      StartType: 3, // Self-launch
-      FlightAircraftType: 1, // GliderFlight
+      StartType: 3,
+      FlightAircraftType: 1,
       Comment: opts.comment,
       GliderFlightDetailsData: {
         AircraftId: aircraft.AircraftId,
         PilotPersonId: pilot.PersonId,
         FlightTypeId: ftype.FlightTypeId,
-        StartLocationId: loc.LocationId,
-        LdgLocationId: loc.LocationId,
+        StartLocationId: clubHomebaseOrFallbackLocation.LocationId,
+        LdgLocationId: clubHomebaseOrFallbackLocation.LocationId,
         StartDateTime: start.toISOString(),
         LdgDateTime: landing.toISOString(),
         NrOfLdgs: 1,
@@ -206,7 +176,6 @@ export async function ensureGliderFlight(
     flightId = created.FlightId;
   }
 
-  // Optional state / time-gate overrides via SQL.
   if (
     opts.processStateId !== undefined ||
     opts.createdOnDaysAgo !== undefined
@@ -222,7 +191,6 @@ export async function ensureGliderFlight(
         r.input("daysAgo", sql.Int, opts.createdOnDaysAgo);
         sets.push("CreatedOn = DATEADD(DAY, -@daysAgo, SYSDATETIME())");
       }
-      // ValidatedOn must be non-null for Invalid→Valid revalidation + locking.
       sets.push(
         "ValidatedOn = COALESCE(ValidatedOn, DATEADD(DAY, -1, SYSDATETIME()))",
       );
@@ -238,6 +206,6 @@ export async function ensureGliderFlight(
     aircraftId: aircraft.AircraftId,
     pilotPersonId: pilot.PersonId,
     flightTypeId: ftype.FlightTypeId,
-    startLocationId: loc.LocationId,
+    startLocationId: clubHomebaseOrFallbackLocation.LocationId,
   };
 }

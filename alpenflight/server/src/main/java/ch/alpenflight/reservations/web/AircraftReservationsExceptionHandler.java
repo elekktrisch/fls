@@ -11,22 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates {@code AircraftReservation} domain exceptions to RFC 7807 problem
- * responses (J-5 T-05). Holds the only Spring-web coupling of the reservation
- * error vocabulary — the exception types stay in {@code reservations.domain}
- * free of {@code @ResponseStatus} per ADR 0023.
- *
- * <ul>
- *   <li>{@link ReservationConflictException} → <strong>409</strong>
- *       (key {@code aircraft.reservation.overlap}) — same-aircraft overlap.</li>
- *   <li>{@link InvalidReservationDurationException} → <strong>422</strong>
- *       (key {@code aircraft.reservation.duration}) — timed end ≤ start.</li>
- *   <li>{@link AircraftReservationNotFoundException} → 404.</li>
- *   <li>{@link IllegalArgumentException} → 400 (missing type reference,
- *       null factory args).</li>
- * </ul>
- */
 @RestControllerAdvice(assignableTypes = AircraftReservationsController.class)
 class AircraftReservationsExceptionHandler {
 

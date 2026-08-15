@@ -15,15 +15,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-/**
- * FSM matrix for {@link Deployment}. The legal-transition table is the
- * spec; this test enumerates every (source, target) pair and asserts that
- * legal pairs land + emit a {@link DeploymentLifecycleTransitioned} event
- * and illegal pairs throw {@link IllegalLifecycleTransitionException}.
- *
- * <p>Per ADR 0022 directive 2 the FSM lives on the aggregate; the schema
- * stores only the resulting {@code lifecycle_state} string.
- */
 class DeploymentTest {
 
     private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-0000000000aa");
@@ -177,11 +168,7 @@ class DeploymentTest {
         return Stream.of(LifecycleState.values())
                 .filter(s -> s != LifecycleState.SANDBOX)
                 .flatMap(from -> Stream.of(LifecycleState.values())
-                        // TRIAL + SANDBOX are unreachable as targets (TRIAL is only
-                        // reached via startTrial, SANDBOX only via the Flyway seed).
-                        // applyTransition() refuses them; transitionByAdmin asserts
-                        // the same in its own dedicated tests below.
-                        .filter(to -> to != LifecycleState.SANDBOX && to != LifecycleState.TRIAL)
+                        .filter(DeploymentTest::isReachableAsATransitionTarget)
                         .filter(to -> from != to)
                         .filter(to -> !LEGAL_PAIRS.contains(List.of(from, to)))
                         .map(to -> Arguments.of(from, to)));
@@ -189,8 +176,12 @@ class DeploymentTest {
 
     static Stream<Arguments> allTargets() {
         return Stream.of(LifecycleState.values())
-                .filter(s -> s != LifecycleState.SANDBOX && s != LifecycleState.TRIAL)
+                .filter(DeploymentTest::isReachableAsATransitionTarget)
                 .map(Arguments::of);
+    }
+
+    private static boolean isReachableAsATransitionTarget(LifecycleState state) {
+        return state != LifecycleState.SANDBOX && state != LifecycleState.TRIAL;
     }
 
     @Test

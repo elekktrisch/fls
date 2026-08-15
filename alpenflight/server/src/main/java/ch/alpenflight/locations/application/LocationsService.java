@@ -23,35 +23,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link Location} aggregate. ICAO uniqueness
- * is per-club since S-049b, enforced by:
- *
- * <ol>
- *   <li>service-layer pre-check (UX optimization — cleaner 409 mapping for
- *       the non-race case). The lookup itself is tenant-scoped via Hibernate's
- *       {@code @TenantId} discriminator, so a duplicate ICAO in <em>another</em>
- *       club is invisible to this check and proceeds to insert;
- *   <li>partial UNIQUE index {@code ux_location_club_icao} on
- *       {@code location(club_id, icao_code) WHERE icao_code IS NOT NULL AND
- *       deleted_on IS NULL} (source of truth — wins races, scopes uniqueness
- *       to the active per-tenant catalog and lets soft-delete-then-recreate
- *       reuse the ICAO within the same club).
- * </ol>
- *
- * <p>External signatures speak {@link LocationId} so the controller can't
- * accidentally swap a {@code Location} id for a {@code Club} / {@code Person}
- * id. The repository port still keys on raw {@link UUID} (Spring Data +
- * Hibernate prefer it that way); the service is the seam where the type
- * narrows.
- *
- * <p>Mutations emit a {@link ch.alpenflight.audit.domain.AuditAction
- * AuditAction.CREATE/UPDATE/DELETE} row via {@link AuditTrail} — the
- * before-snapshot is captured before mutation; the after-snapshot is the
- * persisted state. Failed mutations (validation, FK, race) emit no
- * success row — the {@code RequestAuditFilter} synthesises a
- * {@code failed=true} row from the HTTP layer instead.
- */
 @Service
 @Transactional
 public class LocationsService {
@@ -119,7 +90,8 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        LocationDetail created = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail created = LocationMapper.toDetail(
+                saveTranslatingIcaoUniqueViolationToConflict(loc, req.icaoCode()));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -156,7 +128,8 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        LocationDetail after = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail after = LocationMapper.toDetail(
+                saveTranslatingIcaoUniqueViolationToConflict(loc, req.icaoCode()));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -172,7 +145,8 @@ public class LocationsService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id.value(), before));
     }
 
-    private Location persist(Location loc, @Nullable String icaoCode) {
+    private Location saveTranslatingIcaoUniqueViolationToConflict(Location loc,
+                                                                  @Nullable String icaoCode) {
         try {
             return locations.save(loc);
         } catch (DataIntegrityViolationException e) {

@@ -18,7 +18,7 @@ import {
   type BlockPlacement,
 } from '../scheduler/reservation-scheduler.placement';
 import {
-  DAY_HOURS_END,
+  DAY_HOURS_END_INCLUSIVE,
   DAY_HOURS_START,
   addDays,
   isoDate,
@@ -32,7 +32,6 @@ import {
   type WeekCell,
 } from './reservations-calendar.model';
 
-/** A reservation pre-decorated with its horizontal placement for the day lane. */
 interface PlacedBlock {
   reservation: ReservationItem;
   placement: BlockPlacement;
@@ -40,35 +39,12 @@ interface PlacedBlock {
   isMaintenance: boolean;
 }
 
-/** Hour columns of the day grid (reference 08–19 inclusive). */
 const DAY_HOURS = Array.from(
-  { length: DAY_HOURS_END - DAY_HOURS_START + 1 },
+  { length: DAY_HOURS_END_INCLUSIVE - DAY_HOURS_START + 1 },
   (_, i) => DAY_HOURS_START + i,
 );
-/** Reservation-type names that render as a hatched maintenance band (reference). */
-const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
+const MAINTENANCE_TYPE_NAMES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
 
-/**
- * `/reservations` calendar (J-5 T-39) — the single calendar-first reservations
- * screen that consolidates the old paged table + the separate
- * `/reservation-scheduler` into one view (design reference
- * `screens-reservations.jsx`, ADR 0024 Option A).
- *
- * Two views over the SAME store data (no extra fetch — reuses the list store's
- * already-loaded reservations + picker label maps):
- * - **Day view**: aircraft×hour grid (08–19). Each aircraft is a lane; each
- *   reservation is a time-placed block, reusing the T-10 `placeBlock` math over
- *   an `hourWindow`. Maintenance renders as a hatched band.
- * - **Week view**: aircraft×day matrix. Each cell shows `count · hours` + a thin
- *   progress bar + the first pilot, aggregated by the `weekCell` helper.
- *
- * Chrome: page header + actions (Today, New reservation → /reservations/new),
- * a prev/next-week + week day-picker row, and a day/week toggle. The METAR /
- * weather strip from the reference is SKIPPED (no weather source — deferred in
- * the journey). Clicking a block → edit; New / empty → create.
- *
- * Mobile: the day grid horizontal-scrolls (reference `.rsv-day`).
- */
 @Component({
   selector: 'af-reservations-calendar',
   standalone: true,
@@ -109,11 +85,8 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
           }
         </af-page-header>
 
-        <!-- Week navigation + day-picker + day/week toggle -->
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-1">
-            <!-- Pager step follows the active view (T-08 #3): day view steps ±1
-                 day (prev/next-day testids), week view steps ±7 (prev/next-week). -->
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center border border-slate-300 bg-white text-slate-600 cursor-pointer hover:bg-slate-50"
@@ -130,7 +103,7 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
               role="tablist"
               [attr.aria-label]="t('calendar.dayPicker')"
             >
-              @for (d of weekDayCells(); track d.key) {
+              @for (d of weekDayCells(); track d.dayKey) {
                 <button
                   type="button"
                   role="tab"
@@ -141,7 +114,7 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                   [class.bg-white]="!d.isSelected"
                   [class.!text-slate-500]="!d.isSelected"
                   (click)="selectDay(d)"
-                  [attr.data-testid]="'reservations-daypicker-' + d.key"
+                  [attr.data-testid]="'reservations-daypicker-' + d.dayKey"
                 >
                   <span class="caps text-[10px] opacity-70">{{ d.weekdayShort }}</span>
                   <span class="tabular text-sm">{{ d.dayOfMonth }}</span>
@@ -159,7 +132,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
             >
               <af-icon name="chevron-right" [size]="16" />
             </button>
-            <!-- View-aware period label (T-08 #3): DD.MM.YYYY day / start–end week. -->
             <span
               class="tabular ml-3 text-sm font-medium text-slate-700"
               data-testid="reservations-period-label"
@@ -169,15 +141,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
 
           <div class="flex border border-slate-300" data-testid="reservations-view-toggle">
             @for (v of views; track v) {
-              <!-- Selected = design fg-bg + bg-text (screens-reservations.jsx:106-110):
-                   surface-fg (slate-900) ground + white text, a legible active
-                   state, not an inverted "blacked-out" block (J-6b T-08 #2).
-                   The text color utility is IMPORTANT deliberately (J-6b T-17):
-                   ng-zorro's stylesheet is imported UNLAYERED (styles.css:2), so
-                   its global button color reset beats Tailwind's LAYERED text
-                   utilities and left the selected button dark-on-dark (the
-                   operator's #2 bug T-08 missed). The important utility wins the
-                   cascade over the unlayered antd reset, restoring legible text. -->
               <button
                 type="button"
                 class="border-0 px-3.5 py-1.5 text-xs font-medium capitalize cursor-pointer not-first:border-l not-first:border-slate-300"
@@ -208,18 +171,16 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
         />
 
         @if (view() === 'day') {
-          <!-- ─── Day view: aircraft × hour grid ─── -->
           <div class="overflow-x-auto border border-slate-200" data-testid="reservations-day-grid">
             <div class="min-w-[720px]">
               <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2">
                 <span class="font-medium">{{ selectedDayIso() | date: 'EEEE, dd.MM.yyyy' }}</span>
                 <span class="muted tabular text-xs">
                   {{ t('calendar.reservationsCount', { count: dayReservationCount() }) }} ·
-                  {{ hoursStart }}:00–{{ hoursEnd }}:00
+                  {{ hoursStart }}:00–{{ hoursEndExclusive }}:00
                 </span>
               </div>
 
-              <!-- hour header -->
               <div
                 class="grid border-b border-slate-200 bg-slate-50"
                 [style.grid-template-columns]="'140px repeat(' + dayHours.length + ', 1fr)'"
@@ -253,7 +214,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                     </span>
                   </div>
                   <div class="relative">
-                    <!-- hour grid lines -->
                     <div
                       class="pointer-events-none absolute inset-0 grid"
                       [style.grid-template-columns]="'repeat(' + dayHours.length + ', 1fr)'"
@@ -263,7 +223,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                       }
                     </div>
                     @for (block of placedBlocks(lane); track block.reservation.id) {
-                      <!-- rounded-[2px]: ADR 0024 max-tolerated radius exception. -->
                       <button
                         type="button"
                         class="absolute top-1 bottom-1 flex flex-col justify-center gap-px overflow-hidden rounded-[2px] border-0 border-l-[3px] px-2 text-left text-xs cursor-pointer"
@@ -298,7 +257,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
             </div>
           </div>
         } @else {
-          <!-- ─── Week view: aircraft × day matrix ─── -->
           <div class="overflow-x-auto border border-slate-200" data-testid="reservations-week-grid">
             <div class="min-w-[720px]">
               <div
@@ -306,7 +264,7 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                 [style.grid-template-columns]="'140px repeat(' + weekDayCells().length + ', 1fr)'"
               >
                 <div class="caps muted px-3 py-2.5">{{ t('scheduler.aircraft') }}</div>
-                @for (d of weekDayCells(); track d.key) {
+                @for (d of weekDayCells(); track d.dayKey) {
                   <div class="flex items-baseline gap-1.5 border-l border-slate-200 px-2 py-2.5">
                     <span class="caps muted">{{ d.weekdayShort }}</span>
                     <span class="tabular text-xs font-medium">{{ d.dayOfMonth }}</span>
@@ -332,13 +290,15 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                       {{ lane.immatriculation }}
                     </span>
                   </div>
-                  @for (d of weekDayCells(); track d.key) {
+                  @for (d of weekDayCells(); track d.dayKey) {
                     <button
                       type="button"
                       class="flex flex-col gap-0.5 border-0 border-l border-slate-200 px-2 py-2 text-left cursor-pointer hover:bg-slate-50"
                       [class.bg-slate-50]="d.isSelected"
                       (click)="openDayCell(lane, d)"
-                      [attr.data-testid]="'reservations-week-cell-' + lane.aircraftId + '-' + d.key"
+                      [attr.data-testid]="
+                        'reservations-week-cell-' + lane.aircraftId + '-' + d.dayKey
+                      "
                     >
                       @let cell = cellFor(lane, d);
                       @if (cell.count > 0) {
@@ -367,8 +327,6 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
   `,
   styles: [
     `
-      /* Maintenance hatch — reference repeating-linear-gradient; not expressible
-         as a Tailwind utility (ADR 0024 §11 documented exception). */
       .af-maintenance-band {
         background: repeating-linear-gradient(
           135deg,
@@ -387,10 +345,9 @@ export class ReservationsCalendarPage {
   protected readonly views = ['day', 'week'] as const;
   protected readonly dayHours = DAY_HOURS;
   protected readonly hoursStart = DAY_HOURS_START;
-  protected readonly hoursEnd = DAY_HOURS_END + 1;
+  protected readonly hoursEndExclusive = DAY_HOURS_END_INCLUSIVE + 1;
 
   protected readonly view = signal<'day' | 'week'>('day');
-  /** Local-midnight ISO of the selected day; drives both views. */
   protected readonly selectedDayIso = signal<string>(startOfDay(new Date()).toISOString());
 
   protected readonly lanes = this.store.schedulerLanes;
@@ -398,48 +355,40 @@ export class ReservationsCalendarPage {
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
 
-  /** The seven day-picker cells of the selected day's week. */
   protected readonly weekDayCells = computed<CalendarDay[]>(() => weekDays(this.selectedDayIso()));
 
-  /** Day-grid placement window — business hours of the selected day. */
   private readonly dayHourWindow = computed(() =>
-    hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END + 1),
+    hourWindow(this.selectedDayIso(), DAY_HOURS_START, DAY_HOURS_END_INCLUSIVE + 1),
   );
 
-  /**
-   * View-aware period label (J-6b T-08 #3): single day `DD.MM.YYYY` in day view,
-   * the week's `DD.MM.YYYY – DD.MM.YYYY` start–end range in week view. Drives the
-   * page-header subtitle + the `reservations-period-label` hook.
-   */
   protected readonly periodLabel = computed<string>(() =>
     periodLabel(this.view(), this.selectedDayIso()),
   );
 
   protected readonly dayReservationCount = computed<number>(() => {
-    const key = isoDate(startOfDay(this.selectedDayIso()));
-    return this.store.entities().filter((r) => startsOnDay(r, key)).length;
+    const selectedDayKey = isoDate(startOfDay(this.selectedDayIso()));
+    return this.store.entities().filter((r) => startsOnDay(r, selectedDayKey)).length;
   });
 
-  /** Day-view blocks for a lane: only reservations starting on the selected day. */
   protected placedBlocks(lane: SchedulerLane): PlacedBlock[] {
     const win = this.dayHourWindow();
-    const key = isoDate(startOfDay(this.selectedDayIso()));
+    const selectedDayKey = isoDate(startOfDay(this.selectedDayIso()));
     return lane.reservations
-      .filter((r) => startsOnDay(r, key))
+      .filter((r) => startsOnDay(r, selectedDayKey))
       .map((reservation) => ({
         reservation,
         placement: placeBlock(reservation.start, reservation.end, reservation.isAllDay, win),
         label: this.pilot(reservation),
-        isMaintenance: MAINTENANCE_TYPES.has(reservation.reservationTypeName ?? ''),
+        isMaintenance: MAINTENANCE_TYPE_NAMES.has(reservation.reservationTypeName ?? ''),
       }));
   }
 
   protected cellFor(lane: SchedulerLane, day: CalendarDay): WeekCell {
-    return weekCell(lane.reservations, day.key);
+    return weekCell(lane.reservations, day.dayKey);
   }
 
   protected firstPilot(lane: SchedulerLane, day: CalendarDay): string {
-    const onDay = lane.reservations.filter((r) => startsOnDay(r, day.key));
+    const onDay = lane.reservations.filter((r) => startsOnDay(r, day.dayKey));
     const head = onDay.at(0);
     if (!head) return '';
     const first = this.pilot(head);
@@ -455,13 +404,9 @@ export class ReservationsCalendarPage {
   }
 
   protected selectDay(d: CalendarDay): void {
-    this.selectedDayIso.set(d.iso);
+    this.selectedDayIso.set(d.localMidnightIso);
   }
 
-  /**
-   * Pager step — granularity follows the active view (J-6b T-08 #3): day view
-   * steps ±1 day, week view steps ±7 days. `delta` is the direction (−1 / +1).
-   */
   protected shiftPeriod(delta: number): void {
     const step = stepDaysForView(this.view());
     this.selectedDayIso.set(addDays(this.selectedDayIso(), delta * step).toISOString());
@@ -473,7 +418,7 @@ export class ReservationsCalendarPage {
   }
 
   protected openDayCell(_lane: SchedulerLane, d: CalendarDay): void {
-    this.selectedDayIso.set(d.iso);
+    this.selectedDayIso.set(d.localMidnightIso);
     this.view.set('day');
   }
 

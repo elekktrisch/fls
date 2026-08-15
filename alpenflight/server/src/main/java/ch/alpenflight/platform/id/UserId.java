@@ -4,16 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code User} aggregate root. Wraps a {@link UUID}
- * so service / controller / DTO signatures cannot accidentally accept a
- * {@code Person} or {@code Aircraft} id in a {@code User} slot.
- *
- * <p>External form is {@code usr-<uuid>} per ADR 0019. The 4-character
- * {@code usr-} prefix lets readers spot a User id at a glance and pairs with
- * the {@code pn-} (Person) prefix the User aggregate frequently references
- * (via the {@code person_id} link surface).
- */
 @Schema(
         type = "string",
         pattern = "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

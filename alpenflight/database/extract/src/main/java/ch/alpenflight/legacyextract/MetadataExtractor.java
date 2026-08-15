@@ -23,44 +23,16 @@ import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * Reads FLS legacy schema metadata from SQL Server via JDBC and writes JSON
- * record arrays under {@link ExtractConfig#outDir()}. Read-only by
- * construction: only queries against {@code INFORMATION_SCHEMA.*}, {@code
- * sys.*}, and {@code sys.dm_db_*} reach the wire; application tables are
- * touched only when {@link ExtractConfig#allowAggregateCounts()} is true and
- * only via aggregate expressions (see {@link SqlGuard}).
- *
- * <p>Sacred-cow references — these are the tables S-013 / S-016 must preserve
- * shape on, and the JSON output is the contract:
- * <ul>
- *   <li><b>Flight</b> — single-entity discriminator across glider/tow/motor;
- *       has no {@code ClubId} column. Tenancy reaches Flights via
- *       {@code AircraftId → Aircrafts.OwnerClubId}; S-013 should denormalize
- *       {@code club_id} into the new {@code flight} table.</li>
- *   <li><b>FlightCrew</b> — composite UNIQUE on (Flight, Person, CrewType).</li>
- *   <li><b>AccountingRuleFilter</b> — rules-engine config, JSONB candidate.</li>
- *   <li><b>Delivery / DeliveryItem</b> — Prepared → Booked terminal flow.</li>
- *   <li><b>User / Person / PersonClub</b> — login principal vs. human vs.
- *       human-in-club; collapse breaks multi-club pilots.</li>
- *   <li><b>AuditLogs + AuditLogDetails</b> — audit fan-out; the
- *       {@code OriginalValue} / {@code NewValue} columns on
- *       {@code AuditLogDetails} are the system's largest PII container.</li>
- * </ul>
- */
 @Component
 public class MetadataExtractor {
 
-    // Cutover-window math constants (AC4).
-    // Conservative end-to-end MB/s for bulk migrate (bcp out + COPY in). The
-    // worked example in the refinement uses 30 MB/s; S-017 rehearsal will
-    // calibrate. Override via -Dextract.throughput.mb-per-sec=N.
-    private static final double DEFAULT_THROUGHPUT_MB_PER_SEC = 30.0;
-    // Postgres index rebuild throughput; CREATE INDEX is parallelizable +
-    // generally faster than bulk insert.
-    private static final double DEFAULT_REINDEX_MB_PER_SEC = 50.0;
-    // C6 sacred-cow cutover budget: ≤ 6 hours = 21,600 seconds.
-    private static final long CUTOVER_BUDGET_SECONDS = 21_600L;
+    private static final double DEFAULT_BULK_MIGRATE_THROUGHPUT_MB_PER_SEC = 30.0;
+    private static final double DEFAULT_REINDEX_THROUGHPUT_MB_PER_SEC = 50.0;
+    private static final long CUTOVER_BUDGET_SECONDS = Duration.ofHours(6).toSeconds();
+    private static final int CUTOVER_WINDOW_TOP_TABLES_BY_STORAGE = 10;
+    private static final int COMPATIBILITY_LEVEL_INTRODUCING_APPROX_COUNT_DISTINCT = 150;
+    private static final int APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT = 5;
+    private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -84,8 +56,6 @@ public class MetadataExtractor {
         Instant start = Instant.now();
         List<Path> emitted = new ArrayList<>();
 
-        // Always-on metadata steps. Each runs the named SQL resource and
-        // writes the rows as a JSON array under outDir.
         emitted.add(runStep(config, "sql/metadata/tables.sql", "tables.json", false));
         emitted.add(runStep(config, "sql/metadata/columns.sql", "columns.json", false));
         emitted.add(runStep(config, "sql/metadata/pks.sql", "pks.json", false, "pks"));
@@ -119,19 +89,11 @@ public class MetadataExtractor {
         return new ExtractResult(outDir, List.copyOf(emitted), duration);
     }
 
-    // ---- step runners ----
 
     private Path runStep(ExtractConfig config, String sqlResource, String outFile, boolean aggregate) {
         return runStep(config, sqlResource, outFile, aggregate, null);
     }
 
-    /**
-     * Runs a single metadata/aggregate step. When {@code groupKey} is non-null,
-     * the result-set rows are post-processed: rows with the same group key
-     * are merged into one record with an array field {@code columns} (or a
-     * step-specific shape). Steps that produce one-row-per-entity (no group
-     * needed) pass {@code groupKey = null}.
-     */
     private Path runStep(ExtractConfig config, String sqlResource, String outFile, boolean aggregate, String groupKey) {
         String sql = readClasspath(sqlResource);
         if (aggregate) {
@@ -145,8 +107,6 @@ public class MetadataExtractor {
     }
 
     private List<Map<String, Object>> groupRows(String groupKey, List<Map<String, Object>> rows) {
-        // Group rows by (schema, table, constraint_name or index_name)
-        // collapsing column-rows into a single record per group.
         return switch (groupKey) {
             case "pks", "uniques" -> groupByConstraint(rows);
             case "fks" -> groupByForeignKey(rows);
@@ -156,7 +116,6 @@ public class MetadataExtractor {
     }
 
     private List<Map<String, Object>> groupByConstraint(List<Map<String, Object>> rows) {
-        // Key: (schema, table, constraint_name). Value: record with columns[].
         Map<String, Map<String, Object>> byKey = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) {
             String key = r.get("schema_name") + "." + r.get("table_name") + "." + r.get("constraint_name");
@@ -235,10 +194,8 @@ public class MetadataExtractor {
         SqlGuard.assertAggregateSafe("sql/aggregate/column-cardinality.sql", enumSql);
         List<Map<String, Object>> indexedColumns = jdbc.queryForList(enumSql);
 
-        // SQL Server 2019+ has APPROX_COUNT_DISTINCT (requires compatibility
-        // level 150). Older instances fall back to COUNT(DISTINCT) over
-        // TABLESAMPLE. Both stay aggregate-only; both pass the guard.
-        boolean hasApprox = compatibilityLevel() >= 150;
+        boolean supportsApproxCountDistinct =
+                compatibilityLevel() >= COMPATIBILITY_LEVEL_INTRODUCING_APPROX_COUNT_DISTINCT;
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : indexedColumns) {
@@ -247,20 +204,17 @@ public class MetadataExtractor {
             String column = (String) r.get("column_name");
             String aggSql;
             String method;
-            if (hasApprox) {
+            if (supportsApproxCountDistinct) {
                 aggSql = String.format(
                         "SELECT APPROX_COUNT_DISTINCT([%s]) AS approx_distinct FROM [%s].[%s]",
                         column, schema, table);
                 method = "APPROX_COUNT_DISTINCT";
             } else {
                 aggSql = String.format(
-                        "SELECT COUNT(DISTINCT [%s]) AS approx_distinct FROM [%s].[%s] TABLESAMPLE SYSTEM (5 PERCENT)",
-                        column, schema, table);
-                method = "COUNT_DISTINCT_TABLESAMPLE_5pct";
+                        "SELECT COUNT(DISTINCT [%s]) AS approx_distinct FROM [%s].[%s] TABLESAMPLE SYSTEM (%d PERCENT)",
+                        column, schema, table, APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT);
+                method = "COUNT_DISTINCT_TABLESAMPLE_" + APPROX_COUNT_DISTINCT_FALLBACK_TABLESAMPLE_PERCENT + "pct";
             }
-            // Guard the per-column query before execution — it's
-            // dynamically-built so verify the shape against the aggregate
-            // ruleset (allows aggregates against app tables, rejects bare cols).
             String guardId = "dynamic/column-cardinality/" + schema + "." + table + "." + column;
             SqlGuard.assertAggregateSafe(guardId, aggSql);
             try {
@@ -272,28 +226,12 @@ public class MetadataExtractor {
                 result.put("approx_distinct", row.get("approx_distinct"));
                 result.put("method", method);
                 out.add(result);
-            } catch (RuntimeException ignored) {
-                // Some indexed columns are computed/blob/etc. and don't
-                // accept COUNT(DISTINCT). Skip rather than fail the run.
+            } catch (RuntimeException columnTypeRejectsCountDistinct) {
             }
         }
         return writeJson(config.outDir().resolve("column-cardinality.json"), out);
     }
 
-    /**
-     * Per-top-10-table cutover-window estimate. Reuses the storage-stats
-     * query (already ordered by {@code total_mb} desc) and applies the
-     * conservative end-to-end throughput constant (30 MB/s default; override
-     * via the {@code extract.throughput.mb-per-sec} system property) plus a
-     * separate reindex throughput (50 MB/s). The C6 ≤ 6h cutover budget
-     * (21,600 seconds) is the denominator for the {@code pct_of_budget}
-     * column.
-     *
-     * <p>Surfaced finding for S-016 / S-017: at production-shape scale the
-     * bulk-data step is ~0.1-1% of the budget. The window is bounded by
-     * verification + ANALYZE + smoke tests, not row volume. S-016 should
-     * NOT over-engineer parallel-load.
-     */
     private Path emitCutoverWindow(ExtractConfig config) {
         String sql = readClasspath("sql/aggregate/storage-stats.sql");
         SqlGuard.assertAggregateSafe("sql/aggregate/storage-stats.sql", sql);
@@ -304,8 +242,8 @@ public class MetadataExtractor {
         long budget = CUTOVER_BUDGET_SECONDS;
 
         List<Map<String, Object>> top = new ArrayList<>();
-        int n = Math.min(stats.size(), 10);
-        for (int i = 0; i < n; i++) {
+        int topTableCount = Math.min(stats.size(), CUTOVER_WINDOW_TOP_TABLES_BY_STORAGE);
+        for (int i = 0; i < topTableCount; i++) {
             Map<String, Object> r = stats.get(i);
             double totalMb = toDouble(r.get("total_mb"));
             double migrate = totalMb / throughput;
@@ -330,13 +268,6 @@ public class MetadataExtractor {
         return writeJson(config.outDir().resolve("cutover-window.json"), wrapper);
     }
 
-    /**
-     * S-011 tenant-scope classification. Re-reads the just-emitted tables /
-     * columns / fks JSON, applies the {@code tenant-rules.yaml} overrides, and
-     * writes {@code tenant-classification.json} with one entry per legacy
-     * table. Consumers: S-022 (annotations), S-023 (unscoped contexts), S-024
-     * (leakage CI), S-025 (public-flow resolver).
-     */
     private Path emitTenantClassification(ExtractConfig config) {
         try {
             var tablesJson = json.readTree(config.outDir().resolve("tables.json").toFile());
@@ -355,8 +286,6 @@ public class MetadataExtractor {
             wrapper.put("hibernate_pin",
                     rulesYaml != null ? rulesYaml.path("hibernate_pin").asText("6.x") : "6.x");
             wrapper.put("entities", entries);
-            // Surface the unscoped call sites + public-flow allowlist verbatim
-            // so S-023 / S-025 don't need to re-read the YAML.
             if (rulesYaml != null) {
                 if (rulesYaml.has("public_flow_allowlist")) {
                     wrapper.put("public_flow_allowlist", rulesYaml.get("public_flow_allowlist"));
@@ -371,15 +300,9 @@ public class MetadataExtractor {
         }
     }
 
-    /**
-     * Locate {@code alpenflight/database/tenant-rules.yaml} relative to the current
-     * working directory. The extractor runs from
-     * {@code alpenflight/database/extract/}, so the rules file is at {@code ../}.
-     * Walk up to make the locator robust to test working-directory choice.
-     */
     private static Path locateTenantRulesYaml() {
         Path cursor = Path.of(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve("alpenflight/database/tenant-rules.yaml");
             if (Files.exists(candidate)) {
                 return candidate;
@@ -396,7 +319,7 @@ public class MetadataExtractor {
         List<Map<String, Object>> rows;
         try {
             rows = jdbc.queryForList(sql);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException auditLogTablesAbsentFromThisDatabase) {
             return null;
         }
         if (rows.isEmpty()) {
@@ -451,9 +374,6 @@ public class MetadataExtractor {
 
     private Path writeJson(Path file, Object data) {
         try {
-            // Convert java.sql.Timestamp + similar JDBC types via Jackson's
-            // default handling. We don't customize date format — ISO-8601 is
-            // adequate for the operator runbook + downstream tooling.
             json.findAndRegisterModules();
             json.writeValue(file.toFile(), data);
             return file;
@@ -463,11 +383,11 @@ public class MetadataExtractor {
     }
 
     private static double throughputMbPerSec() {
-        return parseDoubleProp("extract.throughput.mb-per-sec", DEFAULT_THROUGHPUT_MB_PER_SEC);
+        return parseDoubleProp("extract.throughput.mb-per-sec", DEFAULT_BULK_MIGRATE_THROUGHPUT_MB_PER_SEC);
     }
 
     private static double reindexThroughputMbPerSec() {
-        return parseDoubleProp("extract.reindex-throughput.mb-per-sec", DEFAULT_REINDEX_MB_PER_SEC);
+        return parseDoubleProp("extract.reindex-throughput.mb-per-sec", DEFAULT_REINDEX_THROUGHPUT_MB_PER_SEC);
     }
 
     private static double parseDoubleProp(String name, double fallback) {

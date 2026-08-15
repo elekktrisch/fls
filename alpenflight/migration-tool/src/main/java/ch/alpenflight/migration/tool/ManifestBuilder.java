@@ -15,24 +15,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Assembles {@link ManifestModel} from the live legacy database + the SELECT
- * registry. Two responsibilities:
- *
- * <ul>
- *   <li>Translate each registered {@link EntityType}'s
- *       {@link MapperLegacyBindings.PortPolicy} into the wire
- *       {@link EntityPolicy} the server re-validates; every other
- *       {@code EntityType} gets an {@code unmappedReason} so the server's
- *       coverage gate passes (never silently omitted).</li>
- *   <li>Read one {@link ManifestModel.ClubDeclaration} per legacy Club so the
- *       server can provision Deployments + Clubs before ingest.</li>
- * </ul>
- */
 public final class ManifestBuilder {
 
-    /** Server's {@code Manifest.CURRENT_SCHEMA_VERSION} — pinned for the slice. */
     static final int SCHEMA_VERSION = 1;
+
+    private static final boolean PUBLIC_REGISTRATION_DISABLED_UNTIL_OPERATOR_REFINES = false;
 
     private static final String UNMAPPED_REASON =
             "ENTITY_NOT_YET_BOUND: no MapperLegacyBindings SELECT registered "
@@ -41,7 +28,7 @@ public final class ManifestBuilder {
     private ManifestBuilder() {
     }
 
-    public static ManifestModel build(LegacyJdbcReader reader,
+    public static ServerBundleManifestMirror build(LegacyJdbcReader reader,
                                        List<EntityType> registeredEntities,
                                        String deploymentName) {
         Map<EntityType, EntityPolicy> policies = new EnumMap<>(EntityType.class);
@@ -54,12 +41,11 @@ public final class ManifestBuilder {
                 unmapped.put(entity, UNMAPPED_REASON);
             }
         }
-        List<ManifestModel.ClubDeclaration> clubs = readClubDeclarations(reader);
-        // Legacy has no "primary club" concept; this is an arbitrary first-row
-        // pick the operator refines post-ingest (mirrors the deriveSlug note).
-        UUID primaryClubId = clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
-        return new ManifestModel(
-                SCHEMA_VERSION, deploymentName, clubs, primaryClubId, policies, unmapped);
+        List<ServerBundleManifestMirror.ClubDeclaration> clubs = readClubDeclarations(reader);
+        UUID arbitraryFirstClubAsPrimary =
+                clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
+        return new ServerBundleManifestMirror(SCHEMA_VERSION, deploymentName, clubs,
+                arbitraryFirstClubAsPrimary, policies, unmapped);
     }
 
     private static EntityPolicy toEntityPolicy(MapperLegacyBindings.PortPolicy policy) {
@@ -77,36 +63,11 @@ public final class ManifestBuilder {
         };
     }
 
-    /**
-     * One declaration per legacy Club. Legacy {@code Clubs} has no slug /
-     * public-registration columns (those are new-stack concepts), so the
-     * slug is derived from {@code ClubKey} and public registration defaults
-     * to {@code false} — the operator / server can refine post-ingest.
-     *
-     * <p><strong>System-global FK resolution (J-0c T-15).</strong> The new stack
-     * seeds COUNTRY + CLUB_STATE with deterministic seed PKs that do NOT match
-     * legacy's Country GUIDs or the synthetic INT-keyed club-state. The manifest
-     * feeds {@code DeploymentProvisioningService}'s {@code t_club} INSERT
-     * directly (before any NDJSON FK resolution runs), so the declaration must
-     * carry the RESOLVED seed PKs or the insert FK-violates
-     * {@code fk_club_country_id} / {@code fk_club_club_state_id}:
-     * <ul>
-     *   <li>{@code countryId}: legacy {@code Clubs.CountryId} GUID →
-     *       {@code Countries.CountryCodeIso2} → seed {@code t_country.id} via
-     *       {@link SeedReferenceUuids#countryByIso2}.</li>
-     *   <li>{@code clubStateId}: legacy {@code Clubs.ClubStateId} INT → V2
-     *       lifecycle code ({@link ClubStateMapper#v2CodeForLegacyId}) → seed
-     *       {@code t_club_state.id} via {@link SeedReferenceUuids#clubStateByCode}.</li>
-     * </ul>
-     * The bundle separately emits {@code legacy_id_map/COUNTRY.pgcopy} +
-     * {@code CLUB_STATE.pgcopy} ({@link BundleWriter}) so the CLUB NDJSON's FK
-     * resolution path lands the same seed PKs.
-     */
-    private static List<ManifestModel.ClubDeclaration> readClubDeclarations(
+    private static List<ServerBundleManifestMirror.ClubDeclaration> readClubDeclarations(
             LegacyJdbcReader reader) {
         Map<UUID, String> iso2ByCountryGuid = readCountryIso2ByGuid(reader);
         String sql = "SELECT ClubId, Clubname, ClubKey, CountryId, ClubStateId FROM Clubs";
-        List<ManifestModel.ClubDeclaration> clubs = new ArrayList<>();
+        List<ServerBundleManifestMirror.ClubDeclaration> clubs = new ArrayList<>();
         try (ResultSet rs = reader.openEntityCursor(sql)) {
             while (rs.next()) {
                 UUID legacyClubId = UUID.fromString(rs.getString("ClubId"));
@@ -116,9 +77,10 @@ public final class ManifestBuilder {
                 int legacyClubStateId = rs.getInt("ClubStateId");
                 UUID countryId = resolveCountrySeedPk(legacyCountryGuid, iso2ByCountryGuid);
                 UUID clubStateId = resolveClubStateSeedPk(legacyClubStateId);
-                clubs.add(new ManifestModel.ClubDeclaration(
+                clubs.add(new ServerBundleManifestMirror.ClubDeclaration(
                         legacyClubId, name, deriveSlug(clubKey, legacyClubId),
-                        clubKey, false, countryId, clubStateId));
+                        clubKey, PUBLIC_REGISTRATION_DISABLED_UNTIL_OPERATOR_REFINES,
+                        countryId, clubStateId));
             }
         } catch (SQLException e) {
             throw new ExportException(ExitCode.IO_ERROR,
@@ -127,10 +89,6 @@ public final class ManifestBuilder {
         return clubs;
     }
 
-    /**
-     * Reads legacy {@code Countries} into a {@code CountryId GUID → CountryCodeIso2}
-     * map. Small bounded table (~196 rows); read once for the whole manifest.
-     */
     static Map<UUID, String> readCountryIso2ByGuid(LegacyJdbcReader reader) {
         Map<UUID, String> iso2ByGuid = new HashMap<>();
         try (ResultSet rs = reader.openEntityCursor(
@@ -150,7 +108,6 @@ public final class ManifestBuilder {
         return iso2ByGuid;
     }
 
-    /** Legacy Country GUID → ISO2 → seed {@code t_country.id}; fail-closed on a gap. */
     static UUID resolveCountrySeedPk(UUID legacyCountryGuid, Map<UUID, String> iso2ByCountryGuid) {
         String iso2 = iso2ByCountryGuid.get(legacyCountryGuid);
         if (iso2 == null) {
@@ -168,7 +125,6 @@ public final class ManifestBuilder {
         return seedPk;
     }
 
-    /** Legacy ClubState INT → V2 code → seed {@code t_club_state.id}; fail-closed on a gap. */
     static UUID resolveClubStateSeedPk(int legacyClubStateId) {
         String code = ClubStateMapper.v2CodeForLegacyId(legacyClubStateId);
         if (code == null) {

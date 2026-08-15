@@ -15,18 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates FlightType / FlightCostBalanceType domain exceptions to RFC
- * 7807 problem responses. Scoped to the two controllers in this module so
- * a sibling module's NotFound / IllegalArgument keeps its own handler.
- *
- * <p>{@link IllegalArgumentException} is intentionally NOT mapped here:
- * Spring's default handler returns 500, which is correct for "constructor
- * rejected a bad value the DTO validator should have caught" — that's a
- * coding bug, not a client error. Aggregate-thrown validation hits this
- * handler only when the DTO validator was bypassed (direct service call
- * from a test, etc.).
- */
 @RestControllerAdvice(assignableTypes = {
         FlightTypesController.class,
         FlightCostBalanceTypesController.class
@@ -69,15 +57,6 @@ class FlightTypesExceptionHandler {
         return problem(codeConflict(e.getMessage()));
     }
 
-    /**
-     * Race net for the {@code findActiveByCode} pre-check in
-     * {@code FlightTypesService}: a concurrent insert can still trip the V3
-     * partial UNIQUE {@code ux_flight_type_club_code} — translate that to the
-     * same 409 {@code field=flightCode} envelope instead of a raw 500 (the
-     * legacy-reproducing bug J-26 T-05 fixes). Other integrity violations
-     * propagate as 500 (genuine server bugs). Mirrors
-     * {@code LocationsExceptionHandler#handleDataIntegrity}.
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
         String message = String.valueOf(e.getMostSpecificCause().getMessage());
@@ -87,13 +66,6 @@ class FlightTypesExceptionHandler {
         throw e;
     }
 
-    /**
-     * The aggregate's instructor×observer mutual-exclusion guard
-     * ({@code FlightType.updateFlags}, J-26 T-06) → 400 with the same
-     * problem-detail {@code field} envelope the duplicate 409s use. The
-     * client cross-field validator blocks this before submit; a raw API
-     * caller (or a bypassed client) gets the clean 400 instead of a 500.
-     */
     @ExceptionHandler(InstructorObserverExclusionException.class)
     ResponseEntity<ProblemDetail> handleInstructorObserverExclusion(
             InstructorObserverExclusionException e) {

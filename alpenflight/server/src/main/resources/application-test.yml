@@ -2,83 +2,33 @@ server:
   port: 0
 
 spring:
-  # No datasource pinned at the profile level. Every @SpringBootTest wires
-  # to SharedPostgresContainer via @DynamicPropertySource — one JVM-wide
-  # Postgres testcontainer is shared across all DB-touching classes. The
-  # prior H2-with-MODE=PostgreSQL fallback was retired because V2+
-  # migrations use uuid, TEXT[], partial indexes, and COMMENT ON COLUMN
-  # which H2 can't parse even in PG-compat mode.
   datasource:
     hikari:
-      # Cap pool size per Spring context. The context cache keeps several
-      # contexts alive across springdoc-test / no-springdoc variants —
-      # without a cap each acquires Hikari's default 10 connections and the
-      # shared testcontainer exhausts PG's max_connections.
       maximum-pool-size: 4
-      # External-PG dev mode (J-7 RM-5): single-fork runs cache the WHOLE
-      # suite's contexts in one JVM — even 4 idle connections each exhausted
-      # the LAN server's max_connections ("remaining connection slots are
-      # reserved..."). Idle pools drain to zero within 10s (Hikari's minimum
-      # idle-timeout), so only the actively-testing context holds connections;
-      # reopening on the next hit costs single-digit ms on LAN/container.
       minimum-idle: 0
       idle-timeout: 10000
   jpa:
     properties:
       hibernate:
-        # Hibernate Statistics on by default in `test` so LocationsN1GuardIT
-        # and any future query-count guard can share the standard
-        # @SpringBootTest(RANDOM_PORT)+@Import(JwtTestFixture.class) cached
-        # context — without this, those classes needed their own
-        # @TestPropertySource and forked a separate context (~15 s boot).
-        # Perf cost is sub-microsecond per query; unmeasurable in suite.
         generate_statistics: true
   flyway:
-    # Eliminates container-readiness flake in integration tests without
-    # touching prod startup. Per S-009 performance plan.
     connect-retries: 5
     connect-retries-interval: 2s
     placeholders:
-      # S-137 test sentinel — same shape as dev so the V14 backfill UPDATE
-      # writes a stable owner-sub on the operator Deployment for IT
-      # assertions to grep against.
       alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
-      # S-160 V54: pin the alpenflight_app login password to a known constant so
-      # the container provisions a role AppendOnlyAuditRoleIT can log in as
-      # (PostgresTestContainerLifecycle.APP_ROLE_PASSWORD). Set here explicitly —
-      # not inherited — because a profile placeholders block replaces the base map.
       app_role_password: alpenflight_app
   security:
     oauth2:
       resourceserver:
         jwt:
-          # Synthetic issuer matching JwtTestFixture's iss claim. The fixture
-          # registers a @Primary JwtDecoder that overrides the production bean
-          # and validates against an in-process RSA keypair, so the URL itself
-          # never hits the network. A real value still has to be present —
-          # without it the production JwtDecoder @Bean fails to construct
-          # during context startup.
           issuer-uri: http://test-issuer
           jwk-set-uri: http://test-issuer/jwks
 
-# S-140 — test profile generates an ephemeral master keyset per JVM. Tests
-# wanting deterministic key material `@Import(MasterKeyTestFixture.class)`
-# which registers a @Primary Aead bean that overrides this one for the
-# duration of that Spring context.
 alpenflight:
-  # J-6 T-10a (ADR 0013): mail enabled so TemplatedMailService renders +
-  # dispatches; ITs `@Import(CapturedMailSender.class)` (a @Primary
-  # captured-outbox fake MailSender) so the dispatch is asserted deterministically
-  # WITHOUT a live SMTP — no testcontainer/mailpit required for the send-path ITs.
   mail:
     enabled: true
   migration:
     master-keyset:
       source: EPHEMERAL
     ingest:
-      # S-141b — raise the global gate from prod's permits=1 to 100 in the
-      # IT profile so the per-upload PESSIMISTIC_WRITE row-lock 409
-      # (BUNDLE_INGEST_IN_PROGRESS) is testable without the global gate
-      # short-circuiting to 429 DATABASE_CAPACITY_EXCEEDED. Production
-      # heap-cap reasoning does not apply to a CI test runner.
       global-permits: 100

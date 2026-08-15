@@ -55,10 +55,6 @@ type FlightTypeForm = FormGroup<{
   isFlightCostBalanceSelectable: FormControl<boolean>;
   isCouponNumberRequired: FormControl<boolean>;
   isForAircraftReservationType: FormControl<boolean>;
-  // String-typed because the form uses <af-input type="number"> which writes
-  // empty string for "no value". `null` cannot survive a manual blank-out
-  // through the typed FormControl without forcing nullable; the wire mapper
-  // translates empty → undefined back to `null` semantics for the API.
   minNrOfAircraftSeatsRequired: FormControl<number | null>;
 }>;
 
@@ -180,13 +176,6 @@ type FlightTypeForm = FormGroup<{
                 />
                 <span>Motor flights</span>
               </label>
-              <!--
-                isForAircraftReservationType: column shipped (S-068
-                AircraftReservation depends on it); not surfaced in the form
-                until that story's consumer needs it. DTO field still
-                round-trips (defaults to false on create / preserved on
-                update) so the wire shape stays stable.
-              -->
             </div>
           </section>
 
@@ -301,7 +290,6 @@ export class FlightTypesEditPage {
   protected readonly isCreate = computed(() => this.flightTypeId() === null);
   protected readonly canMutate = this.session.isClubAdmin;
 
-  /** Template handle for the group-level cross-field error key. */
   protected readonly instructorObserverExclusive = INSTRUCTOR_OBSERVER_EXCLUSIVE;
 
   protected readonly form: FlightTypeForm = this.fb.group(
@@ -324,27 +312,14 @@ export class FlightTypesEditPage {
       isForAircraftReservationType: this.fb.nonNullable.control(false),
       minNrOfAircraftSeatsRequired: this.fb.control<number | null>(null, [Validators.min(1)]),
     },
-    // Cross-field rule, mirrored from FlightType.updateFlags (the legacy DB
-    // CHECK forbade instructor + observer both set) — blocks Save client-side.
     { validators: [instructorObserverExclusiveValidator] },
   );
 
   protected readonly saveSubmitted = signal(false);
 
-  // J-26 T-11 — server-side name/code duplicates routed through the
-  // `liveFieldErrors` async slot (`inline-validation.ts` extension point) rather
-  // than `setErrors`, so the inline message surfaces under the as-you-type
-  // binding (a `setErrors` carries no `valueChanges`, so the debounced stream
-  // would never re-read it). Cleared the moment the user retypes (see
-  // clearDuplicateOnEdit below).
   private readonly nameDuplicate = signal<ValidationErrors | null>(null);
   private readonly codeDuplicate = signal<ValidationErrors | null>(null);
 
-  // Inline validation WHILE TYPING (J-26 T-11, via the J-6b `liveFieldErrors`
-  // infra): each `af-form-field [errors]` tracks its control's errors debounced
-  // ~200ms and clears when valid — replacing the touched-only bindings (silent
-  // until blur/submit). Name + Code merge their server-duplicate 409 through the
-  // async slot.
   protected readonly flightTypeNameErrors = liveFieldErrors(this.form.controls.flightTypeName, {
     asyncErrors$: toObservable(this.nameDuplicate),
   });
@@ -371,10 +346,6 @@ export class FlightTypesEditPage {
       if (!detail) return;
       this.form.patchValue(detailToFormValue(detail));
       if (!this.canMutate()) {
-        // Non-admins land here on a deep-link / bookmark; the Save button is
-        // already hidden by `@if (canMutate())`, but leaving the form active
-        // lets them type changes that go nowhere — disable to make the
-        // read-only intent visible. Matches LocationsEditPage.
         this.form.disable({ emitEvent: false });
       }
     });
@@ -383,11 +354,6 @@ export class FlightTypesEditPage {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
-      // 409s are field-routed by the problem-detail `field` (J-26 T-05):
-      // name vs code conflicts land inline on their own control. Routed through
-      // the live-errors async slot (J-26 T-11) so the message surfaces under the
-      // as-you-type binding (merged with any concurrent client error, never
-      // masking it).
       const kind = this.store.saveErrorKind();
       if (kind === 'name-duplicate') {
         this.nameDuplicate.set({ duplicate: true });
@@ -422,7 +388,6 @@ export class FlightTypesEditPage {
     });
   }
 
-  /** Editing the control clears its inline duplicate error + the store's matching save error. */
   private clearDuplicateOnEdit(
     control: FormControl<string>,
     duplicate: WritableSignal<ValidationErrors | null>,
@@ -513,7 +478,5 @@ function formToCreateRequest(form: FlightTypeForm): FlightTypeCreateRequest {
 }
 
 function formToUpdateRequest(form: FlightTypeForm): FlightTypeUpdateRequest {
-  // FlightTypeUpdateRequest has the same shape as Create (no operating_club_id);
-  // share the body builder.
   return formToCreateRequest(form) as FlightTypeUpdateRequest;
 }

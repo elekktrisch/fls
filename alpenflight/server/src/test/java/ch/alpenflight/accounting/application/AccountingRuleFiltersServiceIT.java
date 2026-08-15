@@ -23,23 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Application-layer integration test for {@link AccountingRuleFiltersService}.
- * Seeds two clubs via the production-create {@link TwoClubFixture} (minted ids,
- * ADR 0027 §3) and drives the service under each tenant via
- * {@link TenantTestContext#runAs}. Covers:
- *
- * <ul>
- *   <li>create → {@code getDetail} round-trips every core field + the typed
- *       {@code filterConfig} + the target-by-type assignment (article type folds
- *       deliveryLineText, recipient cleared);</li>
- *   <li>cross-tenant {@code getDetail} / {@code update} / {@code delete} →
- *       {@link AccountingRuleFilterNotFoundException} (the 404 contract);</li>
- *   <li>an audit row is written on a mutation (read back cross-tenant via JDBC,
- *       bypassing the {@code @TenantId} filter, with {@code filter_config}
- *       redacted in the snapshot).</li>
- * </ul>
- */
 class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
 
     private static final String TEST_NAME_PREFIX = "IT_ARF_";
@@ -47,8 +30,6 @@ class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
 
     private static final AtomicInteger NAME_COUNTER = new AtomicInteger(0);
 
-    // V4-seeded filter-type ids (legacy_int_id 30 = FLIGHT_TIME = article target;
-    // 10 = RECIPIENT). Pinned by V4's INSERT (ux_arft_legacy_int_id).
     private static final UUID FILTER_TYPE_FLIGHT_TIME =
             UUID.fromString("019e2e15-2c00-7652-8000-000000004652");
     private static final int LEGACY_FLIGHT_TIME = 30;
@@ -90,8 +71,6 @@ class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
             assertThat(loaded.chargedToClubInternal()).isTrue();
             assertThat(loaded.sortIndicator()).isGreaterThanOrEqualTo(0);
 
-            // Article type (30 ∉ {5,10}): article target set, recipient cleared,
-            // deliveryLineText folded into filter_config, recipientName cleared.
             assertThat(loaded.articleTarget()).isEqualTo("ART-100");
             assertThat(loaded.recipientTarget()).isNull();
 
@@ -106,7 +85,6 @@ class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
             assertThat(config.flightTypeCodes().useAllExcept()).isFalse();
             assertThat(config.flightTypeCodes().matched()).containsExactly("SCH", "PAX");
 
-            // List projection + computed "Target" string parity.
             assertThat(service.listFilters())
                     .extracting(AccountingRuleFilterDtos.AccountingRuleFilterListItem::id)
                     .contains(created.id());
@@ -161,24 +139,27 @@ class AccountingRuleFiltersServiceIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(clubA, () ->
                 id.set(service.create(articleRequest(uniqueName())).id()));
 
-        // AFTER_COMMIT REQUIRES_NEW listener has fired (test is not @Transactional).
-        // Read cross-tenant via JDBC — Hibernate's @TenantId would scope it away.
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT action, after_state FROM t_mutation_audit_event "
-                        + "WHERE tenant_club_id = ?::uuid AND target_entity_id = ?::uuid "
-                        + "AND target_entity_type = 'AccountingRuleFilter'",
-                clubA.toString(), id.get().toString());
+        List<Map<String, Object>> rows = auditRowsViaJdbcBypassingTheTenantFilter(clubA, id.get());
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).get("action")).isEqualTo("CREATE");
         String after = String.valueOf(rows.get(0).get("after_state"));
-        // The PII filter_config is redacted; the non-PII rule name survives.
-        assertThat(after).contains("[redacted]");
+        assertThat(after)
+                .as("the PII-bearing filter_config is redacted while the non-PII rule name survives")
+                .contains("[redacted]");
         assertThat(after).doesNotContain("Landing fee line");
         assertThat(after).contains("ruleFilterName");
     }
 
-    // -- payloads ---------------------------------------------------------------
+    private List<Map<String, Object>> auditRowsViaJdbcBypassingTheTenantFilter(
+            UUID tenantClubId, UUID targetEntityId) {
+        return jdbc.queryForList(
+                "SELECT action, after_state FROM t_mutation_audit_event "
+                        + "WHERE tenant_club_id = ?::uuid AND target_entity_id = ?::uuid "
+                        + "AND target_entity_type = 'AccountingRuleFilter'",
+                tenantClubId.toString(), targetEntityId.toString());
+    }
+
 
     private static AccountingRuleFilterWriteRequest articleRequest(String name) {
         FilterConfig config = new FilterConfig(

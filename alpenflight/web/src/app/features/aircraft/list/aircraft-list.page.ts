@@ -16,9 +16,6 @@ import { SessionStore } from '../../../core/session/session.store';
 import type { AircraftItem, AircraftTypeFilter } from '../aircraft.store';
 import { AircraftStore } from '../aircraft.store';
 
-// Select-option labels are kept as a static list (project precedent —
-// flights-list.page.ts AIRCRAFT_TYPE_OPTIONS). The visible filter *label* +
-// page chrome are translated via the transloco template scope.
 const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
   { value: 'ALL', label: 'All types' },
   { value: 'GLIDER', label: 'Gliders' },

@@ -14,12 +14,10 @@ import { JobsStore } from '../jobs.store';
 
 const NEVER_RUN = 'NEVER_RUN';
 
-/** Last-run status shown per row: the run status, or NEVER_RUN when a job has never run. */
 function statusOf(job: JobResponse): string {
   return job.lastRun?.status ?? NEVER_RUN;
 }
 
-/** Human-readable run duration in seconds, when both timestamps are present. */
 function durationSeconds(run: JobRunResponse | null | undefined): number | null {
   if (!run?.startedAt || !run?.finishedAt) return null;
   const ms = Date.parse(run.finishedAt) - Date.parse(run.startedAt);

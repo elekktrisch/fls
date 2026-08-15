@@ -49,26 +49,12 @@ interface SubmitArgs {
   registrant: PublicRegistrantDetails;
 }
 
-/**
- * The club read already adjudicated the slug, but a club can close public
- * registration while a visitor is filling the form in — so a 404 / 403 on submit
- * still closes it with the club-resolution panel rather than offering a retry the
- * server would refuse again. Everything else leaves the form open.
- */
 function scenicRejection(error: HttpErrorResponse): Partial<ScenicFlightState> {
   return rejectsTheClub(error.status)
     ? { resolution: clubResolutionFor(error.status) }
     : submitFailureFor(error);
 }
 
-/**
- * The anonymous scenic-flight page's state. Feature-scoped (provided by the
- * page, not `providedIn: 'root'`): its lifetime is one visit to one club's form.
- *
- * The wire body carries the registrant and nothing else — the endpoint refuses
- * an unknown property, deliberately, so a day this flow never books cannot be
- * silently dropped and read back as a booked slot.
- */
 export const ScenicFlightStore = signalStore(
   withState<ScenicFlightState>(initial),
   withComputed((store) => ({

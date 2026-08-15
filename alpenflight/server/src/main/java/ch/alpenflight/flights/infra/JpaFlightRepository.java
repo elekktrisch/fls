@@ -19,14 +19,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-/**
- * Spring Data JPA implementation of {@link FlightRepository}. Tenant
- * filtering is structural via {@code @TenantId} on
- * {@link Flight#getOperatingClubId()}; soft-delete filtered at the query
- * layer. The keyset-cursor list uses an inline native-shape JPQL composed
- * via {@link CustomListQuery} since Spring Data can't synthesize the
- * complex predicate from a method name.
- */
 @Repository
 public interface JpaFlightRepository
         extends JpaRepository<Flight, UUID>, FlightRepository, CustomListQuery {
@@ -128,6 +120,19 @@ interface CustomListQuery {
 @Repository
 class JpaFlightRepositoryImpl implements CustomListQuery {
 
+    private static final String UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC = " f.id desc";
+
+    private static final String ORDER_BY_FLIGHT_DATE_THEN_ID =
+            " order by f.flightDate desc nulls last," + UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC;
+
+    private static final String ORDER_BY_FLIGHT_DATE_THEN_START_TIME_THEN_ID =
+            " order by f.flightDate desc nulls last, f.startDateTime desc nulls last,"
+                    + UUIDV7_ID_DESC_STANDS_IN_FOR_CREATED_ON_DESC;
+
+    private static final String STRICTLY_BEFORE_CURSOR_PAIR_SKIPPING_NULL_FLIGHT_DATES =
+            " and (   f.flightDate < :cursorDate"
+                    + "   or (f.flightDate = :cursorDate and f.id < :cursorId) )";
+
     private final EntityManager em;
 
     JpaFlightRepositoryImpl(EntityManager em) {
@@ -155,7 +160,6 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
             sb.append(" and f.flightDate <= :to");
         }
         if (personId != null) {
-            // Rides ix_flight_crew_person_type from V3 (S-165 perf note).
             sb.append(" and exists (")
               .append("   select 1 from FlightCrew c")
               .append("   where c.flight = f")
@@ -164,24 +168,12 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
               .append(" )");
         }
         if (cursorFlightDate != null && cursorId != null) {
-            // (flight_date, id) < (cursor.flight_date, cursor.id) — DESC order
-            // NULLS first means a NULL flight_date sorts after every real date
-            // for DESC; we keep the cursor predicate strict for non-null pairs
-            // only. Callers that paginate past the NULL block re-issue without
-            // a cursor.
-            sb.append(" and (")
-              .append("   f.flightDate < :cursorDate")
-              .append("   or (f.flightDate = :cursorDate and f.id < :cursorId)")
-              .append(" )");
+            sb.append(STRICTLY_BEFORE_CURSOR_PAIR_SKIPPING_NULL_FLIGHT_DATES);
         }
         if (personId != null) {
-            // S-165 AC sort. startDateTime tie-breaks within the same flight_date;
-            // id desc (UUIDv7) stands in for created_on desc (UUIDv7 is monotonic
-            // in creation time at sub-ms precision).
-            sb.append(" order by f.flightDate desc nulls last,"
-                    + " f.startDateTime desc nulls last, f.id desc");
+            sb.append(ORDER_BY_FLIGHT_DATE_THEN_START_TIME_THEN_ID);
         } else {
-            sb.append(" order by f.flightDate desc nulls last, f.id desc");
+            sb.append(ORDER_BY_FLIGHT_DATE_THEN_ID);
         }
 
         TypedQuery<FlightRepository.ListRow> q =

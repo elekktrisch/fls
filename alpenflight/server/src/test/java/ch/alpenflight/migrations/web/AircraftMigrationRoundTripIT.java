@@ -41,43 +41,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * J-1 T-05 — the {@code Aircraft} migrate-link round-trip proof: a
- * legacy→export→ingest round-trip exercised against the REAL server ingest
- * pipeline, mirroring {@link LocationMigrationRoundTripIT} but for the
- * AIRCRAFT aggregate (+ its two aggregate-internal children). Hand-orders the
- * tar entries via {@code MigrationBundleTestFactory.buildBundleWithEntries}
- * (interleaving the {@code legacy_id_map/*.pgcopy} maps the resolver needs),
- * leaving the producer tar ordering to {@link AircraftRealProducerRoundTripIT}.
- *
- * <p>The AIRCRAFT NDJSON is shaped EXACTLY as {@code AircraftMapper.writeNdjson}
- * emits it over the {@code MapperLegacyBindings.AIRCRAFT} producer SELECT (T-04):
- * {@code legacy_guid} = the legacy {@code AircraftId} (AIRCRAFT is non-fan-out,
- * so {@code legacy_guid} → {@code id}, like PERSON/CLUB), {@code managing_club_id}
- * + {@code owner_club_id} = the legacy {@code AircraftOwnerClubId},
- * {@code homebase_id} = the legacy {@code HomebaseId} (a fan-out LOCATION the
- * Aircraft rides through into its managing club's replica),
- * {@code aircraft_owner_person_id} = the legacy {@code AircraftOwnerPersonId},
- * {@code aircraft_type_id} = the synthetic {@code new UUID(0, legacyIntId)}
- * encoding. The child NDJSON mirror {@code AircraftAircraftStateMapper} /
- * {@code AircraftOperatingCounterMapper}.
- *
- * <p>Asserts the load-bearing migration invariants T-04's binding exists to prove:
- * <ul>
- *   <li><strong>(a) FK resolve to REAL migrated/seed PKs.</strong> The
- *       {@code t_aircraft} row's {@code managing_club_id} = the real migrated
- *       club, {@code aircraft_type_id} = the REAL V3 {@code t_aircraft_type}
- *       seed PK (not the synthetic {@code 00000000-…} UUID),
- *       {@code aircraft_owner_person_id} = the migrated Person,
- *       {@code homebase_id} = the migrating club's Location replica.</li>
- *   <li><strong>(b) {@code immatriculation} + {@code legacy_guid} preserved.</strong>
- *       AIRCRAFT is non-fan-out: {@code legacy_guid} → {@code id}.</li>
- *   <li><strong>(c) Child nesting + values.</strong> The state-history +
- *       operating-counter child rows attach to the correct parent aircraft and
- *       carry the right resolved values ({@code aircraft_state_id} → the real V3
- *       seed PK; the counter readings verbatim).</li>
- * </ul>
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
@@ -91,17 +54,14 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
-    // Real Flyway-seed PKs the reference-lookup resolver must land on (V3).
-    private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1; // GLIDER (V3)
+    private static final int LEGACY_AIRCRAFT_TYPE_GLIDER = 1;
     private static final UUID SEED_AIRCRAFT_TYPE_GLIDER =
             UUID.fromString("019e2e15-2c00-7af9-8000-000000002af9");
-    private static final int LEGACY_AIRCRAFT_STATE_OK = 1; // OK (V3)
+    private static final int LEGACY_AIRCRAFT_STATE_OK = 1;
     private static final UUID SEED_AIRCRAFT_STATE_OK =
             UUID.fromString("019e2e15-2c00-7ee0-8000-000000002ee0");
-    private static final int LEGACY_LOCATION_TYPE_GRASS = 2; // GRASS_RUNWAY (V3)
-    private static final int LEGACY_UNIT_FEET = 2; // FEET (V22 backfill)
-    // Counter-unit-type reference FK (V25 backfill): legacy 2 = '2 decimals per
-    // hour' -> HOURS_DECIMAL seed PK.
+    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
+    private static final int LEGACY_UNIT_FEET = 2;
     private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2;
     private static final UUID SEED_COUNTER_UNIT_HOURS_DECIMAL =
             UUID.fromString("019e2e15-2c00-7b58-8000-000000001b58");
@@ -151,7 +111,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         String clubsByOwner =
                 "SELECT id FROM t_club WHERE deployment_id IN "
                         + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
-        // Children before parents; aircraft + its homebase Location before the club.
         jdbc.update("DELETE FROM t_aircraft_operating_counter WHERE aircraft_id IN "
                 + "(SELECT id FROM t_aircraft WHERE managing_club_id IN (" + clubsByOwner + "))",
                 userSub.toString());
@@ -178,7 +137,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
-        // t_person is cross-tenant (no club_id) — clean by preserved legacy id.
         jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", legacyPersonId.toString());
     }
 
@@ -209,45 +167,36 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                 EntityType.COUNTRY, systemGlobalPolicy(),
                 EntityType.CLUB_STATE, systemGlobalPolicy());
 
-        // The homebase Location's fanned-out replica id in this club — the
-        // composite (legacy_guid, club_id) the homebase FK resolves against.
         UUID homebaseReplicaId =
                 Coercions.deriveFanOutId(legacyHomebaseLocationId, legacyClubId);
 
-        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
-        tarEntries.put("legacy_id_map/COUNTRY.pgcopy",
+        Map<String, byte[]> tarEntriesInIngestResolveOrder = new LinkedHashMap<>();
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/COUNTRY.pgcopy",
                 pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
-        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/CLUB_STATE.pgcopy",
                 pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson",
+        tarEntriesInIngestResolveOrder.put("CLUB.ndjson",
                 clubNdjson(legacyClubId, key, "ACM Club Legacy", "Addr"));
-        // Owner Person (cross-tenant, FULL_PORT identity — id preserved) + its
-        // identity id-map so the aircraft_owner_person_id FK resolves.
-        tarEntries.put("legacy_id_map/PERSON.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/PERSON.pgcopy",
                 pgcopyMap(legacyPersonId, legacyPersonId));
-        tarEntries.put("PERSON.ndjson",
+        tarEntriesInIngestResolveOrder.put("PERSON.ndjson",
                 personNdjson(legacyPersonId, legacyCountryId, "Owner", "Aircraft"));
-        // The homebase Location (fan-out: one row for this club) + the composite
-        // (legacy_guid, club_id, new_uuid) id-map the aircraft homebase FK resolves
-        // against — ordered BEFORE AIRCRAFT.ndjson.
-        tarEntries.put("LOCATION.ndjson",
+        tarEntriesInIngestResolveOrder.put("LOCATION.ndjson",
                 locationNdjson(legacyHomebaseLocationId, legacyClubId, legacyCountryId, "LSZH"));
-        tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
                 new FanOutMapRow(legacyHomebaseLocationId, legacyClubId, homebaseReplicaId)));
-        // AIRCRAFT (non-fan-out): legacy_guid -> id. Its identity id-map so the
-        // children's aircraft_id FK resolves to the migrated aircraft.
-        tarEntries.put("AIRCRAFT.ndjson", aircraftNdjson(
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT.ndjson", aircraftNdjson(
                 legacyAircraftId, legacyClubId, legacyPersonId, legacyHomebaseLocationId, "HB-3000"));
-        tarEntries.put("legacy_id_map/AIRCRAFT.pgcopy",
+        tarEntriesInIngestResolveOrder.put("legacy_id_map/AIRCRAFT.pgcopy",
                 pgcopyMap(legacyAircraftId, legacyAircraftId));
-        tarEntries.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_AIRCRAFT_STATE.ndjson",
                 aircraftStateNdjson(legacyAircraftId, "Annual inspection passed"));
-        tarEntries.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
+        tarEntriesInIngestResolveOrder.put("AIRCRAFT_OPERATING_COUNTER.ndjson",
                 operatingCounterNdjson(legacyOperatingCounterId, legacyAircraftId, 360000L));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Aircraft Migrate IT Deployment",
-                List.of(club), entityPolicies, tarEntries);
+                List.of(club), entityPolicies, tarEntriesInIngestResolveOrder);
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
         assertThat(res.getStatusCode())
@@ -258,8 +207,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
         UUID newClub = clubIdsByKey(deploymentId).get(key);
 
-        // (a)+(b) The t_aircraft row landed with every FK resolved to its REAL
-        // migrated/seed target and the identity columns preserved.
         Map<String, Object> aircraft = jdbc.queryForMap(
                 "SELECT id, managing_club_id, aircraft_type_id, aircraft_owner_person_id, "
                         + "homebase_id, immatriculation, flight_operating_counter_unit_type_id "
@@ -290,8 +237,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "new UUID(0, legacyIntId)")
                 .isEqualTo(SEED_COUNTER_UNIT_HOURS_DECIMAL);
 
-        // (c) The state-history child attached to the parent aircraft, with its
-        // aircraft_state_id resolved to the real V3 seed PK.
         Map<String, Object> stateRow = jdbc.queryForMap(
                 "SELECT aircraft_id, aircraft_state_id, remarks FROM t_aircraft_aircraft_state "
                         + "WHERE aircraft_id = ?::uuid", legacyAircraftId.toString());
@@ -303,8 +248,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(SEED_AIRCRAFT_STATE_OK);
         assertThat(stateRow.get("remarks")).isEqualTo("Annual inspection passed");
 
-        // (c) The operating-counter child attached to the parent aircraft and
-        // carries its reading verbatim. Non-fan-out: legacy_guid preserved as id.
         Map<String, Object> counterRow = jdbc.queryForMap(
                 "SELECT id, aircraft_id, flight_operating_counter_in_seconds "
                         + "FROM t_aircraft_operating_counter WHERE aircraft_id = ?::uuid",
@@ -320,16 +263,14 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(360000L);
     }
 
-    /** NDJSON shaped as {@code AircraftMapper.writeNdjson}. AIRCRAFT is non-fan-out. */
-    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyClubId, UUID ownerPersonId,
+    private byte[] aircraftNdjson(UUID legacyAircraftId, UUID legacyAircraftOwnerClubId,
+                                  UUID ownerPersonId,
                                   UUID homebaseLocationId, String immatriculation)
             throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyAircraftId.toString());
-        // managing_club_id + owner_club_id both carry the legacy club guid
-        // (J-1 parity: source is legacy AircraftOwnerClubId).
-        row.put("managing_club_id", legacyClubId.toString());
-        row.put("owner_club_id", legacyClubId.toString());
+        row.put("managing_club_id", legacyAircraftOwnerClubId.toString());
+        row.put("owner_club_id", legacyAircraftOwnerClubId.toString());
         row.put("aircraft_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_AIRCRAFT_TYPE_GLIDER));
         row.put("manufacturer_name", "Schleicher");
@@ -344,9 +285,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         row.putNull("mtom");
         row.put("nr_of_seats", 2);
         row.put("aircraft_owner_person_id", ownerPersonId.toString());
-        // Counter unit-type reference FK exercised: V25 backfilled
-        // t_counter_unit_type.legacy_int_id, so the synthetic
-        // new UUID(0, legacyIntId) resolves to the real HOURS_DECIMAL seed PK.
         row.put("flight_operating_counter_unit_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_COUNTER_UNIT_DECIMAL_HOURS));
         row.putNull("engine_operating_counter_unit_type_id");
@@ -369,7 +307,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code AircraftAircraftStateMapper.writeNdjson}. */
     private byte[] aircraftStateNdjson(UUID legacyAircraftId, String remarks) throws IOException {
         var row = JSON.createObjectNode();
         row.put("aircraft_id", legacyAircraftId.toString());
@@ -390,7 +327,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code AircraftOperatingCounterMapper.writeNdjson}. Non-fan-out. */
     private byte[] operatingCounterNdjson(UUID legacyCounterId, UUID legacyAircraftId,
                                           long flightSeconds) throws IOException {
         var row = JSON.createObjectNode();
@@ -415,7 +351,6 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped as {@code LocationMapper.writeNdjson} (fan-out homebase source). */
     private byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
                                   UUID countryId, String icao) throws IOException {
         var row = JSON.createObjectNode();

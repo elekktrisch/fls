@@ -39,9 +39,6 @@ class VsfFeeStageTest {
         return new RuleFilterInput(UUID.randomUUID(), null, "VSF", AccountingUnitType.LDGS, config);
     }
 
-    // VsfFeeOnStartLocation matches the flight's START location (LSZK) against the
-    // filter's ldg-location set even though the flight landed elsewhere (LSZF), and
-    // bills nrOfLdgsOnStartLocation (3); it is forced off when that count is <= 0.
     @Test
     void onStartLocationBillsStartLocationLandingsAndIsForcedOffWhenNone() {
         RuleFilterInput filter = vsfFeeFilter(new MatchList(false, List.of("LSZK")));
@@ -54,8 +51,12 @@ class VsfFeeStageTest {
                 .nrOfLdgsOnStartLocation(3)
                 .build(), List.of(filter));
 
-        assertThat(billed.deliveryItems()).hasSize(1);
+        assertThat(billed.deliveryItems())
+                .as("the flight landed at LSZF, so only the start-substituted pass matches the "
+                        + "LSZK include-list")
+                .hasSize(1);
         assertThat(billed.deliveryItems().get(0).quantity())
+                .as("the start-substituted pass bills nrOfLdgsOnStartLocation, not nrOfLdgs")
                 .isEqualByComparingTo(BigDecimal.valueOf(3));
 
         var forcedOff = RuleBasedDeliveryDetails.forClub(UUID.randomUUID());

@@ -20,9 +20,8 @@ pastes. About to open a log or a legacy file? Dispatch instead.
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md)
 first — both directives govern. Schema is structural; business rules on aggregates.
 
-**Search posture.** Default to MCP over raw grep: the IntelliJ MCP for code
-search/navigation, **codebase-memory-mcp** for prior-art recall; fall back to
-`Grep`/`Glob` only when no MCP server is connected.
+**Search posture.** Prefer MCP over raw grep — IntelliJ MCP for code navigation,
+**codebase-memory-mcp** for prior-art recall; `Grep`/`Glob` when no MCP is connected.
 
 ## Shape
 
@@ -51,6 +50,13 @@ Keycloak). Extra done-bar requirements:
   read from its test tally** (0 real failures), NOT "the stack comes up" — J-29 called the nightly fully-green
   on stack-runs while 12 masked legacy reds rotted for weeks. Verify the suite PASSES, not RUNS.
   [[project_nightly_e2e_dead_stack_silent_hang]] [[verify_infra_is_run_not_just_authored]]
+
+- **The PR's OWN checks are the gate** (operator 2026-08-14): `gh pr checks --required` = pass **from the
+  `pull_request` event on the merge head**, heavy jobs EXECUTED there (§5's docs-only guard). A
+  `workflow_dispatch` run and a local real-chain run are diagnostics; **prose is never the gate** — J-17's
+  "Verification evidence" comment certified a side-run green on the final head, but that run executed the
+  **J-0 baseline** and the journey sat 8 days with an empty gallery. Platform incident blocking the event
+  → the journey **stays open** and you say so.
 
 **Red is the work-list, not a wall** — but a journey never merges red, and synthetic / mocked-seam
 green is an inner-loop aid, never progress toward done. Only the real-chain green counts.
@@ -90,9 +96,13 @@ journey file — `T-NN` ids, one-line scope each, dependency order. Default deco
 
 **Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders touching this
 journey's surface (or stale infra riders) into `T-NN`s sized per the gate — that's how `/do-retro`
-fixes reach the proof loop. **As each rider ships, DELETE its bullet from `_BOYSCOUT.md`** (delete the
-line — never mark it `✅`/struck-through and leave it; shipped work lives in git + the PR). The file
-holds only pending work and must shrink, not grow.
+fixes reach the proof loop. **PLUS a burndown quota** (operator 2026-08-14): also fold the **OLDEST
+off-surface riders**, as many as the journey's tech-debt share (60/40) affords. Surface-only folding
+let the file reach 39 riders / 21 sections / 10 weeks old — a rider whose seam no journey happens to
+touch never ships, and [FORM-FIRST-PAINT-RED] (8 screens) sat there while J-17 re-hit it locally.
+**As each rider ships, DELETE its bullet from `_BOYSCOUT.md`** (delete the line — never mark it
+`✅`/struck-through and leave it; shipped work lives in git + the PR). The file holds only pending
+work and must shrink, not grow.
 
 **Sizing gate (pre-dispatch heuristic — every task).** Each `T-NN`: **one seam** (one aggregate+repo / one
 resource's endpoints / one component-route / one migration / one spec edit — *'the domain layer' is not a task,
@@ -199,7 +209,10 @@ their migrated done-bar on-branch, [[project_fanout_legacy_build_cold_nuget]]). 
 EXECUTED (not skipped, not build-failed) for the sha you ship — **for a migration journey the `fan-out
 parity` job is a HARD merge gate**: dispatch the fanout on the branch + job-verify it green, never
 merge on a skipped/build-failed fanout. After any cancel/re-push, dispatch + job-verify a fresh run.
-[[false_green_derive_fallback]]
+Executed ≠ proving THIS journey: confirm the proof job logged `running per-push proof spec for J-NNN`
+with `baseline=false`, and the deployed bookmark's `<h1>` reads the journey id — a legitimate baseline
+resolve (spec still all-`fixme`) renders an "unknown" page, and that is not a done journey.
+[[project_false_green_derive_fallback]]
 
 **Dev-time proof = THIS journey only; full green only at the gate** ([[feedback_dev_time_test_strategy]]).
 Per push runs only the journey's OWN spec(s) (T-02 set this up); prior journeys run mock-IdP; the full
@@ -246,14 +259,12 @@ its contract line by removing only the row); append `- J-NNN — <title> — #PR
 close-out then proved the J-0 baseline and published an "unknown" gallery under a green `required` (J-17).
 An integration branch whose journey file resolves in NEITHER dir is now a hard CI fail, not a baseline
 fall-back. [[project_false_green_derive_fallback]]
-**Docs-only head guard** (J-27, J-12b): a docs-only finalization head makes `detect changes` skip the heavy
-lane, and `required` greens over the skips — so `gh pr checks --required` = `pass` is **NOT proof**, and a side
-`workflow_dispatch` run greens separately without changing the PR's checks (operator 2026-06-25 keeps the
-dev-time `docs_only` skip — fix it procedurally here, not in ci.yml). Honestly mergeable needs: (1) the heavy
-lane ran **job-level GREEN on the last CODE-bearing commit** (§4); (2) the finalization commit is **truly
-docs-only** (`git diff --stat <proof-head>..HEAD`), so nothing untested rode in; (3) migration journeys — the
-`fan-out parity` job EXECUTED green on that proof head. Read the run's JOBS, never the `required` rollup; then
-tell the operator the docs-head skips are expected rather than papering over them. [[project_false_green_derive_fallback]]
+**Docs-only head guard** (J-27, J-12b; operator 2026-06-25 keeps the dev-time `docs_only` skip — fix it
+procedurally, not in ci.yml). A docs-only head makes `detect changes` skip the heavy lane and `required`
+greens over the skips — which is why the done bar demands EXECUTED jobs, not a `pass` rollup. Mergeable
+needs: (1) the heavy lane job-level GREEN on the last CODE-bearing commit (§4); (2) the finalization commit
+**truly docs-only** (`git diff --stat <proof-head>..HEAD`); (3) migration journeys — `fan-out parity`
+EXECUTED green on that head. Then tell the operator the docs-head skips are expected, don't paper over them.
 
 **Troubleshooting mode — iterate on GitHub, not on this box** (operator 2026-08-02). When diagnosis needs
 repeated heavy runs, push a temporary workflow running only the job under diagnosis, so it proceeds IN PARALLEL
@@ -299,10 +310,13 @@ call, recorded in ADR 0026 if it's an intentional divergence.)
 - Green bar = the real full-chain run; declared+signed mocks only, undeclared mock = red.
 - Schema structural, business rules on aggregates (ADR 0022 §2). Tasks commit to `integration/J-NNN`;
   the **manager pushes**; never merge red; one PR per journey. Prune before done; cite file:line/PR#/J-ID.
-- **Self-explanatory code, why-only comments.** No what/narration/history/task-attribution comments
-  in code, specs, or YAML (no `T-NN:`/`J-NNN`/"legacy stored…"/"this masks the race…"); a rare short
-  *why* only when genuinely non-derivable, preferred as a named symbol / test name / ADR ref. History
-  belongs in the commit message + git, never in code or the journey body.
+- **No comments — put the understanding in the name.** Not "why-only": zero human-written prose in
+  code, specs, or YAML. A comment you want to write is a symbol, test, or constant that needs a
+  longer name, or an ADR/`docs/modernization/` entry. Long names are fine. The only survivors are
+  tool-parsed directives (`eslint-disable*`, `@ts-ignore`/`@ts-expect-error`, `prettier-ignore`,
+  `noinspection`, `language=`, `@formatter:off/on`, shebangs) and `// ext:` markers at a boundary an
+  outside party owns *where no machine-enforced pin exists* — prefer `@JsonProperty`/`@Column`.
+  History belongs in the commit message + git, never in code or the journey body. See `/comment-strip`.
 - Does **not** merge PRs, auto-edit ADRs, or delete issues.
 
 ## When done

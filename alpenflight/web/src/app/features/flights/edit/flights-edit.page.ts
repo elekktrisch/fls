@@ -80,18 +80,6 @@ interface StepDescriptor {
   conditional: boolean;
 }
 
-/**
- * 3-step wizard shell for create / edit / copy of a flight.
- *
- * - Step 1 (Launch): flightDate, startType, glider start location.
- * - Step 2 (Glider): aircraft, flight type, pilot + conditional crew, times,
- *   landings, route, comment.
- * - Step 3 (Tow): rendered only when `needsTowplane(startType)`; otherwise
- *   surfaced as an empty state.
- *
- * Save / paired-create orchestration lives in `FlightStore.savePair` /
- * `updatePair`; the wizard just gathers the snapshot.
- */
 @Component({
   selector: 'af-flights-edit-page',
   standalone: true,
@@ -114,11 +102,6 @@ interface StepDescriptor {
     <af-page>
       <af-page-header [title]="title()">
         <af-button data-testid="flight-cancel" (clicked)="onCancel()">Cancel</af-button>
-        <!--
-          Inline header save only on >=lg; the sticky-bar Save on the last
-          step takes over on <lg (the next/back button area). Two distinct
-          slots, not duplicated.
-        -->
         <div class="hidden lg:contents">
           <af-button
             type="primary"
@@ -347,7 +330,6 @@ interface StepDescriptor {
                   >Next</af-button
                 >
               } @else {
-                <!-- Sticky-bar save only on <lg; on >=lg the header action carries it. -->
                 <div class="lg:hidden">
                   <af-button
                     data-testid="flight-submit-sticky"
@@ -365,11 +347,6 @@ interface StepDescriptor {
           @if (errorMessage()) {
             <p class="text-red-600" data-testid="flight-error">{{ errorMessage() }}</p>
           }
-          <!--
-            409 = state/policy conflict (time-gate reject, DeliveryBooked edit,
-            optimistic-lock race). Non-blocking toast with a reload action —
-            NEVER the inline diff (that's the 412 data-conflict path below).
-          -->
           @if (reloadConflict()) {
             <div
               *transloco="let t; read: 'flight.reload'"
@@ -395,7 +372,6 @@ interface StepDescriptor {
         (dismiss)="dirtyConfirmOpen.set(false)"
       />
 
-      <!-- 412 = data conflict → inline per-field keep-mine/keep-theirs diff. -->
       <af-flight-conflict-prompt
         [conflict]="conflict()"
         (resolved)="onConflictResolved($event)"
@@ -414,32 +390,15 @@ export class FlightsEditPage {
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
   protected readonly form: FlightForm = buildFlightForm(this.fb);
 
-  // Save gating drives off a REACTIVE form signal (not a non-reactive form
-  // getter): under OnPush + zoneless a getter re-reads only on a CD tick, so it
-  // can lag the disable binding behind validity. Both `valueChanges` (a fresh
-  // value object each time, so the signal always notifies) and `statusChanges`
-  // (the post-hydrate `revalidateTree` re-emit) feed it — the status string
-  // alone would dedupe on referential equality and miss a gate field flipping
-  // valid while the overall form stays INVALID (an incomplete flight).
-  private readonly formChange = toSignal(
+  private readonly formValueOrStatusTick = toSignal(
     merge(this.form.valueChanges, this.form.statusChanges).pipe(map(() => Symbol())),
     { initialValue: Symbol() },
   );
-  // Legacy-client parity: Save is gated ONLY on FlightDate + glider aircraft +
-  // pilot. The remaining minimal-valid fields keep their inline errors (and
-  // mark the flight incomplete via `form.invalid`) but do NOT block Save —
-  // legacy persists an incomplete flight as ProcessState=Invalid.
   protected readonly canSave = computed(() => {
-    this.formChange();
+    this.formValueOrStatusTick();
     return isFlightSaveable(this.form);
   });
 
-  // Inline as-you-type errors (`liveFieldErrors`, debounced ~200ms) on the
-  // minimal-valid glider required set (oracle `Flight.ValidateFlight`):
-  // flightDate, startType, glider aircraft / flightType / pilot / start
-  // location / landings. Each re-reads the control's CURRENT errors on the
-  // post-hydrate `revalidateTree` (root status), so a reopened populated flight
-  // shows no stale "Entry required.".
   protected readonly flightDateErrors = liveFieldErrors(this.form.controls.flightDate);
   protected readonly startTypeErrors = liveFieldErrors(this.form.controls.startTypeId);
   protected readonly gliderAircraftErrors = liveFieldErrors(
@@ -478,9 +437,7 @@ export class FlightsEditPage {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly dirtyConfirmOpen = signal<boolean>(false);
 
-  // 412 data conflict (drives the inline per-field diff dialog).
   protected readonly conflict = computed(() => this.store.saveConflict());
-  // 409 state/policy conflict (drives the non-blocking reload toast).
   protected readonly reloadConflict = computed(() => this.store.hasReloadConflict());
 
   protected readonly title = computed(() => {
@@ -495,18 +452,9 @@ export class FlightsEditPage {
     }
   });
 
-  // Live signal of startTypeId so needsTow() responds to form changes.
   private readonly startTypeSignal = signal<string | null>(null);
-  // Live signal of the selected primary (glider-step) aircraftId so the MOTOR
-  // discriminator + tow-step suppression respond to the aircraft selection.
   private readonly primaryAircraftIdSignal = signal<string | null>(null);
 
-  /**
-   * The selected primary aircraft, resolved off the AircraftStore — the source
-   * of the MOTOR-vs-GLIDER discriminator (J-2 T-36: a motor flight is just a
-   * Flight with a motor aircraft, created in the unified /flights wizard; there
-   * is no separate /airmovements screen).
-   */
   private readonly primaryAircraft = computed<PrimaryAircraftKind | null>(() => {
     const id = this.primaryAircraftIdSignal();
     if (!id) return null;
@@ -514,19 +462,12 @@ export class FlightsEditPage {
     return a ? { hasEngine: a.hasEngine, isTowingAircraft: a.isTowingAircraft } : null;
   });
 
-  // A motor flight never tows; a glider defers to the aerotow start-type.
   protected readonly needsTow = computed(() =>
     flightNeedsTow(this.primaryAircraft(), this.startTypeSignal()),
   );
 
-  // Live solo flag so the co-pilot selector hides reactively and any
-  // already-picked co-pilot is cleared the moment the flag flips on —
-  // the UI invariant the form contract relies on (operator decision on
-  // S-067 refine: persist as-given, never derive from crew).
   protected readonly gliderIsSolo = signal<boolean>(false);
 
-  // The visible step set drops conditional steps (Tow) when their predicate
-  // is false. Reactive — flips back on as soon as the user picks Aerotow.
   protected readonly stepLabels = computed<readonly StepDescriptor[]>(() => {
     const needs = this.needsTow();
     return this.allSteps.filter((s) => !s.conditional || needs);
@@ -575,8 +516,6 @@ export class FlightsEditPage {
       if (!id) return null;
       const a = this.aircraftStore.entities().find((x) => x.id === id);
       if (!a) return null;
-      // List-projection row doesn't carry nrOfSeats; the rule no-ops when
-      // unknown. Detail-fetch when needed lives in S-062h's IDB-draft pass.
       return { nrOfSeats: null, hasEngine: a.hasEngine };
     },
     flightType: (id) => {
@@ -607,20 +546,14 @@ export class FlightsEditPage {
   constructor() {
     this.coordinator.attach(this.form, this.metadata, this.destroyRef);
 
-    // Track startType for live needsTow gating + step skip.
     this.form.controls.startTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.startTypeSignal.set(v));
 
-    // Track the selected primary aircraft so the MOTOR discriminator +
-    // tow-step suppression respond when the user picks a motor aircraft.
     this.form.controls.glider.controls.aircraftId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.primaryAircraftIdSignal.set(v));
 
-    // Track isSoloFlight: when it flips on, hide + clear the co-pilot
-    // slot so the submitted snapshot can never contain a contradictory
-    // (isSoloFlight=true, coPilotPersonId=non-null) state.
     this.form.controls.glider.controls.isSoloFlight.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((solo) => {
@@ -632,9 +565,6 @@ export class FlightsEditPage {
         }
       });
 
-    // Clamp the active step when the visible step set shrinks (e.g. user
-    // is on the Tow step and switches to Winch — the Tow step disappears
-    // from the stepper, so the active step lands on the new last step).
     effect(() => {
       const max = this.stepLabels().length - 1;
       if (this.step() > max) {
@@ -642,7 +572,6 @@ export class FlightsEditPage {
       }
     });
 
-    // Resolve mode + id from the route; load the appropriate snapshot.
     effect(() => {
       const params = this.route.snapshot.paramMap;
       const url = this.route.snapshot.url.map((s) => s.path);
@@ -667,11 +596,6 @@ export class FlightsEditPage {
     this.form.controls.glider.controls.startTime.setValue(time);
   }
 
-  /**
-   * Enter-key handler — advances to the next step on intermediate steps,
-   * submits only on the last step. Per AC-DIR-3a: "Enter advances step /
-   * submits on last step".
-   */
   protected onEnter(): void {
     if (this.isLastStep()) {
       void this.finalSubmit();
@@ -682,10 +606,6 @@ export class FlightsEditPage {
 
   protected async finalSubmit(): Promise<void> {
     if (this.saving()) return;
-    // Save is disabled until the gate (date + aircraft + pilot) is met, but
-    // Enter-to-submit on the last step (onEnter) can still reach here — surface
-    // the inline errors and bail rather than throwing in the snapshot mapper.
-    // An incomplete-but-gate-met flight still saves (legacy Invalid parity).
     if (!isFlightSaveable(this.form)) {
       this.form.markAllAsTouched();
       return;
@@ -707,7 +627,6 @@ export class FlightsEditPage {
     }
   }
 
-  /** Dispatch the create-pair vs update-pair save by the resolved route mode. */
   private async saveSnapshot(snap: FlightFormSnapshot): Promise<void> {
     if (this.mode() === 'new' || this.mode() === 'copy') {
       await this.store.savePair(snap);
@@ -719,12 +638,6 @@ export class FlightsEditPage {
     });
   }
 
-  /**
-   * Persist the Copy-from-Last anchors for the next session — start location,
-   * tow aircraft, and (per tow aircraft) the tow pilot. No-op without a signed-in
-   * user; each anchor is skipped when its source field is empty. Best-effort —
-   * a prefs write never blocks the save that already succeeded.
-   */
   private async persistFlightPrefs(
     userSub: string | null,
     snap: FlightFormSnapshot,
@@ -755,26 +668,18 @@ export class FlightsEditPage {
     void this.router.navigateByUrl('/flights');
   }
 
-  /**
-   * 412 resolved: apply each "keep theirs" choice onto the glider form, then
-   * EXPLICITLY resubmit. The store refreshed `currentVersion` to the server's
-   * version on the 412, so the resubmit If-Matches the current value. There is
-   * NO auto-retry — this only runs because the user clicked resubmit.
-   */
   protected onConflictResolved(resolution: ConflictResolution): void {
     const c = this.store.saveConflict();
     if (!c) {
       return;
     }
-    // Cast via `unknown`: the typed `CrewSubForm` control map has no string
-    // index signature, so a direct assertion trips TS2352 under the AOT build.
     const glider = this.form.controls.glider.controls as unknown as Record<
       string,
       { setValue: (v: unknown) => void }
     >;
     for (const field of c.fields) {
       if (resolution[field.name as ConflictFieldName] !== 'theirs') {
-        continue; // "keep mine" → leave the user's value in the form.
+        continue;
       }
       const control = CONFLICT_FIELD_TO_GLIDER_CONTROL[field.name as ConflictFieldName];
       if (!control) {
@@ -794,7 +699,6 @@ export class FlightsEditPage {
     this.store.dismissConflict();
   }
 
-  /** 409 reload action: drop local state + re-hydrate from the server. */
   protected onReloadLatest(): void {
     this.store.dismissConflict();
     const id = this.store.current()?.id ?? this.route.snapshot.paramMap.get('id');
@@ -806,8 +710,6 @@ export class FlightsEditPage {
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     if (this.dirtyConfirmOpen()) {
-      // The dialog itself owns dismissal — let it close cleanly instead of
-      // re-firing the cancel flow.
       this.dirtyConfirmOpen.set(false);
       return;
     }
@@ -816,9 +718,6 @@ export class FlightsEditPage {
 
   private snapshot(): FlightFormSnapshot {
     const raw = this.form.getRawValue();
-    // Infer the primary discriminator from the selected aircraft: a motor
-    // aircraft → MOTOR (no tow), otherwise GLIDER. Edit reuses the existing
-    // row's type server-side, so this override only bites on create.
     const primaryAircraftType = primaryAircraftCreateType(this.primaryAircraft());
     return {
       flightId: raw.flightId,
@@ -883,12 +782,6 @@ export class FlightsEditPage {
     this.primaryAircraftIdSignal.set(snapshot.glider.aircraftId);
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
-    // The patches above run with `emitEvent: false`, so `statusChanges` never
-    // fires and the Save gate would keep its initial INVALID status. Re-run
-    // validators bottom-up — which also re-evaluates the glider group's
-    // conditional rule against the hydrated startType (a parent value the group
-    // validator doesn't otherwise re-read) — and emit once on the root so the
-    // gate reflects the hydrated form (preserves pristine).
     revalidateTree(this.form);
   }
 

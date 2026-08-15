@@ -34,12 +34,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * S-140 handshake endpoint integration test. Covers the acceptance-criteria
- * happy paths + supersession + expiry job + authz gates.
- *
- * <p>Greenfield — no legacy oracle to mirror.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -100,7 +94,6 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
                 .startsWith("-----BEGIN PUBLIC KEY-----\n")
                 .endsWith("-----END PUBLIC KEY-----\n");
 
-        // Row landed in awaiting_upload with private key wrapped + decryptable.
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext, expires_at FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
@@ -116,7 +109,6 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
         assertThat(priv.getAlgorithm()).isEqualTo("RSA");
         assertThat(pub.getAlgorithm()).isEqualTo("RSA");
 
-        // Audit row: MIGRATION_HANDSHAKE_ISSUED, actor = user, after-state non-null.
         Map<String, Object> audit = jdbc.queryForMap(
                 "SELECT action, actor_user_id, system_actor, before_state, after_state "
                         + "FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid",
@@ -177,21 +169,18 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
 
         assertThat(secondId).isNotEqualTo(firstId);
 
-        // Old row flipped to superseded + key wiped.
         Map<String, Object> oldRow = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 firstId.toString());
         assertThat(oldRow.get("state")).isEqualTo("SUPERSEDED");
         assertThat(oldRow.get("private_key_ciphertext")).isNull();
 
-        // New row in flight.
         Map<String, Object> newRow = jdbc.queryForMap(
                 "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 secondId.toString());
         assertThat(newRow.get("state")).isEqualTo("AWAITING_UPLOAD");
         assertThat((byte[]) newRow.get("private_key_ciphertext")).isNotEmpty();
 
-        // Audit trail: ISSUED, SUPERSEDED, ISSUED — ordered by occurred_at.
         List<Map<String, Object>> trail = jdbc.queryForList(
                 "SELECT action FROM t_mutation_audit_event "
                         + "WHERE actor_keycloak_sub = ? ORDER BY occurred_at, action",
@@ -203,7 +192,6 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
     @Test
     void partial_unique_enforces_one_in_flight_row_per_user() throws Exception {
         postHandshake(verifiedToken);
-        // The unique partial index has filter `state = 'awaiting_upload'`.
         Integer inFlight = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM t_migration_upload WHERE user_id = ?::uuid AND state = 'AWAITING_UPLOAD'",
                 Integer.class, userId.toString());
@@ -212,15 +200,7 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
 
     @Test
     void expiry_job_sweeps_rows_past_ttl_and_wipes_key() throws Exception {
-        // Seed an already-expired row directly (bypass handshake to make expiry deterministic).
-        UUID expiredId = UUID.randomUUID();
-        byte[] wrapped = crypto.wrap(expiredId, new byte[] {1, 2, 3, 4, 5});
-        jdbc.update("""
-                INSERT INTO t_migration_upload
-                  (id, user_id, state, public_key_pem, private_key_ciphertext, created_at, updated_at, expires_at)
-                VALUES (?::uuid, ?::uuid, 'AWAITING_UPLOAD', 'pem', ?, now() - interval '48h',
-                        now() - interval '48h', now() - interval '24h')
-                """, expiredId.toString(), userId.toString(), wrapped);
+        UUID expiredId = seedAlreadyExpiredRowDirectlySoTheSweepIsDeterministic();
 
         int swept = expiryJob.runOnce();
         assertThat(swept).isGreaterThanOrEqualTo(1);
@@ -231,8 +211,6 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
         assertThat(row.get("state")).isEqualTo("EXPIRED");
         assertThat(row.get("private_key_ciphertext")).isNull();
 
-        // Audit row: system_actor=true. AFTER_COMMIT listener fires
-        // synchronously; the row should be visible immediately.
         List<Map<String, Object>> audits = jdbc.queryForList(
                 "SELECT action, system_actor, actor_user_id, tenant_club_id, target_entity_type "
                         + "FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid",
@@ -245,15 +223,29 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
         assertThat(audit.get("action")).isEqualTo("MIGRATION_HANDSHAKE_EXPIRED");
         assertThat(audit.get("system_actor")).isEqualTo(true);
 
-        // Idempotency: running again does no further work on the same row,
-        // and exactly one MIGRATION_HANDSHAKE_EXPIRED audit row exists.
         int sweptTwice = expiryJob.runOnce();
         assertThat(sweptTwice).isZero();
         Integer expiredAuditRows = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM t_mutation_audit_event "
                         + "WHERE target_entity_id = ?::uuid AND action = 'MIGRATION_HANDSHAKE_EXPIRED'",
                 Integer.class, expiredId.toString());
-        assertThat(expiredAuditRows).isEqualTo(1);
+        assertThat(expiredAuditRows)
+                .as("re-running the sweep is idempotent — no further work on the same row and "
+                        + "still exactly one MIGRATION_HANDSHAKE_EXPIRED audit row")
+                .isEqualTo(1);
+    }
+
+    private UUID seedAlreadyExpiredRowDirectlySoTheSweepIsDeterministic() {
+        UUID expiredId = UUID.randomUUID();
+        byte[] wrapped = crypto.wrap(expiredId, new byte[] {1, 2, 3, 4, 5});
+        jdbc.update("""
+                INSERT INTO t_migration_upload
+                  (id, user_id, state, public_key_pem, private_key_ciphertext,
+                   created_at, updated_at, expires_at)
+                VALUES (?::uuid, ?::uuid, 'AWAITING_UPLOAD', 'pem', ?, now() - interval '48h',
+                        now() - interval '48h', now() - interval '24h')
+                """, expiredId.toString(), userId.toString(), wrapped);
+        return expiredId;
     }
 
     private ResponseEntity<String> postHandshake(String token) {

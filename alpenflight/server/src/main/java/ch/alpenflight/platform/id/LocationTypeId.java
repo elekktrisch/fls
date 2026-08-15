@@ -4,13 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code LocationType} reference row. Unlike
- * {@link LocationId} (aggregate root, prefixed external form), reference-
- * data lookups travel as plain UUID strings on the wire — ADR 0019 reserves
- * the 3-letter prefix for aggregate roots, and reference rows are not
- * aggregates per ADR 0018.
- */
 @Schema(
         type = "string",
         format = "uuid",

@@ -44,7 +44,7 @@ class PersonCategoryAssignmentMapperTest
 
     @Test
     void declaresPersonCategoryClubAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(EntityType.PERSON, EntityType.PERSON_CATEGORY, EntityType.CLUB);
     }
 

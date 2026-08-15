@@ -18,30 +18,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DTOs for the Aircraft REST surface. Records (immutable, explicit field
- * set); mass-assignment is structurally impossible because the controller
- * binds to the record, not to the {@link ch.alpenflight.aircraft.domain.Aircraft}
- * aggregate.
- *
- * <p>{@code ownerClubId} and {@code aircraftOwnerPersonId} are intentionally
- * <strong>absent</strong> from {@link AircraftCreateRequest} and
- * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults its
- * {@code owner_club_id} to the caller's club (own-club case), and
- * ownership changes go through a dedicated transfer endpoint (A04
- * mass-assignment defense — a caller could otherwise re-key ownership
- * silently via PUT).
- *
- * <p>Do NOT re-introduce an {@code ownerClubId} field on create/update
- * without security review (A04).
- *
- * <p>{@code isFastEntryRecord} is intentionally absent from both
- * {@link AircraftCreateRequest} and {@link AircraftUpdateRequest}: it is an
- * internal marker the system sets when an aircraft is auto-drafted from the
- * flight-entry form, never a user-editable flag (legacy parity — the legacy
- * master-data form never exposed it either). The field stays on
- * {@link AircraftDetail} as a read-only signal.
- */
 public final class AircraftDtos {
 
     private AircraftDtos() {}

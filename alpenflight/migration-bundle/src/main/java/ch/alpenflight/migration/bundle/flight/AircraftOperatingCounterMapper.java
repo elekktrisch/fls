@@ -13,17 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Per-aircraft counter readings, aggregate-internal under {@code Aircraft}
- * (cross-tenant): legacy {@code AircraftOperatingCounters.AircraftOperatingCounterId}
- * → {@code t_aircraft_operating_counter.id}. Only outgoing FK is the
- * intra-aggregate {@code aircraft_id} — no cross-tenant bypass earned;
- * the {@link ch.alpenflight.migration.bundle.Manifest} allow-list
- * structurally rejects a non-empty {@code tenantBypassFks} here.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class AircraftOperatingCounterMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -67,12 +56,12 @@ public final class AircraftOperatingCounterMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.AIRCRAFT);
     }
 

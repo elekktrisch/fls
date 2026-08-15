@@ -15,13 +15,6 @@ import { SessionStore } from '../../core/session/session.store';
 
 import { StartStore } from './start.store';
 
-/**
- * Locale-aware date formatter via the browser's Intl. Angular's
- * {@code DatePipe} would require {@code registerLocaleData(localeDe)} +
- * the same for fr/it, which the project doesn't ship today; Intl works
- * for every modern browser locale without registration and without the
- * per-locale bundle cost.
- */
 function formatLocaleDate(date: Date | null, locale: string, style: 'long' | 'medium'): string {
   if (!date) return '';
   try {
@@ -31,9 +24,6 @@ function formatLocaleDate(date: Date | null, locale: string, style: 'long' | 'me
   }
 }
 
-// Full transloco paths so the i18n-key-coverage spec resolves them via
-// static regex scan — that spec only matches literal strings inside the
-// transloco directive call, so a dynamic-concat prefix would slip through.
 type GreetingKey = 'greeting.morning' | 'greeting.afternoon' | 'greeting.evening';
 
 function pickGreeting(hourOfDay: number): GreetingKey {
@@ -42,17 +32,8 @@ function pickGreeting(hourOfDay: number): GreetingKey {
   return 'greeting.evening';
 }
 
-// FlightCrewType seed UUIDs per V3 — canonical source is
-// `ch.alpenflight.flights.domain.FlightCrewTypeIds` on the server. Keep
-// the map in lockstep; a seed re-id would surface here as "—" until this
-// map is patched (or as a wrong label, which the e2e spec's `PIC`
-// assertion catches for the populated path).
-// Values are full transloco paths (not bare leaf names) so the
-// i18n-key-coverage spec's static-scan regex resolves them — that spec only
-// matches literal strings inside the directive call, so a dynamic-concat
-// prefix would slip through. Same reason greetingKey returns a full path.
-const CREW_ROLE_LABEL: Record<string, string> = {
-  '019e2e15-2c00-76b0-8000-0000000036b0': 'lastFlight.roles.pic', // PILOT_OR_STUDENT
+const CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID: Record<string, string> = {
+  '019e2e15-2c00-76b0-8000-0000000036b0': 'lastFlight.roles.pic',
   '019e2e15-2c00-76b1-8000-0000000036b1': 'lastFlight.roles.coPilot',
   '019e2e15-2c00-76b2-8000-0000000036b2': 'lastFlight.roles.instructor',
   '019e2e15-2c00-76b3-8000-0000000036b3': 'lastFlight.roles.passenger',
@@ -76,8 +57,6 @@ const CREW_ROLE_LABEL: Record<string, string> = {
           <p class="text-slate-500" data-testid="start-today">{{ formattedToday() }}</p>
         </header>
 
-        <!-- min-[900px] is the AC's exact breakpoint; matches legacy
-             screens-home.jsx:249-261. Not a custom Tailwind token. -->
         <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-2 mb-8">
           @if (store.showLastFlight()) {
             <a
@@ -89,9 +68,6 @@ const CREW_ROLE_LABEL: Record<string, string> = {
                 <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
                 <span class="text-sm tabular text-slate-500">{{ formattedLastFlightDate() }}</span>
               </header>
-              <!-- max-content keeps the label column auto-sized so longer
-                   localized labels (FR "Type de vol", IT "Tipo di volo")
-                   don't squeeze the value column on narrow viewports. -->
               <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm text-slate-700">
                 <dt class="text-slate-500">{{ t('lastFlight.aircraft') }}</dt>
                 <dd class="tabular">{{ aircraftImmat() }}</dd>
@@ -127,10 +103,6 @@ const CREW_ROLE_LABEL: Record<string, string> = {
               <p class="text-red-600">{{ t('lastFlight.error') }}</p>
             </div>
           }
-          <!-- Pre-attempt / first-paint: render no card at all (per ADR 0024
-               "spinner only after 300ms" — a single-line title card with no
-               body content reads as a layout glitch). The reservations
-               placeholder keeps the row's grid shape stable. -->
 
           <div
             class="border border-slate-200 p-5 space-y-2"
@@ -174,10 +146,6 @@ export class StartPage {
   protected readonly formattedToday = computed(() =>
     formatLocaleDate(this.today(), this.locale(), 'long'),
   );
-  // DD.MM.YYYY date-only (J-6b T-12 — legacy hardcodes it). `formatIsoDateDdMmYyyy`
-  // formats the `YYYY-MM-DD` string directly, sidestepping the
-  // `new Date('YYYY-MM-DD')` UTC-midnight gotcha (a CH flight on 2026-05-21
-  // mustn't render as 2026-05-20 west of UTC).
   protected readonly formattedLastFlightDate = computed(() =>
     formatIsoDateDdMmYyyy(this.store.lastFlight()?.flightDate),
   );
@@ -228,7 +196,7 @@ export class StartPage {
     if (!me || !f?.crew) return '—';
     const myRow = f.crew.find((c) => c.personId === me);
     if (!myRow) return '—';
-    const key = CREW_ROLE_LABEL[myRow.flightCrewTypeId];
+    const key = CREW_ROLE_LABEL_KEY_BY_FLIGHT_CREW_TYPE_ID[myRow.flightCrewTypeId];
     return key ? t(key) : '—';
   }
 
@@ -238,8 +206,6 @@ export class StartPage {
       if (personId) {
         this.store.load(personId);
       } else if (this.session.isAuthenticated()) {
-        // /me resolved but the user has no linked Person — render the empty
-        // state directly per the AC (no flights round-trip, no warn log).
         this.store.markNoPersonLink();
       }
     });

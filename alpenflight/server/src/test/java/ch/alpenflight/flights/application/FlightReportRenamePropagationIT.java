@@ -36,20 +36,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Rename-propagation ITs for the flight-report read-model (J-7 RM-2,
- * ADR 0027 §2): every denormalized decoration string follows its source
- * aggregate. One test per source — aircraft immatriculation (incl. the
- * tow-block copy on the glider's row), person name (pilot + tow-pilot),
- * location name, flight-type name / code. Each mutation runs through the
- * PRODUCTION update path (load via the repository port, aggregate mutator,
- * {@code repository.save} — ADR 0027 §3), which publishes the source's
- * {@code *Saved} domain event; {@link FlightReportDecorationRefreshListener}
- * re-projects the affected rows in the same transaction.
- */
 class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
 
-    /** {@code t_start_type} WINCH_LAUNCH / AEROTOW ids (V2 seed, fixed canonical UUIDs). */
     private static final UUID WINCH_LAUNCH =
             UUID.fromString("019e2e15-2c00-7fa0-8000-000000000fa0");
     private static final UUID AEROTOW =
@@ -88,9 +76,6 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
         UUID gliderId = seedGlider(clubA, gliderAc, loc, flightType, AEROTOW, List.of());
         linkTow(clubA, gliderId, towId);
 
-        // Production update path: load → aggregate mutator → save, under the
-        // mutating principal's tenant (the listener's affected-flight lookup
-        // rides @TenantId).
         TenantTestContext.runAs(clubA, () -> {
             Aircraft tow = loadAircraft(towAc);
             tow.rename("HB-NEW1");
@@ -100,8 +85,9 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
             aircraftRepository.save(glider);
         });
 
-        // The tow's own row AND the glider row's denormalized tow block follow.
-        assertThat(rowOf(gliderId).getTowImmatriculation()).isEqualTo("HB-NEW1");
+        assertThat(rowOf(gliderId).getTowImmatriculation())
+                .as("the glider row's denormalized tow block follows the tow's own rename")
+                .isEqualTo("HB-NEW1");
         assertThat(rowOf(towId).getImmatriculation()).isEqualTo("HB-NEW1");
         assertThat(rowOf(gliderId).getImmatriculation()).isEqualTo("HB-NEW2");
     }
@@ -131,8 +117,6 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
             persons.save(tp);
         });
 
-        // "Lastname Firstname" — both the own-row pilot name and the
-        // denormalized tow-pilot copy on the glider's row follow.
         assertThat(rowOf(gliderId).getPilotName()).isEqualTo("Neu Anna");
         assertThat(rowOf(towId).getPilotName()).isEqualTo("Zieher Sepp");
         assertThat(rowOf(gliderId).getTowPilotName()).isEqualTo("Zieher Sepp");
@@ -179,44 +163,34 @@ class FlightReportRenamePropagationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void rename_doesNotDisturbOtherTenantsRows() {
-        // The same physical-person rename must not damage another club's rows
-        // (the crew-child lookup is not tenant-discriminated; out-of-tenant
-        // ids must no-op, not delete).
-        UUID pilot = seedPerson("Geteilt", "Greta");
+    void renaming_a_person_both_clubs_fly_with_leaves_the_other_clubs_row_intact() {
+        UUID pilotFlyingForBothClubs = seedPerson("Geteilt", "Greta");
         UUID acA = seedAircraft(clubA);
         UUID locA = seedLocation(clubA, "BaseA");
         UUID typeA = seedFlightType(clubA, "TA", "TA");
         UUID flightA = seedGlider(clubA, acA, locA, typeA, WINCH_LAUNCH,
-                List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
+                List.of(crew(pilotFlyingForBothClubs, FlightCrewTypeIds.PILOT_OR_STUDENT)));
         UUID acB = seedAircraft(clubB);
         UUID locB = seedLocation(clubB, "BaseB");
         UUID typeB = seedFlightType(clubB, "TB", "TB");
         UUID flightB = seedGlider(clubB, acB, locB, typeB, WINCH_LAUNCH,
-                List.of(crew(pilot, FlightCrewTypeIds.PILOT_OR_STUDENT)));
+                List.of(crew(pilotFlyingForBothClubs, FlightCrewTypeIds.PILOT_OR_STUDENT)));
 
-        // Rename under club A's tenant context (a club-A admin's request).
         TenantTestContext.runAs(clubA, () -> {
-            Person p = persons.findActiveById(pilot).orElseThrow();
+            Person p = persons.findActiveById(pilotFlyingForBothClubs).orElseThrow();
             p.rename("Greta", "Umbenannt", null, null);
             persons.save(p);
         });
 
         assertThat(rowOf(flightA).getPilotName()).isEqualTo("Umbenannt Greta");
-        // Club B's row survives intact. Its name stays the OLD string inside
-        // club A's transaction (cross-tenant rows are structurally out of
-        // reach under @TenantId — documented RM-2 limitation, repaired by the
-        // club's next flight save or rebuild).
         FlightReportRow rowB = TenantTestContext.runAs(clubB,
                 () -> rows.findByFlightId(flightB).orElseThrow());
-        assertThat(rowB.getPilotName()).isEqualTo("Geteilt Greta");
+        assertThat(rowB.getPilotName())
+                .as("the crew-child lookup is not tenant-discriminated: club B's row must "
+                        + "survive untouched, not be deleted or rewritten")
+                .isEqualTo("Geteilt Greta");
     }
 
-    // ---------------------------------------------------------------- helpers
-    //
-    // Seeding goes through production code — domain factories + repositories
-    // under TenantTestContext.runAs (ADR 0027 §3); read-only JDBC only for
-    // reference-data id lookups.
 
     private FlightReportRow rowOf(UUID flightId) {
         return TenantTestContext.runAs(clubA, () -> rows.findByFlightId(flightId)

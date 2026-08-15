@@ -27,15 +27,15 @@
   --color-surface-muted: var(--color-slate-500);
   --color-border: var(--color-slate-200);
 
-  --text-h1: 1.802rem; /* 28.83px */
-  --text-h2: 1.602rem; /* 25.63px */
-  --text-h3: 1.424rem; /* 22.78px */
-  --text-h4: 1.266rem; /* 20.25px */
-  --text-h5: 1.125rem; /* 18px    */
-  --text-h6: 1rem; /*     16px */
-  --text-muted: 0.875rem; /* 14px — helper / meta text */
+  --text-h1: 1.802rem;
+  --text-h2: 1.602rem;
+  --text-h3: 1.424rem;
+  --text-h4: 1.266rem;
+  --text-h5: 1.125rem;
+  --text-h6: 1rem;
+  --text-muted: 0.875rem;
 
-  --space-header-h: 3.5rem; /* 56px */
+  --space-header-h: 3.5rem;
 
   --space-section: 3rem;
 }
@@ -45,13 +45,13 @@
   --space-row: 0.75rem;
   --space-field: 1rem;
   --font-size-body: 1rem;
-  --row-height: 2.75rem; /* ≥ 44 px for touch */
+  --row-height: 2.75rem;
 }
 [data-density='dense'] {
   --space-row: 0.375rem;
   --space-field: 0.5rem;
   --font-size-body: 0.875rem;
-  --row-height: 1.75rem; /* 28 px for dense-desktop */
+  --row-height: 1.75rem;
 }
 
 :root {
@@ -103,12 +103,9 @@ body[data-density='comfortable'] .ant-select-multiple {
   height: auto !important;
   min-height: 44px !important;
 }
-/* Match the af-input visual: slate-300 border, slate-50 disabled bg,
-   brand-500 outline on focus (NOT antd's blue border + box-shadow ring).
-   `.ant-select-selector` is the visible bordered box. */
 body[data-density='comfortable'] .ant-select-selector {
   border-color: var(--color-slate-300) !important;
-  padding-inline: 0.75rem !important; /* 12px — matches af-input's px-3 */
+  padding-inline: 0.75rem !important;
 }
 body[data-density='comfortable']
   .ant-select-focused:not(.ant-select-disabled):not(.ant-select-customize-input):not(
@@ -126,12 +123,9 @@ body[data-density='comfortable']
 }
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-item,
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeholder {
-  line-height: 42px !important; /* (44 - 2px border) ≈ inline content centered */
-  font-size: 1rem !important; /* 16px — match af-input body size */
+  line-height: 42px !important;
+  font-size: 1rem !important;
 }
-/* antd's .ant-select-single sets font-size: 14px on the outer container,
-   which cascades to the search-input and to the dropdown menu items.
-   Lift everything to 16px so visual rhythm matches af-input. */
 body[data-density='comfortable'] .ant-select-single,
 body[data-density='comfortable']
   .ant-select-single
@@ -148,11 +142,6 @@ body[data-density='comfortable']
   padding: 0 !important;
   box-sizing: border-box !important;
 }
-/* Date-picker parity with .ant-select-selector at comfortable density —
-   without this, From / To inputs render ~36px tall next to 44px selects
-   in the flights filter bar. The host class also forces width:100% so
-   the input fills its grid column instead of falling back to antd's
-   intrinsic 180-ish px. */
 body[data-density='comfortable'] .ant-picker {
   min-height: 44px !important;
   width: 100% !important;
@@ -163,9 +152,6 @@ body[data-density='comfortable'] .ant-picker.ant-picker-focused {
   border-color: var(--color-brand-500) !important;
   box-shadow: none !important;
 }
-/* Range picker draws an animated 2px active-bar under the focused sub-field
-   that stacks on the box's single brand border, reading as a doubled
-   underline. Suppress it so focus shows one clean stroke. */
 .af-date-picker-host .ant-picker-active-bar {
   display: none !important;
 }
@@ -174,19 +160,18 @@ body[data-density='comfortable'] .ant-picker .ant-picker-input > input {
 }
 
 body[data-density='comfortable'] .ant-btn {
-  padding-inline: 2.5rem !important; /* 40px — generous primary-button feel */
+  padding-inline: 2.5rem !important;
   font-weight: 500;
 }
 body[data-density='comfortable'] .ant-btn-sm {
   min-height: 36px !important;
-  padding-inline: 1.5rem !important; /* 24px */
+  padding-inline: 1.5rem !important;
 }
 body[data-density='comfortable'] .ant-btn-lg {
   min-height: 52px !important;
-  padding-inline: 3rem !important; /* 48px */
+  padding-inline: 3rem !important;
   font-size: 1rem !important;
 }
-/* Icon-only buttons stay square — undo the horizontal-padding bump. */
 body[data-density='comfortable'] .ant-btn-icon-only {
   min-width: 44px !important;
   padding-inline: 0 !important;
@@ -196,7 +181,7 @@ body[data-density='comfortable'] .ant-btn-icon-only {
   min-height: 28px;
 }
 [data-density='dense'] .ant-btn {
-  padding-inline: 0.875rem; /* 14px — denser but still readable */
+  padding-inline: 0.875rem;
 }
 
 .tabular {

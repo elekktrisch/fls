@@ -4,31 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code Club} aggregate root. Wraps a {@link UUID}
- * so service / controller / DTO signatures cannot accidentally accept a
- * {@code Person} or {@code User} id in a {@code Club} slot — the confusion
- * the codebase wants to make impossible at the type system level.
- *
- * <p>External form is {@code clb-<uuid>}, where {@code <uuid>} is the JDK's
- * canonical 36-character dashed UUID (ADR 0019). The dashed UUID body keeps
- * the value parsing trivial via {@link UUID#fromString(String)}; the
- * 4-character {@code clb-} prefix lets readers spot a Club id at a glance
- * without standing in the way of any standard UUID tooling.
- *
- * <p>JSON wire format is the external string, configured centrally in
- * {@link TypedIdJacksonModule} (registered with the application
- * {@code ObjectMapper}); this record carries no Jackson annotations on
- * purpose. The {@link Schema} hint tells springdoc to emit
- * {@code type: string} in the OpenAPI spec so the TS codegen consumes a
- * plain string alias.
- *
- * <p>Persistence: the {@code Club} entity field stays {@code UUID} (JPA-
- * friendly); only the getter wraps. Internal entities of the {@code Club}
- * aggregate (e.g. {@code MemberState}) keep raw UUIDs at every layer per
- * S-012 — typed wrappers are reserved for ids that legitimately cross
- * aggregate boundaries.
- */
 @Schema(
         type = "string",
         pattern = "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",

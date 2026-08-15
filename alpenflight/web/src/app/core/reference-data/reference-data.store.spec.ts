@@ -189,8 +189,6 @@ describe('ReferenceDataStore', () => {
   });
 
   it('loadAll surfaces loadError when the combined stream errors', () => {
-    // Both endpoints catchError → the outer pipe never errors, so this proves
-    // the catchError-per-stream contract holds — no loadError surfaces.
     configure({
       countries: () => throwError(() => new HttpErrorResponse({ status: 500 })),
       clubStates: () => throwError(() => new HttpErrorResponse({ status: 500 })),

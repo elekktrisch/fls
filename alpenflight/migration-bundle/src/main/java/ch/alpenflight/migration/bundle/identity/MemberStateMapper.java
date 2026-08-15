@@ -12,18 +12,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Tenant-scoped per-club reference: legacy {@code MemberStates.MemberStateId}
- * → {@code t_member_state.id}, with {@code club_id} as the @TenantId
- * discriminator (ADR 0008).
- *
- * <p>Bundle-wins on per-Club seed: S-138's per-Club seed flow runs as a
- * no-op for ported states because the {@code (club_id, name)} natural key
- * already exists post-ingest.
- *
- * <p>Reference-table parity coverage is full per Test plan — no
- * {@code @ParityIgnore} columns, audit columns included.
- */
 public final class MemberStateMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -50,12 +38,12 @@ public final class MemberStateMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.CLUB);
     }
 

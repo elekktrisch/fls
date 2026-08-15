@@ -10,10 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data implementation of {@link MigrationUploadRepository}.
- * Pre-tenant — no Hibernate {@code @TenantId} filter applies.
- */
 public interface JpaMigrationUploadRepository
         extends JpaRepository<MigrationUpload, UUID>, MigrationUploadRepository {
 

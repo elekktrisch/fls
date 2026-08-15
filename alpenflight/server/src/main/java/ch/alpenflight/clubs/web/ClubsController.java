@@ -26,38 +26,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for the Clubs aggregate. Per ADR 0005 the path is plural
- * {@code /api/v1/clubs}.
- *
- * <p>Canonical reference for the three-role {@code @PreAuthorize}
- * convention (S-026). The predicate matrix:
- *
- * <ul>
- *   <li><b>List</b> ({@code GET /}): SYSTEM_ADMINISTRATOR catalogs every
- *       club; FLIGHT_OPERATOR sees the catalog (the read surface that lets
- *       operators pick context); CLUB_ADMINISTRATOR is denied (their reach
- *       is one club, served via {@code GET /{id}}).</li>
- *   <li><b>Read by id</b> ({@code GET /{id}}): SYSTEM_ADMINISTRATOR any
- *       club; CLUB_ADMINISTRATOR + FLIGHT_OPERATOR only the principal's own
- *       club ({@code @tenant.isOwnClub}).</li>
- *   <li><b>Mutations</b> ({@code POST}, {@code PUT /{id}}, {@code DELETE
- *       /{id}}): SYSTEM_ADMINISTRATOR; {@code PUT} also allowed for the
- *       owning CLUB_ADMINISTRATOR. FLIGHT_OPERATOR is read-only.</li>
- * </ul>
- *
- * <p>{@code @PathVariable ClubId id} resolves through
- * {@code ClubIdPathConverter} so callers send the prefixed external form
- * {@code clb-<uuid>}. The own-club predicates delegate to
- * {@link ch.alpenflight.platform.tenancy.OwnTenantAuthorization}, which
- * compares against the tenant the principal actually resolves to — the JWT
- * {@code clubId} claim carries a club key for every realm-seeded admin, so a
- * direct claim comparison locks that principal out of its own club.
- *
- * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —
- * the service hard-codes the canonical CH / ACTIVE seed UUIDs. S-047
- * introduces FK pickers and the DTO grows then.
- */
 @RestController
 @RequestMapping(path = "/api/v1/clubs", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Clubs", description = "Clubs CRUD.")
@@ -85,9 +53,8 @@ public class ClubsController {
             + "or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) "
             + "and @tenant.isOwnClub(#id))")
     public ClubResponse getClub(@PathVariable ClubId id, Authentication authentication) {
-        // The join code is a quasi-secret: only a CLUB_ADMINISTRATOR sees it on
-        // the wire — null for FLIGHT_OPERATOR (read-only viewer) and pilots.
-        return service.getClub(id, hasRole(authentication, "ROLE_CLUB_ADMINISTRATOR"));
+        boolean joinCodeVisibleToCaller = hasRole(authentication, "ROLE_CLUB_ADMINISTRATOR");
+        return service.getClub(id, joinCodeVisibleToCaller);
     }
 
     @Operation(summary = "Create a new club. Slug must be unique.")

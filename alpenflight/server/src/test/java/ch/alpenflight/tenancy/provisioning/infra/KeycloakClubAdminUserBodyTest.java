@@ -7,21 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/**
- * Adapter-boundary unit test for the club-admin user-create request body
- * (J-1 T-06). Asserts the representation the adapter POSTs to
- * {@code /admin/realms/{realm}/users} carries a non-blank firstName +
- * lastName so Keycloak's declarative user-profile does NOT fire the
- * dynamically-triggered {@code VERIFY_PROFILE} required action on the
- * migrated admin's first login.
- *
- * <p>Why an adapter-boundary assertion (not a real Keycloak round-trip):
- * the local test path has no realm. We assert the wire representation the
- * adapter builds — the same surface the (now removed) e2e
- * {@code makeMigratedAdminLoginable} name fixup patched post-hoc. With the
- * names set at provision time, the migrated admin is loginable in one shot
- * with no profile interstitial.
- */
 class KeycloakClubAdminUserBodyTest {
 
     private static final UUID CLUB_ID =

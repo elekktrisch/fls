@@ -15,23 +15,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * The delivery-booking write path — the AlpenFlight port of legacy
- * {@code DeliveryService.SetDeliveryAsDelivered} ({@code DeliveryService.cs:328-369}).
- * It stamps the externally-supplied (Proffix) delivery number + delivery timestamp,
- * marks the delivery {@code Booked}, and flips the linked flight AND its tow into
- * {@code DeliveryBooked}.
- *
- * <p>Parity quirk preserved: an unknown {@code deliveryId} is NOT an error — it
- * returns {@code false} ({@code DeliveryService.cs:336}), the contract the external
- * booker polls against. Tenant scoping is tightened over legacy (which looked up by
- * the bare Guid): the {@code @TenantId} discriminator makes another club's delivery
- * invisible, so a cross-tenant id behaves exactly like an unknown one — {@code false}.
- *
- * <p>Booked is terminal: re-booking an already-booked delivery is rejected
- * ({@link ch.alpenflight.accounting.domain.DeliveryBookedTerminalException} → 409),
- * closing legacy's un-guarded re-stamp of a closed billing record.
- */
 @Service
 @Transactional
 public class DeliveryBookingService {
@@ -50,15 +33,6 @@ public class DeliveryBookingService {
         this.auditTrail = auditTrail;
     }
 
-    /**
-     * Books the delivery: stamps its number + delivered timestamp, marks it Booked,
-     * and flips the linked flight (+ tow) to {@code DeliveryBooked}. Returns
-     * {@code true} when a delivery was booked, {@code false} when no active delivery
-     * with that id exists in the caller's tenant (parity — not an error).
-     *
-     * @throws ch.alpenflight.accounting.domain.DeliveryBookedTerminalException when
-     *     the delivery is already booked (→ 409, no mutation)
-     */
     public boolean book(UUID deliveryId, Instant deliveredAt, @Nullable String deliveryNumber) {
         Optional<Delivery> found = deliveries.findActiveById(deliveryId);
         if (found.isEmpty()) {

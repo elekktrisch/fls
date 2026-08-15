@@ -14,23 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * Spring AOP advice that wraps every {@code @Scheduled} method carrying a
- * {@link LifecycleStateFilter} annotation. The job body becomes a per
- * (Deployment, Club) callback — the advice queries Deployments matching
- * the filter, then for each Deployment iterates the child Clubs via
- * {@link DeploymentContext#forEachClub}, invoking the job body under
- * each Club's tenant scope.
- *
- * <p>An empty filter returns immediately without invoking the body —
- * fail-closed for the design-time invariant the ArchUnit rule enforces
- * at build time. Skipped Deployments emit a DEBUG line (NOT INFO — the
- * dunning-mode-noise discipline from the refinement edge-cases).
- *
- * <p>Today's joined-up flow: empty filter ↔ no work. Non-empty filter ↔
- * the body runs once per (Deployment, Club) pair under that Club's
- * tenant.
- */
 @Aspect
 @Component
 public class LifecycleStateFilterAspect {
@@ -56,7 +39,7 @@ public class LifecycleStateFilterAspect {
             return null;
         }
 
-        for (Deployment deployment : deploymentContext.findDeployment(
+        for (Deployment deployment : deploymentContext.findDeploymentsInLifecycleStates(
                 eligible.toArray(LifecycleState[]::new))) {
             UUID deploymentId = deployment.getId();
             if (deploymentId == null) {
@@ -64,20 +47,15 @@ public class LifecycleStateFilterAspect {
                 continue;
             }
             deploymentContext.forEachClub(deploymentId, club ->
-                    invokeJobBody(pjp));
+                    invokeJobBodyInCurrentClubTenantScope(pjp));
         }
         return null;
     }
 
-    private static void invokeJobBody(ProceedingJoinPoint pjp) {
+    private static void invokeJobBodyInCurrentClubTenantScope(ProceedingJoinPoint pjp) {
         try {
             pjp.proceed();
         } catch (Throwable t) {
-            // Fail-fast: one bad (Deployment, Club) aborts the tick. The
-            // alternative — catch + log per Club + continue — masks
-            // systemic issues (e.g. a downstream dependency is down) by
-            // burying N×M repeats in the log; the scheduler retries on
-            // the next tick anyway.
             throw new JobBodyFailure(
                     "job body failure in " + methodFqn(pjp), t);
         }
@@ -88,12 +66,6 @@ public class LifecycleStateFilterAspect {
         return sig.getDeclaringTypeName() + "#" + sig.getName();
     }
 
-    /**
-     * Re-throw wrapper for checked-exception escape from the
-     * {@link DeploymentContext#forEachClub} consumer lambda. Spring's
-     * {@code @Scheduled} runner catches and logs it like any other
-     * job-body throw.
-     */
     static final class JobBodyFailure extends RuntimeException {
         JobBodyFailure(String message, Throwable cause) {
             super(message, cause);

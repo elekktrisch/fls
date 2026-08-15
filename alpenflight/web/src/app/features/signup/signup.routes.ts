@@ -7,6 +7,3 @@ export const SIGNUP_ROUTES: Routes = [
     data: { showNavBar: false, publicAccess: true },
   },
 ];
-
-// /migrate/* moved to features/migrate-handshake/ at S-140; the
-// migrate-start.component.ts placeholder was promoted into the handshake page.

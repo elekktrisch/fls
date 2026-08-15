@@ -35,21 +35,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack provisioning IT — exercises
- * {@link DeploymentProvisioningService} against a real Postgres so the
- * partial UNIQUE indexes ({@code ux_deployment_owner_active},
- * {@code ux_deployment_idempotency_key}) fire as they would in
- * production. The directory port is replaced with a Mockito mock so the
- * reconcile contract can be exercised without an upstream realm.
- *
- * <p>Covers: happy N-Club ingest, idempotent replay (including
- * owner-mismatch defense), second-ingest 409 across the non-terminal
- * lifecycle states, DELETING exemption, reference-data bootstrap,
- * directory-failure compensation, primary-Club fallback rules.
- */
 @Import(DeploymentProvisioningServiceIT.MockDirectoryConfig.class)
 class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
+
+    private static final String OPERATOR_DEFAULT_DEPLOYMENT_ID =
+            "00000000-0000-0000-0000-000000000002";
 
     @Autowired
     private DeploymentProvisioningService provisioning;
@@ -67,18 +57,14 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
     private UUID clubStateId;
 
     @BeforeEach
-    void seed() {
+    void precleanItOwnedRowsAndResolveReferenceIds() {
         countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
         clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
 
-        // ADR 0021 pre-clean. IT-owned Deployments carry an IT_PROV_ prefix
-        // the production seed never uses. Re-point any Clubs that pointed
-        // at an IT-owned Deployment back to the operator default before
-        // deleting (ON DELETE RESTRICT).
         jdbc.update("""
-                UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid
+                UPDATE t_club SET deployment_id = ?::uuid
                 WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_PROV_%')
-                """);
+                """, OPERATOR_DEFAULT_DEPLOYMENT_ID);
         jdbc.update("""
                 DELETE FROM t_member_state WHERE club_id IN (
                     SELECT id FROM t_club WHERE clubname LIKE 'IT_PROV_%')
@@ -90,8 +76,6 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_club WHERE clubname LIKE 'IT_PROV_%'");
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_PROV_%'");
 
-        // Default mock behaviour: return synthetic ids on every directory
-        // call. Per-test overrides simulate Keycloak failure.
         reset(directory);
         when(directory.findOrCreateDeploymentGroup(any(UUID.class)))
                 .thenAnswer(inv -> UUID.randomUUID());
@@ -123,7 +107,6 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         assertThat(result.primaryClubId())
                 .isEqualTo(result.clubIds().stream().min(Comparator.naturalOrder()).orElseThrow());
 
-        // Per-Club reference data landed.
         for (UUID clubId : result.clubIds()) {
             Integer flightTypeCount = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM t_flight_type WHERE operating_club_id = ?::uuid",
@@ -136,8 +119,6 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
             assertThat(memberStateCount).isEqualTo(3);
         }
 
-        // Keycloak reconcile invoked once per Club for the admin role; once for
-        // the group; user attribute set once.
         verify(directory, times(1)).findOrCreateDeploymentGroup(eq(result.deploymentId()));
         verify(directory, times(1)).addUserToGroupIfAbsent(eq(owner), any(UUID.class));
         verify(directory, times(2)).findOrCreateClubAdminRole(eq(result.deploymentId()), any(UUID.class));
@@ -301,7 +282,6 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         Deployment afterRetry = deployments.findById(result.deploymentId()).orElseThrow();
         assertThat(afterRetry.getKeycloakState()).isEqualTo(KeycloakReconcileState.READY);
 
-        // Second invocation against a ready Deployment is a no-op:
         Mockito.clearInvocations(directory);
         provisioning.reconcileKeycloak(result.deploymentId());
         verify(directory, Mockito.never()).findOrCreateDeploymentGroup(any(UUID.class));
@@ -335,11 +315,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
                 null));
 
-        // Replay with a high-id manifest-declared primary; the service
-        // short-circuits via idempotency and returns the originally-
-        // resolved primary (lowest UUID), NOT the manifest hint —
-        // primary is bound at first provisioning, not mutable on replay.
-        UUID highestClubId = first.clubIds().stream()
+        UUID highestClubIdAsManifestPrimaryHint = first.clubIds().stream()
                 .max(Comparator.naturalOrder())
                 .orElseThrow();
 
@@ -348,10 +324,12 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                 List.of(
                         clubSpec("IT_PROV_manifest_alpha", "it-prov-manifest-alpha", "IPA"),
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
-                highestClubId));
+                highestClubIdAsManifestPrimaryHint));
 
         assertThat(replay.deploymentId()).isEqualTo(first.deploymentId());
-        assertThat(replay.primaryClubId()).isEqualTo(first.primaryClubId());
+        assertThat(replay.primaryClubId())
+                .as("primary is bound at first provisioning — a replay's manifest hint cannot move it")
+                .isEqualTo(first.primaryClubId());
     }
 
     @Test
@@ -378,13 +356,6 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         return new ClubSpec(name, slug, clubKey, false, countryId, clubStateId);
     }
 
-    /**
-     * Spy-wraps the production {@link KeycloakDeploymentDirectory} bean so
-     * tests can stub failures + assert call counts without dragging in a
-     * real Keycloak. Methods default to throwing
-     * {@code UnsupportedOperationException} (which would fail loudly); the
-     * {@code @BeforeEach} sets per-test happy-path stubs.
-     */
     @TestConfiguration
     static class MockDirectoryConfig {
         @Bean

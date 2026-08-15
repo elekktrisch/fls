@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/ops/dev-up-alpenflight.sh
-#
-# Brings up the alpenflight-dev compose project (Postgres + pgAdmin +
-# Keycloak) AND runs Flyway migrations against the new Postgres. Idempotent.
-#
-# Tear down:
-#
-#   docker compose -p alpenflight-dev down [-v]
-#
-# Requires the `alpenflight_shared` network — bring infra up first via
-# alpenflight/ops/dev-up-infra.sh (or the dev-up-full.sh orchestrator).
-# Keycloak's `KEYCLOAK_SMTP_HOST=mailpit` only resolves at first email
-# send, so `--wait` here doesn't prove Mailpit is up; bring infra up
-# first to avoid a silent verify-email failure at signup time.
-#
-# Requires Java 25 + the committed Gradle wrapper.
 
 set -euo pipefail
 
@@ -35,9 +19,6 @@ cd "${REPO_ROOT}"
 require_compose_v2
 require_shared_network
 
-# Services named explicitly — `--profile next` alone would also pull mssql
-# (default profile) into this project and double-bind 1433. See
-# alpenflight/ops/README.md § Profile matrix for the full rule.
 log "Bringing up target stack (Postgres + pgAdmin + Keycloak) under project ${PROJECT}"
 compose_up_or_die "target stack (postgres + pgadmin + keycloak)" - "${PROJECT}" "${COMPOSE_FILE}" \
     up -d --wait --wait-timeout 240 postgres pgadmin keycloak

@@ -1,17 +1,3 @@
--- =============================================================================
--- PersonFlightTimeCredit + its current-balance transaction.
---
--- Tenancy is INDIRECT: neither table carries a club_id. A credit is per-person
--- and visible to ANY club the owning Person belongs to (legacy scopes the load
--- via Person -> PersonClubs.ClubId = currentTenant, DeliveryService.cs:142-146),
--- so these tables follow the cross-tenant Person/PersonClub shape — no @TenantId
--- discriminator column; the repo JOINs the owning Person's PersonClub rows
--- filtered to the caller's tenant.
---
--- Structural only (ADR 0022 directive 2): PK, FK, structural NOT NULL, the
--- identity-bearing partial UNIQUE, indexes. The credit branch math (activation,
--- over-credit split, discount) lives on the engine/aggregate as Java.
--- =============================================================================
 
 CREATE TABLE t_person_flight_time_credit (
     id                                          UUID          NOT NULL PRIMARY KEY,
@@ -55,9 +41,6 @@ CREATE TABLE t_person_flight_time_credit_transaction (
     CONSTRAINT fk_pftc_transaction_balanced_delivery_id
         FOREIGN KEY (balanced_delivery_id) REFERENCES t_delivery (id) ON DELETE SET NULL
 );
--- Exactly-one current balance per credit (AircraftFlightTimeRule.cs:61 reads the
--- single IsCurrent transaction). Identity-bearing partial UNIQUE — the structural
--- backstop for the mapper's keep-first dedupe (T-06).
 CREATE UNIQUE INDEX ux_pftc_transaction_current
     ON t_person_flight_time_credit_transaction (credit_id)
     WHERE is_current;

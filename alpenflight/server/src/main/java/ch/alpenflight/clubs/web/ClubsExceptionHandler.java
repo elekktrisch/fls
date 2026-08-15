@@ -16,20 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Translates Clubs domain exceptions to HTTP responses. Holds the only
- * Spring-web coupling of the Clubs error vocabulary — the exception types
- * themselves stay in {@code clubs.domain} free of {@code @ResponseStatus}
- * per ADR 0023.
- */
-// basePackageClasses scopes the advice to the Clubs controller's package —
-// keeps a future module that throws the same exception type by mistake
-// from inheriting Clubs' HTTP status mapping. Module-local error
-// vocabulary, module-local advice.
 @RestControllerAdvice(basePackageClasses = ClubsController.class)
 class ClubsExceptionHandler {
 
-    /** Typed error body for 400 / 409. RFC-7807-shaped enough to evolve later. */
     public record ApiError(String field, String message) {}
 
     private static final URI TYPE_CLUB_KEY_CONFLICT =
@@ -77,18 +66,6 @@ class ClubsExceptionHandler {
         return ProblemResponses.problem(discoveryDayConflict(e.getMessage()));
     }
 
-    /**
-     * Race net for {@code ClubsService#persist}'s DIVE discrimination (J-26
-     * T-07): Hibernate defers the INSERT to the transaction flush, so the
-     * common duplicate-key path surfaces the {@link
-     * DataIntegrityViolationException} at COMMIT — after the service's try
-     * block. Discriminate the violated constraint here the same way:
-     * {@code ux_club_key} → 409 problem-detail {@code field=clubKey};
-     * {@code ux_club_slug} → the bare 409 the slug conflict always produced;
-     * anything else propagates as 500 (a genuine bug deserves its 500, not a
-     * slug mislabel — before this, duplicate clubKeys were raw 500s). Mirrors
-     * {@code FlightTypesExceptionHandler#handleDataIntegrity} (T-05).
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
         String message = String.valueOf(e.getMostSpecificCause().getMessage());
@@ -98,12 +75,6 @@ class ClubsExceptionHandler {
         if (message.contains("ux_club_slug")) {
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         }
-        // FlightType is @TenantId-scoped, so the sysadmin path cannot pre-check
-        // the reference through its repository the way countryId / clubStateId
-        // are pre-checked; the FK is the only arbiter and its violation is a
-        // caller error, not a 500.
-        // Race-loser for DiscoveryFlightDayService's findActiveByEventDate
-        // pre-check; the partial UNIQUE wins races and must not leak as a 500.
         if (message.contains(DISCOVERY_DAY_UNIQUE_CONSTRAINT)) {
             return ProblemResponses.problem(
                     discoveryDayConflict("The club already offers a discovery-flight day on that date."));
@@ -115,11 +86,6 @@ class ClubsExceptionHandler {
         throw e;
     }
 
-    /**
-     * Aggregate-enforced input rules (ADR 0022 directive 2) — e.g. a malformed
-     * organiser email in {@code Club.setRegistrationOperatorEmails} — reach the
-     * web layer as {@link IllegalArgumentException}; they are caller errors.
-     */
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
         return ProblemResponses.badRequest(e);

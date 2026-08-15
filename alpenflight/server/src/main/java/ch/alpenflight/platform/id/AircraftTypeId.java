@@ -4,11 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code AircraftType} reference row. Plain UUID
- * wire form per the reference-data convention (only aggregate roots get the
- * 3-letter prefix from ADR 0019).
- */
 @Schema(
         type = "string",
         format = "uuid",

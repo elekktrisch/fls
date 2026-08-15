@@ -9,7 +9,6 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-/** Unit tests for {@link MigrationRun} state machine transitions. */
 class MigrationRunStateMachineTest {
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-30T12:00:00Z"), ZoneOffset.UTC);

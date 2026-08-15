@@ -28,42 +28,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-/**
- * Role-gate matrix evidence for the Clubs surface — the canonical reference
- * for "every controller maps its three legacy roles correctly". Runs under
- * the default profile (so {@link ch.alpenflight.platform.security.SecurityConfig}
- * is active) and uses {@code SecurityMockMvcRequestPostProcessors.jwt()} to
- * plant arbitrary authorities + claims per request — exercising the same
- * {@code @PreAuthorize} predicates the production chain enforces.
- *
- * <p>The "mock is real auth shape, not a bypass" invariant is locked here:
- * predicates run against minted {@code JwtAuthenticationToken}s carrying
- * realistic {@code clubId} claims, so the SpEL own-club / other-club
- * branches are real assertions, not stubbed shortcuts.
- *
- * <p>Per-role coverage:
- *
- * <ul>
- *   <li>anonymous → 401 on every method (chain-level — single representative).</li>
- *   <li>SYSTEM_ADMINISTRATOR → access to every method.</li>
- *   <li>CLUB_ADMINISTRATOR → list / create / delete denied; read + update
- *       allowed only for the principal's own club, decided by
- *       {@code @tenant.isOwnClub} against the RESOLVED tenant — so a claim
- *       holding a club key (the realm seed shape) reaches its own club while a
- *       principal that resolves to no tenant is denied.</li>
- *   <li>FLIGHT_OPERATOR → read-only viewer: list + read-own-club allowed;
- *       other-club read denied; all mutations denied.</li>
- *   <li>Non-catalog roles (e.g. {@code ROLE_OFFICE_USER}, {@code ROLE_PILOT})
- *       → promoted verbatim by the converter but grant no access on the Clubs
- *       surface (no predicate references them).</li>
- * </ul>
- *
- * <p>Companion live-chain test {@link SecurityFilterChainIT} covers
- * {@code JwtDecoder} / issuer / signature validation against synthesised RSA
- * tokens; that's the only place a misconfigured decoder surfaces, since this
- * matrix uses Spring Security's test post-processor that bypasses the
- * decoder.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -74,18 +38,14 @@ class ClubsAuthorizationTest {
     private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // V5 seed row + a different (non-existent-in-db) tenant UUID. The other-
-    // club tests don't need a real row to exist because the SpEL clause
-    // (#id.value().toString() == principal.claims['clubId']) returns false
-    // before any DB lookup, producing a 403 — no second seed needed.
     private static final String SEED_CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
     private static final String SEED_CLUB_PATH = "clb-" + SEED_CLUB_ID;
-    private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-000000000999";
+    private static final String OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP =
+            "019e30c3-2c00-7001-8000-000000000999";
 
-    // V29 dev-user seed: clubadmin4's Keycloak subject, whose t_user row binds it
-    // to seed-club-1. Its realm `clubId` attribute is the club KEY, not a UUID.
-    private static final String SEEDED_ADMIN_SUB = "c1ab4d40-0000-4000-8000-000000000004";
-    private static final String SEEDED_ADMIN_CLUB_KEY = "club-1";
+    private static final String REALM_SEEDED_ADMIN_SUB_BOUND_TO_SEED_CLUB_BY_T_USER_ROW =
+            "c1ab4d40-0000-4000-8000-000000000004";
+    private static final String REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID = "club-1";
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
@@ -99,7 +59,6 @@ class ClubsAuthorizationTest {
 
     @Autowired MockMvc mvc;
 
-    // ----- Anonymous -----
 
     @Test
     void list_anonymous_returns_401() throws Exception {
@@ -115,7 +74,6 @@ class ClubsAuthorizationTest {
                                 org.hamcrest.Matchers.startsWith("Bearer")));
     }
 
-    // ----- SYSTEM_ADMINISTRATOR -----
 
     @Test
     void list_sysadmin_returns_200() throws Exception {
@@ -150,14 +108,12 @@ class ClubsAuthorizationTest {
 
     @Test
     void delete_sysadmin_returns_204_on_throwaway_club() throws Exception {
-        // Create then delete in the same test to avoid touching the canonical seed row.
         String slug = "del-sys-" + unique();
         String createdPath = createAsSysadmin("To Delete", slug, "DS" + shortUnique());
         mvc.perform(delete("/api/v1/clubs/" + createdPath).with(sysadmin()))
                 .andExpect(status().isNoContent());
     }
 
-    // ----- CLUB_ADMINISTRATOR (own club) -----
 
     @Test
     void list_clubadmin_returns_403() throws Exception {
@@ -195,40 +151,36 @@ class ClubsAuthorizationTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ----- CLUB_ADMINISTRATOR (other club) — SpEL gate -----
 
     @Test
     void get_clubadmin_other_club_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(clubadmin(OTHER_CLUB_ID)))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void put_clubadmin_other_club_returns_403() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
-                        .with(clubadmin(OTHER_CLUB_ID))
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Hijack Attempt", "seed-club-1", false))))
                 .andExpect(status().isForbidden());
     }
 
-    // ----- CLUB_ADMINISTRATOR whose claim is a club KEY, not a UUID -----
 
-    // Every realm-seeded club admin carries `clubId=club-1` (realm-export.json),
-    // which ClubTenantIdentifierResolver resolves to seed-club-1 through t_user.
-    // The own-club gate has to agree with that resolution, otherwise the role the
-    // screen is built for is locked out of its own club.
 
     @Test
     void get_clubadmin_with_club_key_claim_reads_own_club() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(seededClubadmin()))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey()))
                 .andExpect(status().isOk());
     }
 
     @Test
     void put_clubadmin_with_club_key_claim_updates_own_club() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
-                        .with(seededClubadmin())
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Seed Club", "seed-club-1", false))))
                 .andExpect(status().isOk());
@@ -239,7 +191,8 @@ class ClubsAuthorizationTest {
         String otherClubPath = createAsSysadmin(
                 "Neighbour Club", "neighbour-" + unique(), "NB" + shortUnique());
 
-        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath).with(seededClubadmin()))
+        String body = mvc.perform(get("/api/v1/clubs/" + otherClubPath)
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey()))
                 .andExpect(status().isForbidden())
                 .andReturn().getResponse().getContentAsString();
 
@@ -254,7 +207,7 @@ class ClubsAuthorizationTest {
                 "Neighbour Target", "neighbour-" + unique(), "NT" + shortUnique());
 
         mvc.perform(put("/api/v1/clubs/" + otherClubPath)
-                        .with(seededClubadmin())
+                        .with(realmSeededClubadminWhoseClubIdClaimIsAClubKey())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(updatePayload("Hijacked", "hijacked-" + unique(), true))))
                 .andExpect(status().isForbidden());
@@ -265,24 +218,21 @@ class ClubsAuthorizationTest {
         assertThat(MAPPER.readTree(body).get("name").asText()).isEqualTo("Neighbour Target");
     }
 
-    // A CLUB_ADMINISTRATOR whose sub matches no t_user row resolves to NO_TENANT,
-    // which must never satisfy the own-club gate.
     @Test
-    void get_clubadmin_with_unresolvable_principal_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(unboundClubadmin()))
+    void get_clubadmin_whose_sub_matches_no_t_user_row_resolves_to_no_tenant_and_is_denied_403() throws Exception {
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(clubadminWhoseSubMatchesNoTUserRow()))
                 .andExpect(status().isForbidden());
     }
 
-    // CLUB_ADMINISTRATOR without a clubId claim — federated / not-yet-imported user.
-    // SpEL gate becomes `#id.value().toString() == null` → false → 403 (fail-closed).
     @Test
-    void get_clubadmin_missing_clubId_claim_returns_403() throws Exception {
+    void get_clubadmin_missing_clubId_claim_is_denied_fail_closed_403() throws Exception {
         mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(clubadminWithoutClubIdClaim()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void put_clubadmin_missing_clubId_claim_returns_403() throws Exception {
+    void put_clubadmin_missing_clubId_claim_is_denied_fail_closed_403() throws Exception {
         mvc.perform(put("/api/v1/clubs/" + SEED_CLUB_PATH)
                         .with(clubadminWithoutClubIdClaim())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -290,7 +240,6 @@ class ClubsAuthorizationTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ----- FLIGHT_OPERATOR (own club, read-only) -----
 
     @Test
     void list_flightoperator_returns_200() throws Exception {
@@ -306,7 +255,8 @@ class ClubsAuthorizationTest {
 
     @Test
     void get_flightoperator_other_club_returns_403() throws Exception {
-        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(flightOperator(OTHER_CLUB_ID)))
+        mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH)
+                        .with(flightOperator(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
@@ -334,7 +284,6 @@ class ClubsAuthorizationTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ----- Join-code rotation + admin-only join-code visibility (S-177) -----
 
     @Test
     void rotateJoinCode_clubadmin_own_club_returns_200_with_new_code() throws Exception {
@@ -350,7 +299,7 @@ class ClubsAuthorizationTest {
     @Test
     void rotateJoinCode_clubadmin_other_club_returns_403() throws Exception {
         mvc.perform(post("/api/v1/clubs/" + SEED_CLUB_PATH + "/join-code/rotate")
-                        .with(clubadmin(OTHER_CLUB_ID)))
+                        .with(clubadmin(OTHER_CLUB_ID_DENIED_BEFORE_ANY_DB_LOOKUP)))
                 .andExpect(status().isForbidden());
     }
 
@@ -382,11 +331,7 @@ class ClubsAuthorizationTest {
                 .isTrue();
     }
 
-    // ----- Non-catalog role (e.g. legacy OFFICE_USER / PILOT mapped verbatim) -----
 
-    // Realm export may carry roles outside our three-role catalog; the converter
-    // promotes them to ROLE_* verbatim but no @PreAuthorize references them, so
-    // they grant no access on the Clubs surface (read or write).
     @Test
     void get_unknown_role_returns_403_on_per_club_path() throws Exception {
         mvc.perform(get("/api/v1/clubs/" + SEED_CLUB_PATH).with(role("ROLE_OFFICE_USER", SEED_CLUB_ID)))
@@ -408,21 +353,13 @@ class ClubsAuthorizationTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ----- SPA mock-auth header rejection (post-rip) -----
 
     @Test
-    void list_with_legacy_mock_auth_header_returns_401() throws Exception {
-        // The SPA mock-auth interceptor still stamps `Bearer mock-sysadmin`
-        // under the ng `mock-auth` configuration; once the backend mock
-        // chain is gone, that header reaches the real resource server and
-        // gets rejected as an invalid JWT. The SPA seam stays alive as a
-        // Playwright-CI convenience (specs stub the backend); accidental
-        // hits against the live backend fail loudly with 401.
+    void list_with_spa_mock_auth_bearer_header_is_rejected_as_invalid_jwt_401() throws Exception {
         mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer mock-sysadmin"))
                 .andExpect(status().isUnauthorized());
     }
 
-    // ----- helpers -----
 
     private static RequestPostProcessor sysadmin() {
         return jwt()
@@ -446,17 +383,17 @@ class ClubsAuthorizationTest {
         return jwt().authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 
-    /** V29 `clubadmin4`: realm claim `clubId=club-1`, {@code t_user} row bound to seed-club-1. */
-    private static RequestPostProcessor seededClubadmin() {
+    private static RequestPostProcessor realmSeededClubadminWhoseClubIdClaimIsAClubKey() {
         return jwt()
-                .jwt(t -> t.subject(SEEDED_ADMIN_SUB).claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                .jwt(t -> t.subject(REALM_SEEDED_ADMIN_SUB_BOUND_TO_SEED_CLUB_BY_T_USER_ROW)
+                        .claim("clubId", REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID))
                 .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 
-    private static RequestPostProcessor unboundClubadmin() {
+    private static RequestPostProcessor clubadminWhoseSubMatchesNoTUserRow() {
         return jwt()
                 .jwt(t -> t.subject(UUID.randomUUID().toString())
-                        .claim("clubId", SEEDED_ADMIN_CLUB_KEY))
+                        .claim("clubId", REALM_SEEDED_ADMIN_CLUB_KEY_CLAIM_NOT_UUID))
                 .authorities(new SimpleGrantedAuthority("ROLE_CLUB_ADMINISTRATOR"));
     }
 

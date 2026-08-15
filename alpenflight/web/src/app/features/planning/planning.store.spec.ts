@@ -27,6 +27,8 @@ const DAY_ID = '019e30c3-2c00-7001-8000-000000000e01';
 const LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
 const INSTRUCTOR_ID = 'pn-019e30c3-2c00-7001-8000-0000000000b1';
 
+const PAST_VALIDATE_DEBOUNCE_MS = 250;
+
 const seedDay: PlanningDayDetail = {
   id: DAY_ID,
   operatingClubId: '019e30c3-2c00-7001-8000-000000000001',
@@ -154,7 +156,6 @@ describe('PlanningStore', () => {
     const callsBefore = futureCalls;
     store.delete(DAY_ID);
     expect(events).toContainEqual({ kind: 'planningDay.deleted', id: DAY_ID });
-    // refreshed: one extra future-days read after the delete.
     expect(futureCalls).toBeGreaterThan(callsBefore);
   });
 
@@ -193,8 +194,6 @@ describe('PlanningStore', () => {
     bus.next({ kind: 'session.logout' });
     expect(store.entities().length).toBe(0);
   });
-
-  // ── edit-page methods (T-08) ────────────────────────────────────────────────
 
   it('loadDetail populates selectedDetail for the edit form', () => {
     configure(planningServiceStub({ detail: () => of(seedDay) }));
@@ -254,8 +253,6 @@ describe('PlanningStore', () => {
     store.create({ planningDate: '2026-07-05', locationId: LOCATION_ID });
     expect(store.saveError()).toBe('A planning day already exists for this date and location.');
   });
-
-  // ── setup wizard (T-09) ─────────────────────────────────────────────────────
 
   it('bulkCreate emits planningDay.bulkCreated with the created count and refetches', () => {
     const events: MutationEvent[] = [];
@@ -322,8 +319,6 @@ describe('PlanningStore', () => {
     expect(store.dayReservations().map((r) => r.id)).toEqual(['r1']);
   });
 
-  // ── inline (date, location) uniqueness pre-check (T-07) ──────────────────────
-
   it('validateUniqueness (debounced) surfaces a duplicate inline on a valid:false result', () => {
     vi.useFakeTimers();
     try {
@@ -335,13 +330,11 @@ describe('PlanningStore', () => {
       configure(planningServiceStub({ validate: () => of(dup) }));
       const store = TestBed.inject(PlanningStore);
       store.validateUniqueness({ planningDate: '2026-07-04', locationId: LOCATION_ID });
-      // The debounce (200ms) gates the call; advancing past it runs the probe.
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.uniquenessValidating()).toBe(false);
       expect(store.uniquenessMessage()).toBe(
         'A planning day already exists for this date and location.',
       );
-      // The inline slot the date field merges via liveFieldErrors's asyncErrors$.
       expect(store.uniquenessErrors()).toEqual({
         duplicate: 'A planning day already exists for this date and location.',
       });
@@ -356,7 +349,7 @@ describe('PlanningStore', () => {
       configure(planningServiceStub({ validate: () => of({ valid: true }) }));
       const store = TestBed.inject(PlanningStore);
       store.validateUniqueness({ planningDate: '2026-07-05', locationId: LOCATION_ID });
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.uniquenessMessage()).toBeNull();
       expect(store.uniquenessErrors()).toBeNull();
     } finally {
@@ -371,7 +364,7 @@ describe('PlanningStore', () => {
       configure(planningServiceStub({ validate: () => throwError(() => err) }));
       const store = TestBed.inject(PlanningStore);
       store.validateUniqueness({ planningDate: '2026-07-05', locationId: LOCATION_ID });
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(PAST_VALIDATE_DEBOUNCE_MS);
       expect(store.uniquenessValidating()).toBe(false);
       expect(store.uniquenessMessage()).toBeNull();
     } finally {

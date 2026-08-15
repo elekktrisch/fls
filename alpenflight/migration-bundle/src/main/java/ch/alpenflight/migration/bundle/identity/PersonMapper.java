@@ -13,28 +13,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Cross-tenant aggregate root: legacy {@code Persons.PersonId} →
- * {@code t_person.id}. Person is the sacred-cow cross-tenant entity (ADR
- * 0008): no {@code @TenantId} on the entity, no {@code club_id} column;
- * the only outgoing structural FK is COUNTRY (SYSTEM_GLOBAL — no
- * tenant-bypass declaration needed).
- *
- * <p>The legacy {@code Has*Licence} booleans port verbatim. The story
- * design notes call out that legacy carries person-wide licence flags
- * while {@code t_person_club} carries per-Club operational role flags
- * ({@code is_glider_pilot}, etc.); these are <em>different</em> columns
- * with distinct semantics — do not collapse.
- *
- * <p>PII flows plain into the bundle because the destination needs the
- * values (firstname / lastname / emails / phones / addresses /
- * birthday). At the audit-log surface (S-186
- * {@code LEGACY_MIGRATED} event) the payload contract is row-count +
- * legacy GUID + new UUID only — no PII column appears in the audit.
- *
- * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
- * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
- */
 public final class PersonMapper implements Mapper {
 
     static final String LEGACY_GUID = "legacy_guid";
@@ -124,12 +102,12 @@ public final class PersonMapper implements Mapper {
     }
 
     @Override
-    public String[] columns() {
+    public String[] wireColumns() {
         return COLUMNS.clone();
     }
 
     @Override
-    public List<EntityType> foreignKeys() {
+    public List<EntityType> foreignKeyTargets() {
         return List.of(EntityType.COUNTRY);
     }
 

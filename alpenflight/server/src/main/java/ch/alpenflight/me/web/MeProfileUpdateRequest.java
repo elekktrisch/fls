@@ -8,18 +8,6 @@ import jakarta.validation.constraints.Size;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Wire payload for {@code PATCH /api/v1/me/profile} — the caller-scoped
- * Account self-edit. Carries ONLY the User aggregate's self-editable fields.
- *
- * <p>Deliberately absent: {@code username} / {@code clubId} /
- * {@code keycloakSub} (identity-binding, immutable), {@code remarks}
- * (admin-only free-text — preserved unchanged on self-edit), {@code roles} /
- * {@code personId} / account-state (admin-only; the legacy profile endpoint
- * leaked role mutation and we must not). Binding to this record rather than
- * the {@link ch.alpenflight.users.domain.User} aggregate makes the
- * mass-assignment of those fields structurally impossible.
- */
 @Schema(description = "Account self-edit payload — caller's own User self-fields only.")
 record MeProfileUpdateRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Display name.")

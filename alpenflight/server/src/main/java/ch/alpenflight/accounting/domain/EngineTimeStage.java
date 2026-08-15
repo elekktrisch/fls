@@ -4,29 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * The EngineTime decrement loop — the engine-counter sibling of
- * {@link FlightTimeStage}, billing the same tiered way against engine running
- * time instead of flight time. Ported line-by-line (NOT rewritten from
- * understanding; customer invoices depend on the current behavior) from:
- *
- * <ul>
- *   <li>the loop in
- *       {@code flsserver/src/FLS.Server.Service/Accounting/RuleEngines/DeliveryItemRulesEngine.cs:83-97}</li>
- *   <li>the per-filter predicate + emit in
- *       {@code flsserver/src/FLS.Server.Service/Accounting/Rules/ItemRules/AircraftEngineTimeRule.cs}
- *       ({@code Initialize}:25-32 + {@code Apply}:34-97)</li>
- *   <li>the per-pass apply machinery in
- *       {@code flsserver/src/FLS.Server.Service/RulesEngine/RulesEngine.cs}
- *       (each pass re-clears + re-initialises every rule, so a filter's match is
- *       re-evaluated against the CURRENT remaining active time)</li>
- * </ul>
- *
- * <p>Unlike {@code AircraftFlightTimeRule}, {@code AircraftEngineTimeRule} has NO
- * {@code PersonFlightTimeCredit} / discount branch at all — the engine-time path
- * is pure decrement upstream too, so there is nothing credit-related to defer
- * here.
- */
 public final class EngineTimeStage {
 
     private final AccountingRuleMatcher matcher;
@@ -35,17 +12,6 @@ public final class EngineTimeStage {
         this.matcher = matcher;
     }
 
-    /**
-     * Runs the decrement loop over the active type-80 (EngineTime) filters, in
-     * {@code sort_indicator, id} order, seeding the accumulator's active engine
-     * time from {@code engineRunningTimeSeconds}. Legacy seeds it just before the
-     * loop from {@code EngineEndOperatingCounterInSeconds.GetValueOrDefault() -
-     * EngineStartOperatingCounterInSeconds.GetValueOrDefault()}, so a NULL counter
-     * yields 0 and the loop never runs (no item); the orchestrator (T-12) computes
-     * that delta and passes it here. Each matching tier emits one
-     * {@link DeliveryItemDetails} and decrements the remaining active time; the
-     * loop ends when a full pass applies no rule.
-     */
     public void run(RuleBasedDeliveryDetails accumulator,
                     MatchableFlight flight,
                     int engineRunningTimeSeconds,
@@ -53,26 +19,19 @@ public final class EngineTimeStage {
         accumulator.setActiveEngineTimeInSeconds(engineRunningTimeSeconds);
 
         while (accumulator.getActiveEngineTimeInSeconds() > 0) {
-            boolean anyApplied = false;
+            boolean anyTierCoveredRemainingTime = false;
             for (RuleFilterInput filter : engineTimeFilters) {
                 if (applies(accumulator, flight, filter)) {
                     apply(accumulator, flight, filter);
-                    anyApplied = true;
+                    anyTierCoveredRemainingTime = true;
                 }
             }
-            // Tier gap: no filter covers the remaining time -> stop. The legacy
-            // warns and breaks, leaving the remainder silently unbilled (a known
-            // quirk, reproduced bit-exact — never "fixed", customers depend on it).
-            if (!anyApplied) {
+            if (!anyTierCoveredRemainingTime) {
                 break;
             }
         }
     }
 
-    // The per-filter predicate: the base conditions (T-06) AND the tier window.
-    // The window is min-EXCLUSIVE / max-INCLUSIVE (legacy Between includeMin:false,
-    // includeMax:true) — the asymmetry that lets adjacent tiers (…, m] and (m, …]
-    // partition a duration with no double-billing at the boundary.
     private boolean applies(RuleBasedDeliveryDetails accumulator,
                             MatchableFlight flight,
                             RuleFilterInput filter) {
@@ -88,8 +47,6 @@ public final class EngineTimeStage {
     private void apply(RuleBasedDeliveryDetails accumulator,
                        MatchableFlight flight,
                        RuleFilterInput filter) {
-        // Legacy AircraftEngineTimeRule.Initialize asserts ArticleTarget.NotNull;
-        // a line-emitting filter must carry both an article and a unit.
         String articleNumber = Objects.requireNonNull(filter.articleNumber(),
                 "EngineTime filter must carry an articleNumber");
         AccountingUnitType unit = Objects.requireNonNull(filter.accountingUnitType(),

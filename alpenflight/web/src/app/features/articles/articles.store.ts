@@ -73,15 +73,7 @@ function withDetailId(d: ArticleDetail): ArticleDetailLoaded {
   return d as ArticleDetailLoaded;
 }
 
-/**
- * Project the detail payload onto the list-row shape for optimistic post-save
- * updates. List rows expose number / name / info / isActive; the post-mutation
- * `loadAll()` then settles to authoritative values.
- */
 function listItemFromDetail(d: ArticleDetailLoaded): ArticleItem {
-  // `articleInfo` on the generated list-item is `?: string` (orval), so under
-  // `exactOptionalPropertyTypes` we must conditionally set it rather than
-  // unconditionally assigning the possibly-undefined detail field.
   const item: ArticleItem = {
     id: d.id,
     articleNumber: d.articleNumber,

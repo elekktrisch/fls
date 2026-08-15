@@ -1,35 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
-import { rangeArray, sameRange, toRangeValue } from './date-value-bridge';
+import { stableRangeArray, sameRange, toRangeValue } from './date-value-bridge';
 
 const d = (iso: string): Date => new Date(iso);
 
 describe('date-value-bridge — zoneless reference stability (S-062e)', () => {
-  describe('rangeArray', () => {
+  describe('stableRangeArray', () => {
     it('returns the SAME reference when the value is range-equivalent to prev', () => {
-      // The deadlock fix: identical epochs must not mint a new array, or the
-      // range picker re-reads a "new" input every CD pass and busy-loops.
       const prev = [d('2026-01-01'), d('2026-01-31')];
-      const next = rangeArray([d('2026-01-01'), d('2026-01-31')], prev);
+      const next = stableRangeArray([d('2026-01-01'), d('2026-01-31')], prev);
       expect(next).toBe(prev);
     });
 
     it('mints a new array only when an epoch actually changes', () => {
       const prev = [d('2026-01-01'), d('2026-01-31')];
-      const next = rangeArray([d('2026-01-01'), d('2026-02-15')], prev);
+      const next = stableRangeArray([d('2026-01-01'), d('2026-02-15')], prev);
       expect(next).not.toBe(prev);
       expect((next[1] as Date).getTime()).toBe(d('2026-02-15').getTime());
     });
 
     it('collapses null to a shared frozen empty array (stable across calls)', () => {
-      const a = rangeArray(null, []);
-      const b = rangeArray(null, a);
+      const a = stableRangeArray(null, []);
+      const b = stableRangeArray(null, a);
       expect(a).toBe(b);
       expect(a.length).toBe(0);
     });
 
     it('collapses a single Date (wrong mode) to the empty array', () => {
-      expect(rangeArray(d('2026-01-01'), []).length).toBe(0);
+      expect(stableRangeArray(d('2026-01-01'), []).length).toBe(0);
     });
   });
 

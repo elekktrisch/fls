@@ -21,6 +21,7 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -29,31 +30,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-/**
- * Parity oracle harness — round-trips three identity-group mappers
- * (Country / Language / ClubState as SYSTEM_GLOBAL, Club / User as
- * FULL_PORT) against the canonical FLSTest schema in MSSQL + the V2 Flyway-
- * migrated Postgres. Asserts producer / envelope / consumer / diff plumbing
- * end-to-end and writes a structured report under
- * {@code build/reports/parity/<run-id>/}.
- *
- * <p>Containers driven via {@code docker} CLI (see
- * {@link MssqlContainerLifecycle} / {@link PostgresContainerLifecycle}) —
- * sandbox Docker daemons that enforce REST API ≥ 1.44 reject Testcontainers'
- * bundled docker-java. One MSSQL cold start (~30-60 s) + one Postgres cold
- * start (~5-10 s) + canonical FLSTest schema apply (~30-90 s) per
- * parity-job run.
- *
- * <p>Gated to the parity source set; {@code ./gradlew test} never sees it.
- * Invocation: {@code ./gradlew parityTest -Dparity.seed=42 -Dparity.scale=1}.
- * Skips cleanly when Docker is unreachable.
- */
 @Tag("parity")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf(value = "dockerAvailable",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 @DisplayName("Parity oracle — Country / Language / ClubState + Club / User")
 class ParityOracleHarnessTest {
+
+    private static final @Nullable Integer FK_ORPHANS_NOT_MEASURED = null;
 
     private static final MssqlContainerLifecycle MSSQL = new MssqlContainerLifecycle();
     private static final PostgresContainerLifecycle POSTGRES = new PostgresContainerLifecycle();
@@ -82,12 +66,10 @@ class ParityOracleHarnessTest {
         try {
             POSTGRES.stop();
         } catch (Throwable ignored) {
-            // best effort
         }
         try {
             MSSQL.stop();
         } catch (Throwable ignored) {
-            // best effort
         }
     }
 
@@ -148,12 +130,8 @@ class ParityOracleHarnessTest {
 
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
-        // fkOrphans stays null in this 5-mapper slice: the FK-orphan walk runs
-        // with the round-trip extension that adds the remaining mappers
-        // (deferred follow-up). ParityReports emits the measured value once it
-        // is supplied.
         Path summary = ParityReports.write(reportsDirectory, runIdentity, producerCounts,
-                ingestOutcome.rowCountByEntity(), diffOutcome, null);
+                ingestOutcome.rowCountByEntity(), diffOutcome, FK_ORPHANS_NOT_MEASURED);
 
         assertThat(summary).exists();
         String summaryContent = Files.readString(summary);
@@ -173,7 +151,7 @@ class ParityOracleHarnessTest {
         assertThat(ingestOutcome.rowCountByEntity().get(EntityType.USER))
                 .as("Every seeded User must round-trip into t_user")
                 .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT * LegacyFixtureSeeder.USERS_PER_CLUB);
-        assertThat(ingestOutcome.legacyIdMaps().byEntity().keySet())
+        assertThat(ingestOutcome.legacyIdMaps().newIdByLegacyGuidByEntity().keySet())
                 .as("SYSTEM_GLOBAL FK resolution must populate legacy_id_map for "
                         + "every SYSTEM_GLOBAL mapper in the bundle")
                 .containsExactlyInAnyOrder(

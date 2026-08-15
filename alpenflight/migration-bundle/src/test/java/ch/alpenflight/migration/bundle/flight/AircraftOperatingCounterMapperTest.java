@@ -50,6 +50,6 @@ class AircraftOperatingCounterMapperTest
 
     @Test
     void declaresAircraftAsTheOnlyStructuralForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.AIRCRAFT);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.AIRCRAFT);
     }
 }

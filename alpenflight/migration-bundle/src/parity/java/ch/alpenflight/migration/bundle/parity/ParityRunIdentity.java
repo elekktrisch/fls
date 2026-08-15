@@ -4,18 +4,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/**
- * Run-identity encoding used as the report sub-directory name —
- * {@code <git-short-sha>-<parity.seed>-<parity.scale>}. Nightly 10× produces
- * 10 distinguishable sub-directories rather than overwrites; PR-gated runs
- * collide only when seed + scale + HEAD are all identical, which is
- * intentional (re-running the same exact configuration overwrites is
- * cheaper than warehousing identical reports).
- *
- * <p>The git short-SHA component is read from {@code git rev-parse
- * --short=7 HEAD}. A non-zero exit (no repo / no commits) falls back to
- * {@code "nogit"} — the harness must run before the first commit too.
- */
 public final class ParityRunIdentity {
 
     private final String gitShortSha;

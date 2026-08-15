@@ -52,18 +52,12 @@ class FlightCrewMapperTest extends AbstractMapperContractTest<FlightCrewMapper> 
 
     @Test
     void declaresFlightAndPersonAsStructuralForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("flight_id is intra-aggregate to Flight; person_id rides "
                         + "TENANT_BYPASS_ALLOW_LIST to cross-tenant Person")
                 .containsExactlyInAnyOrder(EntityType.FLIGHT, EntityType.PERSON);
     }
 
-    // FLIGHT-FIDELITY: crew survives migration. Each legacy assignment is one
-    // FlightCrew row keyed by (flight_id, person_id, flight_crew_type_id); the
-    // role code (FlightCrewType.cs) is carried as the V3-seeded reference UUID
-    // new UUID(0, code). A round-trip over every legitimate role proves a per-
-    // person crew row reaches the ingest with its role intact — the assertion
-    // the slow fanout otherwise gates exclusively.
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3, 4, 5, 6, 10})
     void crewRowRoundTripsPersonKeyedByItsRoleCode(int legacyCrewType) throws Exception {

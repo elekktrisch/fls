@@ -30,6 +30,8 @@ import {
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
+const HH_MM_LENGTH = 5;
+
 const FCT = {
   PILOT: FLIGHT_CREW_TYPE_PILOT,
   CO_PILOT: FLIGHT_CREW_TYPE_CO_PILOT,
@@ -115,19 +117,6 @@ function buildCrewSubForm(fb: NonNullableFormBuilder): FormGroup<CrewSubForm> {
   });
 }
 
-/**
- * The required-field floor a glider flight must clear to count as VALID
- * (oracle: `Flight.ValidateFlight`, `flsserver/.../DbEntities/Flight.cs:574`).
- * Applied only to the PRIMARY (glider) crew + the top-level flightDate /
- * startTypeId; the conditional start-type arms (winch operator, tow flight) and
- * the conditional time fields are handled separately. The TOW sub-group stays
- * unvalidated — it is a conditional step (aerotow only), so a blank tow must
- * never block Save on a non-towing flight.
- *
- * This is the client-side Save gate, not the legacy nightly verdict: server
- * `@NotNull`/`@Min`/`@Valid` stays the safety net, and the daily-validation job
- * still flags an incomplete flight Invalid.
- */
 function applyGliderRequiredValidators(glider: GliderFlightForm): void {
   glider.controls.aircraftId.addValidators(Validators.required);
   glider.controls.pilotPersonId.addValidators(Validators.required);
@@ -138,18 +127,6 @@ function applyGliderRequiredValidators(glider: GliderFlightForm): void {
   glider.addValidators(gliderConditionalValidator);
 }
 
-/**
- * Cross-field rules the glider sub-group can't express per-control:
- *  - Start/landing time are required UNLESS the matching "no time information"
- *    flag is set (oracle `StartDateTime.HasValue == false &&
- *    NoStartTimeInformation == false`).
- *  - A winch launch additionally requires a winch operator (oracle
- *    `AircraftStartType.WinchLaunch` arm). The start type lives on the PARENT
- *    form, read at run time so the rule re-evaluates whenever the start type or
- *    the operator changes (and on hydrate revalidate).
- *
- * Keyed errors surface on the group so each step can render them per field.
- */
 function gliderConditionalValidator(group: AbstractControl): ValidationErrors | null {
   const g = group as GliderFlightForm;
   const errors: ValidationErrors = {};
@@ -166,15 +143,6 @@ function gliderConditionalValidator(group: AbstractControl): ValidationErrors | 
   return Object.keys(errors).length > 0 ? errors : null;
 }
 
-/**
- * The Save gate — legacy-client parity (`FlightsController.js`): a flight may be
- * saved with just FlightDate + glider Aircraft + Pilot. The remaining
- * minimal-valid fields keep their per-control validators (so the inline
- * as-you-type errors still render and `form.valid` reflects the full
- * legacy-`Invalid` floor), but they do NOT block Save — legacy persists an
- * incomplete flight as `ProcessState=Invalid` (log on launch, complete after
- * landing). Server `@NotNull`/`@Min`/`@Valid` stays the safety net.
- */
 export function isFlightSaveable(form: FlightForm): boolean {
   const g = form.controls.glider.controls;
   return form.controls.flightDate.valid && g.aircraftId.valid && g.pilotPersonId.valid;
@@ -192,20 +160,12 @@ export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
     glider,
     tow: buildCrewSubForm(fb),
   });
-  // Validators added after construction don't re-run on their own — recompute
-  // once so the form opens INVALID against its empty values (else the gate never
-  // trips).
   revalidateTree(form);
   return form;
 }
 
 import { isAerotow, isWinchLaunch } from './flight-start-types';
 
-/**
- * The legacy `StartType.Towing` semantics. Today: matched against the
- * Aerotow UUID seeded by `V2__identity_and_reference.sql`. Once a real
- * `/start-types` endpoint exists this collapses into a store lookup.
- */
 export function needsTowplane(startTypeId: string | null | undefined): boolean {
   return isAerotow(startTypeId);
 }
@@ -233,10 +193,6 @@ function packCrew(g: Partial<CrewSnapshot>): FlightCrewItem[] {
   push(g.observerPersonId, FCT.OBSERVER);
   push(g.passengerPersonId, FCT.PASSENGER);
   push(g.winchOperatorPersonId, FCT.WINCH_OPERATOR);
-  // Invoice recipient: legacy modeled this as a crew row of its own type
-  // rather than a column on Flight (`FlightCrewType.FlightCostInvoiceRecipient`
-  // in `flsserver/src/FLS.Server.Data/DbEntities/Flight.cs:368`); we preserve
-  // that shape so the existing crew table covers it without a schema change.
   push(g.invoiceRecipientPersonId, FCT.INVOICE_RECIPIENT);
   return out;
 }
@@ -277,18 +233,10 @@ export interface FlightFormSnapshot {
   canDeleteRecord: boolean;
   glider: CrewSnapshot;
   tow: CrewSnapshot;
-  /**
-   * The primary flight's create discriminator, inferred from the selected
-   * primary aircraft: MOTOR when a motor aircraft is selected (a unified
-   * "air movement" — no separate /airmovements screen, J-2 T-36 / S-064),
-   * GLIDER otherwise. A MOTOR primary never produces a tow.
-   */
   primaryAircraftType?: FlightCreateRequestFlightAircraftType;
 }
 
 function detailToCrewSnapshot(d: FlightDetail): CrewSnapshot {
-  // Empty-Guid normalization is load-bearing on BOTH edit-load AND copy-template
-  // — without it the form silently 400s on save (S-062a known FK gap).
   const crew = d.crew ?? [];
   return {
     aircraftId: nullIfEmptyGuid(d.aircraftId),
@@ -320,8 +268,6 @@ function detailToCrewSnapshot(d: FlightDetail): CrewSnapshot {
 }
 
 function templateToCrewSnapshot(t: FlightTemplateResponse): CrewSnapshot {
-  // FlightTemplateResponse is the editable-surface subset — no times / engine
-  // counters / comment / coupon. Crew + aircraft + locations + routes only.
   const crew = t.crew ?? [];
   return {
     aircraftId: nullIfEmptyGuid(t.aircraftId),
@@ -384,10 +330,9 @@ function blankCrew(): CrewSnapshot {
 
 function timeOfIso(iso: string | undefined): string | null {
   if (!iso) return null;
-  // Server returns ISO datetimes; the form stores HH:mm only.
-  const t = iso.indexOf('T');
-  if (t < 0) return null;
-  return iso.slice(t + 1, t + 6);
+  const timeSeparator = iso.indexOf('T');
+  if (timeSeparator < 0) return null;
+  return iso.slice(timeSeparator + 1, timeSeparator + 1 + HH_MM_LENGTH);
 }
 
 function isoOfDateAndTime(date: string | null, time: string | null): string | undefined {
@@ -395,11 +340,6 @@ function isoOfDateAndTime(date: string | null, time: string | null): string | un
   return `${date}T${time}:00Z`;
 }
 
-/**
- * Build a form snapshot from a server `FlightDetail` (edit load) — paired-row aware:
- * when the glider detail has `towFlightId` set, the caller passes the resolved tow
- * detail. Otherwise the tow sub-group is blank.
- */
 export function flightDetailToFormSnapshot(
   glider: FlightDetail,
   tow: FlightDetail | undefined,
@@ -427,27 +367,17 @@ export function templateToFormSnapshot(template: FlightTemplateResponse): Flight
   };
 }
 
-/**
- * Submit-time mirror: glider→tow sync of startDateTime / startLocationId / outboundRoute
- * BEFORE the tow-discard check (parity with `FlightsController.js:370-372`).
- *
- * Returns the pair of create requests. The caller (FlightStore.savePair) orchestrates
- * the 3-call paired-create chain (POST glider → POST tow → PUT link).
- */
 export function snapshotToCreateRequests(s: FlightFormSnapshot): {
   glider: FlightCreateRequest;
   tow: FlightCreateRequest | undefined;
 } {
   const primaryType = s.primaryAircraftType ?? FlightCreateRequestFlightAircraftType.GLIDER;
   const glider = subFormToCreate(s.glider, s.flightDate, s.startTypeId, 'glider', primaryType);
-  // A motor primary (air movement) never carries a tow — it's a single MOTOR
-  // flight on the same backend (S-064, legacy `air-movements.html`).
   const isMotor = primaryType === FlightCreateRequestFlightAircraftType.MOTOR;
   const needsTow = !isMotor && needsTowplane(s.startTypeId) && !!s.tow.aircraftId;
   if (!needsTow) {
     return { glider, tow: undefined };
   }
-  // Glider→tow sync at submit (legacy parity); the UI mirrors are display-only.
   const synced: CrewSnapshot = {
     ...s.tow,
     startLocationId: s.glider.startLocationId,
@@ -493,8 +423,6 @@ function subFormToCreate(
     throw new Error(`subFormToCreate: ${side} aircraft is required to submit`);
   }
   const req: FlightCreateRequest = {
-    // The primary slot's discriminator is inferred from the selected aircraft
-    // (GLIDER default, MOTOR for a motor aircraft). The tow slot is always TOW.
     flightAircraftType:
       side === 'glider' ? primaryAircraftType : FlightCreateRequestFlightAircraftType.TOW,
     aircraftId: c.aircraftId,
@@ -531,10 +459,8 @@ function subFormToUpdate(c: CrewSnapshot, flightDate: string | null): FlightUpda
   if (!c.aircraftId) {
     throw new Error('subFormToUpdate: aircraft is required');
   }
-  // FlightUpdateRequest is the same surface as FlightCreateRequest minus the
-  // discriminator. Reuse the create mapper and strip the discriminator field.
   const created = subFormToCreate(c, flightDate, null, 'glider');
-  const { flightAircraftType: _drop, ...rest } = created;
-  void _drop;
-  return rest;
+  const { flightAircraftType: _createOnlyDiscriminator, ...updatableFields } = created;
+  void _createOnlyDiscriminator;
+  return updatableFields;
 }

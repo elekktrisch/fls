@@ -18,22 +18,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * End-to-end integration test. Starts SQL Server in a Docker container via
- * the {@code docker} CLI, seeds it with the actual FLSTest fixture from
- * {@code flsserver/database/FLSTest/}, runs the extractor, asserts the JSON
- * outputs contain real FLS tables.
- *
- * <p>Per the test philosophy for this stack: this is the only test class.
- * No mocking, no unit-test tier, no synthetic schema. The real legacy
- * fixture is the substrate — and incidentally the substrate the operator
- * uses when re-running the extractor locally.
- *
- * <p>Container lifecycle is driven by {@link MssqlTestContainerLifecycle}
- * rather than Testcontainers because the sandbox's Docker daemon enforces
- * Docker REST API ≥ 1.44, and Testcontainers 1.21.x's bundled docker-java
- * negotiates only 1.32. Driving via {@code docker} CLI bypasses that.
- */
 @SpringBootTest(properties = "extract.run-on-startup=false")
 @EnabledIf(value = "dockerAvailable",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
@@ -42,19 +26,11 @@ class MetadataExtractorIntegrationTest {
     private static final MssqlTestContainerLifecycle MSSQL = new MssqlTestContainerLifecycle();
     private static final boolean DOCKER_AVAILABLE = tryStartContainer();
 
-    /**
-     * Spring evaluates {@code @DynamicPropertySource} before {@code @BeforeAll},
-     * so the container must be live before the class is loaded. The static-init
-     * path attempts the start; if Docker isn't reachable (typical for
-     * Windows-without-Docker-Desktop, or any host without a docker daemon),
-     * the test class is disabled cleanly via {@code @EnabledIf} below rather
-     * than failing with {@code ExceptionInInitializerError}.
-     */
     private static boolean tryStartContainer() {
         try {
             MSSQL.start();
             return true;
-        } catch (Throwable t) {
+        } catch (Throwable dockerUnreachable) {
             System.err.println("""
                     [alpenflight-extract] Skipping MetadataExtractorIntegrationTest — Docker unreachable.
 
@@ -69,12 +45,11 @@ class MetadataExtractorIntegrationTest {
 
                       The CI workflow runs Docker natively, so PRs are gated on real test runs
                       even when local dev skips.
-                    """.formatted(t.getMessage()));
+                    """.formatted(dockerUnreachable.getMessage()));
             return false;
         }
     }
 
-    /** Predicate target for {@link EnabledIf}. */
     static boolean dockerAvailable() {
         return DOCKER_AVAILABLE;
     }
@@ -96,7 +71,9 @@ class MetadataExtractorIntegrationTest {
     @Autowired MetadataExtractor extractor;
 
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Path ALPENFLIGHT_TEST_ROOT = locateFlsTestFixture();
+    private static final Path LEGACY_FLSTEST_FIXTURE_ROOT = locateFlsTestFixture();
+    private static final int MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ = 50;
+    private static final int MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT = 6;
 
     @BeforeAll
     static void verifySqlClasspathIsSafe() {
@@ -111,15 +88,11 @@ class MetadataExtractorIntegrationTest {
 
     @BeforeAll
     static void seedFlsTestFixture(@Autowired DataSource ds) throws IOException {
-        LegacyExtractFixtureSeeder.SeedResult result = LegacyExtractFixtureSeeder.applyAll(ds, ALPENFLIGHT_TEST_ROOT);
-        // The fixture must produce *some* schema for the extraction to be
-        // meaningful. The exact number of failing batches isn't a strong
-        // invariant — legacy scripts contain server-state DDL that won't
-        // apply against a fresh container — but a complete-failure run means
-        // the fixture isn't being read at all.
+        LegacyExtractFixtureSeeder.SeedResult result =
+                LegacyExtractFixtureSeeder.applyAll(ds, LEGACY_FLSTEST_FIXTURE_ROOT);
         assertThat(result.batchesApplied())
                 .as("FLSTest fixture seed produced no successful batches")
-                .isGreaterThan(50);
+                .isGreaterThan(MINIMUM_APPLIED_BATCHES_PROVING_THE_FIXTURE_WAS_READ);
     }
 
     @Test
@@ -139,7 +112,6 @@ class MetadataExtractorIntegrationTest {
         assertThat(out.resolve("identity-columns.json")).exists();
         assertThat(out.resolve("manifest.json")).exists();
 
-        // Aggregate-gated files MUST NOT appear when the flag is off.
         assertThat(out.resolve("row-counts.json")).doesNotExist();
         assertThat(out.resolve("storage-stats.json")).doesNotExist();
         assertThat(out.resolve("column-cardinality.json")).doesNotExist();
@@ -151,15 +123,8 @@ class MetadataExtractorIntegrationTest {
         extractor.extractTo(new ExtractConfig(false, true, out));
         JsonNode tables = JSON.readTree(out.resolve("tables.json").toFile());
 
-        // Hand-picked tables that are load-bearing for the modernization:
-        //   - Flights / Persons / Aircrafts / Clubs / PersonClubs — sacred-cow domain
-        //   - AuditLogs + AuditLogDetails — largest PII container
-        //   - AccountingRuleFilters — rules-engine config
-        //   - Deliveries / DeliveryItems — invoice flow terminal state
-        var names = nodeValues(tables, "table_name");
-        // Legacy table names use singular for join tables (PersonClub,
-        // FlightCrew) but plural for entity tables (Flights, Persons).
-        assertThat(names).contains(
+        var tableNames = nodeValues(tables, "table_name");
+        assertThat(tableNames).contains(
                 "Flights", "Persons", "Aircrafts", "Clubs", "PersonClub",
                 "FlightCrew",
                 "AuditLogs", "AuditLogDetails",
@@ -170,17 +135,15 @@ class MetadataExtractorIntegrationTest {
     @Test
     void columns_json_carries_flight_columns_with_types(@TempDir Path out) throws IOException {
         extractor.extractTo(new ExtractConfig(false, true, out));
-        JsonNode cols = JSON.readTree(out.resolve("columns.json").toFile());
+        JsonNode columns = JSON.readTree(out.resolve("columns.json").toFile());
 
-        // Spot-check Flights table — it's parity-critical and has no ClubId,
-        // which is the indirect-tenancy finding the JSON output surfaces.
         long flightColumnCount = 0;
         boolean hasFlightDate = false;
         boolean hasNoClubId = true;
-        for (JsonNode c : cols) {
-            if ("Flights".equals(c.get("table_name").asText())) {
+        for (JsonNode column : columns) {
+            if ("Flights".equals(column.get("table_name").asText())) {
                 flightColumnCount++;
-                String name = c.get("column_name").asText();
+                String name = column.get("column_name").asText();
                 if ("FlightDate".equalsIgnoreCase(name)) hasFlightDate = true;
                 if ("ClubId".equalsIgnoreCase(name)) hasNoClubId = false;
             }
@@ -204,7 +167,6 @@ class MetadataExtractorIntegrationTest {
         assertThat(fks.size())
                 .as("FLSTest fixture should produce many foreign keys")
                 .isGreaterThan(10);
-        // Every FK record carries the referenced table + the columns lists.
         JsonNode first = fks.get(0);
         assertThat(first.get("table").asText()).isNotBlank();
         assertThat(first.get("referenced_table").asText()).isNotBlank();
@@ -241,27 +203,23 @@ class MetadataExtractorIntegrationTest {
         assertThat(out.resolve("index-sizes.json")).exists();
         assertThat(out.resolve("index-usage.json")).exists();
         assertThat(out.resolve("column-cardinality.json")).exists();
-        // audit-log-sizing.json is conditional on AuditLogs+AuditLogDetails
-        // existing. FLSTest fixture has both → file should be produced.
         assertThat(out.resolve("audit-log-sizing.json")).exists();
-        // Cutover-window estimate — AC4. Top-10 by storage MB, with
-        // migrate_seconds + pct_of_budget per table.
         assertThat(out.resolve("cutover-window.json")).exists();
     }
 
     @Test
     void cutover_window_json_carries_top10_with_migrate_seconds(@TempDir Path out) throws IOException {
         extractor.extractTo(new ExtractConfig(true, true, out));
-        JsonNode cw = JSON.readTree(out.resolve("cutover-window.json").toFile());
+        JsonNode cutoverWindow = JSON.readTree(out.resolve("cutover-window.json").toFile());
 
-        assertThat(cw.get("throughput_mb_per_sec").asDouble())
+        assertThat(cutoverWindow.get("throughput_mb_per_sec").asDouble())
                 .as("default throughput constant is 30 MB/s per the refinement worked example")
                 .isEqualTo(30.0);
-        assertThat(cw.get("budget_seconds").asLong())
+        assertThat(cutoverWindow.get("budget_seconds").asLong())
                 .as("C6 sacred-cow cutover budget is 6 hours = 21600 s")
                 .isEqualTo(21_600L);
 
-        JsonNode top = cw.get("top_tables");
+        JsonNode top = cutoverWindow.get("top_tables");
         assertThat(top.isArray()).isTrue();
         assertThat(top.size())
                 .as("top_tables should be non-empty for the seeded fixture")
@@ -279,7 +237,6 @@ class MetadataExtractorIntegrationTest {
                 .isLessThan(5.0);
     }
 
-    // ---- S-011 tenant-scope catalog tests ----
 
     @Test
     void tenant_classification_json_is_emitted(@TempDir Path out) {
@@ -302,7 +259,6 @@ class MetadataExtractorIntegrationTest {
         var classified = new java.util.HashSet<String>();
         classification.get("entities").forEach(n -> classified.add(n.get("legacy_table").asText()));
 
-        // Symmetric set-equality: every legacy table is classified, no orphan classification.
         assertThat(classified)
                 .as("every legacy table from tables.json must be classified — completeness verifier")
                 .containsAll(legacyTables);
@@ -338,12 +294,9 @@ class MetadataExtractorIntegrationTest {
         JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
 
         JsonNode flights = findClassification(classification, "Flights");
-        // Flights has no ClubId column in legacy → indirect tenant via Aircrafts.OwnerClubId.
-        // S-013 must denormalize club_id into the new flight table → target is TENANT_SCOPED.
         assertThat(flights.get("legacy_scope").asText()).isEqualTo("INDIRECT_TENANT");
         assertThat(flights.get("target_scope").asText()).isEqualTo("TENANT_SCOPED");
         assertThat(flights.get("target_entity").asText()).isEqualTo("Flight");
-        // The denormalization recommendation must be carried as a precondition for S-013.
         var preconditions = new java.util.ArrayList<String>();
         flights.get("preconditions").forEach(n -> preconditions.add(n.asText()));
         assertThat(preconditions)
@@ -357,12 +310,26 @@ class MetadataExtractorIntegrationTest {
         JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
 
         assertScope(classification, "Persons", "CROSS_TENANT");
-        assertScope(classification, "PersonClub", "CROSS_TENANT");
+        assertScope(classification, "PersonClub", "TENANT_SCOPED");
         assertScope(classification, "Users", "PRINCIPAL_SUBJECT");
         assertScope(classification, "AuditLogs", "TENANT_SCOPED");
         assertScope(classification, "AuditLogDetails", "TENANT_SCOPED");
         assertScope(classification, "Countries", "REFERENCE_DATA");
         assertScope(classification, "LanguageTranslations", "REFERENCE_DATA");
+    }
+
+    @Test
+    void tenant_classification_person_club_is_the_membership_pivot_carrying_the_club_discriminator(@TempDir Path out)
+            throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        JsonNode personClub = findClassification(classification, "PersonClub");
+        assertThat(personClub.get("tenant_column").asText())
+                .as("PersonClub is the one row per (person, club) membership pivot — a multi-club pilot keeps one "
+                        + "row per club, each discriminated by club_id, while Persons stays CROSS_TENANT")
+                .isEqualTo("club_id");
+        assertThat(personClub.get("target_entity").asText()).isEqualTo("PersonClub");
     }
 
     @Test
@@ -417,7 +384,7 @@ class MetadataExtractorIntegrationTest {
 
     private static Path locateRepoFile(String repoRelativePath) {
         Path cursor = Paths.get(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve(repoRelativePath);
             if (candidate.toFile().exists()) {
                 return candidate;
@@ -428,14 +395,10 @@ class MetadataExtractorIntegrationTest {
         return Paths.get(repoRelativePath);
     }
 
-    // ---- helpers ----
 
     private static Path locateFlsTestFixture() {
-        // The test runs from the Gradle subproject (alpenflight/database/extract).
-        // The FLSTest fixture lives at flsserver/database/FLSTest from the
-        // repo root. Walk up until we find it; bail loudly if missing.
         Path cursor = Paths.get(".").toAbsolutePath().normalize();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_PARENT_DIRECTORIES_WALKED_TO_REPO_ROOT; i++) {
             Path candidate = cursor.resolve("flsserver/database/FLSTest");
             if (candidate.toFile().isDirectory()) {
                 return candidate;

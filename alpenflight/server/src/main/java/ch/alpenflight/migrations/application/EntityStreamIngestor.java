@@ -26,20 +26,6 @@ import java.util.regex.Pattern;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
 
-/**
- * Streaming ingest worker for the per-entity payload streams the bundle
- * carries — the {@code legacy_id_map_*.pgcopy} COPY streams and the
- * {@code <EntityType>.ndjson} INSERT streams.
- *
- * <p>Validates the column allow-list at construction time so a mapper
- * smuggling a column name outside {@code [A-Za-z0-9_]} fails Spring boot
- * (visible at deploy, not at first user request).
- *
- * <p>Package-private constructor: only callers inside
- * {@code ch.alpenflight.migrations.application} construct it.
- * Structural isolation guards against a future cron / batch job wiring
- * past the orchestrator's principal-owns-upload check.
- */
 final class EntityStreamIngestor {
 
     private static final String LEGACY_ID_MAP_ENTRY_PREFIX = "legacy_id_map/";
@@ -69,14 +55,6 @@ final class EntityStreamIngestor {
         }
     }
 
-    /**
-     * Fan-out entities ({@link EntityType#fansOut()}) record N {@code club_id}-
-     * distinct replica ids per shared {@code legacy_guid}, so their id-map table
-     * is composite-keyed {@code (legacy_guid, club_id)} (a single-key table could
-     * hold only one replica id and the T-07 resolver SELECTs on the composite
-     * key). Non-fan-out entities keep the 2-column single-key shape that
-     * CLUB / SYSTEM_GLOBAL / identity entities rely on.
-     */
     private static String idMapTableColumns(EntityType entity) {
         if (entity.fansOut()) {
             return "(legacy_guid uuid, club_id uuid, new_uuid uuid NOT NULL, "
@@ -88,10 +66,6 @@ final class EntityStreamIngestor {
     void seedClubLegacyIdMap(Connection connection,
                              BundleManifest manifest,
                              ProvisioningResult provisioned) throws SQLException {
-        // Pair each manifest Club to its provisioning-minted id by club_key, not
-        // list position: provisioning's idempotency-replay returns clubs in DB
-        // order, so an index pairing could seed a Club against the wrong tenant
-        // root (ADR 0008).
         Map<String, UUID> provisionedIdByClubKey =
                 loadProvisionedClubIdsByKey(connection, provisioned.clubIds());
         String table = LegacyIdMapTables.temporaryTableName(EntityType.CLUB);
@@ -114,7 +88,6 @@ final class EntityStreamIngestor {
         }
     }
 
-    /** ProvisioningResult carries only ids; recover each club_key so the manifest can pair on it. */
     private static Map<String, UUID> loadProvisionedClubIdsByKey(Connection connection,
                                                                  List<UUID> clubIds)
             throws SQLException {
@@ -138,12 +111,6 @@ final class EntityStreamIngestor {
                 LEGACY_ID_MAP_ENTRY_PREFIX.length(),
                 tarEntryName.length() - LEGACY_ID_MAP_ENTRY_SUFFIX.length());
         String table = "legacy_id_map_" + entitySuffix;
-        // The COPY column list is pinned to the table shape so the bundle's
-        // pgcopy field order is matched explicitly: a fan-out entity's pgcopy
-        // is 3-column (legacy_guid, club_id, new_uuid) targeting the composite
-        // table; non-fan-out stays 2-column (legacy_guid, new_uuid). The entity
-        // is the tar-entry suffix — fail closed if it is not a known EntityType
-        // (an unknown suffix never reaches a valid id-map table anyway).
         String columnList = idMapCopyColumns(entitySuffix);
         try {
             PgConnection pg = connection.unwrap(PgConnection.class);
@@ -158,13 +125,6 @@ final class EntityStreamIngestor {
         }
     }
 
-    /**
-     * COPY column list for the {@code legacy_id_map_<entity>} table, pinned to
-     * the table's shape: a fan-out entity ({@link EntityType#fansOut()}) is the
-     * 3-column composite {@code (legacy_guid, club_id, new_uuid)}; everything
-     * else stays 2-column {@code (legacy_guid, new_uuid)}. A suffix that is not
-     * a known {@link EntityType} (e.g. SYSTEM_GLOBAL) keeps the 2-column shape.
-     */
     private static String idMapCopyColumns(String entitySuffix) {
         EntityType entity;
         try {
@@ -194,17 +154,9 @@ final class EntityStreamIngestor {
                             ReferenceLookupResolver referenceLookupResolver)
             throws SQLException, IOException {
         String insert = insertStatementFor(mapper.entityType());
-        // Aggregate-internal leaf (no legacy_guid): the INSERT appends a trailing
-        // surrogate `id` slot the orchestrator binds with a minted UUID v7 after
-        // the mapper's positional readEntity binding.
         boolean mintsSurrogateId =
-                mintsSurrogateId(mapper.entityType(), mapper.columns());
-        int surrogateIdPosition = mapper.columns().length + 1;
-        // S-141 two-pass for self-FK columns (tow_flight_id on FLIGHT): the
-        // producer emits rows in an arbitrary intra-batch order, so a glider can
-        // stream before its tow. INSERT every row with the self-FK NULL, capture
-        // the (id, value) deferred edges, then UPDATE them once the whole entity
-        // is inserted — robust to any batch order (J-2 T-41).
+                mintsSurrogateId(mapper.entityType(), mapper.wireColumns());
+        int surrogateIdPosition = mapper.wireColumns().length + 1;
         List<String> deferredSelfFkColumns = mapper.deferredSelfFkColumns();
         DeferredSelfFkUpdates deferredUpdates = deferredSelfFkColumns.isEmpty()
                 ? null
@@ -232,30 +184,12 @@ final class EntityStreamIngestor {
                             "NDJSON row on " + mapper.entityType()
                                     + " must be a JSON object, got " + parsed.getNodeType());
                 }
-                // CLUB reconciles onto the provisioning-minted t_club (S-141c):
-                // rewrite the row's own legacy id to the provisioned id (fail-
-                // closed on a miss) so the UPSERT below conflicts on that PK and
-                // overlays the legacy columns rather than inserting a second row.
                 if (mapper.entityType() == EntityType.CLUB) {
                     foreignKeyResolver.rewriteSelfId(
                             EntityType.CLUB, WIRE_LEGACY_GUID_COLUMN, row);
                 }
-                // Translate legacy GUIDs in mapper.foreignKeys() targets to
-                // new-stack UUIDs via legacy_id_map_<entity>. The maps are
-                // seeded upstream — SYSTEM_GLOBAL_RESOLVE entries by the
-                // bundle's legacy_id_map/<entity>.pgcopy tar entries,
-                // FULL_PORT CLUB by seedClubLegacyIdMap.
                 foreignKeyResolver.rewriteForeignKeys(mapper, row);
-                // FLIGHT-group reference-lookup columns carry a synthetic
-                // new UUID(0, legacyIntId) for a row in the V2/V3 Flyway seed
-                // (outside EntityType, so no legacy_id_map). Resolve each to
-                // the real seed PK by joining <seedTable>.legacy_int_id; a miss
-                // fails closed rather than FK-violating verbatim on INSERT.
                 referenceLookupResolver.rewriteReferenceLookups(mapper, row);
-                // S-141 two-pass: lift each self-FK value into the deferred set
-                // and NULL it on the row so the INSERT writes NULL (the target
-                // row may not be inserted yet). The UPDATE pass below applies it
-                // after every row of this entity exists.
                 if (deferredUpdates != null) {
                     deferredUpdates.captureAndNull(row);
                 }
@@ -274,28 +208,11 @@ final class EntityStreamIngestor {
                 ps.executeBatch();
             }
         }
-        // Second pass: now that every row of this entity is inserted, resolve the
-        // self-FK edges. Runs in the SAME transaction, so a partial first pass
-        // never leaves orphan edges (S-141 two-pass).
         if (deferredUpdates != null) {
-            deferredUpdates.apply(connection);
+            deferredUpdates.applyAfterAllRowsInserted(connection);
         }
     }
 
-    /**
-     * Collects the self-FK edges lifted off the INSERT pass and replays them as
-     * an {@code UPDATE t_<entity> SET <col> = ? WHERE id = ?} batch after the
-     * full INSERT pass (S-141 two-pass). One instance per
-     * {@link #ingestEntityNdjson} call — discarded when the stream ends.
-     *
-     * <p>The {@code id} is read off the row's {@code legacy_guid} wire field:
-     * a self-referencing entity (FLIGHT) is non-fan-out FULL_PORT, so the legacy
-     * GUID is preserved verbatim as the destination {@code id} (the orchestrator
-     * aliases {@code legacy_guid → id} at INSERT time, see
-     * {@link #destinationColumnNames}). The captured self-FK value is likewise
-     * the already-resolved target id — the UPDATE writes it as-is once the
-     * target row exists.
-     */
     private static final class DeferredSelfFkUpdates {
 
         private final EntityType entityType;
@@ -307,12 +224,6 @@ final class EntityStreamIngestor {
             this.columns = List.copyOf(columns);
         }
 
-        /**
-         * Capture each non-null self-FK value as a deferred edge, then NULL the
-         * column on the row so the INSERT binds NULL. A null/absent value (the
-         * empty-guid no-tow sentinel already collapsed by the producer) carries
-         * nothing forward — no edge, the column simply stays NULL.
-         */
         void captureAndNull(ObjectNode row) {
             JsonNode idNode = row.get(WIRE_LEGACY_GUID_COLUMN);
             for (String column : columns) {
@@ -332,15 +243,7 @@ final class EntityStreamIngestor {
             }
         }
 
-        /**
-         * Replay the captured edges as batched per-column UPDATEs. Every target
-         * row now exists, so {@code fk_flight_tow_flight_id} resolves regardless
-         * of the original batch order. A target genuinely absent from the export
-         * (dangling reference) surfaces as the same FK violation it always would
-         * — the second pass does NOT mask it, but the producer SELECTs the whole
-         * club so this is an ordering fix, not a row-presence one.
-         */
-        void apply(Connection connection) throws SQLException {
+        void applyAfterAllRowsInserted(Connection connection) throws SQLException {
             if (edges.isEmpty()) {
                 return;
             }
@@ -371,15 +274,6 @@ final class EntityStreamIngestor {
         return "t_" + entityType.temporaryTableSuffix();
     }
 
-    /**
-     * CLUB's INSERT is an {@code ON CONFLICT (id) DO UPDATE} so its row
-     * reconciles onto the provisioning-minted {@code t_club} (S-141c) instead
-     * of colliding. The set-list is exactly the mapper's columns, so the
-     * provisioning-owned synthetic columns absent from {@code ClubMapper}
-     * ({@code slug}, {@code public_registration_enabled}, {@code deployment_id})
-     * are structurally untouchable by the bundle. Column identifiers are the
-     * same {@link #validateColumnAllowlist}-gated names as the INSERT.
-     */
     private static String buildInsertStatement(EntityType entityType, String[] destinationColumns) {
         String insert = "INSERT INTO " + destinationTableFor(entityType) + " ("
                 + String.join(", ", destinationColumns) + ") VALUES ("
@@ -397,44 +291,16 @@ final class EntityStreamIngestor {
         return insert + " ON CONFLICT (" + DESTINATION_ID_COLUMN + ") DO UPDATE SET " + assignments;
     }
 
-    /** Package-private seam: the INSERT/UPSERT SQL a registered mapper produces. */
     String insertStatementFor(EntityType entityType) {
         return buildInsertStatement(entityType,
-                destinationColumnNames(entityType, mapperFor(entityType).columns()));
+                destinationColumnNames(entityType, mapperFor(entityType).wireColumns()));
     }
 
-    /**
-     * Maps the mapper's wire-format column names to destination-table
-     * column names.
-     *
-     * <p><strong>Non-fan-out (CLUB / COUNTRY / identity):</strong> the producer
-     * emits {@code legacy_guid} as the carrier for the destination's {@code id}
-     * per ADR 0019 (legacy GUID preservation); the alias lives at the
-     * orchestrator boundary so mappers stay symmetric between producer +
-     * consumer halves and the subset-coverage test
-     * ({@code MapperVsSchemaCompatibilityTest}) already understands the alias.
-     *
-     * <p><strong>Fan-out (J-0b — {@link EntityType#fansOut()}):</strong> one
-     * shared legacy row fans out to N {@code club_id}-distinct replicas, so the
-     * wire carries BOTH a derived per-replica {@code id} AND the shared
-     * {@code legacy_guid} as separate fields, and BOTH are real destination
-     * columns (the V23/V24 {@code legacy_guid} columns exist). Aliasing
-     * {@code legacy_guid → id} here would duplicate {@code id} (PK-colliding the
-     * 2nd replica) and drop the shared key — so for fan-out entities the wire
-     * column names pass through verbatim.
-     */
     private static String[] destinationColumnNames(EntityType entityType, String[] wireColumns) {
         if (entityType.fansOut()) {
             return wireColumns.clone();
         }
         if (mintsSurrogateId(entityType, wireColumns)) {
-            // Aggregate-internal LEAF child (AIRCRAFT_AIRCRAFT_STATE): legacy
-            // composite PK reshaped to a surrogate `id` (V3) carries no own
-            // legacy_guid, so the wire has no id carrier. The orchestrator mints
-            // the surrogate at INSERT time per the V3 "application owns identity"
-            // rule (no DEFAULT gen_random_uuid). `id` is appended LAST so the
-            // mapper's readEntity positional binding (1..n) is untouched and the
-            // minted UUID binds at position n+1.
             String[] destinationColumns = new String[wireColumns.length + 1];
             System.arraycopy(wireColumns, 0, destinationColumns, 0, wireColumns.length);
             destinationColumns[wireColumns.length] = DESTINATION_ID_COLUMN;
@@ -452,16 +318,6 @@ final class EntityStreamIngestor {
     private static final String WIRE_LEGACY_GUID_COLUMN = "legacy_guid";
     private static final String DESTINATION_ID_COLUMN = "id";
 
-    /**
-     * Whether the orchestrator mints the surrogate {@code id} for this entity at
-     * INSERT time. True for a non-fan-out mapper whose wire columns carry NO
-     * {@code legacy_guid} — an aggregate-internal LEAF child (e.g.
-     * {@code AIRCRAFT_AIRCRAFT_STATE}) whose legacy composite PK was reshaped to a
-     * surrogate {@code id} (V3), so there is no legacy id to alias to {@code id}
-     * and the schema has no {@code DEFAULT gen_random_uuid()} (V3 "application
-     * owns identity"). The minted value is a UUID v7, matching the JPA
-     * {@code @UuidV7} generator the runtime aggregates use.
-     */
     private static boolean mintsSurrogateId(EntityType entityType, String[] wireColumns) {
         if (entityType.fansOut()) {
             return false;
@@ -475,11 +331,9 @@ final class EntityStreamIngestor {
     }
 
     private static void validateColumnAllowlist(Mapper mapper) {
-        for (String column : mapper.columns()) {
+        for (String column : mapper.wireColumns()) {
             assertSafeIdentifier(mapper, column);
         }
-        // Deferred self-FK column names are interpolated into the second-pass
-        // UPDATE, so they pass the same identifier gate as the INSERT columns.
         for (String column : mapper.deferredSelfFkColumns()) {
             assertSafeIdentifier(mapper, column);
         }

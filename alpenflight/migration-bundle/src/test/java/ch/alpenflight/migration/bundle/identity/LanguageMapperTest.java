@@ -31,6 +31,6 @@ class LanguageMapperTest extends AbstractMapperContractTest<LanguageMapper> {
 
     @Test
     void hasNoForeignKeysAsSystemGlobalRef() {
-        assertThat(mapper.foreignKeys()).isEmpty();
+        assertThat(mapper.foreignKeyTargets()).isEmpty();
     }
 }

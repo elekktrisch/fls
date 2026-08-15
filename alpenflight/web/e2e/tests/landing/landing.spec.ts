@@ -1,9 +1,5 @@
 import { test, expect } from '../_helpers/console-guard';
 
-// `?lang=` query param pins the cold-start locale so tests don't depend on
-// the test browser's Accept-Language (Chromium defaults to en-US, which
-// the resolver correctly maps to `en`). See `core/i18n/lang-resolver.ts`.
-
 test.describe('landing — i18n + locale switch', () => {
   test('renders the German tagline when ?lang=de and html[lang=de]', async ({ page }) => {
     await page.goto('/?lang=de');
@@ -18,9 +14,6 @@ test.describe('landing — i18n + locale switch', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await expect(page.getByTestId('landing-tagline')).toContainText(/Flugbuch/);
 
-    // Stamp a witness on the live document; if the locale switch caused
-    // a full reload, the stamped attribute would disappear when the new
-    // document loads. SPA-internal route/state changes preserve it.
     await page.evaluate(() => document.documentElement.setAttribute('data-reload-witness', 'kept'));
     const startUrl = page.url();
 
@@ -123,18 +116,12 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
     await page.getByTestId(CTA_MIGRATE).click();
     await expect(page).toHaveURL(/\/signup\?.*intent=migrate/);
 
-    // The migrate branch is DOM-invisible on /signup (join and migrate render
-    // the same page), so the distinguishing signal is the resolved post-login
-    // redirect: `resolveSignupIntent('migrate')` → `postSignupLandingPath` →
-    // `/migrate/start` (the side-path), whereas the join default resolves to
-    // `/join`. Triggering signup stamps the resolved target — assert it lands on
-    // the migrate side-path, not the join default.
     await page.getByTestId('signup-page').waitFor({ state: 'visible' });
     await page.getByTestId('signup-local').click();
-    const stamp = await page.evaluate(() =>
+    const resolvedPostLoginRedirect = await page.evaluate(() =>
       sessionStorage.getItem('alpenflight.post-login-redirect'),
     );
-    expect(stamp).toBe('/migrate/start');
+    expect(resolvedPostLoginRedirect).toBe('/migrate/start');
   });
 
   test('demo CTA reaches /demo and the stub route resolves (no redirect)', async ({ page }) => {
@@ -143,8 +130,6 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
 
     await page.getByTestId(CTA_DEMO).click();
     await expect(page).toHaveURL(/\/demo(\?|$|\/)/);
-    // The route RESOLVES to the coming-soon stub (T-06) — no catch-all bounce
-    // back to `/`. The console-guard fixture proves no console error fires.
     await expect(page.getByTestId('demo-stub')).toBeVisible();
   });
 
@@ -158,10 +143,6 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
     await expect(requestAccess).not.toHaveAttribute('href', /intent=migrate/);
   });
 
-  // Both primary CTAs emit via the REAL funnel sink (funnel-telemetry.ts:26 —
-  // `console.info('[funnel]', JSON.stringify(event))`). The payload is the real
-  // FunnelEvent shape `{ event_id, timestamp, properties:{ cta_id } }`, NOT the
-  // AC-shorthand `{ event, cta_id }`. One assertion per CTA, keyed on cta_id.
   for (const { cta, ctaId } of [
     { cta: CTA_MIGRATE, ctaId: 'migrate' },
     { cta: CTA_DEMO, ctaId: 'demo' },
@@ -201,13 +182,6 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
   }
 });
 
-// The four ADR-0017 breakpoints. `--breakpoint-md` is 768px (styles.css:19), so
-// the CTA container flexes `column` below md (768, styles.css:19) and `row` at
-// ≥md (`md:flex-row`). That direction toggle is the AC-6-edge contract, so each
-// breakpoint asserts the resolved flex-direction. Visual side-by-side is the
-// stronger claim and only holds where the hero column is roomy: at exactly 768
-// the `md:grid-cols-[...]` split narrows the left column, so the row-direction
-// buttons WRAP (flex-wrap) onto two visual lines — side-by-side lands at ≥1024.
 test.describe('landing — AC-DIR breakpoints + touch targets + wordmark', () => {
   const BREAKPOINTS = [
     { width: 360, direction: 'column', sideBySide: false },
@@ -286,10 +260,6 @@ test.describe('landing — footer + zero-console-error', () => {
     await expect(footer).toContainText(/Imprint/i);
   });
 
-  // The console-guard fixture fails the test on ANY console error. Loading the
-  // landing clean therefore proves the AC-8 safety guard, including the absence
-  // of the browser-ignored `<meta>` `frame-ancestors` CSP warning (grep of both
-  // index.html files confirms none is authored → none fires).
   test('landing load emits zero console errors', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('landing')).toBeVisible();

@@ -1,8 +1,3 @@
-// Spec #29: FlightType CRUD. Pencil-link table — row itself not clickable,
-// edit happens via `[data-testid="row-edit"]` link.
-//
-// TODO testid: `.fls-new-button button`, row trash anchor, form Save/Cancel.
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, getBearerToken } from '../../test-data';
@@ -27,7 +22,6 @@ async function submitForm(page: Page) {
 }
 
 async function filterTo(page: Page, needle: string) {
-  // <fls-simple-search-bar> filters by FlightCode OR FlightTypeName.
   const search = page.locator('.search-bar input').first();
   await search.fill(needle);
 }
@@ -36,11 +30,9 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage }, 
   const page = loggedInPage;
   const id = testId(testInfo);
   const CODE = id.short.slice(0, 5).toUpperCase();
-  // Disjoint substrings — see TEST_WRITING.md §2.
   const NAME_INITIAL = `E2E FT ${id.short} initial`;
   const NAME_EDITED  = `E2E FT ${id.short} updated`;
 
-  // Pre-clean.
   const token = await getBearerToken(loggedInPage);
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const listRes = await page.request.get(`${API_BASE}/api/v1/flighttypes`, { headers });
@@ -54,7 +46,6 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage }, 
     }
   }
 
-  // CREATE
   await openListAndWait(page);
   await page.locator('.fls-new-button button').click();
   await page.waitForURL('**/#/masterdata/flightTypes/new', { timeout: 10_000 });
@@ -69,7 +60,6 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage }, 
   const createdRow = rowByText(page, NAME_INITIAL);
   await expect(createdRow).toHaveCount(1, { timeout: 10_000 });
 
-  // EDIT — pencil link, not the row.
   await createdRow.locator('[data-testid="row-edit"]').click();
   await page.waitForURL(/\/masterdata\/flightTypes\/[0-9a-fA-F-]{36}$/, { timeout: 10_000 });
   await page.locator('#FlightTypeName').waitFor({ state: 'visible' });
@@ -83,7 +73,6 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage }, 
   await expect(editedRow).toHaveCount(1, { timeout: 10_000 });
   await expect(rowByText(page, NAME_INITIAL)).toHaveCount(0);
 
-  // DELETE — accept native confirm, wait for the POST+DELETE roundtrip.
   page.once('dialog', dialog => dialog.accept());
   const deletePromise = page.waitForResponse(r =>
     /\/api\/v1\/flighttypes\/[a-f0-9-]+$/i.test(r.url()) && r.request().method() === 'POST',
@@ -91,7 +80,6 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage }, 
   await editedRow.locator('a:has(.fa-trash-o)').click();
   await deletePromise;
 
-  // Re-navigate so ng-table re-fetches.
   await gotoRoute(page, '/masterdata/flightTypes');
   await filterTo(page, CODE);
   await expect(rowByText(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });

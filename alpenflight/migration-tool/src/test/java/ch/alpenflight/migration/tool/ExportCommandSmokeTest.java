@@ -24,33 +24,6 @@ class ExportCommandSmokeTest {
 
     @Test
     void registeredEntitiesMatchTheBoundLegacyEntities() {
-        // The export tool exports exactly the entities with a legacy producer
-        // binding (MapperLegacyBindings): the original 5 IDENTITY slice +
-        // LOCATION / INOUTBOUND_POINT added in J-0 T-02c (the Location export half)
-        // + PERSON wired in J-0c T-21 (so USER.person_id resolves at ingest)
-        // + the AIRCRAFT aggregate (AIRCRAFT + its two aggregate-internal children)
-        // registered in J-1 T-04
-        // + the FLIGHT group (FLIGHT + the aggregate-internal FLIGHT_CREW, plus the
-        // FLIGHT_TYPE and START_TYPE references it resolves against) bound in J-2 T-07
-        // + the AIRCRAFT_RESERVATION aggregate (AIRCRAFT_RESERVATION + its
-        // AIRCRAFT_RESERVATION_TYPE reference) wired in J-5 T-07 — proving the
-        // already-authored reservation mappers through the real export round-trip.
-        // + the PLANNING_DAY group (PLANNING_DAY + its aggregate-internal
-        // PLANNING_DAY_ASSIGNMENT + the PLANNING_DAY_ASSIGNMENT_TYPE reference)
-        // bound in J-6 T-11 — proving the already-authored planning mappers
-        // through the real export round-trip.
-        // + ACCOUNTING_RULE_FILTER (the tenant-scoped accounting-rule aggregate;
-        // filter_type_id / accounting_unit_type_id resolve via V4-seeded
-        // legacy_int_id reference lookups) bound in J-8 T-10 — proving the
-        // already-authored accounting-rule mapper through the real export round-trip.
-        // + PERSON_CLUB (per-club membership) wired so the indirect-tenancy pivot a
-        // PersonFlightTimeCredit load JOINs through (Person -> PersonClubs.club_id)
-        // resolves over migrated data — without it the membership never exports and a
-        // migrated credit never reaches the engine.
-        // + the DELIVERY aggregate (DELIVERY + its aggregate-internal DELIVERY_ITEM)
-        // bound in J-10b T-05 — the ArticleNumber→article_id resolution keeps orphans
-        // (null article_id), and DELIVERY's legacy_guid→id preservation makes a J-9b
-        // credit transaction's balanced_delivery_id resolve to the migrated delivery.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
@@ -89,8 +62,6 @@ class ExportCommandSmokeTest {
 
     @Test
     void rejectsDuplicateApplicationIntent() {
-        // The driver honours the LAST occurrence, so rewriting only the first
-        // could let a trailing ReadWrite slip past — reject outright.
         assertThatThrownBy(() -> LegacyJdbcReader.forceReadOnlyIntent(
                 "jdbc:sqlserver://host;ApplicationIntent=ReadOnly;"
                         + "databaseName=FLS;applicationintent=ReadWrite"))

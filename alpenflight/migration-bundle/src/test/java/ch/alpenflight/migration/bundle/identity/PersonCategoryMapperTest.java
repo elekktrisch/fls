@@ -53,7 +53,7 @@ class PersonCategoryMapperTest extends AbstractMapperContractTest<PersonCategory
 
     @Test
     void declaresClubAsTheOnlyStructuralForeignKey() {
-        assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
+        assertThat(mapper.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 
     @Test

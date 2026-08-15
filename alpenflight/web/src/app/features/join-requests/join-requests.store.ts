@@ -26,7 +26,6 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 export type PendingJoinRequestItem = PendingJoinRequestResponse & { id: string };
 
-/** What the success toast renders once an approval lands. */
 export interface ApprovedToast {
   friendlyName: string;
   clubName: string;
@@ -71,11 +70,6 @@ function withRequestId(r: PendingJoinRequestResponse): PendingJoinRequestItem {
   return r as PendingJoinRequestItem;
 }
 
-/**
- * The error envelope carries the human reason (already-attached / cross-tenant
- * Person / already-decided) in `detail`; surface it verbatim so the admin reads
- * the cause rather than a generic failure.
- */
 function decisionErrorMessage(e: HttpErrorResponse, fallback: string): string {
   const body = (e.error ?? null) as { detail?: string; message?: string } | null;
   return body?.detail ?? body?.message ?? fallback;
@@ -180,9 +174,6 @@ export const JoinRequestsStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
-      // `clubAdminGuard` on the `/join-requests` route is the structural guard
-      // preventing non-admin construction; a future consumer injecting this
-      // store outside the guarded route must gate the load itself.
       store.loadAll();
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {

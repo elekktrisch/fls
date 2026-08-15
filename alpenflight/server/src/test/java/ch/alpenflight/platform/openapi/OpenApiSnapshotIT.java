@@ -19,19 +19,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 
-/**
- * Drift gate. The committed {@code alpenflight/web/openapi/openapi.json} is the
- * contract S-004's TS codegen consumes; a stale snapshot produces a client
- * whose runtime behavior diverges silently from the live API.
- *
- * <p>Comparison is structural ({@link JsonNode}) — string-diffing is brittle
- * to whitespace and key-ordering churn. Volatile fields under {@code info}
- * (notably {@code version} if it ever embeds a build timestamp) are stripped
- * before compare so cross-CI runs don't false-positive.
- *
- * <p>When this test fails: run {@code ./gradlew generateOpenApiSnapshot} and
- * commit the refreshed file.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles("test")
@@ -41,15 +28,13 @@ import org.springframework.test.context.TestPropertySource;
 class OpenApiSnapshotIT {
 
     @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
+    static void datasourceAndFlywayPropsPointedAtTheContainerNotTheMigratorRole(
+            DynamicPropertyRegistry r) {
         var pg = SharedPostgresContainer.INSTANCE;
         r.add("spring.datasource.url", pg::jdbcUrl);
         r.add("spring.datasource.username", pg::username);
         r.add("spring.datasource.password", pg::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        // S-160 split points base spring.flyway.{url,user,password} at the
-        // MIGRATOR role; without this override boot-time Flyway would connect
-        // as `alpenflight` instead of the container user.
         r.add("spring.flyway.url", pg::jdbcUrl);
         r.add("spring.flyway.user", pg::username);
         r.add("spring.flyway.password", pg::password);

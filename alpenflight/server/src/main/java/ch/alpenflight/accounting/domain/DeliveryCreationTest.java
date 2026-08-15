@@ -22,44 +22,6 @@ import org.hibernate.annotations.TenantId;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
-/**
- * DeliveryCreationTest aggregate root — one regression-harness row for the
- * billing rules engine (J-9, S-073–077). It pins a {@code Flight} + an EXPECTED
- * {@code DeliveryItem} set; the harness dry-runs the engine to capture that
- * expectation, then re-runs it later and diffs the engine output against the
- * stored set (gated by the nine {@code ignore*} flags) to prove the engine still
- * reproduces it. Maps the EXISTING V4 table {@code t_delivery_creation_test}
- * (substrate built ahead in V4, never wired until this journey).
- *
- * <p>Tenant-scoped via Hibernate's {@code @TenantId} on {@code operatingClubId}
- * (ADR 0008): every read + write is auto-filtered to the caller's tenant, so a
- * cross-tenant load is invisible and surfaces as 404. Identity-bearing partial
- * UNIQUE {@code ux_dct_club_flight_partial} on
- * {@code (operating_club_id, flight_id) WHERE deleted_on IS NULL} (V4) enforces
- * one live harness per (club, flight).
- *
- * <p>Per ADR 0022 directive 2 business rules live here, not in the schema. The
- * aggregate owns two create/update invariants
- * ({@link InvalidDeliveryCreationTestException}): {@code testName} non-blank and
- * {@code flightId} present. Run-state is owned by the {@link #recordRun} and
- * {@link #captureExpected} domain methods rather than open setters.
- *
- * <p>The expected / last-created delivery payloads are the typed
- * {@link DeliveryDetailsSnapshot} jsonb VO ({@code @JdbcTypeCode(SqlTypes.JSON)} —
- * the J-8 {@code FilterConfig} precedent). The two matched-filter-id lists map to
- * the V4 {@code uuid[]} columns (retyped from the never-used legacy {@code bigint[]}
- * in V43) so they can hold the engine's UUID {@code AccountingRuleFilter} ids that
- * the harness links to {@code /accountingrules/<uuid>}. The expected payload's
- * line items are ALSO persisted relationally as {@link DeliveryCreationTestItem}
- * children (the V4 {@code _item} table) — the jsonb carries the full comparable
- * graph (recipient + info texts + items) for the diff, the child rows give the
- * relational projection the legacy harness UI listed.
- *
- * <p>Per the J-8 redaction precedent the two jsonb payloads are
- * {@code @AuditRedact} (V4 COMMENT {@code pii_blob: true} — they can carry
- * recipient names); the structural fields are allow-listed in
- * {@code application.yml audit.redaction}.
- */
 @Entity
 @Table(name = "t_delivery_creation_test")
 public class DeliveryCreationTest extends SoftDeletableAggregate {
@@ -98,10 +60,6 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
     @Column(name = "must_not_create_delivery_for_flight", nullable = false)
     private boolean mustNotCreateDeliveryForFlight;
 
-    // The nine diff-suppression flags (legacy DeliveryCreationTest.IgnoreXxx) the
-    // run-test field-by-field comparison consults to decide which mismatches are
-    // expected and so do not fail the test. Carried as the IgnoreFlags VO at the
-    // domain boundary (create/update/getter), exploded to columns for the schema.
     @Column(name = "ignore_recipient_name", nullable = false)
     private boolean ignoreRecipientName;
 
@@ -153,22 +111,8 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
     private List<DeliveryCreationTestItem> items = new ArrayList<>();
 
     protected DeliveryCreationTest() {
-        // JPA.
     }
 
-    /**
-     * Factory for a new harness. {@code operatingClubId} is the tenant stamp:
-     * unlike the childless {@code AccountingRuleFilter} (which leaves it to the
-     * resolver), this aggregate's internal {@link DeliveryCreationTestItem}
-     * children carry a denormalized {@code operating_club_id} that must be set at
-     * construction (the PlanningDay/PlanningDayAssignment precedent) — so the club
-     * is an explicit param, and Hibernate's {@code @TenantId} resolver
-     * re-confirms it on INSERT. The expected delivery + matched ids + relational
-     * items start empty; a dry-run fills them via {@link #captureExpected}.
-     *
-     * @throws InvalidDeliveryCreationTestException when {@code testName} is blank
-     *     or {@code flightId} is null
-     */
     public static DeliveryCreationTest create(UUID operatingClubId,
                                               UUID flightId,
                                               String testName,
@@ -185,15 +129,6 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
         return test;
     }
 
-    /**
-     * Replaces every editable header field atomically and re-validates the two
-     * invariants. The guards fire before any assignment, so a rejected update
-     * leaves the aggregate unchanged. {@code operatingClubId} (immutable tenancy)
-     * and the captured expected payload / run-state are NOT touched here.
-     *
-     * @throws InvalidDeliveryCreationTestException when {@code testName} is blank
-     *     or {@code flightId} is null
-     */
     public void update(UUID flightId,
                        String testName,
                        @Nullable String description,
@@ -203,14 +138,6 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
         apply(flightId, testName, description, active, mustNotCreateDeliveryForFlight, ignoreFlags);
     }
 
-    /**
-     * Records a dry-run's output as this harness's EXPECTED set: the typed jsonb
-     * snapshot (recipient + info + items), the matched-filter ids, and the
-     * relational item children (rebuilt atomically — orphan removal drops the
-     * previous set). The line-item unit prices are not part of the engine's
-     * compared output, so the child rows carry the snapshot's items with a null
-     * unit price.
-     */
     public void captureExpected(DeliveryDetailsSnapshot snapshot, List<UUID> matchedFilterIds) {
         this.expectedDelivery = snapshot == null ? DeliveryDetailsSnapshot.empty() : snapshot;
         this.expectedMatchedFilterIds = matchedFilterIds == null
@@ -219,12 +146,6 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
         rebuildItems(this.expectedDelivery);
     }
 
-    /**
-     * Records the result of running the engine against the stored flight and
-     * diffing it against the expected set — the harness run-state domain method
-     * (legacy {@code LastTestSuccessful} / {@code LastTestResultMessage} /
-     * {@code LastTestCreatedDelivery} / {@code LastTestMatchedAccountingRuleFilterIds}).
-     */
     public void recordRun(boolean successful,
                           @Nullable String resultMessage,
                           @Nullable DeliveryDetailsSnapshot createdDelivery,
@@ -245,7 +166,6 @@ public class DeliveryCreationTest extends SoftDeletableAggregate {
                        boolean newActive,
                        boolean newMustNotCreateDeliveryForFlight,
                        IgnoreFlags newIgnoreFlags) {
-        // Guards first — a rejected mutation leaves the aggregate untouched.
         if (newFlightId == null) {
             throw new InvalidDeliveryCreationTestException("flightId is required");
         }

@@ -27,12 +27,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Aggregate-internal lifecycle test for {@code InOutboundPoint}: create with
- * N children, update swaps the list, delete cascades. Proves the
- * {@code orphanRemoval=true} contract on the {@code Location.inOutboundPoints}
- * mapping at full HTTP-layer fidelity.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -87,7 +81,6 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
         String externalId = readJson(created).get("id").asText();
         UUID raw = LocationId.parse(externalId).value();
 
-        // Sanity: the parent still sees its persisted children.
         ResponseEntity<String> reread = get("/api/v1/locations/" + externalId);
         assertThat(readJson(reread).get("inOutboundPoints").size()).isEqualTo(2);
 
@@ -149,19 +142,18 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
                         RequestEntity.delete(URI.create("/api/v1/locations/" + externalId))).build(),
                 Void.class);
 
-        // The Location is soft-deleted; GET must return 404. Child rows
-        // remain in the DB (ON DELETE CASCADE is for HARD delete; soft only
-        // flips the flag on the parent).
         ResponseEntity<String> getAfter = get("/api/v1/locations/" + externalId);
         assertThat(getAfter.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
         Integer iopCount = jdbc.queryForObject(
                 "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
-        assertThat(iopCount).isEqualTo(1);
+        assertThat(iopCount)
+                .as("soft delete only flips the parent's flag — ON DELETE CASCADE fires on a "
+                        + "HARD delete, so the child rows stay")
+                .isEqualTo(1);
     }
 
-    // ----- helpers -----
 
     private static Map<String, Object> iop(String name, String pointType, String direction) {
         Map<String, Object> n = new LinkedHashMap<>();

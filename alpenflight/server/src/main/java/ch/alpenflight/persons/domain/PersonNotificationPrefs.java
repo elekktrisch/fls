@@ -1,9 +1,5 @@
 package ch.alpenflight.persons.domain;
 
-/**
- * Per-club notification preferences carried on each {@link PersonClub}.
- * Independent flags; default-off.
- */
 public record PersonNotificationPrefs(
         boolean receiveFlightReports,
         boolean receiveAircraftReservationNotifications,

@@ -30,26 +30,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-/**
- * J-6b T-15 — regression for the operator field-test bug "Users menu shows
- * '400 Bad Request' for clubadmin1". The bug is NOT an authz issue
- * (CLUB_ADMINISTRATOR is authorized); it surfaces on the list request shape /
- * backend query. This IT drives {@code GET /api/v1/users} as a real
- * club-admin principal and asserts 200 + the tenant-scoped rows.
- *
- * <p>The Keycloak adapter is mocked ({@link UserDirectoryPort}) so the list
- * path completes without a live IdP — the bug under test is independent of KC.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
 class UsersListControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final UUID CLUB =
+    private static final UUID MIGRATION_SEEDED_CLUB_1 =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID OTHER_CLUB =
             UUID.fromString("019e30c3-2c00-7001-8000-0000000ab102");
+    private static final String SYMBOLIC_CLUB_ID_CLAIM_FORCING_KEYCLOAK_SUB_TENANT_FALLBACK =
+            "club-1";
     private static final UUID LANG_DE =
             UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
 
@@ -66,8 +58,6 @@ class UsersListControllerIT extends PostgresIntegrationTest {
     void seedAndAuth() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'list-it-%'");
 
-        // A second tenant for the cross-tenant-leak guard (only seed-club-1
-        // ships in the migrations).
         jdbc.update("""
                 INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                                     slug, public_registration_enabled)
@@ -85,19 +75,17 @@ class UsersListControllerIT extends PostgresIntegrationTest {
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                adminId.toString(), CLUB.toString(), "list-it-admin", "List IT Admin",
+                adminId.toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-admin", "List IT Admin",
                 "admin@example.com", LANG_DE.toString(), adminSub.toString());
 
-        // Another active row in the same club (should appear in the list).
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name,
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                UUID.randomUUID().toString(), CLUB.toString(), "list-it-peer", "List IT Peer",
+                UUID.randomUUID().toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-peer", "List IT Peer",
                 "peer@example.com", LANG_DE.toString(), UUID.randomUUID().toString());
 
-        // A row in another club (must NOT leak into the list).
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name,
                                     notification_email, language_id, keycloak_sub)
@@ -106,20 +94,13 @@ class UsersListControllerIT extends PostgresIntegrationTest {
                 UUID.randomUUID().toString(), OTHER_CLUB.toString(), "list-it-other", "List IT Other",
                 "other@example.com", LANG_DE.toString(), UUID.randomUUID().toString());
 
-        // KC adapter: directory is reachable, returns no extra metadata.
         when(directory.findUsersInClub(any(UUID.class), anyInt())).thenReturn(List.of());
         when(directory.getRealmRoleMappings(any(UUID.class)))
                 .thenReturn(List.<RealmRoleRef>of());
 
-        // The realm-export gives the dev club-admins a SYMBOLIC clubId
-        // attribute ("club-1"), NOT a UUID. The token therefore carries a
-        // non-UUID clubId claim — exactly clubadmin1 in the dev stack.
-        // Tenant resolution must fall through to the keycloak_sub lookup of
-        // the seeded t_user row (the admin row above), so the list still
-        // scopes to the club.
         adminToken = jwts.mint(c -> c
                 .subject(adminSub.toString())
-                .claim("clubId", "club-1") // symbolic, non-UUID — as in realm-export.json
+                .claim("clubId", SYMBOLIC_CLUB_ID_CLAIM_FORCING_KEYCLOAK_SUB_TENANT_FALLBACK)
                 .claim("preferred_username", "list-it-admin")
                 .claim("given_name", "List")
                 .claim("email", "admin@example.com")
@@ -128,25 +109,15 @@ class UsersListControllerIT extends PostgresIntegrationTest {
 
     @Test
     void clubAdmin_orphanedKeycloakSubRow_stillRenders200_withEmptyRoles() {
-        // J-26 T-30c: a club row whose keycloak_sub has no KC identity (a seed /
-        // bulk-import row, or a KC user later deleted) makes the per-row
-        // role-mappings read miss. The FIXED KeycloakAdminClient maps that KC
-        // 404 to an empty role set; the directory mock here reproduces that
-        // contract (empty mappings, NOT a thrown UserDirectoryException). The
-        // whole list must still render 200 — one orphaned row may not blow up
-        // GET /api/v1/users (it 502'd when the KC admin client was reachable,
-        // 400 when it was not; both the same single-row-not-found root cause).
         UUID orphanSub = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name,
                                     notification_email, language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
-                UUID.randomUUID().toString(), CLUB.toString(), "list-it-orphan",
+                UUID.randomUUID().toString(), MIGRATION_SEEDED_CLUB_1.toString(), "list-it-orphan",
                 "List IT Orphan", "orphan@example.com", LANG_DE.toString(), orphanSub.toString());
 
-        // Default stub already returns empty mappings for every sub (the
-        // fixed-adapter 404 → empty contract); make the orphan explicit.
         when(directory.getRealmRoleMappings(orphanSub)).thenReturn(List.<RealmRoleRef>of());
 
         ResponseEntity<String> res = get("/api/v1/users", adminToken);
@@ -171,10 +142,6 @@ class UsersListControllerIT extends PostgresIntegrationTest {
 
     @Test
     void clubAdmin_symbolicClubIdClaim_listsUsers_returns200_tenantScoped() {
-        // AC #13: "clubadmin1 opens the Users menu and the list renders
-        // (no 400 Bad Request)." Drives the exact dev clubadmin1 principal
-        // (symbolic clubId claim + seeded t_user row); the list must render
-        // 200 with the club's rows, no cross-tenant leak.
         ResponseEntity<String> res = get("/api/v1/users", adminToken);
 
         assertThat(res.getStatusCode())

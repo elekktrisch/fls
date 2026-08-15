@@ -17,31 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-/**
- * Writes the audit row in a separate {@code REQUIRES_NEW} transaction after
- * the publishing transaction commits.
- *
- * <p>Two listener methods cover the two emission paths:
- *
- * <ul>
- *   <li>{@link #onCommittedMutation} — the AFTER_COMMIT path for successful
- *       mutations published by {@link AuditTrailService#record}. Runs only
- *       if the business transaction commits, so a rolled-back business
- *       call (any thrown exception inside the {@code @Transactional}
- *       service method) leaves no success row. The synthetic-failure
- *       filter handles that gap.</li>
- *   <li>{@link #onSyntheticFailure} — plain (non-transactional)
- *       {@link EventListener} for {@code failed=true} rows published by
- *       {@link ch.alpenflight.audit.web.RequestAuditFilter} after the
- *       response is committed. Already runs outside any transaction; the
- *       {@code REQUIRES_NEW} on the method opens its own.</li>
- * </ul>
- *
- * <p>The listener swallows + logs at ERROR on its own failure — an audit
- * write that throws must not roll the business transaction back (already
- * committed in the success path; would mask the original error in the
- * failed path). Operators see the gap in the error log.
- */
 @Component
 class MutationAuditEventListener {
 
@@ -79,25 +54,8 @@ class MutationAuditEventListener {
             UUID tenant = request.tenantClubId();
             if (request.systemActor()
                     && (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant))) {
-                // True system events (no JWT principal — scheduled jobs,
-                // bulk ingestion) store NULL in tenant_club_id. JPA can't
-                // write that here: Hibernate's @TenantId resolver would
-                // override the null field with NO_TENANT (nil UUID), which
-                // fails the t_club FK. JDBC bypasses the discriminator
-                // and lets the FK's "NULL ⇒ no parent" rule apply naturally.
                 writeUnscopedRow(request);
             } else if (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
-                // Authenticated principal but the captured operating tenant is
-                // empty (the synthetic-failure path runs after the response is
-                // committed; the success path's AFTER_COMMIT carries no carrier
-                // override). Re-resolve off the still-live SecurityContext to
-                // recover the user's clubId. A tenant-less authenticated
-                // principal — a SYSTEM_ADMINISTRATOR has NO clubId claim — yields
-                // NO_TENANT; that is the cross-tenant system event (e.g. club
-                // creation) V9 reserves the NULL tenant_club_id column for. Write
-                // the unscoped row directly: letting JPA persist the NO_TENANT
-                // nil-UUID would violate fk_mutation_audit_event_tenant_club_id
-                // (no nil-UUID t_club) and roll the row write back.
                 UUID resolved = tenantResolver.resolveCurrentTenantIdentifier();
                 if (resolved == null || ClubTenantIdentifierResolver.NO_TENANT.equals(resolved)) {
                     writeUnscopedRow(request);
@@ -106,10 +64,6 @@ class MutationAuditEventListener {
                     Tenants.runAs(resolved, () -> repository.append(row));
                 }
             } else {
-                // Force the resolver to see this exact tenant — guarantees
-                // the @TenantId column matches the captured operating
-                // tenant even if the original SecurityContext has been
-                // cleared by the time AFTER_COMMIT fires.
                 MutationAuditEvent row = build(request);
                 Tenants.runAs(tenant, () -> repository.append(row));
             }
@@ -119,13 +73,6 @@ class MutationAuditEventListener {
         }
     }
 
-    /**
-     * Cross-tenant audit-row write that bypasses Hibernate's @TenantId
-     * discriminator. Used for true system events (e.g. S-140 hourly
-     * handshake-TTL sweep) where {@code tenant_club_id} is legitimately
-     * NULL. The column allows NULL by design; only Hibernate's resolver
-     * gets in the way.
-     */
     private void writeUnscopedRow(MutationAuditRequest request) {
         String entityType = request.target().entityType();
         @Nullable String before = redactor.serialize(entityType, request.target().before());
@@ -178,11 +125,5 @@ class MutationAuditEventListener {
                 .build();
     }
 
-    /**
-     * Internal event published by {@link ch.alpenflight.audit.web.RequestAuditFilter}
-     * for the synthetic-failure path. Wrapping the request keeps the two
-     * listener methods distinguishable on type (Spring routes by event
-     * class).
-     */
     record SyntheticFailedMutation(MutationAuditRequest request) {}
 }

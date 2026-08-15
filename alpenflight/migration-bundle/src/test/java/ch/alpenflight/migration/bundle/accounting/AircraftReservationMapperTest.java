@@ -52,7 +52,7 @@ class AircraftReservationMapperTest
 
     @Test
     void declaresCrossTenantAircraftAndPersonAsForeignKeys() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .containsExactly(
                         EntityType.CLUB,
                         EntityType.AIRCRAFT,
@@ -64,14 +64,9 @@ class AircraftReservationMapperTest
 
     @Test
     void declaresOffConventionForeignKeyColumnsSoFkResolutionRewritesThem() {
-        // Regression for J-5 T-22 (live fanout bundle-ingest 23503): without
-        // these declarations the resolver's <target>_id convention looks for
-        // club_id / person_id / aircraft_reservation_type_id (none exist on the
-        // row) and leaves operating_club_id / pilot_person_id / reservation_type_id
-        // carrying verbatim legacy GUIDs → fk_arv_* violation on INSERT.
         assertThat(mapper.foreignKeyColumns())
                 .extracting(fk -> fk.column() + "->" + fk.target()
-                        + (fk.disambiguatorColumn() == null ? "" : "@" + fk.disambiguatorColumn()))
+                        + (fk.referencerClubColumn() == null ? "" : "@" + fk.referencerClubColumn()))
                 .containsExactlyInAnyOrder(
                         "operating_club_id->" + EntityType.CLUB,
                         "pilot_person_id->" + EntityType.PERSON,
@@ -82,7 +77,7 @@ class AircraftReservationMapperTest
 
     @Test
     void columnsDoNotIncludeGeneratedReservationRange() {
-        assertThat(mapper.columns())
+        assertThat(mapper.wireColumns())
                 .as("reservation_range is GENERATED ALWAYS AS STORED in V4 — "
                         + "binding it would conflict with the auto-derive at INSERT")
                 .doesNotContain("reservation_range");

@@ -147,9 +147,6 @@ describe('LocationsStore', () => {
       isAirfield: true,
       isFastEntryRecord: false,
     };
-    // Server reflects the new row on the next listLocations() so the
-    // post-mutation refresh resolves with both seed + created. Without this
-    // the post-mutation `loadAll` resets entities back to the seed only.
     let listState: LocationListItem[] = [sampleListItem];
     const bus = configure(
       locationsServiceStub({

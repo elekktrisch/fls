@@ -12,36 +12,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * User aggregate root — the principal-subject row that pairs an internal
- * {@code user.id} with a Keycloak {@code sub}.
- *
- * <p><strong>Cross-tenant.</strong> No {@code @TenantId}: scoping the
- * principal through Hibernate's tenant filter would chicken-and-egg the
- * JWT-to-tenant resolution path. CLUB_ADMIN scoping for tenant-scoped HTTP
- * endpoints is enforced explicitly via {@code WHERE u.club_id = :callerClub}
- * in the repository.
- *
- * <p>Identity-binding fields ({@code keycloakSub}, {@code clubId}) are
- * immutable post-create:
- * <ul>
- *   <li>{@code keycloakSub} pairs the FLS row to the KC identity; flipping
- *       it would orphan the JWT-to-row lookup.</li>
- *   <li>{@code clubId} is the home club. "Move to a different club" is
- *       expressed as soft-delete + recreate; in-place rebind would silently
- *       relocate the user's audit history.</li>
- * </ul>
- * Per ADR 0022 directive 2 these invariants live here (Java) not in DB
- * triggers or CHECK constraints.
- *
- * <p><strong>Roles are not on the aggregate.</strong> They live in Keycloak;
- * the application reads them from {@code realm_access.roles} on the JWT and
- * writes them via the KC admin REST API.
- */
 @Entity
-// `user` is a Postgres reserved word; the table uses the `t_user` name
-// instead of relying on quoting (broader t_ prefix convention is a
-// follow-up). V2 DDL matches.
 @Table(name = "t_user")
 public class User {
 
@@ -79,11 +50,6 @@ public class User {
     @Column(name = "language_id", nullable = false)
     private UUID languageId;
 
-    // `keycloak_sub` is immutable during the active lifecycle, but
-    // `detachKeycloakSub()` clears it as part of a re-invite (frees the
-    // partial UNIQUE so the next invite can re-use the sub). JPA needs to
-    // include the column in UPDATE for that path, hence no
-    // `updatable = false`.
     @Column(name = "keycloak_sub")
     private @Nullable UUID keycloakSub;
 
@@ -105,17 +71,11 @@ public class User {
     @Column(name = "deleted_by_user_id")
     private @Nullable UUID deletedByUserId;
 
-    /** JPA no-arg constructor — package-private; do not call from app code. */
     protected User() {
         this.clubId = UUID.fromString("00000000-0000-0000-0000-000000000000");
         this.languageId = UUID.fromString("00000000-0000-0000-0000-000000000000");
     }
 
-    /**
-     * Register a new User. {@code keycloakSub} is required at create time
-     * (admin-invite flow obtains it from KC immediately; JIT-on-login flow
-     * has the JWT's {@code sub}).
-     */
     public static User register(UUID clubId,
                                 UUID keycloakSub,
                                 String username,
@@ -182,12 +142,6 @@ public class User {
         return deletedOn == null;
     }
 
-    /**
-     * Update the mutable identity / contact / language fields. Username,
-     * club, and Keycloak sub are intentionally absent from the parameter
-     * list — they are identity-binding and may not be re-bound through this
-     * surface.
-     */
     public void updateProfile(String friendlyName,
                               String notificationEmail,
                               @Nullable String phoneNumber,
@@ -200,10 +154,6 @@ public class User {
         this.languageId = requireNonNull(languageId, "languageId");
     }
 
-    /**
-     * Bind this User to a Person row. Service layer asserts the Person
-     * belongs to the User's club via the S-051 lookup pattern.
-     */
     public void assignToPerson(UUID personId) {
         this.personId = requireNonNull(personId, "personId");
     }
@@ -212,12 +162,6 @@ public class User {
         this.personId = null;
     }
 
-    /**
-     * Soft-delete. Pairs with a Keycloak {@code enabled=false} flip at the
-     * service layer — KC stays as the source-of-truth event log; we never
-     * hard-delete the KC user. The {@code keycloak_sub} stays set so the
-     * JIT soft-delete gate can refuse residual-JWT requests.
-     */
     public void softDelete(@Nullable UUID actorUserId, Clock clock) {
         if (deletedOn != null) {
             return;
@@ -226,12 +170,6 @@ public class User {
         this.deletedByUserId = actorUserId;
     }
 
-    /**
-     * Detach the Keycloak identity from a tombstoned row, freeing it from
-     * the partial UNIQUE so a CLUB_ADMIN can re-invite the same KC user.
-     * Refuses to fire on an active row — only the soft-delete tombstone
-     * may surrender its identity binding.
-     */
     public void detachKeycloakSub() {
         if (deletedOn == null) {
             throw new IllegalStateException("Cannot detach keycloak_sub from an active user row");
@@ -239,30 +177,6 @@ public class User {
         this.keycloakSub = null;
     }
 
-    /**
-     * Reconcile this active row's Keycloak identity to {@code newSub} — the
-     * JIT-on-login idempotency path when the same person re-appears under a
-     * fresh KC sub but the SAME {@code preferred_username}.
-     *
-     * <p>Why this is a legitimate in-place re-bind (unlike the cross-club
-     * "move" that {@link #register}'s class-doc forbids): the username is the
-     * person's stable identity in this system — {@code ux_user_username_lower_alive}
-     * is a partial-unique over alive usernames, so at most one active row can
-     * carry a given username, and that row is unambiguously the same human.
-     * KC may mint a new {@code sub} for that human (admin recreate, realm
-     * re-import, or — as observed — a concurrent first-login whose
-     * username-winning row carried a sibling principal's sub). Pointing the
-     * local row at the presenting JWT's sub keeps JIT idempotent on username
-     * and closes the silent-tenant-less failure mode where the by-sub
-     * re-read missed and the principal was left with no resolvable club_id.
-     *
-     * <p>Tenant safety is the caller's contract: the service only invokes
-     * this after asserting the existing row's {@code club_id} matches the
-     * JWT's {@code clubId} claim, so a re-bind never relocates identity
-     * across tenants. Refuses to fire on a tombstone — a soft-deleted row
-     * must go through the explicit re-invite ({@link #detachKeycloakSub})
-     * path, not a silent JIT re-bind.
-     */
     public void rebindKeycloakSub(UUID newSub) {
         requireNonNull(newSub, "newSub");
         if (deletedOn != null) {

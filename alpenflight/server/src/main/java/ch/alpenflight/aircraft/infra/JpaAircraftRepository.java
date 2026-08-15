@@ -10,21 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/**
- * Spring Data JPA implementation of the {@link AircraftRepository} domain
- * port. Extends both the abstract port and {@code JpaRepository<Aircraft, UUID>}
- * so the application layer depends on the port (ADR 0023) while Spring
- * Data generates the runtime bean.
- *
- * <p>Soft-delete (V3 {@code deleted_on}) is filtered at the query layer.
- * Aircraft is cross-tenant (S-058 reversion of S-159) — queries return
- * rows from any club; the catalog is intentionally shared.
- *
- * <p>List + picker rows are flat projection DTOs to avoid N+1 across
- * {@code t_aircraft_type} + current {@code t_aircraft_aircraft_state}. The
- * partial-unique {@code ux_aas_current_state_per_aircraft} index lets the
- * "current state" LEFT JOIN serve as an Index Only Scan.
- */
 public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, AircraftRepository {
 
     @Override
@@ -81,7 +66,7 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
             + "where a.deletedOn is null and a.ownerClubId = :ownerClubId "
             + "  and t.code = :typeCode and a.nrOfSeats = :nrOfSeats "
             + "order by a.immatriculation asc")
-    List<UUID> findActiveOwnedIdsByTypeCodeAndSeats(@Param("ownerClubId") UUID ownerClubId,
+    List<UUID> findActiveOwnedIdsByTypeCodeAndSeatsOrderedByImmatriculation(@Param("ownerClubId") UUID ownerClubId,
                                                     @Param("typeCode") String typeCode,
                                                     @Param("nrOfSeats") int nrOfSeats);
 

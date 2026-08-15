@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# alpenflight/auth/scripts/export-realm.sh
-#
-# Re-export the alpenflight realm from a running Keycloak and write it to
-# alpenflight/auth/realm-export.json. After running, `git diff` should be empty if
-# nothing changed in the realm; otherwise the diff is the intended drift.
-#
-# Requires: Keycloak up under project `alpenflight-dev` (e.g. via
-#   alpenflight/ops/dev-up-full.sh, or `docker compose -p alpenflight-dev up -d --wait keycloak`).
-#
-# Uses the REST partial-export + users API rather than `kc.sh export`
-# because the offline export path locks the H2 DB the running container
-# already holds; REST is the online path that works against a live server.
 
 set -euo pipefail
 

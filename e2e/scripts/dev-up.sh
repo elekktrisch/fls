@@ -1,50 +1,4 @@
 #!/usr/bin/env bash
-# dev-up.sh - bring up the FLS e2e test stack dependencies
-# ----------------------------------------------------------------------------
-# Starts SQL Server (FLSTest database host) under the `fls-e2e` compose
-# project so this stack can run alongside any manually-started containers
-# (e.g. an existing `fls-mssql` for dev work).
-#
-# Mailpit lives in `alpenflight-infra` — bring it up first via:
-#
-#     bash alpenflight/ops/dev-up-infra.sh
-#
-# This script asserts both `alpenflight_shared` and Mailpit are reachable
-# before starting MSSQL — without them, the legacy server's verify-email
-# path silently fails.
-#
-# Assumed environment (see TESTING.md for the full playbook):
-#
-#   - Linux x86_64 with Docker Engine 27+, OR Windows 10/11 with Docker
-#     Desktop running under git-bash / MSYS2. Either way the compose-v2
-#     plugin must be available (`docker compose`, NOT the old
-#     `docker-compose` binary).
-#   - Mono 6.12 (`mono-complete`) installed if you also want to start the
-#     FLS Web API locally. Build artifacts expected at
-#     flsserver/src/FLS.Server.Console/bin/Debug/FLS.Server.Console.exe
-#     with EntityFramework.SqlServer.dll dropped next to them.
-#   - The NuGet CLI under Mono at /usr/local/bin/nuget.exe (only needed
-#     for a from-scratch server build).
-#   - Node 8 available via nvm, only needed for the flsweb webpack-1
-#     bundle / dev-server build (see TESTING.md Milestone 5).
-#
-# Windows / git-bash notes:
-#
-#   - MSYS auto-translates the unix-style path passed to `docker compose
-#     -f` (e.g. /c/Users/...) into a native Windows path before it reaches
-#     docker.exe, so no manual conversion is needed here.
-#   - Output captured from docker.exe is stripped of any stray carriage
-#     returns below (some older Docker Desktop builds emit CRLF on stdout
-#     even when the pipe is not a TTY).
-#   - Shell scripts in this directory are pinned to LF line endings via
-#     e2e/.gitattributes so a default Windows clone (core.autocrlf=true)
-#     does not break the shebang.
-#
-# This script ONLY brings up the legacy database. The FLS Web API and
-# webpack-dev-server are still started manually per TESTING.md
-# Milestones 3 and 5 - the Playwright config's webServer block waits
-# for both to be reachable on their default ports before tests run.
-# ----------------------------------------------------------------------------
 
 set -euo pipefail
 
@@ -61,8 +15,6 @@ fi
 # shellcheck source=../../alpenflight/ops/lib/shared-network.sh
 source "${REPO_ROOT}/alpenflight/ops/lib/shared-network.sh"
 
-# Pre-flight before mutating any state: assert shared network exists AND
-# Mailpit is reachable. Failing here leaves no half-started MSSQL behind.
 require_shared_network
 if ! curl -fsS --max-time 5 http://localhost:8025/api/v1/info >/dev/null 2>&1; then
   echo "error: Mailpit unreachable at http://localhost:8025/api/v1/info" >&2
@@ -77,8 +29,6 @@ wait_for_health() {
   local service="$1"
   local timeout="${2:-180}"
   local container
-  # tr -d '\r': defensive CRLF strip for git-bash on Windows, where some
-  # older Docker Desktop builds emit CR-terminated lines on non-TTY stdout.
   container="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q "${service}" | tr -d '\r')"
   if [[ -z "${container}" ]]; then
     echo "error: container for service '${service}' not found" >&2

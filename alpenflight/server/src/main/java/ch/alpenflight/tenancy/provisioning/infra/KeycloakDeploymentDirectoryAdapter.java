@@ -20,19 +20,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Keycloak adapter for the deployment-directory reconcile port. Talks to
- * the realm via the {@code alpenflight-backend-admin} machine client
- * (the same plumbing the user-directory adapter uses) extended with the
- * {@code manage-groups} scope. Every method is idempotent — see the
- * port javadoc for the "create-if-absent + state-if-not-already"
- * semantics each call enforces.
- *
- * <p>Sibling-friendly: builds its own {@link RestClient} on top of
- * {@link KeycloakAdminTokenSupplier} + {@link BearerTokenInterceptor} +
- * {@link RedactingRestClientInterceptor} so the adapter doesn't pull in
- * the user-directory adapter's public surface.
- */
 @Component
 public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDirectory {
 
@@ -74,10 +61,8 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("group create", e);
+                throw transportFailureStatusOnly("group create", e);
             }
-            // Concurrent create won — the read-after-create below
-            // resolves the id the other thread minted.
         }
         UUID afterRace = findGroupIdByName(name);
         if (afterRace == null) {
@@ -103,7 +88,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("read user groups", e);
+            throw transportFailureStatusOnly("read user groups", e);
         }
         try {
             http.put()
@@ -112,10 +97,9 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 409) {
-                // Already a member — pre-check missed the race; idempotent.
                 return;
             }
-            throw transportFailure("add-user-to-group", e);
+            throw transportFailureStatusOnly("add-user-to-group", e);
         }
     }
 
@@ -138,7 +122,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("realm-role create", e);
+                throw transportFailureStatusOnly("realm-role create", e);
             }
         }
         UUID afterRace = findRealmRoleIdByName(name);
@@ -166,7 +150,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("read realm role-mappings", e);
+            throw transportFailureStatusOnly("read realm role-mappings", e);
         }
         try {
             http.post()
@@ -176,7 +160,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("grant realm role", e);
+            throw transportFailureStatusOnly("grant realm role", e);
         }
     }
 
@@ -193,12 +177,12 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("set user attribute", e);
+            throw transportFailureStatusOnly("set user attribute", e);
         }
     }
 
     @Override
-    public UUID provisionClubAdminIdentity(UUID clubId, String username, String email,
+    public UUID provisionClubAdminIdentityFailClosed(UUID clubId, String username, String email,
                                            String firstName, String lastName) {
         Objects.requireNonNull(clubId, "clubId");
         Objects.requireNonNull(username, "username");
@@ -209,8 +193,6 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         UUID sub = createClubAdminUserOrResolveExisting(
                 clubId, username, email, firstName, lastName);
 
-        // Static realm role (realm-export fixture), not a per-Deployment
-        // dynamic role — so it's resolved by its fixed name, not minted.
         String roleName = KeycloakDeploymentNames.CLUB_ADMINISTRATOR_REALM_ROLE;
         UUID roleId = findRealmRoleIdByName(roleName);
         if (roleId == null) {
@@ -239,9 +221,8 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw transportFailure("club-admin user create", e);
+                throw transportFailureStatusOnly("club-admin user create", e);
             }
-            // Idempotent replay — a prior migrate already minted this user.
         }
         UUID existing = findUserIdByUsername(username);
         if (existing == null) {
@@ -252,19 +233,6 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         return existing;
     }
 
-    /**
-     * Builds the {@code POST /admin/realms/{realm}/users} representation for
-     * a migrated club admin. Extracted + package-private so the
-     * adapter-boundary unit test can assert the wire shape carries
-     * firstName/lastName (no real realm in the local test path).
-     *
-     * <p>firstName/lastName are load-bearing: the realm's declarative
-     * user-profile marks both {@code required} for {@code user}-roled
-     * accounts, so a blank name triggers {@code VERIFY_PROFILE} on first
-     * login. Setting them at mint time keeps the migrated admin loginable in
-     * one shot (J-1 T-06 — replaces the e2e {@code makeMigratedAdminLoginable}
-     * name fixup).
-     */
     static Map<String, Object> clubAdminUserBody(UUID clubId, String username, String email,
                                                  String firstName, String lastName) {
         return Map.of(
@@ -295,7 +263,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             List<KeycloakNamedRef> matches = readListOf(responseBody);
             return matches.isEmpty() ? null : matches.get(0).id();
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("club-admin user lookup", e);
+            throw transportFailureStatusOnly("club-admin user lookup", e);
         }
     }
 
@@ -318,7 +286,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
             return null;
         } catch (HttpStatusCodeException e) {
-            throw transportFailure("group search", e);
+            throw transportFailureStatusOnly("group search", e);
         }
     }
 
@@ -334,15 +302,10 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             if (e.getStatusCode().value() == 404) {
                 return null;
             }
-            throw transportFailure("realm-role lookup", e);
+            throw transportFailureStatusOnly("realm-role lookup", e);
         }
     }
 
-    // The two JSON readers below intentionally strip the cause from
-    // their thrown exception: the upstream Keycloak response body can
-    // carry realm payload (audit messages, error contexts), and a
-    // forensic log forwarder grepping `e.getCause()` would surface
-    // that. Status code is preserved at the transport-failure boundary.
 
     private List<KeycloakNamedRef> readListOf(@Nullable String body) {
         if (body == null || body.isBlank()) {
@@ -353,7 +316,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     body,
                     objectMapper.getTypeFactory()
                             .constructCollectionType(List.class, KeycloakNamedRef.class));
-        } catch (Exception ignored) {
+        } catch (Exception causeWithheldSoRealmPayloadCannotReachTheLogs) {
             throw new KeycloakProvisioningException("malformed JSON list from directory");
         }
     }
@@ -364,17 +327,12 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
         try {
             return objectMapper.readValue(body, KeycloakNamedRef.class);
-        } catch (Exception ignored) {
+        } catch (Exception causeWithheldSoRealmPayloadCannotReachTheLogs) {
             throw new KeycloakProvisioningException("malformed JSON object from directory");
         }
     }
 
-    /**
-     * Wraps an upstream HTTP error in our own exception type with the
-     * status only — never the response body, which could leak the realm
-     * payload via cause chains in a forensic log forwarder.
-     */
-    private static KeycloakProvisioningException transportFailure(
+    private static KeycloakProvisioningException transportFailureStatusOnly(
             String action, HttpStatusCodeException source) {
         return new KeycloakProvisioningException(
                 "directory " + action + " refused (status " + source.getStatusCode().value() + ")");
@@ -395,30 +353,9 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
     }
 
-    /**
-     * Minimal projection over Keycloak's {id, name, ...} shape.
-     *
-     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is load-bearing:
-     * the injected Spring {@code ObjectMapper} runs with
-     * {@code spring.jackson.deserialization.fail-on-unknown-properties: true}
-     * (strict DTO boundary, see application.yml). Keycloak's real responses
-     * are verbose — a {@code RoleRepresentation} from {@code GET /roles/{name}}
-     * carries {@code composite}, {@code clientRole}, {@code containerId},
-     * {@code attributes}; a {@code UserRepresentation} / {@code GroupRepresentation}
-     * carry many more. Without per-record opt-out, the very first such body
-     * blows up as {@code UnrecognizedPropertyException} and the adapter
-     * mislabels it "malformed JSON". Pin tolerance on the projection so the
-     * directory contract is independent of the global wire-boundary policy.
-     */
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     record KeycloakNamedRef(@Nullable UUID id, @Nullable String name) {}
 
-    /**
-     * Adapter-local runtime exception. The reconcile job catches +
-     * leaves {@code kc_state=PENDING}; the exception never reaches the
-     * SPA (the reconcile is post-commit and not surfaced through an
-     * advice).
-     */
     static final class KeycloakProvisioningException extends RuntimeException {
         KeycloakProvisioningException(String message) {
             super(message);

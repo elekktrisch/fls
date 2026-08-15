@@ -13,23 +13,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Repository;
 
-/**
- * Plain-JPA implementation of {@link FlightReportRepository} over the
- * domain-maintained read-model ({@link FlightReportRow} + its
- * {@link FlightReportCrewEntry} children, ADR 0027 §2). Replaces the retired
- * native-SQL adapter (J-7 RM-3; register entry {@code flight-report-read-model}
- * retired): every statement is HQL against the read-model entities, so tenant
- * scoping is STRUCTURAL — Hibernate's {@code @TenantId} discriminator on
- * {@code t_flight_report_row.operating_club_id} constrains every query; no
- * manual tenant predicate, nothing to register.
- *
- * <p>Decoration columns (immatriculation, pilot / second-crew names,
- * flight-type name/code, location names, the whole tow block) are denormalized
- * copies written by {@code FlightReportProjector} at mutation time — the read
- * path joins nothing beyond the crew child (person filter + person-role
- * summary flags). Air-state is never stored: the query service computes it
- * from the raw timestamp/flag columns ({@code FlightAirState.compute}).
- */
 @Repository
 class JpaFlightReportReadAdapter implements FlightReportRepository {
 
@@ -43,16 +26,14 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
     public List<ReportRow> findReportPage(ReportCriteria c,
                                           int offset,
                                           int limit,
-                                          boolean sortBySeconds,
+                                          boolean sortByDurationSeconds,
                                           boolean sortAsc) {
         List<FlightAircraftType> types = selectedTypes(c);
         if (types.isEmpty()) {
             return List.of();
         }
         String dir = sortAsc ? "asc" : "desc";
-        // Oracle sort: start_date_time (or precomputed duration_seconds) with
-        // NULLS LAST, immatriculation asc tiebreak (asc default = nulls last).
-        String orderBy = sortBySeconds
+        String orderBy = sortByDurationSeconds
                 ? " order by r.durationSeconds " + dir + " nulls last, r.immatriculation asc"
                 : " order by r.startDateTime " + dir + " nulls last, r.immatriculation asc";
         TypedQuery<FlightReportRow> q = query(
@@ -83,14 +64,12 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
         if (types.isEmpty()) {
             return List.of();
         }
-        // The person-role flags read the crew children — fetch them with the
-        // rows only when a person filter is set (flags are constant false
-        // otherwise and the lazy collection is never touched).
-        String select = c.personId() != null
+        String selectWithCrewWhenRoleFlagsNeeded = c.personId() != null
                 ? "select r from FlightReportRow r left join fetch r.crew"
                 : "select r from FlightReportRow r";
         List<FlightReportRow> rows =
-                query(select, "", c, types, FlightReportRow.class).getResultList();
+                query(selectWithCrewWhenRoleFlagsNeeded, "", c, types, FlightReportRow.class)
+                        .getResultList();
 
         List<SummaryRow> out = new ArrayList<>(rows.size());
         for (FlightReportRow row : rows) {
@@ -99,19 +78,12 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
         return out;
     }
 
-    /**
-     * Builds + binds the shared filtered query ({@code selectFrom} + WHERE +
-     * {@code suffix}) — single seam for page / count / summary so the filter
-     * predicates and parameter binding live in exactly one place. The tenant
-     * predicate is NOT built here: {@code @TenantId} on {@link FlightReportRow}
-     * applies it structurally.
-     */
     private <T> TypedQuery<T> query(String selectFrom,
-                                    String suffix,
+                                    String orderBy,
                                     ReportCriteria c,
                                     List<FlightAircraftType> types,
                                     Class<T> resultType) {
-        TypedQuery<T> q = em.createQuery(selectFrom + where(c) + suffix, resultType);
+        TypedQuery<T> q = em.createQuery(selectFrom + where(c) + orderBy, resultType);
         q.setParameter("types", types);
         if (c.from() != null) {
             q.setParameter("from", c.from());
@@ -148,7 +120,6 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
         return w.toString();
     }
 
-    /** Empty ⇒ all type flags off ⇒ caller short-circuits to an empty result. */
     private static List<FlightAircraftType> selectedTypes(ReportCriteria c) {
         List<FlightAircraftType> types = new ArrayList<>(3);
         if (c.gliderFlights()) {
@@ -200,7 +171,7 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
                 r.getTowLdgLocationName());
     }
 
-    private static SummaryRow toSummaryRow(FlightReportRow r, @Nullable UUID personId) {
+    private static SummaryRow toSummaryRow(FlightReportRow r, @Nullable UUID filterPersonId) {
         Long duration = r.getDurationSeconds();
         return new SummaryRow(
                 r.getFlightAircraftType().legacyId(),
@@ -213,25 +184,19 @@ class JpaFlightReportReadAdapter implements FlightReportRepository {
                 r.getLdgLocationId(),
                 duration == null ? 0L : duration,
                 r.getFlightTypeName(),
-                hasRole(r, personId, FlightCrewTypeIds.PILOT_OR_STUDENT),
-                hasRole(r, personId, FlightCrewTypeIds.CO_PILOT),
-                hasRole(r, personId, FlightCrewTypeIds.FLIGHT_INSTRUCTOR));
+                hasRole(r, filterPersonId, FlightCrewTypeIds.PILOT_OR_STUDENT),
+                hasRole(r, filterPersonId, FlightCrewTypeIds.CO_PILOT),
+                hasRole(r, filterPersonId, FlightCrewTypeIds.FLIGHT_INSTRUCTOR));
     }
 
-    /**
-     * Does the FILTER person hold the given crew role on this flight? Constant
-     * {@code false} when no person filter — the lazy crew collection is then
-     * never touched (the summary person-role split is only meaningful under a
-     * person filter, matching the retired oracle's constant-false columns).
-     */
     private static boolean hasRole(FlightReportRow row,
-                                   @Nullable UUID personId,
+                                   @Nullable UUID filterPersonId,
                                    UUID crewTypeId) {
-        if (personId == null) {
+        if (filterPersonId == null) {
             return false;
         }
         for (FlightReportCrewEntry entry : row.getCrew()) {
-            if (personId.equals(entry.getPersonId())
+            if (filterPersonId.equals(entry.getPersonId())
                     && crewTypeId.equals(entry.getFlightCrewTypeId())) {
                 return true;
             }

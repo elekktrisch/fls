@@ -1,45 +1,23 @@
 spring:
   datasource:
-    # S-160: `./gradlew bootRun` boots as the APP role (alpenflight_app), which
-    # V54 creates during the migrator's flywayMigrate (dev-up-alpenflight.sh runs
-    # that as `alpenflight`). Loopback defaults so bootRun works against a
-    # compose-up Postgres without setting env vars. CI + prod must set the real env.
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}
     username: ${DATASOURCE_USER:alpenflight_app}
     password: ${DATASOURCE_PASSWORD:alpenflight_app}
   flyway:
-    # S-160: boot-time Flyway (bootRun) connects as the MIGRATOR role. The
-    # POSTGRES_USER/PASSWORD in docker-compose is `alpenflight` (owner/migrator),
-    # so these loopback defaults match. app_role_password defaults to the
-    # alpenflight_app loopback creds above so V54 creates a role bootRun can log in as.
     url: ${MIGRATOR_DB_URL:${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}}
     user: ${MIGRATOR_DB_USER:alpenflight}
     password: ${MIGRATOR_DB_PASSWORD:alpenflight}
     placeholders:
       app_role_password: ${APP_DB_PASSWORD:alpenflight_app}
-      # S-137 dev sentinel — local Flyway runs use this nil-suffixed UUID so
-      # the operator-Deployment seed has a valid owner-sub. Distinct from
-      # the SANDBOX owner-sub (all-zeros) so the partial UNIQUE invariant
-      # has visible separation in dev.
       alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
   security:
     oauth2:
       resourceserver:
         jwt:
-          # `./gradlew bootRun` runs on the host, not inside compose — the
-          # network-side `http://keycloak:8080` resolves only between
-          # containers. Override JWKS to the host-published port; the issuer
-          # URL stays at the same `localhost:8090` value tokens carry.
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs}
 
 keycloak:
   admin:
-    # `./gradlew bootRun` runs on the host, where the compose-internal
-    # `keycloak:8080` hostname does not resolve (UnresolvedAddressException) —
-    # so the KC Admin REST client (user-directory: role lookup for join-request
-    # admin recipients + the approve flow's clubId attribute write) must target
-    # the host-published port, the same host-vs-container override the JWKS uri
-    # above carries. Tokens still issue from the localhost:8090 issuer.
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://localhost:8090}
 
 server:
@@ -49,9 +27,6 @@ server:
 management:
   endpoint:
     health:
-      # Full health details (db, disk, mail) are useful locally but constitute
-      # info disclosure on any reachable network. Contract: the dev profile
-      # MUST NOT be deployed beyond loopback. Prod uses `when_authorized`.
       show-details: always
 logging:
   level:
@@ -64,13 +39,7 @@ springdoc:
   swagger-ui:
     enabled: true
 
-# S-140 — dev seeds a one-shot Tink keyset at startup (logged loudly).
-# Operators wanting persistence across restarts override with the env-pinned
-# inline keyset per the runbook (tinkey create-keyset ... | base64).
 alpenflight:
-  # J-6 T-10a (ADR 0013): dev sends to the compose `mailpit` side-car (SMTP
-  # 1025; inbox UI on 8025). `bootRun` runs on the host, so the published
-  # loopback port from the base profile's localhost:1025 default is correct.
   mail:
     enabled: true
   migration:

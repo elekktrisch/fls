@@ -12,16 +12,6 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Aggregate-internal child of {@link Location}. Represents an inbound or
- * outbound routing waypoint at an airfield. Mapped to V3
- * {@code t_inoutbound_point}; the row is owned by its parent Location and
- * lifecycle-bound via {@code @OneToMany(cascade=ALL, orphanRemoval=true)}.
- *
- * <p>No top-level CRUD endpoint exists for IOPs: per S-049 they are managed
- * solely through the Location edit form. Mutators are package-private —
- * only {@link Location} drives them.
- */
 @Entity
 @Table(name = "t_inoutbound_point")
 public class InOutboundPoint {
@@ -30,7 +20,6 @@ public class InOutboundPoint {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    /** Owning aggregate root; populated by Hibernate via {@code @ManyToOne}. */
     @ManyToOne(optional = false)
     @JoinColumn(nullable = false)
     @SuppressWarnings("UnusedVariable")
@@ -49,7 +38,6 @@ public class InOutboundPoint {
     private @Nullable String description;
 
     protected InOutboundPoint() {
-        // JPA.
     }
 
     static InOutboundPoint create(String pointName,

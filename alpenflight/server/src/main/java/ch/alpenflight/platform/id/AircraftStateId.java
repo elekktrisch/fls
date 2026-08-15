@@ -4,11 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Typed identifier for the {@code AircraftState} reference row (OK,
- * INFORMATION, ATTENTION, MALFUNCTION, MAINTENANCE, UNINSURED, END_OF_LIFE).
- * Plain UUID wire form per the reference-data convention.
- */
 @Schema(
         type = "string",
         format = "uuid",

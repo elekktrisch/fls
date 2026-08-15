@@ -19,28 +19,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Test-profile-only trigger surface for IT and Playwright e2e to exercise
- * the provisioning orchestration without dragging in the bundle-ingest
- * pipeline. {@code @Profile("test")} keeps the bean out of production
- * contexts; {@code @Hidden} keeps the route out of the OpenAPI snapshot.
- * The URL is scoped under {@code /internal/} so a future production
- * filter (gateway-level) can deny the prefix wholesale.
- *
- * <p>The request body carries the owner sub explicitly so the test can
- * provision under any synthesised principal. In production the ingest
- * pipeline derives the owner from the JWT principal it has already
- * authorized against the migration upload.
- *
- * <p>The dev/test-only affordance pattern is sanctioned by ADR 0029.
- */
 @RestController
 @RequestMapping("/api/v1/internal/migrations")
 @Profile("test")
 @Hidden
-// Audit emission rides through LifecycleTransitionAuditListener
-// (subscribes to the DeploymentLifecycleTransitioned event the
-// provisioning service publishes via Spring Data on save).
 @AuditedBy("lifecycleTransitionAuditListener")
 class InternalProvisioningController {
 
@@ -64,18 +46,11 @@ class InternalProvisioningController {
                 body.primaryClubId());
 
         ProvisioningResult result = provisioningService.provision(request);
-        // Reconcile fires synchronously after the provisioning commit so
-        // the test observes the final state via this endpoint. Production
-        // wires the reconcile call as part of the bundle-ingest pipeline
-        // + the hourly reconcile job; the test endpoint does both inline.
         boolean keycloakPending = result.keycloakPending();
         try {
             provisioningService.reconcileKeycloak(result.deploymentId());
             keycloakPending = false;
         } catch (RuntimeException reconcileFailure) {
-            // Reconcile failure leaves the DB intact with kc_state=PENDING;
-            // the test asserts on this outcome explicitly. Log so an
-            // unexpected regression isn't silently swallowed.
             LOG.warn("Keycloak reconcile failed for Deployment {} — kc_state stays PENDING",
                     result.deploymentId(), reconcileFailure);
         }

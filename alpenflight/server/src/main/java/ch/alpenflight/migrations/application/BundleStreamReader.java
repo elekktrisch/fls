@@ -13,31 +13,13 @@ import java.util.Arrays;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 
-/**
- * Streaming reader for the ALPF bundle wire format — header parse,
- * manifest parse, and per-tar-entry safety check. Stateless; the
- * orchestrator constructs one instance per service.
- *
- * <p>Owns the tar / JSON parsing details so the orchestrator only sees
- * "give me the header" / "give me the manifest" / "is this entry name safe".
- * Package-private constructor: only callers inside
- * {@code ch.alpenflight.migrations.application} construct it.
- * {@code MigrationBundleIngestApplicationArchitectureTest} guards the
- * structural isolation against future cross-package drift.
- */
 final class BundleStreamReader {
 
     private static final String MANIFEST_ENTRY_NAME = "manifest.json";
-    private static final ObjectMapper JSON = buildHardenedJsonMapper();
+    private static final ObjectMapper JSON = buildHardenedNonClosingJsonMapper();
 
     BundleStreamReader() { }
 
-    /**
-     * Reads the fixed prefix + wrapped session key off the encrypted body
-     * and returns the parsed {@link BundleHeader}. Throws
-     * {@code BUNDLE_HEADER_MALFORMED} on prefix mismatch and
-     * {@code BUNDLE_TRUNCATED} on early EOF.
-     */
     BundleHeader readHeader(InputStream encryptedBody) {
         byte[] fixedPrefix = readExactly(encryptedBody, BundleHeader.FIXED_PREFIX_BYTES);
         try {
@@ -58,11 +40,6 @@ final class BundleStreamReader {
         }
     }
 
-    /**
-     * Reads the {@code manifest.json} tar entry (must be entry 0) and
-     * deserializes it into a {@link BundleManifest}. Throws the corresponding
-     * {@link BundleIngestErrorCode} on each failure shape — never a 500.
-     */
     BundleManifest readManifestOrThrow(TarArchiveInputStream tar) throws IOException {
         TarArchiveEntry entry = tar.getNextEntry();
         if (entry == null) {
@@ -97,13 +74,6 @@ final class BundleStreamReader {
         }
     }
 
-    /**
-     * Filesystem-traversal defense for tar entry names. Rejects any name
-     * with absolute-path markers ({@code /}, {@code \}) or relative-segment
-     * markers ({@code ..}). Called as the FIRST statement inside the orchestrator's
-     * drain loop — before any prefix-based dispatch — so a hostile name like
-     * {@code legacy_id_map/../etc/passwd.pgcopy} cannot reach the COPY path.
-     */
     static void rejectUnsafeTarName(String name) {
         if (name.startsWith("/") || name.startsWith("\\") || name.contains("..")) {
             throw new BundleIngestException(
@@ -134,7 +104,7 @@ final class BundleStreamReader {
         return buffer;
     }
 
-    private static ObjectMapper buildHardenedJsonMapper() {
+    private static ObjectMapper buildHardenedNonClosingJsonMapper() {
         ObjectMapper mapper = new ObjectMapper();
         StreamReadConstraints hardened = StreamReadConstraints.builder()
                 .maxStringLength(1_000_000)
@@ -142,20 +112,10 @@ final class BundleStreamReader {
                 .maxNestingDepth(50)
                 .build();
         mapper.getFactory().setStreamReadConstraints(hardened);
-        // Tar entry payloads are slices of a larger stream; Jackson's
-        // default auto-close would close the entire tar archive after
-        // reading manifest.json — every subsequent entry NPEs inside the
-        // Inflater. Disabling AUTO_CLOSE_SOURCE keeps the tar alive.
         mapper.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
         return mapper;
     }
 
-    /**
-     * Tar entries report their length up front but Apache Commons Compress
-     * still calls {@link InputStream#close()} on the tar archive's internal
-     * input when an iterator wrapper closes — we use {@code close} to mean
-     * "stop reading this entry," not "kill the tar stream."
-     */
     static final class NonClosingInputStream extends InputStream {
 
         private final InputStream delegate;
@@ -176,16 +136,9 @@ final class BundleStreamReader {
 
         @Override
         public void close() {
-            // intentional no-op
         }
     }
 
-    /**
-     * Reads UTF-8 lines off a tar entry without buffering across entries.
-     * Apache Commons Compress's {@link TarArchiveInputStream} returns the
-     * next entry only when the caller stops reading the current one;
-     * wrapping with a regular {@code BufferedReader} would over-read.
-     */
     static final class NonClosingBufferedReader implements AutoCloseable {
 
         private final byte[] buffer = new byte[8192];
@@ -227,7 +180,6 @@ final class BundleStreamReader {
 
         @Override
         public void close() {
-            // tar stream owns its lifecycle
             Arrays.fill(buffer, (byte) 0);
         }
     }

@@ -15,25 +15,6 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
-/**
- * Publishes the {@link RequestTenantHint} for cross-tenant admin endpoints
- * BEFORE controller-argument validation fires. Without this preHandle the
- * hint is only set inside {@link Tenants#runAs} — too late if validation
- * 400s the request before the controller body executes (the original
- * audit row would then land on the JWT-resolved caller tenant instead of
- * the path-variable target).
- *
- * <p>The interceptor walks the matched handler method's parameters looking
- * for one annotated {@link AuditTargetTenant}, extracts its value from
- * the URI template variables, and records the hint.
- *
- * <p><strong>No production caller today.</strong> The S-049c admin
- * impersonation surface that originally used this was withdrawn in S-159;
- * this interceptor remains as scaffolding for future cutover / bulk-import
- * endpoints. DO NOT WIRE WITHOUT SECURITY REVIEW — the original threat
- * model assumed a hosted SYSTEM_ADMIN impersonation surface, which the
- * S-159 strip explicitly removed.
- */
 @Component
 public class AuditTargetTenantInterceptor implements HandlerInterceptor {
 
@@ -63,12 +44,6 @@ public class AuditTargetTenantInterceptor implements HandlerInterceptor {
                             ClubId clubId = ClubId.parse(s);
                             RequestTenantHint.recordIfHttp(clubId.value());
                         } catch (IllegalArgumentException e) {
-                            // Malformed path variable normally produces a 4xx
-                            // via the path converter chain BEFORE this
-                            // interceptor; arriving here means the ordering
-                            // shifted. Log at WARN so the gap is visible
-                            // (otherwise synthetic-failure rows would silently
-                            // fall back to the actor's home tenant).
                             LOG.warn("Could not parse path-variable {} = '{}' as ClubId: {}",
                                     name, s, e.getMessage());
                         }

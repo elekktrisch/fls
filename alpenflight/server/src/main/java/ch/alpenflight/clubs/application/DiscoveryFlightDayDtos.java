@@ -5,14 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/**
- * DTOs for the club-admin discovery-flight-day surface. The anonymous picker
- * reads bare ISO dates; the admin surface needs the row identity too, because
- * withdrawal addresses a row rather than a date.
- *
- * <p>Bean Validation here is fast-fail at the HTTP boundary; the aggregate
- * re-validates per ADR 0022 directive 2.
- */
 public final class DiscoveryFlightDayDtos {
 
     private DiscoveryFlightDayDtos() {}

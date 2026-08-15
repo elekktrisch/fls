@@ -19,21 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * REST surface for per-club email-template overrides. Per ADR 0005 the path is
- * plural kebab-case {@code /api/v1/email-templates}.
- *
- * <p>The list is a UNION of the S-082 Thymeleaf file defaults and the caller's
- * own-club override rows; where an override exists for a
- * {@code (template_key, language_locale)} it wins. Tenant scoping is structural
- * via Hibernate's {@code @TenantId} discriminator on {@code EmailTemplate.clubId},
- * so the union never carries another club's overrides.
- *
- * <p>Role gates mirror the legacy {@code EmailTemplatesController}: read +
- * write are CLUB_ADMINISTRATOR (own club only). A non-admin principal is denied
- * at the {@code @PreAuthorize} gate (403). Save upserts the override
- * (clone-on-customize); delete resets to the file default.
- */
 @RestController
 @RequestMapping(path = "/api/v1/email-templates", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "EmailTemplates", description = "Per-club overrides of transactional-email defaults.")

@@ -17,37 +17,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-/**
- * Brittleness guard (J-0c T-15, MANDATORY). The migration producer
- * ({@code ManifestBuilder} + {@code BundleWriter}) resolves a legacy Club's
- * system-global FKs ({@code country_id}, {@code club_state_id}) to the new-stack
- * seed PKs by RECOMPUTING the deterministic seed UUIDs in
- * {@link SeedReferenceUuids}. That couples the producer to the Flyway seed
- * values: if {@code V2__identity_and_reference.sql}'s {@code t_country} /
- * {@code t_club_state} INSERTs are ever reordered or regenerated, the producer
- * would silently map migrated clubs to a wrong or nonexistent seed PK.
- *
- * <p>This test parses the actual V2 seed INSERTs straight off the classpath
- * (no DB boot) and asserts {@link SeedReferenceUuids} reproduces EVERY seeded
- * row — keyed by natural key (ISO2 / code) to seed UUID — and that the row
- * counts match exactly. A seed reorder/regeneration fails this test loudly so
- * the migration can never silently map to a wrong PK. If this fails, the fix is
- * to re-pin the {@code SeedReferenceUuids} arrays/derivation to the seed (never
- * to weaken the assertion).
- */
 class SeedReferenceUuidsSeedParityTest {
 
-    // ('019e2e15-2c00-73e8-8000-0000000003e8', 'AF', 'AFG', 'Afghanistan'),
     private static final Pattern COUNTRY_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z]{2})'");
-    // ('019e2e15-2c00-7bb8-8000-000000000bb8', 'ACTIVE',    'Active'),
     private static final Pattern CLUB_STATE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
-    // ('019e2e15-2c00-77d0-8000-0000000007d0', 'de',    'Deutsch'),
-    // codes are BCP-47: lower-case base + optional region tag (e.g. de-CH).
-    private static final Pattern LANGUAGE_ROW = Pattern.compile(
+    private static final Pattern LANGUAGE_ROW_WITH_BCP47_CODE = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([a-zA-Z-]+)'");
-    // ('019e2e15-2c00-7fa0-8000-000000000fa0', 'WINCH_LAUNCH', 'Winch Launch', ARRAY[...]),
     private static final Pattern START_TYPE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
 
@@ -74,7 +51,7 @@ class SeedReferenceUuidsSeedParityTest {
 
     @Test
     void recomputed_language_seed_pks_equal_the_flyway_seed() throws Exception {
-        Map<String, UUID> seeded = parseSeed("t_language", LANGUAGE_ROW);
+        Map<String, UUID> seeded = parseSeed("t_language", LANGUAGE_ROW_WITH_BCP47_CODE);
         Map<String, UUID> recomputed = SeedReferenceUuids.languagesByCode();
 
         assertThat(recomputed.keySet())
@@ -108,10 +85,6 @@ class SeedReferenceUuidsSeedParityTest {
 
     @Test
     void recomputed_start_type_seed_pks_equal_the_flyway_seed() throws Exception {
-        // J-2 T-39: the migration producer's enum-complete START_TYPE closure
-        // (BundleWriter.writeStartTypeEnumSeedPgcopy via
-        // StartTypeMapper.legacyEnumIdToSeedPk → SeedReferenceUuids.startTypeByCode)
-        // couples to the V2 t_start_type seed exactly like COUNTRY/CLUB_STATE.
         Map<String, UUID> seeded = parseSeed("t_start_type", START_TYPE_ROW);
         Map<String, UUID> recomputed = SeedReferenceUuids.startTypesByCode();
 
@@ -128,11 +101,6 @@ class SeedReferenceUuidsSeedParityTest {
         }
     }
 
-    /**
-     * Pull the {@code INSERT INTO <table> ... VALUES ( ... );} block out of the
-     * V2 baseline and parse each row's (id, naturalKey). Restricting the regex
-     * scan to the single INSERT block avoids matching another table's rows.
-     */
     private static Map<String, UUID> parseSeed(String table, Pattern rowPattern) throws Exception {
         String sql = readIdentityBaselineSql();
         int insertAt = sql.indexOf("INSERT INTO " + table + " ");

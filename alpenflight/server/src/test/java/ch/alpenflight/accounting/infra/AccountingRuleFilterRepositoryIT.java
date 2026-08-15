@@ -18,18 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Persistence-level proof of the J-8 T-04 tenant-scoped, soft-delete-filtered
- * finders + the next-{@code sort_indicator} helper, driven through the real
- * {@code @TenantId} discriminator via {@link Tenants#runAs}.
- *
- * <p>Seeding is ADR-0027-clean: the two clubs come from the
- * {@link TwoClubFixture} production-create path (minted ids) and every
- * AccountingRuleFilter row is created via {@link AccountingRuleFilter#create}
- * + {@link AccountingRuleFilterRepository#save} — no raw-JDBC seed of the
- * aggregate. The only JDBC is resolving the V4-seeded filter-type FK
- * (reference data, not the aggregate-under-test).
- */
 class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_ARF_";
@@ -45,7 +33,7 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
 
     private UUID clubA;
     private UUID clubB;
-    private UUID filterTypeId;
+    private UUID seededRecipientFilterTypeId;
 
     @BeforeEach
     void seed() {
@@ -55,15 +43,13 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
         clubA = fixture.clubA();
         clubB = fixture.clubB();
 
-        // V4-seeded reference row (RECIPIENT, legacy_int_id=10) — the FK target.
-        filterTypeId = jdbc.queryForObject(
+        seededRecipientFilterTypeId = jdbc.queryForObject(
                 "SELECT id FROM t_accounting_rule_filter_type WHERE legacy_int_id = 10",
                 UUID.class);
     }
 
     @Test
     void list_returns_only_callers_tenant_rows_ordered_by_sort_indicator() {
-        // Two club-A rows (sort 1 then 0) + one club-B row.
         UUID first = createFilter(clubA, "A second", 1);
         UUID second = createFilter(clubA, "A first", 0);
         createFilter(clubB, "B row", 0);
@@ -101,7 +87,6 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
         UUID doomed = createFilter(clubA, "Doomed", 1);
 
         Tenants.runAs(clubA, () -> {
-            // Two alive rows → next slot is 2.
             assertThat(filters.nextSortIndicator())
                     .as("next sort indicator = max(1) + 1")
                     .isEqualTo(2);
@@ -118,7 +103,6 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
             assertThat(filters.findActiveById(doomed))
                     .as("soft-deleted row not loadable")
                     .isEmpty();
-            // The deleted row's sort=1 no longer counts → next slot drops to 1.
             assertThat(filters.nextSortIndicator())
                     .as("next sort indicator ignores soft-deleted rows")
                     .isEqualTo(1);
@@ -126,14 +110,10 @@ class AccountingRuleFilterRepositoryIT extends PostgresIntegrationTest {
         });
     }
 
-    /**
-     * Creates one filter under {@code clubId} via the production
-     * {@code create} → {@code save} path, stamping the given sort position.
-     */
     private UUID createFilter(UUID clubId, String name, int sort) {
         return Tenants.runAs(clubId, () -> {
             AccountingRuleFilter arf = AccountingRuleFilter.create(
-                    filterTypeId, name, null, null,
+                    seededRecipientFilterTypeId, name, null, null,
                     true, false, false, null, null, FilterConfig.empty());
             arf.assignSortIndicator(sort);
             AccountingRuleFilter saved = filters.save(arf);

@@ -1,72 +1,19 @@
 package ch.alpenflight.audit.domain;
 
-/**
- * The shape of mutation an audit row records. Stored as
- * {@code @Enumerated(STRING)} in {@code mutation_audit_event.action} — per
- * ADR 0022 directive 2 the enum is pinned in Java, never as a Postgres
- * CHECK constraint or DB enum type, so adding a value never requires a
- * migration in lock-step.
- *
- * <ul>
- *   <li>{@link #CREATE} — a new aggregate root was persisted. {@code before_state}
- *       is null; {@code after_state} carries the redacted snapshot.</li>
- *   <li>{@link #UPDATE} — an existing aggregate was mutated. Both snapshots
- *       are populated so {@code S-056} can compute the diff at read time.</li>
- *   <li>{@link #DELETE} — soft- or hard-delete. {@code after_state} is null;
- *       {@code before_state} carries the row as it existed.</li>
- *   <li>{@link #STATE_TRANSITION} — a state-machine transition that isn't
- *       captured cleanly as UPDATE (e.g. invoice booking). Reserved for the
- *       state-machine stories.</li>
- *   <li>{@link #BULK_IMPORT} — the cutover importer and similar bulk paths
- *       emit one event per HTTP request with a summary {@code after_state}
- *       (count + first/last id) rather than per-row, per the refinement's
- *       payload-ceiling decision.</li>
- * </ul>
- */
 public enum AuditAction {
     CREATE,
     UPDATE,
     DELETE,
     STATE_TRANSITION,
     BULK_IMPORT,
-    /** Search/lookup that returned ≥ 1 row. The negative response is itself
-     *  information disclosure on cross-tenant directory queries, so hits and
-     *  misses are recorded as distinct actions for forensics filtering. */
     LOOKUP_HIT,
-    /** Search/lookup that returned 0 rows. Audited so repeated misses for
-     *  the same key surface as a probing signal in S-056. */
     LOOKUP_MISS,
-    /** S-140 — a per-upload RSA keypair was minted + persisted as
-     *  {@code awaiting_upload}. {@code after_state} carries the safe
-     *  snapshot ({@code state}, {@code expiresAt}, byte-length placeholder
-     *  for the wrapped private key); {@code before_state} is null. */
     MIGRATION_HANDSHAKE_ISSUED,
-    /** S-140 — a subsequent handshake flipped the prior row to
-     *  {@code superseded} and wiped its private-key bytes. Both snapshots
-     *  populated; {@code system_actor=false} (driven by the user's POST). */
     MIGRATION_HANDSHAKE_SUPERSEDED,
-    /** S-140 — the hourly expiry job flipped {@code awaiting_upload} rows
-     *  past TTL to {@code expired} and wiped the private key.
-     *  {@code system_actor=true}; no user principal. */
     MIGRATION_HANDSHAKE_EXPIRED,
-    /** S-141 — bundle ingest started inside the open txn (pre-decrypt).
-     *  {@code after_state} carries the uploadId; the actor is the caller. */
     MIGRATION_INGEST_STARTED,
-    /** S-141 — bundle ingest committed successfully. Emitted post-commit;
-     *  {@code after_state} carries uploadId + deploymentId + clubCount. */
     MIGRATION_INGEST_COMPLETED,
-    /** S-141 — bundle ingest rolled back. Emitted post-commit (audit
-     *  failure does not roll back ingest); {@code after_state} carries
-     *  uploadId + errorCode + phase. */
     MIGRATION_INGEST_FAILED,
-    /** J-6 S-086 — the planning-day notification job was triggered for a club
-     *  (the scheduled tick OR the guarded run-now affordance).
-     *  {@code after_state} carries a non-PII send summary (club id + the
-     *  imminent / week-ahead mail counts); {@code before_state} is null. */
     PLANNING_NOTIFICATIONS_RUN,
-    /** S-177 — a CLUB_ADMINISTRATOR rotated their club's join code. The code is
-     *  a quasi-secret, so neither snapshot carries the old or new value — only
-     *  the actor + club id (an admin reading the audit log must not be able to
-     *  recover a club's current code). */
     CLUB_JOIN_CODE_ROTATED
 }

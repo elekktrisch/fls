@@ -98,6 +98,9 @@ jobs:
       - name: Journey-file lookup guard
         run: bash .github/scripts/journey-derive-selfcheck.sh
 
+      - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
+        run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #

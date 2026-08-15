@@ -19,7 +19,7 @@ class ColumnDroppingMapperTest {
     void columnsOmitTheDroppedColumnInOrder() {
         ColumnDroppingMapper decorated =
                 new ColumnDroppingMapper(threeColumnMapper(), "iso2_code");
-        assertThat(decorated.columns()).containsExactly("legacy_guid", "name");
+        assertThat(decorated.wireColumns()).containsExactly("legacy_guid", "name");
     }
 
     @Test
@@ -34,7 +34,7 @@ class ColumnDroppingMapperTest {
         ColumnDroppingMapper decorated =
                 new ColumnDroppingMapper(threeColumnMapper(), "name");
         assertThat(decorated.entityType()).isEqualTo(EntityType.COUNTRY);
-        assertThat(decorated.foreignKeys()).containsExactly(EntityType.CLUB);
+        assertThat(decorated.foreignKeyTargets()).containsExactly(EntityType.CLUB);
     }
 
     @Test

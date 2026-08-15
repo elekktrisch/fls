@@ -1,19 +1,3 @@
--- S-140 Per-upload keypair handshake. Pre-tenant row created at signup-time,
--- before any Deployment / Club exists for the principal. Hence no `club_id`
--- and no Hibernate `@TenantId` on the entity — the S-024 leakage sweep is
--- @TenantId-driven and does not touch this table.
---
--- Lifecycle (in Java per ADR 0022 directive 2 — no CHECK on state):
---   awaiting_upload → superseded   (subsequent /handshake from same user)
---   awaiting_upload → expired      (MigrationHandshakeExpiryJob hourly sweep)
---   awaiting_upload → consumed     (S-141 ingest pipeline success)
---   awaiting_upload → failed       (S-141 ingest pipeline error)
--- The three terminal states all wipe `private_key_ciphertext` to NULL.
---
--- private_key_ciphertext stores PKCS#8 DER bytes of the per-upload RSA
--- private key, wrapped by Google Tink AEAD (AES-256-GCM) under the server
--- master keyset. The `uploadId` UUID is bound as Tink `associatedData` so
--- a ciphertext from row A cannot be unwrapped against row B's metadata.
 
 CREATE TABLE t_migration_upload (
     id                       UUID         NOT NULL PRIMARY KEY,
@@ -27,16 +11,10 @@ CREATE TABLE t_migration_upload (
     consumed_at              TIMESTAMPTZ      NULL
 );
 
--- Identity-bearing partial UNIQUE: each user has at most one in-flight
--- (awaiting_upload) handshake row at any time. Two-tab races resolve as
--- "first INSERT wins, loser catches the violation and retries inside a
--- single (supersede prior + insert new) txn".
 CREATE UNIQUE INDEX ux_migration_upload_user_awaiting
     ON t_migration_upload (user_id)
     WHERE state = 'awaiting_upload';
 
--- Forensic + cleanup predicate: the hourly expiry job filters on
--- (state, expires_at) and walks rows. Tiny supporting index.
 CREATE INDEX ix_migration_upload_expiry
     ON t_migration_upload (state, expires_at);
 

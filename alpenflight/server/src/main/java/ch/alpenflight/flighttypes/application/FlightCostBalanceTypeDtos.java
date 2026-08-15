@@ -3,12 +3,6 @@ package ch.alpenflight.flighttypes.application;
 import ch.alpenflight.platform.id.FlightCostBalanceTypeId;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * DTOs for the FlightCostBalanceType REST surface. Read-only at S-053 — no
- * admin CRUD until S-058 / S-072 demand it. {@code legacyIntId} is
- * intentionally omitted from the wire shape (cutover-importer artifact, not
- * caller-relevant).
- */
 public final class FlightCostBalanceTypeDtos {
 
     private FlightCostBalanceTypeDtos() {}

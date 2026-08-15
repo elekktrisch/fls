@@ -15,21 +15,8 @@ import java.util.Base64;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-/**
- * The S-140a handshake artifact the server hands the operator before an
- * export: {@code { "uploadId": "<uuid>", "publicKeyPem": "...", "expiresAt":
- * "..." }}. The {@code uploadId} is the StreamingAead AAD; the public key
- * (RSA-4096 SPKI) wraps the ephemeral AES session key.
- *
- * <p>{@code expiresAt} is parsed-and-ignored per the story — server-side
- * upload expiry is enforced at ingest, not at export time.
- *
- * <p>Validation runs BEFORE any DB connection so a malformed / non-RSA /
- * wrong-size key fails fast without holding a legacy connection open.
- */
 public final class HandshakeFile {
 
-    /** RSA-4096 is the only accepted modulus — matches the server keygen. */
     private static final int REQUIRED_MODULUS_BITS = 4096;
 
     private static final Pattern PEM_BODY = Pattern.compile(
@@ -54,7 +41,6 @@ public final class HandshakeFile {
         return publicKey;
     }
 
-    /** X.509 SubjectPublicKeyInfo DER — the input {@code MigrationBundleCipher.wrapSessionKey} expects. */
     public byte[] publicKeyDer() {
         return publicKeyDer.clone();
     }

@@ -26,15 +26,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Full-stack HTTP integration test for the AircraftReservation CRUD slice
- * (J-5 T-05). Proves the web-layer wire contract: create → 201 + Location +
- * get round-trip; same-aircraft overlap create → 409; timed end ≤ start → 422.
- * The persistence-level conflict + tenant proof lives in
- * {@code AircraftReservationRepositoryIT} (T-04); the pure overlap predicate in
- * the domain unit test (T-03). Driven as a CLUB_ADMINISTRATOR of seed-club-1 —
- * authz is legacy-open ({@code isAuthenticated()}), so the role is incidental.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
@@ -42,8 +33,10 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
-    /** A foil tenant the test provisions — the tenant-isolation case for the validate probe. */
     private static final String OTHER_CLUB_ID = "019e30c3-2c00-7001-8000-0000000000f2";
+    private static final String V31_DEV_SEED_ID_BAND = "019e30c3-%";
+    private static final String IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST = "HB-RV";
+    private static final int UNPROCESSABLE_CONTENT_422 = 422;
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -60,27 +53,29 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         token = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        // Pre-clean (ADR 0021): reservations FK to aircraft (RESTRICT), so they
-        // must go before the aircraft rows seeded under this club are cleared.
-        // CLUB_ID is the V31 dev-seed club, so the type pre-clean MUST exclude the
-        // seed-band `Allgemein` row (`019e30c3-…`): deleting it would erase the V31
-        // dev-seed in the SHARED Testcontainers DB and red ReservationsBaselineIT's
-        // `…only_the_dev_seed_present` (J-5 T-34). This IT only ever creates its own
-        // random-UUID `Flight` type, so scoping the delete to non-seed-band rows is
-        // exact (cleans this IT's rows, leaves the V31 seed intact).
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
-        // The tenant-isolation case seeds an other-club booking on club-1's aircraft;
-        // clear it too so the shared Testcontainers DB doesn't carry it between runs.
-        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", OTHER_CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid "
-                + "AND id::text NOT LIKE '019e30c3-%'", CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
-                + "AND immatriculation LIKE 'HB-RV%'", CLUB_ID);
+        clearBothClubsReservationsBeforeTheAircraftTheyRestrict();
+        clearThisTestsReservationTypesLeavingTheV31DevSeedBandIntact();
+        clearAircraftOwnedByThisTest();
 
         aircraftId = seedAircraft();
         pilotId = seedPerson();
         locationId = seedLocation();
         reservationTypeId = seedReservationType();
+    }
+
+    private void clearBothClubsReservationsBeforeTheAircraftTheyRestrict() {
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", OTHER_CLUB_ID);
+    }
+
+    private void clearThisTestsReservationTypesLeavingTheV31DevSeedBandIntact() {
+        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid "
+                + "AND id::text NOT LIKE '" + V31_DEV_SEED_ID_BAND + "'", CLUB_ID);
+    }
+
+    private void clearAircraftOwnedByThisTest() {
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
+                + "AND immatriculation LIKE '" + IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST + "%'", CLUB_ID);
     }
 
     @Test
@@ -92,8 +87,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
         JsonNode created = readJson(res);
         String id = created.get("id").asText();
-        // FK ids are the typed-id external form (`ac-`/`pn-`/`loc-`) — matches
-        // the masterdata pickers + FlightCreateRequest (J-5 T-25).
         assertThat(created.get("aircraftId").asText()).isEqualTo("ac-" + aircraftId);
         assertThat(created.get("isAllDay").asBoolean()).isFalse();
         URI loc = res.getHeaders().getLocation();
@@ -114,7 +107,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
                 timedPayload("2026-07-01T10:00:00Z", "2026-07-01T11:00:00Z"));
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        // 10:30–10:45 overlaps the 10:00–11:00 booking on the SAME aircraft.
         ResponseEntity<String> overlap = post("/api/v1/aircraft-reservations",
                 timedPayload("2026-07-01T10:30:00Z", "2026-07-01T10:45:00Z"));
         assertThat(overlap.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -125,16 +117,12 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     void create_timedEndBeforeStart_returns_422() {
         ResponseEntity<String> res = post("/api/v1/aircraft-reservations",
                 timedPayload("2026-07-01T11:00:00Z", "2026-07-01T10:00:00Z"));
-        // 422 — the reason-phrase constant was aliased UNPROCESSABLE_ENTITY →
-        // UNPROCESSABLE_CONTENT, so assert on the numeric code, not the enum.
-        assertThat(res.getStatusCode().value()).isEqualTo(422);
+        assertThat(res.getStatusCode().value()).isEqualTo(UNPROCESSABLE_CONTENT_422);
         assertThat(readJson(res).get("key").asText()).isEqualTo("aircraft.reservation.duration");
     }
 
     @Test
     void page_returns_camelCaseEnvelope_withTenantScopedItems_sortedByStart() {
-        // Two non-overlapping bookings on the same aircraft; created out of
-        // start order to prove the page sorts by start asc.
         post("/api/v1/aircraft-reservations",
                 timedPayload("2026-07-02T10:00:00Z", "2026-07-02T11:00:00Z"));
         post("/api/v1/aircraft-reservations",
@@ -145,7 +133,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode page = readJson(res);
-        // camelCase envelope (NOT legacy PascalCase Items/TotalRows).
         assertThat(page.has("items")).isTrue();
         assertThat(page.get("pageStart").asInt()).isZero();
         assertThat(page.get("pageSize").asInt()).isEqualTo(10);
@@ -153,10 +140,8 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
         JsonNode items = page.get("items");
         assertThat(items).hasSize(2);
-        // Sorted by start asc — earliest (2026-07-01) first.
         assertThat(items.get(0).get("start").asText()).isEqualTo("2026-07-01T10:00:00Z");
         assertThat(items.get(1).get("start").asText()).isEqualTo("2026-07-02T10:00:00Z");
-        // Row carries the FK ids (typed-id external form) + same-module type name.
         assertThat(items.get(0).get("aircraftId").asText()).isEqualTo("ac-" + aircraftId);
         assertThat(items.get(0).get("reservationTypeName").asText()).isEqualTo("Flight");
     }
@@ -171,14 +156,11 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void validate_overlappingSlot_returnsInvalidWithField() {
-        // A persisted 10:00–11:00 booking on the aircraft …
+    void validate_overlappingSlot_returnsInvalidOnStartField_withoutPersistingAnything() {
         ResponseEntity<String> created = post("/api/v1/aircraft-reservations",
                 timedPayload("2026-08-02T10:00:00Z", "2026-08-02T11:00:00Z"));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        // … a candidate 10:30–10:45 on the SAME aircraft is invalid (overlap),
-        // surfaced on the start field — WITHOUT a save (no new row persisted).
         ResponseEntity<String> res = post("/api/v1/aircraft-reservations/validate",
                 validatePayload("2026-08-02T10:30:00Z", "2026-08-02T10:45:00Z", null));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -186,11 +168,12 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(result.get("valid").asBoolean()).isFalse();
         assertThat(result.get("field").asText()).isEqualTo("start");
         assertThat(result.get("message").asText()).isNotBlank();
-        // Non-mutating: only the one persisted booking exists.
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid "
                         + "AND deleted_on IS NULL", Integer.class, CLUB_ID);
-        assertThat(count).isEqualTo(1);
+        assertThat(count)
+                .as("validate is a probe: only the booking created above may exist")
+                .isEqualTo(1);
     }
 
     @Test
@@ -200,8 +183,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String ownId = readJson(created).get("id").asText();
 
-        // Re-validating the SAME slot while excluding the reservation's own id
-        // must NOT self-conflict.
         ResponseEntity<String> res = post("/api/v1/aircraft-reservations/validate",
                 validatePayload("2026-08-03T10:00:00Z", "2026-08-03T11:00:00Z", ownId));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -210,10 +191,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void validate_otherClubsReservation_doesNotConflict_tenantScoped() {
-        // Provision a foil tenant (reusing seed-club-1's country + state), then a
-        // conflicting booking on the SAME aircraft under it. The aircraft FK
-        // crosses tenants (legacy-open), so this insert is FK-valid; the
-        // reservation is stamped to the other club.
         jdbc.update("""
                 INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                         slug, public_registration_enabled)
@@ -231,8 +208,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
                 "2026-08-04T10:00:00Z", "2026-08-04T11:00:00Z",
                 pilotId.toString(), locationId.toString());
 
-        // The caller is club-1; the other club's overlapping booking is invisible
-        // to its tenant-scoped overlap probe → valid.
         ResponseEntity<String> res = post("/api/v1/aircraft-reservations/validate",
                 validatePayload("2026-08-04T10:30:00Z", "2026-08-04T10:45:00Z", null));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -240,9 +215,7 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void future_excludesPastReservations_sortedByStart() {
-        // One reservation safely in the past, one safely in the future relative
-        // to the test-run clock — /future returns only the future one.
+    void future_excludesPastReservations() {
         post("/api/v1/aircraft-reservations",
                 timedPayload("2000-01-01T10:00:00Z", "2000-01-01T11:00:00Z"));
         post("/api/v1/aircraft-reservations",
@@ -259,11 +232,6 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void typeListitems_carryInstructorRequired_drivingConditionalSecondCrew() {
-        // T-18: the type list projection must carry instructorRequired so the
-        // reservation form's conditional Second-Crew rule (required when the type
-        // requires a second crew member) can evaluate client-side. AlpenFlight's
-        // reservation-type model collapses legacy's three FlightType-derived flags
-        // into the single is_instructor_required column.
         UUID instructorType = seedReservationType("Instruction", true);
         UUID soloType = seedReservationType("Solo", false);
 
@@ -289,13 +257,9 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         return null;
     }
 
-    // ----- payload + seed helpers -----
 
     private Map<String, Object> timedPayload(String startIso, String endIso) {
         Map<String, Object> m = new LinkedHashMap<>();
-        // The masterdata pickers serialize typed ids (`ac-`/`pn-`/`loc-`); the
-        // create request DTO now binds those typed ids (J-5 T-25). The type id
-        // stays a plain UUID (its listitems emit plain UUIDs).
         m.put("aircraftId", "ac-" + aircraftId);
         m.put("pilotPersonId", "pn-" + pilotId);
         m.put("locationId", "loc-" + locationId);
@@ -323,7 +287,8 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         UUID id = UUID.randomUUID();
         UUID aircraftTypeId = jdbc.queryForObject(
                 "SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
-        String immat = ("HB-RV" + Long.toString(System.nanoTime(), 36).substring(0, 6))
+        String immat = (IMMATRICULATION_PREFIX_OWNED_BY_THIS_TEST
+                + Long.toString(System.nanoTime(), 36).substring(0, 6))
                 .toUpperCase(java.util.Locale.ROOT);
         jdbc.update("""
                 INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,

@@ -10,20 +10,6 @@ import java.sql.SQLException;
 import java.util.Properties;
 import java.util.UUID;
 
-/**
- * Drives a SQL Server container's lifecycle via {@code docker} CLI directly —
- * the same approach the {@code alpenflight/database/extract/} module uses.
- *
- * <p>Why not Testcontainers: the sandbox's Docker daemon enforces minimum API
- * 1.44 but Testcontainers' bundled docker-java negotiates API 1.32, which is
- * rejected before any container can boot. The {@code docker} CLI
- * auto-negotiates the daemon's actual API version, so shelling out is the
- * path of least resistance.
- *
- * <p>Container guarantees: random container name per JVM run, random host
- * port, shutdown hook removes the container even on JVM crash, connection
- * readiness poll capped at 90 s.
- */
 public final class MssqlContainerLifecycle {
 
     private static final String IMAGE = "mcr.microsoft.com/mssql/server:2022-latest";
@@ -75,7 +61,6 @@ public final class MssqlContainerLifecycle {
                     .start()
                     .waitFor();
         } catch (Exception ignored) {
-            // Best-effort cleanup.
         }
     }
 
@@ -114,7 +99,6 @@ public final class MssqlContainerLifecycle {
                     }
                 }
             } catch (IOException | InterruptedException ignored) {
-                // retry
             }
             sleepQuietly(500);
         }

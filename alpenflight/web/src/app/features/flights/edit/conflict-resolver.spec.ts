@@ -38,8 +38,6 @@ describe('conflict-resolver', () => {
     const names = diffs.map((d) => d.name);
 
     expect(names).toEqual(expect.arrayContaining(['aircraftId', 'nrOfLdgs', 'comment']));
-    // flightDate is untouched (mine omits it → null, but theirs has a date),
-    // so it IS a diff; flightTypeId matches (both null) → not a diff.
     expect(names).not.toContain('flightTypeId');
     const aircraft = diffs.find((d) => d.name === 'aircraftId');
     expect(aircraft).toEqual({

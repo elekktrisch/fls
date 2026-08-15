@@ -14,15 +14,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Verifies the exposure-include property works end-to-end on a real HTTP server.
- *
- * <p>Annotation set kept identical to the other {@code RANDOM_PORT} +
- * {@code JwtTestFixture}-import ITs so Spring's context cache hits — the
- * actuator endpoint itself doesn't authenticate, but importing the test
- * fixture keeps a single cached context across all RANDOM_PORT ITs (saves
- * ~15-25 s of context boot per fork).
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)

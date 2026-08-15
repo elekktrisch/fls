@@ -1,48 +1,12 @@
 #!/usr/bin/env node
-/**
- * Proof-video gallery generator — ONE stable-bookmark page, in-flight journey only.
- *
- * Reads a Playwright JSON-reporter report (the "manifest" — see README.md for the
- * exact shape), pairs each passing proof test's `proof-video` .webm with its
- * `proof-caption`/`proof-ac-tag`/`proof-journey` annotations, and emits ONE
- * `index.html` rendering the journey-under-work's proof only: its paired legacy↔
- * AlpenFlight screenshots (when present), its pass-video(s), and — read from the
- * same report — its migration round-trip proof. Merged journeys' proof lives in
- * their PRs; this page never renders history or an all-journeys index.
- *
- * Why one page: the operator bookmarks a single URL and sees only what is
- * in-flight. The persistent multi-journey directory + per-journey history pages +
- * the per-context sub-path split were the bookmark pain this collapses.
- *
- * AC5 link-check (the [key-error] path — runs fully real, never mocked): the
- * generator throws (CLI: exits non-zero) if a published video/screenshot has no
- * caption, or a caption references a .webm/.png not present in the proof output.
- *
- * Dual use:
- *   - CLI:    node generate-gallery.mjs --journey-under-work J-N [--report <json>] [--out <dir>] [--legacy-video <dir>] [--screenshots <dir>]
- *             (also: `pnpm proof:gallery`).
- *   - import: `import { generateGallery } from './generate-gallery.mjs'`.
- */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/**
- * Site-root-absolute base for the gh-pages deployment. gh-pages serves this repo
- * at `https://elekktrisch.github.io/fls/`, so the base path is `/fls/`. Override
- * via `generateGallery({ siteBase })` / `--site-base` if the repo's gh-pages base
- * ever changes (must keep the trailing slash).
- */
 export const DEFAULT_SITE_BASE = '/fls/';
 
-/**
- * Static roadmap fallback — the journey IDs the roadmap parser yields when
- * `_ORDER.md` is not reachable. Source of truth is
- * docs/modernization/stories/_ORDER.md. Retained so the journey-id ordering
- * helpers run standalone in a CI artifact dir without the repo.
- */
 export const ROADMAP_FALLBACK = [
   'J-0',
   'J-0b',
@@ -77,14 +41,6 @@ export const ROADMAP_FALLBACK = [
   'J-25',
 ];
 
-/**
- * Parse the journey ids out of the `| … | J-N | …` roadmap table rows of an
- * _ORDER.md body, in table order. Exported (text-in, pure) so the ordering
- * contract is unit-testable without a temp file. The leading table cell may carry
- * decoration before the id — a shipped journey is marked `✅ ` (`| ✅ **J-0** |`,
- * `| ✅ J-24 |`) and ids are optionally bold (`**J-0**`); the regex skips that so a
- * shipped journey parses in its roadmap position.
- */
 export function parseRoadmapText(text) {
   const ids = [];
   const seen = new Set();
@@ -100,7 +56,6 @@ export function parseRoadmapText(text) {
   return ids;
 }
 
-/** Walk nested suites → flat list of { spec, test } for every test. */
 function* walkTests(suite) {
   for (const spec of suite.specs ?? []) {
     for (const test of spec.tests ?? []) {
@@ -119,18 +74,12 @@ function annotation(test, spec, type) {
   return fromSpec ? (fromSpec.description ?? '') : undefined;
 }
 
-/** Derive a journey id (e.g. J-0) from a spec file path as a fallback. */
 function journeyFromFile(file) {
   if (!file) return undefined;
   const m = basename(file).match(/\b(j-?(\d+[a-z]?))\b/i);
   return m ? `J-${m[2]}` : undefined;
 }
 
-/**
- * Extract published proofs from a parsed Playwright JSON report.
- * Returns { proofs: [{ journey, caption, acTag, videoPath, title }], errors: [] }.
- * `errors` collects AC5 violations (no caption / missing .webm).
- */
 export function extractProofs(report, { reportDir }) {
   const proofs = [];
   const errors = [];
@@ -139,9 +88,9 @@ export function extractProofs(report, { reportDir }) {
       const result = (test.results ?? []).find((r) =>
         (r.attachments ?? []).some((a) => a.name === 'proof-video'),
       );
-      if (!result) continue; // not a proof test
+      if (!result) continue;
       const att = result.attachments.find((a) => a.name === 'proof-video');
-      if (result.status !== 'passed') continue; // only publish green proofs
+      if (result.status !== 'passed') continue;
 
       const title = spec.title ?? test.title ?? '(untitled)';
       const caption = annotation(test, spec, 'proof-caption');
@@ -167,19 +116,6 @@ export function extractProofs(report, { reportDir }) {
   return { proofs, errors };
 }
 
-/**
- * Extract declared LEGACY parity videos from a `legacy-video.json` sidecar in
- * `legacyVideoDir`. The Playwright report only carries AlpenFlight `real-idp`
- * proofs; a legacy (e.g. flsweb) parity video has no manifest path, so it is
- * declared in a sidecar keyed to a journey:
- *
- *   { "videos": [ { "journey": "J-0c", "file": "x.webm",
- *                   "acTag": "happy", "caption": "Legacy flsweb: …" } ] }
- *
- * `file` resolves relative to the sidecar dir. Returns the same proof shape as
- * `extractProofs`, flagged `legacy: true`, plus the AC5 link-check `errors`. A
- * missing dir / sidecar is a no-op (no legacy video this run).
- */
 export function extractLegacyVideos(legacyVideoDir) {
   const proofs = [];
   const errors = [];
@@ -214,23 +150,6 @@ export function extractLegacyVideos(legacyVideoDir) {
   return { proofs, errors };
 }
 
-/**
- * Extract declared PARITY SCREENSHOTS from a `screenshots.json` sidecar in
- * `screenshotsDir`. Mirrors `extractLegacyVideos`: still PNGs (legacy + AlpenFlight,
- * list + form) have no Playwright-manifest path, so they are DECLARED in a sidecar
- * keyed to a journey + side + view so the generator can PAIR them:
- *
- *   { "screenshots": [
- *       { "journey": "J-1", "side": "legacy",      "view": "list",
- *         "file": "legacy-aircraft-list.png",      "caption": "Legacy flsweb: …" },
- *       { "journey": "J-1", "side": "alpenflight", "view": "form",
- *         "file": "alpenflight-aircraft-form.png", "caption": "AlpenFlight: …" }
- *     ] }
- *
- * `file` resolves relative to the sidecar dir. `side` ∈ {legacy, alpenflight};
- * `view` is the pairing key (e.g. list | form). Returns flat shots plus the AC5
- * link-check `errors`. A missing dir / sidecar is a no-op (no screenshots this run).
- */
 export function extractScreenshots(screenshotsDir) {
   const shots = [];
   const errors = [];
@@ -265,18 +184,6 @@ export function extractScreenshots(screenshotsDir) {
   return { shots, errors };
 }
 
-/**
- * The set of `<side>:<view>` keys the generator WILL render for a given journey —
- * the SINGLE SOURCE OF TRUTH shared with the pre-deploy SHOTS-PRESENT guard so its
- * "present" set is definitionally the page's "rendered" set (present == rendered).
- * `renderScreenshots` renders exactly one `shot-<side>` figure per shot; this
- * projects that SAME shot list to its keys. A shot with no on-disk PNG is not a
- * rendered key (mirrors the AC5 throw on a declared-yet-missing PNG before render).
- *
- * @param {Array<{journey?: string, side?: string, view?: string, imgPath?: string}>} shots
- * @param {string} [journey] when set, only that journey's keys are returned.
- * @returns {Set<string>} the `<side>:<view>` keys the generator renders.
- */
 export function renderedShotKeys(shots, journey) {
   const keys = new Set();
   for (const s of shots ?? []) {
@@ -302,13 +209,6 @@ function tagClass(acTag) {
   return 'success';
 }
 
-/**
- * Render the PARITY-SCREENSHOTS block: one row per `view` (e.g. list, form),
- * legacy `<img>` LEFT + AlpenFlight `<img>` RIGHT, so the operator eyeballs the
- * field set side by side. Views render in first-seen declaration order; within a
- * view, legacy is forced left. A view with only one side still renders that side.
- * Empty `shots` → no block.
- */
 function renderScreenshots(shots) {
   if (!shots || shots.length === 0) return '';
   const byView = new Map();
@@ -343,12 +243,6 @@ ${rows.join('\n')}
         </div>`;
 }
 
-/**
- * Render the journey's proof body — the pass-video(s) + the paired parity
- * screenshots. A legacy parity video is labelled as the legacy side so a reviewer
- * reads legacy → AlpenFlight side by side. Content-less (the journey-under-work
- * before any capture lands) renders a pending note, never a broken link.
- */
 function renderJourneyBody(proofs, shots) {
   if ((!proofs || proofs.length === 0) && (!shots || shots.length === 0)) {
     return `        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>`;
@@ -374,26 +268,7 @@ ${videos}
 ${screenshotsBlock}`;
 }
 
-/* ─────────────────────────── Maintainability panel ───────────────────────────
- * A compact maintainability summary on the page, read from the CI-staged
- * artifacts under `<outDir>/maintainability/`:
- *   - fallow-audit.json   FE journey DELTA (this branch's diff-vs-main envelope;
- *                         `attribution.{dead_code,complexity,duplication}_introduced`
- *                         + a `verdict`)
- *   - fallow-health.json  FE repo SNAPSHOT (`health_score`, `vital_signs`)
- *   - pmd-main.xml        BE complexity/dead-code violation count
- *   - cpd-check.xml       BE duplication (duplicated tokens over total tokens)
- *   - qodana-report.sarif.json  BE whole-program unused-declaration scan
- *
- * FAIL-SOFT: every artifact may be ABSENT on a given run (the producer is
- * `continue-on-error`). A missing/malformed file becomes `null` and renders
- * "— / no data"; this never throws (the panel is informational, not a gate). The
- * fallow audit is the CURRENT branch's diff-vs-main, so the journey-DELTA is only
- * reconstructable for the journey under work; the page shows that delta plus the
- * repo snapshot.
- */
 
-/** Read+parse a JSON artifact; any failure (absent/malformed) → null. */
 function readJsonSoft(absPath) {
   try {
     if (!existsSync(absPath)) return null;
@@ -403,7 +278,6 @@ function readJsonSoft(absPath) {
   }
 }
 
-/** Read a text artifact (XML); any failure → null. */
 function readTextSoft(absPath) {
   try {
     if (!existsSync(absPath)) return null;
@@ -413,12 +287,6 @@ function readTextSoft(absPath) {
   }
 }
 
-/**
- * Parse the FE fallow AUDIT (journey delta). Returns
- *   { verdict, deadIntroduced, complexityIntroduced, duplicationIntroduced }
- * or null if absent/unparseable. Tolerates a partial shape (missing `attribution`
- * → counts default 0).
- */
 export function parseFallowAudit(json) {
   if (!json || typeof json !== 'object') return null;
   const a = json.attribution ?? {};
@@ -430,11 +298,6 @@ export function parseFallowAudit(json) {
   };
 }
 
-/**
- * Parse the FE fallow HEALTH (repo snapshot). Returns
- *   { score, grade, maintainability, duplicationPct, deadFilePct }
- * or null. Tolerates a partial shape (missing nested objects → "—" downstream).
- */
 export function parseFallowHealth(json) {
   if (!json || typeof json !== 'object') return null;
   const hs = json.health_score ?? {};
@@ -448,11 +311,6 @@ export function parseFallowHealth(json) {
   };
 }
 
-/**
- * Parse the BE PMD report (text XML, no XML dep — count `<violation` and the
- * complexity/dead-code subsets by their `rule="…"` attribute). Returns
- *   { total, complexity, deadCode } or null if absent.
- */
 export function parsePmd(xml) {
   if (!xml || typeof xml !== 'string') return null;
   const violations = xml.match(/<violation\b[^>]*\brule="([^"]+)"/g) ?? [];
@@ -467,12 +325,6 @@ export function parsePmd(xml) {
   return { total: violations.length, complexity, deadCode };
 }
 
-/**
- * Parse the BE CPD report (text XML). `<duplication tokens="N">` blocks are the
- * clones; `<file totalNumberOfTokens="N">` lines are the per-file token totals.
- * Reports the clone-group count + a duplication % = duplicated-tokens /
- * total-tokens. Returns { groups, dupPct } or null.
- */
 export function parseCpd(xml) {
   if (!xml || typeof xml !== 'string') return null;
   const dupes = xml.match(/<duplication\b[^>]*\btokens="(\d+)"/g) ?? [];
@@ -486,15 +338,6 @@ export function parseCpd(xml) {
   return { groups, dupPct };
 }
 
-/**
- * Parse the BE Qodana SARIF report (the whole-program unused-declaration scan).
- * Findings live in `runs[].results[]`. When a `--baseline` is applied each result
- * carries a `baselineState` ∈ {new, unchanged, absent} — `new` is the ratchet
- * signal. Without a baseline every result is just counted as `total`. Returns
- *   { total, newFindings }  (newFindings = NEW vs baseline, or null when no
- *   baselineState is present — i.e. the baseline wasn't applied this run)
- * or null if absent/unparseable. The report is informational (fail-soft).
- */
 export function parseQodana(json) {
   if (!json || typeof json !== 'object') return null;
   const runs = Array.isArray(json.runs) ? json.runs : [];
@@ -514,12 +357,6 @@ export function parseQodana(json) {
   return { total, newFindings: sawBaselineState ? newFindings : null };
 }
 
-/**
- * Load + parse all maintainability artifacts from `<outDir>/maintainability/`.
- * Returns a structured summary where any absent artifact is `null`. Never throws.
- * `showDelta` flags whether THIS page shows the journey-under-work's fallow audit
- * delta (the current branch's diff).
- */
 export function loadMaintainability(outDir, { showDelta = false } = {}) {
   const dir = resolve(outDir, 'maintainability');
   const audit = parseFallowAudit(readJsonSoft(resolve(dir, 'fallow-audit.json')));
@@ -531,13 +368,6 @@ export function loadMaintainability(outDir, { showDelta = false } = {}) {
   return { audit, health, pmd, cpd, qodana, present, showDelta };
 }
 
-/**
- * Compute the green/amber/red roll-up for the panel. Driven by the FE audit DELTA
- * (what this branch introduced): green if it introduced no new complexity/dupes/
- * dead-code, amber if it introduced any, red if the audit's own verdict is `fail`.
- * With no delta available (audit absent OR not showing the delta) → neutral
- * "snapshot only". Returns { level, label }.
- */
 export function maintainabilityRollup({ audit, showDelta }) {
   if (!showDelta || !audit) return { level: 'neutral', label: 'snapshot only' };
   const introduced =
@@ -554,11 +384,6 @@ const numOrDash = (n, suffix = '') =>
 const pctOrDash = (n) =>
   n === null || n === undefined || Number.isNaN(Number(n)) ? '—' : `${Number(n).toFixed(1)}%`;
 
-/**
- * Render the Maintainability panel HTML. Always renders (even with zero artifacts
- * — then it's an honest "no data this run"). `reportHref` links to the reports
- * dir; the panel's delta is scoped to the journey under work.
- */
 function renderMaintainabilityPanel(maint, { reportHref = 'maintainability/', journeyUnderWork }) {
   const roll = maintainabilityRollup(maint);
   const pillClass =
@@ -630,11 +455,6 @@ ${qodanaRow}
         </section>`;
 }
 
-/**
- * Shared CSS (ADR 0024 flat look — slate neutrals, sharp corners, brand color
- * only on the open-state accent bar). Maintainability-panel rules are appended at
- * the bottom.
- */
 const GALLERY_CSS = `:root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
   --text: #1a1d21; --muted: #5c6470; --border: #e3e6ea;
@@ -711,12 +531,6 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .maint-table td.muted { color: var(--muted); }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }`;
 
-/**
- * Render the single proof page for ONE journey — its pass-video(s) + paired
- * legacy↔AlpenFlight screenshots + the Maintainability panel. The asset `src`s are
- * relative to the page (`videos/…` / `screenshots/…` / `maintainability/…`), which
- * the out-root carries — so the published page is self-contained at any deploy depth.
- */
 export function renderPageHtml({ journey, proofs, shots, maint, generatedAt, branch }) {
   const nVideos = proofs ? proofs.length : 0;
   const nShots = shots ? shots.length : 0;
@@ -777,12 +591,6 @@ ${panel}
 `;
 }
 
-/**
- * Emit `<outDir>/maintainability/index.html` listing whichever of the artifacts
- * are present, so the panel's `maintainability/` directory link serves 200 on
- * gh-pages (which won't render a directory listing). No-op when the dir is absent
- * or carries none of the artifacts (then the panel shows "no data" and no link).
- */
 export function writeMaintainabilityIndex(outDir) {
   const dir = resolve(outDir, 'maintainability');
   if (!existsSync(dir)) return null;
@@ -818,20 +626,6 @@ ${items}
   return file;
 }
 
-/**
- * Generate the single-journey proof gallery page.
- * @param {object} o
- * @param {string} o.reportPath          Path to the Playwright JSON report (the manifest).
- * @param {string} o.outDir              Directory to write index.html (+ copied videos/screenshots) into.
- * @param {string} o.journeyUnderWork    The ONLY journey rendered (e.g. `J-11`). Required for a
- *   meaningful page; falls back to the branch label's derived journey, else `unknown`.
- * @param {string} [o.branch]            Branch label for the header.
- * @param {string} [o.legacyVideoDir]    Dir holding a `legacy-video.json` sidecar + its `.webm`(s).
- * @param {string} [o.screenshotsDir]    Dir holding a `screenshots.json` sidecar + its `.png`(s).
- * @param {string} [o.siteBase]          gh-pages base (default `/fls/`).
- * @returns {{ html: string, outFile: string, journey: string, proofs: Array, shots: Array }}
- * @throws on any AC5 link-check violation (no caption / missing .webm / missing .png).
- */
 export function generateGallery({
   reportPath,
   outDir,
@@ -839,9 +633,9 @@ export function generateGallery({
   journeyUnderWork = journeyFromFile(branch) ?? 'unknown',
   legacyVideoDir,
   screenshotsDir,
-  siteBase = DEFAULT_SITE_BASE,
+  siteBase: acceptedButUnusedSiteBase = DEFAULT_SITE_BASE,
 }) {
-  void siteBase; // accepted for forward-compat; the single page uses only relative srcs
+  void acceptedButUnusedSiteBase;
   const journey = journeyUnderWork;
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
@@ -855,19 +649,13 @@ export function generateGallery({
     throw new Error(`proof-gallery link-check failed (AC5):\n  - ${errors.join('\n  - ')}`);
   }
 
-  // Render the in-flight journey ONLY; everything else stays in its own PR.
   const proofs = allProofs.filter((p) => p.journey === journey);
   const shots = allShots.filter((s) => s.journey === journey);
 
-  // Within the journey, render the legacy parity video FIRST so the reviewer reads
-  // legacy → AlpenFlight left-to-right (the side-by-side parity framing).
   proofs.sort((a, b) => (a.legacy === b.legacy ? 0 : a.legacy ? -1 : 1));
 
   mkdirSync(outDir, { recursive: true });
 
-  // Copy each video into outDir/videos/ + rewrite src so the published page is
-  // self-contained. Legacy copies are namespaced so a legacy .webm can never
-  // collide with an AlpenFlight one of the same basename.
   if (proofs.length) {
     mkdirSync(resolve(outDir, 'videos'), { recursive: true });
     for (const p of proofs) {
@@ -900,8 +688,6 @@ export function generateGallery({
   const outFile = resolve(outDir, 'index.html');
   writeFileSync(outFile, html, 'utf8');
 
-  // The panel's "Full reports →" link targets the maintainability/ DIRECTORY;
-  // gh-pages 404s a bare dir, so emit a tiny index.html when artifacts are present.
   writeMaintainabilityIndex(outDir);
 
   return { html, outFile, journey, generatedAt, proofs, shots };
@@ -922,19 +708,13 @@ export function parseArgs(argv) {
   return out;
 }
 
-// CLI entrypoint (only when run directly, not when imported).
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const args = parseArgs(process.argv.slice(2));
-  // Defaults wired for `pnpm proof:gallery`: build the committed fixtures into a
-  // local out dir so a generator change can be eyeballed without CI.
   const reportPath = args.reportPath ?? resolve(__dirname, 'fixtures', 'proof-manifest.json');
   const outDir = args.outDir ?? resolve(__dirname, '..', '..', 'public', 'alpenflight', 'proof');
   const legacyVideoDir = args.legacyVideoDir ?? resolve(__dirname, 'fixtures', 'legacy-video');
   const screenshotsDir = args.screenshotsDir ?? resolve(__dirname, 'fixtures', 'screenshots');
 
-  // Local-eyeball convenience: if the out-root carries no maintainability dir yet
-  // (CI stages the REAL artifacts there before running the generator), seed it
-  // from the committed sample fixtures so the panel renders with data locally.
   const fixtureMaint = resolve(__dirname, 'fixtures', 'maintainability');
   const outMaint = resolve(outDir, 'maintainability');
   if (!existsSync(outMaint) && existsSync(fixtureMaint)) {
@@ -964,8 +744,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     console.log(
       `  journey ${journey}: ${proofs.length} green proof video(s); ${shots.length} parity screenshot(s).`,
     );
-    // Parsed by the deploy workflows into GALLERY_EXPECT_GENERATED_AT — keep the
-    // prefix stable, it is the link-check's freshness contract.
+    // ext: prefix sed-parsed by ci.yml + proof-fanout → GALLERY_EXPECT_GENERATED_AT
     console.log(`proof-gallery: generated-at ${generatedAt}`);
   } catch (err) {
     console.error(`proof-gallery: ${err.message}`);

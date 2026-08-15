@@ -96,9 +96,6 @@ describe('tenantRequiredGuard', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
-        // Real router so the guard's parseUrl produces a UrlTree with a
-        // `.root.children` (the /start self-redirect short-circuit reads the
-        // primary first segment); a parseUrl-only stub can't model that.
         provideRouter([]),
         { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
         {
@@ -140,8 +137,6 @@ describe('tenantRequiredGuard', () => {
     const store = TestBed.inject(SessionStore);
     store.login(tenantlessSysadmin, null);
 
-    // Self-redirecting /start → /start aborts the original /start navigation
-    // once the gate resolves asynchronously (the onboarding probe). Admit it.
     const { emissions } = collect(runGuard({}, '/start'));
     expect(emissions).toEqual([true]);
   });
@@ -151,8 +146,6 @@ describe('tenantRequiredGuard', () => {
     store.login(onboardingPilot, null);
     myJoinRequestResult = of(livePending);
 
-    // The /start admit is sysadmin-only — a club-less non-admin at /start is
-    // still probed and bounced into the join flow.
     const { emissions } = collect(runGuard({}, '/start'));
     expect(urlOf(emissions[0])).toBe('/join/pending');
   });
@@ -180,7 +173,6 @@ describe('tenantRequiredGuard', () => {
     patchState(unprotected(store), { sessionStatus: 'unauthenticated' });
 
     const result = runGuard();
-    // authGuard short-circuits with `false`; the tenant check never runs.
     expect(result).toBe(false);
     expect(authorizeCalls).toBe(1);
   });
@@ -193,8 +185,6 @@ describe('tenantRequiredGuard', () => {
     TestBed.tick();
     expect(emissions).toEqual([]);
 
-    // Settles with a club id (loadMe populated currentClubId). Must NOT have
-    // bounced on the transient loading-null clubId.
     store.login(tenantedUser, 'club-1');
     TestBed.tick();
 

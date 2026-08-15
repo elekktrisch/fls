@@ -1,18 +1,3 @@
--- S-184 Ports legacy `PersonPersonCategories` M:N junction into a tenant-
--- scoped direct association. Legacy carried only (PersonId, PersonCategoryId);
--- new schema denormalises club_id from the linked category for @TenantId
--- routing per ADR 0008 — the legacy producer joins PersonCategories to fill
--- it on the wire.
---
--- S-141 ingest applies this junction at the PERSON_CATEGORY_ASSIGNMENT
--- pass after the upstream PERSON / PERSON_CATEGORY / CLUB passes
--- complete. Tenant-scoped (`club_id` is the @TenantId discriminator). FKs:
---   * person_id           → t_person          cross-tenant (sacred-cow split)
---   * person_category_id  → t_person_category tenant-scoped
---   * club_id             → t_club            tenant-scoped
--- Tombstone semantics align with t_person_club: a soft-deleted assignment
--- still occupies the natural-key pair, so the alive UNIQUE is partial on
--- deleted_on IS NULL.
 
 CREATE TABLE t_person_category_assignment (
     id                  UUID          NOT NULL PRIMARY KEY,

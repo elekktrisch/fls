@@ -1,27 +1,3 @@
--- S-186 — extends t_mutation_audit_event for the legacy audit-log migration.
--- S-141 ingest writes the new columns when S-186's AuditLogMapper.readEntity
--- binds them; new mutating endpoints continue to write actor_kind = 'NORMAL'
--- via MutationAuditEventListener and leave the legacy_* columns NULL.
---
--- Schema-deviation review (ADR 0022 directive 2): four columns, no CHECK
--- constraints, no generated columns, no triggers. actor_kind is the Java enum
--- AuditActorKind ({NORMAL, SYSTEM, LEGACY_MIGRATED}) bound via @Enumerated
--- (STRING) — no CHECK IN-set per ADR 0022 D2 (same pattern as action).
---
--- Forensic preservation triple — legacy_int_id (AuditLogs.AuditLogId),
--- legacy_actor_user_id (AuditLogs.UserName), legacy_target_record_id
--- (AuditLogs.RecordId when not UUID-parseable). Together they let a forensic
--- query trace any migrated audit row back to the legacy DB without a
--- round-trip through legacy_id_map_<entity>.
---
--- legacy_orphan_actor_id holds the per-distinct-UserName synthetic UUID v7
--- for orphan actors (UserName text with no matching Users.UserName row in
--- the bundle). Intentionally NO FK to t_user: the synthesized UUID never
--- corresponds to a real Keycloak-backed principal (ADR 0007 forbids the
--- shadow), so adding it to t_user would break the single-writer guard and
--- the FK gate would reject the row. actor_user_id is NULL on every
--- orphan-actor row; the (actor_user_id NULL, legacy_orphan_actor_id NOT
--- NULL, legacy_actor_user_id NOT NULL) triple is the wire-shape signal.
 
 ALTER TABLE t_mutation_audit_event
     ADD COLUMN actor_kind               VARCHAR(32) NOT NULL DEFAULT 'NORMAL',

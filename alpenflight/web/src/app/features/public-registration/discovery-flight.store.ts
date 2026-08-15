@@ -50,15 +50,6 @@ interface SubmitArgs {
   selectedDay: string;
 }
 
-/**
- * The anonymous discovery-flight page's state. Feature-scoped (provided by the
- * page, not `providedIn: 'root'`): its lifetime is one visit to one club's form.
- *
- * The club read and the published-days read are issued together and adjudicated
- * as one: both carry the same 404 / 403 contract as the submit, so a slug that
- * cannot be registered against never renders a form, and the one that can heads
- * it with the club's real name rather than the URL slug.
- */
 export const DiscoveryFlightStore = signalStore(
   withState<DiscoveryFlightState>(initial),
   withComputed((store) => ({
@@ -94,8 +85,6 @@ export const DiscoveryFlightStore = signalStore(
               days: api.listPublicDiscoveryFlightDays(clubSlug),
             }).pipe(
               tapResponse({
-                // An empty day list is a club that has published nothing yet, not
-                // a failure: the form still renders and the picker says so.
                 next: ({ club, days }: { club: PublicClubResponse; days: string[] }) =>
                   patchState(store, { days, ...clubRead(club) }),
                 error: (e: HttpErrorResponse) =>

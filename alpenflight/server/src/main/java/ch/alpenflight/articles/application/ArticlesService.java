@@ -20,20 +20,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link Article} aggregate. Tenant scoping
- * (S-159) is structural via Hibernate's {@code @TenantId} discriminator on
- * {@code Article.operatingClubId}; role-within-tenant gates live on the
- * controller as {@code @PreAuthorize("hasRole(...)")}.
- *
- * <p>Number uniqueness is per-tenant (V3 partial UNIQUE on
- * {@code (operating_club_id, article_number) WHERE deleted_on IS NULL}).
- * The service does a UX pre-check + relies on the index for races; a
- * collision throws {@link DuplicateArticleNumberException} → 409.
- *
- * <p>Mutations emit {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
- * {@link AuditAction#DELETE} via {@link AuditTrail}.
- */
 @Service
 @Transactional
 public class ArticlesService {
@@ -78,7 +64,8 @@ public class ArticlesService {
                 req.articleInfo(),
                 req.description(),
                 Boolean.TRUE.equals(req.isActive()));
-        ArticleDetail created = ArticleMapper.toDetail(persist(a, number));
+        ArticleDetail created = ArticleMapper.toDetail(
+                saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(a, number));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -105,7 +92,8 @@ public class ArticlesService {
             a.deactivate();
         }
 
-        ArticleDetail after = ArticleMapper.toDetail(persist(a, number));
+        ArticleDetail after = ArticleMapper.toDetail(
+                saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(a, number));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -125,11 +113,9 @@ public class ArticlesService {
                 .orElseThrow(() -> new ArticleNotFoundException(id));
     }
 
-    private Article persist(Article a, String number) {
+    private Article saveAndFlushSoDuplicateNumberSurfacesAsConflictHere(Article a, String number) {
         try {
             Article saved = articles.save(a);
-            // Flush so the partial-UNIQUE race surfaces synchronously from
-            // this catch, not at tx commit. Same pattern as FlightType.
             articles.flush();
             return saved;
         } catch (DataIntegrityViolationException e) {

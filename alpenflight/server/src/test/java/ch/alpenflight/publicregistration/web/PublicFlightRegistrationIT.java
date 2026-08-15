@@ -41,29 +41,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * The public-registration HTTP surface as an anonymous visitor drives it: the
- * available-days GET the picker reads, the discovery POST it submits, and the
- * scenic POST of the form that has no picker at all.
- *
- * <p>The load-bearing group is the three {@code selectedDay} rejections. The
- * seeded club is genuinely bookable — {@link #a_submission_on_a_published_day_is_201}
- * proves a good date creates a Person AND blocks the glider — so each rejection
- * asserting "no Person, no membership, no reservation" is a statement about the
- * date rather than about an inert fixture. A past day, a withdrawn day and a day
- * another club published each has to be turned away, because without the check
- * the picker is decorative: an anonymous caller could pick any date and have the
- * club's double-seater blocked on it.
- *
- * <p>The scenic cases share that same bookable club deliberately: "the scenic
- * flow books nothing" is only worth asserting where a booking would otherwise
- * have happened, so the scenic submission's empty reservation count is followed
- * by a discovery submission into the very same club that fills it.
- *
- * <p>The days GET is seeded adversarially for the same reason — the past and
- * withdrawn days and the other club's day all exist while it runs, so an
- * unfiltered or untenanted read fails instead of passing on an empty club.
- */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 class PublicFlightRegistrationIT extends PostgresIntegrationTest {
@@ -128,11 +105,6 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
                         OTHER_CLUBS_DAY.toString());
     }
 
-    /**
-     * Legacy answers an empty list rather than an error when a club has nothing
-     * configured ({@code RegistrationService.cs:39-52}); an empty picker is a
-     * valid state of an open club, not a missing one.
-     */
     @Test
     void a_club_that_published_no_days_gets_an_empty_list_rather_than_a_404() {
         Club other = clubs.findActiveById(otherClubId).orElseThrow();
@@ -197,11 +169,6 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
                 .isOne();
     }
 
-    /**
-     * The scenic flow reaches no booker, so a day it accepted would be dropped
-     * in silence while the 201 read as a blocked slot. The submission is refused
-     * instead of quietly answered.
-     */
     @Test
     void a_scenic_submission_carrying_a_selectedDay_is_rejected() {
         Map<String, Object> body = PublicSubmissions.scenicBody();
@@ -223,11 +190,6 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
         assertRejectedAndNothingWritten(WITHDRAWN_DAY);
     }
 
-    /**
-     * The day exists — it is simply another club's. Rejection here is the
-     * {@code @TenantId} discriminator doing its job inside the resolved club's
-     * window; a check that ran unscoped would accept it.
-     */
     @Test
     void a_day_published_by_another_club_is_rejected_and_registers_nobody() {
         assertRejectedAndNothingWritten(OTHER_CLUBS_DAY);
@@ -238,10 +200,6 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
         assertRejectedAndNothingWritten(NEVER_PUBLISHED_DAY);
     }
 
-    /**
-     * The field contract lives on the command, so the surface must not have its
-     * own looser copy — legacy required only firstname / lastname server-side.
-     */
     @Test
     void the_registrant_field_contract_is_enforced_through_http() {
         Map<String, Object> registrant = PublicSubmissions.registrant();
@@ -254,14 +212,6 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
         assertThat(registrants()).isZero();
     }
 
-    /**
-     * The coupon choice only exists while the invoice address differs, so every
-     * other submission leaves the key out entirely — which the rest of this
-     * class now posts. Here it is left out where the choice IS meaningful, the
-     * one shape a hand-rolled API client is most likely to send: an omitted key
-     * has to mean the legacy default rather than a body-less 400 from a
-     * primitive that cannot hold the absent value.
-     */
     @Test
     void an_omitted_coupon_choice_means_the_default_rather_than_a_rejection() {
         Map<String, Object> registrant =
@@ -414,7 +364,7 @@ class PublicFlightRegistrationIT extends PostgresIntegrationTest {
     }
 
     private UUID firstCountryId() {
-        return Objects.requireNonNull(countries.findAllOrdered().getFirst().getId()).value();
+        return Objects.requireNonNull(countries.findAllOrderedByNameUnderIcuCollation().getFirst().getId()).value();
     }
 
     private UUID firstLocationTypeId() {

@@ -1,23 +1,3 @@
--- =============================================================================
--- J-12a — public-display fields (city + logo) for the canonical seed club, so a
--- pilot's tenant-less /join/pending page renders the FULL public projection
--- (name + city + logo) the contract promises, not just a bare name.
---
--- WHY: V48 stamps seed-club-1 (019e30c3-2c00-7001-8000-000000000001) with the
--- fixed join code 'SEEDCLUB' so the join flow has a stable code to type, but
--- V11a left `city`/`logo_url` null (net-new fields, no legacy source, no create
--- API — ClubUpdateRequest carries neither). On a clean realm the pending page
--- would therefore show only the club name; the J-12a real-idp proof needs the
--- city + logo visible to prove the public projection end to end.
---
--- DEV/TEST-SEED bound to seed-club-1 — identical posture to the sibling
--- V31/V8/V29 dev seeds (see V31 header): the row is seed-club-1-bound, the read
--- (`GET /api/v1/me/join-request`) resolves the public display off the request
--- the pilot owns, and real prod tenants (each a distinct migrated UUID) never
--- see it. The logo is a self-contained inline SVG data URI (no network
--- dependency, fits VARCHAR(500)) so the proof video renders deterministically.
--- Idempotent: only fills the seed club's still-null public-display fields.
--- =============================================================================
 
 UPDATE t_club
    SET city = 'Zürich',

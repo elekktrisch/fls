@@ -14,16 +14,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Ratchet tests for the FLS → AlpenFlight technical rebrand (S-128). Each
- * test asserts a single post-rename invariant: no surviving legacy {@code ch.fls}
- * package declaration, no surviving {@code [fls-server]} log prefix, Spring
- * application name and Gradle coordinates pinned to the AlpenFlight identifiers.
- *
- * <p>Plain JUnit 5 + filesystem walk — no Spring context, no Docker, runs in
- * milliseconds via {@code ./gradlew check}. Catches regression-of-the-rebrand
- * as the source tree grows.
- */
 class RebrandConventionsTest {
 
     private static final String FORBIDDEN_PACKAGE_PREFIX = "package ch." + "fls";
@@ -87,10 +77,12 @@ class RebrandConventionsTest {
             try (Stream<Path> walk = Files.walk(root)) {
                 walk.filter(Files::isRegularFile)
                         .filter(p -> p.getFileName().toString().endsWith(".java"))
-                        .filter(p -> !isOwnTestFile(p))
+                        .filter(p -> !isOwnSourceFileHoldingTheSearchPatterns(p))
                         .forEach(p -> {
                             try {
-                                String stripped = stripLineComments(Files.readString(p, StandardCharsets.UTF_8));
+                                String stripped =
+                                        stripLineCommentsSoDiscussedLiteralsAreNotViolations(
+                                                Files.readString(p, StandardCharsets.UTF_8));
                                 if (stripped.contains(FORBIDDEN_LOG_PREFIX)) {
                                     offenders.add(moduleRoot.relativize(p).toString());
                                 }
@@ -131,12 +123,7 @@ class RebrandConventionsTest {
                 .doesNotContain("rootProject.name = \"fls-server\"");
     }
 
-    /**
-     * Strip {@code //} single-line comments before substring matching. Comments
-     * are documentation, not executed code — a forbidden literal discussed in
-     * a comment ("legacy used `[fls-server]` here") is not a violation.
-     */
-    private static String stripLineComments(String source) {
+    private static String stripLineCommentsSoDiscussedLiteralsAreNotViolations(String source) {
         return source.replaceAll("(?m)//[^\\n]*", "");
     }
 
@@ -148,7 +135,7 @@ class RebrandConventionsTest {
         try (Stream<Path> walk = Files.walk(root)) {
             walk.filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(".java"))
-                    .filter(p -> !isOwnTestFile(p))
+                    .filter(p -> !isOwnSourceFileHoldingTheSearchPatterns(p))
                     .forEach(p -> {
                         try {
                             String content = Files.readString(p, StandardCharsets.UTF_8);
@@ -163,22 +150,10 @@ class RebrandConventionsTest {
         return hits;
     }
 
-    /**
-     * Exclude this test's own source file from the walks. The forbidden
-     * literals ({@code package ch.fls}, {@code [fls-server]}) appear in the
-     * test as the patterns it searches for; treating them as violations would
-     * make the test reject itself.
-     */
-    private static boolean isOwnTestFile(Path p) {
+    private static boolean isOwnSourceFileHoldingTheSearchPatterns(Path p) {
         return p.getFileName().toString().equals("RebrandConventionsTest.java");
     }
 
-    /**
-     * Locate the {@code alpenflight/server/} module root by walking up from the
-     * working directory until a {@code build.gradle.kts} sibling to
-     * {@code src/} is found. Matches the resolution strategy in
-     * {@code TenantCatalogYamlTest}.
-     */
     private static Path locateModuleRoot() {
         Path cwd = Path.of("").toAbsolutePath();
         Path probe = cwd;

@@ -1,9 +1,3 @@
-/**
- * Canonical locale. The shape exported here defines `Translations` —
- * every other locale file imports the type and is forced to mirror
- * the shape exactly. Add a key here first; the other locales become
- * compile errors until they add the same key.
- */
 const de = {
   accounting: {
     edit: {

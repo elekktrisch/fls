@@ -16,36 +16,14 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
-/**
- * In-memory {@code tar.gz} envelope used by the parity harness as a stand-in
- * for S-139's {@code migration-tool-all.jar} output. One tar entry per
- * entity, each containing the per-entity NDJSON stream. The harness piping
- * is:
- *
- * <pre>
- *   producer:  ResultSet → Mapper.writeNdjson → NDJSON bytes per entity
- *   envelope:  collect entities → tar entries → gzip → ByteArrayOutputStream
- *   transport: ByteArrayInputStream → gunzip → tar entries → NDJSON per entity
- *   consumer:  NDJSON line → JsonNode → Mapper.readEntity → PreparedStatement
- * </pre>
- *
- * <p>Bytes are never written to disk — the Security plan's plaintext-leak
- * smoke test confirms it, the ArchUnit "no disk sinks" rule structurally
- * enforces it inside the main source set, and this class lives only in the
- * parity source set so the ArchUnit rule doesn't run against it (it would
- * not fire — every stream is in-memory).
- */
 public final class BundleStream {
 
-    /** Tar entry name pattern — {@code entities/<EntityType>.ndjson}. */
     public static final String ENTITIES_DIRECTORY = "entities/";
 
-    /** Tar entry name carrying the manifest JSON. */
     public static final String MANIFEST_ENTRY_NAME = "manifest.json";
 
     private BundleStream() { }
 
-    /** Emits a {@code tar.gz} byte payload from a per-entity NDJSON map + a manifest. */
     public static byte[] writeTarGz(Map<String, byte[]> entityNdjsonByName, byte[] manifestBytes)
             throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
@@ -71,7 +49,6 @@ public final class BundleStream {
         tarOut.closeArchiveEntry();
     }
 
-    /** Parses a {@code tar.gz} byte payload back into a {@link Parsed} record. */
     public static Parsed readTarGz(byte[] tarGzBytes, ObjectMapper json) throws IOException {
         Map<String, List<JsonNode>> entityRowsByName = new LinkedHashMap<>();
         JsonNode manifestNode = null;

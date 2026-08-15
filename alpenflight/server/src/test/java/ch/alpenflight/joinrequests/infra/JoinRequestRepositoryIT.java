@@ -23,13 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/**
- * Round-trip + schema proof for {@link JoinRequest} (S-178). Verifies the
- * structural invariant the migration owns — the {@code ux_join_request_alive}
- * one-open-per-(sub, club) partial UNIQUE — and the tenancy boundary: a request
- * under club A is invisible to club B. The lifecycle FSM itself is unit-tested
- * (JoinRequestStateMachineTest); here we prove only what crosses the DB.
- */
 class JoinRequestRepositoryIT extends PostgresIntegrationTest {
 
     private static final String NAME_PREFIX = "IT_JRR_";
@@ -84,8 +77,6 @@ class JoinRequestRepositoryIT extends PostgresIntegrationTest {
         UUID sub = UuidCreator.getTimeOrderedEpoch();
         saveSubmit(clubA, sub, null);
 
-        // No collision: the partial UNIQUE keys on (sub, club) — a different club
-        // is a different pair.
         UUID idB = saveSubmit(clubB, sub, null);
         assertThat(idB).isNotNull();
     }
@@ -101,16 +92,13 @@ class JoinRequestRepositoryIT extends PostgresIntegrationTest {
             requests.save(first);
         });
 
-        // The withdrawn row is no longer PENDING, so ux_join_request_alive lets a
-        // fresh pending request through for the same (sub, club).
         UUID secondId = saveSubmit(clubA, sub, null);
         assertThat(secondId).isNotEqualTo(firstId);
 
-        // Exactly one PENDING for the pair now exists — the new one. (The pending
-        // list filters on status, so the withdrawn first row is excluded; this is
-        // deterministic where ordering two same-timestamp rows would not be.)
         TenantTestContext.runAs(clubA, () ->
                 assertThat(requests.findPendingForCurrentTenant())
+                        .as("only the new request is PENDING — the withdrawn one is filtered "
+                                + "out by status, so this holds without ordering two rows")
                         .extracting(JoinRequest::getId)
                         .containsExactly(secondId));
 

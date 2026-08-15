@@ -17,55 +17,15 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Transactional service for the {@link AccountingRuleFilter} aggregate. Tenant
- * scoping (ADR 0008) is structural via Hibernate's {@code @TenantId}
- * discriminator on {@code AccountingRuleFilter.operatingClubId}; role-within-tenant
- * gates live on the controller (T-06) as {@code @PreAuthorize}.
- *
- * <p>The service <em>orchestrates</em>; it does not re-implement domain rules
- * (ADR 0022 §2 — name non-blank + filter-type required are re-validated by the
- * aggregate's {@code create}/{@code update} factories). What lives here is
- * wire-shape translation, not business logic:
- *
- * <ul>
- *   <li><b>Target-by-type assignment</b> (legacy {@code $scope.save}, oracle #15):
- *       filter-type 10 → recipient target; type ∉ {5,10} → article target;
- *       type 5 (DoNotInvoice) → both cleared. The descriptive text
- *       ({@code deliveryLineText}/{@code recipientName}) is folded into the
- *       {@link FilterConfig} so the form round-trips.</li>
- *   <li><b>Threshold / duration normalisation</b>: when the rule does not
- *       "include threshold" ({@code includeThresholdText == false}) the
- *       {@code thresholdText} is nulled; when the flight duration is "unlimited"
- *       (min == 0/absent && max == {@link #UNLIMITED_FLIGHT_TIME_SECONDS}) the
- *       min/max flight-time scalars are nulled — preserving legacy save
- *       semantics.</li>
- *   <li><b>Sort assignment</b>: a new row's {@code sortIndicator} is the
- *       repository's {@code nextSortIndicator()}; the post-save {@code flush()}
- *       surfaces the {@code ux_arf_club_sort_partial} race synchronously.</li>
- *   <li><b>Cross-tenant 404</b>: every read/mutate loads via
- *       {@code findActiveById}, which the {@code @TenantId} filter scopes to the
- *       caller's club — a cross-tenant id is invisible →
- *       {@link AccountingRuleFilterNotFoundException}.</li>
- * </ul>
- *
- * <p>Mutations emit {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
- * {@link AuditAction#DELETE} via {@link AuditTrail} (S-072: every rule change
- * affects every subsequent invoice). The {@code filterConfig} is redacted in
- * the audit snapshot (it is PII-bearing — {@code @AuditRedact} on the entity
- * field + absent from the {@code AccountingRuleFilter} redaction allow-list).
- */
 @Service
 @Transactional
 public class AccountingRuleFiltersService {
 
     private static final String AUDIT_ENTITY_TYPE = "AccountingRuleFilter";
 
-    /** Legacy {@code AccountingRuleFilterTypeId} discriminators (oracle). */
     private static final int TYPE_DO_NOT_INVOICE = 5;
     private static final int TYPE_RECIPIENT = 10;
 
-    /** Legacy "unlimited" upper bound for flight duration (Int32.MaxValue). */
     private static final int UNLIMITED_FLIGHT_TIME_SECONDS = Integer.MAX_VALUE;
 
     private final AccountingRuleFilterRepository filters;
@@ -93,9 +53,6 @@ public class AccountingRuleFiltersService {
     }
 
     public AccountingRuleFilterDetail create(AccountingRuleFilterWriteRequest req) {
-        // Start from an empty aggregate, then run the same apply() path as update
-        // (single source of the request→aggregate field mapping). create() only
-        // re-validates the two invariants, which applyTo() does again — cheap.
         AccountingRuleFilter arf = AccountingRuleFilter.create(
                 req.filterTypeId(), req.ruleFilterName(), null, null,
                 true, false, false, null, null, FilterConfig.empty());
@@ -117,12 +74,6 @@ public class AccountingRuleFiltersService {
         return after;
     }
 
-    /**
-     * Single request→aggregate mapping path for both create and update: resolves
-     * the target-by-type assignment + threshold/duration normalisation into the
-     * {@link FilterConfig}, then replaces every mutable field via the aggregate's
-     * own {@code update(...)} (which re-validates the invariants).
-     */
     private static void applyTo(AccountingRuleFilter arf, AccountingRuleFilterWriteRequest req) {
         FilterConfig config = normalizeForSave(
                 req.filterTypeLegacyId(), req.deliveryLineText(), req.recipientName(),
@@ -132,12 +83,6 @@ public class AccountingRuleFiltersService {
                 req.ruleFilterName(),
                 req.accountingUnitTypeId(),
                 req.description(),
-                // Optional booleans coerce to their legacy defaults when absent
-                // (the wire DTO carries @Nullable Boolean to survive Jackson's
-                // FAIL_ON_NULL_FOR_PRIMITIVES; the SPA omits chargedToClubInternal
-                // for non-recipient filters). active defaults TRUE; the other two
-                // FALSE — preserving legacy save semantics before the aggregate
-                // (which still works in primitives) sees them.
                 orDefault(req.active(), true),
                 orDefault(req.stopRuleEngineWhenApplied(), false),
                 orDefault(req.chargedToClubInternal(), false),
@@ -155,7 +100,6 @@ public class AccountingRuleFiltersService {
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
     }
 
-    // -- loading / persistence --------------------------------------------------
 
     private AccountingRuleFilter loadOrThrow(UUID id) {
         return filters.findActiveById(id)
@@ -164,14 +108,10 @@ public class AccountingRuleFiltersService {
 
     private AccountingRuleFilter persist(AccountingRuleFilter arf) {
         AccountingRuleFilter saved = filters.save(arf);
-        // Flush so the partial-UNIQUE (ux_arf_club_sort_partial) race surfaces
-        // synchronously here rather than at tx commit — same pattern as
-        // FlightTypesService's name-collision path.
         filters.flush();
         return saved;
     }
 
-    // -- target-by-type assignment (legacy $scope.save, oracle #15) -------------
 
     private static @Nullable String targetArticle(int filterTypeLegacyId, @Nullable String articleNumber) {
         return isArticleTarget(filterTypeLegacyId) ? blankToNull(articleNumber) : null;
@@ -181,27 +121,10 @@ public class AccountingRuleFiltersService {
         return filterTypeLegacyId == TYPE_RECIPIENT ? blankToNull(memberNumber) : null;
     }
 
-    /** type ∉ {5,10} → article target (legacy {@code targetTypeArticleVisible}). */
     private static boolean isArticleTarget(int filterTypeLegacyId) {
         return filterTypeLegacyId != TYPE_DO_NOT_INVOICE && filterTypeLegacyId != TYPE_RECIPIENT;
     }
 
-    /**
-     * Single save-time normalisation pass over the predicate bag (one
-     * reconstruction of the immutable {@link FilterConfig} record), reproducing
-     * legacy {@code $scope.save}:
-     *
-     * <ul>
-     *   <li><b>Target text by type</b>: recipient (10) keeps only
-     *       {@code recipientName}; article (∉{5,10}) keeps only
-     *       {@code deliveryLineText}; DoNotInvoice (5) clears both — mirroring
-     *       legacy clearing the unused target object.</li>
-     *   <li><b>Threshold</b>: {@code includeThresholdText == false} → null
-     *       {@code thresholdText}.</li>
-     *   <li><b>Duration</b>: "unlimited" (min ≤ 0/absent &amp;&amp; max ==
-     *       Int32.MaxValue/absent) → null both min/max flight-time scalars.</li>
-     * </ul>
-     */
     private static FilterConfig normalizeForSave(int filterTypeLegacyId,
                                                  @Nullable String deliveryLineText,
                                                  @Nullable String recipientName,
@@ -254,7 +177,6 @@ public class AccountingRuleFiltersService {
                 recipient);
     }
 
-    // -- aggregate → DTO mapping ------------------------------------------------
 
     private static AccountingRuleFilterDetail toDetail(AccountingRuleFilter arf) {
         return new AccountingRuleFilterDetail(
@@ -282,13 +204,6 @@ public class AccountingRuleFiltersService {
                 computeTarget(arf));
     }
 
-    /**
-     * The legacy computed "Target" cell: recipient →
-     * {@code "{recipientName} ({memberNumber})"}; else article →
-     * {@code "{articleNumber} ({deliveryLineText})"}; else empty. Derived at read
-     * time from the targets + the descriptive text in {@code filterConfig} — never
-     * stored.
-     */
     private static String computeTarget(AccountingRuleFilter arf) {
         FilterConfig config = arf.getFilterConfig();
         String recipient = arf.getRecipientTarget();
@@ -302,7 +217,6 @@ public class AccountingRuleFiltersService {
         return "";
     }
 
-    /** {@code "{prefix} ({suffix})"}, dropping the parenthetical when suffix is blank. */
     private static String labelled(@Nullable String prefix, @Nullable String suffix) {
         String head = prefix == null ? "" : prefix.strip();
         String tail = suffix == null ? "" : suffix.strip();
@@ -322,7 +236,6 @@ public class AccountingRuleFiltersService {
                 "AccountingRuleFilter.filterTypeId must be non-null");
     }
 
-    /** Coerce an optional wire boolean to its default when the field was omitted (null). */
     private static boolean orDefault(@Nullable Boolean value, boolean fallback) {
         return value == null ? fallback : value;
     }

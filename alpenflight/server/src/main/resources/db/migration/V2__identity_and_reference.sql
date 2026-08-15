@@ -1,90 +1,4 @@
--- V2__identity_and_reference.sql
---
--- S-012: Identity + reference data baseline (19 tables).
---
--- This migration is the first real schema content; V1 was a placeholder.
--- Once V2 is applied to any environment its checksum is locked. Adding /
--- removing / amending content here would require flyway:repair on every
--- affected DB. Convention: never amend a shipped migration — ship V3.
---
--- ID strategy (ADR 0019):
---   * Every PK is `uuid NOT NULL PRIMARY KEY`. Postgres native 16-byte type.
---   * Application generates IDs via Hibernate 7 + uuid-creator
---     UuidCreator.getTimeOrderedEpoch() — wired at S-022.
---   * NO `DEFAULT gen_random_uuid()` on any PK column. The application-owns-
---     generation contract must not be bypassed.
---   * Aggregate-root rows (person/club/user/...) carry a 3-letter prefix at
---     every external boundary (REST URLs, JSON, structured logs, audit-log
---     target.id). The prefix is a presentation concern — DB stays pure uuid.
---     See COMMENT ON COLUMN clauses near the bottom.
---   * Internal entities (person_club, user_role, club_extension, ...) keep
---     raw UUIDs — no prefix; they rarely cross boundaries.
---
--- Aggregate composition (ADR 0018):
---   * Aggregate roots: club, person, user.
---   * Internal entities:
---       - under Person: person_club
---       - under Club: club_extension, member_state, person_category,
---         email_template/extension_value rows where club_id IS NOT NULL
---   * Plain JPA / system-global lookups: country, language, start_type,
---     club_state, extension_type, length_unit_type,
---     elevation_unit_type, counter_unit_type, and system-default
---     email_template/extension_value rows where club_id IS NULL.
---
--- Roles + user_role intentionally absent: per ADR 0007 + S-052, Keycloak
--- is the source of truth for role assignment. The realm-role catalogue
--- (SYSTEM_ADMINISTRATOR / CLUB_ADMINISTRATOR / FLIGHT_OPERATOR / PILOT /
--- OFFICE_USER / GUEST) lives in the realm export; assignment goes through
--- the KC admin API. A local `role` table + `user_role` join would be
--- parallel-truth — read live from `realm_access.roles` on the JWT instead.
---
--- Multi-tenancy (ADR 0008):
---   * Tenant discriminator column is `club_id uuid` on TENANT_SCOPED tables.
---     S-022 wires Hibernate `@TenantId` on the matching entity properties.
---   * Person + PersonClub are cross-tenant by design (sacred cow): no
---     @TenantId; cross-club lookups by primary key remain functional.
---   * User is the principal subject: carries `club_id` (home club) but NOT
---     @TenantId-filtered. SQL comment on user.club_id flags this so an
---     S-022 implementer doesn't accidentally add @TenantId there.
---
--- person_club PK reshape (legacy → new):
---   * Legacy: composite PK (PersonId, ClubId).
---   * New: surrogate `id uuid PRIMARY KEY` + partial UNIQUE
---     (person_id, club_id) WHERE deleted_on IS NULL. JPA composite-key
---     handling is awkward; the surrogate gives every JPA repository a
---     uniform `findById(UUID)` contract.
---
--- Reference-data seeds: fixed canonical UUID v7 literals generated once via
--- alpenflight/server/src/test/resources/scripts/GenerateCanonicalUuids.java
--- (committed; deterministic; re-running produces bit-identical output).
--- Same UUIDs across every installation forever — forensic traceability
--- via grep. S-016 cutover builds the legacy-int / legacy-Guid → canonical
--- UUID lookup table from these literals.
---
--- Per-club seeds NOT in this migration: member_state, person_category.
--- These are TENANT_SCOPED (legacy carries ClubId NOT NULL); S-016 seeds
--- them per club from legacy data during cutover.
---
--- ============================================================================
--- AUTH ARTIFACTS — OWNED BY KEYCLOAK (ADR 0007). DO NOT ADD TO `user`.
--- ============================================================================
--- The `user` table here is a principal-subject row that maps an FLS identity
--- to a Keycloak `sub` (uuid). It is NOT an authentication store.
---
--- DO NOT add columns named `password_hash`, `password_salt`, `password`,
--- `refresh_token`, `access_token`, `mfa_secret`, `totp_seed`, `security_stamp`,
--- or any equivalent. Keycloak owns password storage, rotation, MFA, and
--- session lifecycle. Account lifecycle (lockout, MFA enrolment, email /
--- phone verification) also lives in Keycloak: re-introducing a local
--- `lockout_enabled` / `email_confirmed` / `two_factor_enabled` would create
--- parallel-truth (S-052 threat-model row). A future PR adding either an
--- auth-credential or an account-state column on `user` is wrong — flag at
--- PR review and re-direct to Keycloak realm config.
--- ============================================================================
 
--- =============================================================================
--- 1. Reference tables (no FKs; loaded first so subsequent FKs can resolve)
--- =============================================================================
 
 CREATE TABLE t_country (
     id          UUID         NOT NULL PRIMARY KEY,
@@ -92,9 +6,6 @@ CREATE TABLE t_country (
     iso3_code   CHAR(3)      NOT NULL,
     name        VARCHAR(100) NOT NULL,
     full_name   VARCHAR(250)
-    -- ck_country_iso2_upper / ck_country_iso3_upper removed per ADR 0022
-    -- directive 2: case enforcement is a value-object invariant
-    -- (Country.iso2Code() / iso3Code() constructor).
 );
 CREATE UNIQUE INDEX ux_country_iso2 ON t_country (iso2_code);
 CREATE UNIQUE INDEX ux_country_iso3 ON t_country (iso3_code);
@@ -103,8 +14,6 @@ CREATE TABLE t_language (
     id          UUID         NOT NULL PRIMARY KEY,
     code        VARCHAR(10)  NOT NULL,
     name        VARCHAR(50)  NOT NULL
-    -- ck_language_bcp47 removed per ADR 0022 directive 2: BCP-47 format
-    -- enforcement is a value-object invariant (Language.code()) at S-022.
 );
 CREATE UNIQUE INDEX ux_language_code ON t_language (code);
 
@@ -120,10 +29,6 @@ CREATE TABLE t_start_type (
     code                  VARCHAR(32)  NOT NULL,
     name                  VARCHAR(100) NOT NULL,
     applicable_categories TEXT[]       NOT NULL
-    -- ADR 0020 rule 4: SET-MEMBERSHIP shape. Replaces the legacy
-    -- is_for_glider/is_for_tow/is_for_motor boolean trio. No DB CHECK on
-    -- subset / non-empty — Java enum + service layer are the only enforcer
-    -- so adding a category requires no migration in lock-step (ADR 0020).
 );
 CREATE UNIQUE INDEX ux_start_type_code ON t_start_type (code);
 
@@ -163,9 +68,6 @@ CREATE TABLE t_extension_type (
 CREATE UNIQUE INDEX ux_extension_type_code ON t_extension_type (code);
 
 
--- =============================================================================
--- 2. Aggregate roots: club, person (cross-tenant), user (principal subject)
--- =============================================================================
 
 CREATE TABLE t_club (
     id                                            UUID          NOT NULL PRIMARY KEY,
@@ -257,8 +159,6 @@ CREATE TABLE t_person (
     deleted_on                          TIMESTAMPTZ,
     deleted_by_user_id                  UUID,
     CONSTRAINT fk_person_country_id FOREIGN KEY (country_id) REFERENCES t_country (id) ON DELETE SET NULL,
-    -- ck_person_birthday_not_future removed per ADR 0022 directive 2:
-    -- date-bound sanity check is a value-object invariant (Birthday VO at S-022).
     CONSTRAINT ck_person_email_private_shape
         CHECK (email_private IS NULL OR email_private LIKE '%_@_%._%'),
     CONSTRAINT ck_person_email_business_shape
@@ -275,9 +175,6 @@ CREATE INDEX ix_person_email_priv_lower
     ON t_person (lower(email_private))
     WHERE email_private IS NOT NULL;
 
--- `user` is a Postgres reserved word. Tables in this baseline use a `t_`
--- prefix only where the unprefixed name would collide with a reserved
--- word; broader t_-prefix conventions are deferred to a follow-up.
 CREATE TABLE t_user (
     id                          UUID          NOT NULL PRIMARY KEY,
     club_id                     UUID          NOT NULL,
@@ -287,9 +184,6 @@ CREATE TABLE t_user (
     notification_email          VARCHAR(256)  NOT NULL,
     phone_number                VARCHAR(30),
     remarks                     VARCHAR(250),
-    -- Account state (enabled / disabled) + email-verified / phone-verified
-    -- + lockout + MFA enrolment all live in Keycloak. See the auth-artifacts
-    -- header block above for the deny-list and the rationale.
     language_id                 UUID          NOT NULL,
     keycloak_sub                UUID,
     created_on                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -302,9 +196,6 @@ CREATE TABLE t_user (
     CONSTRAINT fk_user_person_id   FOREIGN KEY (person_id)   REFERENCES t_person (id)   ON DELETE SET NULL,
     CONSTRAINT fk_user_language_id FOREIGN KEY (language_id) REFERENCES t_language (id) ON DELETE RESTRICT
 );
--- Partial-on-alive matches person_club.member_number: lets a soft-deleted
--- user's username be recycled, while still blocking duplicates among live
--- rows. Lower-cased to keep "Foo" vs "foo" collapsed.
 CREATE UNIQUE INDEX ux_user_username_lower_alive
     ON t_user (lower(username))
     WHERE deleted_on IS NULL;
@@ -314,9 +205,6 @@ CREATE        INDEX ix_user_club           ON t_user (club_id);
 CREATE        INDEX ix_user_person         ON t_user (person_id) WHERE person_id IS NOT NULL;
 
 
--- =============================================================================
--- 3. Aggregate-internal entities
--- =============================================================================
 
 CREATE TABLE t_member_state (
     id                  UUID          NOT NULL PRIMARY KEY,
@@ -464,10 +352,6 @@ CREATE UNIQUE INDEX ux_extension_value_default
     WHERE club_id IS NULL;
 
 
--- =============================================================================
--- 4. SQL comments on aggregate-root id columns + the principal-subject
---    user.club_id column. Forensic clarity at boundary review time.
--- =============================================================================
 
 COMMENT ON COLUMN t_person.id IS
     'UUID v7. Aggregate root (ADR 0018). External form psn_<crockford-base32>. See ADR 0019.';
@@ -487,13 +371,7 @@ COMMENT ON COLUMN t_user.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
 
 
--- =============================================================================
--- 5. Reference-data seeds (fixed canonical UUID v7 literals).
---    See alpenflight/server/src/test/resources/reference-seeds-canonical-uuids.json
---    for the test-time oracle that pins these UUIDs.
--- =============================================================================
 
--- start_type (5 canonical launches)
 INSERT INTO t_start_type (id, code, name, applicable_categories) VALUES
     ('019e2e15-2c00-7fa0-8000-000000000fa0', 'WINCH_LAUNCH',   'Winch Launch',   ARRAY['GLIDER']),
     ('019e2e15-2c00-7fa1-8000-000000000fa1', 'AEROTOW',        'Aerotow',        ARRAY['GLIDER','TOW']),
@@ -501,13 +379,11 @@ INSERT INTO t_start_type (id, code, name, applicable_categories) VALUES
     ('019e2e15-2c00-7fa3-8000-000000000fa3', 'EXTERNAL_START', 'External Start', ARRAY['GLIDER']),
     ('019e2e15-2c00-7fa4-8000-000000000fa4', 'MOTOR',          'Motor',          ARRAY['MOTOR']);
 
--- club_state (3 canonical lifecycle states)
 INSERT INTO t_club_state (id, code, name) VALUES
     ('019e2e15-2c00-7bb8-8000-000000000bb8', 'ACTIVE',    'Active'),
     ('019e2e15-2c00-7bb9-8000-000000000bb9', 'SUSPENDED', 'Suspended'),
     ('019e2e15-2c00-7bba-8000-000000000bba', 'CLOSED',    'Closed');
 
--- language (8 canonical: 4 Swiss national languages + 4 region-tagged variants + English)
 INSERT INTO t_language (id, code, name) VALUES
     ('019e2e15-2c00-77d0-8000-0000000007d0', 'de',    'Deutsch'),
     ('019e2e15-2c00-77d1-8000-0000000007d1', 'fr',    'Français'),
@@ -518,24 +394,20 @@ INSERT INTO t_language (id, code, name) VALUES
     ('019e2e15-2c00-77d6-8000-0000000007d6', 'fr-CH', 'Français suisse'),
     ('019e2e15-2c00-77d7-8000-0000000007d7', 'it-CH', 'Italiano svizzero');
 
--- length_unit_type
 INSERT INTO t_length_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7388-8000-000000001388', 'METER', 'Meter', 'm',  'Metric'),
     ('019e2e15-2c00-7389-8000-000000001389', 'FEET',  'Feet',  'ft', 'Imperial');
 
--- elevation_unit_type
 INSERT INTO t_elevation_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7770-8000-000000001770', 'METER', 'Meter', 'm',  'Metric'),
     ('019e2e15-2c00-7771-8000-000000001771', 'FEET',  'Feet',  'ft', 'Imperial');
 
--- counter_unit_type
 INSERT INTO t_counter_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7b58-8000-000000001b58', 'HOURS_DECIMAL', 'Hours (decimal)', 'h',   'Engine / flight time'),
     ('019e2e15-2c00-7b59-8000-000000001b59', 'HOURS_MINUTES', 'Hours (HH:MM)',   'h',   'Engine / flight time'),
     ('019e2e15-2c00-7b5a-8000-000000001b5a', 'LANDINGS',      'Landings',        'ldg', 'Landing counter'),
     ('019e2e15-2c00-7b5b-8000-000000001b5b', 'STARTS',        'Starts',          'st',  'Start counter');
 
--- extension_type (legacy snapshot)
 INSERT INTO t_extension_type (id, code, name, comment) VALUES
     ('019e2e15-2c00-7f40-8000-000000001f40', 'STRING',  'String value',         NULL),
     ('019e2e15-2c00-7f41-8000-000000001f41', 'INTEGER', 'Integer value',        NULL),
@@ -543,8 +415,6 @@ INSERT INTO t_extension_type (id, code, name, comment) VALUES
     ('019e2e15-2c00-7f43-8000-000000001f43', 'DATE',    'Date value',           NULL),
     ('019e2e15-2c00-7f44-8000-000000001f44', 'LIST',    'Single-select list',   NULL);
 
--- country (ISO 3166-1 alpha-2 + alpha-3 + canonical English name; 248 rows.
--- Generated by GenerateCanonicalUuids.java; per-row UUIDs deterministic.)
 INSERT INTO t_country (id, iso2_code, iso3_code, name) VALUES
     ('019e2e15-2c00-73e8-8000-0000000003e8', 'AF', 'AFG', 'Afghanistan'),
     ('019e2e15-2c00-73e9-8000-0000000003e9', 'AL', 'ALB', 'Albania'),

@@ -27,11 +27,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/**
- * Schema-shape assertions for the V3__flights_aircraft_locations migration.
- * Shares the Postgres container with the other migration tests so Spring's
- * context cache reuses the same boot.
- */
 @SpringBootTest
 @ActiveProfiles("test")
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
@@ -41,10 +36,6 @@ class FlightBaselineIntegrationTest {
     private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static JsonNode canonicalSeeds;
 
-    /**
-     * The S-013 baseline tables that still exist after S-060 dropped
-     * {@code flight_air_state} (air-state is computed, never stored).
-     */
     private static final List<String> S013_TABLES = List.of(
             "t_flight", "t_flight_crew",
             "t_aircraft", "t_aircraft_aircraft_state", "t_aircraft_operating_counter",
@@ -54,18 +45,11 @@ class FlightBaselineIntegrationTest {
             "t_flight_cost_balance_type",
             "t_aircraft_type", "t_aircraft_state", "t_location_type");
 
-    /** Reference / lookup tables that still exist after S-060. */
     private static final List<String> S013_REFERENCE_TABLES = List.of(
             "t_aircraft_type", "t_aircraft_state", "t_location_type",
             "t_flight_crew_type", "t_flight_process_state",
             "t_flight_cost_balance_type");
 
-    /**
-     * 3 direct tenant-scoped aggregate roots — these carry `operating_club_id`
-     * + the full audit-column quad. flight_crew is aggregate-internal under
-     * Flight; it inherits scope via FK and ships only soft-delete columns
-     * (mutation audit lives on Flight per ADR 0018).
-     */
     private static final List<String> S013_TENANT_SCOPED_TABLES = List.of(
             "t_flight", "t_flight_type", "t_article");
 
@@ -90,11 +74,7 @@ class FlightBaselineIntegrationTest {
 
     @Autowired DataSource dataSource;
 
-    // ============================================================================
-    // Table presence + type pinning
-    // ============================================================================
 
-    /** AC1 — every still-present S-013 domain table is here (post-S-060 drop). */
     @Test
     void all_baseline_tables_present() throws Exception {
         Set<String> actual = new LinkedHashSet<>();
@@ -112,7 +92,6 @@ class FlightBaselineIntegrationTest {
                 .doesNotContain("t_flight_air_state");
     }
 
-    /** AC2 — every PK across S-013's 16 tables is `uuid NOT NULL`. */
     @Test
     void all_pk_columns_are_uuid_not_null() throws Exception {
         record PkRow(String table, String column, String type, String nullable) {}
@@ -156,13 +135,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    /**
-     * AC2 — every FK column across S-013's tables points at a `uuid` column —
-     * with one deliberate exception: {@code flight.flight_aircraft_type_id}
-     * is {@code SMALLINT} per the sparse-enum sacred cow (see
-     * {@link #flight_aircraft_type_discriminator_is_smallint()}); allowed-value
-     * set lives on the Flight aggregate enum at S-058 per ADR 0022 directive 2.
-     */
     @Test
     void all_fk_columns_are_uuid() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -192,22 +164,12 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Flight self-FK + discriminator + tenant
-    // ============================================================================
 
     @Test
     void flight_has_tow_flight_self_fk_set_null() throws Exception {
         assertFkDeleteRule("t_flight", "tow_flight_id", "SET NULL");
     }
 
-    /**
-     * Sparse-enum sacred cow column shape: {@code flight.flight_aircraft_type_id}
-     * stays SMALLINT (NOT a uuid FK to a lookup). Value-set + transition rules
-     * (tow ≠ self, tow only for glider, IN (1,2,4) per FlightAircraftTypeValue.cs)
-     * land on the Flight aggregate enum + Flight.linkTow() at S-058 per ADR 0022
-     * directive 2.
-     */
     @Test
     void flight_aircraft_type_discriminator_is_smallint() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -228,9 +190,6 @@ class FlightBaselineIntegrationTest {
         assertFkDeleteRule("t_flight", "operating_club_id", "RESTRICT");
     }
 
-    // ============================================================================
-    // flight_crew
-    // ============================================================================
 
     @Test
     void flight_crew_composite_partial_unique_present() throws Exception {
@@ -251,11 +210,6 @@ class FlightBaselineIntegrationTest {
         assertFkDeleteRule("t_flight_crew", "flight_id", "CASCADE");
     }
 
-    /**
-     * Sacred-cow divergence from the "cross-tenant SET NULL" reading: Person
-     * is RESTRICTed on delete; DSAR scrubs PII on the Person row, doesn't
-     * row-delete crew.
-     */
     @Test
     void flight_crew_person_fk_on_delete_restrict() throws Exception {
         assertFkDeleteRule("t_flight_crew", "person_id", "RESTRICT");
@@ -263,9 +217,6 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_crew_has_no_created_modified_audit_columns() throws Exception {
-        // Design notes: flight_crew is internal to Flight aggregate; mutation
-        // captured via Flight.audit, not crew row's own created/modified columns.
-        // Only deleted_on/deleted_by_user_id are present.
         for (String absent : List.of("created_on", "created_by_user_id",
                                      "modified_on", "modified_by_user_id")) {
             try (Connection conn = dataSource.getConnection();
@@ -283,14 +234,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // flight_type + flight_cost_balance_type
-    //
-    // The at-least-one-flag invariant on flight_cost_balance_type
-    // (is_for_glider / is_for_tow / is_for_motor) lives on the
-    // FlightCostBalanceType aggregate constructor at S-058 per ADR 0022
-    // directive 2 — schema CHECK dropped by S-132.
-    // ============================================================================
 
     @Test
     void flight_type_is_tenant_scoped_uuid_club_id_not_null() throws Exception {
@@ -331,16 +274,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Aircraft cluster
-    //
-    // Aircraft year_of_manufacture / mtom / nr_of_seats / flarm_id range and
-    // shape invariants live on Year / Mtom / SeatsCount / FlarmId value
-    // objects at S-058 per ADR 0022 directive 2 — schema CHECKs dropped by
-    // S-132. The spot_link https-only CHECK is retained as an explicit
-    // ADR 0022 deviation (A10 SSRF defense-in-depth); see
-    // `aircraft_spot_link_https_check_retained_with_adr_0022_marker` below.
-    // ============================================================================
 
     @Test
     void aircraft_is_cross_tenant_no_operating_club_id() throws Exception {
@@ -375,7 +308,7 @@ class FlightBaselineIntegrationTest {
                     String lc = d.toLowerCase(Locale.ROOT);
                     return lc.contains("unique") && lc.contains("immatriculation")
                             && lc.contains("deleted_on is null")
-                            && !lc.contains("owner_club_id"); // not a composite per-club UNIQUE
+                            && !lc.contains("owner_club_id");
                 });
     }
 
@@ -443,12 +376,6 @@ class FlightBaselineIntegrationTest {
                 });
     }
 
-    /**
-     * Positive assertion of the spot_link https-only CHECK retention
-     * (ADR 0022 directive 2 A10 SSRF defense-in-depth carve-out). The
-     * named constraint carries an `ADR 0022 retained: …` COMMENT marker
-     * paired with the CHECK literal in V3.
-     */
     @Test
     void aircraft_spot_link_https_check_retained_with_adr_0022_marker() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -467,26 +394,15 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Location cluster (sacred cow)
-    // ============================================================================
 
     @Test
     void location_has_club_id_uuid_not_null() throws Exception {
-        // S-049b reclassified Locations from CROSS_TENANT reference data to
-        // TENANT_SCOPED masterdata. Same physical airport may exist N times
-        // across clubs but only once per club. Sister assertion in
-        // TenantCatalogConsistencyTest#location_has_club_id_uuid_not_null.
         assertColumnNotNull("t_location", "club_id", "uuid");
         assertFkDeleteRule("t_location", "club_id", "RESTRICT");
     }
 
     @Test
     void location_icao_unique_partial_per_club() throws Exception {
-        // S-049b: V7 dropped ux_location_icao (global) and replaced with
-        // ux_location_club_icao (per-club). The partial predicate also
-        // excludes soft-deleted rows so recreate-after-soft-delete-same-club
-        // no longer needs the S-049 "null out icao_code" workaround.
         List<String> defs = indexDefs("t_location");
         assertThat(defs)
                 .as("partial UNIQUE on (club_id, icao_code) WHERE icao_code IS NOT NULL AND deleted_on IS NULL")
@@ -516,9 +432,6 @@ class FlightBaselineIntegrationTest {
         assertFkDeleteRule("t_inoutbound_point", "location_id", "CASCADE");
     }
 
-    // ============================================================================
-    // Club deferred ALTER (5 FK columns added in V3)
-    // ============================================================================
 
     @Test
     void club_has_5_deferred_fk_columns_all_nullable_set_null() throws Exception {
@@ -535,23 +448,13 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    /** Forward-looking column not in legacy Club.cs:77-81 — pin deviation explicitly. */
     @Test
-    void club_default_glider_with_motor_flight_type_id_present() throws Exception {
+    void club_default_glider_with_motor_flight_type_id_present_although_legacy_club_has_no_such_column()
+            throws Exception {
         assertColumnNullable("t_club", "default_glider_with_motor_flight_type_id", "uuid");
     }
 
-    // Flight invariants (ldg ≥ start ordering, flight_date sanity, nr_of_ldgs
-    // / engine-counter monotonic, runway / coupon shape regex), aircraft
-    // state ordering, operating-counter future-bound, location icao
-    // uppercase — all moved to value-objects + aggregate constructors at
-    // S-058 / S-068 per ADR 0022 directive 2. Schema-side defense-in-depth
-    // dropped without grandfather; aggregate tests at the downstream
-    // stories cover the equivalent domain behaviour.
 
-    // ============================================================================
-    // Aggregate-root column comments cite ADR 0019 + the aggregate-prefix
-    // ============================================================================
 
     @Test
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
@@ -585,10 +488,6 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void non_aggregate_root_columns_do_not_carry_prefix_comments() throws Exception {
-        // The 4 aggregate-internal tables — flight_crew, aircraft_aircraft_state,
-        // aircraft_operating_counter, inoutbound_point — must NOT carry the
-        // "External form: <prefix>_" comment on their id columns. They cross
-        // boundaries only via the parent aggregate (raw UUID at every layer).
         List<String> internalTables = List.of(
                 "t_flight_crew", "t_aircraft_aircraft_state",
                 "t_aircraft_operating_counter", "t_inoutbound_point");
@@ -613,9 +512,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Reference-table audit + tenant-scoped audit
-    // ============================================================================
 
     @Test
     void reference_tables_have_no_audit_columns() throws Exception {
@@ -661,9 +557,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Reference-data seeds (assert against canonical-seeds JSON)
-    // ============================================================================
 
     @Test
     void aircraft_type_seeded_8_canonical_bitfield_values() throws Exception {
@@ -672,7 +565,6 @@ class FlightBaselineIntegrationTest {
                 "MOTOR_AIRCRAFT", "MULTI_ENGINE", "JET", "HELICOPTER");
         assertSeededCodes("t_aircraft_type", expectedCodes);
 
-        // Each row's UUID must match the canonical seed JSON bit-for-bit.
         for (String code : expectedCodes) {
             String expectedUuid = canonicalSeedUuid("t_aircraft_type", "code", code);
             assertCodeMapsToUuid("t_aircraft_type", code, expectedUuid);
@@ -686,7 +578,6 @@ class FlightBaselineIntegrationTest {
                         "SELECT legacy_int_id FROM t_aircraft_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
-            // Allowed set: {0, 1, 2, 4, 8, 16, 32, 64} per FLS sacred-cow bit-field.
             assertThat(ids).containsExactly(0, 1, 2, 4, 8, 16, 32, 64);
         }
     }
@@ -697,7 +588,6 @@ class FlightBaselineIntegrationTest {
                 "OK", "INFORMATION", "ATTENTION", "MALFUNCTION",
                 "MAINTENANCE", "UNINSURED", "END_OF_LIFE");
         assertSeededCodes("t_aircraft_state", expectedCodes);
-        // is_aircraft_flyable invariant: only OK / INFORMATION / ATTENTION are flyable.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT code, is_aircraft_flyable FROM t_aircraft_state ORDER BY code")) {
@@ -715,10 +605,6 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void location_type_seeded_6_canonical_values() throws Exception {
-        // Design notes anticipated 17 rows from a legacy snapshot; the legacy test
-        // fixture file ships 6 (LocationTypeCupId in {1..5, 99}). Ship 6 here;
-        // S-016 cutover can backfill richer per-club rows if any prod snapshots
-        // carry them. The test asserts exactly the 6 known rows by code.
         assertSeededCodes("t_location_type", List.of(
                 "WAYPOINT", "GRASS_RUNWAY", "EXTERNAL_FIELD",
                 "GLIDER_AIRFIELD", "CONCRETE_RUNWAY", "OTHER"));
@@ -729,13 +615,14 @@ class FlightBaselineIntegrationTest {
         assertSeededCodes("t_flight_crew_type", List.of(
                 "PILOT_OR_STUDENT", "CO_PILOT", "FLIGHT_INSTRUCTOR", "PASSENGER",
                 "WINCH_OPERATOR", "OBSERVER", "FLIGHT_COST_INVOICE_RECIPIENT"));
-        // Legacy int codes: {1..6, 10} — the 10 is deliberately sparse.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT legacy_int_id FROM t_flight_crew_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
-            assertThat(ids).containsExactly(1, 2, 3, 4, 5, 6, 10);
+            assertThat(ids)
+                    .as("legacy crew-type ints are sparse — 10 follows 6 with no 7..9")
+                    .containsExactly(1, 2, 3, 4, 5, 6, 10);
         }
     }
 
@@ -756,8 +643,6 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_air_state_table_was_dropped_by_S060() throws Exception {
-        // S-060 dropped the flight_air_state seed table — air-state is
-        // computed by Flight.airState() per legacy Flight.cs:175-206.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.getMetaData().getTables(
                         null, "public", "t_flight_air_state", new String[]{"TABLE"})) {
@@ -772,27 +657,11 @@ class FlightBaselineIntegrationTest {
                 "NO_INSTRUCTOR_FEE", "INVOICE_TO_PERSON"));
     }
 
-    // ============================================================================
-    // FK supporting index coverage (parameterized)
-    // ============================================================================
 
-    /**
-     * Load-bearing FKs (per design notes' performance plan) must have at least
-     * one supporting index. Reference / lookup-table FKs (e.g. flight.process_state_id)
-     * intentionally don't get dedicated indexes — they are always queried by
-     * joining FROM t_flight WHERE operating_club_id, the composite
-     * ix_flight_club_state covers the process-state filter, and reference rows
-     * are L2-cached anyway.
-     */
     @Test
     void every_load_bearing_fk_has_supporting_index() throws Exception {
-        // Curated from design notes' index grid: the FKs that actually drive
-        // hot-path queries. Reference-data FKs (process_state_id,
-        // flight_cost_balance_type_id, start_type_id, flight_crew_type_id,
-        // aircraft_type_id, aircraft_state_id, location_type_id) are excluded
-        // by design.
         record Fk(String table, String column) {}
-        List<Fk> required = List.of(
+        List<Fk> hotPathFksThatMustBeIndexedUnlikeAlwaysJoinedReferenceFks = List.of(
                 new Fk("t_flight",                     "operating_club_id"),
                 new Fk("t_flight",                     "aircraft_id"),
                 new Fk("t_flight",                     "start_location_id"),
@@ -809,7 +678,7 @@ class FlightBaselineIntegrationTest {
                 new Fk("t_flight_type",                "operating_club_id"),
                 new Fk("t_article",                    "operating_club_id"),
                 new Fk("t_inoutbound_point",           "location_id"));
-        for (Fk fk : required) {
+        for (Fk fk : hotPathFksThatMustBeIndexedUnlikeAlwaysJoinedReferenceFks) {
             List<String> defs = indexDefs(fk.table());
             String col = fk.column();
             boolean covered = defs.stream()
@@ -820,9 +689,6 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // ============================================================================
-    // Helpers
-    // ============================================================================
 
     private List<String> indexDefs(String table) throws SQLException {
         try (Connection conn = dataSource.getConnection();
@@ -872,10 +738,6 @@ class FlightBaselineIntegrationTest {
     }
 
     private void assertFkDeleteRule(String table, String column, String expectedRule) throws SQLException {
-        // Use pg_catalog: information_schema's referential_constraints +
-        // key_column_usage join is brittle across Postgres versions when the
-        // FK-side row's position_in_unique_constraint isn't NULL the way you
-        // expect. pg_constraint + pg_attribute gives the authoritative answer.
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement("""
                         SELECT

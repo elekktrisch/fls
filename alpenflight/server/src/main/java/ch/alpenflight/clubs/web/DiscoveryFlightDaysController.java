@@ -25,23 +25,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Club-admin management of the days the club offers discovery flights on — the
- * write surface behind the anonymous picker at
- * {@code GET /api/v1/public/clubs/{clubSlug}/discovery-flight-days}.
- *
- * <p>This resource is deliberately NOT under {@code /api/v1/public/**} — that
- * prefix is {@code permitAll} and would hand day management to anonymous
- * callers. Every method here requires an authenticated CLUB_ADMINISTRATOR, and
- * the club it manages is the principal's own: the path carries no club id at
- * all, so there is nothing to gate a SpEL own-club predicate against and
- * nothing to point at another tenant. Tenancy is structural — Hibernate's
- * {@code @TenantId} discriminator on {@code DiscoveryFlightDay.clubId} scopes
- * the list, stamps the insert, and hides another club's day from withdrawal
- * (404, not 403 — the IDOR contract). Same shape as
- * {@code FlightTypesController} / {@code LocationsController}; SYSTEM_ADMINISTRATOR
- * has no rights here because a sysadmin carries no tenant context.
- */
 @RestController
 @RequestMapping(path = "/api/v1/discovery-flight-days", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "DiscoveryFlightDays",

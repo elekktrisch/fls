@@ -27,14 +27,7 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("InOutboundPointId", randomUuidString(faker));
-        // The parent Location legacy GUID — stays the shared legacy GUID on the
-        // wire; T-07's ForeignKeyResolver resolves it composite via club_id.
         row.put("LocationId", randomUuidString(faker));
-        // ClubId comes from the producer's per-Club fan-out: the child fans out
-        // one row per (legacy IOP, partner club) joining its parent Location's
-        // fan-out partner set. It is the child's OWN legacy club id, carried as a
-        // RESOLVER-ONLY wire field (no own column on t_inoutbound_point — tenancy
-        // is inherited via location_id).
         row.put("ClubId", randomUuidString(faker));
         row.put("InOutboundPointName", "07N");
         row.put("IsInboundPoint", true);
@@ -55,7 +48,7 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
 
     @Test
     void declaresParentLocationAsTheOnlyForeignKey() {
-        assertThat(mapper.foreignKeys())
+        assertThat(mapper.foreignKeyTargets())
                 .as("InOutboundPoint inherits tenancy through its parent Location "
                         + "(no own club_id), so its only structural FK is the parent "
                         + "Location — which must precede INOUTBOUND_POINT in the topo "
@@ -65,10 +58,10 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
 
     @Test
     void carriesNoOwnClubColumnEvenThoughTheWireRowDoes() {
-        assertThat(mapper.columns())
+        assertThat(mapper.wireColumns())
                 .as("club_id is a RESOLVER-ONLY wire field, not a destination column — "
                         + "t_inoutbound_point has no club_id (tenancy inherited via "
-                        + "location_id), so it must be absent from columns() while still "
+                        + "location_id), so it must be absent from wireColumns() while still "
                         + "being emitted on the wire for T-07's composite FK lookup")
                 .doesNotContain("club_id")
                 .contains("location_id");

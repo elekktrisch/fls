@@ -22,67 +22,24 @@ import {
 } from './_helpers/reservation-parity-fixture';
 import { provisionTwoClubs, type TwoClubFixture } from './_helpers/two-club-fixture';
 
-/**
- * J-10b — Deliveries WRITE side over the real chain (live Keycloak auth + real
- * Spring backend + real Postgres). The journey's `parity_test` (the real-chain
- * done-bar). Completes J-10's read screen with the accounting-correctness write
- * paths — engine create, the Prepared→Booked terminal state machine, and delete
- * (which resets the linked flight + tow and reverses the flight-time credit it
- * balanced). NO `page.route` mocking on any path: create, delete, book, the
- * `@TenantId` filter, the CLUB_ADMINISTRATOR `@PreAuthorize` gate, the credit
- * draw-down, and the append-only credit reversal all run live.
- *
- * ── PRINCIPAL (CLUB_ADMINISTRATOR — every delivery write endpoint is admin-gated) ─
- * Drives `clubadmin4` (V29 seed), a REAL CLUB_ADMINISTRATOR bound to seed-club-1,
- * NOT the mock-admin everything-principal that would hide a role-authz gap
- * ([[project_real_idp_real_roles_catches_authz_gaps]]). The cross-tenant write
- * probe drives a REAL second club + admin (`provisionTwoClubs`).
- *
- * ── INPUT STATES (real REST + the DB-fixture seam, NOT a mock) ────────────────
- * The spec mints the engine-consumable inputs — masterdata, a glider flight on a
- * known immatriculation, the billed pilot's PersonFlightTimeCredit matched to
- * that immatriculation — over the REAL REST APIs. The few input STATES no REST
- * surface can set (a flight flipped to Locked + back-dated past the 3-day
- * eligibility floor, the glider→tow link, the deterministic FlightTime rule
- * filter producing one known line, a pre-built shared-flight delivery, a
- * cross-tenant delivery) are materialized via the Gradle `seedDeliveryWriteFixture`
- * task against the live LAN Postgres. The write endpoints + `@TenantId` scope +
- * the credit math then run fully real off those rows — the seed is fixture STATE.
- *
- * ── REAL-IDP HYGIENE (hard-won) ──────────────────────────────────────────────
- *   - ENTER via the masterdata nav (`enterViaNav`), NOT a bare goto, for the
- *     chrome-reachability assertion;
- *   - prefer WARM in-app navigation; do NOT `clearCookies` (kills session
- *     restore) ([[project_real_idp_goto_reboot_renew_stall]]);
- *   - read a created flight id off the 201 `Location` header, never the POST
- *     response body ([[project_spa_nav_evicts_post_response_body]]);
- *   - `af-data-table` renders `<ul role="list"><li>` (NOT `role="row"`) — scope
- *     rows by the `del-row-<id>` / `del-state-<id>` testid, never `getByRole('row')`;
- *   - track every seeded delivery / filter id + `afterAll` clean up so a
- *     Playwright retry starts on a clean seed-club-1.
- */
-
 const FLIGHTS = '/api/v1/flights';
 const DELIVERIES = '/api/v1/deliveries';
 const CREDITS = '/api/v1/internal/person-flight-time-credits';
 
 const CREW_TYPE_PILOT = '019e2e15-2c00-76b0-8000-0000000036b0';
-// PILOT_PAYS_ALL cost balance (V3 legacy id 1) — the recipient fallback bills the
-// pilot only when the flight carries this balance, so create resolves a recipient.
 const COST_BALANCE_PILOT_PAYS_ALL = 'fcb-019e2e15-2c00-7268-8000-000000004268';
 
-// Flight process-state ids (FlightProcessState enum — V3-seeded canonical UUIDs).
-// The flight detail response carries the raw `processStateId` UUID, so the
-// flight-state assertions key off these rather than a fragile enum-name string.
 const FLIGHT_LOCKED = '019e2e15-2c00-7a9b-8000-000000003a9b';
 const FLIGHT_DELIVERY_PREPARED = '019e2e15-2c00-7a9d-8000-000000003a9d';
 const FLIGHT_DELIVERY_BOOKED = '019e2e15-2c00-7a9e-8000-000000003a9e';
 
-// Delivery process-state codes (V4 sparse code; process-state.ts mirror).
 const DELIVERY_PREPARED = 10;
 const DELIVERY_BOOKED = 20;
 
-// The write-side testids the `/deliveries` screen ships.
+const DAYS_AGED_PAST_ELIGIBILITY_FLOOR = 4;
+const DAYS_AGED_STILL_INELIGIBLE = 0;
+const NO_FLIGHT_LINK = '-';
+
 const CREATE_BUTTON = 'del-create-button';
 const DELETE_CONFIRM_MODAL = 'del-delete-confirm-modal';
 const DELETE_CONFIRM = 'del-delete-confirm';
@@ -118,7 +75,6 @@ async function newRecordedContext(
   return context;
 }
 
-/** The per-subcommand JSON shapes the `seedDeliveryWriteFixture` task prints. */
 interface SeederResult {
   flightId?: string;
   filterId?: string;
@@ -126,7 +82,6 @@ interface SeederResult {
   articleNumber?: string;
 }
 
-/** Run the Gradle `seedDeliveryWriteFixture` task; return its single JSON result line. */
 async function runSeeder(seederArgs: string): Promise<SeederResult> {
   const { stdout } = await execFileAsync(
     GRADLEW,
@@ -144,7 +99,6 @@ async function runSeeder(seederArgs: string): Promise<SeederResult> {
   return JSON.parse(line) as SeederResult;
 }
 
-/** Run a seeder subcommand that returns a `deliveryId`, asserting it is present. */
 async function seedDelivery(seederArgs: string): Promise<string> {
   const id = (await runSeeder(seederArgs)).deliveryId;
   if (!id) {
@@ -153,15 +107,10 @@ async function seedDelivery(seederArgs: string): Promise<string> {
   return id;
 }
 
-/** Strip the `fl-` external-form prefix to the raw flight uuid the seeder takes. */
 function rawFlightId(externalId: string): string {
   return externalId.replace(/^fl-/, '');
 }
 
-/**
- * Create a GLIDER flight (90-min, 1 landing, the given pilot) on `aircraftId`
- * via the REAL flight API; return its RAW uuid (read off the 201 Location).
- */
 async function createGliderFlight(
   api: APIRequestContext,
   bearer: string,
@@ -200,12 +149,6 @@ async function createGliderFlight(
   return id;
 }
 
-/**
- * Grant the pilot a prepaid flight-time credit MATCHED to the flight's
- * immatriculation (the engine's credit branch keys on the matched immat; valid
- * until after the flight start so it is live at billing time). Returns the
- * credit id so the spec can re-read its actual `IsCurrent` balance later.
- */
 async function grantCredit(
   api: APIRequestContext,
   bearer: string,
@@ -231,7 +174,6 @@ async function grantCredit(
   return (JSON.parse(await res.text()) as CreditView).id;
 }
 
-/** Read a credit's CURRENT (IsCurrent) flight-time balance in seconds — the live money value. */
 async function currentBalance(
   api: APIRequestContext,
   bearer: string,
@@ -243,7 +185,6 @@ async function currentBalance(
   return view.currentFlightTimeBalanceInSeconds ?? -1;
 }
 
-/** Re-GET a flight's detail and return its raw `processStateId` UUID. */
 async function flightProcessStateId(
   api: APIRequestContext,
   bearer: string,
@@ -254,7 +195,6 @@ async function flightProcessStateId(
   return (JSON.parse(await res.text()) as { processStateId: string }).processStateId;
 }
 
-/** Find the delivery this run's create produced for `flightId` (the engine bills tenant-wide). */
 async function deliveryForFlight(
   api: APIRequestContext,
   bearer: string,
@@ -281,19 +221,13 @@ test.describe('Deliveries — write side (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
 
   let baseURL: string;
-  /** clubadmin4's Bearer (seed-club-1, the @TenantId club). */
   let adminBearer: string;
-  /** A real second club + admin (club B) — the cross-tenant write probe. */
   let twoClubs: TwoClubFixture;
   let api: BrowserContext;
-  /** Shared masterdata + the deterministic FlightTime rule filter (one known line). */
   let md: FlightMasterdata;
   let filterId: string;
-  /** Seeded deliveries + filters to clean up after the run. */
   const createdDeliveryIds = new Set<string>();
   const seededDeliveryIds: string[] = [];
-  /** Every flight this spec creates — reset to VALID in afterAll so a spec-created
-   * Locked/Prepared flight never pollutes the next tenant-wide create batch. */
   const createdFlightIds = new Set<string>();
 
   test.beforeAll(async ({ browser }, testInfo) => {
@@ -302,8 +236,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     twoClubs = await provisionTwoClubs(browser, baseURL, 'dlw');
     api = await browser.newContext({ baseURL });
     md = await seedFlightMasterdata(api.request, adminBearer);
-    // ONE deterministic active FlightTime rule filter on seed-club-1 → the engine
-    // produces exactly one known line per eligible flight (a known article number).
     filterId = (await runSeeder(`rule-filter ${SEED_CLUB_A_ID} DLW-ART-FT`)).filterId ?? '';
   });
 
@@ -314,8 +246,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     for (const id of seededDeliveryIds) {
       await runSeeder(`delete-delivery ${id}`).catch(() => undefined);
     }
-    // Reset every spec-created flight to VALID + unlink its tow so a leftover
-    // Locked/Prepared (linked) flight never pollutes the next create batch.
     for (const id of createdFlightIds) {
       await runSeeder(`reset-flight ${id}`).catch(() => undefined);
     }
@@ -326,18 +256,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
     await twoClubs?.dispose();
   });
 
-  // =========================================================================
-  // [happy] CREATE — enter via the masterdata nav, click "create deliveries",
-  // the engine produces one Delivery (+items) for the eligible aged-Locked
-  // glider flight; the flight (+tow) flips to DeliveryPrepared.
-  // =========================================================================
   test('[happy] create deliveries → the engine produces one delivery for the eligible aged-Locked glider; flight (+tow) → DeliveryPrepared', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    // A fresh eligible glider flight on the seeded glider aircraft, billed to the
-    // seeded pilot — flipped to Locked + aged past the 3-day floor via the seeder.
     const flightId = await createGliderFlight(
       api.request,
       adminBearer,
@@ -346,7 +269,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${flightId} 4`);
+    await runSeeder(`lock-and-age ${flightId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     try {
       await loginAsReservationAdmin(page);
       await page.goto('/start?lang=en');
@@ -354,8 +277,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await expect(page).toHaveURL('/deliveries');
       await expect(page.getByTestId('del-table')).toBeVisible();
 
-      // Click the engine "create deliveries" action; wait for the create POST to
-      // land 200 before the list refresh re-renders.
       const created = page.waitForResponse(
         (r) =>
           new URL(r.url()).pathname === `${DELIVERIES}/create` &&
@@ -365,9 +286,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await page.getByTestId(CREATE_BUTTON).click();
       await created;
 
-      // The engine produced exactly one Delivery for THIS flight: Prepared, with
-      // ≥1 line item (the deterministic FlightTime filter's known line). Resolve
-      // it by its flight link (the create is tenant-wide, so identify by flight).
       const delivery = await deliveryForFlight(api.request, adminBearer, flightId);
       createdDeliveryIds.add(delivery.id);
       expect(delivery.processStateId, 'the created delivery is Prepared').toBe(DELIVERY_PREPARED);
@@ -375,14 +293,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
         0,
       );
 
-      // The billed glider flight flipped to DeliveryPrepared (the create side effect).
       expect(
         await flightProcessStateId(api.request, adminBearer, flightId),
         'the billed flight flipped to DeliveryPrepared',
       ).toBe(FLIGHT_DELIVERY_PREPARED);
 
-      // The new row renders in the @TenantId-scoped list (Prepared badge, no
-      // Booked badge — it is freshly created). Capture the POPULATED list.
       const row = page.getByTestId(`del-row-${delivery.id}`);
       await expect(row, 'the engine-created delivery renders in the list').toBeVisible();
       await expect(page.getByTestId(`del-state-${delivery.id}`)).toBeVisible();
@@ -391,7 +306,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
         fullPage: true,
       });
 
-      // The detail view shows the engine line items (the form shot — populated).
       await row.click();
       await expect(page).toHaveURL(`/deliveries/${delivery.id}`);
       await expect(page.getByTestId('del-detail')).toBeVisible();
@@ -414,19 +328,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
     }
   });
 
-  // =========================================================================
-  // [happy] DELETE + reset + reverse — the destructive money path. Delete a
-  // Prepared delivery; flight + tow reset to Locked; the credit it consumed is
-  // REVERSED append-only (a new IsCurrent row restoring the prior balance).
-  // =========================================================================
   test('[happy] delete a Prepared delivery → flight (+tow) reset to Locked, the consumed credit REVERSED (append-only)', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    // Glider + its tow, linked, both eligible; the pilot's credit matches the
-    // glider immat. After create the credit is drawn down; after delete it is
-    // restored to the original balance (append-only reversal).
     const gliderId = await createGliderFlight(
       api.request,
       adminBearer,
@@ -443,12 +349,8 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    // The glider is independently eligible (aged); the tow is Locked but NOT aged,
-    // so create flips it to DeliveryPrepared via the glider's tow link WITHOUT
-    // double-processing it as its own eligible flight (which would re-prep a
-    // DeliveryPrepared flight → illegal transition).
-    await runSeeder(`lock-and-age ${gliderId} 4`);
-    await runSeeder(`lock-and-age ${towId} 0`);
+    await runSeeder(`lock-and-age ${gliderId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
+    await runSeeder(`lock-and-age ${towId} ${DAYS_AGED_STILL_INELIGIBLE}`);
     await runSeeder(`link-tow ${gliderId} ${towId}`);
     const ORIGINAL_BALANCE = 5_400;
     const creditId = await grantCredit(
@@ -464,7 +366,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await enterViaNav(page, '/deliveries');
       await expect(page.getByTestId('del-table')).toBeVisible();
 
-      // Create → the credit is consumed (drawn DOWN below the original balance).
       const created = page.waitForResponse(
         (r) =>
           new URL(r.url()).pathname === `${DELIVERIES}/create` &&
@@ -481,7 +382,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
         ORIGINAL_BALANCE,
       );
 
-      // Delete via the confirm modal.
       await page.reload();
       await expect(page.getByTestId('del-table')).toBeVisible();
       const row = page.getByTestId(`del-row-${delivery.id}`);
@@ -498,8 +398,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await deleted;
       createdDeliveryIds.delete(delivery.id);
 
-      // The glider AND its tow reset to Locked (re-GET — persisted, correct target;
-      // fixing both legacy bugs: the wrong-tow-target write + the never-SaveChanges).
       expect(
         await flightProcessStateId(api.request, adminBearer, gliderId),
         'the glider flight reset to Locked',
@@ -509,9 +407,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
         'the TOW flight reset to Locked (the correct, persisted target)',
       ).toBe(FLIGHT_LOCKED);
 
-      // The credit is REVERSED — its current balance is restored to the original
-      // (append-only: a new IsCurrent reversal row negated the consumption; the
-      // original consumption row is kept un-current). Assert the ACTUAL balance.
       expect(
         await currentBalance(api.request, adminBearer, creditId),
         'the credit reversal restored the original balance (append-only)',
@@ -533,17 +428,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
     }
   });
 
-  // =========================================================================
-  // [key-error] >1-delivery-per-flight — two deliveries share a flight; delete
-  // → 409, surfaced via the error toast, no mutation.
-  // =========================================================================
   test('[key-error] delete rejected when >1 delivery shares the flight → 409 surfaced, no mutation', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    // A real Locked flight + TWO pre-built deliveries on it (the engine makes only
-    // ONE per flight, so the shared-flight fixture is seeded directly).
     const flightId = await createGliderFlight(
       api.request,
       adminBearer,
@@ -552,14 +441,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${flightId} 4`);
+    await runSeeder(`lock-and-age ${flightId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     const batch = Number(Date.now().toString().slice(-7));
     const d1 = await seedDelivery(`delivery ${SEED_CLUB_A_ID} ${flightId} Shared ${batch}`);
     const d2 = await seedDelivery(`delivery ${SEED_CLUB_A_ID} ${flightId} Shared ${batch + 1}`);
     seededDeliveryIds.push(d1, d2);
-    // The shared-flight delete is DELIBERATELY rejected with 409 — the SPA surfaces
-    // it as a toast and the HTTP layer logs a console.error, which is the proven
-    // behavior, not a defect (declare it so the suite-wide console guard allows it).
     allowConsoleErrors(testInfo, /Failed to load resource.*deliveries.*409/i, /409/);
     try {
       await loginAsReservationAdmin(page);
@@ -580,7 +466,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await page.getByTestId(DELETE_CONFIRM).click();
       await rejected;
 
-      // The 409 surfaces as the non-blocking toast; NEITHER delivery was mutated.
       await expect(page.getByTestId(ERROR_TOAST), 'the 409 surfaces on the screen').toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-deliveries-shared-flight-reject.png`,
@@ -607,10 +492,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     }
   });
 
-  // =========================================================================
-  // [key-error] BOOKED-terminal — book a Prepared delivery, then attempt
-  // delete-of-booked → 409; the row shows the Booked badge + a disabled delete.
-  // =========================================================================
   test('[key-error] a Booked delivery is terminal → delete rejected with 409, Booked badge + disabled delete, no mutation', async ({
     browser,
   }, testInfo) => {
@@ -624,14 +505,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    // The flight carries a Prepared delivery, so it is DeliveryPrepared (not Locked)
-    // — booking is the legal Prepared→Booked transition off that state.
     await runSeeder(`prepare-flight ${flightId}`);
     const batch = Number(Date.now().toString().slice(-7));
     const deliveryId = await seedDelivery(`delivery ${SEED_CLUB_A_ID} ${flightId} Booked ${batch}`);
     seededDeliveryIds.push(deliveryId);
     try {
-      // Book it via the real /delivered endpoint (the external-booker path).
       const booked = await api.request.post(`${DELIVERIES}/delivered`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
         data: {
@@ -648,7 +526,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await enterViaNav(page, '/deliveries');
       await expect(page.getByTestId('del-table')).toBeVisible();
 
-      // The row shows the Booked badge + a DISABLED delete affordance.
       const row = page.getByTestId(`del-row-${deliveryId}`);
       await expect(row).toBeVisible();
       await expect(rowOf(page, deliveryId).getByTestId(BOOKED_BADGE)).toBeVisible();
@@ -661,7 +538,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
         fullPage: true,
       });
 
-      // Driving the delete directly (bypassing the disabled UI) → 409, no mutation.
       const rejected = await api.request.delete(`${DELIVERIES}/${deliveryId}`, {
         headers: { authorization: adminBearer },
       });
@@ -683,11 +559,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     }
   });
 
-  // =========================================================================
-  // [edge] BOOKING — POST /delivered with a free-text (non-numeric)
-  // deliveryNumber stamps number/DeliveredOn/IsFurtherProcessed and flips
-  // flight(+tow) → DeliveryBooked.
-  // =========================================================================
   test('[edge] book a Prepared delivery via /delivered with a free-text number → number stamped, flight (+tow) → DeliveryBooked', async () => {
     const flightId = await createGliderFlight(
       api.request,
@@ -705,8 +576,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    // Both the booked flight and its tow are DeliveryPrepared (the state a
-    // pre-Prepared delivery's flights carry) so booking flips both Prepared→Booked.
     await runSeeder(`link-tow ${flightId} ${towId}`);
     await runSeeder(`prepare-flight ${flightId}`);
     await runSeeder(`prepare-flight ${towId}`);
@@ -726,7 +595,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     expect(booked.status(), 'booking a Prepared delivery succeeds').toBe(200);
     expect(JSON.parse(await booked.text())).toBe(true);
 
-    // The free-text number is stamped verbatim + the delivery is Booked.
     const detail = (await api.request
       .get(`${DELIVERIES}/${deliveryId}`, { headers: { authorization: adminBearer } })
       .then((r) => r.json())) as DeliveryDetail;
@@ -735,7 +603,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
     );
     expect(detail.processStateId, 'the delivery is Booked').toBe(DELIVERY_BOOKED);
 
-    // The flight AND its tow flipped to DeliveryBooked.
     expect(
       await flightProcessStateId(api.request, adminBearer, flightId),
       'the booked flight flipped to DeliveryBooked',
@@ -746,21 +613,13 @@ test.describe('Deliveries — write side (real-idp)', () => {
     ).toBe(FLIGHT_DELIVERY_BOOKED);
   });
 
-  // =========================================================================
-  // [edge] CROSS-TENANT — as club-A admin, deleting / booking a club-B delivery
-  // is invisible: delete → 404 (the @TenantId finder never returns it), book →
-  // 200 false (unknown id parity).
-  // =========================================================================
   test('[edge] cross-tenant write (delete / book another club’s delivery) is rejected — 404 delete, false book', async () => {
-    // Seed a Prepared delivery under club B (unlinked — the tenant gate is the point).
     const batch = Number(Date.now().toString().slice(-7));
     const clubBDelivery = await seedDelivery(
-      `delivery ${twoClubs.clubB.clubId} - Foreign ${batch}`,
+      `delivery ${twoClubs.clubB.clubId} ${NO_FLIGHT_LINK} Foreign ${batch}`,
     );
     seededDeliveryIds.push(clubBDelivery);
 
-    // Club A's admin CANNOT delete club B's delivery — the @TenantId-scoped finder
-    // never returns it → 404 (invisible, not forbidden).
     const crossDelete = await api.request.delete(`${DELIVERIES}/${clubBDelivery}`, {
       headers: { authorization: adminBearer },
     });
@@ -769,8 +628,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       `club A must NOT delete club B's delivery (cross-tenant 404) — got ${crossDelete.status()}`,
     ).toBe(404);
 
-    // Booking another club's delivery behaves like an unknown id → 200 false
-    // (the external-booker parity quirk; the row is invisible under club A's scope).
     const crossBook = await api.request.post(`${DELIVERIES}/delivered`, {
       headers: { authorization: adminBearer, 'content-type': 'application/json' },
       data: {
@@ -783,21 +640,11 @@ test.describe('Deliveries — write side (real-idp)', () => {
     expect(JSON.parse(await crossBook.text()), 'cross-tenant book is a no-op false').toBe(false);
   });
 
-  // =========================================================================
-  // [money-proof] GLIDER+TOW shared-credit — both flights draw on ONE credit;
-  // after create the credit reflects BOTH passes SUMMED (not under-consumed) —
-  // the proof for the 3rd legacy money bug.
-  // =========================================================================
   test('[money-proof] glider + tow drawing on ONE credit → create SUMS both passes (not under-consumed)', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
-    // TWO eligible glider passes on the SAME aircraft + pilot, both drawing on the
-    // ONE credit matched to that immatriculation (each is independently billed —
-    // NOT tow-linked, which would side-effect-prep one and prevent its own
-    // delivery). The engine bills both passes; the credit must reflect BOTH
-    // consumptions SUMMED, not a last-write-wins single pass (the 3rd legacy bug).
     const firstPassId = await createGliderFlight(
       api.request,
       adminBearer,
@@ -814,8 +661,8 @@ test.describe('Deliveries — write side (real-idp)', () => {
       md.pilotPersonId,
       createdFlightIds,
     );
-    await runSeeder(`lock-and-age ${firstPassId} 4`);
-    await runSeeder(`lock-and-age ${secondPassId} 4`);
+    await runSeeder(`lock-and-age ${firstPassId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
+    await runSeeder(`lock-and-age ${secondPassId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
     const ORIGINAL_BALANCE = 100_000;
     const creditId = await grantCredit(
       api.request,
@@ -839,7 +686,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await page.getByTestId(CREATE_BUTTON).click();
       await created;
 
-      // Both passes were independently billed (each produced its own delivery).
       const firstDelivery = await deliveryForFlight(api.request, adminBearer, firstPassId);
       const secondDelivery = await deliveryForFlight(api.request, adminBearer, secondPassId);
       createdDeliveryIds.add(firstDelivery.id);
@@ -851,11 +697,6 @@ test.describe('Deliveries — write side (real-idp)', () => {
         DELIVERY_PREPARED,
       );
 
-      // The DISCRIMINATING money assertion (the 3rd legacy bug proof). Each pass is
-      // a 90-minute (5400 s active) glider flight, so the engine consumes 5400 s per
-      // pass off the ONE shared credit. Read the ACTUAL post-create balance off the
-      // live credit and assert the drawdown reflects BOTH passes SUMMED — strictly
-      // more than the single 5400 s pass the legacy last-write-wins bug would leave.
       const ONE_PASS_SECONDS = 5_400;
       const afterCreate = await currentBalance(api.request, adminBearer, creditId);
       const drawdown = ORIGINAL_BALANCE - afterCreate;
@@ -890,12 +731,10 @@ test.describe('Deliveries — write side (real-idp)', () => {
   });
 });
 
-/** The af-data-table list item (`<li>`) containing the given delivery's row link. */
 function rowOf(page: Page, deliveryId: string) {
   return page.locator(`[data-testid="del-row-${deliveryId}"]`).locator('xpath=ancestor::li[1]');
 }
 
-/** The per-row delete button — scoped to the row's containing list item (af-data-table `<li>`). */
 function rowDeleteButton(page: Page, deliveryId: string) {
   return rowOf(page, deliveryId).getByTestId('del-delete-button');
 }

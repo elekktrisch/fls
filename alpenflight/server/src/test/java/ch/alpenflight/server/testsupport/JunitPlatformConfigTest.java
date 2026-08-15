@@ -7,14 +7,6 @@ import java.io.InputStream;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
-/**
- * Pins the {@code junit-platform.properties} invariants S-015 commits to.
- * {@link TenantTestContext} uses a {@code ThreadLocal} carrier; if parallel
- * test execution flips on, sibling test methods would alias each other's
- * tenant context and silently cross-contaminate. Re-enabling parallelism
- * is allowed only after the per-test data-isolation policy (ADR 0021) is
- * audited across the whole suite; until then this test fails the build.
- */
 class JunitPlatformConfigTest {
 
     @Test
