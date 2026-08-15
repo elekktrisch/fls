@@ -18,7 +18,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-31 | Comment sweep — no comments, better names (`/` landing re-proven) | cross-cutting (E-01 / E-13) | J-16, J-17 | — (supersedes the `[COMMENT-STRIP]` rider) | N/A — but 58 Flyway files stripped → checksum repair | none (codebase-wide readability) |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
@@ -27,14 +26,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 **🔨 = in flight.** All other unmarked rows are `todo`. Shipped-journey PR numbers and
 done-dates live in `_SHIPPED.md`; their full carve prose lives in `implemented/`.
-
-**Carved as an explicit operator override (2026-08-14):**
-- **J-31 — comment sweep.** `/do-plan`'s rule is that pure tech-debt never earns its own journey.
-  The operator carved this one anyway and named the proof screen: the public landing at `/`, already
-  built by J-16, re-proven green over an entirely rewritten tree. Scope is the sweep **only** — no
-  rider burndown rides along, because a 1,792-file diff conflicts unresolvably with every open branch
-  and the merge window is the risk to minimize. Whether the 60/40 marker in `do-plan/SKILL.md` reverts
-  after this journey is `/do-retro`'s call.
 
 **Retired at carve time (operator decision 2026-07-22, `/do-plan next`):**
 - **J-14 — OGN ingestion.** Dropped as a journey (never carved). Carve-time scouting found it
