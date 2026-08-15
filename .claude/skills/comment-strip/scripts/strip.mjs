@@ -50,12 +50,12 @@ const KEYWORDS_ALLOWING_A_FOLLOWING_REGEX_LITERAL = new Set([
   'yield', 'await', 'new', 'delete', 'void', 'throw',
 ]);
 
-const TOOL_DIRECTIVE_PATTERNS = [
+export const TOOL_DIRECTIVE_PATTERNS = [
   /^\s*eslint-(disable|enable)/,
   /^\s*@ts-(ignore|expect-error|nocheck)\b/,
   /^\s*prettier-ignore/,
   /^\s*noinspection\b/,
-  /language\s*=/,
+  /^\s*\*?\s*language\s*=\s*[A-Za-z][\w+#.-]*/,
   /^\s*@formatter:(off|on)/,
   /^\s*shellcheck\s+(source|disable|shell|enable|external-sources)=/,
   /^\s*ext:/,

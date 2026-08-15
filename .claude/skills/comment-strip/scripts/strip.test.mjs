@@ -11,6 +11,7 @@ import {
   collectSourceFiles,
   inlineLiteralTokenStream,
   mockedSeamDeclarations,
+  TOOL_DIRECTIVE_PATTERNS,
 } from './strip.mjs';
 
 function strip(source, extension) {
@@ -659,6 +660,47 @@ test('a directive inside a run splits the prose around it', () => {
     result.removed.map((entry) => entry.text),
     ['the console call below is deliberate', 'and the reason it is deliberate'],
   );
+});
+
+test('prose that quotes a directive keyword mid-sentence is stripped, not mistaken for the directive', () => {
+  const source = [
+    '  // `contextLocale` boots the browser context at a NON-`en` navigator locale so',
+    "  // the SPA's cold-start resolver genuinely starts non-English (AC2 locale",
+    '  // proof). Chromium defaults to `navigator.language=en-US`→`en`, which would',
+    "  // make a `<html lang>='en'` assertion trivially green regardless of DB state.",
+    '  const context = await browser.newContext({ baseURL });',
+  ].join('\n');
+  const { comments } = scanComments(source, '.ts');
+  assert.deepEqual(
+    comments.map((comment) => classifyComment(source, comment)),
+    ['prose', 'prose', 'prose', 'prose'],
+    'a comment quoting `foo.language=bar` in prose is not an IntelliJ language-injection directive',
+  );
+  const result = strip(source, '.ts');
+  assert.equal(result.output, '  const context = await browser.newContext({ baseURL });');
+  assert.equal(result.removedCommentCount, 4);
+  assert.equal(result.removed.length, 1);
+  assert.equal(scanComments(result.output, '.ts').comments.length, 0);
+});
+
+test('a genuine language= injection directive still survives', () => {
+  const source = ['// language=SQL', 'const query = "SELECT 1";', '/*language=HTML*/', 'const markup = "<p></p>";'].join('\n');
+  const { comments } = scanComments(source, '.ts');
+  assert.deepEqual(
+    comments.map((comment) => classifyComment(source, comment)),
+    ['directive', 'directive'],
+  );
+  assert.equal(strip(source, '.ts').output, source);
+});
+
+test('every tool-directive pattern is anchored at the start of the comment body', () => {
+  for (const pattern of TOOL_DIRECTIVE_PATTERNS) {
+    assert.ok(
+      pattern.source.startsWith('^'),
+      `${pattern} matches anywhere in a comment, so prose quoting it would be classified a directive and ` +
+        'survive both the strip and --check',
+    );
+  }
 });
 
 test('a file with no comments is left byte-identical', () => {
