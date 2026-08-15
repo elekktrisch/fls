@@ -17,6 +17,29 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
+
+- **[REQUEST-ID-NEVER-LOGGED]** `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
+  **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
+  **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
+  matched, which is presumably why nobody checked. One-character-class fix, but it changes log output, so it
+  did not ride a comment sweep. *(seam: `RequestIdFilter` MDC key ↔ `logback-spring.xml`)*
+- **[AUDIT-REDACTION-BINDS-FIELD-NAMES-AS-STRINGS]** `application.yml`'s `audit.redaction.entities.*.allow` /
+  `denyAll` lists **Java field names as strings**, matched at runtime via `Field.getName()` in `PiiRedactor`.
+  Renaming a field on any audited entity silently flips it to `[redacted]` in the audit trail — **no compile
+  check catches it**, and the symptom is missing audit data, not a red build. This blocked two otherwise-obvious
+  `Club` renames in T-10. Give it a pin: bind by a constant/enum the compiler can see, or add a startup guard
+  asserting every configured name resolves to a real field. *(seam: `PiiRedactor` ↔ `application.yml` redaction
+  config)*
+- **[SERVER-MAIN-SWEEP-NITS]** Four pre-existing nits the strip exposed, none touched (all would change
+  behaviour or a CI-verified artifact): delivery eligibility (`LOCKED` + billable type + `created_on <= today-3d`)
+  lives in `DeliveryCreationService.eligibleFlights` rather than on an aggregate, in tension with ADR 0022 §2;
+  `DeliveriesController`'s `@Tag(description = "Read-only delivery … viewer")` is stale — it also owns
+  create/book/delete, and it feeds the OpenAPI snapshot; `PiiRedactor.MAX_SERIALIZED_BYTES` is compared against
+  `json.length()` (chars, not bytes); `FlightReportRepository.ReportCriteria.tenantId` is populated and never
+  read (tenant scoping is structural via `@TenantId`) — the deleted comment was the only thing explaining why
+  that component looks unused. *(seam: those four files)*
+
 ## Pending (filed by /do-ship J-31 T-09, 2026-08-15)
 
 - **[VACUOUS-NARROWING-ASSERTIONS]** Two tests were found asserting less than their names claimed, each held up
