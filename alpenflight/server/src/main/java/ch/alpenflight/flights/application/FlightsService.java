@@ -248,11 +248,10 @@ public class FlightsService {
             flight.unlinkTow();
             return;
         }
-        boolean requestOmitsTowLink = req.towFlightId() == null;
-        if (requestOmitsTowLink) {
+        FlightId towId = req.towFlightId();
+        if (towId == null) {
             return;
         }
-        FlightId towId = req.towFlightId();
         Flight tow = repository.findByIdWithCrew(towId)
                 .orElseThrow(() -> new InvalidTowLinkException(
                         "Tow flight " + towId.toExternal() + " not found in current tenant"));
