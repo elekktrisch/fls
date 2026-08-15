@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs';
 
-
 export const SYSTEM_CHROMIUM_PATHS = [
   '/usr/lib/chromium/chromium',
   '/usr/bin/chromium',

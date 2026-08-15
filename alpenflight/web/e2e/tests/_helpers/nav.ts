@@ -1,6 +1,5 @@
 import { expect, type Page } from '@playwright/test';
 
-
 const MASTERDATA_PATHS: ReadonlySet<string> = new Set([
   '/aircraft',
   '/locations',

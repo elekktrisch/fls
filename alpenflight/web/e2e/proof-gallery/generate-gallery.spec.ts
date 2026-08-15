@@ -473,7 +473,6 @@ describe('generateGallery — staged == rendered single source', () => {
   });
 });
 
-
 const SAMPLE_AUDIT = JSON.stringify({
   verdict: 'fail',
   attribution: { dead_code_introduced: 0, complexity_introduced: 5, duplication_introduced: 16 },

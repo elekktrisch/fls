@@ -1,9 +1,6 @@
 import { test as base, expect, type Page, type TestInfo } from '@playwright/test';
 
-
-const BENIGN_PATTERNS: readonly (string | RegExp)[] = [
-  /Failed to load resource.*favicon\.ico/i,
-];
+const BENIGN_PATTERNS: readonly (string | RegExp)[] = [/Failed to load resource.*favicon\.ico/i];
 
 function isBenign(message: string): boolean {
   return BENIGN_PATTERNS.some((p) =>

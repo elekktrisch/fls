@@ -1,6 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-
 export function afSelectTrigger(page: Page, testId: string): Locator {
   return page.getByTestId(testId).locator('nz-select');
 }
