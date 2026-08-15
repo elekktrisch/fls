@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 import {
   test,
@@ -40,6 +39,8 @@ const MSSQL_CONFIG: sql.config = {
   options: { trustServerCertificate: true, encrypt: false },
   pool: { max: 2, min: 0, idleTimeoutMillis: 5000 },
 };
+
+const keepUsersPersonIdLinkForTheFreshlySeededFanoutDb = (): void => undefined;
 
 async function withPool<T>(
   fn: (pool: sql.ConnectionPool) => Promise<T>,
@@ -148,6 +149,7 @@ test("J-4 parity: legacy /profile field set (user-settings + person License/Noti
       fullPage: true,
     });
   } finally {
+    keepUsersPersonIdLinkForTheFreshlySeededFanoutDb();
   }
 
   for (const png of [

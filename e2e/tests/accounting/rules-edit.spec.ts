@@ -1,24 +1,23 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, getBearerToken } from '../../test-data';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/accountingRuleFilters';
-const FORM_TIMEOUT = 60_000;
+const MASTERDATA_LIST_TIMEOUT = 60_000;
 const DESC_INITIAL = 'created by e2e';
 const DESC_EDITED = 'edited by e2e';
 
 const RULE_TYPE_FLIGHTTIME = 30;
-const ARTICLE_NUMBER = '5001';
-const MATCHED_IMMAT = 'HB-3407';
+const UNIT_TYPE_MINUTES_REQUIRED_BY_FLIGHTTIME_RULE = 10;
+const GLIDER_FLIGHT_MINUTES_ARTICLE_NUMBER = '5001';
+const SEEDED_GLIDER_IMMATRICULATION = 'HB-3407';
 
 function rowByName(page: Page, name: string) {
   return page.locator('tbody [data-testid="row"]', { hasText: name });
 }
 
 test.setTimeout(120_000);
-
 
 test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
@@ -49,8 +48,8 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
   const articlesRes = await loggedInPage.request.get(`${API_BASE}/api/v1/articles`, { headers });
   expect(articlesRes.ok(), `GET /articles: ${articlesRes.status()}`).toBeTruthy();
   const articles = await articlesRes.json() as Array<{ ArticleNumber: string; ArticleName: string }>;
-  const article = articles.find(a => a.ArticleNumber === ARTICLE_NUMBER);
-  expect(article, `article ${ARTICLE_NUMBER} should be seeded`).toBeTruthy();
+  const article = articles.find(a => a.ArticleNumber === GLIDER_FLIGHT_MINUTES_ARTICLE_NUMBER);
+  expect(article, `article ${GLIDER_FLIGHT_MINUTES_ARTICLE_NUMBER} should be seeded`).toBeTruthy();
 
   const createPayload = {
     RuleFilterName: RULE_NAME,
@@ -61,7 +60,7 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
     IsRuleForTowingFlights: false,
     IsRuleForMotorFlights: false,
     UseRuleForAllAircraftsExceptListed: false,
-    MatchedAircraftImmatriculations: [MATCHED_IMMAT],
+    MatchedAircraftImmatriculations: [SEEDED_GLIDER_IMMATRICULATION],
     UseRuleForAllStartTypesExceptListed: true,
     MatchedStartTypes: [],
     UseRuleForAllFlightTypesExceptListed: true,
@@ -81,7 +80,7 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
     UseRuleForAllPersonCategoriesExceptListed: true,
     MatchedPersonCategories: [],
     ArticleTarget: { ArticleNumber: article!.ArticleNumber, DeliveryLineText: article!.ArticleName },
-    AccountingUnitTypeId: 10,
+    AccountingUnitTypeId: UNIT_TYPE_MINUTES_REQUIRED_BY_FLIGHTTIME_RULE,
     IsChargedToClubInternal: false,
   };
   const createRes = await loggedInPage.request.post(
@@ -100,7 +99,7 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
   await expect(
     rowByName(page, RULE_NAME),
     'created rule should appear in /masterdata/accountingRuleFilters list',
-  ).toHaveCount(1, { timeout: FORM_TIMEOUT });
+  ).toHaveCount(1, { timeout: MASTERDATA_LIST_TIMEOUT });
 
   const editPayload = { ...createPayload, AccountingRuleFilterId: created.AccountingRuleFilterId, Description: DESC_EDITED };
   const editRes = await loggedInPage.request.post(

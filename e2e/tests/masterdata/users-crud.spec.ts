@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
@@ -14,7 +13,7 @@ async function waitBusyClear(page: Page): Promise<void> {
   }, undefined, { timeout: 15_000 });
 }
 
-test('masterdata-users:create-edit-delete', async ({ loggedInPage }) => {
+test('masterdata-users:create-edit-then-delete-if-CanDeleteRecord', async ({ loggedInPage }) => {
   const page = loggedInPage;
 
   page.on('dialog', async d => { await d.accept(); });

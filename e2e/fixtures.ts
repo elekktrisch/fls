@@ -7,6 +7,17 @@ const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
 const PASSWORD = process.env.FLS_PASSWORD ?? 's';
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
+const COMPOSE_PROJECT_MSSQL_CONTAINER = 'fls-e2e-mssql-1';
+
+const TOKEN_ATTEMPTS_ABSORBING_RESEED_AND_WORKER_BURST = 6;
+const EF_POOL_RECONNECT_GRACE_MS = 200;
+const ANGULAR_BOOTSTRAP_GRACE_BEFORE_BUSY_WAIT_MS = 500;
+const NG_DIGEST_SETTLE_AFTER_BUSY_CLEARED_MS = 300;
+
+function isTransientTokenFailure(status: number): boolean {
+  return status === 500 || status >= 502;
+}
+
 type AuthData = {
   loginResult: Record<string, unknown>;
   user: Record<string, unknown> & { myClub?: unknown };
@@ -18,14 +29,14 @@ let cachedAuth: AuthData | null = null;
 async function fetchAuthData(api: APIRequestContext): Promise<AuthData> {
   let tokenRes;
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= 6; attempt++) {
+  for (let attempt = 1; attempt <= TOKEN_ATTEMPTS_ABSORBING_RESEED_AND_WORKER_BURST; attempt++) {
     try {
       tokenRes = await api.post(`${API_BASE}/Token`, {
         form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
         timeout: 30_000,
       });
       if (tokenRes.ok()) { lastErr = undefined; break; }
-      if (tokenRes.status() !== 500 && tokenRes.status() < 502) {
+      if (!isTransientTokenFailure(tokenRes.status())) {
         break;
       }
     } catch (err) {
@@ -63,18 +74,22 @@ export async function loginViaUi(
   await page.goto('/#/main');
   await page.waitForLoadState('domcontentloaded');
 
-  await page.locator('[data-testid="login-toggle"]').click();
+  const navbarLoginFormReveal = page.locator('[data-testid="login-toggle"]');
+  await navbarLoginFormReveal.click();
 
-  await page.locator('[data-testid="username-input"]:visible').fill(username);
-  await page.locator('[data-testid="password-input"]:visible').fill(password);
-  await page.locator('[data-testid="login-submit"]:visible').click();
+  const visibleUsernameInput = page.locator('[data-testid="username-input"]:visible');
+  const visiblePasswordInput = page.locator('[data-testid="password-input"]:visible');
+  const visibleLoginSubmit = page.locator('[data-testid="login-submit"]:visible');
+  await visibleUsernameInput.fill(username);
+  await visiblePasswordInput.fill(password);
+  await visibleLoginSubmit.click();
 }
 
 export async function waitForLoggedInState(page: Page): Promise<void> {
   await page.waitForFunction(() => {
-    const lr = sessionStorage.getItem('ngStorage-loginResult');
-    if (!lr) return false;
-    try { return !!JSON.parse(lr).access_token; } catch { return false; }
+    const digestPersistedLoginResult = sessionStorage.getItem('ngStorage-loginResult');
+    if (!digestPersistedLoginResult) return false;
+    try { return !!JSON.parse(digestPersistedLoginResult).access_token; } catch { return false; }
   }, undefined, { timeout: 15_000 });
   await page.waitForLoadState('domcontentloaded');
 }
@@ -117,7 +132,7 @@ export const test = base.extend<Fixtures>({
       stdio: 'inherit',
       env: {
         ...process.env,
-        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? 'fls-e2e-mssql-1',
+        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? COMPOSE_PROJECT_MSSQL_CONTAINER,
       },
     });
     if (result.status !== 0) {
@@ -128,7 +143,7 @@ export const test = base.extend<Fixtures>({
       );
     }
     cachedAuth = null;
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, EF_POOL_RECONNECT_GRACE_MS));
     await use();
   },
 
@@ -138,7 +153,7 @@ export const test = base.extend<Fixtures>({
       stdio: 'inherit',
       env: {
         ...process.env,
-        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? 'fls-e2e-mssql-1',
+        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? COMPOSE_PROJECT_MSSQL_CONTAINER,
       },
     });
     if (result.status !== 0) {
@@ -179,9 +194,9 @@ export { expect };
 export async function gotoRoute(page: Page, hashPath: string): Promise<void> {
   await page.goto('/#' + hashPath);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(ANGULAR_BOOTSTRAP_GRACE_BEFORE_BUSY_WAIT_MS);
   await waitForBusyIndicatorsToClear(page);
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(NG_DIGEST_SETTLE_AFTER_BUSY_CLEARED_MS);
 }
 
 export async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {

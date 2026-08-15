@@ -2,6 +2,8 @@ import { test, expect, loginViaUi, screenshot, waitForLoggedInState } from '../.
 
 const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
 const PASSWORD = process.env.FLS_PASSWORD ?? 's';
+const WRONG_PASSWORD_SPENDS_ONE_OF_FIVE_ATTEMPTS_BEFORE_A_10_MIN_LOCKOUT =
+  'definitely-not-the-right-password';
 
 test.describe('auth flow (UI)', () => {
   test('login success: testclubadmin lands on dashboard with session populated', async ({ browser }) => {
@@ -13,7 +15,8 @@ test.describe('auth flow (UI)', () => {
 
       expect(page.url()).toMatch(/#\/main/);
 
-      await expect(page.locator('nav .fa-user').first()).toBeVisible();
+      const userMenuRenderedOnlyWhenLoggedIn = page.locator('nav .fa-user').first();
+      await expect(userMenuRenderedOnlyWhenLoggedIn).toBeVisible();
 
       const loginResult = await page.evaluate(() => sessionStorage.getItem('ngStorage-loginResult'));
       expect(loginResult, 'sessionStorage["ngStorage-loginResult"] should be populated after UI login').toBeTruthy();
@@ -29,7 +32,11 @@ test.describe('auth flow (UI)', () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
-      await loginViaUi(page, USERNAME, 'definitely-not-the-right-password');
+      await loginViaUi(
+        page,
+        USERNAME,
+        WRONG_PASSWORD_SPENDS_ONE_OF_FIVE_ATTEMPTS_BEFORE_A_10_MIN_LOCKOUT,
+      );
 
       const errorAlert = page.locator('[data-testid="login-error"]:visible');
       await expect(errorAlert).toBeVisible({ timeout: 20_000 });
@@ -74,7 +81,8 @@ test.describe('auth flow (UI)', () => {
       await loginViaUi(page, USERNAME, PASSWORD);
       await waitForLoggedInState(page);
 
-      await page.locator('nav .fa-user').first().click();
+      const userMenuDropdownToggle = page.locator('nav .fa-user').first();
+      await userMenuDropdownToggle.click();
       await page.locator('nav a[ng-click="logout()"]').first().click();
 
       await page.waitForURL(/#\/main/, { timeout: 10_000 });
@@ -98,6 +106,8 @@ test.describe('auth flow (UI)', () => {
     }
   });
 
-  test.skip('role gating: testclubuser sees no masterdata admin entries', async () => {
-  });
+  test.skip(
+    'role gating: testclubuser sees no masterdata admin entries — unwritten until the seed gives testclubuser its FlightOperator UserRole row',
+    (): void => undefined,
+  );
 });

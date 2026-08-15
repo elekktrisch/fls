@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { withPool } from '../../test-data';
@@ -16,7 +15,7 @@ async function bearer(page: Page): Promise<string> {
   return t!;
 }
 
-test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async ({
+test('aircraft-crud: create via API, edit Comment via UI, delete via API', async ({
   loggedInPage,
 }, testInfo) => {
   const page = loggedInPage;
@@ -71,15 +70,15 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   );
   expect(delRes.ok(), `DELETE /aircrafts/{id}: ${delRes.status()}`).toBeTruthy();
 
-  const overviewRes = await page.request.get(
+  const softDeleteAwareListRes = await page.request.get(
     `${API_BASE}/api/v1/aircrafts/listitems/gliders`,
     { headers: auth },
   );
   expect(
-    overviewRes.ok(),
-    `aircrafts/listitems: ${overviewRes.status()}: ${(await overviewRes.text().catch(() => '')).slice(0, 200)}`,
+    softDeleteAwareListRes.ok(),
+    `aircrafts/listitems: ${softDeleteAwareListRes.status()}: ${(await softDeleteAwareListRes.text().catch(() => '')).slice(0, 200)}`,
   ).toBeTruthy();
-  const overview = await overviewRes.json() as Array<{ AircraftId: string; Immatriculation: string }>;
-  expect(overview.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
+  const remainingGliders = await softDeleteAwareListRes.json() as Array<{ AircraftId: string; Immatriculation: string }>;
+  expect(remainingGliders.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
   await screenshot(loggedInPage, 'aircrafts-crud-01');
 });

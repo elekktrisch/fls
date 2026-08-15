@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 
 import {
@@ -16,7 +15,7 @@ const ADMIN = { username: "testclubadmin", password: "s" } as const;
 
 test.setTimeout(180_000);
 
-test("J-6 parity: legacy planning list + edit form + setup wizard (parity video)", async ({
+test("J-6 parity: legacy planning list, plus best-effort edit form + setup wizard (parity video)", async ({
   browser,
 }, testInfo) => {
   const ctx = await browser.newContext({

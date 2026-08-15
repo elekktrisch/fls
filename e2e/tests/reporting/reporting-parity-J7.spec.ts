@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 
 import {
@@ -15,7 +14,14 @@ test.use({ video: "on" });
 
 const ADMIN = { username: "testclubadmin", password: "s" } as const;
 
-test.setTimeout(180_000);
+const LEGACY_STACK_WALKTHROUGH_BUDGET_MS = 180_000;
+
+// ext: alpenflight-proof-fanout.yml add_shot basenames
+const GALLERY_PICKER_PNG = "legacy-flightreports-picker.png";
+const GALLERY_RESULT_PNG = "legacy-flightreports-result.png";
+const GALLERY_CUSTOM_PNG = "legacy-flightreports-custom.png";
+
+test.setTimeout(LEGACY_STACK_WALKTHROUGH_BUDGET_MS);
 
 test("J-7 parity: legacy reporting picker + canned result + custom builder (parity video)", async ({
   browser,
@@ -43,7 +49,7 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
     await cannedLink.waitFor({ state: "visible", timeout: 30_000 });
     await screenshot(page, "reporting-parity-J7-01-legacy-picker");
     await page.screenshot({
-      path: testInfo.outputPath("legacy-flightreports-picker.png"),
+      path: testInfo.outputPath(GALLERY_PICKER_PNG),
       fullPage: true,
     });
 
@@ -58,7 +64,7 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
       await summaryTable.waitFor({ state: "visible", timeout: 15_000 });
       await screenshot(page, "reporting-parity-J7-02-legacy-canned-result");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-flightreports-result.png"),
+        path: testInfo.outputPath(GALLERY_RESULT_PNG),
         fullPage: true,
       });
     } catch (err) {
@@ -77,7 +83,7 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
       await applyBtn.waitFor({ state: "visible", timeout: 30_000 });
       await screenshot(page, "reporting-parity-J7-03-legacy-custom-builder");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-flightreports-custom.png"),
+        path: testInfo.outputPath(GALLERY_CUSTOM_PNG),
         fullPage: true,
       });
     } catch (err) {
@@ -89,14 +95,11 @@ test("J-7 parity: legacy reporting picker + canned result + custom builder (pari
     }
 
     expect(
-      existsSync(testInfo.outputPath("legacy-flightreports-picker.png")),
-      "expected legacy parity screenshot legacy-flightreports-picker.png in the " +
+      existsSync(testInfo.outputPath(GALLERY_PICKER_PNG)),
+      `expected legacy parity screenshot ${GALLERY_PICKER_PNG} in the ` +
         "test output dir — the fanout gallery's J-7 legacy half depends on it",
     ).toBeTruthy();
-    for (const png of [
-      "legacy-flightreports-result.png",
-      "legacy-flightreports-custom.png",
-    ]) {
+    for (const png of [GALLERY_RESULT_PNG, GALLERY_CUSTOM_PNG]) {
       if (!existsSync(testInfo.outputPath(png))) {
         console.warn(
           `[J-7] best-effort legacy parity screenshot ${png} absent (slow/flaky ` +

@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, authHeaders, ensureGliderFlight, getBearerToken } from '../../test-data';
@@ -15,7 +14,7 @@ test('flights-edit: round-trip FlightComment via form submit', async ({ loggedIn
   });
   await loggedInPage.request.put(`${API_BASE}/api/v1/flights/${flightId}`, {
     headers: authHeaders(token),
-    data: await loadFlightForUpdate(loggedInPage, token, flightId, initialComment),
+    data: await flightDetailsWithNewComment(loggedInPage, token, flightId, initialComment),
   }).then(r => r.ok()
     ? null
     : Promise.reject(new Error(`PUT /flights/${flightId} init -> ${r.status()}: ${r.text()}`)));
@@ -57,7 +56,7 @@ async function readFlightComment(page: import('@playwright/test').Page, token: s
   return body?.GliderFlightDetailsData?.FlightComment ?? '';
 }
 
-async function loadFlightForUpdate(page: import('@playwright/test').Page, token: string, flightId: string, newComment: string): Promise<unknown> {
+async function flightDetailsWithNewComment(page: import('@playwright/test').Page, token: string, flightId: string, newComment: string): Promise<unknown> {
   const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });

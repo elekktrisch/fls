@@ -1,9 +1,12 @@
-
 import { expect, gotoRoute, screenshot, test } from "../../fixtures";
 import { testId } from "../../test-id";
 import { ensureGliderFlight, getBearerToken } from "../../test-data";
 
-test.setTimeout(90_000);
+const CLUB_WIDE_FLIGHT_SCAN_MS = 60_000;
+const REPORT_RENDER_PLUS_ONE_REPOLL_MS = 90_000;
+const TOTAL_FLIGHTS_COLUMN_CELL = "td:nth-child(4)";
+
+test.setTimeout(REPORT_RENDER_PLUS_ONE_REPOLL_MS);
 
 test("flight-reports: pre-canned location-this-year renders tabular output for seeded flights", async ({
   loggedInPage,
@@ -24,10 +27,10 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
   );
 
   const filterPanel = loggedInPage.locator(".filter-criteria-panel");
-  await expect(filterPanel).toBeVisible({ timeout: 60_000 });
+  await expect(filterPanel).toBeVisible({ timeout: CLUB_WIDE_FLIGHT_SCAN_MS });
 
-  const fromDate = filterPanel.locator(".filter-value").first();
-  await expect(fromDate).not.toBeEmpty();
+  const fromDateRenderedValue = filterPanel.locator(".filter-value").first();
+  await expect(fromDateRenderedValue).not.toBeEmpty();
 
   const summaryTable = loggedInPage
     .locator("table.fls")
@@ -53,7 +56,9 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
           loggedInPage,
           "/flightreports/location/location-flights-this-year",
         );
-        await expect(filterPanel).toBeVisible({ timeout: 60_000 });
+        await expect(filterPanel).toBeVisible({
+          timeout: CLUB_WIDE_FLIGHT_SCAN_MS,
+        });
         const freshTotals = loggedInPage
           .locator("table.fls")
           .filter({
@@ -62,7 +67,7 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
           .first()
           .locator("tr")
           .filter({ has: loggedInPage.locator("td") })
-          .locator("td:nth-child(4)");
+          .locator(TOTAL_FLIGHTS_COLUMN_CELL);
         const totalsText = await freshTotals.allInnerTexts();
         return totalsText
           .map((s) => parseInt(s.trim(), 10))
@@ -80,11 +85,11 @@ test("flight-reports: pre-canned location-this-year renders tabular output for s
 
   const flightsTable = loggedInPage.locator('table[ng-table="tableParams"]');
   await expect(flightsTable).toBeVisible({ timeout: 10_000 });
-  const flightRows = flightsTable.locator("tbody tr").filter({
+  const flightDataRows = flightsTable.locator("tbody tr").filter({
     has: loggedInPage.locator("td[ng-bind]"),
   });
   await expect
-    .poll(async () => flightRows.count(), {
+    .poll(async () => flightDataRows.count(), {
       message: "expected at least one flight row rendered from seeded data",
       timeout: 10_000,
     })

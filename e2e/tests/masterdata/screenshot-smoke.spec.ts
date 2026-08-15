@@ -27,12 +27,12 @@ async function dataRowCount(page: Page): Promise<number> {
 }
 
 async function openFirstRowForm(page: Page): Promise<void> {
-  const rowEdit = page.locator('tbody [data-testid="row-edit"]').first();
-  const row = page.locator('tbody [data-testid="row"]').first();
-  const target = (await rowEdit.count()) > 0 ? rowEdit : row;
-  await target.waitFor({ state: 'visible' });
+  const pencilEditLink = page.locator('tbody [data-testid="row-edit"]').first();
+  const clickableRow = page.locator('tbody [data-testid="row"]').first();
+  const editTarget = (await pencilEditLink.count()) > 0 ? pencilEditLink : clickableRow;
+  await editTarget.waitFor({ state: 'visible' });
   const urlBefore = page.url();
-  await target.click();
+  await editTarget.click();
   await page.waitForFunction(prev => location.href !== prev, urlBefore);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(500);

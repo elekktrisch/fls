@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import type { Page } from '@playwright/test';

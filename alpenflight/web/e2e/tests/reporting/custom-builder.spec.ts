@@ -1,7 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
 const TESTIDS = {
@@ -85,9 +84,11 @@ async function stubReportBackend(page: Page): Promise<void> {
   );
 }
 
+const MAX_URL_ENCODING_LAYERS = 3;
+
 function decodeFilterFromUrl(url: string): Record<string, unknown> {
   let encoded = new URL(url).pathname.split('/').at(-2) ?? '';
-  for (let i = 0; i < 3; i++) {
+  for (let layer = 0; layer < MAX_URL_ENCODING_LAYERS; layer++) {
     try {
       return JSON.parse(encoded) as Record<string, unknown>;
     } catch {
@@ -171,7 +172,7 @@ test.describe('flight reports custom builder — full contract (J-7 mock inner l
     const filter = decodeFilterFromUrl(page.url());
     expect(filter['flightDateFrom']).toBe('2026-01-01');
     expect(filter['flightDateTo']).toBe('2026-06-30');
-    expect(filter['towFlights']).toBe(false);
+    expect(filter['towFlights'], 'the person category leaves Tow off by default').toBe(false);
 
     await expect(page.getByTestId(TESTIDS.summaryTable)).toBeVisible();
   });

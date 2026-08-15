@@ -3,7 +3,6 @@ import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const CLUB_STATE_ID = '019e2e15-2c00-7bb8-8000-000000000bb8';
 const GLIDER_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
@@ -30,7 +29,9 @@ function localToday(): { key: string; iso: (hhmm: string) => string } {
   const key = `${y}-${m}-${d}`;
   return { key, iso: (hhmm: string) => `${key}T${hhmm}:00Z` };
 }
-const TODAY = localToday();
+const CALENDAR_DEFAULT_DAY = localToday();
+
+const CREATE_FORM_URL_TOLERATING_THE_COLD_START_LANG_QUERY = /\/reservations\/new(\?|$)/;
 
 interface MockReservationType {
   id: string;
@@ -86,8 +87,8 @@ const seedReservation: MockReservation = {
   reservationTypeId: TYPE_FLIGHT_ID,
   reservationTypeName: 'Flight',
   isAllDay: false,
-  start: TODAY.iso('10:00'),
-  end: TODAY.iso('11:00'),
+  start: CALENDAR_DEFAULT_DAY.iso('10:00'),
+  end: CALENDAR_DEFAULT_DAY.iso('11:00'),
 };
 
 function overlaps(a: MockReservation, b: MockReservation): boolean {
@@ -340,7 +341,7 @@ function dayBlock(page: Page, aircraftId: string, reservationId: string) {
 
 async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
   const pill = page.getByTestId(`reservations-daypicker-${dateKey}`);
-  const todayMs = new Date(`${TODAY.key}T00:00:00`).getTime();
+  const todayMs = new Date(`${CALENDAR_DEFAULT_DAY.key}T00:00:00`).getTime();
   const targetMs = new Date(`${dateKey}T00:00:00`).getTime();
   const direction = targetMs >= todayMs ? 'next' : 'prev';
   const wasDay =
@@ -399,6 +400,16 @@ async function fillReservationCommon(page: Page, aircraftId: string): Promise<vo
 
 function saveError(page: Page) {
   return page.getByTestId('reservation-save-error').getByTestId('af-page-error');
+}
+
+async function deleteViaInPageFetchSoTheRouteMockIntercepts(
+  page: Page,
+  reservationId: string,
+): Promise<number> {
+  return page.evaluate(
+    async (id) => (await fetch(`/api/v1/aircraft-reservations/${id}`, { method: 'DELETE' })).status,
+    reservationId,
+  );
 }
 
 test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
@@ -468,7 +479,9 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await page.getByTestId('reservations-view-week').click();
     await expect(page.getByTestId('reservations-week-grid')).toBeVisible();
     await expect(page.getByTestId('reservations-day-grid')).toHaveCount(0);
-    const weekCell = page.getByTestId(`reservations-week-cell-${AC_SAME}-${TODAY.key}`);
+    const weekCell = page.getByTestId(
+      `reservations-week-cell-${AC_SAME}-${CALENDAR_DEFAULT_DAY.key}`,
+    );
     await expect(weekCell).toBeVisible();
     await expect(weekCell).toContainText('1');
     await page.screenshot({
@@ -482,7 +495,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await page.getByTestId('reservations-view-week').click();
     await expect(page.getByTestId('reservations-week-grid')).toBeVisible();
-    await page.getByTestId(`reservations-daypicker-${TODAY.key}`).click();
+    await page.getByTestId(`reservations-daypicker-${CALENDAR_DEFAULT_DAY.key}`).click();
     await page.getByTestId('reservations-view-day').click();
     await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toBeVisible();
   });
@@ -497,7 +510,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(page).toHaveURL('/reservations/new');
 
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('14:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('15:00');
 
@@ -534,7 +547,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await gotoDe(page, '/reservations/new');
 
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-allday-toggle').check();
     await expect(page.getByTestId('reservation-start-time')).toHaveCount(0);
     await expect(page.getByTestId('reservation-end-time')).toHaveCount(0);
@@ -553,8 +566,8 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
       end: string;
     };
     expect(sent.isAllDay).toBe(true);
-    expect(sent.start).toBe(`${TODAY.key}T00:00:00Z`);
-    expect(sent.end).toBe(`${TODAY.key}T00:00:00Z`);
+    expect(sent.start).toBe(`${CALENDAR_DEFAULT_DAY.key}T00:00:00Z`);
+    expect(sent.end).toBe(`${CALENDAR_DEFAULT_DAY.key}T00:00:00Z`);
     const id = new URL(createdRes.headers()['location']!, 'http://localhost').pathname
       .split('/')
       .pop()!;
@@ -577,7 +590,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
 
@@ -592,7 +605,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await expect(saveError(page)).toBeVisible();
     await expect(saveError(page)).toContainText('overlapping');
-    await expect(page).toHaveURL(/\/reservations\/new(\?|$)/);
+    await expect(page).toHaveURL(CREATE_FORM_URL_TOLERATING_THE_COLD_START_LANG_QUERY);
     await page.screenshot({ path: 'screenshots/reservations/04-conflict-409.png', fullPage: true });
 
     await gotoDe(page, '/reservations');
@@ -620,7 +633,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('15:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('14:00');
 
@@ -635,7 +648,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await expect(saveError(page)).toBeVisible();
     await expect(saveError(page)).toContainText('End must be after start');
-    await expect(page).toHaveURL(/\/reservations\/new(\?|$)/);
+    await expect(page).toHaveURL(CREATE_FORM_URL_TOLERATING_THE_COLD_START_LANG_QUERY);
   });
 
   test('delete: deleting a reservation frees the slot so a new overlapping create then succeeds', async ({
@@ -646,7 +659,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
     const blocked = page.waitForResponse(
@@ -659,18 +672,14 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await blocked;
     await expect(saveError(page)).toBeVisible();
 
-    const delStatus = await page.evaluate(
-      async (id) =>
-        (await fetch(`/api/v1/aircraft-reservations/${id}`, { method: 'DELETE' })).status,
-      SEED_RESERVATION_ID,
-    );
+    const delStatus = await deleteViaInPageFetchSoTheRouteMockIntercepts(page, SEED_RESERVATION_ID);
     expect(delStatus).toBe(204);
     await gotoDe(page, '/reservations');
     await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toHaveCount(0);
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
     const created = page.waitForResponse(
@@ -693,7 +702,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_OTHER);
-    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
+    await page.getByTestId('reservation-date').locator('input').fill(CALENDAR_DEFAULT_DAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('09:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:00');
     const created = page.waitForResponse(

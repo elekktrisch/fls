@@ -17,10 +17,13 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const SEED_CLUB_NAME = 'Seed Club';
 
 const WELCOME_ATTACHED_SUBJECT = 'Welcome to AlpenFlight';
+
+const KC_PASSWORD_RESET_ACTION_TOKEN_LINK = 'login-actions/action-token';
+
+const NO_CLUB_ID_ATTRIBUTE: Record<string, string[]> = {};
 
 async function newRecordedContext(
   browser: Browser,
@@ -33,7 +36,7 @@ async function newRecordedContext(
 }
 
 async function provisionUnattachedUser(user: TestUser): Promise<string> {
-  return createUserWithAttributes(user, {});
+  return createUserWithAttributes(user, NO_CLUB_ID_ATTRIBUTE);
 }
 
 interface InviteeUser extends TestUser {
@@ -42,8 +45,8 @@ interface InviteeUser extends TestUser {
 
 function freshInvitee(): InviteeUser {
   const user = freshTestUser();
-  const tail = user.email.split('@')[0]!.split('-').pop()!;
-  return { ...user, friendlyName: `Gina Federated ${tail}` };
+  const runUniqueTail = user.email.split('@')[0]!.split('-').pop()!;
+  return { ...user, friendlyName: `Gina Federated ${runUniqueTail}` };
 }
 
 async function inviteThroughUi(page: Page, invitee: InviteeUser, username: string): Promise<void> {
@@ -123,7 +126,7 @@ test.describe('Admin invite robustness — bind unattached existing KC user (rea
       expect(body).toContain('an admin at');
       expect(body).toContain(SEED_CLUB_NAME);
       expect(body).toContain('has added you to the club');
-      expect(body).not.toContain('login-actions/action-token');
+      expect(body).not.toContain(KC_PASSWORD_RESET_ACTION_TOKEN_LINK);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

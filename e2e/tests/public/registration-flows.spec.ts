@@ -1,9 +1,8 @@
-
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import sql from 'mssql';
 import { findMessage } from '../../mailpit';
 import { screenshot } from '../../fixtures';
-
 
 const WEB_BASE = process.env.FLS_WEB ?? 'http://localhost:3000';
 const TEST_CLUB_KEY = process.env.FLS_TEST_CLUB_KEY ?? 'TestClub';
@@ -33,8 +32,19 @@ function uniqueEmail(kind: 'trial' | 'passenger'): string {
   return `${kind}-${nonce}@e2e.fls.local`;
 }
 
+async function injectSelectedDayBecauseAvailableDatesIsHardcodedToAnotherClub(
+  page: Page,
+): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as any;
+    const elem = w.angular.element(document.querySelector('[data-testid="trial-flight-form"]'));
+    const ctrl = elem.scope().ctrl;
+    ctrl.selectedDay = { date: '2099-07-01T00:00:00' };
+    elem.scope().$apply();
+  });
+}
 
-test('public:trialflight registration creates Person row and sends email', async ({ page }) => {
+test('public:trialflight registration creates Person row (email delivery annotated, not asserted)', async ({ page }) => {
   const submittedAt = new Date();
   const email = uniqueEmail('trial');
   const firstName = `Trial${Date.now().toString().slice(-6)}`;
@@ -51,13 +61,7 @@ test('public:trialflight registration creates Person row and sends email', async
   await form.locator('input#city').fill('Teststadt');
   await form.locator('input#PrivateEmail').fill(email);
 
-  await page.evaluate(() => {
-    const w = window as any;
-    const elem = w.angular.element(document.querySelector('[data-testid="trial-flight-form"]'));
-    const ctrl = elem.scope().ctrl;
-    ctrl.selectedDay = { date: '2099-07-01T00:00:00' };
-    elem.scope().$apply();
-  });
+  await injectSelectedDayBecauseAvailableDatesIsHardcodedToAnotherClub(page);
 
   await form.locator('[data-testid="submit"]').click();
 
@@ -94,7 +98,7 @@ test('public:trialflight registration creates Person row and sends email', async
   await screenshot(page, 'registration-flows-01');
 });
 
-test('public:passengerflight registration creates Person row and sends email', async ({ page }) => {
+test('public:passengerflight registration creates Person row (email delivery annotated, not asserted)', async ({ page }) => {
   const submittedAt = new Date();
   const email = uniqueEmail('passenger');
   const firstName = `Pax${Date.now().toString().slice(-6)}`;

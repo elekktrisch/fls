@@ -1,9 +1,10 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, getBearerToken, withPool } from '../../test-data';
 import sql from 'mssql';
 import type { Page } from '@playwright/test';
+
+const MOTOR_DEFAULT_START_TYPE_SELF_LAUNCH = 5;
 
 async function api<T>(page: Page, token: string, method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> {
   const res = await page.request.fetch(`${API_BASE}${url}`, {
@@ -58,7 +59,7 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
 
   const created = await api<{ FlightId: string }>(loggedInPage, token, 'POST', '/api/v1/flights', {
     FlightDate: flightDate,
-    StartType: 5,
+    StartType: MOTOR_DEFAULT_START_TYPE_SELF_LAUNCH,
     Comment: initialComment,
     MotorFlightDetailsData: {
       AircraftId: motorAircraft.AircraftId,

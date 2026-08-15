@@ -1,4 +1,3 @@
-
 import { test, expect, APIRequestContext } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -9,7 +8,6 @@ let token = '';
 let myClubId = '';
 
 const EMPTY_PAGE_BODY = { Sorting: {}, SearchFilter: {} };
-
 
 function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
@@ -25,7 +23,7 @@ function expectArray(value: unknown, label: string): asserts value is unknown[] 
   expect(Array.isArray(value), `${label} should be an array`).toBe(true);
 }
 
-function expectKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void {
+function expectKeysPresentNullAllowed(value: Record<string, unknown>, keys: readonly string[], label: string): void {
   for (const key of keys) {
     expect(value, `${label} missing key '${key}'`).toHaveProperty(key);
   }
@@ -33,7 +31,7 @@ function expectKeys(value: Record<string, unknown>, keys: readonly string[], lab
 
 function expectPagedEnvelope(body: unknown, label: string): Record<string, unknown> {
   expectObject(body, label);
-  expectKeys(body, ['Items', 'TotalRows', 'PageStart', 'PageSize'] as const, label);
+  expectKeysPresentNullAllowed(body, ['Items', 'TotalRows', 'PageStart', 'PageSize'] as const, label);
   expectArray((body as Record<string, unknown>).Items, `${label}.Items`);
   expect(typeof (body as Record<string, unknown>).TotalRows).toBe('number');
   return body as Record<string, unknown>;
@@ -60,7 +58,6 @@ async function authenticate(request: APIRequestContext): Promise<void> {
   }
 }
 
-
 test.beforeAll(async ({ playwright }) => {
   const ctx = await playwright.request.newContext();
   try {
@@ -71,7 +68,6 @@ test.beforeAll(async ({ playwright }) => {
   expect(token, 'bearer token should be populated by /Token').toBeTruthy();
 });
 
-
 test('contract:auth POST /Token returns access_token + token_type', async ({ request }) => {
   const res = await request.post(`${API_BASE}/Token`, {
     form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
@@ -79,7 +75,7 @@ test('contract:auth POST /Token returns access_token + token_type', async ({ req
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectObject(body, '/Token body');
-  expectKeys(body, ['access_token', 'token_type', 'expires_in'] as const, '/Token');
+  expectKeysPresentNullAllowed(body, ['access_token', 'token_type', 'expires_in'] as const, '/Token');
   expect(typeof body.access_token).toBe('string');
   expect(body.token_type).toBe('bearer');
 });
@@ -96,7 +92,7 @@ test('contract:auth GET /api/v1/users/my returns current user', async ({ request
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectObject(body, '/users/my');
-  expectKeys(body, ['UserId', 'UserName', 'ClubId'] as const, '/users/my');
+  expectKeysPresentNullAllowed(body, ['UserId', 'UserName', 'ClubId'] as const, '/users/my');
   expect(typeof body.ClubId).toBe('string');
   expect(body.UserName).toBeTruthy();
 });
@@ -108,13 +104,13 @@ test('contract:auth GET /api/v1/userroles returns array', async ({ request }) =>
   expectArray(body, '/userroles');
 });
 
-test('contract:auth GET /api/v1/persons/my returns current user person', async ({ request }) => {
+test('contract:auth GET /api/v1/persons/my returns the linked person, or null when the user has none', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/persons/my`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   if (body !== null) {
     expectObject(body, '/persons/my');
-    expectKeys(body, ['PersonId'] as const, '/persons/my');
+    expectKeysPresentNullAllowed(body, ['PersonId'] as const, '/persons/my');
   }
 });
 
@@ -125,17 +121,16 @@ test('contract:auth GET /api/v1/useraccountstates returns array of states', asyn
   expectArray(body, '/useraccountstates');
   if (body.length) {
     expectObject(body[0], '/useraccountstates[0]');
-    expectKeys(body[0] as Record<string, unknown>, ['UserAccountStateId'] as const, '/useraccountstates[0]');
+    expectKeysPresentNullAllowed(body[0] as Record<string, unknown>, ['UserAccountStateId'] as const, '/useraccountstates[0]');
   }
 });
-
 
 test('contract:clubs GET /api/v1/clubs/my returns the user club', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/clubs/my`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectObject(body, '/clubs/my');
-  expectKeys(body, ['ClubId', 'ClubName', 'ClubKey'] as const, '/clubs/my');
+  expectKeysPresentNullAllowed(body, ['ClubId', 'ClubName', 'ClubKey'] as const, '/clubs/my');
   if (myClubId) {
     expect(body.ClubId).toBe(myClubId);
   }
@@ -151,7 +146,6 @@ test('contract:clubs POST /api/v1/clubs/page/0/20 returns paged envelope', async
   expectPagedEnvelope(body, '/clubs/page');
 });
 
-
 test('contract:flights POST /api/v1/flights/gliderflights/page/0/20', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/flights/gliderflights/page/0/20`, {
     headers: authHeaders(),
@@ -163,7 +157,7 @@ test('contract:flights POST /api/v1/flights/gliderflights/page/0/20', async ({ r
   const items = envelope.Items as unknown[];
   if (items.length) {
     expectObject(items[0], '/flights/gliderflights/page Items[0]');
-    expectKeys(items[0] as Record<string, unknown>,
+    expectKeysPresentNullAllowed(items[0] as Record<string, unknown>,
       ['FlightId', 'FlightDate', 'ProcessState'] as const,
       'glider flight item');
   }
@@ -179,12 +173,11 @@ test('contract:flights POST /api/v1/flights/motorflights/page/0/20', async ({ re
   const envelope = expectPagedEnvelope(body, '/flights/motorflights/page');
   const items = envelope.Items as unknown[];
   if (items.length) {
-    expectKeys(items[0] as Record<string, unknown>,
+    expectKeysPresentNullAllowed(items[0] as Record<string, unknown>,
       ['FlightId', 'FlightDate'] as const,
       'motor flight item');
   }
 });
-
 
 test('contract:aircrafts GET /api/v1/aircrafts/overview', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/aircrafts/overview`, { headers: authHeaders() });
@@ -193,7 +186,7 @@ test('contract:aircrafts GET /api/v1/aircrafts/overview', async ({ request }) =>
   expectArray(body, '/aircrafts/overview');
   if (body.length) {
     const first = body[0] as Record<string, unknown>;
-    expectKeys(first, ['AircraftId', 'Immatriculation'] as const, 'aircraft overview item');
+    expectKeysPresentNullAllowed(first, ['AircraftId', 'Immatriculation'] as const, 'aircraft overview item');
   }
 });
 
@@ -231,14 +224,13 @@ test('contract:aircrafts GET /api/v1/aircrafttypes', async ({ request }) => {
   expectArray(await res.json(), '/aircrafttypes');
 });
 
-
 test('contract:persons GET /api/v1/persons/listitems/true', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/persons/listitems/true`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectArray(body, '/persons/listitems/true');
   if (body.length) {
-    expectKeys(body[0] as Record<string, unknown>,
+    expectKeysPresentNullAllowed(body[0] as Record<string, unknown>,
       ['PersonId', 'Lastname'] as const, 'person listitem');
   }
 });
@@ -294,7 +286,6 @@ test('contract:persons GET /api/v1/personcategories', async ({ request }) => {
   expectArray(await res.json(), '/personcategories');
 });
 
-
 test('contract:users GET /api/v1/users/overview/club', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/users/overview/club`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
@@ -302,8 +293,12 @@ test('contract:users GET /api/v1/users/overview/club', async ({ request }) => {
   expectArray(body, '/users/overview/club');
   if (body.length) {
     const first = body[0] as Record<string, unknown>;
-    expectKeys(first, ['UserId', 'UserName'] as const, 'user overview item');
-    expectKeys(first, ['ClubName'] as const, 'user overview item ClubName');
+    expectKeysPresentNullAllowed(first, ['UserId', 'UserName'] as const, 'user overview item');
+    expectKeysPresentNullAllowed(
+      first,
+      ['ClubName'] as const,
+      'user overview item carries the club denormalized as ClubName instead of ClubId',
+    );
   }
 });
 
@@ -316,14 +311,13 @@ test('contract:users POST /api/v1/users/page/0/20', async ({ request }) => {
   expectPagedEnvelope(await res.json(), '/users/page');
 });
 
-
 test('contract:locations GET /api/v1/locations/', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/locations/`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectArray(body, '/locations/');
   if (body.length) {
-    expectKeys(body[0] as Record<string, unknown>,
+    expectKeysPresentNullAllowed(body[0] as Record<string, unknown>,
       ['LocationId'] as const, 'location item');
   }
 });
@@ -343,7 +337,6 @@ test('contract:locations GET /api/v1/locationtypes/listitems', async ({ request 
   expectArray(await res.json(), '/locationtypes/listitems');
 });
 
-
 test('contract:planning POST /api/v1/planningdays/page/0/20', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/planningdays/page/0/20`, {
     headers: authHeaders(),
@@ -352,7 +345,6 @@ test('contract:planning POST /api/v1/planningdays/page/0/20', async ({ request }
   expect(res.ok()).toBeTruthy();
   expectPagedEnvelope(await res.json(), '/planningdays/page');
 });
-
 
 test('contract:reservations POST /api/v1/aircraftreservations/page/0/20', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/aircraftreservations/page/0/20`, {
@@ -369,7 +361,6 @@ test('contract:reservations GET /api/v1/aircraftreservationtypes', async ({ requ
   expectArray(await res.json(), '/aircraftreservationtypes');
 });
 
-
 test('contract:reports POST /api/v1/flightreports/page/0/20', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/flightreports/page/0/20`, {
     headers: authHeaders(),
@@ -378,18 +369,17 @@ test('contract:reports POST /api/v1/flightreports/page/0/20', async ({ request }
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectObject(body, '/flightreports/page');
-  expectKeys(body, ['Flights', 'FlightReportFilterCriteria'] as const, '/flightreports/page');
+  expectKeysPresentNullAllowed(body, ['Flights', 'FlightReportFilterCriteria'] as const, '/flightreports/page');
   expectPagedEnvelope(body.Flights, '/flightreports/page Flights');
 });
 
-
-test('contract:masterdata GET /api/v1/countries', async ({ request }) => {
+test('contract:masterdata GET /api/v1/countries is anonymous — no bearer sent', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/countries`);
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expectArray(body, '/countries');
   if (body.length) {
-    expectKeys(body[0] as Record<string, unknown>,
+    expectKeysPresentNullAllowed(body[0] as Record<string, unknown>,
       ['CountryId', 'CountryName'] as const, 'country');
   }
 });
@@ -493,7 +483,6 @@ test('contract:masterdata POST /api/v1/accountingrulefilters/page/0/20', async (
   expectPagedEnvelope(await res.json(), '/accountingrulefilters/page');
 });
 
-
 test('contract:deliveries POST /api/v1/deliveries/page/0/20', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/deliveries/page/0/20`, {
     headers: authHeaders(),
@@ -512,14 +501,12 @@ test('contract:deliveries POST /api/v1/deliverycreationtests/page/0/20', async (
   expectPagedEnvelope(await res.json(), '/deliverycreationtests/page');
 });
 
-
 test('contract:audit GET /api/v1/dashboards returns dashboard payload', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/dashboards`, { headers: authHeaders() });
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(body === null || typeof body === 'object').toBeTruthy();
 });
-
 
 test('contract:workflows GET /api/v1/workflows/flightvalidation returns 200', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/workflows/flightvalidation`, { headers: authHeaders() });
@@ -541,8 +528,7 @@ test('contract:workflows GET /api/v1/workflows/deliverycreation returns 200', as
   expect(res.ok()).toBeTruthy();
 });
 
-
-test('contract:translations GET /api/v1/translations?lang=de returns map', async ({ request }) => {
+test('contract:translations GET /api/v1/translations?lang=de returns map, anonymous — no bearer sent', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/translations?lang=de`);
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
@@ -554,8 +540,7 @@ test('contract:translations GET /api/v1/translations?lang=de returns map', async
   }
 });
 
-
-test('contract:system POST /api/v1/systemlogs/page/0/20', async ({ request }) => {
+test('contract:system POST /api/v1/systemlogs/page/0/20 is role-gated: 401/403, or 200 + paged envelope', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/systemlogs/page/0/20`, {
     headers: authHeaders(),
     data: EMPTY_PAGE_BODY,
@@ -566,7 +551,7 @@ test('contract:system POST /api/v1/systemlogs/page/0/20', async ({ request }) =>
   }
 });
 
-test('contract:system POST /api/v1/settings/page/0/20 returns paged envelope', async ({ request }) => {
+test('contract:system POST /api/v1/settings/page/0/20 is role-gated: 401/403, or 200 + paged envelope', async ({ request }) => {
   const res = await request.post(`${API_BASE}/api/v1/settings/page/0/20`, {
     headers: authHeaders(),
     data: EMPTY_PAGE_BODY,
@@ -576,7 +561,6 @@ test('contract:system POST /api/v1/settings/page/0/20 returns paged envelope', a
     expectPagedEnvelope(await res.json(), '/settings/page');
   }
 });
-
 
 test('contract:negative request without bearer returns 401', async ({ request }) => {
   const res = await request.get(`${API_BASE}/api/v1/users/my`);

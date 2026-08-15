@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
@@ -78,7 +77,8 @@ test('planning:create planning day with crew shows up in /planning list', async 
         const ngEl = w.angular.element(formEl);
         const s = ngEl.scope();
 
-        const loc = s.md.locations.find(l => l.IcaoCode === 'LSZK') ?? s.md.locations[0];
+        const testClubHomebaseIcao = 'LSZK';
+        const loc = s.md.locations.find(l => l.IcaoCode === testClubHomebaseIcao) ?? s.md.locations[0];
         const towPilot = s.md.towingPilots[0];
         const operator = s.md.gliderPilots[0];
         const instructor = s.md.instructors[0];

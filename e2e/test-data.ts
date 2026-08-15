@@ -48,7 +48,6 @@ export function authHeaders(token: string): Record<string, string> {
   };
 }
 
-
 export async function findFlightByComment(
   request: APIRequestContext,
   token: string,
@@ -131,7 +130,7 @@ export async function ensureGliderFlight(
   const ftype =
     ftypeList.find((t) => !t.IsPassengerFlight && !t.InstructorRequired) ??
     ftypeList[0];
-  const loc =
+  const clubHomebaseOrFallbackLocation =
     locList.find((l) => l.LocationId === club.HomebaseId) ??
     locList.find((l) => l.IcaoCode === "LSZK") ??
     locList[0];
@@ -155,8 +154,8 @@ export async function ensureGliderFlight(
         AircraftId: aircraft.AircraftId,
         PilotPersonId: pilot.PersonId,
         FlightTypeId: ftype.FlightTypeId,
-        StartLocationId: loc.LocationId,
-        LdgLocationId: loc.LocationId,
+        StartLocationId: clubHomebaseOrFallbackLocation.LocationId,
+        LdgLocationId: clubHomebaseOrFallbackLocation.LocationId,
         StartDateTime: start.toISOString(),
         LdgDateTime: landing.toISOString(),
         NrOfLdgs: 1,
@@ -207,6 +206,6 @@ export async function ensureGliderFlight(
     aircraftId: aircraft.AircraftId,
     pilotPersonId: pilot.PersonId,
     flightTypeId: ftype.FlightTypeId,
-    startLocationId: loc.LocationId,
+    startLocationId: clubHomebaseOrFallbackLocation.LocationId,
   };
 }

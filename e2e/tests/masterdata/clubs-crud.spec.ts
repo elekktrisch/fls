@@ -53,10 +53,14 @@ test.describe('#28 club-crud (edit own club)', () => {
     await loggedInPage.waitForURL(/#\/masterdata\/clubs(?:\?.*)?$/, { timeout: 15_000 });
   });
 
-  test.skip('create new club (SystemAdministrator-only)', () => {
-  });
+  test.skip(
+    'create new club (SystemAdministrator-only, out of reach for the ClubAdministrator fixture)',
+    (): void => undefined,
+  );
 
-  test.skip('delete club (SystemAdministrator-only)', () => {
-  });
+  test.skip(
+    'delete club (SystemAdministrator-only, out of reach for the ClubAdministrator fixture)',
+    (): void => undefined,
+  );
 
 });

@@ -22,8 +22,11 @@ import {
 import { proofVideo } from './_helpers/proof-video';
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const RESERVATIONS = '/api/v1/aircraft-reservations';
+
+const UI_CREATE_UNDER_LOADED_FANOUT_TIMEOUT_MS = 90_000;
+
+const DAYS_AHEAD_CLEAR_OF_THE_TIMED_TODAY_RESERVATION = 7;
 
 function todayKey(): string {
   const now = new Date();
@@ -187,10 +190,10 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
     await twoClubs?.dispose();
   });
 
-  test('[happy] create a timed reservation through the UI type-picker → it renders in the list and scheduler lane', async ({
+  test('[happy] create a timed reservation through the UI type-picker → it renders as a time-placed block in its aircraft lane on the day calendar', async ({
     browser,
   }, testInfo) => {
-    test.setTimeout(90_000);
+    test.setTimeout(UI_CREATE_UNDER_LOADED_FANOUT_TIMEOUT_MS);
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
@@ -211,16 +214,23 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       );
       await selectAfOption(page, 'reservation-type-select', reservationTypeId);
       await selectAfOption(page, 'reservation-pilot-select', masterdata.pilotPersonId);
-      await selectAfOption(page, 'reservation-second-crew-select', masterdata.pilotPersonId);
+      const secondCrewRequiredByTheMultiSeatAircraft = masterdata.pilotPersonId;
+      await selectAfOption(
+        page,
+        'reservation-second-crew-select',
+        secondCrewRequiredByTheMultiSeatAircraft,
+      );
       await selectAfOption(page, 'reservation-location-select', masterdata.locationId);
       const today = todayKey();
       await page.getByTestId('reservation-date').locator('input').fill(today);
       await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
       await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
 
-      await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-reservation-form.png`,
-        fullPage: true,
+      await test.step('capture the populated create form before the save, so a partial red still yields the gallery shot', async () => {
+        await page.screenshot({
+          path: `${testInfo.outputDir}/alpenflight-reservation-form.png`,
+          fullPage: true,
+        });
       });
 
       const createdResp = page.waitForResponse(
@@ -315,7 +325,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       const body = (await overlap.json()) as { key?: string };
       expect(body.key).toBe('aircraft.reservation.overlap');
 
-      const adjacent = await createReservation(ctx, adminBearer, createdIds, {
+      const adjacentHalfOpenBooking = await createReservation(ctx, adminBearer, createdIds, {
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
@@ -343,7 +353,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         'editing a reservation in place must NOT conflict with itself (self-exclude)',
       ).toBe(200);
 
-      expect(adjacent).toBeTruthy();
+      expect(adjacentHalfOpenBooking).toBeTruthy();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -388,7 +398,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
     try {
       await loginAsReservationAdmin(page);
 
-      const allDayKey = dayKeyFromToday(7);
+      const allDayKey = dayKeyFromToday(DAYS_AHEAD_CLEAR_OF_THE_TIMED_TODAY_RESERVATION);
       const id = await createReservation(ctx, adminBearer, createdIds, {
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,

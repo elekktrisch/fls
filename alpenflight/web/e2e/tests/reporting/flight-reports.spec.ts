@@ -1,7 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = 'clb-019e30c3-2c00-7001-8000-000000000001';
 
 const PERSON_CANNED = [
@@ -58,7 +57,6 @@ function minusDays(base: Date, n: number): Date {
 function jan1(base: Date): Date {
   return new Date(base.getFullYear(), 0, 1);
 }
-
 
 const personReportResult = {
   items: [
@@ -261,6 +259,9 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const SUMMARY_ROW_CELL_ORDER = ['group', 'starts', 'ldgs', 'flights', 'duration'] as const;
+const TOTAL_FLIGHTS_CELL = SUMMARY_ROW_CELL_ORDER.indexOf('flights');
+
 async function summaryRowCells(page: Page, group: string): Promise<string[]> {
   const row = page
     .getByTestId(TESTIDS.summaryRow)
@@ -341,9 +342,11 @@ test.describe('flight reports — full contract (J-7 mock inner loop)', () => {
       ).toHaveCount(1);
     }
     const motorCells = await summaryRowCells(page, 'Pilot (Motor)');
-    expect(Number(motorCells[3])).toBeGreaterThan(0);
+    const motorPilotFlightsCorrectedFromTheLegacyZero = Number(motorCells[TOTAL_FLIGHTS_CELL]);
+    expect(motorPilotFlightsCorrectedFromTheLegacyZero).toBeGreaterThan(0);
     const towCells = await summaryRowCells(page, 'Pilot (Towing)');
-    expect(Number(towCells[3])).toBeGreaterThan(0);
+    const towPilotFlightsCorrectedFromTheLegacyZero = Number(towCells[TOTAL_FLIGHTS_CELL]);
+    expect(towPilotFlightsCorrectedFromTheLegacyZero).toBeGreaterThan(0);
 
     await expect(page.getByTestId(TESTIDS.flightsTable)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.flightsRow).first()).toBeVisible();

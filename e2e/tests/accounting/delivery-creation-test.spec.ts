@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { APIResponse, Page } from '@playwright/test';
 
@@ -25,7 +24,9 @@ test('delivery-creation-test: generateExampleDelivery preview returns a Delivery
     result = await res.json();
     const matched = (result.MatchedAccountingRuleFilterIds as unknown[]).length;
     const items = result.CreatedDeliveryDetails?.DeliveryItems as unknown[] | undefined;
-    if (matched === 0 || !result.CreatedDeliveryDetails || (items && items.length > 0)) break;
+    const consistentPreviewSnapshot =
+      matched === 0 || !result.CreatedDeliveryDetails || (items && items.length > 0);
+    if (consistentPreviewSnapshot) break;
     await new Promise(r => setTimeout(r, 300 * attempt));
   }
   expect(res.ok(), `GET testdeliveryforflight -> ${res.status()}: ${await res.text()}`).toBeTruthy();
@@ -69,12 +70,15 @@ test('delivery-creation-test: stored regression tests endpoint returns a paged l
   expect(typeof body.TotalRows, 'PagedList.TotalRows should be a number').toBe('number');
 
   if ((body.Items as Array<{ DeliveryCreationTestId: string }>).length > 0) {
-    const testId = body.Items[0].DeliveryCreationTestId;
+    const storedRegressionTestId = body.Items[0].DeliveryCreationTestId;
     const runRes = await loggedInPage.request.get(
-      `${API_BASE}/api/v1/deliverycreationtests/run/${testId}`,
+      `${API_BASE}/api/v1/deliverycreationtests/run/${storedRegressionTestId}`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
-    expect(runRes.ok(), `GET deliverycreationtests/run/${testId} -> ${runRes.status()}`).toBeTruthy();
+    expect(
+      runRes.ok(),
+      `GET deliverycreationtests/run/${storedRegressionTestId} -> ${runRes.status()}`,
+    ).toBeTruthy();
     const runBody = await runRes.json();
     expect(runBody.DeliveryCreationTestId, 'run result echoes test id').toBeTruthy();
     expect(runBody.LastDeliveryCreationTestResult, 'run result has LastDeliveryCreationTestResult').toBeTruthy();
@@ -82,7 +86,7 @@ test('delivery-creation-test: stored regression tests endpoint returns a paged l
   await screenshot(loggedInPage, 'delivery-creation-test-02');
 });
 
-test('delivery-creation-test: /masterdata/deliveryCreationTests list renders for club-admin', async ({ loggedInPage }) => {
+test('delivery-creation-test: /masterdata/deliveryCreationTests route loads for club-admin (smoke — the seeded list is empty, no rows asserted)', async ({ loggedInPage }) => {
   await gotoRoute(loggedInPage, '/masterdata/deliveryCreationTests');
   await expect(loggedInPage.locator('body')).toBeVisible();
   await screenshot(loggedInPage, 'delivery-creation-test-03');

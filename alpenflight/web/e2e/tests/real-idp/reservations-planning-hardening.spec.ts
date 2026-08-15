@@ -14,7 +14,6 @@ import {
 } from './_helpers/planning-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-
 interface SeededPrincipal {
   username: string;
   password: string;
@@ -77,18 +76,23 @@ test.describe('J-6b nav role-gating (real-idp)', () => {
       await loginAs(page, CLUB_ADMIN1);
       await page.goto('/start?lang=de');
 
-      const reservations = page.getByTestId('af-nav-section-/reservations');
-      await expect(reservations, 'a club admin sees the Reservations nav entry').toBeVisible();
+      const reservationsNavEntry = page.getByTestId('af-nav-section-/reservations');
+      await expect(
+        reservationsNavEntry,
+        'a club admin sees the Reservations nav entry',
+      ).toBeVisible();
 
-      const masterdata = page.getByTestId('af-nav-group-masterdata');
-      await expect(masterdata, 'a club admin sees the Masterdata nav group').toBeVisible();
-      await masterdata.click();
+      const masterdataNavGroup = page.getByTestId('af-nav-group-masterdata');
+      await expect(masterdataNavGroup, 'a club admin sees the Masterdata nav group').toBeVisible();
+      await masterdataNavGroup.click();
       await expect(
         page.getByTestId('af-nav-section-/users'),
         'the Users entry is reachable under the opened Masterdata group',
       ).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(page.getByTestId('af-nav-section-/users')).toHaveCount(0);
+      await test.step('close the Masterdata dropdown so the screenshot and the later Reservations click hit the settled top bar', async () => {
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('af-nav-section-/users')).toHaveCount(0);
+      });
 
       await expect(
         page.getByTestId('af-nav-section-/clubs'),
@@ -100,7 +104,7 @@ test.describe('J-6b nav role-gating (real-idp)', () => {
         fullPage: true,
       });
 
-      await reservations.click();
+      await reservationsNavEntry.click();
       await expect(page).toHaveURL(/\/reservations(\?|$)/);
       await expect(page.getByTestId('reservations-view-toggle')).toBeVisible();
       await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
@@ -199,7 +203,7 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
     }
   });
 
-  test('[happy] the V36 dev-seed gives clubadmin1’s club ≥1 row in the Persons + Aircraft lists', async ({
+  test('[happy] the V36 dev-seed gives clubadmin1’s club ≥1 row in the rendered Persons list and in the Aircraft read', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -271,7 +275,10 @@ test.describe('J-6b reservations calendar (real-idp)', () => {
         fullPage: true,
       });
 
-      const lumOf = (el: ReturnType<Page['getByTestId']>, prop: 'backgroundColor' | 'color') =>
+      const relativeLuminanceOf = (
+        el: ReturnType<Page['getByTestId']>,
+        prop: 'backgroundColor' | 'color',
+      ) =>
         el.evaluate((node, p) => {
           const raw = getComputedStyle(node as HTMLElement)[p as 'backgroundColor' | 'color'];
           const probe = document.createElement('span');
@@ -282,8 +289,8 @@ test.describe('J-6b reservations calendar (real-idp)', () => {
           const [r, g, b] = rgb.match(/\d+(\.\d+)?/g)!.map(Number);
           return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
         }, prop);
-      const selBg = await lumOf(dayBtn, 'backgroundColor');
-      const selFg = await lumOf(dayBtn, 'color');
+      const selBg = await relativeLuminanceOf(dayBtn, 'backgroundColor');
+      const selFg = await relativeLuminanceOf(dayBtn, 'color');
       expect(selBg, 'the selected toggle ground is dark').toBeLessThan(96);
       expect(selFg, 'the selected toggle text is light (legible, not blacked-out)').toBeGreaterThan(
         160,
@@ -350,9 +357,11 @@ test.describe('J-6b planning read-only + edit-mode (real-idp)', () => {
       await page.goto(`/planning/${dayId}/view?lang=de`);
       await expect(page.getByTestId('planning-edit-form')).toBeVisible();
 
-      await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-edit-form.png`,
-        fullPage: true,
+      await test.step('capture the populated read-only form before the deep field-state asserts, so a partial red still yields the gallery shot', async () => {
+        await page.screenshot({
+          path: `${testInfo.outputDir}/alpenflight-planning-edit-form.png`,
+          fullPage: true,
+        });
       });
 
       await expect(
@@ -383,7 +392,6 @@ test.describe('J-6b planning read-only + edit-mode (real-idp)', () => {
   });
 });
 
-
 function dayKeyFromToday(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -393,7 +401,8 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
-const REAL_PLANNING_DUPLICATE_MESSAGE = 'A planning day already exists for this date and location.';
+const PLANNING_DAYS_SERVICE_DUPLICATE_MESSAGE =
+  'A planning day already exists for this date and location.';
 
 test.describe('J-6b inline server-side validation — real chain (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
@@ -479,7 +488,7 @@ test.describe('J-6b inline server-side validation — real chain (real-idp)', ()
       expect(
         conflictBody.message,
         'the real backend returns the duplicate PROSE (not the mock i18n key)',
-      ).toBe(REAL_PLANNING_DUPLICATE_MESSAGE);
+      ).toBe(PLANNING_DAYS_SERVICE_DUPLICATE_MESSAGE);
 
       await expect(
         page.getByTestId('planning-date-server-error'),

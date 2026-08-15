@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
 import sql from 'mssql';
@@ -71,12 +70,16 @@ test('reservations-crud: create, edit, delete via /reservations', async ({ logge
   expect(pilots.length, 'expected at least one glider pilot').toBeGreaterThan(0);
   expect(locations.length, 'expected at least one location').toBeGreaterThan(0);
 
-  const day = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const tomorrowStillMatchesDefaultFromTodayFilter = new Date(Date.now() + 24 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 10);
   const remarks = `e2e-create-${Date.now()}`;
   const createRes = await page.request.post(`${API_BASE}/api/v1/aircraftreservations`, {
     headers: auth,
     data: {
-      Start: `${day}T00:00:00`, End: `${day}T00:00:00`, IsAllDayReservation: true,
+      Start: `${tomorrowStillMatchesDefaultFromTodayFilter}T00:00:00`,
+      End: `${tomorrowStillMatchesDefaultFromTodayFilter}T00:00:00`,
+      IsAllDayReservation: true,
       AircraftId: aircraft.AircraftId, PilotPersonId: pilots[0].PersonId,
       LocationId: locations[0].LocationId, ReservationTypeId: reservationTypeId,
       Remarks: remarks,

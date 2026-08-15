@@ -1,9 +1,10 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const SETTINGS_KEY = 'AircraftIdsToDisplayInScheduler';
+const SERIAL_PER_AIRCRAFT_SERIES_FETCH_MS = 30_000;
+const MULTI_DAY_GRID_MIN_WIDTH_PX = 500;
 
 async function getBearerToken(page: Page): Promise<string> {
   const token = await page.evaluate(() => {
@@ -29,14 +30,13 @@ async function waitForSchedulerLoaded(page: Page): Promise<void> {
   await page.waitForFunction(
     () => document.querySelectorAll('.cssload-loader').length === 0,
     undefined,
-    { timeout: 30_000 },
+    { timeout: SERIAL_PER_AIRCRAFT_SERIES_FETCH_MS },
   );
 }
 
-test.skip('reservation-scheduler renders aircraft row, headers, and a seeded event', async ({
+test.skip('reservation-scheduler renders aircraft row, headers, and a seeded event (skipped: per-aircraft series fetch needs >60s on this stack)', async ({
   loggedInPage,
 }) => {
-
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   loggedInPage.on('console', (msg) => {
@@ -67,7 +67,7 @@ test.skip('reservation-scheduler renders aircraft row, headers, and a seeded eve
   const container = loggedInPage.locator('.scroll-container .container');
   await expect(container, 'scheduler grid container').toBeVisible();
   const containerWidth = await container.evaluate((el) => (el as HTMLElement).getBoundingClientRect().width);
-  expect(containerWidth, 'grid should span multiple days').toBeGreaterThan(500);
+  expect(containerWidth, 'grid should span multiple days').toBeGreaterThan(MULTI_DAY_GRID_MIN_WIDTH_PX);
 
   const legendText = (await loggedInPage.locator('.left-header-area svg text').allTextContents()).join(' ');
   const someImmatVisible = expectedImmatriculations.some((im) => legendText.includes(im));

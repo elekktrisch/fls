@@ -13,7 +13,6 @@ import { createUserWithAttributes, findUserByEmail, deleteUser } from './_helper
 import { waitForMessage, waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const JOIN_PATH = '/join';
 const JOIN_PENDING_PATH = '/join/pending';
 
@@ -21,11 +20,16 @@ const SEED_JOIN_CODE = 'SEEDCLUB';
 const SEED_CLUB_NAME = 'Seed Club';
 const SEED_CLUB_CITY = 'Zürich';
 
-const ADMIN_USER = 'clubadmin4@example.com';
-const ADMIN_PASSWORD = 'clubadmin4-dev-2026!';
+const SEED_CLUB_ADMIN_USER = 'clubadmin4@example.com';
+const SEED_CLUB_ADMIN_PASSWORD = 'clubadmin4-dev-2026!';
 
 const SUBJECT_ADMIN_NEW_REQUEST = 'Neue Beitrittsanfrage';
 const SUBJECT_PILOT_APPROVED = 'Beitrittsanfrage genehmigt';
+
+const NO_CLUB_ID_ATTRIBUTE_MEANS_NO_TENANT: Record<string, string[]> = {};
+
+const ATTEMPTS_ALLOWED_BEFORE_THE_RATE_LIMIT_429 = 5;
+const UNKNOWN_CODE_PREFIX_IN_THE_STORY_ALPHABET_NO_0_1_O_I = 'ZZNKPCD';
 
 interface PendingRequest {
   readonly id: string;
@@ -42,8 +46,11 @@ async function newRecordedContext(
   return context;
 }
 
-async function provisionAndLoginOnJoin(page: Page, user: TestUser): Promise<void> {
-  await createUserWithAttributes(user, {});
+async function provisionVerifiedTenantlessPilotAndLoginOnJoin(
+  page: Page,
+  user: TestUser,
+): Promise<void> {
+  await createUserWithAttributes(user, NO_CLUB_ID_ATTRIBUTE_MEANS_NO_TENANT);
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
@@ -60,7 +67,7 @@ async function submitJoinCode(page: Page, code: string, note?: string): Promise<
   await page.getByTestId('join-submit').click();
 }
 
-async function captureAdminBearer(browser: Browser, baseURL: string): Promise<string> {
+async function captureSeedClubAdminBearer(browser: Browser, baseURL: string): Promise<string> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   try {
@@ -71,7 +78,7 @@ async function captureAdminBearer(browser: Browser, baseURL: string): Promise<st
     await page.goto('/');
     await page.getByTestId('landing-topbar-sign-in').click();
     await page.waitForURL(/\/realms\/alpenflight\//);
-    await fillKcLogin(page, ADMIN_USER, ADMIN_PASSWORD);
+    await fillKcLogin(page, SEED_CLUB_ADMIN_USER, SEED_CLUB_ADMIN_PASSWORD);
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
     const req = await bearerPromise;
     return req.headers()['authorization']!;
@@ -138,7 +145,7 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
       await submitJoinCode(page, SEED_JOIN_CODE, 'Looking forward to flying with you.');
 
       await expect(page).toHaveURL(new RegExp(`${JOIN_PENDING_PATH}$`));
@@ -148,9 +155,11 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
       await expect(page.getByTestId('join-pending-club-logo')).toBeVisible();
       await expect(page.getByTestId('join-pending-withdraw')).toBeVisible();
 
-      await waitForMessageWithSubject(ADMIN_USER, SUBJECT_ADMIN_NEW_REQUEST, { timeoutMs: 20_000 });
+      await waitForMessageWithSubject(SEED_CLUB_ADMIN_USER, SUBJECT_ADMIN_NEW_REQUEST, {
+        timeoutMs: 20_000,
+      });
 
-      const adminBearer = await captureAdminBearer(browser, baseURL);
+      const adminBearer = await captureSeedClubAdminBearer(browser, baseURL);
       const pending = await findPendingFor(ctx.request, adminBearer, user.email);
       expect(pending.clubId).toBe('019e30c3-2c00-7001-8000-000000000001');
       await approve(ctx.request, adminBearer, pending.id);
@@ -181,11 +190,11 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     const reason = 'No spare slots this season — try again in the autumn intake.';
     try {
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
       await submitJoinCode(page, SEED_JOIN_CODE);
       await expect(page).toHaveURL(new RegExp(`${JOIN_PENDING_PATH}$`));
 
-      const adminBearer = await captureAdminBearer(browser, baseURL);
+      const adminBearer = await captureSeedClubAdminBearer(browser, baseURL);
       const pending = await findPendingFor(ctx.request, adminBearer, user.email);
       await deny(ctx.request, adminBearer, pending.id, reason);
 
@@ -209,7 +218,7 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
       await submitJoinCode(page, SEED_JOIN_CODE);
       await expect(page).toHaveURL(new RegExp(`${JOIN_PENDING_PATH}$`));
 
@@ -221,8 +230,10 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
       await expect(page).toHaveURL(new RegExp(`${JOIN_PENDING_PATH}$`));
       await expect(page.getByTestId('join-pending-club-name')).toHaveText(SEED_CLUB_NAME);
 
-      await page.getByTestId('join-pending-withdraw').click();
-      await expect(page).toHaveURL(new RegExp(`${JOIN_PATH}$`));
+      await test.step('leave the realm clean — withdraw the re-submitted request too', async () => {
+        await page.getByTestId('join-pending-withdraw').click();
+        await expect(page).toHaveURL(new RegExp(`${JOIN_PATH}$`));
+      });
     } finally {
       await ctx.close();
     }
@@ -238,7 +249,7 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     try {
       allowConsoleErrors(testInfo, /Failed to load resource.*join-requests.*404/i, /404/);
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
 
       await submitJoinCode(page, 'ZZZZ9999');
       await expect(page.getByTestId('join-error')).toBeVisible();
@@ -258,13 +269,16 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     try {
       allowConsoleErrors(testInfo, /Failed to load resource.*join-requests/i, /40[49]/, /429/);
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
 
-      for (let i = 0; i < 5; i++) {
-        await submitJoinCode(page, `ZZNKPCD${2 + i}`);
+      for (let i = 0; i < ATTEMPTS_ALLOWED_BEFORE_THE_RATE_LIMIT_429; i++) {
+        await submitJoinCode(
+          page,
+          `${UNKNOWN_CODE_PREFIX_IN_THE_STORY_ALPHABET_NO_0_1_O_I}${2 + i}`,
+        );
         await expect(page.getByTestId('join-error')).toBeVisible();
       }
-      await submitJoinCode(page, 'ZZNKPCD7');
+      await submitJoinCode(page, `${UNKNOWN_CODE_PREFIX_IN_THE_STORY_ALPHABET_NO_0_1_O_I}7`);
       await expect(page.getByTestId('join-countdown')).toBeVisible({ timeout: 10_000 });
       await expect(page.getByTestId('join-submit').locator('button')).toBeDisabled();
     } finally {
@@ -282,11 +296,11 @@ test.describe('Pilot self-serve club join — real chain (real-idp)', () => {
     try {
       allowConsoleErrors(testInfo, /Failed to load resource.*join-requests.*409/i, /409/);
       cleanupEmails.push(user.email);
-      await provisionAndLoginOnJoin(page, user);
+      await provisionVerifiedTenantlessPilotAndLoginOnJoin(page, user);
       await submitJoinCode(page, SEED_JOIN_CODE);
       await expect(page).toHaveURL(new RegExp(`${JOIN_PENDING_PATH}$`));
 
-      const adminBearer = await captureAdminBearer(browser, baseURL);
+      const adminBearer = await captureSeedClubAdminBearer(browser, baseURL);
       const pending = await findPendingFor(ctx.request, adminBearer, user.email);
       await approve(ctx.request, adminBearer, pending.id);
       await page.waitForURL(/\/start$/, { timeout: 30_000 });

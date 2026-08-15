@@ -1,4 +1,3 @@
-
 import { test, expect } from '../../fixtures';
 import { withPool } from '../../test-data';
 import sql from 'mssql';

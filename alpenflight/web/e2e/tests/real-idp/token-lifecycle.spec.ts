@@ -12,11 +12,22 @@ import {
 import { fillKcLogin } from './_helpers/kc-form';
 import { freshTestUser, type TestUser } from './_helpers/test-user';
 
-
 const SEED_USER = 'pilot1@example.com';
 const SEED_PASSWORD = 'pilot1-dev-2026!';
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 const KC_HOST = 'localhost:8090';
+
+const TWO_LIFESPANS_SO_A_FULL_SILENT_ROTATION_HAS_SETTLED_MS =
+  (SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS * 2 + 5) * 1000;
+const ONE_LIFESPAN_SO_THE_ACCESS_TOKEN_HAS_EXPIRED_MS =
+  (SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 5) * 1000;
+
+const alternatingWarmNavTestIdSoEachIterationIsARealUrlChange = (attempt: number): string =>
+  attempt % 2 === 0 ? 'af-nav-section-/flights' : 'af-nav-section-/flightreports';
+
+const ignoreClickInterruptedByTheRedirectUnderTest = (): void => undefined;
+const ignoreNotRedirectedYetAndReDriveOnTheNextAttempt = (): void => undefined;
+const ignoreDeleteFailureBecauseTheRealmSweepIsTheSafetyNet = (): void => undefined;
 
 async function loginAs(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/');
@@ -44,7 +55,7 @@ test.describe('token-lifecycle — realm-mutating', () => {
       { accessTokenLifespan: SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS },
       async () => {
         await loginAs(page, SEED_USER, SEED_PASSWORD);
-        await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS * 2 + 5) * 1000);
+        await page.waitForTimeout(TWO_LIFESPANS_SO_A_FULL_SILENT_ROTATION_HAS_SETTLED_MS);
 
         await page.goto('/flights');
         await page.waitForURL((url) => url.host !== KC_HOST, { timeout: 15_000 });
@@ -73,7 +84,7 @@ test.describe('token-lifecycle — realm-mutating', () => {
           await setUserEnabled(userCtx.userId, false, userCtx.user.email);
           await pollUserDisabled(userCtx.userId);
 
-          await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 5) * 1000);
+          await page.waitForTimeout(ONE_LIFESPAN_SO_THE_ACCESS_TOKEN_HAS_EXPIRED_MS);
 
           const spaHost = new URL(SPA_BASE_URL).host;
           const isRedirected = (): boolean => {
@@ -84,17 +95,17 @@ test.describe('token-lifecycle — realm-mutating', () => {
             );
           };
           for (let attempt = 0; attempt < 12 && !isRedirected(); attempt++) {
-            const navTestId =
-              attempt % 2 === 0 ? 'af-nav-section-/flights' : 'af-nav-section-/flightreports';
-            const navLink = page.getByTestId(navTestId);
+            const navLink = page.getByTestId(
+              alternatingWarmNavTestIdSoEachIterationIsARealUrlChange(attempt),
+            );
             if (await navLink.count()) {
-              await navLink.click({ timeout: 2_000 }).catch(() => {
-              });
+              await navLink
+                .click({ timeout: 2_000 })
+                .catch(ignoreClickInterruptedByTheRedirectUnderTest);
             }
             await page
               .waitForURL(() => isRedirected(), { timeout: 5_000 })
-              .catch(() => {
-              });
+              .catch(ignoreNotRedirectedYetAndReDriveOnTheNextAttempt);
           }
 
           await page.waitForURL(() => isRedirected(), { timeout: 15_000 });
@@ -102,8 +113,9 @@ test.describe('token-lifecycle — realm-mutating', () => {
       );
     } finally {
       if (userCtx) {
-        await deleteUser(userCtx.userId, userCtx.user.email).catch(() => {
-        });
+        await deleteUser(userCtx.userId, userCtx.user.email).catch(
+          ignoreDeleteFailureBecauseTheRealmSweepIsTheSafetyNet,
+        );
       }
     }
   });
@@ -144,10 +156,12 @@ test.describe('token-lifecycle — non-mutating', () => {
   test('Bearer scoping — only /api/v1/* carries Authorization', async ({ page }) => {
     const observed: Array<{ url: string; hasBearer: boolean }> = [];
     const onRequest = (req: Request): void => {
-      const auth = req.headers()['authorization'];
+      const authHeaderSnapshottedBeforeTheRequestCanMutate = req.headers()['authorization'];
       observed.push({
         url: req.url(),
-        hasBearer: typeof auth === 'string' && /^Bearer /i.test(auth),
+        hasBearer:
+          typeof authHeaderSnapshottedBeforeTheRequestCanMutate === 'string' &&
+          /^Bearer /i.test(authHeaderSnapshottedBeforeTheRequestCanMutate),
       });
     };
     page.on('request', onRequest);

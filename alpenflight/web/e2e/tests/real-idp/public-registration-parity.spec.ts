@@ -26,7 +26,6 @@ import {
 } from './_helpers/public-registration-fixture';
 import { freshTestUser } from './_helpers/test-user';
 
-
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 const KC_HOST = 'localhost:8090';
 
@@ -39,7 +38,7 @@ const CLOSED_CLUB_SLUG = 'seed-club-1';
 
 const EXTERNAL_CLUB_ID = /^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-const CANDIDATE_REMARK = 'Schnupperflug-Kandidat';
+const LEGACY_CANDIDATE_RESERVATION_REMARK = 'Schnupperflug-Kandidat';
 
 const SUBJECT_DISCOVERY_CANDIDATE = 'Anmeldung Schnupperflug erhalten';
 const SUBJECT_DISCOVERY_ORGANISER = 'Neue Anmeldung Schnupperflug';
@@ -51,7 +50,7 @@ const RESERVATION_SKIPPED_NO_DOUBLE_SEATER =
 const RESERVATION_SKIP_HOMEBASE_WORD = 'Heimflugplatz';
 
 const AUDIT_REGISTRATION_TARGET = 'PublicFlightRegistration';
-const AUDIT_STAGED_TARGET = 'Location';
+const AUDIT_AUTHENTICATED_ACTOR_TARGET = 'Location';
 const AUDIT_SYSTEM_ACTOR = 'System';
 
 const AUDIT_TESTID = {
@@ -63,7 +62,11 @@ const AUDIT_TESTID = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const SUBMIT_TIMEOUT_MS = 15_000;
+const SUBMIT_INCLUDING_MAIL_DELIVERY_TIMEOUT_MS = 15_000;
+
+const THREE_REAL_KEYCLOAK_LOGINS_AND_CLUB_SETUP_TIMEOUT_MS = 300_000;
+
+const TWO_SUBMISSIONS_PLUS_SILENCE_WINDOW_TIMEOUT_MS = 90_000;
 
 interface PersonProjection {
   id: string;
@@ -92,20 +95,20 @@ interface PersonRow {
 
 let seeded: PublicRegistrationClubWithDoubleSeater;
 
-let withoutGlider: PublicRegistrationClub;
+let clubWithoutDoubleSeater: PublicRegistrationClub;
 
 test.beforeAll(async ({ browser }, testInfo) => {
-  testInfo.setTimeout(300_000);
+  testInfo.setTimeout(THREE_REAL_KEYCLOAK_LOGINS_AND_CLUB_SETUP_TIMEOUT_MS);
   const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
   seeded = await seedPublicRegistrationClub(browser, baseURL);
-  withoutGlider = await seedPublicRegistrationClubWithoutDoubleSeater(browser, baseURL, {
+  clubWithoutDoubleSeater = await seedPublicRegistrationClubWithoutDoubleSeater(browser, baseURL, {
     sysadminAuthorization: seeded.sysadminAuthorization,
   });
 });
 
 test.afterAll(async () => {
   await seeded?.dispose();
-  await withoutGlider?.dispose();
+  await clubWithoutDoubleSeater?.dispose();
 });
 
 async function readAs<T>(page: Page, path: string, authorization: string): Promise<T> {
@@ -153,7 +156,7 @@ function discoveryWireBody(
 async function submitPublicForm(page: Page, submitPath: string): Promise<Response> {
   const submitted = page.waitForResponse(
     (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === submitPath,
-    { timeout: SUBMIT_TIMEOUT_MS },
+    { timeout: SUBMIT_INCLUDING_MAIL_DELIVERY_TIMEOUT_MS },
   );
   await page.getByTestId(testId.submit).click();
   return submitted;
@@ -337,7 +340,7 @@ test.describe('discovery registration — real rows, real mail', () => {
         (r) =>
           r.request().method() === 'POST' &&
           new URL(r.url()).pathname === publicApi.discoverySubmit(seeded.slug),
-        { timeout: SUBMIT_TIMEOUT_MS },
+        { timeout: SUBMIT_INCLUDING_MAIL_DELIVERY_TIMEOUT_MS },
       );
       await page.getByTestId(testId.submit).click();
       const response = await submitted;
@@ -378,7 +381,7 @@ test.describe('discovery registration — real rows, real mail', () => {
         aircraftId: seeded.gliderId,
         locationId: seeded.homebaseId,
         isAllDay: true,
-        remarks: CANDIDATE_REMARK,
+        remarks: LEGACY_CANDIDATE_RESERVATION_REMARK,
       });
       const dayStart = Date.parse(`${seeded.eventDate}T00:00:00Z`);
       expect(Date.parse(booked[0]!.start)).toBe(dayStart);
@@ -405,12 +408,15 @@ test.describe('discovery registration — real rows, real mail', () => {
     const candidate = registrant({ email: freshTestUser().email });
 
     try {
-      await page.goto(discoveryFlightPath(withoutGlider.slug));
-      await expect(page.getByTestId(testId.clubName)).toHaveText(withoutGlider.clubName);
+      await page.goto(discoveryFlightPath(clubWithoutDoubleSeater.slug));
+      await expect(page.getByTestId(testId.clubName)).toHaveText(clubWithoutDoubleSeater.clubName);
       await fillRegistrant(page, candidate);
-      await page.getByTestId(testId.dayOption(withoutGlider.eventDate)).check();
+      await page.getByTestId(testId.dayOption(clubWithoutDoubleSeater.eventDate)).check();
 
-      const response = await submitPublicForm(page, publicApi.discoverySubmit(withoutGlider.slug));
+      const response = await submitPublicForm(
+        page,
+        publicApi.discoverySubmit(clubWithoutDoubleSeater.slug),
+      );
       expect(response.status(), 'an unbookable club still accepts the registration').toBe(201);
       const personId = registrantPersonId(response);
 
@@ -423,23 +429,25 @@ test.describe('discovery registration — real rows, real mail', () => {
       const person = await readAs<PersonProjection>(
         page,
         `/api/v1/persons/${personId}`,
-        withoutGlider.adminAuthorization,
+        clubWithoutDoubleSeater.adminAuthorization,
       );
       expect(person.hasGliderTraineeLicence, 'the person-level glider-trainee marker').toBe(true);
-      const membership = person.memberships.find((m) => m.clubId === withoutGlider.clubId);
+      const membership = person.memberships.find(
+        (m) => m.clubId === clubWithoutDoubleSeater.clubId,
+      );
       expect(membership?.isGliderTrainee, 'the club-level glider-trainee marker').toBe(true);
 
       const onTheDay = await readAs<ReservationRow[]>(
         page,
-        `/api/v1/aircraft-reservations/day/${withoutGlider.eventDate}`,
-        withoutGlider.adminAuthorization,
+        `/api/v1/aircraft-reservations/day/${clubWithoutDoubleSeater.eventDate}`,
+        clubWithoutDoubleSeater.adminAuthorization,
       );
       expect(onTheDay, 'a club with no eligible glider blocks no slot').toHaveLength(0);
 
       await waitForMessage(candidate.email);
 
       const organiser = await waitForMessageWithBody(
-        withoutGlider.operatorEmail,
+        clubWithoutDoubleSeater.operatorEmail,
         SUBJECT_DISCOVERY_ORGANISER,
         candidate.email,
       );
@@ -447,7 +455,7 @@ test.describe('discovery registration — real rows, real mail', () => {
       expect(body).toContain(RESERVATION_SKIPPED_NO_DOUBLE_SEATER);
       expect(body).not.toContain(RESERVATION_BOOKED);
       expect(body).not.toContain(RESERVATION_SKIP_HOMEBASE_WORD);
-      expect(body).toContain(withoutGlider.homebaseName);
+      expect(body).toContain(clubWithoutDoubleSeater.homebaseName);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -484,7 +492,7 @@ test.describe('scenic registration — no reservation, no day', () => {
         (r) =>
           r.request().method() === 'POST' &&
           new URL(r.url()).pathname === publicApi.scenicSubmit(seeded.slug),
-        { timeout: SUBMIT_TIMEOUT_MS },
+        { timeout: SUBMIT_INCLUDING_MAIL_DELIVERY_TIMEOUT_MS },
       );
       await page.getByTestId(testId.submit).click();
       const response = await submitted;
@@ -543,7 +551,7 @@ test.describe('registration recipients + organiser notification', () => {
   test('[happy] a differing invoice address moves the confirmation to the notification email', async ({
     browser,
   }, testInfo) => {
-    testInfo.setTimeout(90_000);
+    testInfo.setTimeout(TWO_SUBMISSIONS_PLUS_SILENCE_WINDOW_TIMEOUT_MS);
     const baseURL = testInfo.project.use.baseURL ?? SPA_BASE_URL;
     const ctx = await browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
     const page = await ctx.newPage();
@@ -792,7 +800,7 @@ test.describe('public registration — error contract + abuse guard', () => {
         await expect(anonymousActors.nth(i)).toHaveText(AUDIT_SYSTEM_ACTOR);
       }
 
-      await filterAuditTarget(page, AUDIT_STAGED_TARGET);
+      await filterAuditTarget(page, AUDIT_AUTHENTICATED_ACTOR_TARGET);
       const staged = page.getByTestId(AUDIT_TESTID.rowActor).first();
       await expect(staged).not.toHaveText(AUDIT_SYSTEM_ACTOR);
       await expect(staged, 'an authenticated row names its actor').not.toBeEmpty();
@@ -820,20 +828,28 @@ test.describe('public registration — error contract + abuse guard', () => {
     const refused = registrant({ email: freshTestUser().email });
 
     try {
-      const before = await page.request.post(publicApi.discoverySubmit(withoutGlider.slug), {
-        data: discoveryWireBody(accepted, withoutGlider.eventDate),
-      });
+      const before = await page.request.post(
+        publicApi.discoverySubmit(clubWithoutDoubleSeater.slug),
+        {
+          data: discoveryWireBody(accepted, clubWithoutDoubleSeater.eventDate),
+        },
+      );
       expect(before.status(), 'the club registers this body before the window fills').toBe(201);
 
-      const unpublishedDay = new Date(Date.parse(`${withoutGlider.eventDate}T00:00:00Z`) + DAY_MS)
+      const unpublishedDay = new Date(
+        Date.parse(`${clubWithoutDoubleSeater.eventDate}T00:00:00Z`) + DAY_MS,
+      )
         .toISOString()
         .slice(0, 10);
       let charged = 0;
       let status = 400;
       while (status !== 429 && charged < 15) {
-        const primed = await page.request.post(publicApi.discoverySubmit(withoutGlider.slug), {
-          data: discoveryWireBody(freshTestUser().email, unpublishedDay),
-        });
+        const primed = await page.request.post(
+          publicApi.discoverySubmit(clubWithoutDoubleSeater.slug),
+          {
+            data: discoveryWireBody(freshTestUser().email, unpublishedDay),
+          },
+        );
         status = primed.status();
         charged += 1;
         expect(
@@ -843,12 +859,15 @@ test.describe('public registration — error contract + abuse guard', () => {
       }
       expect(status, `the guard tripped within ${charged} charged attempts`).toBe(429);
 
-      await page.goto(discoveryFlightPath(withoutGlider.slug));
+      await page.goto(discoveryFlightPath(clubWithoutDoubleSeater.slug));
       await expect(page.getByTestId(testId.form)).toBeVisible();
       await fillRegistrant(page, refused);
-      await page.getByTestId(testId.dayOption(withoutGlider.eventDate)).check();
+      await page.getByTestId(testId.dayOption(clubWithoutDoubleSeater.eventDate)).check();
 
-      const response = await submitPublicForm(page, publicApi.discoverySubmit(withoutGlider.slug));
+      const response = await submitPublicForm(
+        page,
+        publicApi.discoverySubmit(clubWithoutDoubleSeater.slug),
+      );
       expect(response.status()).toBe(429);
       expect(response.headers()['retry-after'], 'the 429 names when to come back').toMatch(/^\d+$/);
 
@@ -861,7 +880,7 @@ test.describe('public registration — error contract + abuse guard', () => {
         fullPage: true,
       });
 
-      const members = await personsIn(page, withoutGlider);
+      const members = await personsIn(page, clubWithoutDoubleSeater);
       expect(
         personWithEmail(members, accepted),
         'the pre-throttle registrant is in the club, so this list can find one',

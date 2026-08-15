@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 
 import {
@@ -13,12 +12,33 @@ import { API_BASE, getBearerToken } from "../../test-data";
 
 test.use({ video: "on" });
 
-const ADMIN = { username: "testclubadmin", password: "s" } as const;
+const TESTCLUB_ADMIN = { username: "testclubadmin", password: "s" } as const;
 
 test.setTimeout(180_000);
 
-const ARTICLE_NUMBER = "5001";
+const GLIDER_FLIGHT_MINUTES_ARTICLE_NUMBER = "5001";
+const FANOUT_GALLERY_LIST_SHOT = "legacy-accountingrules-list.png";
+const FANOUT_GALLERY_FORM_SHOT = "legacy-accountingrules-form.png";
+const EDIT_FORM_BUSY_TIMEOUT_MS = 90_000;
 const RULE_TYPE_FLIGHTTIME = 30;
+
+async function waitForElevenMasterDataLoadsToClearTheBusyBackdrop(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const spinners = Array.from(
+        document.querySelectorAll('[data-testid="busy-indicator"]'),
+      ) as HTMLElement[];
+      return spinners.every((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width === 0 && r.height === 0;
+      });
+    },
+    undefined,
+    { timeout: EDIT_FORM_BUSY_TIMEOUT_MS },
+  );
+}
 
 test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)", async ({
   browser,
@@ -35,7 +55,7 @@ test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)"
   let seededId: string | undefined;
 
   try {
-    await loginViaUi(page, ADMIN.username, ADMIN.password);
+    await loginViaUi(page, TESTCLUB_ADMIN.username, TESTCLUB_ADMIN.password);
     await waitForLoggedInState(page);
 
     const token = await getBearerToken(page);
@@ -54,7 +74,7 @@ test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)"
           ArticleName: string;
         }>)
       : [];
-    const article = articles.find((a) => a.ArticleNumber === ARTICLE_NUMBER);
+    const article = articles.find((a) => a.ArticleNumber === GLIDER_FLIGHT_MINUTES_ARTICLE_NUMBER);
 
     const createPayload = {
       RuleFilterName: RULE_NAME,
@@ -116,31 +136,19 @@ test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)"
       .waitFor({ state: "visible", timeout: 60_000 });
     await screenshot(page, "accounting-parity-J8-01-legacy-list");
     await page.screenshot({
-      path: testInfo.outputPath("legacy-accountingrules-list.png"),
+      path: testInfo.outputPath(FANOUT_GALLERY_LIST_SHOT),
       fullPage: true,
     });
 
     if (seededId) {
       try {
         await gotoRoute(page, `/masterdata/accountingRuleFilters/${seededId}`);
-        await page.waitForFunction(
-          () => {
-            const spinners = Array.from(
-              document.querySelectorAll('[data-testid="busy-indicator"]'),
-            ) as HTMLElement[];
-            return spinners.every((el) => {
-              const r = el.getBoundingClientRect();
-              return r.width === 0 && r.height === 0;
-            });
-          },
-          undefined,
-          { timeout: 90_000 },
-        );
-        const nameInput = page.locator("input#RuleFilterName");
-        await nameInput.waitFor({ state: "visible", timeout: 60_000 });
+        await waitForElevenMasterDataLoadsToClearTheBusyBackdrop(page);
+        const stableFormAnchor = page.locator("input#RuleFilterName");
+        await stableFormAnchor.waitFor({ state: "visible", timeout: 60_000 });
         await screenshot(page, "accounting-parity-J8-02-legacy-edit-form");
         await page.screenshot({
-          path: testInfo.outputPath("legacy-accountingrules-form.png"),
+          path: testInfo.outputPath(FANOUT_GALLERY_FORM_SHOT),
           fullPage: true,
         });
       } catch (err) {
@@ -157,11 +165,11 @@ test("J-8 parity: legacy accounting-rule-filter list + edit form (parity video)"
     }
 
     expect(
-      existsSync(testInfo.outputPath("legacy-accountingrules-list.png")),
+      existsSync(testInfo.outputPath(FANOUT_GALLERY_LIST_SHOT)),
       "expected legacy parity screenshot legacy-accountingrules-list.png in the " +
         "test output dir — the fanout gallery's J-8 legacy half depends on it",
     ).toBeTruthy();
-    if (!existsSync(testInfo.outputPath("legacy-accountingrules-form.png"))) {
+    if (!existsSync(testInfo.outputPath(FANOUT_GALLERY_FORM_SHOT))) {
       console.warn(
         "[J-8] best-effort legacy parity screenshot legacy-accountingrules-form.png " +
           "absent (slow/flaky legacy stack) — the gallery drops that one entry, the list pair stands",

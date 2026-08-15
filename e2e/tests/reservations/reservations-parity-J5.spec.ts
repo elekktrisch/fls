@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 
 import {
@@ -18,7 +17,14 @@ const SETTINGS_KEY = "AircraftIdsToDisplayInScheduler";
 
 const ADMIN = { username: "testclubadmin", password: "s" } as const;
 
-test.setTimeout(180_000);
+const LEGACY_STACK_WALKTHROUGH_BUDGET_MS = 180_000;
+
+// ext: alpenflight-proof-fanout.yml add_shot basenames
+const GALLERY_LIST_PNG = "legacy-reservation-list.png";
+const GALLERY_FORM_PNG = "legacy-reservation-form.png";
+const GALLERY_SCHEDULER_PNG = "legacy-reservation-scheduler.png";
+
+test.setTimeout(LEGACY_STACK_WALKTHROUGH_BUDGET_MS);
 
 async function bearer(page: Page): Promise<string> {
   const token = await page.evaluate(() => {
@@ -80,7 +86,7 @@ test("J-5 parity: legacy reservation list + edit form (+ scheduler) (parity vide
     await screenshot(page, "reservations-parity-J5-01-legacy-list");
 
     await page.screenshot({
-      path: testInfo.outputPath("legacy-reservation-list.png"),
+      path: testInfo.outputPath(GALLERY_LIST_PNG),
       fullPage: true,
     });
 
@@ -90,7 +96,7 @@ test("J-5 parity: legacy reservation list + edit form (+ scheduler) (parity vide
       await editForm.waitFor({ state: "visible", timeout: 30_000 });
       await screenshot(page, "reservations-parity-J5-02-legacy-form");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-reservation-form.png"),
+        path: testInfo.outputPath(GALLERY_FORM_PNG),
         fullPage: true,
       });
     } catch (err) {
@@ -132,7 +138,7 @@ test("J-5 parity: legacy reservation list + edit form (+ scheduler) (parity vide
         .waitFor({ state: "visible", timeout: 45_000 });
       await screenshot(page, "reservations-parity-J5-03-legacy-scheduler");
       await page.screenshot({
-        path: testInfo.outputPath("legacy-reservation-scheduler.png"),
+        path: testInfo.outputPath(GALLERY_SCHEDULER_PNG),
         fullPage: true,
       });
     } catch (err) {
@@ -144,14 +150,11 @@ test("J-5 parity: legacy reservation list + edit form (+ scheduler) (parity vide
     }
 
     expect(
-      existsSync(testInfo.outputPath("legacy-reservation-list.png")),
-      "expected legacy parity screenshot legacy-reservation-list.png in the test " +
+      existsSync(testInfo.outputPath(GALLERY_LIST_PNG)),
+      `expected legacy parity screenshot ${GALLERY_LIST_PNG} in the test ` +
         "output dir — the fanout gallery's J-5 legacy half depends on it",
     ).toBeTruthy();
-    for (const png of [
-      "legacy-reservation-form.png",
-      "legacy-reservation-scheduler.png",
-    ]) {
+    for (const png of [GALLERY_FORM_PNG, GALLERY_SCHEDULER_PNG]) {
       if (!existsSync(testInfo.outputPath(png))) {
         console.warn(
           `[J-5] best-effort legacy parity screenshot ${png} absent (slow/flaky ` +

@@ -1,7 +1,6 @@
 import { type Route } from '@playwright/test';
 import { expect, test, allowConsoleErrors } from '../_helpers/console-guard';
 
-
 interface MockUserListItem {
   id: string;
   username: string;
@@ -408,7 +407,9 @@ test('users: edit preserves SYSTEM_ADMINISTRATOR (out-of-band role) on save', as
     'System administrator',
   );
 
-  await page.getByTestId('friendlyName-input').locator('input').fill('Sandra Admin (Updated)');
+  await test.step('bump a profile field without touching the role checkboxes', async () => {
+    await page.getByTestId('friendlyName-input').locator('input').fill('Sandra Admin (Updated)');
+  });
 
   const putPromise = page.waitForRequest(
     (req) => req.url().endsWith(`/api/v1/users/${SYSADMIN_USER_ID}`) && req.method() === 'PUT',
@@ -435,7 +436,9 @@ test('users: deactivate removes the row', async ({ page }) => {
   await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toHaveCount(0);
 });
 
-test('users: self-deactivate refused inline (409)', async ({ page }, testInfo) => {
+test('users: self-deactivate refused (409) — dialog stays open with the backend detail inline', async ({
+  page,
+}, testInfo) => {
   allowConsoleErrors(testInfo, /\b409\b/);
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);

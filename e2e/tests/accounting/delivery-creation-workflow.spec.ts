@@ -1,7 +1,6 @@
-
 import { test, expect } from '../../fixtures';
 import { testId } from '../../test-id';
-import { ensureGliderFlight, getBearerToken as sharedGetToken, withPool } from '../../test-data';
+import { ensureGliderFlight, getBearerToken, withPool } from '../../test-data';
 import sql from 'mssql';
 import type { Page } from '@playwright/test';
 
@@ -17,8 +16,6 @@ const ProcessState = {
   DeliveryBooked: 60,
   ExcludedFromDeliveryProcess: 99,
 } as const;
-
-const getBearerToken = sharedGetToken;
 
 async function getFlightProcessState(
   page: Page, token: string, flightId: string,
@@ -54,7 +51,7 @@ async function listDeliveriesForFlight(flightId: string): Promise<{ DeliveryId: 
   });
 }
 
-test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a Delivery row exists', async ({
+test('delivery-creation-workflow: deliverycreation advances the Locked flight — DeliveryPrepared carries a Delivery row, preparation-error/excluded are degraded passes', async ({
   loggedInPage,
 }, testInfo) => {
   const id = testId(testInfo);

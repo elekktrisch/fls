@@ -1,4 +1,3 @@
-
 import { test, expect } from "../../fixtures";
 import type { Page } from "@playwright/test";
 
@@ -46,7 +45,7 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
 }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
-  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(
+  const { flightId: ownedFlightId } = await ensureGliderFlight(
     loggedInPage.request,
     token,
     {
@@ -56,7 +55,7 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
     },
   );
 
-  const before = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const before = await getFlight(loggedInPage, token, ownedFlightId);
 
   expect(before.ProcessStateId, "test flight should start as Valid (30)").toBe(
     ProcessState.Valid,
@@ -87,7 +86,7 @@ test("flight-locking: Valid -> Locked via /workflows/flightvalidation", async ({
   const deadline = Date.now() + 5000;
   let latest = before;
   while (Date.now() < deadline) {
-    latest = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+    latest = await getFlight(loggedInPage, token, ownedFlightId);
     if (latest.ProcessStateId === ProcessState.Locked) break;
     await new Promise((r) => setTimeout(r, 200));
   }

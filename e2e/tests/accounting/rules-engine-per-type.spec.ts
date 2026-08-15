@@ -1,19 +1,20 @@
-
 import { test, expect, APIRequestContext } from "@playwright/test";
 
 const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 const USERNAME = process.env.FLS_USERNAME ?? "testclubadmin";
 const PASSWORD = process.env.FLS_PASSWORD ?? "s";
 
-const FLIGHT_ID = "F1500005-0000-0000-0000-000000000001";
+const SEED_GLIDER_FLIGHT_ID = "F1500005-0000-0000-0000-000000000001";
+const SEED_GLIDER_FLIGHT_DURATION_MINUTES = 47;
+const SEED_GLIDER_FLIGHT_LANDINGS = 1;
 
-const FIXTURE_RULE_IDS = [
-  "F1500004-0000-0000-0000-000000000001",
-  "F1500004-0000-0000-0000-000000000002",
-  "F1500004-0000-0000-0000-000000000003",
-];
+const FIXTURE_RULE_ID_BY_TYPE = {
+  Recipient: "F1500004-0000-0000-0000-000000000001",
+  FlightTime: "F1500004-0000-0000-0000-000000000002",
+  LandingTax: "F1500004-0000-0000-0000-000000000003",
+} as const;
 
-const RT = {
+const AccountingRuleFilterType = {
   DoNotInvoiceFlight: 5,
   Recipient: 10,
   NoLandingTax: 20,
@@ -26,7 +27,12 @@ const RT = {
   EngineTime: 80,
 } as const;
 
-const UT = { Min: 10, Sec: 20, Ldgs: 30, StartOrFlight: 40 } as const;
+const AccountingUnitType = {
+  Min: 10,
+  Sec: 20,
+  Ldgs: 30,
+  StartOrFlight: 40,
+} as const;
 
 function baseRulePayload(
   name: string,
@@ -81,6 +87,8 @@ function baseRulePayload(
   };
 }
 
+function fixtureRuleRestoreIsBestEffortBecauseAReseedNormalizesIt(): void {}
+
 type DeliveryItem = {
   ArticleNumber: string;
   Quantity: number;
@@ -122,7 +130,7 @@ test.describe("rules-engine per-type coverage", () => {
     token = (await tokenRes.json()).access_token;
     auth = { Authorization: `Bearer ${token}` };
 
-    for (const id of FIXTURE_RULE_IDS) {
+    for (const id of Object.values(FIXTURE_RULE_ID_BY_TYPE)) {
       const getRes = await api.get(
         `${API_BASE}/api/v1/accountingrulefilters/${id}`,
         { headers: auth },
@@ -154,6 +162,7 @@ test.describe("rules-engine per-type coverage", () => {
           data: { ...original, IsActive: true },
         });
       } catch {
+        fixtureRuleRestoreIsBestEffortBecauseAReseedNormalizesIt();
       }
     }
     await api.dispose();
@@ -182,7 +191,7 @@ test.describe("rules-engine per-type coverage", () => {
 
   async function previewDelivery(): Promise<DeliveryCreationResult> {
     const res = await api.get(
-      `${API_BASE}/api/v1/deliverycreationtests/testdeliveryforflight/${FLIGHT_ID}`,
+      `${API_BASE}/api/v1/deliverycreationtests/testdeliveryforflight/${SEED_GLIDER_FLIGHT_ID}`,
       { headers: auth },
     );
     expect(
@@ -194,7 +203,10 @@ test.describe("rules-engine per-type coverage", () => {
 
   test("DoNotInvoiceFlight short-circuits the pipeline", async () => {
     const id = await createRule({
-      ...baseRulePayload("e2e DoNotInvoiceFlight", RT.DoNotInvoiceFlight),
+      ...baseRulePayload(
+        "e2e DoNotInvoiceFlight",
+        AccountingRuleFilterType.DoNotInvoiceFlight,
+      ),
     });
     try {
       const r = await previewDelivery();
@@ -208,7 +220,7 @@ test.describe("rules-engine per-type coverage", () => {
   test("Recipient sets RecipientDetails on the delivery", async () => {
     const recipientName = `e2e Recipient ${Date.now()}`;
     const id = await createRule({
-      ...baseRulePayload("e2e Recipient", RT.Recipient),
+      ...baseRulePayload("e2e Recipient", AccountingRuleFilterType.Recipient),
       RecipientTarget: {
         RecipientName: recipientName,
         PersonId: null,
@@ -226,9 +238,12 @@ test.describe("rules-engine per-type coverage", () => {
     }
   });
 
-  test("NoLandingTax matches and gates subsequent landing-tax rules", async () => {
+  test("NoLandingTax matches the seeded glider flight", async () => {
     const id = await createRule({
-      ...baseRulePayload("e2e NoLandingTax", RT.NoLandingTax),
+      ...baseRulePayload(
+        "e2e NoLandingTax",
+        AccountingRuleFilterType.NoLandingTax,
+      ),
       NoLandingTaxForGlider: true,
       NoLandingTaxForTowingAircraft: false,
       NoLandingTaxForAircraft: false,
@@ -244,14 +259,14 @@ test.describe("rules-engine per-type coverage", () => {
   test("FlightTime emits one item with quantity = flight duration", async () => {
     const article = "9030";
     const id = await createRule({
-      ...baseRulePayload("e2e FlightTime", RT.FlightTime),
+      ...baseRulePayload("e2e FlightTime", AccountingRuleFilterType.FlightTime),
       IsRuleForTowingFlights: false,
       IsRuleForMotorFlights: false,
       ArticleTarget: {
         ArticleNumber: article,
         DeliveryLineText: "e2e flighttime",
       },
-      AccountingUnitTypeId: UT.Min,
+      AccountingUnitTypeId: AccountingUnitType.Min,
     });
     try {
       let r!: DeliveryCreationResult;
@@ -263,7 +278,7 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      expect(items[0].Quantity).toBe(47);
+      expect(items[0].Quantity).toBe(SEED_GLIDER_FLIGHT_DURATION_MINUTES);
       expect(items[0].UnitType).toBe("Minuten");
     } finally {
       await deleteRule(id);
@@ -280,12 +295,15 @@ test.describe("rules-engine per-type coverage", () => {
   test("InstructorFee emits an item with the Fluglehrer-Honorar label", async () => {
     const article = "9040";
     const id = await createRule({
-      ...baseRulePayload("e2e InstructorFee", RT.InstructorFee),
+      ...baseRulePayload(
+        "e2e InstructorFee",
+        AccountingRuleFilterType.InstructorFee,
+      ),
       ArticleTarget: {
         ArticleNumber: article,
         DeliveryLineText: "e2e instructor",
       },
-      AccountingUnitTypeId: UT.Min,
+      AccountingUnitTypeId: AccountingUnitType.Min,
     });
     try {
       const r = await previewDelivery();
@@ -304,9 +322,12 @@ test.describe("rules-engine per-type coverage", () => {
     const article = "9050";
     const lineText = "e2e fuel";
     const id = await createRule({
-      ...baseRulePayload("e2e AdditionalFuelFee", RT.AdditionalFuelFee),
+      ...baseRulePayload(
+        "e2e AdditionalFuelFee",
+        AccountingRuleFilterType.AdditionalFuelFee,
+      ),
       ArticleTarget: { ArticleNumber: article, DeliveryLineText: lineText },
-      AccountingUnitTypeId: UT.Min,
+      AccountingUnitTypeId: AccountingUnitType.Min,
     });
     try {
       const r = await previewDelivery();
@@ -316,7 +337,7 @@ test.describe("rules-engine per-type coverage", () => {
       );
       expect(items.length).toBe(1);
       expect(items[0].ItemText).toContain(lineText);
-      expect(items[0].Quantity).toBe(47);
+      expect(items[0].Quantity).toBe(SEED_GLIDER_FLIGHT_DURATION_MINUTES);
     } finally {
       await deleteRule(id);
     }
@@ -325,12 +346,12 @@ test.describe("rules-engine per-type coverage", () => {
   test("StartTax emits a single-start item with quantity 1", async () => {
     const article = "9055";
     const id = await createRule({
-      ...baseRulePayload("e2e StartTax", RT.StartTax),
+      ...baseRulePayload("e2e StartTax", AccountingRuleFilterType.StartTax),
       ArticleTarget: {
         ArticleNumber: article,
         DeliveryLineText: "e2e starttax",
       },
-      AccountingUnitTypeId: UT.StartOrFlight,
+      AccountingUnitTypeId: AccountingUnitType.StartOrFlight,
     });
     try {
       const r = await previewDelivery();
@@ -349,12 +370,12 @@ test.describe("rules-engine per-type coverage", () => {
   test("LandingTax emits a per-landing item with quantity = NrOfLdgs (1)", async () => {
     const article = "9060";
     const id = await createRule({
-      ...baseRulePayload("e2e LandingTax", RT.LandingTax),
+      ...baseRulePayload("e2e LandingTax", AccountingRuleFilterType.LandingTax),
       ArticleTarget: {
         ArticleNumber: article,
         DeliveryLineText: "e2e landingtax",
       },
-      AccountingUnitTypeId: UT.Ldgs,
+      AccountingUnitTypeId: AccountingUnitType.Ldgs,
     });
     try {
       const r = await previewDelivery();
@@ -363,7 +384,7 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      expect(items[0].Quantity).toBe(1);
+      expect(items[0].Quantity).toBe(SEED_GLIDER_FLIGHT_LANDINGS);
       expect(items[0].UnitType).toBe("Landung");
     } finally {
       await deleteRule(id);
@@ -373,9 +394,9 @@ test.describe("rules-engine per-type coverage", () => {
   test("VsfFee emits an item keyed off NrOfLdgs", async () => {
     const article = "9070";
     const id = await createRule({
-      ...baseRulePayload("e2e VsfFee", RT.VsfFee),
+      ...baseRulePayload("e2e VsfFee", AccountingRuleFilterType.VsfFee),
       ArticleTarget: { ArticleNumber: article, DeliveryLineText: "e2e vsf" },
-      AccountingUnitTypeId: UT.Ldgs,
+      AccountingUnitTypeId: AccountingUnitType.Ldgs,
     });
     try {
       const r = await previewDelivery();
@@ -384,7 +405,7 @@ test.describe("rules-engine per-type coverage", () => {
         (i) => i.ArticleNumber === article,
       );
       expect(items.length).toBe(1);
-      expect(items[0].Quantity).toBe(1);
+      expect(items[0].Quantity).toBe(SEED_GLIDER_FLIGHT_LANDINGS);
     } finally {
       await deleteRule(id);
     }

@@ -29,8 +29,21 @@ import { proofVideo } from './_helpers/proof-video';
 import { waitForMessage, waitForMessageWithSubject, purgeMailpit } from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
 
-
 const PLANNINGDAYS = '/api/v1/planning-days';
+
+const REAL_PROVISIONING_BEFOREALL_TIMEOUT_MS = 180_000;
+
+const SUBJECT_PLANNING_DAY_OK_TAKES_PLACE = 'Flugbetriebstag findet statt';
+const SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER = 'Erinnerung: Einteilung Flugbetriebstag';
+
+const MIGRATED_LEGACY_DAY_REMARK = 'Test3';
+
+const GALLERY_LIST_PARITY_SHOT = 'alpenflight-planning-list.png';
+const GALLERY_FORM_PARITY_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS = 'alpenflight-planning-form.png';
+const GALLERY_SETUP_PARITY_SHOT_CAPTURED_BEFORE_GENERATE = 'alpenflight-planning-setup-form.png';
+const DIAGNOSTIC_CREATE_FORM_SHOT = 'alpenflight-planning-create-form.png';
+const DIAGNOSTIC_RESERVATIONS_PANEL_SHOT = 'alpenflight-planning-reservations-panel.png';
+const DIAGNOSTIC_MIGRATED_LIST_SHOT = 'alpenflight-planning-migrated-list.png';
 
 function dayKeyFromToday(days: number): string {
   const d = new Date();
@@ -127,7 +140,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   let twoClubs: TwoClubFixture;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
-    testInfo.setTimeout(180_000);
+    testInfo.setTimeout(REAL_PROVISIONING_BEFOREALL_TIMEOUT_MS);
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
     createdReservationIds.length = 0;
@@ -223,7 +236,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await page.getByTestId('planning-remarks').locator('input').fill('J-6 real-chain day');
 
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-create-form.png`,
+        path: `${testInfo.outputDir}/${DIAGNOSTIC_CREATE_FORM_SHOT}`,
         fullPage: true,
       });
 
@@ -252,7 +265,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await expect(row).toContainText(masterdata.flightOpName);
 
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-list.png`,
+        path: `${testInfo.outputDir}/${GALLERY_LIST_PARITY_SHOT}`,
         fullPage: true,
       });
     } finally {
@@ -357,11 +370,11 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
         'the seeded reservation renders as an <af-reservation-row> in the inline list (create mode)',
       ).toBeVisible();
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-form.png`,
+        path: `${testInfo.outputDir}/${GALLERY_FORM_PARITY_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS}`,
         fullPage: true,
       });
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-reservations-panel.png`,
+        path: `${testInfo.outputDir}/${DIAGNOSTIC_RESERVATIONS_PANEL_SHOT}`,
         fullPage: true,
       });
       await expect(seededRow).toContainText(masterdata.aircraftImmat);
@@ -479,40 +492,45 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       );
 
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-setup-form.png`,
+        path: `${testInfo.outputDir}/${GALLERY_SETUP_PARITY_SHOT_CAPTURED_BEFORE_GENERATE}`,
         fullPage: true,
       });
 
-      const generated = page.waitForResponse(
+      const ruleExpandCompletedBodyEvictedBySpaNav = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
           new URL(r.url()).pathname === `${PLANNINGDAYS}/create/rule` &&
           r.status() === 201,
       );
       await page.getByTestId('planning-setup-generate-button').click();
-      await generated;
+      await ruleExpandCompletedBodyEvictedBySpaNav;
 
       await expect(page).toHaveURL('/planning');
 
-      const paged = await ctx.request.post(`${PLANNINGDAYS}/page/0/50`, {
+      const wizardWindowPage = await ctx.request.post(`${PLANNINGDAYS}/page/0/50`, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
         data: { sorting: { planningDate: 'asc' }, searchFilter: { from: start } },
       });
-      expect(paged.status(), 'the planning list pages the wizard-created days').toBe(200);
-      const pagedBody = (await paged.json()) as { items: PlanningDayListRow[] };
-      const created = pagedBody.items.filter(
+      expect(wizardWindowPage.status(), 'the planning list pages the wizard-created days').toBe(
+        200,
+      );
+      const wizardWindowBody = (await wizardWindowPage.json()) as { items: PlanningDayListRow[] };
+      const everyDayTheWizardCreated = wizardWindowBody.items.filter(
         (d) =>
           d.locationId === locWizard.locationId && d.planningDate >= start && d.planningDate <= end,
       );
-      expect(created.length, 'the wizard bulk-created at least one weekend day').toBeGreaterThan(0);
-      for (const d of created) {
+      expect(
+        everyDayTheWizardCreated.length,
+        'the wizard bulk-created at least one weekend day',
+      ).toBeGreaterThan(0);
+      for (const d of everyDayTheWizardCreated) {
         createdIds.push(d.id);
         const dow = new Date(`${d.planningDate}T00:00:00`).getDay();
         expect(dow === 0 || dow === 6, `generated day ${d.planningDate} is a Sat/Sun`).toBe(true);
       }
 
       await expect(
-        page.getByTestId(`planning-row-${created[0]!.id}`),
+        page.getByTestId(`planning-row-${everyDayTheWizardCreated[0]!.id}`),
         'a wizard-generated day renders in the future-days list',
       ).toBeVisible();
     } finally {
@@ -711,19 +729,19 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
 
       const clubMail = await waitForMessageWithSubject(
         SEED_CLUB_NOTIFICATION_ADDRESS,
-        'Flugbetriebstag findet statt',
+        SUBJECT_PLANNING_DAY_OK_TAKES_PLACE,
       );
       expect(
         clubMail.Subject,
         'the imminent club mail is the planningday-ok template (the day takes place)',
-      ).toBe('Flugbetriebstag findet statt');
+      ).toBe(SUBJECT_PLANNING_DAY_OK_TAKES_PLACE);
 
       const instructorMail = await waitForMessage(masterdata.instructorEmail);
-      expect(instructorMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
+      expect(instructorMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
       const towPilotMail = await waitForMessage(masterdata.towPilotEmail);
-      expect(towPilotMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
+      expect(towPilotMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
       const flightOpMail = await waitForMessage(masterdata.flightOpEmail);
-      expect(flightOpMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
+      expect(flightOpMail.Subject).toBe(SUBJECT_WEEK_AHEAD_ASSIGNMENT_REMINDER);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -773,10 +791,10 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
       expect(paged.status(), 'the migrated TestClub can page its migrated planning days').toBe(200);
       const body = (await paged.json()) as { items: PlanningDayListRow[]; totalRows: number };
 
-      const migrated = body.items.find((d) => d.info === 'Test3');
+      const migrated = body.items.find((d) => d.info === MIGRATED_LEGACY_DAY_REMARK);
       expect(
         migrated,
-        `the migrated legacy planning day (remark "Test3") must be present for the migrated ` +
+        `the migrated legacy planning day (remark "${MIGRATED_LEGACY_DAY_REMARK}") must be present for the migrated ` +
           `TestClub — the T-11 legacy→export→migrate→render round-trip. Got ` +
           `${body.items.length} row(s): ${JSON.stringify(body.items.map((d) => d.info))}`,
       ).toBeTruthy();
@@ -797,7 +815,7 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
         'the identified migrated planning day renders in the migrated tenant’s future-days list',
       ).toBeVisible();
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-migrated-list.png`,
+        path: `${testInfo.outputDir}/${DIAGNOSTIC_MIGRATED_LIST_SHOT}`,
         fullPage: true,
       });
     } finally {

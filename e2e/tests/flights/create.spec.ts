@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { withPool } from '../../test-data';
@@ -93,8 +92,9 @@ test('flights:create new glider flight via UI shows up in list', async ({ logged
     const pilot = s.gliderPilots[0];
     if (!pilot) throw new Error('no glider pilot seeded');
 
+    const SELF_LAUNCH_START_TYPE_NEEDS_NO_TOW_PLANE = '3';
     s.flightDetails.FlightDate = new Date();
-    s.flightDetails.StartType = '3';
+    s.flightDetails.StartType = SELF_LAUNCH_START_TYPE_NEEDS_NO_TOW_PLANE;
     (s.flightDetails as Record<string, unknown>).Comment = comment;
 
     const gld = s.flightDetails.GliderFlightDetailsData;

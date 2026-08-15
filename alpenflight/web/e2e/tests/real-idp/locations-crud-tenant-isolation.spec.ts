@@ -18,9 +18,10 @@ async function newRecordedContext(
   return context;
 }
 
-
 const ICAO = 'LSZH';
 const CH_COUNTRY_LABEL = 'Switzerland';
+
+const LOCATIONS_SPEC_ADMIN_USERNAME_TAG = 'loc';
 
 async function selectSwitzerland(page: Page): Promise<void> {
   await page.getByTestId('locations-country-select').locator('nz-select').click();
@@ -29,6 +30,11 @@ async function selectSwitzerland(page: Page): Promise<void> {
     .locator('nz-option-item')
     .filter({ hasText: new RegExp(`^${CH_COUNTRY_LABEL}$`) })
     .click();
+}
+
+async function selectAnyLocationType(page: Page): Promise<void> {
+  await page.getByTestId('locations-type-select').locator('nz-select').click();
+  await page.locator('nz-option-item').first().click();
 }
 
 async function createLocationViaUi(
@@ -42,17 +48,16 @@ async function createLocationViaUi(
   await page.locator('#LocationName').fill(opts.name);
   await page.locator('#IcaoCode').fill(opts.icao);
   await selectSwitzerland(page);
-  await page.getByTestId('locations-type-select').locator('nz-select').click();
-  await page.locator('nz-option-item').first().click();
+  await selectAnyLocationType(page);
 
-  const created = page.waitForResponse(
+  const createCompletedBodyEvictedBySpaNav = page.waitForResponse(
     (r) =>
       r.request().method() === 'POST' &&
       new URL(r.url()).pathname === '/api/v1/locations' &&
       r.status() === 201,
   );
   await page.getByTestId('locations-save-button').click();
-  await created;
+  await createCompletedBodyEvictedBySpaNav;
   await expect(page).toHaveURL('/locations');
 }
 
@@ -76,7 +81,7 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL, 'loc');
+    fixture = await provisionTwoClubs(browser, baseURL, LOCATIONS_SPEC_ADMIN_USERNAME_TAG);
   });
 
   test.afterAll(async () => {
@@ -91,7 +96,7 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
     try {
       await loginAsClubAdmin(page, fixture.clubA);
 
-      const created = page.waitForResponse(
+      const createCompletedBodyEvictedBySpaNav = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
           new URL(r.url()).pathname === '/api/v1/locations' &&
@@ -102,10 +107,9 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
       await page.locator('#LocationName').fill('Zurich (Club A)');
       await page.locator('#IcaoCode').fill(ICAO);
       await selectSwitzerland(page);
-      await page.getByTestId('locations-type-select').locator('nz-select').click();
-      await page.locator('nz-option-item').first().click();
+      await selectAnyLocationType(page);
       await page.getByTestId('locations-save-button').click();
-      await created;
+      await createCompletedBodyEvictedBySpaNav;
 
       await expect(page).toHaveURL('/locations');
       await expect(page.getByTestId('locations-table')).toBeVisible();

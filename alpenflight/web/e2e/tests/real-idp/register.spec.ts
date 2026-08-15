@@ -10,6 +10,7 @@ import {
 import { waitForMessage, extractVerifyLink, purgeMailpit } from './_helpers/mailpit-client';
 import { E2E_CANNED_PASSWORD, E2E_OCCUPIED_EMAIL, freshTestUser } from './_helpers/test-user';
 
+const COLD_FIRST_SMTP_SEND_TIMEOUT_MS = 45_000;
 
 async function startRegistration(page: Page): Promise<void> {
   await page.goto('/signup');
@@ -40,7 +41,9 @@ test.describe('register — real-idp', () => {
     await fillKcRegistration(page, user);
     cleanupEmails.push(user.email);
 
-    const message = await waitForMessage(user.email, { timeoutMs: 45_000 });
+    const message = await waitForMessage(user.email, {
+      timeoutMs: COLD_FIRST_SMTP_SEND_TIMEOUT_MS,
+    });
     const verifyHref = extractVerifyLink(message);
     await page.goto(verifyHref);
 

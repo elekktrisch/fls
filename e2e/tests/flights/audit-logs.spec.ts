@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { ensureGliderFlight } from '../../test-data';
@@ -7,6 +6,7 @@ import type { Page, APIResponse } from '@playwright/test';
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const POLL_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 500;
+const SERVER_CLOCK_SKEW_ALLOWANCE_MS = 60_000;
 
 type AuditLogOverview = {
   AuditLogId: number;
@@ -55,21 +55,21 @@ test('audit-logs: PUT flight produces an audit-log entry visible via API', async
   const id = testId(testInfo);
   await gotoRoute(loggedInPage, '/flights');
   const token = await getBearerToken(loggedInPage);
-  const { flightId: FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+  const { flightId: ownedFlightId } = await ensureGliderFlight(loggedInPage.request, token, {
     comment: id.name,
   });
 
-  const before = await fetchAuditLogs(loggedInPage, token, FLIGHT_ID);
+  const before = await fetchAuditLogs(loggedInPage, token, ownedFlightId);
   const baselineCount = before.length;
   const baselineIds = new Set(before.map(x => x.AuditLogId));
 
-  const flight = await readFlight(loggedInPage, token, FLIGHT_ID);
+  const flight = await readFlight(loggedInPage, token, ownedFlightId);
   const newComment = `e2e-audit ${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   flight.GliderFlightDetailsData.FlightComment = newComment;
   const mutatedAt = new Date();
 
   const putRes = await loggedInPage.request.put(
-    `${API_BASE}/api/v1/flights/${FLIGHT_ID}`,
+    `${API_BASE}/api/v1/flights/${ownedFlightId}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -78,13 +78,13 @@ test('audit-logs: PUT flight produces an audit-log entry visible via API', async
       data: flight,
     },
   );
-  expect(putRes.ok(), `PUT /api/v1/flights/${FLIGHT_ID} -> ${putRes.status()}`).toBeTruthy();
+  expect(putRes.ok(), `PUT /api/v1/flights/${ownedFlightId} -> ${putRes.status()}`).toBeTruthy();
 
   let after: AuditLogOverview[] = [];
   let newEntries: AuditLogOverview[] = [];
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    after = await fetchAuditLogs(loggedInPage, token, FLIGHT_ID);
+    after = await fetchAuditLogs(loggedInPage, token, ownedFlightId);
     newEntries = after.filter(x => !baselineIds.has(x.AuditLogId));
     if (newEntries.length > 0) break;
     await loggedInPage.waitForTimeout(POLL_INTERVAL_MS);
@@ -98,10 +98,12 @@ test('audit-logs: PUT flight produces an audit-log entry visible via API', async
 
   const latest = newEntries[0]!;
   expect(latest.EntityName).toMatch(/Flight/i);
-  expect(latest.RecordId.toLowerCase()).toBe(FLIGHT_ID.toLowerCase());
+  expect(latest.RecordId.toLowerCase()).toBe(ownedFlightId.toLowerCase());
 
   const eventTs = new Date(latest.EventDateTime).getTime();
-  expect(eventTs).toBeGreaterThan(mutatedAt.getTime() - 60_000);
+  expect(eventTs).toBeGreaterThan(
+    mutatedAt.getTime() - SERVER_CLOCK_SKEW_ALLOWANCE_MS,
+  );
 
   const sawComment = newEntries.some(e =>
     (e.PropertyChanges ?? []).some(p =>

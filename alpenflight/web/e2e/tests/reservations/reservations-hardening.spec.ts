@@ -1,7 +1,6 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const AC_SAME = '019e30c3-2c00-7001-8000-00000000a001';
 const PILOT_ID = '019e30c3-2c00-7001-8000-0000000000b1';
@@ -104,21 +103,26 @@ test.describe('J-6b reservations calendar hardening (mock-auth inner loop)', () 
     await expect(dayBtn).toHaveAttribute('data-selected', 'true');
     await expect(weekBtn).toHaveAttribute('data-selected', 'false');
 
-    const lumOf = (el: ReturnType<Page['getByTestId']>, prop: 'backgroundColor' | 'color') =>
+    const luminanceViaRgbSerialisingProbe = (
+      el: ReturnType<Page['getByTestId']>,
+      prop: 'backgroundColor' | 'color',
+    ) =>
       el.evaluate((node, p) => {
-        const raw = getComputedStyle(node as HTMLElement)[p as 'backgroundColor' | 'color'];
-        const probe = document.createElement('span');
-        probe.style.backgroundColor = raw;
-        document.body.appendChild(probe);
-        const rgb = getComputedStyle(probe).backgroundColor;
-        probe.remove();
+        const computedColorMaybeOklch = getComputedStyle(node as HTMLElement)[
+          p as 'backgroundColor' | 'color'
+        ];
+        const rgbSerialisingProbe = document.createElement('span');
+        rgbSerialisingProbe.style.backgroundColor = computedColorMaybeOklch;
+        document.body.appendChild(rgbSerialisingProbe);
+        const rgb = getComputedStyle(rgbSerialisingProbe).backgroundColor;
+        rgbSerialisingProbe.remove();
         const [r, g, b] = rgb.match(/\d+(\.\d+)?/g)!.map(Number);
         return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
       }, prop);
 
-    const selBg = await lumOf(dayBtn, 'backgroundColor');
-    const selFg = await lumOf(dayBtn, 'color');
-    const unselBg = await lumOf(weekBtn, 'backgroundColor');
+    const selBg = await luminanceViaRgbSerialisingProbe(dayBtn, 'backgroundColor');
+    const selFg = await luminanceViaRgbSerialisingProbe(dayBtn, 'color');
+    const unselBg = await luminanceViaRgbSerialisingProbe(weekBtn, 'backgroundColor');
     expect(selBg, 'the SELECTED toggle ground is dark').toBeLessThan(96);
     expect(
       selFg,
@@ -143,7 +147,9 @@ test.describe('J-6b reservations calendar hardening (mock-auth inner loop)', () 
     await expect(dayBtn).toHaveAttribute('data-selected', 'false');
   });
 
-  test('DAY view pages by single days; the label is a single DD.MM.YYYY', async ({ page }) => {
+  test('DAY view exposes only the day pager; the single DD.MM.YYYY label moves and returns', async ({
+    page,
+  }) => {
     await wireReservations(page, [seedReservation]);
     await gotoDe(page, '/reservations');
 

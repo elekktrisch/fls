@@ -1,4 +1,3 @@
-
 import { expect, screenshot, test } from '../../fixtures';
 import { testId } from '../../test-id';
 import { API_BASE, ensureGliderFlight, getBearerToken as sharedGetToken, withPool as sharedWithPool } from '../../test-data';
@@ -47,28 +46,28 @@ async function changeProcessState(
 test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', async ({ loggedInPage }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
-  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+  const { flightId: ownedFlightId } = await ensureGliderFlight(loggedInPage.request, token, {
     comment: id.name,
     processStateId: ProcessState.Valid,
   });
 
-  const initial = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const initial = await getFlightProcessState(loggedInPage, token, ownedFlightId);
   expect(initial, 'test flight should start as Valid (30)').toBe(ProcessState.Valid);
 
   const excludeStatus = await changeProcessState(
-    loggedInPage, token, HISTORICAL_FLIGHT_ID, ProcessState.ExcludedFromDeliveryProcess,
+    loggedInPage, token, ownedFlightId, ProcessState.ExcludedFromDeliveryProcess,
   );
   expect(excludeStatus, 'PUT changeprocessstate -> ExcludedFromDeliveryProcess should 2xx').toBeLessThan(300);
 
-  const afterExclude = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const afterExclude = await getFlightProcessState(loggedInPage, token, ownedFlightId);
   expect(afterExclude).toBe(ProcessState.ExcludedFromDeliveryProcess);
 
   const includeStatus = await changeProcessState(
-    loggedInPage, token, HISTORICAL_FLIGHT_ID, ProcessState.Valid,
+    loggedInPage, token, ownedFlightId, ProcessState.Valid,
   );
   expect(includeStatus, 'PUT changeprocessstate -> Valid should 2xx').toBeLessThan(300);
 
-  const afterInclude = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const afterInclude = await getFlightProcessState(loggedInPage, token, ownedFlightId);
   expect(afterInclude).toBe(ProcessState.Valid);
   await screenshot(loggedInPage, 'state-transitions-01');
 });
@@ -76,14 +75,14 @@ test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', as
 test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ loggedInPage }, testInfo) => {
   const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
-  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+  const { flightId: ownedFlightId } = await ensureGliderFlight(loggedInPage.request, token, {
     comment: id.name,
     processStateId: ProcessState.Invalid,
   });
 
   await withPool(async pool => {
     const r = await pool.request()
-      .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)
+      .input('id', sql.UniqueIdentifier, ownedFlightId)
       .input('invalidState', sql.Int, ProcessState.Invalid)
       .query(`UPDATE Flights
                  SET ProcessStateId = @invalidState,
@@ -93,7 +92,7 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ lo
     expect(r.rowsAffected[0], 'expected to flip 1 flight row to Invalid').toBe(1);
   });
 
-  const precondition = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const precondition = await getFlightProcessState(loggedInPage, token, ownedFlightId);
   expect(precondition, 'flight should now be Invalid (28)').toBe(ProcessState.Invalid);
 
   const res = await loggedInPage.request.post(`${API_BASE}/api/v1/flights/validate`, {
@@ -103,7 +102,7 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ lo
   });
   expect(res.ok(), `POST /api/v1/flights/validate -> ${res.status()}`).toBeTruthy();
 
-  const finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  const finalState = await getFlightProcessState(loggedInPage, token, ownedFlightId);
   expect(finalState, 'revalidated flight should be Valid (30)').toBe(ProcessState.Valid);
   await screenshot(loggedInPage, 'state-transitions-02');
 });

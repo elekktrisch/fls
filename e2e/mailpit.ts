@@ -1,4 +1,3 @@
-
 const MAILPIT_BASE = process.env.MAILPIT_BASE ?? 'http://localhost:8025';
 
 export type MailpitAddress = { Address: string; Name?: string };

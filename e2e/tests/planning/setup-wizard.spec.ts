@@ -1,4 +1,3 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
 
@@ -6,8 +5,8 @@ const SETUP_ROUTE = '/planningsetup';
 const PLANNING_LIST_ROUTE = '/planning';
 const SETUP_FORM_SELECTOR = 'form[role="form"]';
 
-const START_DATE_ISO = '2026-05-16T00:00:00Z';
-const END_DATE_ISO   = '2026-05-31T00:00:00Z';
+const RANGE_FIRST_SATURDAY_ISO = '2026-05-16T00:00:00Z';
+const RANGE_LAST_SUNDAY_ISO    = '2026-05-31T00:00:00Z';
 
 async function waitForSetupReady(page: Page): Promise<void> {
   await page.locator(SETUP_FORM_SELECTOR).waitFor({ state: 'visible' });
@@ -30,7 +29,7 @@ async function countPlanningRows(page: Page): Promise<number> {
   return page.locator('tbody [data-testid="row"]').count();
 }
 
-test('planning-setup:wizard bulk-creates planning days for date range', async ({ loggedInPage }) => {
+test('planning-setup:wizard submit for a Sat+Sun range leaves >=1 planning day in the list', async ({ loggedInPage }) => {
   const page = loggedInPage;
 
   await gotoRoute(page, PLANNING_LIST_ROUTE);
@@ -57,7 +56,8 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
     s.setup.StartDate = new Date(startIso);
     s.setup.EndDate = new Date(endIso);
     if (!s.setup.LocationId) {
-      const loc = s.locations.find(l => l.IcaoCode === 'LSZK') ?? s.locations[0];
+      const testClubHomebaseIcao = 'LSZK';
+      const loc = s.locations.find(l => l.IcaoCode === testClubHomebaseIcao) ?? s.locations[0];
       s.setup.LocationId = loc.LocationId;
     }
     s.$apply();
@@ -66,7 +66,7 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
       everySat: !!s.setup.EverySaturday,
       everySun: !!s.setup.EverySunday,
     };
-  }, { startIso: START_DATE_ISO, endIso: END_DATE_ISO });
+  }, { startIso: RANGE_FIRST_SATURDAY_ISO, endIso: RANGE_LAST_SUNDAY_ISO });
 
   expect(submitted.hasLocation, 'setup.LocationId should be set (we inject LSZK if controller did not)').toBe(true);
   expect(submitted.everySat && submitted.everySun, 'default Sat+Sun recurrence should be preserved').toBe(true);

@@ -9,7 +9,6 @@ import {
 import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
 const KC_HOST = 'localhost:8090';
 
@@ -23,21 +22,24 @@ interface PublicRoute {
   readonly expectedConsoleErrors?: RegExp;
 }
 
-const SEED_CLUB_SLUG = 'seed-club-1';
+const REGISTRATION_CLOSED_SEED_CLUB_SLUG = 'seed-club-1';
 
 const PUBLIC_ROUTES: readonly PublicRoute[] = [
   { path: '/' },
   { path: '/signup' },
   {
-    path: scenicFlightPath(SEED_CLUB_SLUG),
+    path: scenicFlightPath(REGISTRATION_CLOSED_SEED_CLUB_SLUG),
     renders: testId.scenicPage,
-    anonymousReads: [publicApi.club(SEED_CLUB_SLUG)],
+    anonymousReads: [publicApi.club(REGISTRATION_CLOSED_SEED_CLUB_SLUG)],
     expectedConsoleErrors: /\b403\b/,
   },
   {
-    path: discoveryFlightPath(SEED_CLUB_SLUG),
+    path: discoveryFlightPath(REGISTRATION_CLOSED_SEED_CLUB_SLUG),
     renders: testId.discoveryPage,
-    anonymousReads: [publicApi.club(SEED_CLUB_SLUG), publicApi.discoveryDays(SEED_CLUB_SLUG)],
+    anonymousReads: [
+      publicApi.club(REGISTRATION_CLOSED_SEED_CLUB_SLUG),
+      publicApi.discoveryDays(REGISTRATION_CLOSED_SEED_CLUB_SLUG),
+    ],
     expectedConsoleErrors: /\b403\b/,
   },
   { path: '/auth/callback' },
@@ -46,7 +48,7 @@ const PUBLIC_ROUTES: readonly PublicRoute[] = [
 
 test.describe('public routes stay public — real-idp', () => {
   for (const route of PUBLIC_ROUTES) {
-    test(`${route.path} renders without KC redirect or an authenticated prefetch`, async ({
+    test(`${route.path} renders anonymously — no KC redirect, no undeclared or bearer-carrying /api/v1 call, no nav-bar`, async ({
       context,
     }, testInfo) => {
       const page = await context.newPage();
@@ -102,8 +104,10 @@ test.describe('public routes stay public — real-idp', () => {
   }
 });
 
-test.describe('nav-bar visible on a post-auth route — real-idp', () => {
-  test('/start shows af-nav-bar after pilot1 login', async ({ page }, testInfo) => {
+test.describe('nav-bar visible on a post-auth route — the positive control for the public-route nav-absence above (real-idp)', () => {
+  test('/start shows af-nav-bar after pilot1 login, so the public-route count-0 cannot pass vacuously', async ({
+    page,
+  }, testInfo) => {
     watchConsoleErrors(page, testInfo);
 
     await page.goto('/');

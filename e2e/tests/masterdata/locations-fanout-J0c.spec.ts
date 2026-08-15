@@ -1,4 +1,3 @@
-
 import { test, expect, gotoRoute, loginViaUi, waitForLoggedInState, screenshot } from '../../fixtures';
 import type { APIRequestContext, Page } from '@playwright/test';
 
@@ -35,7 +34,7 @@ async function bearer(page: Page): Promise<string> {
   return token as string;
 }
 
-async function ensureLocationDeleted(page: Page, token: string, name: string): Promise<void> {
+async function ensureLocationNameFreeForRetry(page: Page, token: string, name: string): Promise<void> {
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   const listRes = await page.request.post(`${API_BASE}/api/v1/locations/page/0/100`, {
     headers,
@@ -51,8 +50,12 @@ async function ensureLocationDeleted(page: Page, token: string, name: string): P
   }
 }
 
-async function clubHomebaseId(api: APIRequestContext, token: string, clubId: string): Promise<string> {
-  const res = await api.get(`${API_BASE}/api/v1/clubs/${clubId}`, {
+async function clubHomebaseId(
+  apiOutlivingBrowserContexts: APIRequestContext,
+  token: string,
+  clubId: string,
+): Promise<string> {
+  const res = await apiOutlivingBrowserContexts.get(`${API_BASE}/api/v1/clubs/${clubId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(res.ok(), `GET club ${clubId}: ${res.status()}`).toBeTruthy();
@@ -128,12 +131,15 @@ async function fillLocationRequiredDropdowns(page: Page): Promise<void> {
 test.setTimeout(120_000);
 
 test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity video)', async ({ browser, playwright }, testInfo) => {
-  const envName = process.env['J0C_LOCATION_NAME'];
-  const rand = (envName?.replace(/^J0C-/, '') ?? Math.random().toString(36).slice(2, 8))
+  const pinnedLocationNameFromProofWorkflow = process.env['J0C_LOCATION_NAME'];
+  const freshNameSuffix = (
+    pinnedLocationNameFromProofWorkflow?.replace(/^J0C-/, '') ??
+    Math.random().toString(36).slice(2, 8)
+  )
     .toUpperCase()
     .slice(0, 6);
-  const LOCATION_NAME = envName ?? `J0C-${rand}`;
-  const ICAO = `J${rand.slice(0, 3)}`;
+  const LOCATION_NAME = pinnedLocationNameFromProofWorkflow ?? `J0C-${freshNameSuffix}`;
+  const ICAO = `J${freshNameSuffix.slice(0, 3)}`;
 
   const ctxA = await browser.newContext({
     viewport: { width: 1280, height: 800 },
@@ -141,7 +147,7 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   });
   const pageA = await ctxA.newPage();
 
-  const api = await playwright.request.newContext();
+  const apiOutlivingBrowserContexts = await playwright.request.newContext();
 
   try {
   await loginViaUi(pageA, ADMINS[0].username, ADMINS[0].password);
@@ -149,7 +155,7 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   const clubAId = await myClubId(pageA);
   const tokenA = await bearer(pageA);
 
-  await ensureLocationDeleted(pageA, tokenA, LOCATION_NAME);
+  await ensureLocationNameFreeForRetry(pageA, tokenA, LOCATION_NAME);
 
   await gotoRoute(pageA, '/masterdata/locations/new');
   await pageA.locator('#LocationName').waitFor({ state: 'visible' });
@@ -208,18 +214,18 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   await pageB.waitForURL(/#\/masterdata\/clubs(?:\?.*)?$/, { timeout: 15_000 });
   await screenshot(pageB, 'fanout-J0c-03-club-b-homebase');
 
-  const clubBHomebase = await clubHomebaseId(api, tokenB, clubBId);
+  const clubBHomebase = await clubHomebaseId(apiOutlivingBrowserContexts, tokenB, clubBId);
   expect(
     clubBHomebase,
     'OtherClub.HomebaseId should be the new Location after save',
   ).toBe(locationId.toLowerCase());
 
-  const reAuthA = await api.post(`${API_BASE}/Token`, {
+  const reAuthA = await apiOutlivingBrowserContexts.post(`${API_BASE}/Token`, {
     form: { grant_type: 'password', username: ADMINS[0].username, password: ADMINS[0].password },
   });
   expect(reAuthA.ok(), `re-token A: ${reAuthA.status()}`).toBeTruthy();
   const reTokenA = (await reAuthA.json()).access_token as string;
-  const clubAHomebase = await clubHomebaseId(api, reTokenA, clubAId);
+  const clubAHomebase = await clubHomebaseId(apiOutlivingBrowserContexts, reTokenA, clubAId);
   expect(
     clubAHomebase,
     'TestClub.HomebaseId should be the new Location too — 2 clubs, 1 Location = fan-out trigger',
@@ -227,6 +233,6 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
 
   await ctxB.close();
   } finally {
-    await api.dispose();
+    await apiOutlivingBrowserContexts.dispose();
   }
 });

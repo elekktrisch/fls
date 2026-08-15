@@ -1,4 +1,3 @@
-
 import { test, expect } from '@playwright/test';
 import {
   clearInboxForRecipient,
@@ -22,8 +21,8 @@ const SUBJECTS = {
   licenceExpire:      /Lizenz läuft bald ab/i,
 };
 
-const TRIAL_ORGANIZER     = 'trial-organizer@e2e.fls.local';
-const PASSENGER_ORGANIZER = 'passenger-organizer@e2e.fls.local';
+const TRIAL_ORGANIZER_SHARED_INBOX     = 'trial-organizer@e2e.fls.local';
+const PASSENGER_ORGANIZER_SHARED_INBOX = 'passenger-organizer@e2e.fls.local';
 
 async function getToken(request: import('@playwright/test').APIRequestContext): Promise<string> {
   const res = await request.post(`${API_BASE}/Token`, {
@@ -64,13 +63,13 @@ test('email:trial-flight-registration-to-pilot', async ({ request }) => {
 
 test('email:trial-flight-registration-to-organizer', async ({ request }) => {
   const pilotEmail = uniqueRecipient('e2e-trial-pilot');
-  const pilotLastname = `OrgTest${Date.now().toString(36)}`;
+  const pilotLastnameMarkerForOurOwnRegistration = `OrgTest${Date.now().toString(36)}`;
 
   const res = await request.post(`${API_BASE}/api/v1/trialflightsregistrations`, {
     data: {
       ClubKey: 'TestClub',
       Firstname: 'Trial',
-      Lastname: pilotLastname,
+      Lastname: pilotLastnameMarkerForOurOwnRegistration,
       PrivateEmail: pilotEmail,
       SelectedDay: '2026-06-15',
       InvoiceAddressIsSame: true,
@@ -83,9 +82,9 @@ test('email:trial-flight-registration-to-organizer', async ({ request }) => {
 
   await expectEmail(
     {
-      to: TRIAL_ORGANIZER,
+      to: TRIAL_ORGANIZER_SHARED_INBOX,
       subjectMatches: SUBJECTS.trialOrganizer,
-      bodyMatches: new RegExp(pilotLastname),
+      bodyMatches: new RegExp(pilotLastnameMarkerForOurOwnRegistration),
     },
     { timeout: 8000 },
   );
@@ -135,7 +134,7 @@ test('email:passenger-flight-registration-to-organizer', async ({ request }) => 
 
   await expectEmail(
     {
-      to: PASSENGER_ORGANIZER,
+      to: PASSENGER_ORGANIZER_SHARED_INBOX,
       subjectMatches: SUBJECTS.passengerOrganizer,
     },
     { timeout: 8000 },

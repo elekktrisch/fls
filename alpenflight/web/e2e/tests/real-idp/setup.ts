@@ -5,8 +5,7 @@ import { assertLocalhostIssuer, ensureUser } from './_helpers/keycloak-admin';
 import { runProbes } from './_helpers/probes';
 import { E2E_OCCUPIED_EMAIL, E2E_CANNED_PASSWORD } from './_helpers/test-user';
 
-
-setup('real-idp probes + run-id + occupied fixture', async () => {
+setup('real-idp localhost-issuer refusal + probes + run-id + occupied fixture', async () => {
   assertLocalhostIssuer();
 
   if (!process.env['E2E_RUN_ID']) {

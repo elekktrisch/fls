@@ -1,4 +1,3 @@
-
 import { test, expect, gotoRoute, screenshot } from '../../fixtures';
 import { testId } from '../../test-id';
 import { ensureGliderFlight, getBearerToken } from '../../test-data';
@@ -8,7 +7,9 @@ const SECONDARY_TIMEOUT = 15_000;
 
 const CATEGORY = 'location';
 const FROM_DATE = '2025-01-01';
+const FROM_DATE_AS_RENDERED = /01\.01\.2025/;
 const TO_DATE = '2026-12-31';
+const URL_ENCODED_EMPTY_CRITERIA = '%7B%7D';
 
 async function waitForConfigScopeReady(page: Page): Promise<void> {
   await page.waitForFunction(() => {
@@ -34,7 +35,10 @@ test('flightreports:custom builder applies filter and renders results', async ({
   const token = await getBearerToken(loggedInPage);
   await ensureGliderFlight(loggedInPage.request, token, { comment: id.name });
 
-  await gotoRoute(loggedInPage, `/flightreports/custom/${CATEGORY}/%7B%7D/edit`);
+  await gotoRoute(
+    loggedInPage,
+    `/flightreports/custom/${CATEGORY}/${URL_ENCODED_EMPTY_CRITERIA}/edit`,
+  );
   await waitForConfigScopeReady(loggedInPage);
   await screenshot(loggedInPage, 'custom-builder-edit');
 
@@ -83,7 +87,7 @@ test('flightreports:custom builder applies filter and renders results', async ({
 
   const fromCell = loggedInPage.locator('.filter-criteria-panel .filter-value').first();
   await expect(fromCell, 'filter-criteria panel must render the From date').toBeVisible();
-  await expect(fromCell).toHaveText(/01\.01\.2025/);
+  await expect(fromCell).toHaveText(FROM_DATE_AS_RENDERED);
 
   const summaryRows = loggedInPage.locator('table.fls').first().locator('tr').filter({
     has: loggedInPage.locator('td'),

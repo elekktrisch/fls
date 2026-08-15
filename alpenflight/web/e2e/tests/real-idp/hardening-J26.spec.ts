@@ -11,14 +11,18 @@ import { enterViaNav } from '../_helpers/nav';
 import { fillKcLogin } from './_helpers/kc-form';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const CLUB_ADMIN1 = {
   username: 'clubadmin1@example.com',
   password: 'clubadmin1-dev-2026!',
 };
 
-const MEMBER_STATE_A = 'Aktivmitglied';
-const MEMBER_STATE_B = 'Passivmitglied';
+const SEED_MEMBER_STATE_ACTIVE = 'Aktivmitglied';
+const SEED_MEMBER_STATE_PASSIVE = 'Passivmitglied';
+
+const MEMBER_NUMBER_STAMP_MODULUS_FITS_THE_FORM_MAX_LENGTH = 100_000_000;
+
+const MEMBERSHIP_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS = 'alpenflight-hardening-membership.png';
+const DUPLICATE_CODE_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS = 'alpenflight-hardening-duplicate-code.png';
 
 async function newRecordedContext(
   browser: Browser,
@@ -78,11 +82,11 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
       const motorWasChecked = await motorRole.isChecked();
       const stateSelect = page.getByTestId('member-state-select');
       const currentStateText = ((await stateSelect.textContent()) ?? '').trim();
-      const targetState = currentStateText.includes(MEMBER_STATE_B)
-        ? MEMBER_STATE_A
-        : MEMBER_STATE_B;
+      const targetState = currentStateText.includes(SEED_MEMBER_STATE_PASSIVE)
+        ? SEED_MEMBER_STATE_ACTIVE
+        : SEED_MEMBER_STATE_PASSIVE;
 
-      const memberNumber = `M-${Date.now() % 100_000_000}`;
+      const memberNumber = `M-${Date.now() % MEMBER_NUMBER_STAMP_MODULUS_FITS_THE_FORM_MAX_LENGTH}`;
       await memberNumberInput.fill(memberNumber);
       await motorRole.setChecked(!motorWasChecked);
       await stateSelect.locator('nz-select').click();
@@ -106,7 +110,7 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
       await expect(page.getByTestId('person-form')).toBeVisible();
 
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-hardening-membership.png`,
+        path: `${testInfo.outputDir}/${MEMBERSHIP_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS}`,
         fullPage: true,
       });
 
@@ -149,12 +153,12 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
       await expect(page).toHaveURL(/\/flight-types(\?|$)/);
       await expect(page.getByTestId('flight-types-table')).toBeVisible();
 
-      const stamp = Date.now() % 100_000;
-      const dupCode = `D${stamp}`;
+      const uniquePerRunStamp = Date.now() % 100_000;
+      const dupCode = `D${uniquePerRunStamp}`;
 
       await page.getByTestId('flight-types-new-button').click();
       await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
-      await page.locator('#FlightTypeName').fill(`J26 Original ${stamp}`);
+      await page.locator('#FlightTypeName').fill(`J26 Original ${uniquePerRunStamp}`);
       await page.locator('#FlightCode').fill(dupCode);
       const firstCreate = page.waitForResponse(
         (r) =>
@@ -170,7 +174,7 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
       await expect(page.getByTestId('flight-types-table')).toBeVisible();
       await page.getByTestId('flight-types-new-button').click();
       await expect(page.getByTestId('flight-types-edit-form')).toBeVisible();
-      await page.locator('#FlightTypeName').fill(`J26 Duplikat ${stamp}`);
+      await page.locator('#FlightTypeName').fill(`J26 Duplikat ${uniquePerRunStamp}`);
       await page.locator('#FlightCode').fill(dupCode);
 
       const dupResponse = page.waitForResponse(
@@ -192,7 +196,7 @@ test.describe('J-26 hardening (real-idp heavy chain)', () => {
       ).toBeVisible();
 
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-hardening-duplicate-code.png`,
+        path: `${testInfo.outputDir}/${DUPLICATE_CODE_SHOT_CAPTURED_BEFORE_DEEP_ASSERTS}`,
         fullPage: true,
       });
 

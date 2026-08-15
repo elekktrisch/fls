@@ -6,7 +6,6 @@ import { fillKcLogin } from './_helpers/kc-form';
 import { waitForMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
 
-
 const JOBS_PATH = '/system/jobs';
 const START_PATH = '/start';
 

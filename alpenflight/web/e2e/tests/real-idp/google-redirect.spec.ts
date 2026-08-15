@@ -1,11 +1,12 @@
 import { test, expect } from '../_helpers/console-guard';
 
+const goBackIsBestEffortGoogleMayHaveRedirectedOnward = (): void => undefined;
 
 test('google CTA on /signup redirects to accounts.google.com', async ({ page }) => {
   await page.goto('/signup');
   await expect(page.getByTestId('signup-google')).toBeVisible();
 
-  const googleRequest = page.waitForRequest(
+  const firstGoogleRequestAfterTheKcBrokerBounce = page.waitForRequest(
     (req) => {
       try {
         return new URL(req.url()).hostname.endsWith('accounts.google.com');
@@ -17,11 +18,10 @@ test('google CTA on /signup redirects to accounts.google.com', async ({ page }) 
   );
 
   await page.getByTestId('signup-google').click();
-  const matched = await googleRequest;
+  const matched = await firstGoogleRequestAfterTheKcBrokerBounce;
 
   const url = new URL(matched.url());
   expect(url.hostname).toMatch(/(^|\.)accounts\.google\.com$/);
 
-  await page.goBack().catch(() => {
-  });
+  await page.goBack().catch(goBackIsBestEffortGoogleMayHaveRedirectedOnward);
 });

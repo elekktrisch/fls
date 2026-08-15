@@ -1,4 +1,3 @@
-
 import { existsSync } from "node:fs";
 import {
   test,
@@ -81,9 +80,12 @@ test("J-1 parity: legacy aircraft list + form field set (parity video)", async (
       fleet.length,
       "FLSTest should seed at least one aircraft for the parity walkthrough",
     ).toBeGreaterThan(0);
-    const sample = fleet[0];
+    const seededAircraftToOpenReadOnly = fleet[0];
 
-    await gotoRoute(page, `/masterdata/aircrafts/${sample.AircraftId}`);
+    await gotoRoute(
+      page,
+      `/masterdata/aircrafts/${seededAircraftToOpenReadOnly.AircraftId}`,
+    );
     const immatInput = page.locator("#Immatriculation");
     await immatInput.waitFor({ state: "visible", timeout: 30_000 });
     await screenshot(page, "aircrafts-parity-J1-02-legacy-form-top");
@@ -92,11 +94,16 @@ test("J-1 parity: legacy aircraft list + form field set (parity video)", async (
       path: testInfo.outputPath("legacy-aircraft-form.png"),
       fullPage: true,
     });
-    await expect(immatInput).toHaveValue(sample.Immatriculation);
+    await expect(immatInput).toHaveValue(
+      seededAircraftToOpenReadOnly.Immatriculation,
+    );
 
-    const comment = page.locator("#Comment");
-    await comment.scrollIntoViewIfNeeded();
-    await comment.waitFor({ state: "visible", timeout: 15_000 });
+    const commentFieldAtFormBottom = page.locator("#Comment");
+    await commentFieldAtFormBottom.scrollIntoViewIfNeeded();
+    await commentFieldAtFormBottom.waitFor({
+      state: "visible",
+      timeout: 15_000,
+    });
     await screenshot(page, "aircrafts-parity-J1-03-legacy-form-fields");
   } finally {
     await ctx.close();

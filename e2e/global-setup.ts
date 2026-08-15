@@ -3,11 +3,10 @@ import { clearInbox } from "./mailpit";
 const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 const MAILPIT_BASE = process.env.MAILPIT_BASE ?? "http://localhost:8025";
 
+const MIN_COUNTRIES_PROVING_SEED_REPLAY_FINISHED = 100;
 
-const MIN_COUNTRIES = 100;
-
-const FLS_USERNAME = process.env.FLS_USERNAME ?? "testclubadmin";
-const FLS_PASSWORD = process.env.FLS_PASSWORD ?? "s";
+const TESTCLUB_ADMIN_USERNAME = process.env.FLS_USERNAME ?? "testclubadmin";
+const TESTCLUB_ADMIN_PASSWORD = process.env.FLS_PASSWORD ?? "s";
 
 const READINESS_TIMEOUT_MS = 180_000;
 const POLL_INTERVAL_MS = 2_000;
@@ -40,8 +39,8 @@ async function waitForSeededBackend(): Promise<void> {
     const body = (await res.json()) as unknown[];
     const count = Array.isArray(body) ? body.length : -1;
     return {
-      ok: count >= MIN_COUNTRIES,
-      detail: `countries=${count} (floor ${MIN_COUNTRIES})`,
+      ok: count >= MIN_COUNTRIES_PROVING_SEED_REPLAY_FINISHED,
+      detail: `countries=${count} (floor ${MIN_COUNTRIES_PROVING_SEED_REPLAY_FINISHED})`,
     };
   });
 }
@@ -59,8 +58,8 @@ async function bearerToken(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "password",
-      username: FLS_USERNAME,
-      password: FLS_PASSWORD,
+      username: TESTCLUB_ADMIN_USERNAME,
+      password: TESTCLUB_ADMIN_PASSWORD,
     }),
   });
   if (!tokenRes.ok) throw new Error(`token HTTP ${tokenRes.status}`);

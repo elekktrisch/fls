@@ -1,6 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-
 const CATEGORIES = [
   'auth',
   'public',

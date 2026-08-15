@@ -1,6 +1,7 @@
-
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
 import type { Page } from '@playwright/test';
+
+const NG_TABLE_FILTER_DEBOUNCE_MS = 800;
 
 async function openFirstUserEditPage(page: Page): Promise<void> {
   await gotoRoute(page, '/masterdata/users');
@@ -24,23 +25,23 @@ test('persons-add-modal: create person via $modal and assert in list', async ({
   await newPersonButton.waitFor({ state: 'visible' });
   await newPersonButton.click();
 
-  const dialog = loggedInPage.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  const addPersonModal = loggedInPage.getByRole('dialog');
+  await expect(addPersonModal).toBeVisible({ timeout: 10_000 });
 
   const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const firstname = `E2EFirst${stamp}`;
   const lastname = `E2ELast${stamp}`;
   const email = `e2e-${stamp}@example.test`;
 
-  await dialog.locator('#Firstname').fill(firstname);
-  await dialog.locator('#Lastname').fill(lastname);
-  await dialog.locator('#Email').fill(email);
+  await addPersonModal.locator('#Firstname').fill(firstname);
+  await addPersonModal.locator('#Lastname').fill(lastname);
+  await addPersonModal.locator('#Email').fill(email);
 
-  const okButton = dialog.locator('button[type="submit"]');
+  const okButton = addPersonModal.locator('button[type="submit"]');
   await expect(okButton).toBeEnabled();
   await okButton.click();
 
-  await expect(dialog).toBeHidden({ timeout: 10_000 });
+  await expect(addPersonModal).toBeHidden({ timeout: 10_000 });
   await loggedInPage.waitForLoadState('domcontentloaded');
 
   const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -69,7 +70,7 @@ test('persons-add-modal: create person via $modal and assert in list', async ({
   const lastnameFilter = loggedInPage.locator('input[name="Lastname"]').first();
   await lastnameFilter.waitFor({ state: 'visible' });
   await lastnameFilter.fill(lastname);
-  await loggedInPage.waitForTimeout(800);
+  await loggedInPage.waitForTimeout(NG_TABLE_FILTER_DEBOUNCE_MS);
   await loggedInPage.waitForFunction(() => {
     const spinners = Array.from(
       document.querySelectorAll('[data-testid="busy-indicator"]'),

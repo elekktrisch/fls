@@ -1,11 +1,11 @@
 import { test, gotoRoute, screenshot } from '../../fixtures';
 
-const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
+const HISTORICAL_FIXTURE_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
 const AUTH_ROUTES: { name: string; path: string }[] = [
   { name: 'dashboard',                        path: '/main' },
   { name: 'flights-list',                     path: '/flights' },
-  { name: 'flights-edit',                     path: `/flights/${FLIGHT_ID}` },
+  { name: 'flights-edit',                     path: `/flights/${HISTORICAL_FIXTURE_FLIGHT_ID}` },
   { name: 'airmovements-list',                path: '/airmovements' },
   { name: 'planning-list',                    path: '/planning' },
   { name: 'planning-setup',                   path: '/planningsetup' },

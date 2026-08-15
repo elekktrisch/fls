@@ -9,7 +9,6 @@ import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
 
 import { fillKcLogin } from './_helpers/kc-form';
 
-
 interface SeededPrincipal {
   username: string;
   password: string;
@@ -36,6 +35,10 @@ const SYSADMIN_MIN_FLIGHTS = 14;
 const SYSADMIN_MIN_USERS = 6;
 
 const CLUB1_MOTOR_IMMAT = 'HB-MOT1';
+
+const LAST_FLIGHT_TWO_HOP_CHAIN_TIMEOUT_MS = 15_000;
+const SSE_NUDGE_AND_REFETCH_TIMEOUT_MS = 15_000;
+const UNRESOLVED_CREW_ROLE_PLACEHOLDER = '—';
 
 async function loginAsRole(
   browser: Browser,
@@ -126,6 +129,9 @@ async function captureVariantShot(page: Page, testInfo: TestInfo, variant: strin
   });
 }
 
+const captureVariantShotBeforeAssertionsThatCanAbort = captureVariantShot;
+const recaptureVariantShotOverwritingItWithTheResolvedState = captureVariantShot;
+
 test.describe('J-3 dashboard (/start) — role variants [showcase seed, real chain]', () => {
   test('pilot principal renders the pilot variant with a populated last-flight card', async ({
     browser,
@@ -136,18 +142,22 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
       await expect(page.getByTestId('start-variant-pilot')).toBeVisible();
       await expect(page.getByTestId('start-greeting')).toBeVisible();
 
-      await captureVariantShot(page, testInfo, 'pilot');
+      await captureVariantShotBeforeAssertionsThatCanAbort(page, testInfo, 'pilot');
 
-      await expect(page.getByTestId('start-last-flight-card')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId('start-last-flight-card')).toBeVisible({
+        timeout: LAST_FLIGHT_TWO_HOP_CHAIN_TIMEOUT_MS,
+      });
       await expect(page.getByTestId('start-last-flight-empty')).toHaveCount(0);
       await expect(page.getByTestId('start-last-flight-error')).toHaveCount(0);
-      await expect(page.getByTestId('start-last-flight-role')).not.toHaveText('—');
+      await expect(page.getByTestId('start-last-flight-role')).not.toHaveText(
+        UNRESOLVED_CREW_ROLE_PLACEHOLDER,
+      );
 
       await expect(page.getByTestId('start-variant-clubadmin')).toHaveCount(0);
       await expect(page.getByTestId('start-variant-sysadmin')).toHaveCount(0);
       await expect(page.getByTestId('start-pilot-view-toggle')).toHaveCount(0);
 
-      await captureVariantShot(page, testInfo, 'pilot');
+      await recaptureVariantShotOverwritingItWithTheResolvedState(page, testInfo, 'pilot');
     } finally {
       await context.close();
     }
@@ -161,7 +171,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     try {
       await expect(page.getByTestId('start-variant-clubadmin')).toBeVisible();
 
-      await captureVariantShot(page, testInfo, 'clubadmin');
+      await captureVariantShotBeforeAssertionsThatCanAbort(page, testInfo, 'clubadmin');
 
       await expect(page.getByTestId('start-tile-today-flights-value')).toHaveText(
         String(CLUB1_TODAY_FLIGHTS),
@@ -170,7 +180,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
         String(CLUB1_PENDING_VALIDATION),
       );
 
-      await captureVariantShot(page, testInfo, 'clubadmin');
+      await recaptureVariantShotOverwritingItWithTheResolvedState(page, testInfo, 'clubadmin');
     } finally {
       await context.close();
     }
@@ -184,7 +194,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     try {
       await expect(page.getByTestId('start-variant-sysadmin')).toBeVisible();
 
-      await captureVariantShot(page, testInfo, 'sysadmin');
+      await captureVariantShotBeforeAssertionsThatCanAbort(page, testInfo, 'sysadmin');
 
       const clubs = Number(
         (await page.getByTestId('start-tile-total-clubs-value').textContent())?.trim(),
@@ -207,7 +217,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
 
       await expect(page.getByTestId('start-tenant-enter')).toBeVisible();
 
-      await captureVariantShot(page, testInfo, 'sysadmin');
+      await recaptureVariantShotOverwritingItWithTheResolvedState(page, testInfo, 'sysadmin');
     } finally {
       await context.close();
     }
@@ -223,16 +233,18 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
       const tile = page.getByTestId('start-tile-today-flights-value');
       await expect(tile).toHaveText(String(CLUB1_TODAY_FLIGHTS));
 
-      const actorPage = await context.newPage();
+      const sameSubActorPageKeepingTheDashboardSseStreamOpen = await context.newPage();
       try {
-        const bearer = await captureBearer(actorPage);
+        const bearer = await captureBearer(sameSubActorPageKeepingTheDashboardSseStreamOpen);
         const motorAircraftId = await resolveClub1MotorAircraftId(context.request, bearer);
         await createClub1TodayMotorFlight(context.request, bearer, motorAircraftId);
       } finally {
-        await actorPage.close();
+        await sameSubActorPageKeepingTheDashboardSseStreamOpen.close();
       }
 
-      await expect(tile).toHaveText(String(CLUB1_TODAY_AFTER_CREATE), { timeout: 15_000 });
+      await expect(tile).toHaveText(String(CLUB1_TODAY_AFTER_CREATE), {
+        timeout: SSE_NUDGE_AND_REFETCH_TIMEOUT_MS,
+      });
     } finally {
       await context.close();
     }

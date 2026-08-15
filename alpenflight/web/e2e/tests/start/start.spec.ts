@@ -1,7 +1,6 @@
 import { type Page, type Route } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-
 const MOCK_PERSON_ID = 'pn-019e30c3-2c00-7100-8000-0000000000a5';
 const FLIGHT_ID = 'fl-019e30c3-2c00-7165-8000-000000000001';
 const AIRCRAFT_ID = 'ac-019e30c3-2c00-7165-8000-000000000a01';
@@ -11,6 +10,9 @@ const FLIGHT_TYPE_ID = '019e30c3-2c00-7165-8000-000000000c01';
 const PIC_CREW_TYPE_ID = '019e2e15-2c00-76b0-8000-0000000036b0';
 const GLIDER_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
 const PROC_STATE_VALID_ID = '019e2e15-2c00-7100-8000-000000007002';
+
+const FLIGHT_DATE_ISO = '2026-05-21';
+const FLIGHT_DATE_RENDERED_DDMMYYYY = '21.05.2026';
 
 const mockAircraft = [
   {
@@ -56,9 +58,9 @@ const mockFlightTypes = [
 const mockMyFlight = {
   id: FLIGHT_ID,
   flightAircraftType: 'GLIDER',
-  flightDate: '2026-05-21',
-  startDateTime: '2026-05-21T08:42:00Z',
-  ldgDateTime: '2026-05-21T10:14:00Z',
+  flightDate: FLIGHT_DATE_ISO,
+  startDateTime: `${FLIGHT_DATE_ISO}T08:42:00Z`,
+  ldgDateTime: `${FLIGHT_DATE_ISO}T10:14:00Z`,
   aircraftId: AIRCRAFT_ID,
   startLocationId: START_LOC_ID,
   ldgLocationId: LDG_LOC_ID,
@@ -172,7 +174,7 @@ async function stubFlightDetail(page: Page, detail: unknown): Promise<void> {
   );
 }
 
-async function gotoPilotView(page: Page): Promise<void> {
+async function gotoStartAndSwitchToPilotVariant(page: Page): Promise<void> {
   await page.goto('/start?lang=en');
   await page.getByTestId('start-pilot-view-toggle').click();
   await expect(page.getByTestId('start-variant-pilot')).toBeVisible();
@@ -187,14 +189,14 @@ test.describe('home (/start) dashboard', () => {
     await page.route('**/api/v1/flights**', flightsListHandler([mockMyFlight]));
     await stubFlightDetail(page, mockMyFlight);
 
-    await gotoPilotView(page);
+    await gotoStartAndSwitchToPilotVariant(page);
 
     await expect(page.getByTestId('start-greeting')).toBeVisible();
     await expect(page.getByTestId('start-today')).toBeVisible();
     const lastCard = page.getByTestId('start-last-flight-card');
     await expect(lastCard).toBeVisible();
     await expect(lastCard).toContainText('HB-S165');
-    await expect(lastCard).toContainText('21.05.2026');
+    await expect(lastCard).toContainText(FLIGHT_DATE_RENDERED_DDMMYYYY);
     await expect(page.getByTestId('start-last-flight-role')).toHaveText('PIC');
 
     await expect(page.getByTestId('start-reservation-placeholder')).toBeVisible();
@@ -212,7 +214,7 @@ test.describe('home (/start) dashboard', () => {
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 
-    await gotoPilotView(page);
+    await gotoStartAndSwitchToPilotVariant(page);
 
     const empty = page.getByTestId('start-last-flight-empty');
     await expect(empty).toBeVisible();
@@ -231,12 +233,12 @@ test.describe('home (/start) dashboard', () => {
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 
-    await gotoPilotView(page);
+    await gotoStartAndSwitchToPilotVariant(page);
 
     await page.getByTestId('start-quick-open-logbook').click();
     await expect(page).toHaveURL(/\/flights$/);
 
-    await gotoPilotView(page);
+    await gotoStartAndSwitchToPilotVariant(page);
 
     await page.getByTestId('start-quick-log-flight').click();
     await expect(page).toHaveURL(/\/flights\/new$/);
