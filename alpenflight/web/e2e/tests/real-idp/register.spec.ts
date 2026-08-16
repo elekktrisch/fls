@@ -14,7 +14,7 @@ import {
 } from './_helpers/mailpit-client';
 import { E2E_CANNED_PASSWORD, E2E_OCCUPIED_EMAIL, freshTestUser } from './_helpers/test-user';
 
-const COLD_FIRST_SMTP_SEND_TIMEOUT_MS = 45_000;
+const VERIFY_MAIL_DELIVERY_BUDGET_LEAVING_ROOM_INSIDE_THE_REAL_IDP_TEST_TIMEOUT_MS = 20_000;
 
 async function startRegistration(page: Page): Promise<void> {
   await page.goto('/signup');
@@ -36,9 +36,7 @@ test.describe('register — real-idp', () => {
     await purgeMailpit();
   });
 
-  test('@quarantine-kc26 happy path — register, verify via Mailpit, land on /migrate/start', async ({
-    page,
-  }) => {
+  test('happy path — register, verify via Mailpit, land on /migrate/start', async ({ page }) => {
     const user = freshTestUser();
 
     await startRegistration(page);
@@ -46,7 +44,7 @@ test.describe('register — real-idp', () => {
     cleanupEmails.push(user.email);
 
     const message = await waitForExactlyOneMessage(user.email, {
-      timeoutMs: COLD_FIRST_SMTP_SEND_TIMEOUT_MS,
+      timeoutMs: VERIFY_MAIL_DELIVERY_BUDGET_LEAVING_ROOM_INSIDE_THE_REAL_IDP_TEST_TIMEOUT_MS,
     });
     const verifyHref = extractVerifyLink(message);
     await page.goto(verifyHref);

@@ -23,13 +23,28 @@ export async function fillKcLogin(page: Page, username: string, password: string
   await submitForm(page, KC_LOGIN_FORM);
 }
 
-export async function fillKcRegistration(page: Page, user: TestUser): Promise<void> {
+const KC_REGISTRATION_USERNAME_FIELD_REQUIRED_WHILE_THE_REALM_KEEPS_USERNAME_SEPARATE_FROM_EMAIL = `${KC_REGISTER_FORM} #username`;
+
+async function fillEveryFieldTheKcRegistrationFormRequires(
+  page: Page,
+  user: TestUser,
+  password: string,
+): Promise<void> {
+  await page
+    .locator(
+      KC_REGISTRATION_USERNAME_FIELD_REQUIRED_WHILE_THE_REALM_KEEPS_USERNAME_SEPARATE_FROM_EMAIL,
+    )
+    .fill(user.email);
   await page.locator('#firstName').fill(user.firstName);
   await page.locator('#lastName').fill(user.lastName);
   await page.locator('#email').fill(user.email);
-  await page.locator('#password').fill(user.password);
-  await page.locator('#password-confirm').fill(user.password);
+  await page.locator('#password').fill(password);
+  await page.locator('#password-confirm').fill(password);
   await submitForm(page, KC_REGISTER_FORM);
+}
+
+export async function fillKcRegistration(page: Page, user: TestUser): Promise<void> {
+  await fillEveryFieldTheKcRegistrationFormRequires(page, user, user.password);
 }
 
 export async function fillKcRegistrationWithPassword(
@@ -37,10 +52,5 @@ export async function fillKcRegistrationWithPassword(
   user: TestUser,
   password: string,
 ): Promise<void> {
-  await page.locator('#firstName').fill(user.firstName);
-  await page.locator('#lastName').fill(user.lastName);
-  await page.locator('#email').fill(user.email);
-  await page.locator('#password').fill(password);
-  await page.locator('#password-confirm').fill(password);
-  await submitForm(page, KC_REGISTER_FORM);
+  await fillEveryFieldTheKcRegistrationFormRequires(page, user, password);
 }
