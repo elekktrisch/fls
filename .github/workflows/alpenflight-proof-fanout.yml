@@ -75,7 +75,7 @@ jobs:
       - name: Install NuGet CLI
         run: sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 
-      - name: Restore every packages.config the cache key hashes
+      - name: Restore every packages.config the cache key hashes, and retry a transient transport failure
         working-directory: flsserver/src
         run: |
           set -euo pipefail
@@ -84,8 +84,33 @@ jobs:
             echo "Found no packages.config under flsserver/src. The restore has no inputs and the cache key hashes an empty set."
             exit 1
           fi
+          attempts_per_config=3
+          restore_log=$(mktemp)
           for package_config in $package_configs; do
-            mono /usr/local/bin/nuget.exe restore "$package_config" -SolutionDirectory .
+            attempt=1
+            while : ; do
+              set +e
+              mono /usr/local/bin/nuget.exe restore "$package_config" -SolutionDirectory . -NonInteractive 2>&1 | tee "$restore_log"
+              last_exit_code=${PIPESTATUS[0]}
+              set -e
+              if [ "$last_exit_code" -eq 0 ]; then
+                break
+              fi
+              if grep -qE "Unable to find (package|version)" "$restore_log"; then
+                echo "Restore of $package_config failed with exit code $last_exit_code and reported a package NuGet cannot find."
+                echo "A retry cannot create a package that does not exist, so attempt $attempt of $attempts_per_config is the last one."
+                exit "$last_exit_code"
+              fi
+              if [ "$attempt" -ge "$attempts_per_config" ]; then
+                echo "Restore of $package_config used all $attempts_per_config attempts and failed. The last exit code was $last_exit_code."
+                echo "Read the NuGet output above. A repeated Ssl or connection error points to api.nuget.org. Every other error is a real restore failure."
+                exit "$last_exit_code"
+              fi
+              backoff_seconds=$((attempt * 10))
+              echo "Attempt $attempt of $attempts_per_config for $package_config failed with exit code $last_exit_code. The next attempt starts in $backoff_seconds seconds."
+              sleep "$backoff_seconds"
+              attempt=$((attempt + 1))
+            done
           done
 
       - name: Assert the restore produced every assembly xbuild resolves by HintPath
