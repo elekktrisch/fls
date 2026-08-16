@@ -98,7 +98,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 
 - [x] **T-01** — MAIN-1 fix (`5d709fe0d`): the two DCT seed dates are relative to the run date. Offset 30 days inside the free range `[4, 89]`; worst-case margin 29 days, swept over 3000 run dates plus clock and zone skew.
 - [x] **T-02** — Scaffold: `account-recovery.spec.ts` stub (all `test.fixme`, real selectors + flow) + the J-19 proof-gallery page linked from the index.
-- [ ] **T-03** — MAIN-1 guard: promote T-01's constant + `daysAgo()` into a shared e2e helper, convert `deliveries-parity.spec.ts:78` and `deliveries-write-parity.spec.ts:127` (both hold the same expired date), then add the check that rejects an absolute `flightDate` in an API-seeding spec.
+- [x] **T-03** — MAIN-1 guard: T-01's constant + `daysAgo()` now live in `tests/real-idp/_helpers/seed-flight-date.ts`; all three real-idp seed sites derive the date from the run date. `scripts/absolute-flight-date-in-api-seed-guard.mjs` rejects an absolute `flightDate` / `startDateTime` / `ldgDateTime` inside an API POST across `e2e/tests/**`, and runs in `ci.yml`'s `changes` job on every push with no path filter. The 13 remaining mock-lane dates sit in `route.fulfill` response bodies, which no server window can expire; they stay with the suite-wide date audit.
 - [ ] **T-04** — MAIN-2 fix: `nightly.yml` legacy server build restores every `packages.config` and asserts the assemblies exist at the restore step.
 - [ ] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `PHANTOMJS_SKIP_DOWNLOAD=true`.
 - [ ] **T-06** — `/lostpassword` page + route: public, branded, hands off to Keycloak.

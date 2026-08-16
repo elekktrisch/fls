@@ -101,6 +101,9 @@ jobs:
       - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
         run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
 
+      - name: Absolute-flight-date-in-API-seed guard (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: node alpenflight/web/scripts/absolute-flight-date-in-api-seed-guard.mjs
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #

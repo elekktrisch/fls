@@ -10,6 +10,7 @@ import { enterViaNav } from '../_helpers/nav';
 
 import { seedFlightMasterdata, type FlightMasterdata } from './_helpers/flight-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
+import { seededFlightDateInsideListWindowAndPastBillGate } from './_helpers/seed-flight-date';
 import {
   loginAsReservationAdmin,
   captureReservationAdminBearer,
@@ -40,14 +41,6 @@ const CREW_TYPE_PILOT = '019e2e15-2c00-76b0-8000-0000000036b0';
 const FT_ARTICLE = 'ART-FT';
 const LT_ARTICLE = 'ART-LT';
 const LT_ARTICLE_AFTER_RULE_CHANGE = 'ART-LT-CHANGED';
-
-const SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE = 30;
-
-function daysAgo(n: number): string {
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() - n);
-  return day.toISOString().slice(0, 10);
-}
 
 interface DeliveryItem {
   position?: number;
@@ -126,9 +119,7 @@ async function seedScenario(
   ltWrite: Record<string, unknown>;
 }> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
-  const flightDate = daysAgo(
-    SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE,
-  );
+  const flightDate = seededFlightDateInsideListWindowAndPastBillGate();
 
   const flightRes = await api.post(FLIGHTS, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
@@ -661,9 +652,7 @@ async function seedCreditScenario(
 }> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
   const ftArticle = `CREDIT-FT-${Date.now().toString(36)}`;
-  const flightDate = daysAgo(
-    SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE,
-  );
+  const flightDate = seededFlightDateInsideListWindowAndPastBillGate();
 
   const flightRes = await api.post(FLIGHTS, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
