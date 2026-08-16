@@ -10,8 +10,14 @@ import { SessionStore, type User } from '../session/session.store';
 import {
   applyClaimsToSession,
   handleSilentRenewFailed,
+  postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage,
   type SessionPort,
 } from './oidc-session-bridge';
+import {
+  DEFAULT_POST_LOGIN_ROUTE,
+  consumePostLoginRedirect,
+  rememberPostLoginRedirect,
+} from './post-login-redirect';
 
 const sampleClaims = {
   sub: 'b9c0e2a5-1d3f-4a2e-9c6e-22f3a0c0a001',
@@ -132,6 +138,57 @@ describe('handleSilentRenewFailed', () => {
     handleSilentRenewFailed(session, reauthorize);
 
     expect(order).toEqual(['session.logout', 'oidc.authorize']);
+  });
+});
+
+describe('postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage', () => {
+  beforeEach(() => consumePostLoginRedirect());
+
+  it('routes an initial sign-in to the default landing route', () => {
+    expect(
+      postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage({
+        isAuthenticated: true,
+        isRenewProcess: false,
+      }),
+    ).toBe(DEFAULT_POST_LOGIN_ROUTE);
+  });
+
+  it('routes an initial sign-in to the remembered deep link and consumes it', () => {
+    rememberPostLoginRedirect('/flights/abc/edit');
+
+    expect(
+      postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage({
+        isAuthenticated: true,
+        isRenewProcess: false,
+      }),
+    ).toBe('/flights/abc/edit');
+    expect(consumePostLoginRedirect()).toBeNull();
+  });
+
+  it('returns no target for a silent renew so the user keeps the page they are working on', () => {
+    expect(
+      postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage({
+        isAuthenticated: true,
+        isRenewProcess: true,
+      }),
+    ).toBeNull();
+  });
+
+  it('leaves the remembered deep link untouched when a silent renew arrives', () => {
+    rememberPostLoginRedirect('/flights/abc/edit');
+
+    postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage({
+      isAuthenticated: true,
+      isRenewProcess: true,
+    });
+
+    expect(consumePostLoginRedirect()).toBe('/flights/abc/edit');
+  });
+
+  it('treats an unreadable notification value as an initial sign-in', () => {
+    expect(postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage(null)).toBe(
+      DEFAULT_POST_LOGIN_ROUTE,
+    );
   });
 });
 

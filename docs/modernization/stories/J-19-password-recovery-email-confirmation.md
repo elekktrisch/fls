@@ -166,7 +166,22 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `check-theme-load.sh` carried the same missing-PKCE fault plus a root-element pattern that the
   `keycloak.v2` parent never matches; it passes against a live 26.5 container again.
   `kc_locale` is inert on Keycloak 26.5 — only `ui_locales` selects the locale.
-- [ ] **T-13** — Rider KC-26: silent refresh — un-quarantine the `token-lifecycle.spec.ts` test (AC-10).
+- [x] **T-13** — Rider KC-26, silent refresh (AC-10): never a Keycloak fault. Two of our own faults
+  stacked. First, the test patched the realm `accessTokenLifespan` to 30 s, but the SPA renews 60 s
+  before expiry (`alpenflight/web/src/app/core/auth/auth.config.ts:20`). Keycloak gives the id token
+  the same lifespan, so `angular-auth-oidc-client` read the fresh id token as already expired at the
+  code-flow callback, reset the tokens, and authorized again. A live Keycloak 26.5 run logged
+  "authCallback id token expired" and looped between the SPA and the realm, so the SPA never held a
+  session and nothing could renew. The spec now patches the lifespan to 90 s, above the renew window
+  (`alpenflight/web/e2e/tests/real-idp/_helpers/keycloak-admin.ts:5`). Second, the library fires
+  `NewAuthenticationResult` on every silent renew, and the bridge ran the post-login redirect for it,
+  so each rotation moved the operator off the work page to `/start`. The live run showed the jump
+  0.5 s after a `refresh_token` grant. In production that repeats every 14 minutes. The bridge now
+  navigates only for a real sign-in
+  (`alpenflight/web/src/app/core/auth/oidc-session-bridge.ts:52`). The spec counts the
+  `refresh_token` grants and asserts the page stays on `/flights`, so it cannot pass without a real
+  rotation. **The `hard 401` test in the same file still patches the 30 s lifespan, so it passes on
+  the login loop, not on a hard 401 — it needs its own task.**
 - [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
 - [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
 
