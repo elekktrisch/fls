@@ -126,7 +126,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   before, because the macro read `client.baseUrl` with no guard; the macro now renders no link there.
   **Keycloak 26.5.7 puts a "confirm validity" page in front of the session-less verify link, so T-15
   must click `#kc-info-message a` first, then read the back link.**
-- [ ] **T-08b** — Gate obligations left by T-08: rebuild the Keycloak image so the theme change is live, and confirm the two back-link targets in the real chain.
+- [x] **T-08b** — No work needed. `alpenflight-e2e-real-idp.yml:64-66` rebuilds the Keycloak image uncached inside the shard job on every run, and `alpenflight/auth/Dockerfile:48` copies `themes/`, so T-08's theme change is already live in the gate. T-15 confirms the two back-link targets in the real chain.
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
 - [x] **T-11** — Rider KC-26, register verify-mail (AC-6): never an SMTP fault. The realm keeps the
