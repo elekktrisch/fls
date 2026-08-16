@@ -139,8 +139,11 @@ jobs:
           restore-keys: |
             flsweb-node-modules-${{ runner.os }}-
 
-      - name: yarn install (if cache miss)
+      - name: yarn install (if cache miss) — npm_config_tmp gives the phantomjs postinstall a writable temp dir
         if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        env:
+          npm_config_tmp: /tmp
+          PHANTOMJS_CDNURL: https://github.com/Medium/phantomjs/releases/download/v1.9.19
         run: |
           rm -rf /tmp/flsweb-build
           cp -r flsweb /tmp/flsweb-build
@@ -149,7 +152,20 @@ jobs:
           sudo npm install --global yarn@1 -s
           cd /tmp/flsweb-build
           yarn install --network-timeout 600000
-          cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
+
+      - name: Assert the fresh node_modules has the webpack-dev-server that the e2e job starts
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: |
+          for required_path in node_modules/.bin/webpack-dev-server node_modules/webpack; do
+            if [ ! -e "/tmp/flsweb-build/$required_path" ]; then
+              echo "::error::yarn install exited 0 but /tmp/flsweb-build/$required_path does not exist. The e2e job starts webpack-dev-server from this cache, so it would fail there instead of here. Read the [4/4] Building fresh packages output of the previous step."
+              exit 1
+            fi
+          done
+
+      - name: Copy the asserted node_modules into the cache path
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
 
   # ---------------------------------------------------------------------------
   # e2e — boots the legacy stack (docker + Mono runtime + webpack-dev-server)

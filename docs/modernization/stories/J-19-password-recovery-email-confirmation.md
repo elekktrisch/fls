@@ -100,7 +100,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 - [x] **T-02** — Scaffold: `account-recovery.spec.ts` stub (all `test.fixme`, real selectors + flow) + the J-19 proof-gallery page linked from the index.
 - [x] **T-03** — MAIN-1 guard: T-01's constant + `daysAgo()` now live in `tests/real-idp/_helpers/seed-flight-date.ts`; all three real-idp seed sites derive the date from the run date. `scripts/absolute-flight-date-in-api-seed-guard.mjs` rejects an absolute `flightDate` / `startDateTime` / `ldgDateTime` inside an API POST across `e2e/tests/**`, and runs in `ci.yml`'s `changes` job on every push with no path filter. The 13 remaining mock-lane dates sit in `route.fulfill` response bodies, which no server window can expire; they stay with the suite-wide date audit.
 - [x] **T-04** — MAIN-2 fix: both legacy server builds now restore every `packages.config` under `flsserver/src` — the same glob the `actions/cache` key hashes — and a new step asserts the six HintPath assemblies exist before `xbuild` runs. `FLS.sln` was the wrong authority: it omits `FLS.Server.Console`, which the xbuild loop builds, and `FLS.Server.ProffixInvoiceService`, which the cache key hashes. `alpenflight-proof-fanout.yml` carried a solution restore with no assertion; both files now hold the identical two steps.
-- [ ] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `PHANTOMJS_SKIP_DOWNLOAD=true`.
+- [x] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `npm_config_tmp` and asserts its own output.
 - [ ] **T-06** — `/lostpassword` page + route: public, branded, hands off to Keycloak.
 - [ ] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each.
 - [ ] **T-08** — Keycloak login theme: back-link targets for the info and error pages + the four message bundles.
@@ -171,11 +171,25 @@ not two steps later. Keep the change in `.github/workflows/nightly.yml`; `flsser
 `node_modules/phantomjs`: `PhantomJS not found on PATH` then
 `TypeError: Path must be a string. Received undefined` at `install.js:127` in
 `findSuitableTempDirectory`. The postinstall runs only on a cache miss, so the same eviction that
-exposed MAIN-2 exposed this. PhantomJS is dead upstream and its download host is gone.
+exposed MAIN-2 exposed this. `install.js:121` reads `TMPDIR || TEMP || npm_config_tmp`. The runner
+sets none of the three, so `path.join(undefined, 'phantomjs')` throws before the `/tmp` fallback.
 
-**Fix.** Set `PHANTOMJS_SKIP_DOWNLOAD=true` on that install step in the workflow. The nightly builds
-and serves `flsweb` for Playwright and never runs the legacy Karma suite, so the binary is not
-needed. Keep the change in the workflow; do not edit `flsweb/`.
+**Fix.** Set `npm_config_tmp: /tmp` on that install step, as
+`.github/workflows/alpenflight-proof-fanout.yml` already does. Two premises of the first analysis are
+wrong, both disproven against the tarball that `flsweb/yarn.lock` pins:
+
+- `phantomjs@1.9.20` does not read `PHANTOMJS_SKIP_DOWNLOAD`. That variable belongs to
+  `phantomjs-prebuilt@2`. The setting is a no-op here and leaves `main` red.
+- The download host is alive. `install.js:430` builds
+  `https://github.com/Medium/phantomjs/releases/download/v1.9.19/phantomjs-1.9.8-linux-x86_64.tar.bz2`
+  from `lib/phantomjs.js:31`. It returns 200, 13.2 MB, and the sha256 matches the checksum
+  `install.js` verifies.
+
+`phantomjs` is a transitive dependency of `highcharts@0.0.11`, which has no install script.
+`flsweb/src/vendor/vendor.js:8` requires the browser bundle `highcharts/scripts/highcharts`, never
+the `main` module that spawns the binary. The nightly builds and serves `flsweb` for Playwright and
+never runs the legacy Karma suite, so the binary stays unused. Keep the change in the workflow; do
+not edit `flsweb/`.
 
 ### MAIN-4 — the reds were invisible for 8 days
 
