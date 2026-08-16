@@ -96,7 +96,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 
 ## Tasks
 
-- [ ] **T-01** — MAIN-1 fix: make the two seed dates in `delivery-creation-test-parity.spec.ts:127,659` relative to the run date, inside the 90-day list window and past the lock/bill gates.
+- [x] **T-01** — MAIN-1 fix: make the two seed dates in `delivery-creation-test-parity.spec.ts:127,659` relative to the run date, inside the 90-day list window and past the lock/bill gates.
 - [ ] **T-02** — Scaffold: `account-recovery.spec.ts` stub (all `test.fixme`, real selectors + flow) + the J-19 proof-gallery page linked from the index.
 - [ ] **T-03** — MAIN-1 guard: a check that rejects an absolute `flightDate` in a spec that seeds through the API.
 - [ ] **T-04** — MAIN-2 fix: `nightly.yml` legacy server build restores every `packages.config` and asserts the assemblies exist at the restore step.

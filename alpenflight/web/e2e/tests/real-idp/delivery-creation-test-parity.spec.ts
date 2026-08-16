@@ -41,6 +41,14 @@ const FT_ARTICLE = 'ART-FT';
 const LT_ARTICLE = 'ART-LT';
 const LT_ARTICLE_AFTER_RULE_CHANGE = 'ART-LT-CHANGED';
 
+const SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE = 30;
+
+function daysAgo(n: number): string {
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() - n);
+  return day.toISOString().slice(0, 10);
+}
+
 interface DeliveryItem {
   position?: number;
   articleNumber?: string;
@@ -118,15 +126,18 @@ async function seedScenario(
   ltWrite: Record<string, unknown>;
 }> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
+  const flightDate = daysAgo(
+    SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE,
+  );
 
   const flightRes = await api.post(FLIGHTS, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {
       flightAircraftType: 'GLIDER',
       aircraftId: md.gliderAircraftId,
-      flightDate: '2026-05-15',
-      startDateTime: '2026-05-15T08:00:00Z',
-      ldgDateTime: '2026-05-15T09:30:00Z',
+      flightDate,
+      startDateTime: `${flightDate}T08:00:00Z`,
+      ldgDateTime: `${flightDate}T09:30:00Z`,
       startLocationId: md.locationId,
       ldgLocationId: md.locationId,
       flightTypeId: md.gliderFlightTypeId,
@@ -650,15 +661,18 @@ async function seedCreditScenario(
 }> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
   const ftArticle = `CREDIT-FT-${Date.now().toString(36)}`;
+  const flightDate = daysAgo(
+    SEEDED_FLIGHT_DAYS_AGO_INSIDE_90_DAY_LIST_WINDOW_AND_PAST_3_DAY_BILL_GATE,
+  );
 
   const flightRes = await api.post(FLIGHTS, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {
       flightAircraftType: 'GLIDER',
       aircraftId: md.gliderAircraftId,
-      flightDate: '2026-05-15',
-      startDateTime: '2026-05-15T08:00:00Z',
-      ldgDateTime: '2026-05-15T09:30:00Z',
+      flightDate,
+      startDateTime: `${flightDate}T08:00:00Z`,
+      ldgDateTime: `${flightDate}T09:30:00Z`,
       startLocationId: md.locationId,
       ldgLocationId: md.locationId,
       flightTypeId: md.gliderFlightTypeId,
