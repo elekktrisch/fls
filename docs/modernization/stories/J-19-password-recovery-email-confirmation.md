@@ -208,6 +208,22 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `refresh_token` grants and asserts the page stays on `/flights`, so it cannot pass without a real
   rotation. **The `hard 401` test in the same file still patches the 30 s lifespan, so it passes on
   the login loop, not on a hard 401 — it needs its own task.**
+- [x] **T-13b** — Close the two escalations T-13 raised. (1) The `hard 401` test was a vacuous green.
+  The SPA has no handler for a 401 response — `authInterceptor()` only attaches the bearer — so no
+  API call can drive the redirect. The redirect comes from the denied token rotation: Keycloak
+  rejects the `refresh_token` grant of a disabled user, and the bridge then clears the session and
+  authorizes again (`alpenflight/web/src/app/core/auth/oidc-session-bridge.ts:96`). That needs the
+  90 s lifespan, because the SPA renews 60 s before expiry and the canonical 900 s puts the rotation
+  14 minutes away. The test now waits for the SPA to settle on a private route, holds that route
+  through a dwell that exposes a login loop, disables the user, asserts Keycloak rejects the next
+  `refresh_token` grant, and only then asserts the signed-out destination plus a new authorize
+  request (`alpenflight/web/e2e/tests/real-idp/token-lifecycle.spec.ts:122`). The name states that
+  mechanism. Live Keycloak 26.5 with the SPA on 4201: all four token-lifecycle tests green; red at
+  the redirect assertion when `handleSilentRenewFailed` does not re-authorize; red at the
+  private-route assertion when the lifespan returns to 30 s. (2) No spec carries `@quarantine-kc26`,
+  so the `--grep-invert` token and its comment leave
+  `.github/workflows/alpenflight-e2e-real-idp.yml:243`, and the discharged `[KC-26 UPGRADE DRIFT]`
+  rider leaves `docs/modernization/stories/_BOYSCOUT.md`.
 - [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
 - [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
 

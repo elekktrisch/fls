@@ -212,15 +212,10 @@ jobs:
       # DATASOURCE_* is exported so the parity specs' beforeAll Gradle seeder
       # shell-outs reach the same Postgres the backend uses (synth bundle mode).
       #
-      # `--grep-invert` drops two sets the cross-journey clean-seed run must not
-      # carry: (1) `showcase seed` — `start-dashboard.spec.ts` asserts the
+      # `--grep-invert` drops the one set the cross-journey clean-seed run must
+      # not carry: `showcase seed` — `start-dashboard.spec.ts` asserts the
       # `@Profile("showcase")` counts this run never seeds; its gating job is
-      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — the
-      # token-lifecycle silent-refresh spec (refresh-grant / SSO behavior).
-      # Excluded here so the `real-idp-merge`
-      # 0-fail tally is over the stable set; each has a named fix-owner rider in
-      # _BOYSCOUT.md [KC-26 UPGRADE DRIFT] — this exclusion is explicit + tracked,
-      # not a silent grep. Filtering applies before sharding,
+      # `alpenflight-dashboard-proof` in ci.yml. Filtering applies before sharding,
       # so the dropped tests leave the pool first; `--shard` then partitions the
       # remainder and `--reporter=blob` feeds the `real-idp-merge` job.
       # `--workers=1` keeps each shard serial (one realm + one Mailpit inbox).
@@ -240,7 +235,7 @@ jobs:
             --workers=1 \
             --shard="${SHARD}/4" \
             --reporter=blob \
-            --grep-invert 'showcase seed|@quarantine-kc26' \
+            --grep-invert 'showcase seed' \
             e2e/tests/real-idp/
 
       - name: Collect logs on failure

@@ -1,7 +1,5 @@
 import { isCleanupCandidate, type TestUser } from './test-user';
 
-export const ACCESS_TOKEN_LIFESPAN_SO_SHORT_THE_SPA_REJECTS_ITS_OWN_LOGIN_CALLBACK_SECONDS = 30;
-
 export const ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS = 90;
 
 export const CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS = 900;

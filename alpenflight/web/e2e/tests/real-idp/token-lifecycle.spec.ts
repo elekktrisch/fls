@@ -1,9 +1,8 @@
-import { type Page, type Request } from '@playwright/test';
+import { type Page, type Request, type Response } from '@playwright/test';
 import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import {
   ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS,
-  ACCESS_TOKEN_LIFESPAN_SO_SHORT_THE_SPA_REJECTS_ITS_OWN_LOGIN_CALLBACK_SECONDS,
   createUser,
   deleteUser,
   pollUserDisabled,
@@ -16,19 +15,26 @@ import { freshTestUser, type TestUser } from './_helpers/test-user';
 const SEED_USER = 'pilot1@example.com';
 const SEED_PASSWORD = 'pilot1-dev-2026!';
 const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
+const SPA_HOST = new URL(SPA_BASE_URL).host;
 const KC_HOST = 'localhost:8090';
 
 const PAST_THE_EXPIRY_OF_THE_ACCESS_TOKEN_THE_LOGIN_MINTED_MS =
   (ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS + 10) * 1000;
-const ONE_LIFESPAN_SO_THE_ACCESS_TOKEN_HAS_EXPIRED_MS =
-  (ACCESS_TOKEN_LIFESPAN_SO_SHORT_THE_SPA_REJECTS_ITS_OWN_LOGIN_CALLBACK_SECONDS + 5) * 1000;
+const DWELL_LONG_ENOUGH_TO_EXPOSE_A_RE_AUTHORIZE_LOOP_MS = 8_000;
+const WITHIN_ONE_LIFESPAN_THE_SPA_MUST_HAVE_ATTEMPTED_A_ROTATION_MS =
+  ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS * 1000;
 
 const FLIGHTS_NAV_TEST_ID = 'af-nav-section-/flights';
 const KC_TOKEN_ENDPOINT_PATH = '/protocol/openid-connect/token';
+const KC_AUTHORIZE_ENDPOINT_PATH = '/protocol/openid-connect/auth';
 const REFRESH_TOKEN_GRANT_BODY = 'grant_type=refresh_token';
 
-const alternatingWarmNavTestIdSoEachIterationIsARealUrlChange = (attempt: number): string =>
-  attempt % 2 === 0 ? FLIGHTS_NAV_TEST_ID : 'af-nav-section-/flightreports';
+const isSignedOutDestination = (url: URL): boolean =>
+  url.host === KC_HOST ||
+  (url.host === SPA_HOST && (url.pathname === '/' || url.pathname.startsWith('/auth/')));
+
+const isSettledPrivateRoute = (url: URL): boolean =>
+  url.host === SPA_HOST && url.pathname !== '/' && !url.pathname.startsWith('/auth/');
 
 function countRefreshTokenGrants(page: Page): () => number {
   let observed = 0;
@@ -43,8 +49,30 @@ function countRefreshTokenGrants(page: Page): () => number {
   return () => observed;
 }
 
-const ignoreClickInterruptedByTheRedirectUnderTest = (): void => undefined;
-const ignoreNotRedirectedYetAndReDriveOnTheNextAttempt = (): void => undefined;
+function countRefreshTokenGrantsKeycloakRejected(page: Page): () => number {
+  let observed = 0;
+  page.on('response', (response: Response) => {
+    if (
+      response.url().includes(KC_TOKEN_ENDPOINT_PATH) &&
+      (response.request().postData() ?? '').includes(REFRESH_TOKEN_GRANT_BODY) &&
+      response.status() >= 400
+    ) {
+      observed += 1;
+    }
+  });
+  return () => observed;
+}
+
+function countAuthorizeRequests(page: Page): () => number {
+  let observed = 0;
+  page.on('request', (request: Request) => {
+    if (request.url().includes(KC_AUTHORIZE_ENDPOINT_PATH)) {
+      observed += 1;
+    }
+  });
+  return () => observed;
+}
+
 const ignoreDeleteFailureBecauseTheRealmSweepIsTheSafetyNet = (): void => undefined;
 
 async function loginAs(page: Page, username: string, password: string): Promise<void> {
@@ -91,52 +119,55 @@ test.describe('token-lifecycle — realm-mutating', () => {
     );
   });
 
-  test('hard 401 — disabled user is redirected on next API call', async ({ page }, testInfo) => {
+  test('disabled user — Keycloak rejects the next rotation and the SPA drops the session', async ({
+    page,
+  }, testInfo) => {
     allowConsoleErrors(
       testInfo,
-      /\b401\b/,
-      /SilentRenewFailed/i,
+      /\b40[013]\b/,
+      /silent ?renew ?failed/i,
+      /OidcService code request/,
       /token\(s\) validation failed, resetting/i,
     );
+    const authorizeRequests = countAuthorizeRequests(page);
+    const rejectedRotations = countRefreshTokenGrantsKeycloakRejected(page);
     let userCtx: { user: TestUser; userId: string } | undefined;
     try {
       await withRealmPatch(
-        {
-          accessTokenLifespan:
-            ACCESS_TOKEN_LIFESPAN_SO_SHORT_THE_SPA_REJECTS_ITS_OWN_LOGIN_CALLBACK_SECONDS,
-        },
+        { accessTokenLifespan: ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS },
         async () => {
           userCtx = await loginAsEphemeral(page);
+          await page.waitForURL((url) => isSettledPrivateRoute(url), { timeout: 30_000 });
+          const privateRouteTheDisabledUserMustLose = new URL(page.url()).pathname;
           await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
+
+          const authorizeRequestsWhenTheLoginSettled = authorizeRequests();
+          await page.waitForTimeout(DWELL_LONG_ENOUGH_TO_EXPOSE_A_RE_AUTHORIZE_LOOP_MS);
+          expect(
+            authorizeRequests(),
+            'the SPA authorized again while it was still signed in — it is in a login loop, so any later redirect would prove the loop and not the disable',
+          ).toBe(authorizeRequestsWhenTheLoginSettled);
+          expect(
+            new URL(page.url()).pathname,
+            'the SPA left the private route before the user was disabled — the session was never stable, so a later redirect would prove nothing',
+          ).toBe(privateRouteTheDisabledUserMustLose);
 
           await setUserEnabled(userCtx.userId, false, userCtx.user.email);
           await pollUserDisabled(userCtx.userId);
 
-          await page.waitForTimeout(ONE_LIFESPAN_SO_THE_ACCESS_TOKEN_HAS_EXPIRED_MS);
+          await expect
+            .poll(rejectedRotations, {
+              timeout: WITHIN_ONE_LIFESPAN_THE_SPA_MUST_HAVE_ATTEMPTED_A_ROTATION_MS,
+              message:
+                'Keycloak never rejected a refresh_token grant for the disabled user — without that rejection the redirect below cannot be the disable',
+            })
+            .toBeGreaterThan(0);
 
-          const spaHost = new URL(SPA_BASE_URL).host;
-          const isRedirected = (): boolean => {
-            const url = new URL(page.url());
-            return (
-              url.host === KC_HOST ||
-              (url.host === spaHost && (url.pathname === '/' || url.pathname.startsWith('/auth/')))
-            );
-          };
-          for (let attempt = 0; attempt < 12 && !isRedirected(); attempt++) {
-            const navLink = page.getByTestId(
-              alternatingWarmNavTestIdSoEachIterationIsARealUrlChange(attempt),
-            );
-            if (await navLink.count()) {
-              await navLink
-                .click({ timeout: 2_000 })
-                .catch(ignoreClickInterruptedByTheRedirectUnderTest);
-            }
-            await page
-              .waitForURL(() => isRedirected(), { timeout: 5_000 })
-              .catch(ignoreNotRedirectedYetAndReDriveOnTheNextAttempt);
-          }
-
-          await page.waitForURL(() => isRedirected(), { timeout: 15_000 });
+          await page.waitForURL((url) => isSignedOutDestination(url), { timeout: 30_000 });
+          expect(
+            authorizeRequests(),
+            'the SPA reached the signed-out destination without a new authorize request',
+          ).toBeGreaterThan(authorizeRequestsWhenTheLoginSettled);
         },
       );
     } finally {
