@@ -126,6 +126,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   before, because the macro read `client.baseUrl` with no guard; the macro now renders no link there.
   **Keycloak 26.5.7 puts a "confirm validity" page in front of the session-less verify link, so T-15
   must click `#kc-info-message a` first, then read the back link.**
+- [ ] **T-08b** — Gate obligations left by T-08: rebuild the Keycloak image so the theme change is live, and confirm the two back-link targets in the real chain.
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
 - [ ] **T-11** — Rider KC-26: the Mailpit verify-mail red — un-quarantine the `register.spec.ts` happy path (AC-6).
@@ -133,6 +134,19 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 - [ ] **T-13** — Rider KC-26: silent refresh — un-quarantine the `token-lifecycle.spec.ts` test (AC-10).
 - [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
 - [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
+
+## Gate obligations carried by later tasks
+
+- **T-15 must click `#kc-info-message a`.** Keycloak 26.5.7 shows a "confirm validity" page before it
+  acts on an email link, so the spec cannot follow the mail link straight to the outcome. T-08 proved
+  this against a live 26.5.7 container.
+- **Rebuild the Keycloak image before the gate.** T-08's theme change is inert until the image is
+  rebuilt.
+- **MAIN-2 and MAIN-3 are proven on a cold cache.** Nightly run `31932586109` on this branch logged
+  `Cache not found for input keys: nuget-Linux-…`, downloaded `EnterpriseLibrary.Common` and
+  `System.Linq.Dynamic` fresh, and went green on all three jobs, including the `e2e (Playwright)` job
+  that the red build had been skipping. The earlier green run `31930362653` rode a warm cache and
+  proved nothing.
 
 ## Main-branch reds — fix these FIRST
 
