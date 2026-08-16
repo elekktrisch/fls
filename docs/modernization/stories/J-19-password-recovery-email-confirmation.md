@@ -93,6 +93,79 @@ Landing and Login only; its Login card carries a "Forgot password" link (`:212`)
 Keycloak login theme, not these pages. Build both pages from the J-17 public form primitive
 (`public-form-shell.component.ts`) and ADR 0024, and say so in the PR.
 
+## Main-branch reds — fix these FIRST
+
+`main` is red on three scheduled lanes at sha `62a8d3c5b`. The per-push `ci` lane is green, so no
+merge is blocked. The reds sit in the lanes that nobody reads, and the fan-out has been red for at
+least 8 days without notice. **J-19 cannot reach a green gate until MAIN-1 is fixed**, because the
+J-19 gate runs the same real-idp suite.
+
+### MAIN-1 — `alpenflight e2e real-idp` + `alpenflight proof fan-out`: an expired date in a fixture
+
+**Root cause — proven, not suspected.** `delivery-creation-test-parity.spec.ts:127` and `:659` seed
+the flight at the absolute date `'2026-05-15'`. The DCT flight picker calls
+`flights.list()` with no arguments (`delivery-creation-tests.store.ts:299`), and
+`FlightsService.java:47` applies `DEFAULT_WINDOW_DAYS = 90`. The window reached the seed date
+between the two runs:
+
+| Nightly run | Window starts | Seed 2026-05-15 in window | Result |
+| --- | --- | --- | --- |
+| 2026-08-13 | 2026-05-15 | yes | green |
+| 2026-08-14 | 2026-05-16 | no | red |
+
+The sha did not change between those two runs (`cc59242e7` for both). The picker renders only its
+placeholder, so `selectOption(scenario.flightId)` waits for an option that does not exist and the
+test times out at 45 s. Both failing tests share this cause, in both lanes.
+
+**Fix.** Make the seed date relative to the run date, and keep it inside the 90-day window while it
+stays past the lock and bill gates (`FlightGatePolicy.LOCK_AFTER_DAYS` / `BILL_AFTER_DAYS`).
+
+**Guard — the fix is not done without it.** 17 specs hold absolute flight dates. Three more real-idp
+seeds already sit outside the window (`deliveries-write-parity.spec.ts:127`,
+`deliveries-parity.spec.ts:78`, and the second DCT seed), and they stay green only because their
+screens do not call the default-window list. The mock-lane specs need an audit: `05-flights-edit`
+(2026-05-20) leaves the window on 2026-08-18, `flights-list-delete` on 2026-08-19 and 08-20, and
+`04-flights-create` on 2026-08-23. Ship a lint rule or a spec-scanning test that rejects an absolute
+`flightDate` in a spec that seeds through the API. Without it the next date expires in two days.
+
+### MAIN-2 — `nightly` / legacy server build: the restore step does not cover its own inputs
+
+**Root cause — proven.** The restore step loops over two projects only —
+`FLS.Server.Web/FLS.Server.WebApi.csproj` and `FLS.Server.Console/FLS.Server.Console.csproj`.
+`FLS.Common/packages.config` declares `EnterpriseLibrary.Common`, `EnterpriseLibrary.Validation` and
+`System.Linq.Dynamic`, and `FLS.Data.WebApi/packages.config` declares the first two. Neither file is
+ever restored. The build worked only while the `actions/cache` entry carried those packages from an
+older run. The 2026-08-16 log reads `Cache not found for input keys: nuget-Linux-…`, the restore
+still exited 0, and `xbuild` then failed with 14 `CS0234` / `CS0246` errors in `FLS.Common`. The
+restore reports success while it restores an incomplete set — the same shape as
+[[project_gate_must_cover_its_own_inputs]].
+
+**Fix.** Restore the solution (`nuget restore FLS.sln`) or loop over every `packages.config`, then
+assert the expected assemblies exist under `flsserver/src/packages/` and fail at the restore step,
+not two steps later. Keep the change in `.github/workflows/nightly.yml`; `flsserver/` is read-only.
+
+### MAIN-3 — `nightly` / legacy web build: the phantomjs postinstall fails
+
+**Root cause — proven.** `yarn install` reaches `[4/4] Building fresh packages...` and fails on
+`node_modules/phantomjs`: `PhantomJS not found on PATH` then
+`TypeError: Path must be a string. Received undefined` at `install.js:127` in
+`findSuitableTempDirectory`. The postinstall runs only on a cache miss, so the same eviction that
+exposed MAIN-2 exposed this. PhantomJS is dead upstream and its download host is gone.
+
+**Fix.** Set `PHANTOMJS_SKIP_DOWNLOAD=true` on that install step in the workflow. The nightly builds
+and serves `flsweb` for Playwright and never runs the legacy Karma suite, so the binary is not
+needed. Keep the change in the workflow; do not edit `flsweb/`.
+
+### MAIN-4 — the reds were invisible for 8 days
+
+All three lanes are scheduled, and a scheduled red gates no PR. The fan-out failed on 8 consecutive
+days and the operator learned it from this carve, not from the lane. J-30 gave the nightly loud
+surfacing; the fan-out did not get it. Add the same treatment to the fan-out, or fold the fan-out
+verdict into the surface the operator already reads.
+
+**Verify cold, not warm.** MAIN-2 and MAIN-3 both hid behind a warm cache for months. Whatever fixes
+them must be proved on a cache miss, otherwise the next eviction re-opens both.
+
 ## Riders folded in (from `_BOYSCOUT.md`, highest severity first)
 
 | Rider | Sev | Why it rides J-19 |
@@ -104,6 +177,15 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 | **[REQUEST-ID-NEVER-LOGGED]** | S2 | MDC key `requestId` against `%X{request_id:-}`. Request tracing has never worked. One-line fix. |
 | **[FORM-FIRST-PAINT-RED]** | S2 | Fix in `inline-validation.ts`, not per form. Fold only if `/lostpassword` carries a field; otherwise defer and say why. |
 | **[FIELDSET-LEGEND-SIZE]** | S3 | Same J-17 public form components these pages reuse. |
+
+**The debt slot is now over-subscribed. MAIN-1 to MAIN-4 take priority over this table**, because a
+red main lane costs more than any rider and MAIN-1 blocks this journey's own gate. Burn down in this
+order: MAIN-1, MAIN-2, MAIN-3, then `[PHANTOM-PASSWORD-GUARD]` and
+`[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]` (both S1 and both on the auth surface), then the KC-26 trio
+that AC-6, AC-9 and AC-10 name. **Drop from J-19 if the budget runs out:**
+`[FORM-FIRST-PAINT-RED]`, `[FIELDSET-LEGEND-SIZE]`, `[REQUEST-ID-NEVER-LOGGED]` and
+`[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]`. Return each dropped rider to `_BOYSCOUT.md` and say so in
+the PR.
 
 **Explicitly NOT riding J-19 — [ANON-WRITE-ATTRIBUTION]** [S1]. The operator adjudicated it on
 2026-08-14 and it is now a small feature: a new `actor_kind`, a `client_ip` column, a 90-day
@@ -120,5 +202,11 @@ own carve or the next journey over the public write path. Raise it to the operat
    Keycloak authentication session. If the direct link proves stable at build time, use it.
 3. **The used-link case supplies the expired state.** Using the reset link twice is deterministic and
    needs no realm patch, so AC-4 does not depend on an action-token lifespan override.
-4. **The 60/40 split holds.** The two pages plus the reset chain are the feature. The rider table is
-   the tech-debt slot, and it is ordered so `/do-ship` can stop at the budget.
+4. **The 60/40 split holds, but the debt slot is full.** The two pages plus the reset chain are the
+   feature. MAIN-1 to MAIN-4 plus the two S1 auth riders fill the tech-debt slot. The list is
+   ordered so `/do-ship` stops at the budget and returns the rest to `_BOYSCOUT.md`.
+5. **The main-branch reds ride J-19; they do not get their own journey.** MAIN-1 blocks the J-19
+   gate, so it must be fixed inside this journey. MAIN-2 to MAIN-4 are bounded workflow fixes, and
+   the standing rule sends bounded work to the next journey's gate
+   ([[feedback_no_tiny_stories_fix_forward]]). If MAIN-1's guard grows into a suite-wide date
+   sweep, ship the two failing seeds plus the guard, and file the sweep as a rider.

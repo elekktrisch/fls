@@ -21,6 +21,30 @@ stragglers each ceremony so the file shrinks.
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-plan J-19 carve, 2026-08-16 — main-branch reds)
+
+**MAIN-1 to MAIN-4 are folded into J-19** (see `J-19-password-recovery-email-confirmation.md`
+§"Main-branch reds"). The two entries below are the parts that outlive that journey.
+
+- **[ABSOLUTE-DATES-IN-API-SEEDING-SPECS]** [S1] 17 specs seed flights at an absolute `flightDate`,
+  and `FlightsService.java:47` lists a 90-day default window. Each seed becomes a timed red on the
+  day the window passes it: `delivery-creation-test-parity.spec.ts:127,659` (2026-05-15) took the
+  real-idp nightly AND the fan-out red on 2026-08-14 on an unchanged sha. `05-flights-edit`
+  (2026-05-20) expires 2026-08-18, `flights-list-delete` (2026-05-21/22) on 08-19 and 08-20,
+  `04-flights-create` + `04c-flights-paired-create` (2026-05-25) on 08-23, reporting (2026-06-01/02)
+  on 08-30 and 08-31. Three real-idp seeds are already outside the window and stay green only
+  because their screens do not call the default-window list —
+  `deliveries-write-parity.spec.ts:127`, `deliveries-parity.spec.ts:78`, and the second DCT seed.
+  J-19 fixes the two red seeds and ships the guard. The **audit + conversion of the remaining specs**
+  rides the next journey that touches each one. *(seam: e2e seed dates + a rule that rejects an
+  absolute `flightDate` in an API-seeding spec)*
+- **[FANOUT-RED-IS-INVISIBLE]** [S2] `alpenflight proof fan-out` failed on 8 consecutive scheduled
+  runs (2026-08-08 to 2026-08-15) and nothing surfaced it; the operator learned it from the J-19
+  carve. A scheduled red gates no PR. J-30 gave the nightly loud surfacing and the fan-out never got
+  it. Give the fan-out the same treatment, or fold its verdict into a surface the operator already
+  reads. *(seam: `alpenflight-proof-fanout.yml` result surfacing)*
+  [[project_nightly_e2e_dead_stack_silent_hang]]
+
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 
 - **[MAPPER-VS-SCHEMA-TEST-RED-SINCE-J-13]** [S2] `MapperVsSchemaCompatibilityTest` has been **red since J-13**
