@@ -16,8 +16,10 @@ import { E2E_CANNED_PASSWORD, E2E_OCCUPIED_EMAIL, freshTestUser } from './_helpe
 
 const VERIFY_MAIL_DELIVERY_BUDGET_LEAVING_ROOM_INSIDE_THE_REAL_IDP_TEST_TIMEOUT_MS = 20_000;
 
-async function startRegistration(page: Page): Promise<void> {
-  await page.goto('/signup');
+const SIGNUP_PATH_THE_LANDING_MIGRATE_CTA_TARGETS = '/signup?intent=migrate';
+
+async function startRegistrationThroughTheMigrateIntentCta(page: Page): Promise<void> {
+  await page.goto(SIGNUP_PATH_THE_LANDING_MIGRATE_CTA_TARGETS);
   await expect(page.getByTestId('signup-page')).toBeVisible();
   await page.getByTestId('signup-local').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
@@ -39,7 +41,7 @@ test.describe('register — real-idp', () => {
   test('happy path — register, verify via Mailpit, land on /migrate/start', async ({ page }) => {
     const user = freshTestUser();
 
-    await startRegistration(page);
+    await startRegistrationThroughTheMigrateIntentCta(page);
     await fillKcRegistration(page, user);
     cleanupEmails.push(user.email);
 
@@ -57,7 +59,7 @@ test.describe('register — real-idp', () => {
     const user = freshTestUser();
     cleanupEmails.push(user.email);
 
-    await startRegistration(page);
+    await startRegistrationThroughTheMigrateIntentCta(page);
     await fillKcRegistrationWithPassword(page, user, 'short');
 
     await expect(page).toHaveURL(/\/realms\/alpenflight\/login-actions\/registration/);
@@ -65,7 +67,7 @@ test.describe('register — real-idp', () => {
   });
 
   test('email-in-use reject — registering occupied address triggers KC error', async ({ page }) => {
-    await startRegistration(page);
+    await startRegistrationThroughTheMigrateIntentCta(page);
     await fillKcRegistration(page, {
       email: E2E_OCCUPIED_EMAIL,
       password: E2E_CANNED_PASSWORD,

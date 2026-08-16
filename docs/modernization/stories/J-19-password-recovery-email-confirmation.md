@@ -15,7 +15,7 @@ acceptance:
   - "[key-error] AC-3 — The OLD password stops working after the reset. Assertion: same spec — `fillKcLogin(ephemeral.email, oldPassword)` keeps the URL on `/realms/alpenflight/login-actions/authenticate` and `KC_ERROR_SELECTOR` is visible."
   - "[key-error] AC-4 — A second use of the same reset link does not authenticate the user, and the Keycloak page returns the user to `/lostpassword`. Assertion: same spec — visit the link again, follow the theme back link, assert the pathname is `/lostpassword` and `lostpassword-page` is visible."
   - "[happy] AC-5 — A verify-email link opened in a session-less browser lands on `/confirm` in the verified state with a sign-in action. Assertion: same spec — open the Mailpit verify link in a fresh `browser.newContext()`, follow the theme back link, assert `confirm-outcome-verified` visible and `confirm-sign-in` visible."
-  - "[happy] AC-6 — The register verify-mail chain runs green with the real Keycloak SMTP path. Assertion: `register.spec.ts` happy path loses `@quarantine-kc26` and keeps its existing `/migrate/start` + `migrate-start` assertions."
+  - "[happy] AC-6 — A new member registers through the migrate CTA and the real Keycloak SMTP path delivers the verify mail. The member lands on `/migrate/start`. Assertion: `register.spec.ts` happy path runs without `@quarantine-kc26`, opens `/signup?intent=migrate`, follows the Mailpit verify link, then asserts `toHaveURL(/\\/migrate\\/start$/)` and `migrate-start` visible."
   - "[edge] AC-7 — Both new routes are public. Assertion: `public-routes.spec.ts` — an unauthenticated goto of `/lostpassword` and of `/confirm` renders each page testid and the URL never enters `/realms/`."
   - "[edge] AC-8 — Both pages fit a 360 x 640 portrait viewport and their actions meet the touch-target rule. Assertion: same spec at that viewport — `document.documentElement.scrollWidth <= clientWidth`, and every CTA `boundingBox()` has height >= 44 and width >= 44."
   - "[happy] AC-9 (rider) — Keycloak chrome honours `?ui_locales=fr`. Assertion: `login.spec.ts` locale test loses `@quarantine-kc26` and asserts `html` has attribute `lang=fr`."
@@ -139,6 +139,19 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   The helper now fills every field the form requires, the happy path lost `@quarantine-kc26`, and the
   mail budget dropped to 20 s so it stays inside the 45 s real-idp test timeout. The nightly SMTP
   preflight now proves DELIVERY, not TCP reachability, so the next failure names its own layer.
+- [x] **T-11b** — T-11's fix worked, and the real run then failed on a stale assertion. The happy path
+  opened bare `/signup`, so `resolveSignupIntent(null)` returned `join`
+  (`alpenflight/web/src/app/features/signup/signup-intent.ts:6`) and the browser landed on `/join`.
+  The `@quarantine-kc26` tag had hidden that since the default flipped from `/migrate/start` to
+  `/join`. The spec now opens the target of the landing migrate CTA
+  (`alpenflight/web/src/app/features/landing/landing.component.ts:76`), `/signup?intent=migrate`,
+  which `postSignupLandingPath` maps to `/migrate/start` (`signup-intent.ts:14`). `/migrate/start`
+  carries only `authGuard` (`alpenflight/web/src/app/features/migrate-handshake/migrate-handshake.routes.ts:10`),
+  so a club-less new member stays there. AC-6 named the pre-flip default; its wording now states the
+  migrate-intent contract. The `/join` default keeps unit coverage
+  (`alpenflight/web/src/app/features/signup/signup-intent.spec.ts:19`) and mock-auth coverage
+  (`alpenflight/web/e2e/tests/public/signup.spec.ts:82`), but no real-idp spec registers through bare
+  `/signup`.
 - [x] **T-12** — Rider KC-26, `?ui_locales=fr` (AC-9): never a Keycloak fault. Keycloak 26.5 honours
   `ui_locales` and renders `<html lang="fr">`, even when the browser sends `Accept-Language: en-US`.
   The spec built a raw authorize URL with no PKCE parameters, but the `alpenflight-web` client
