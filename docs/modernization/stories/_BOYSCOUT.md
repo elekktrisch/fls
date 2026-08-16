@@ -521,6 +521,12 @@ safety step. **Each rider rides the next touch of its form.**
   legacy specs DO stage videos on pass, so it's a per-`profile`-project video-retention/output-dir quirk, not
   pass-vs-fail. Done-bar was met by the paired screenshots ("judgeable side-by-side"); add the video on the next
   fanout-touching task. *(seam: top-level e2e `profile` project video config / the fanout video-find path)*
+  **CAUSE FOUND — J-19 T-14, by probe, not by reading.** The fault is spec-scoped, not project-scoped:
+  `test.use({ video: 'on' })` is INERT for a context the spec creates itself, and
+  `profile-parity-J4.spec.ts:29` makes its own context through `fixtures.ts:107`. So Playwright records
+  nothing to stage. The fix is to pass `recordVideo` explicitly at the `newContext` call, which is what
+  J-19's `lostpassword-parity-J19.spec.ts` does. Any other legacy spec that builds its own context carries
+  the same silent hole — sweep for `newContext` without `recordVideo` when this ships.
 
 ## Pending (filed by /do-ship 2026-06-04, J-2 window)
 

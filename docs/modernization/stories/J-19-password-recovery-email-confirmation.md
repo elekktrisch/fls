@@ -48,12 +48,18 @@ link expired / already used. Each state shows one action: sign in, or start the 
 **Public + mobile.** Both routes render without a session. Both fit 360 x 640 portrait. Every CTA is
 at least 44 x 44 px (S-100 AC-DIR-1 / AC-DIR-2, ADR 0017).
 
-**Parity posture — deliberate divergence, not a parity claim.** Legacy generated a new password and
-mailed it (`flsweb/src/lostpassword/LostPasswordController.js:13`), and legacy `/confirm` collected
-the new password in the app (`flsweb/src/confirm/ConfirmEmailController.js:24`). AlpenFlight mails a
-reset LINK and Keycloak collects the password. The legacy pair spec captures the legacy screens for
-the side-by-side gallery only. Do NOT assert behavioral parity. File this as an ADR 0026 entry —
-`/do-ship` does not edit ADRs, so raise it to the operator.
+**Parity posture — CORRECTED at T-14. The divergence is narrower than the carve claimed.**
+The carve said legacy generated a new password and mailed it. That is WRONG, and the carve inferred
+it from the button label `GENERATE_NEW_PASSWORD`. `UsersController.cs:419-433` generates a password
+reset TOKEN, builds a callback URL, and mails that LINK — the same shape AlpenFlight uses.
+
+The real difference is only WHERE the user sets the password. Legacy collected it in the app
+(`flsweb/src/confirm/ConfirmEmailController.js:24`). Keycloak now collects it on its own page. From
+the member's view both flows are identical: ask, receive a mail, follow a link, set a password.
+
+So this is an ownership change that ADR 0007 already decided, NOT a behavioural divergence. It does
+NOT need an ADR 0026 entry. The legacy pair spec captures the old screens for the side-by-side
+gallery only; assert no behavioural parity.
 
 ## Notes
 
