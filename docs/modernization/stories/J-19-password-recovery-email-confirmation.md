@@ -2,7 +2,8 @@
 id: J-19
 title: Password recovery + email confirmation pages
 epic: E-12
-status: todo
+status: in_progress
+started_at: 2026-08-16
 journey0: false
 hardening: false
 carved: true
@@ -92,6 +93,24 @@ legacy pair spec · gallery captions with the `journey:` tag.
 Landing and Login only; its Login card carries a "Forgot password" link (`:212`) that informs the
 Keycloak login theme, not these pages. Build both pages from the J-17 public form primitive
 (`public-form-shell.component.ts`) and ADR 0024, and say so in the PR.
+
+## Tasks
+
+- [ ] **T-01** — MAIN-1 fix: make the two seed dates in `delivery-creation-test-parity.spec.ts:127,659` relative to the run date, inside the 90-day list window and past the lock/bill gates.
+- [ ] **T-02** — Scaffold: `account-recovery.spec.ts` stub (all `test.fixme`, real selectors + flow) + the J-19 proof-gallery page linked from the index.
+- [ ] **T-03** — MAIN-1 guard: a check that rejects an absolute `flightDate` in a spec that seeds through the API.
+- [ ] **T-04** — MAIN-2 fix: `nightly.yml` legacy server build restores every `packages.config` and asserts the assemblies exist at the restore step.
+- [ ] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `PHANTOMJS_SKIP_DOWNLOAD=true`.
+- [ ] **T-06** — `/lostpassword` page + route: public, branded, hands off to Keycloak.
+- [ ] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each.
+- [ ] **T-08** — Keycloak login theme: back-link targets for the info and error pages + the four message bundles.
+- [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
+- [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
+- [ ] **T-11** — Rider KC-26: the Mailpit verify-mail red — un-quarantine the `register.spec.ts` happy path (AC-6).
+- [ ] **T-12** — Rider KC-26: `?ui_locales=fr` — un-quarantine the `login.spec.ts` locale test (AC-9).
+- [ ] **T-13** — Rider KC-26: silent refresh — un-quarantine the `token-lifecycle.spec.ts` test (AC-10).
+- [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
+- [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
 
 ## Main-branch reds — fix these FIRST
 
