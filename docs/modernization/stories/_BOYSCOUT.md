@@ -232,12 +232,6 @@ stragglers each ceremony so the file shrinks.
   into **another user's Deployment**. That was recorded only in a comment the sweep deleted, and it is an
   invariant enforced by an *absence* — nothing fails if someone adds the field. Wants an arch/IT assertion that
   `ClubSpec` carries no deployment-scoped component. *(seam: `ClubSpec` + the bundle-envelope mapper)*
-- **[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]** [S1] `KeycloakDeploymentDirectory.setUserAttribute` sends a single-key
-  `attributes` map on `PUT /users/{id}`, which Keycloak treats as a **full replace** — this repo's documented
-  partial-PUT footgun, where an attributes-only PUT also nulls email/firstName/lastName
-  ([[project_keycloak_partial_put_field_selective]]). Safe **today only** because freshly-provisioned users
-  carry no other attributes; the sibling `KeycloakAdminClient.writeClubIdAttribute` already does read-merge-write.
-  Make this one match. *(seam: `KeycloakDeploymentDirectoryAdapter.setUserAttribute`)*
 - **[LOST-INVARIANTS-NEED-GUARDS]** [S1] The comments this sweep could NOT convert into names were
   disproportionately **warnings against plausible future changes** — each an invariant a well-meaning
   refactor breaks *silently*, and for which a comment was already a weak guard. Give the load-bearing ones

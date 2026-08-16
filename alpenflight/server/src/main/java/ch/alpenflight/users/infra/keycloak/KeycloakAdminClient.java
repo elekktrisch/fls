@@ -3,6 +3,7 @@ package ch.alpenflight.users.infra.keycloak;
 import ch.alpenflight.platform.keycloak.BearerTokenInterceptor;
 import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
 import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
+import ch.alpenflight.platform.keycloak.MergeableKeycloakUserRepresentation;
 import ch.alpenflight.platform.keycloak.RedactingRestClientInterceptor;
 import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserDirectoryPort;
@@ -120,16 +121,18 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     public void writeClubIdAttribute(UUID sub, UUID clubId) {
         Objects.requireNonNull(sub, "sub");
         Objects.requireNonNull(clubId, "clubId");
-        UserMutableWire current = readUserForMerge(sub);
-        Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
-        attrs.put("clubId", List.of(clubId.toString()));
-        putUserResendingFieldsKeycloakWouldClear(sub, current, attrs, "write clubId attribute");
+        MergeableKeycloakUserRepresentation current = readUserForMerge(sub);
+        putUserResendingFieldsKeycloakWouldClear(
+                sub,
+                current,
+                current.attributesWithMerged("clubId", List.of(clubId.toString())),
+                "write clubId attribute");
     }
 
     @Override
     public void clearClubIdAttribute(UUID sub) {
         Objects.requireNonNull(sub, "sub");
-        UserMutableWire current = readUserForMerge(sub);
+        MergeableKeycloakUserRepresentation current = readUserForMerge(sub);
         Map<String, List<String>> attrs = new HashMap<>(current.attributesOrEmpty());
         if (attrs.remove("clubId") == null) {
             return;
@@ -138,35 +141,15 @@ public class KeycloakAdminClient implements UserDirectoryPort {
     }
 
     private void putUserResendingFieldsKeycloakWouldClear(
-            UUID sub, UserMutableWire current, Map<String, List<String>> attrs, String op) {
-        Map<String, Object> body = new HashMap<>();
-        if (current.username() != null) {
-            body.put("username", current.username());
-        }
-        if (current.email() != null) {
-            body.put("email", current.email());
-        }
-        if (current.firstName() != null) {
-            body.put("firstName", current.firstName());
-        }
-        if (current.lastName() != null) {
-            body.put("lastName", current.lastName());
-        }
-        if (current.enabled() != null) {
-            body.put("enabled", current.enabled());
-        }
-        if (current.emailVerified() != null) {
-            body.put("emailVerified", current.emailVerified());
-        }
-        if (current.requiredActions() != null) {
-            body.put("requiredActions", current.requiredActions());
-        }
-        body.put("attributes", attrs);
+            UUID sub,
+            MergeableKeycloakUserRepresentation current,
+            Map<String, List<String>> attrs,
+            String op) {
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + sub)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
+                    .body(current.putBodyResendingFieldsKeycloakWouldClear(attrs))
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
@@ -175,16 +158,16 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         }
     }
 
-    private UserMutableWire readUserForMerge(UUID sub) {
+    private MergeableKeycloakUserRepresentation readUserForMerge(UUID sub) {
         try {
             String body = http.get()
                     .uri(props.adminBase() + "/users/" + sub)
                     .retrieve()
                     .body(String.class);
             if (body == null || body.isBlank()) {
-                return UserMutableWire.empty();
+                return MergeableKeycloakUserRepresentation.empty();
             }
-            return objectMapper.readValue(body, UserMutableWire.class);
+            return objectMapper.readValue(body, MergeableKeycloakUserRepresentation.class);
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak read user (status " + e.getStatusCode().value() + ")", e);
@@ -395,25 +378,6 @@ public class KeycloakAdminClient implements UserDirectoryPort {
             @Nullable Long createdTimestamp) {
         UserDirectoryRow toRow() {
             return new UserDirectoryRow(id, username, email, enabled, requiredActions, createdTimestamp);
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record UserMutableWire(
-            @Nullable String username,
-            @Nullable String email,
-            @Nullable String firstName,
-            @Nullable String lastName,
-            @Nullable Boolean enabled,
-            @Nullable Boolean emailVerified,
-            @Nullable List<String> requiredActions,
-            @Nullable Map<String, List<String>> attributes) {
-        static UserMutableWire empty() {
-            return new UserMutableWire(null, null, null, null, null, null, null, null);
-        }
-
-        Map<String, List<String>> attributesOrEmpty() {
-            return attributes == null ? Map.of() : attributes;
         }
     }
 

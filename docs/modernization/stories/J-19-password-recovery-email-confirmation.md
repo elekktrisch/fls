@@ -136,7 +136,15 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   can feed it a planted file. The negative test is
   `check-realm-shape-rejects-credential-outside-allow-set.sh`, wired into `ci.yml`'s graph-root `changes`
   job, which carries no `if:` and no `needs:` and therefore never gets path-filtered away.
-- [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
+- [x] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in
+  `KeycloakDeploymentDirectoryAdapter.setUserAttribute`. The adapter now reads the full user
+  representation, merges the one attribute, and re-sends every field a Keycloak PUT clears. The two
+  Keycloak call sites share one idiom: the new shared-kernel record
+  `ch.alpenflight.platform.keycloak.MergeableKeycloakUserRepresentation` holds the merge and the
+  PUT body, and `KeycloakAdminClient.writeClubIdAttribute` / `clearClubIdAttribute` delegate to it.
+  The proving test is
+  `KeycloakDeploymentDirectoryAdapterAttributeMergeIT` (`alpenflight/server/src/test/java/ch/alpenflight/tenancy/provisioning/infra/KeycloakDeploymentDirectoryAdapterAttributeMergeIT.java:88`);
+  it was red against the single-key PUT and is green against the merge.
 - [x] **T-11** — Rider KC-26, register verify-mail (AC-6): never an SMTP fault. The realm keeps the
   username separate from the email (`alpenflight/auth/realm-export.json:2247`), so Keycloak's
   registration form renders a required `#username` field, and `kc-form.ts` never filled it. Keycloak
