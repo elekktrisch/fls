@@ -40,6 +40,23 @@ stragglers each ceremony so the file shrinks.
   `reporting/flight-reports.spec.ts:65,92,164,180`. Convert on next touch for consistency only.
   The guard already walks all of `e2e/tests/**`, so a future API seed at an absolute date reds at
   once. *(seam: those 13 mock fixtures)*
+- **[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]** [S2] `alpenflight/auth/scripts/check-theme-load.sh` cannot
+  pass: it built a raw authorize URL with no PKCE parameters (the same fault J-19 T-12 found in
+  `login.spec.ts`, so Keycloak 302s away before any theme renders) and it matches a root-element
+  pattern that the `keycloak.v2` track never emits. T-12 fixed both faults. The remaining defect is
+  that **the script is wired to no CI job at all**, so nothing would have caught either. A theme
+  verification that runs nowhere is not a gate. Wire it, or delete it and say the theme is unguarded.
+  *(seam: `check-theme-load.sh` + a CI job that runs it)*
+  [[feedback_safety_claim_needs_negative_test]]
+- **[BARE-SIGNUP-JOIN-FUNNEL-UNCOVERED]** [S2] No spec registers through bare `/signup` and lands on
+  `/join`, although `resolveSignupIntent(null)` makes `join` the DEFAULT intent
+  (`signup-intent.ts:3,6`). Existing coverage misses it: the unit spec covers the resolver
+  (`signup-intent.spec.ts:19,28`), the mock e2e reaches the `/join` stamp through `intent=demo`
+  (`e2e/tests/public/signup.spec.ts:82`), the landing spec asserts only the CTA href
+  (`landing.spec.ts:136`), and the real-idp join lifecycle never enters `/signup` — it creates the
+  user through the Keycloak admin API (`join-request.spec.ts:57-62`). J-19 found this while fixing a
+  stale assertion that had named the pre-J-12a landing path. Not J-19's surface (password recovery),
+  so it rides the next journey over the signup funnel. *(seam: a real-idp spec for bare `/signup`)*
 - **[FANOUT-RED-IS-INVISIBLE]** [S2] `alpenflight proof fan-out` failed on 8 consecutive scheduled
   runs (2026-08-08 to 2026-08-15) and nothing surfaced it; the operator learned it from the J-19
   carve. A scheduled red gates no PR. J-30 gave the nightly loud surfacing and the fan-out never got
