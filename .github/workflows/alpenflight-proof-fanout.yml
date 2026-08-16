@@ -637,6 +637,17 @@ jobs:
             --project=accounting \
             tests/accounting/accounting-parity-J8.spec.ts
 
+      - name: Run J-19 T-14 legacy password-recovery capture spec (non-blocking, if:always + continue-on-error, records legacy video)
+        id: legacy-pw-lostpassword
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=auth \
+            tests/auth/lostpassword-parity-J19.spec.ts
+
       # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
@@ -962,6 +973,7 @@ jobs:
           REP_WEBM="$(find /tmp/fls-e2e-results -path '*reporting-parity-J7*' -name '*.webm' | head -1 || true)"
           # J-8 — legacy accounting-rule-filter list+edit-form parity video (T-18).
           ACCT_WEBM="$(find /tmp/fls-e2e-results -path '*accounting-parity-J8*' -name '*.webm' | head -1 || true)"
+          LEGACY_PASSWORD_RECOVERY_WEBM="$(find /tmp/fls-e2e-results -path '*lostpassword-parity-J19*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -1025,6 +1037,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-8\",\"file\":\"accounting-parity-J8.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_ACCT")},"
           else
             echo "No J-8 accounting .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$LEGACY_PASSWORD_RECOVERY_WEBM" ]; then
+            cp "$LEGACY_PASSWORD_RECOVERY_WEBM" "$STAGE/lostpassword-parity-J19.webm"
+            CAP_LOSTPW="Legacy flsweb shows the password-recovery screens. The spec opens /lostpassword, sends the form, reads the success message, and opens the /confirm choose-password form. The legacy app collects the new password itself. AlpenFlight gives that task to Keycloak, so the two products differ by design. This capture makes no parity claim."
+            VIDEOS="$VIDEOS{\"journey\":\"J-19\",\"file\":\"lostpassword-parity-J19.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_LOSTPW")},"
+          else
+            echo "No J-19 legacy password-recovery .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -1295,6 +1314,13 @@ jobs:
             "AlpenFlight: the /deliveries list after the engine 'create deliveries' action — the new Prepared delivery row (recipient · batch · Prepared badge · delete affordance), entered via the masterdata nav"
           add_shot "alpenflight/web/test-results" "alpenflight-deliveries-form.png" "J-10b" "alpenflight" "form" \
             "AlpenFlight: an engine-created delivery's detail — the inline FlightTime line item, the resolved recipient (PILOT_PAYS_ALL fallback), the Prepared badge, and the linked flight"
+
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-form.png" "J-19" "legacy" "form" \
+            "Legacy flsweb: the /lostpassword form renders without a session. It shows one text field and one button."
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-success.png" "J-19" "legacy" "success" \
+            "Legacy flsweb: the /lostpassword screen after the spec sends the form. The legacy server accepted the request, and the page shows its success message."
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-confirm.png" "J-19" "legacy" "confirm" \
+            "Legacy flsweb: the /confirm screen that the legacy reset link opens. It shows two password fields and one button. The spec never sends this form."
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

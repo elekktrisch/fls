@@ -224,7 +224,18 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   so the `--grep-invert` token and its comment leave
   `.github/workflows/alpenflight-e2e-real-idp.yml:243`, and the discharged `[KC-26 UPGRADE DRIFT]`
   rider leaves `docs/modernization/stories/_BOYSCOUT.md`.
-- [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
+- [x] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery
+  captures. The spec drives the legacy stack without a session and captures three screens:
+  `/lostpassword`, the same screen after a real send, and the `/confirm` choose-password form. It
+  asserts only that each screen renders, and it never sends the `/confirm` form. Sending that form
+  calls `POST /api/v1/users/resetpassword` and would change the seeded password every other legacy
+  spec signs in with. **No parity claim** — ADR 0007 gives every credential action to Keycloak, so
+  the shots carry no AlpenFlight pair. The three PNGs and the video stage into the fan-out gallery;
+  `alpenflight/web/e2e/legacy-reference/lostpassword/PENDING.md` holds the capture-once follow-up.
+  **The legacy stack does not run on this box** (no Mono, no built `FLS.Server.Console`, no
+  `/tmp/flsweb-build`, no MSSQL container), so the first live run is the fan-out job
+  `alpenflight-proof-fanout.yml`. The `POST /api/v1/users/lostpassword` success path is already
+  proven green there by `e2e/tests/email/notifications.spec.ts:143`.
 - [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
 
 ## Gate obligations carried by later tasks
