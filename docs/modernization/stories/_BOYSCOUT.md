@@ -24,8 +24,34 @@ stragglers each ceremony so the file shrinks.
 ## Pending (filed by /do-plan J-19 carve, 2026-08-16 — main-branch reds)
 
 **MAIN-1 to MAIN-4 are folded into J-19** (see `J-19-password-recovery-email-confirmation.md`
-§"Main-branch reds"). The two entries below are the parts that outlive that journey.
+§"Main-branch reds"). The entries below are the parts that outlive that journey.
 
+- **[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]** [S1] A club-less registrant cannot complete the
+  migrate handshake, so the funnel J-16 shipped ends in an error state. The chain, proven by the
+  real-idp run on the J-19 branch: the landing migrate CTA opens `/signup?intent=migrate`
+  (`alpenflight/web/src/app/features/landing/landing.component.ts:76`). `postSignupLandingPath` sends
+  the registrant to `/migrate/start`
+  (`alpenflight/web/src/app/features/signup/signup-intent.ts:14`). The page mounts and the store calls
+  `GET /api/v1/migrations/handshake/current`
+  (`alpenflight/web/src/app/features/migrate-handshake/migrate-handshake.store.ts:55`). That 404 is by
+  design for a first-time registrant (`MigrationHandshakeController.java:52`). The store then sends
+  `POST /api/v1/migrations/handshake` (`migrate-handshake.store.ts:59`).
+  `MigrationHandshakeService.issue` calls `userLookup.resolveUserId(jwt)`
+  (`MigrationHandshakeService.java:61`). That field binds to `PreTenantUserLookup.resolveUserId`
+  (`PreTenantUserLookup.java:27`), which reads `t_user` by `keycloak_sub` and finds no row. The service
+  throws `UnknownPrincipalException`, and the handler answers 403
+  (`MigrationHandshakeExceptionHandler.java:27`).
+
+  The service states the expectation itself: **"No t_user row for principal — verified-email signup
+  expected"** (`MigrationHandshakeService.java:63`). The row never exists.
+  `JitUserMaterializerImpl.materialize` returns empty when the JWT carries no `clubId` claim
+  (`JitUserMaterializerImpl.java:60-63`), and a new registrant has no club. The page still renders and
+  shows its error state (`migrate-handshake.page.ts:54`). J-19 narrowed AC-6 to the render, and
+  declared the 403 in `register.spec.ts` as a known product defect. The operator decided on 2026-08-16
+  that J-19 files the defect and does not fix the backend. **J-21 owns this surface**
+  (migrate-from-legacy upload wizard, `_ORDER.md:23`), so the fix rides J-21.
+  *(seam: `PreTenantUserLookup.resolveUserId` + `JitUserMaterializerImpl` + `MigrationHandshakeService`
+  + the verified-email signup path)*
 - **[ABSOLUTE-DATES-IN-MOCK-FULFILL-BODIES]** [S3] **Corrected by J-19 T-03, measured not assumed.**
   Only API-SEEDED dates can expire against `FlightsService.java:47`'s 90-day list window. J-19 fixed
   and guarded all three such sites (`delivery-creation-test-parity`, `deliveries-parity`,

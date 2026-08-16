@@ -15,7 +15,7 @@ acceptance:
   - "[key-error] AC-3 — The OLD password stops working after the reset. Assertion: same spec — `fillKcLogin(ephemeral.email, oldPassword)` keeps the URL on `/realms/alpenflight/login-actions/authenticate` and `KC_ERROR_SELECTOR` is visible."
   - "[key-error] AC-4 — A second use of the same reset link does not authenticate the user, and the Keycloak page returns the user to `/lostpassword`. Assertion: same spec — visit the link again, follow the theme back link, assert the pathname is `/lostpassword` and `lostpassword-page` is visible."
   - "[happy] AC-5 — A verify-email link opened in a session-less browser lands on `/confirm` in the verified state with a sign-in action. Assertion: same spec — open the Mailpit verify link in a fresh `browser.newContext()`, follow the theme back link, assert `confirm-outcome-verified` visible and `confirm-sign-in` visible."
-  - "[happy] AC-6 — A new member registers through the migrate CTA and the real Keycloak SMTP path delivers the verify mail. The member lands on `/migrate/start`. Assertion: `register.spec.ts` happy path runs without `@quarantine-kc26`, opens `/signup?intent=migrate`, follows the Mailpit verify link, then asserts `toHaveURL(/\\/migrate\\/start$/)` and `migrate-start` visible."
+  - "[happy] AC-6 — A new member registers through the migrate CTA and the real Keycloak SMTP path delivers the verify mail. The member lands on `/migrate/start` and the handshake page renders. Assertion: `register.spec.ts` happy path runs without `@quarantine-kc26`, opens `/signup?intent=migrate`, follows the Mailpit verify link, then asserts `toHaveURL(/\\/migrate\\/start$/)` and `migrate-handshake` visible. **Qualified:** the page renders, and the handshake does not complete. `POST /api/v1/migrations/handshake` answers 403 to a club-less registrant, so the page shows its error state. The spec declares that 403 as a known product defect. Rider `[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]` in `_BOYSCOUT.md` holds the fix, and J-21 owns it."
   - "[edge] AC-7 — Both new routes are public. Assertion: `public-routes.spec.ts` — an unauthenticated goto of `/lostpassword` and of `/confirm` renders each page testid and the URL never enters `/realms/`."
   - "[edge] AC-8 — Both pages fit a 360 x 640 portrait viewport and their actions meet the touch-target rule. Assertion: same spec at that viewport — `document.documentElement.scrollWidth <= clientWidth`, and every CTA `boundingBox()` has height >= 44 and width >= 44."
   - "[happy] AC-9 (rider) — Keycloak chrome honours `?ui_locales=fr`. Assertion: `login.spec.ts` locale test loses `@quarantine-kc26` and asserts `html` has attribute `lang=fr`."
@@ -152,6 +152,16 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   (`alpenflight/web/src/app/features/signup/signup-intent.spec.ts:19`) and mock-auth coverage
   (`alpenflight/web/e2e/tests/public/signup.spec.ts:82`), but no real-idp spec registers through bare
   `/signup`.
+- [x] **T-11c** — AC-6 narrowed to the render, and the product defect filed. T-11b's `intent=migrate`
+  fix holds, because the URL assertion passed on the real run. The spec then failed on a stale testid:
+  it asserted `migrate-start`, which `src/` never carried. The page renders `migrate-handshake`
+  (`alpenflight/web/src/app/features/migrate-handshake/migrate-handshake.page.ts:37`), and the spec now
+  asserts that testid. The spec declares two console errors by name. The `GET /handshake/current` 404
+  is by design for a first-time registrant (`MigrationHandshakeController.java:52`). The
+  `POST /handshake` 403 is a known product defect, so a `known-product-defect` annotation carries the
+  rider tag into the Playwright report. Rider `[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]` [S1]
+  sits in `_BOYSCOUT.md` and belongs to J-21. The operator decided on 2026-08-16 that J-19 files the
+  defect and does not fix the backend.
 - [x] **T-12** — Rider KC-26, `?ui_locales=fr` (AC-9): never a Keycloak fault. Keycloak 26.5 honours
   `ui_locales` and renders `<html lang="fr">`, even when the browser sends `Accept-Language: en-US`.
   The spec built a raw authorize URL with no PKCE parameters, but the `alpenflight-web` client
