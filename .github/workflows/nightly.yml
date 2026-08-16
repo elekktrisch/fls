@@ -50,13 +50,42 @@ jobs:
       - name: Install NuGet CLI
         run: sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 
-      - name: Restore packages
+      - name: Restore every packages.config the cache key hashes
         working-directory: flsserver/src
         run: |
-          for proj in FLS.Server.Web/FLS.Server.WebApi.csproj \
-                       FLS.Server.Console/FLS.Server.Console.csproj ; do
-            mono /usr/local/bin/nuget.exe restore "$proj" -SolutionDirectory .
+          set -euo pipefail
+          package_configs=$(find . -name packages.config -not -path './packages/*' | sort)
+          if [ -z "$package_configs" ]; then
+            echo "Found no packages.config under flsserver/src. The restore has no inputs and the cache key hashes an empty set."
+            exit 1
+          fi
+          for package_config in $package_configs; do
+            mono /usr/local/bin/nuget.exe restore "$package_config" -SolutionDirectory .
           done
+
+      - name: Assert the restore produced every assembly xbuild resolves by HintPath
+        working-directory: flsserver/src
+        run: |
+          set -euo pipefail
+          missing_count=0
+          for assembly in \
+              packages/EnterpriseLibrary.Common.6.0.1304.0/lib/NET45/Microsoft.Practices.EnterpriseLibrary.Common.dll \
+              packages/EnterpriseLibrary.Validation.6.0.1304.0/lib/NET45/Microsoft.Practices.EnterpriseLibrary.Validation.dll \
+              packages/System.Linq.Dynamic.1.0.7/lib/net40/System.Linq.Dynamic.dll \
+              packages/Newtonsoft.Json.12.0.2/lib/net45/Newtonsoft.Json.dll \
+              packages/EntityFramework.6.2.0/lib/net45/EntityFramework.dll \
+              packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll ; do
+            if [ ! -f "$assembly" ]; then
+              echo "Absent after the restore: flsserver/src/$assembly"
+              missing_count=$((missing_count + 1))
+            fi
+          done
+          if [ "$missing_count" -gt 0 ]; then
+            echo "The restore exited 0 and left $missing_count assembly path(s) absent."
+            echo "Without this assertion the job stays green here and fails two steps later, in xbuild, with CS0234 / CS0246 errors in FLS.Common."
+            echo "Restore every packages.config under flsserver/src, and do not let a warm actions/cache entry hide an incomplete restore."
+            exit 1
+          fi
 
       - name: xbuild projects (Debug)
         working-directory: flsserver/src
