@@ -117,7 +117,15 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   a bare `/confirm` included, selects the verified state. AC-8 measures the call to action on the
   bare route, so the verified state must be the default. T-08 owns the two back-link targets:
   `/confirm?outcome=verified` for the info page, `/lostpassword` for the failed reset (AC-4).
-- [ ] **T-08** — Keycloak login theme: back-link targets for the info and error pages + the four message bundles.
+- [x] **T-08** — Keycloak login theme: `footer.ftl` reads the message the page shows and picks the
+  back-link target from it. The "email verified" info page sends the member to
+  `/confirm?outcome=verified` (AC-5), an "action expired" page sends the member to `/lostpassword`
+  (AC-4), and every other page keeps the landing page. `info.ftl` and `error.ftl` need no override:
+  both come from `base` and render our footer macro. All four bundles carry
+  `backToEmailConfirmation` and `backToPasswordRecovery`. A client-less error page rendered HTTP 500
+  before, because the macro read `client.baseUrl` with no guard; the macro now renders no link there.
+  **Keycloak 26.5.7 puts a "confirm validity" page in front of the session-less verify link, so T-15
+  must click `#kc-info-message a` first, then read the back link.**
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
 - [ ] **T-11** — Rider KC-26: the Mailpit verify-mail red — un-quarantine the `register.spec.ts` happy path (AC-6).

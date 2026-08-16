@@ -1,25 +1,28 @@
-<#--
-  Overrides keycloak.v2's empty footer macro to inject a "Back to Start"
-  link below the login form. The link reads the OIDC client's `baseUrl`
-  attribute on the `alpenflight-web` client; the value lands via the
-  Dockerfile build-arg substitution of `${ALPENFLIGHT_WEB_BASE_URL}` in
-  realm-export.json (see alpenflight/auth/README.md § Substitution layers
-  — Keycloak's own realm-import substitution doesn't reach client.baseUrl
-  because the URL validator runs before substitution).
-
-  No FreeMarker fallback — the build-arg sed + check-realm-shape.sh shape
-  guard + docker-compose `${VAR:-default}` block collectively close every
-  "client.baseUrl unset" path. (`${client.baseUrl}` would render an empty
-  href rather than raise if unset; the shape guard is the real safety net.)
-
-  Rendered inside `.pf-v5-c-login__main-footer` from Keycloak's v2
-  template.ftl, below the social-providers + info bands. Styling lives in
-  `alpenflight/login/resources/css/login.css` under `.af-back-to-landing`.
--->
 <#macro content>
-  <div class="af-back-to-landing-band">
-    <a class="af-back-to-landing" href="${client.baseUrl}">
-      ${msg('backToLanding')}
-    </a>
-  </div>
+  <#assign theAlpenflightBaseUrl = (client.baseUrl)!''>
+  <#if theAlpenflightBaseUrl?has_content>
+    <#assign theAlpenflightOrigin = theAlpenflightBaseUrl?remove_ending('/')>
+    <#assign thisPageReportsKeycloakVerifiedTheEmailAddress =
+      ((message.summary)!'') == msg('emailVerifiedMessage')
+      || ((message.summary)!'') == msg('emailVerifiedAlreadyMessage')>
+    <#assign thisPageReportsTheEmailActionLinkIsSpent =
+      ((message.summary)!'') == msg('expiredActionMessage')
+      || ((message.summary)!'') == msg('expiredActionTokenNoSessionMessage')
+      || ((message.summary)!'') == msg('expiredActionTokenSessionExistsMessage')>
+    <#if thisPageReportsKeycloakVerifiedTheEmailAddress>
+      <#assign theBackLinkTarget = theAlpenflightOrigin + '/confirm?outcome=verified'>
+      <#assign theBackLinkText = msg('backToEmailConfirmation')>
+    <#elseif thisPageReportsTheEmailActionLinkIsSpent>
+      <#assign theBackLinkTarget = theAlpenflightOrigin + '/lostpassword'>
+      <#assign theBackLinkText = msg('backToPasswordRecovery')>
+    <#else>
+      <#assign theBackLinkTarget = theAlpenflightBaseUrl>
+      <#assign theBackLinkText = msg('backToLanding')>
+    </#if>
+    <div class="af-back-to-landing-band">
+      <a class="af-back-to-landing" href="${theBackLinkTarget}">
+        ${theBackLinkText}
+      </a>
+    </div>
+  </#if>
 </#macro>
