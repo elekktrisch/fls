@@ -139,13 +139,15 @@ test times out at 45 s. Both failing tests share this cause, in both lanes.
 **Fix.** Make the seed date relative to the run date, and keep it inside the 90-day window while it
 stays past the lock and bill gates (`FlightGatePolicy.LOCK_AFTER_DAYS` / `BILL_AFTER_DAYS`).
 
-**Guard — the fix is not done without it.** 17 specs hold absolute flight dates. Three more real-idp
-seeds already sit outside the window (`deliveries-write-parity.spec.ts:127`,
-`deliveries-parity.spec.ts:78`, and the second DCT seed), and they stay green only because their
-screens do not call the default-window list. The mock-lane specs need an audit: `05-flights-edit`
-(2026-05-20) leaves the window on 2026-08-18, `flights-list-delete` on 2026-08-19 and 08-20, and
-`04-flights-create` on 2026-08-23. Ship a lint rule or a spec-scanning test that rejects an absolute
-`flightDate` in a spec that seeds through the API. Without it the next date expires in two days.
+**Guard — shipped at T-03, and the blast radius was smaller than the carve estimated.** Only an
+API-SEEDED date can expire against the list window. There were exactly three such sites, all now on
+the shared helper `e2e/tests/real-idp/_helpers/seed-flight-date.ts`. The other 13 absolute dates
+were measured, not assumed: each of those specs has **zero `.post()` calls**, so every one of those
+dates sits in a `route.fulfill` response body that no server window can expire. The carve's claim
+that `05-flights-edit` would red on 2026-08-18 was wrong. The guard
+(`web/scripts/absolute-flight-date-in-api-seed-guard.mjs`, wired at `ci.yml:104` in the graph-root
+`changes` job with no `if:`/`needs:`) walks all of `e2e/tests/**`, so it covers its own inputs and a
+future API seed at an absolute date reds at once.
 
 ### MAIN-2 — `nightly` / legacy server build: the restore step does not cover its own inputs
 

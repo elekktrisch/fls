@@ -26,18 +26,20 @@ stragglers each ceremony so the file shrinks.
 **MAIN-1 to MAIN-4 are folded into J-19** (see `J-19-password-recovery-email-confirmation.md`
 §"Main-branch reds"). The two entries below are the parts that outlive that journey.
 
-- **[ABSOLUTE-DATES-IN-API-SEEDING-SPECS]** [S1] 17 specs seed flights at an absolute `flightDate`,
-  and `FlightsService.java:47` lists a 90-day default window. Each seed becomes a timed red on the
-  day the window passes it: `delivery-creation-test-parity.spec.ts:127,659` (2026-05-15) took the
-  real-idp nightly AND the fan-out red on 2026-08-14 on an unchanged sha. `05-flights-edit`
-  (2026-05-20) expires 2026-08-18, `flights-list-delete` (2026-05-21/22) on 08-19 and 08-20,
-  `04-flights-create` + `04c-flights-paired-create` (2026-05-25) on 08-23, reporting (2026-06-01/02)
-  on 08-30 and 08-31. Three real-idp seeds are already outside the window and stay green only
-  because their screens do not call the default-window list —
-  `deliveries-write-parity.spec.ts:127`, `deliveries-parity.spec.ts:78`, and the second DCT seed.
-  J-19 fixes the two red seeds and ships the guard. The **audit + conversion of the remaining specs**
-  rides the next journey that touches each one. *(seam: e2e seed dates + a rule that rejects an
-  absolute `flightDate` in an API-seeding spec)*
+- **[ABSOLUTE-DATES-IN-MOCK-FULFILL-BODIES]** [S3] **Corrected by J-19 T-03, measured not assumed.**
+  Only API-SEEDED dates can expire against `FlightsService.java:47`'s 90-day list window. J-19 fixed
+  and guarded all three such sites (`delivery-creation-test-parity`, `deliveries-parity`,
+  `deliveries-write-parity`), now sharing
+  `e2e/tests/real-idp/_helpers/seed-flight-date.ts`. The remaining 13 absolute dates were checked
+  empirically: every one of those specs has **zero `.post()` calls**, so each date sits in a
+  `route.fulfill` response body that no server window can expire. They are cosmetic, not timed reds:
+  `accounting/deliveries.spec.ts:86`, `accounting/delivery-creation-test.spec.ts:62`,
+  `flights/04-flights-create.spec.ts:99`, `flights/04c-flights-paired-create.spec.ts:103`,
+  `flights/05-flights-edit.spec.ts:88`, `flights/flights-list-delete.spec.ts:26,39`,
+  `forms/validation-hardening.spec.ts:197`, `reporting/custom-builder.spec.ts:26`,
+  `reporting/flight-reports.spec.ts:65,92,164,180`. Convert on next touch for consistency only.
+  The guard already walks all of `e2e/tests/**`, so a future API seed at an absolute date reds at
+  once. *(seam: those 13 mock fixtures)*
 - **[FANOUT-RED-IS-INVISIBLE]** [S2] `alpenflight proof fan-out` failed on 8 consecutive scheduled
   runs (2026-08-08 to 2026-08-15) and nothing surfaced it; the operator learned it from the J-19
   carve. A scheduled red gates no PR. J-30 gave the nightly loud surfacing and the fan-out never got
