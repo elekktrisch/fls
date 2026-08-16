@@ -215,11 +215,9 @@ jobs:
       # `--grep-invert` drops two sets the cross-journey clean-seed run must not
       # carry: (1) `showcase seed` — `start-dashboard.spec.ts` asserts the
       # `@Profile("showcase")` counts this run never seeds; its gating job is
-      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — two
-      # specs that regressed against the KC-26 upgrade, not against our code:
-      # login `?ui_locales=fr` (locale param honored differently) and
-      # token-lifecycle silent-refresh (refresh-grant / SSO behavior). Excluded
-      # here so the `real-idp-merge`
+      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — the
+      # token-lifecycle silent-refresh spec (refresh-grant / SSO behavior).
+      # Excluded here so the `real-idp-merge`
       # 0-fail tally is over the stable set; each has a named fix-owner rider in
       # _BOYSCOUT.md [KC-26 UPGRADE DRIFT] — this exclusion is explicit + tracked,
       # not a silent grep. Filtering applies before sharding,

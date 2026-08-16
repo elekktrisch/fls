@@ -139,7 +139,20 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   The helper now fills every field the form requires, the happy path lost `@quarantine-kc26`, and the
   mail budget dropped to 20 s so it stays inside the 45 s real-idp test timeout. The nightly SMTP
   preflight now proves DELIVERY, not TCP reachability, so the next failure names its own layer.
-- [ ] **T-12** — Rider KC-26: `?ui_locales=fr` — un-quarantine the `login.spec.ts` locale test (AC-9).
+- [x] **T-12** — Rider KC-26, `?ui_locales=fr` (AC-9): never a Keycloak fault. Keycloak 26.5 honours
+  `ui_locales` and renders `<html lang="fr">`, even when the browser sends `Accept-Language: en-US`.
+  The spec built a raw authorize URL with no PKCE parameters, but the `alpenflight-web` client
+  requires them (`alpenflight/auth/realm-export.json:1745`). Keycloak answered
+  `302 → {redirect_uri}?error=invalid_request&error_description=Missing parameter:
+  code_challenge_method`, so the browser landed on the SPA and never on the login page. The SPA reads
+  `navigator.language` (`alpenflight/web/src/app/core/i18n/lang-providers.ts:19`) and writes it to
+  `document.documentElement.lang` (`alpenflight/web/src/app/shared/ui/locale/locale.service.ts:49`) —
+  that is where the `en` came from. The spec now sends `code_challenge` + `code_challenge_method`,
+  asserts the page stays on the realm URL, and reads the French page title from our own bundle
+  (`alpenflight/web/e2e/tests/real-idp/login.spec.ts:66`). The operator smoke
+  `check-theme-load.sh` carried the same missing-PKCE fault plus a root-element pattern that the
+  `keycloak.v2` parent never matches; it passes against a live 26.5 container again.
+  `kc_locale` is inert on Keycloak 26.5 — only `ui_locales` selects the locale.
 - [ ] **T-13** — Rider KC-26: silent refresh — un-quarantine the `token-lifecycle.spec.ts` test (AC-10).
 - [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
 - [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
