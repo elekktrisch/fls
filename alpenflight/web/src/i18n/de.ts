@@ -468,6 +468,26 @@ const de = {
       'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
   },
+  lostpassword: {
+    actions: {
+      signIn: 'Anmelden',
+      start: 'Zum Anmeldedienst',
+    },
+    caution: 'Der Link funktioniert nur einmal. Verwende den Link kein zweites Mal.',
+    errors: {
+      unreachable: 'Der Anmeldedienst ist nicht erreichbar. Versuche es später erneut.',
+    },
+    headline: 'Passwort zurücksetzen',
+    knowThePassword: 'Kennst du dein Passwort?',
+    language: 'Sprache',
+    steps: {
+      openTheMail: 'Öffne die E-Mail von AlpenFlight und wähle den Link.',
+      selectForgotPassword: 'Wähle im Anmeldedienst den Link für das vergessene Passwort.',
+      setTheNewPassword: 'Gib das neue Passwort zweimal ein und sende das Formular.',
+      typeTheAddress: 'Gib deine E-Mail-Adresse ein und sende das Formular.',
+    },
+    tagline: 'AlpenFlight speichert dein Passwort im Anmeldedienst. Das Zurücksetzen startet dort.',
+  },
   migrateHandshake: {
     copied: 'Handshake kopiert.',
     copy: 'Handshake kopieren',

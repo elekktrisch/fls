@@ -101,7 +101,12 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 - [x] **T-03** — MAIN-1 guard: T-01's constant + `daysAgo()` now live in `tests/real-idp/_helpers/seed-flight-date.ts`; all three real-idp seed sites derive the date from the run date. `scripts/absolute-flight-date-in-api-seed-guard.mjs` rejects an absolute `flightDate` / `startDateTime` / `ldgDateTime` inside an API POST across `e2e/tests/**`, and runs in `ci.yml`'s `changes` job on every push with no path filter. The 13 remaining mock-lane dates sit in `route.fulfill` response bodies, which no server window can expire; they stay with the suite-wide date audit.
 - [x] **T-04** — MAIN-2 fix: both legacy server builds now restore every `packages.config` under `flsserver/src` — the same glob the `actions/cache` key hashes — and a new step asserts the six HintPath assemblies exist before `xbuild` runs. `FLS.sln` was the wrong authority: it omits `FLS.Server.Console`, which the xbuild loop builds, and `FLS.Server.ProffixInvoiceService`, which the cache key hashes. `alpenflight-proof-fanout.yml` carried a solution restore with no assertion; both files now hold the identical two steps.
 - [x] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `npm_config_tmp` and asserts its own output.
-- [ ] **T-06** — `/lostpassword` page + route: public, branded, hands off to Keycloak.
+- [x] **T-06** — `/lostpassword` page + route: public, branded, hands off to Keycloak. Assumption 2 holds:
+  the page calls `oidc.authorize` with `ui_locales` and lands on the Keycloak login page, whose theme
+  carries the forgot-password link. The mechanism sits in one function,
+  `handOffToTheKeycloakLoginPageWhoseThemeCarriesTheForgotPasswordLink`
+  (`alpenflight/web/src/app/features/lostpassword/keycloak-recovery-handoff.ts:7`); T-15 flips that
+  function alone if a live run prefers the deep link. The page posts nothing to the backend.
 - [ ] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each.
 - [ ] **T-08** — Keycloak login theme: back-link targets for the info and error pages + the four message bundles.
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.

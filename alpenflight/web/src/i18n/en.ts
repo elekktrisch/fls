@@ -465,6 +465,26 @@ const en: Translations = {
     readonlyBanner: "Read-only. Your club's Locations are managed by your club administrator.",
     title: 'Locations',
   },
+  lostpassword: {
+    actions: {
+      signIn: 'Sign in',
+      start: 'Go to the sign-in service',
+    },
+    caution: 'The link works one time only. Do not use the link a second time.',
+    errors: {
+      unreachable: 'The sign-in service is not available. Try again later.',
+    },
+    headline: 'Reset your password',
+    knowThePassword: 'Do you know your password?',
+    language: 'Language',
+    steps: {
+      openTheMail: 'Open the email from AlpenFlight, then select the reset link.',
+      selectForgotPassword: 'Select the forgot-password link in the sign-in service.',
+      setTheNewPassword: 'Type your new password two times, then send the form.',
+      typeTheAddress: 'Type your email address, then send the form.',
+    },
+    tagline: 'AlpenFlight keeps your password in the sign-in service. The reset starts there.',
+  },
   migrateHandshake: {
     copied: 'Handshake copied.',
     copy: 'Copy handshake',
