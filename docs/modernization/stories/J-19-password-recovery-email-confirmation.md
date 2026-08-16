@@ -127,7 +127,15 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Keycloak 26.5.7 puts a "confirm validity" page in front of the session-less verify link, so T-15
   must click `#kc-info-message a` first, then read the back link.**
 - [x] **T-08b** — No work needed. `alpenflight-e2e-real-idp.yml:64-66` rebuilds the Keycloak image uncached inside the shard job on every run, and `alpenflight/auth/Dockerfile:48` copies `themes/`, so T-08's theme change is already live in the gate. T-15 confirms the two back-link targets in the real chain.
-- [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
+- [x] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
+  The gate extends `check-realm-shape.sh` (AC-11 names that script, and the export is already read there).
+  It covers two classes of literal credential in the committed export: every `users[].credentials[].value`
+  and every `clients[].secret`. It does NOT cover `smtpServer.password` or the Google IdP `clientSecret`:
+  lines 131-134 and 146-147 already assert those are `${KEYCLOAK_...}` markers, which is a stronger rule
+  than an allow-set. `check-realm-shape.sh` now takes an optional realm-file argument, so the negative test
+  can feed it a planted file. The negative test is
+  `check-realm-shape-rejects-credential-outside-allow-set.sh`, wired into `ci.yml`'s graph-root `changes`
+  job, which carries no `if:` and no `needs:` and therefore never gets path-filtered away.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
 - [x] **T-11** — Rider KC-26, register verify-mail (AC-6): never an SMTP fault. The realm keeps the
   username separate from the email (`alpenflight/auth/realm-export.json:2247`), so Keycloak's

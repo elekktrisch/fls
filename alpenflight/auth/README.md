@@ -12,7 +12,8 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 | `Dockerfile` | Bakes `realm-export.json` into a custom `alpenflight-keycloak:local` image. Used by the `keycloak` service in the root `docker-compose.yml`. |
 | `scripts/export-realm.sh` | Re-export the realm from a running Keycloak. Writes to `realm-export.json`; `git diff` shows drift. |
 | `scripts/normalize-realm-export.sh` | Deterministic-sorts the export. Strips volatile fields, dev-passwords-only injection, deep-sorts set-shaped arrays. |
-| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.) plus the theme-ref pins. |
+| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.), the theme-ref pins, and the dev-only allow-set for every seed-user password and client secret. Takes an optional realm-file argument; it defaults to the committed export. |
+| `scripts/check-realm-shape-rejects-credential-outside-allow-set.sh` | Negative test for the allow-set gate above. Plants a foreign password, a foreign client secret and an export-masked secret, and asserts a non-zero exit for each; then asserts exit zero on the committed export. Runs on EVERY push in `ci.yml`'s `changes` job. |
 | `scripts/check-theme-load.sh` | Operator smoke against a running Keycloak — asserts the alpenflight theme is loaded and locale fallback to parent works. Not wired to CI (no live Keycloak for the alpenflight realm). |
 | `themes/alpenflight/` | Custom Keycloak theme (login, account, email). Per-type parents: `keycloak.v2` for login, `keycloak.v3` for account, `keycloak` for email (only email parent shipped). |
 
