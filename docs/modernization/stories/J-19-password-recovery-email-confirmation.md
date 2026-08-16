@@ -129,7 +129,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 - [ ] **T-08b** — Gate obligations left by T-08: rebuild the Keycloak image so the theme change is live, and confirm the two back-link targets in the real chain.
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.
-- [ ] **T-11** — Rider KC-26: the Mailpit verify-mail red — un-quarantine the `register.spec.ts` happy path (AC-6).
+- [ ] **T-11** — Rider KC-26 (RUN NEXT, re-scoped): the Keycloak side is NOT broken. T-08 drove ~10 real mails through Keycloak 26.5.7 into Mailpit with the committed `realm-export.json`, zero misses, each present within 1-2 seconds including the cold first send, triggered by the same register POST `register.spec.ts` uses. So AC-6's red is an ENVIRONMENT fault, not Keycloak behaviour. Prime suspect: how the Keycloak container resolves the Mailpit SMTP host in CI. T-08's working stack used the Mailpit container name on a private docker network, port 1025, auth off, STARTTLS off.
 - [ ] **T-12** — Rider KC-26: `?ui_locales=fr` — un-quarantine the `login.spec.ts` locale test (AC-9).
 - [ ] **T-13** — Rider KC-26: silent refresh — un-quarantine the `token-lifecycle.spec.ts` test (AC-10).
 - [ ] **T-14** — Legacy pair spec `e2e/tests/auth/lostpassword-parity-J19.spec.ts` + the paired gallery captures.
