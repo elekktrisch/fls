@@ -37,6 +37,10 @@ export const routes: Routes = [
       import('@features/lostpassword/lostpassword.routes').then((m) => m.LOSTPASSWORD_ROUTES),
   },
   {
+    path: 'confirm',
+    loadChildren: () => import('@features/confirm/confirm.routes').then((m) => m.CONFIRM_ROUTES),
+  },
+  {
     path: 'migrate',
     loadChildren: () =>
       import('@features/migrate-handshake/migrate-handshake.routes').then(

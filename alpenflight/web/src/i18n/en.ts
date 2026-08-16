@@ -171,6 +171,24 @@ const en: Translations = {
       required: 'Entry required.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Sign in',
+      startAgain: 'Start the reset again',
+    },
+    errors: {
+      unreachable: 'The sign-in service is not available. Try again later.',
+    },
+    expired: {
+      body: 'The link works one time only. Start the password reset again.',
+      headline: 'The link no longer works.',
+    },
+    language: 'Language',
+    verified: {
+      body: 'Your account is ready. Sign in now.',
+      headline: 'AlpenFlight confirmed your email address.',
+    },
+  },
   deliveries: {
     title: 'Deliveries',
     actions: {

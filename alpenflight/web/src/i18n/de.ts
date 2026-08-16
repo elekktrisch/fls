@@ -171,6 +171,24 @@ const de = {
       required: 'Eingabe erforderlich.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Anmelden',
+      startAgain: 'Zurücksetzen erneut starten',
+    },
+    errors: {
+      unreachable: 'Der Anmeldedienst ist nicht erreichbar. Versuche es später erneut.',
+    },
+    expired: {
+      body: 'Der Link funktioniert nur einmal. Starte das Zurücksetzen des Passworts erneut.',
+      headline: 'Der Link funktioniert nicht mehr.',
+    },
+    language: 'Sprache',
+    verified: {
+      body: 'Dein Konto ist bereit. Melde dich jetzt an.',
+      headline: 'AlpenFlight hat deine E-Mail-Adresse bestätigt.',
+    },
+  },
   deliveries: {
     title: 'Lieferungen',
     actions: {

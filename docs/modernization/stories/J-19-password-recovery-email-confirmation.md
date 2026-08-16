@@ -107,7 +107,15 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `handOffToTheKeycloakLoginPageWhoseThemeCarriesTheForgotPasswordLink`
   (`alpenflight/web/src/app/features/lostpassword/keycloak-recovery-handoff.ts:7`); T-15 flips that
   function alone if a live run prefers the deep link. The page posts nothing to the backend.
-- [ ] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each.
+- [x] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each. The
+  page reads its outcome from the query that the Keycloak back link supplies. One function holds the
+  rule, `readTheOutcomeTheKeycloakEmailActionEndedIn`
+  (`alpenflight/web/src/app/features/confirm/keycloak-email-action-outcome.ts:18`); T-15 corrects
+  that function alone after a live Keycloak run. A failure signal selects the expired state:
+  `?outcome=expired`, a non-empty `error`, or a non-empty `error_description`. Every other query,
+  a bare `/confirm` included, selects the verified state. AC-8 measures the call to action on the
+  bare route, so the verified state must be the default. T-08 owns the two back-link targets:
+  `/confirm?outcome=verified` for the info page, `/lostpassword` for the failed reset (AC-4).
 - [ ] **T-08** — Keycloak login theme: back-link targets for the info and error pages + the four message bundles.
 - [ ] **T-09** — Rider `[PHANTOM-PASSWORD-GUARD]`: the realm-password allow-set gate in `check-realm-shape.sh` + its negative test.
 - [ ] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in `KeycloakDeploymentDirectoryAdapter.setUserAttribute`.

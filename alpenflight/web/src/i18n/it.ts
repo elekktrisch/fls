@@ -172,6 +172,24 @@ const it: Translations = {
       required: 'Campo obbligatorio.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Accedi',
+      startAgain: 'Riavvia la reimpostazione',
+    },
+    errors: {
+      unreachable: 'Il servizio di accesso non è disponibile. Riprova più tardi.',
+    },
+    expired: {
+      body: 'Il link funziona una sola volta. Riavvia la reimpostazione della password.',
+      headline: 'Il link non funziona più.',
+    },
+    language: 'Lingua',
+    verified: {
+      body: 'Il tuo account è pronto. Accedi ora.',
+      headline: 'AlpenFlight ha confermato il tuo indirizzo email.',
+    },
+  },
   deliveries: {
     title: 'Consegne',
     actions: {

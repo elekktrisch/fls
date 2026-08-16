@@ -173,6 +173,24 @@ const fr: Translations = {
       required: 'Saisie obligatoire.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Se connecter',
+      startAgain: 'Recommencer la réinitialisation',
+    },
+    errors: {
+      unreachable: 'Le service de connexion est indisponible. Réessayez plus tard.',
+    },
+    expired: {
+      body: 'Le lien fonctionne une seule fois. Recommencez la réinitialisation du mot de passe.',
+      headline: 'Le lien ne fonctionne plus.',
+    },
+    language: 'Langue',
+    verified: {
+      body: 'Votre compte est prêt. Connectez-vous maintenant.',
+      headline: 'AlpenFlight a confirmé votre adresse e-mail.',
+    },
+  },
   deliveries: {
     title: 'Livraisons',
     actions: {
