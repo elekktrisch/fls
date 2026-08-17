@@ -53,6 +53,7 @@ const TEST_ID = {
   confirmOutcomeVerified: 'confirm-outcome-verified',
   confirmSignIn: 'confirm-sign-in',
   landingTopbarSignIn: 'landing-topbar-sign-in',
+  landingTopbarLostPassword: 'landing-topbar-lost-password',
   signupPage: 'signup-page',
   signupLocal: 'signup-local',
 } as const;
@@ -132,6 +133,21 @@ function countRequestsTheSpaSentToKeycloak(page: Page): () => number {
     if (new URL(request.url()).host === KC_HOST) observed += 1;
   });
   return () => observed;
+}
+
+async function reachLostPasswordThroughTheLandingChrome(page: Page): Promise<void> {
+  await page.goto(LANDING_PATH);
+  await expect(page.getByTestId(TEST_ID.landingTopbarSignIn)).toBeVisible();
+  await expect(
+    page.getByTestId(TEST_ID.landingTopbarLostPassword),
+    'the landing chrome carries no link to /lostpassword, so the recovery page is reachable ' +
+      'only by typing the URL, and the member never finds it',
+  ).toBeVisible();
+
+  await page.getByTestId(TEST_ID.landingTopbarLostPassword).click();
+  await page.waitForURL((url) => url.host === SPA_HOST && url.pathname === LOSTPASSWORD_PATH, {
+    timeout: REAL_KEYCLOAK_ROUND_TRIP_TIMEOUT_MS,
+  });
 }
 
 async function startRecoveryFromLostPasswordPage(page: Page): Promise<void> {
@@ -216,12 +232,13 @@ async function deleteKeycloakUserByEmail(email: string): Promise<void> {
 }
 
 test.describe('account recovery — /lostpassword hands the member to Keycloak', () => {
-  test('[happy] AC-1 — /lostpassword renders without a session and its start action reaches Keycloak', async ({
+  test('[happy] AC-1 — the landing page links to /lostpassword, which renders without a session and reaches Keycloak', async ({
     browser,
   }, testInfo) => {
     const { context, page } = await openRecordedContext(browser, testInfo);
     try {
-      await page.goto(LOSTPASSWORD_PATH);
+      await reachLostPasswordThroughTheLandingChrome(page);
+      expect(new URL(page.url()).pathname).toBe(LOSTPASSWORD_PATH);
       await expect(page.getByTestId(TEST_ID.lostpasswordPage)).toBeVisible();
       await expect(page.getByTestId(TEST_ID.lostpasswordStart)).toBeVisible();
       await page.screenshot({
@@ -242,9 +259,9 @@ test.describe('account recovery — /lostpassword hands the member to Keycloak',
       await proofVideo(page, testInfo, {
         journey: 'J-19',
         caption:
-          'J-19 · password recovery · the /lostpassword page opens without a session, and its ' +
-          'start action moves the browser to the Keycloak realm, which shows the ' +
-          'forgot-password link',
+          'J-19 · password recovery · the landing page shows a recovery link, the link opens ' +
+          'the /lostpassword page without a session, and its start action moves the browser to ' +
+          'the Keycloak realm, which shows the forgot-password link',
         acTag: 'happy',
       });
     }

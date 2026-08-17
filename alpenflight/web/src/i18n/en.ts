@@ -359,6 +359,7 @@ const en: Translations = {
   },
   landing: {
     actions: {
+      lostPassword: 'Forgot password?',
       migrateFromLegacy: 'Migrate from legacy FLS',
       requestAccess: 'Request access',
       signIn: 'Sign in',

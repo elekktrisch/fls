@@ -360,6 +360,7 @@ const de = {
   },
   landing: {
     actions: {
+      lostPassword: 'Passwort vergessen?',
       migrateFromLegacy: 'Von Legacy-FLS migrieren',
       requestAccess: 'Zugang anfragen',
       signIn: 'Anmelden',

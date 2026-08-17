@@ -360,6 +360,7 @@ const it: Translations = {
   },
   landing: {
     actions: {
+      lostPassword: 'Password dimenticata?',
       migrateFromLegacy: 'Migra da FLS legacy',
       requestAccess: 'Richiedi l’accesso',
       signIn: 'Accedi',

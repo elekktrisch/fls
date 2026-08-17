@@ -10,7 +10,7 @@ carved: true
 depends_on: [J-16]
 rolls_up: [S-100]
 acceptance:
-  - "[happy] AC-1 — `/lostpassword` renders without a session and its primary action moves the browser to a Keycloak URL. Assertion: `account-recovery.spec.ts` — goto `/lostpassword`, `lostpassword-page` visible, click `lostpassword-start`, `waitForURL(/\\/realms\\/alpenflight\\//)`."
+  - "[happy] AC-1 — The landing page links to `/lostpassword`, the page renders without a session, and its primary action moves the browser to a Keycloak URL. Assertion: `account-recovery.spec.ts` — goto `/`, click `landing-topbar-lost-password`, land on `/lostpassword` with no `page.goto`, `lostpassword-page` visible, click `lostpassword-start`, `waitForURL(/\\/realms\\/alpenflight\\//)`."
   - "[happy] AC-2 — An ephemeral user completes the reset chain and signs in with the NEW password. Assertion: same spec — create the user through `keycloak-admin.createUser`, submit the address on the Keycloak reset form, `waitForExactlyOneMessage` in Mailpit, follow the link, set the new password, then sign in with it and assert `landing-topbar-sign-in` has count 0."
   - "[key-error] AC-3 — The OLD password stops working after the reset. Assertion: same spec — `fillKcLogin(ephemeral.email, oldPassword)` keeps the URL on `/realms/alpenflight/login-actions/authenticate` and `KC_ERROR_SELECTOR` is visible."
   - "[key-error] AC-4 — A second use of the same reset link does not authenticate the user, and the Keycloak page returns the user to `/lostpassword`. Assertion: same spec — visit the link again, follow the theme back link, assert the pathname is `/lostpassword` and `lostpassword-page` is visible."
@@ -30,10 +30,11 @@ adr_refs: [0007, 0013, 0017, 0024, 0026]
 
 ## Context
 
-A member who forgets the password has no route today. The landing page offers only "Sign in", and
-Keycloak's reset flow is reachable only if the member already knows the Keycloak URL. This journey
-adds the two AlpenFlight pages that start and end the Keycloak credential flows, and it proves the
-full reset chain against a real Keycloak and a real mail server. It closes the E-12 entry epic.
+A member who forgot the password had no route. The landing page offered only "Sign in", and
+Keycloak's reset flow was reachable only if the member already knew the Keycloak URL. This journey
+adds the two AlpenFlight pages that start and end the Keycloak credential flows, links the recovery
+page from the landing chrome beside "Sign in", and proves the full reset chain against a real
+Keycloak and a real mail server. It closes the E-12 entry epic.
 
 ## Spec must assert
 
@@ -268,7 +269,25 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Not verified locally:** the backend does not run on this box, so the SPA answered from a stub. The
   post-sign-in SPA state of a club-less member is CI-only.
 
-- [ ] **T-16** — [BLOCKER, gap-hunter A] `/lostpassword` is URL-only. Nothing in the app links to it, so every proof enters by `page.goto`, and the journey's own Context stays true after the journey. Give it a chrome entry point and make the spec ENTER through it.
+- [x] **T-16** — [BLOCKER, gap-hunter A] `/lostpassword` had no chrome entry point, so every proof
+  entered by `page.goto`. The landing topbar now carries the link, directly before the "Sign in"
+  button (`alpenflight/web/src/app/features/landing/landing.component.ts:40`). The topbar is the only
+  place in the application where a session-less member starts a sign-in, and the design reference puts
+  the recovery link next to the sign-in control
+  (`docs/modernization/design-reference/screens-public.jsx:212`). The hero CTAs address a NEW member
+  (migrate, demo, request access) and the footer holds legal links, so neither reaches the member who
+  cannot sign in. `/signup` gets no second link: the landing page is the entry the member returns to.
+  AC-1 now opens `/`, clicks `landing-topbar-lost-password`, and waits for the `/lostpassword`
+  pathname before it asserts the page
+  (`alpenflight/web/e2e/tests/real-idp/account-recovery.spec.ts:138`); no `page.goto` of
+  `/lostpassword` remains in that case. The mock lane holds the same click plus the 44 x 44 pixel rule
+  and a no-horizontal-scroll assertion at 360 x 640
+  (`alpenflight/web/e2e/tests/landing/landing.spec.ts:136`), and four more cases prove the topbar
+  still fits 360 px with each locale label (`:165`). AC-2 keeps its own `page.goto` entry, because
+  that case proves the reset chain and not the entry point. The label is
+  `landing.actions.lostPassword` in all four locale bundles. AC-1 ran green against the live
+  Keycloak 26.5 container and the SPA on 4201; the Spring backend does not run on this box, and AC-1
+  needs none.
 - [ ] **T-17** — [BLOCKER, both hunters] The absolute-date guard scans only `*.spec.ts` under `alpenflight/web/e2e/tests`, and only `.post(` call sites. Nine `_helpers/*-fixture.ts` seeders and the whole root `e2e/tests/` tree escape it. Widen it, and DELETE this journey's false claim that it covers its own inputs.
 - [ ] **T-18** — [BLOCKER, gap-hunter B] `/confirm`'s expired branch is unreachable in production. The theme routes every spent action to `/lostpassword`, so nothing produces `?outcome=expired`. Delete the dead branch, its mock tests and its 8 i18n keys, and correct the contract prose that asked for it.
 - [ ] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix is CI-only. `docker-compose.yml:95`, `dev-up-alpenflight.sh:23`, `dev-up-nocompose.sh:30` and `check-keycloak-integration.sh:9` give three different answers, so the documented local loop still bakes 4200.

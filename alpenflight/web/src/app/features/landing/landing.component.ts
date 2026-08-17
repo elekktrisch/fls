@@ -37,6 +37,14 @@ const DEFAULT_SPLASH_IMAGE = 'splash.jpg';
             <af-wordmark />
           </a>
           <span class="flex-1"></span>
+          <a
+            routerLink="/lostpassword"
+            data-testid="landing-topbar-lost-password"
+            class="inline-flex items-center min-h-11 px-1 text-sm font-medium text-brand-600
+              hover:text-brand-700 no-underline hover:underline"
+          >
+            {{ t('actions.lostPassword') }}
+          </a>
           <af-button
             type="default"
             htmlType="button"

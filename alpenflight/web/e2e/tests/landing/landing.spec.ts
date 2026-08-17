@@ -133,6 +133,51 @@ test.describe('landing — S-133 CTA routing + funnel telemetry', () => {
     await expect(page.getByTestId('demo-stub')).toBeVisible();
   });
 
+  test('the topbar recovery link carries the member from the landing chrome to /lostpassword', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/');
+    await page.getByTestId('landing').waitFor({ state: 'visible' });
+
+    const lostPassword = page.getByTestId('landing-topbar-lost-password');
+    await expect(
+      lostPassword,
+      'the landing chrome carries no link to /lostpassword, so the recovery page is reachable ' +
+        'only by typing the URL',
+    ).toBeVisible();
+
+    const box = await lostPassword.boundingBox();
+    expect(box, 'landing-topbar-lost-password has no bounding box').not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+
+    const topbarFitsWithoutHorizontalScroll = await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    );
+    expect(topbarFitsWithoutHorizontalScroll).toBe(true);
+
+    await lostPassword.click();
+    await expect(page).toHaveURL(/\/lostpassword$/);
+    await expect(page.getByTestId('lostpassword-page')).toBeVisible();
+  });
+
+  for (const locale of ['de', 'en', 'fr', 'it']) {
+    test(`the topbar still fits 360 px wide with the ${locale} recovery label`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 640 });
+      await page.goto(`/?lang=${locale}`);
+      await expect(page.getByTestId('landing-topbar-lost-password')).toBeVisible();
+      await expect(page.getByTestId('landing-topbar-sign-in')).toBeVisible();
+
+      const topbarFitsWithoutHorizontalScroll = await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      );
+      expect(topbarFitsWithoutHorizontalScroll).toBe(true);
+    });
+  }
+
   test('the tertiary Request access CTA points at the /signup join default', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('landing').waitFor({ state: 'visible' });
