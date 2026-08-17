@@ -6,8 +6,8 @@
 <meta name="color-scheme" content="light dark">
 <!-- Machine-readable build stamp: the deployed-bookmark link-check compares it
      against the page IT published, so a stale CDN copy cannot pass as this run's. -->
-<meta name="proof-generated-at" content="2026-08-16T20:26:53.748Z">
-<title>AlpenFlight proof — unknown</title>
+<meta name="proof-generated-at" content="2026-08-17T07:53:22.840Z">
+<title>AlpenFlight proof — J-19</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -89,19 +89,71 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>unknown — proof</h1>
+    <h1>J-19 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">unknown</span> <span class="status pending">pending</span>
+      <span class="summary-jid">J-19</span> <span class="status success">7 proofs</span> <span class="summary-counts">7 videos · 2 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>251/merge</code> &middot; 2026-08-16T20:26:53.748Z
+      merged journeys' proof lives in their PRs. Generated on <code>251/merge</code> &middot; 2026-08-17T07:53:22.840Z
     </p>
   </header>
 
   <section class="journey-page">
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d5e64d39bb0190e6be41a385b06abfa6bbcd558a.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-19 · password recovery · the landing page shows a recovery link, the link opens the /lostpassword page without a session, and its start action moves the browser to the Keycloak realm, which shows the forgot-password link</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-6dd6b34653c69c135d1efe27eea39ca0a554cdc1.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-19 · password recovery · Keycloak mails the reset link to Mailpit, the link opens the update-password form, the new password replaces the old one, and the new password signs the member in again</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-363a3336da61a64b1c7cd535bffe1802c67758ab.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-19 · password recovery · the password from before the reset fails on the Keycloak login form, the form shows the error, and Keycloak issues no token</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-3d6a8ae9a92fac771830f4e7b9ae4137518eb991.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-19 · password recovery · the second use of the reset link sets no password and gets no token, and the Keycloak page returns the member to /lostpassword, where the recovery can start again</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-e95fa1346bbe93a7e7a86bb66658a91e07d9c262.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-19 · email confirmation · a verify-email link opens in a browser without a session, the member confirms the link, and /confirm shows the verified state with a sign-in action</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f5b1525b31b85dbac842508ebba308c9e05b1e76.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-19 · mobile · the /lostpassword page fits a 360 x 640 portrait screen, and each action is at least 44 x 44 pixels</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-4dd6c986f19bcc22997a9bd95c3ee0235bdb1957.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-19 · mobile · the /confirm page fits a 360 x 640 portrait screen, and each action is at least 44 x 44 pixels</span></figcaption>
+        </figure>
+        </div>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">form</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-lostpassword-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-lostpassword-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /lostpassword page renders without a session. It explains the four steps, it warns that the reset link works one time only, and its start action moves the browser to the Keycloak realm.</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">confirm</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-confirm-verified.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-confirm-verified.png" alt="alpenflight confirm" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form.</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
@@ -123,7 +175,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr><th>BE unused code (Qodana)</th><td class="muted">— no Qodana report</td></tr>
           </table>
-          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>unknown</strong></p>
+          <p class="meta"><a href="maintainability/">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML) · delta scoped to <strong>J-19</strong></p>
         </section>
   </section>
 
