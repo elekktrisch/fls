@@ -175,14 +175,9 @@ const it: Translations = {
   confirm: {
     actions: {
       signIn: 'Accedi',
-      startAgain: 'Riavvia la reimpostazione',
     },
     errors: {
       unreachable: 'Il servizio di accesso non è disponibile. Riprova più tardi.',
-    },
-    expired: {
-      body: 'Il link funziona una sola volta. Riavvia la reimpostazione della password.',
-      headline: 'Il link non funziona più.',
     },
     language: 'Lingua',
     verified: {

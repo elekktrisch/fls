@@ -176,14 +176,9 @@ const fr: Translations = {
   confirm: {
     actions: {
       signIn: 'Se connecter',
-      startAgain: 'Recommencer la réinitialisation',
     },
     errors: {
       unreachable: 'Le service de connexion est indisponible. Réessayez plus tard.',
-    },
-    expired: {
-      body: 'Le lien fonctionne une seule fois. Recommencez la réinitialisation du mot de passe.',
-      headline: 'Le lien ne fonctionne plus.',
     },
     language: 'Langue',
     verified: {

@@ -174,14 +174,9 @@ const de = {
   confirm: {
     actions: {
       signIn: 'Anmelden',
-      startAgain: 'Zurücksetzen erneut starten',
     },
     errors: {
       unreachable: 'Der Anmeldedienst ist nicht erreichbar. Versuche es später erneut.',
-    },
-    expired: {
-      body: 'Der Link funktioniert nur einmal. Starte das Zurücksetzen des Passworts erneut.',
-      headline: 'Der Link funktioniert nicht mehr.',
     },
     language: 'Sprache',
     verified: {

@@ -174,14 +174,9 @@ const en: Translations = {
   confirm: {
     actions: {
       signIn: 'Sign in',
-      startAgain: 'Start the reset again',
     },
     errors: {
       unreachable: 'The sign-in service is not available. Try again later.',
-    },
-    expired: {
-      body: 'The link works one time only. Start the password reset again.',
-      headline: 'The link no longer works.',
     },
     language: 'Language',
     verified: {

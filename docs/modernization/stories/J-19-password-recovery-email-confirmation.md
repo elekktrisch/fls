@@ -43,8 +43,10 @@ the reset mail. Mailpit receives exactly one message. The link sets a new passwo
 signs the user in. The old password fails with a Keycloak inline error. A second use of the link
 fails and returns the user to `/lostpassword`.
 
-**The confirmation page.** `/confirm` renders the outcome of a Keycloak email action: verified, or
-link expired / already used. Each state shows one action: sign in, or start the recovery again.
+**The confirmation page — CORRECTED at T-18.** The carve asked for two states on `/confirm`. Only
+one state is reachable. `/confirm` renders the verified outcome of a Keycloak email action, and it
+shows one action: sign in. A spent or expired action never reaches `/confirm`. The Keycloak page
+returns the member to `/lostpassword`, which AC-4 asserts.
 
 **Public + mobile.** Both routes render without a session. Both fit 360 x 640 portrait. Every CTA is
 at least 44 x 44 px (S-100 AC-DIR-1 / AC-DIR-2, ADR 0017).
@@ -115,15 +117,12 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `handOffToTheKeycloakLoginPageWhoseThemeCarriesTheForgotPasswordLink`
   (`alpenflight/web/src/app/features/lostpassword/keycloak-recovery-handoff.ts:7`); T-15 flips that
   function alone if a live run prefers the deep link. The page posts nothing to the backend.
-- [x] **T-07** — `/confirm` page + route: verified / expired outcome states, one action each. The
-  page reads its outcome from the query that the Keycloak back link supplies. One function holds the
-  rule, `readTheOutcomeTheKeycloakEmailActionEndedIn`
-  (`alpenflight/web/src/app/features/confirm/keycloak-email-action-outcome.ts:18`); T-15 corrects
-  that function alone after a live Keycloak run. A failure signal selects the expired state:
-  `?outcome=expired`, a non-empty `error`, or a non-empty `error_description`. Every other query,
-  a bare `/confirm` included, selects the verified state. AC-8 measures the call to action on the
-  bare route, so the verified state must be the default. T-08 owns the two back-link targets:
-  `/confirm?outcome=verified` for the info page, `/lostpassword` for the failed reset (AC-4).
+- [x] **T-07** — `/confirm` page + route. The page built a verified state and an expired state, and
+  it read the state from the query the Keycloak back link supplies. T-18 deleted the expired state
+  and the query parser, because T-08 proved that no Keycloak page sends a member to `/confirm` in a
+  failed state. The page now renders the verified state and one action: sign in. T-08 owns the
+  back-link targets: `/confirm?outcome=verified` for the info page, `/lostpassword` for the spent
+  reset (AC-4).
 - [x] **T-08** — Keycloak login theme: `footer.ftl` reads the message the page shows and picks the
   back-link target from it. The "email verified" info page sends the member to
   `/confirm?outcome=verified` (AC-5), an "action expired" page sends the member to `/lostpassword`
@@ -303,7 +302,17 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `method: 'POST'` fetch, a variable-method fetch, the legacy PascalCase spelling, and the
   moved-tree throw — plus a GET/method-less green so the widening cannot over-fire. T-03's coverage
   claim is corrected here, in the MAIN-1 section, and in `_BOYSCOUT.md`.
-- [ ] **T-18** — [BLOCKER, gap-hunter B] `/confirm`'s expired branch is unreachable in production. The theme routes every spent action to `/lostpassword`, so nothing produces `?outcome=expired`. Delete the dead branch, its mock tests and its 8 i18n keys, and correct the contract prose that asked for it.
+- [x] **T-18** — [BLOCKER, gap-hunter B] `/confirm`'s expired branch was unreachable in production.
+  Three producers prove it. `footer.ftl:12-21` gives a Keycloak page three back-link targets only:
+  `/confirm?outcome=verified`, `/lostpassword`, and the landing page. `KeycloakAdminClient.java:313`
+  sends `execute-actions-email` with no `client_id` and no `redirect_uri`, so Keycloak always renders
+  its own page and never redirects the browser into the application. `auth.config.ts:13` registers
+  `/auth/callback` as the single OIDC redirect target, so an OIDC `?error=` response cannot land on
+  `/confirm`. The expired section, the `confirm-outcome-expired` and `confirm-restart-recovery`
+  testids, the `keycloak-email-action-outcome.ts` parser with its unit spec, the two mock tests that
+  drove the expired path, and three i18n keys in four locales are deleted. Removing the expired path
+  left the parser with one possible result, so the whole parser is deleted, not simplified. The
+  contract prose in "Spec must assert" and the T-07 record now state the reachable behaviour.
 - [ ] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix is CI-only. `docker-compose.yml:95`, `dev-up-alpenflight.sh:23`, `dev-up-nocompose.sh:30` and `check-keycloak-integration.sh:9` give three different answers, so the documented local loop still bakes 4200.
 - [ ] **T-20** — [SUSPECTS] Bind the console allowances to endpoints, assert ACCEPTED rotations in AC-10, fix the attributes-only PUT still live at `keycloak-admin.ts:356`, and guard `resetPasswordAllowed` in `check-realm-shape.sh`.
 
