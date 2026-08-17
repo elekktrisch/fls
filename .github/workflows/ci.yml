@@ -110,6 +110,11 @@ jobs:
       - name: Bring-up + real-OIDC-SPA-port guards (J-19 — runs on EVERY push, deliberately never path-filtered)
         run: bash alpenflight/ops/test-bring-up-guards.sh
 
+      - name: Self-hosted-theme-resource guard + its negative test (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: |
+          bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh --selftest
+          bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #

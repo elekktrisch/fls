@@ -426,6 +426,39 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   cases green against live Keycloak 26.5.7 and the SPA on 4201; the pre-T-22 CTA list reds the count
   assertion (expected 1, received 2). `actionlint` green on `ci.yml` + `compose-lint.yml`;
   `tsc -p e2e/tsconfig.json`, `eslint`, `prettier --check` and the comment-policy guard green.
+- [x] **T-23** — [FLAKE SOURCE, real-idp run `32006701282` shard 1] The Keycloak login page fetched its
+  typeface from Google. `login.css:1` held
+  `@import url('https://fonts.googleapis.com/css2?family=Roboto…')`, so every real-idp login crossed the
+  public internet. `fonts.gstatic.com` answered 404 for a Roboto woff2, the suite-wide console guard read
+  the browser error (`alpenflight/web/e2e/tests/_helpers/console-guard.ts:199`), and
+  `aircraft-migration-parity.spec.ts:417` went red. The whole real-idp suite carried the risk, not one spec.
+  **Roboto is now self-hosted.** ADR 0024:14 pins Roboto by operator directive, so dropping the typeface was
+  not an option. Six woff2 files (latin + latin-ext, weights 400/500/700, 116 241 bytes) ship under
+  `alpenflight/auth/themes/alpenflight/login/resources/fonts/` with the SIL OFL text beside them, and
+  `login.css:1-63` declares them through `@font-face` with relative URLs and the upstream `unicode-range`.
+  A de/en/fr/it login therefore pulls 3 latin files (66 324 bytes) from its own origin and 0 bytes from
+  anywhere else. `Dockerfile:48` copies `themes/` whole, so the directory ships; the built image lists all
+  six files.
+  **The rule is now structural, not procedural.**
+  `alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh` rejects any theme file the browser
+  parses that names an absolute or protocol-relative URL, and rejects a relative theme URL whose file the
+  image does not ship — the silent-fallback case, where a wrong path looks correct and is broken. Its
+  `--selftest` plants a webfont import, an SVG namespace identifier, a missing target and a present target,
+  so a broken scanner cannot report green. Both run in `ci.yml`'s graph-root `changes` job (`ci.yml:113`),
+  which carries no `paths:`, no `if:` and no `needs:`. The console guard was NOT widened.
+  **Verified locally against Keycloak 26.5.7** (throwaway container, image rebuilt from this branch),
+  driving Chromium with `--host-resolver-rules=MAP * ~NOTFOUND` so any public-internet fetch fails hard:
+  login, forgot-password, register and the account console each issued **0 external requests**. The three
+  Roboto woff2 came from `/resources/…/login/alpenflight/fonts/` with no 4xx, `document.fonts` reported
+  `Roboto/400`, `/500` and `/700` as `loaded`, and a 200px probe measured 1463.67px in Roboto against
+  1356.81px in the fallback — the page renders in Roboto, it does not fall back silently. The account theme
+  holds no stylesheet and no external reference; its only absolute URLs are SVG namespace identifiers, which
+  no browser fetches. `check-realm-shape.sh`, `check-keycloak-integration.sh` (verify-mail round-trip into
+  Mailpit) and `check-theme-load.sh` all green against that container; `actionlint` green on `ci.yml`; every
+  graph-root `changes` guard green.
+  **Escalation [S3] `[KC-ACCOUNT-CONSOLE-FRAME-SRC]`:** the stock account console frames
+  `http://localhost:8099/` and its own CSP `frame-src 'self'` blocks it, which prints a console error. It
+  predates this journey, comes from Keycloak's own code, and no real-idp test opens that page.
 
 ## Gate obligations carried by later tasks
 
