@@ -12,8 +12,8 @@ export const DEFAULT_SCAN_ROOTS = [ALPENFLIGHT_E2E_TREE, LEGACY_E2E_TREE];
 
 export const GUARDED_DATE_FIELDS = ['flightDate', 'startDateTime', 'ldgDateTime'];
 
-const ABSOLUTE_DATE_SEED_IN_EITHER_CAMEL_OR_LEGACY_PASCAL_CASE = new RegExp(
-  `\\b(${GUARDED_DATE_FIELDS.join('|')})\\s*:\\s*(['"])(\\d{4}-\\d{2}-\\d{2}[^'"]*)\\2`,
+const ABSOLUTE_DATE_SEED_IN_ANY_QUOTE_STYLE_AND_EITHER_CAMEL_OR_LEGACY_PASCAL_CASE = new RegExp(
+  `\\b(${GUARDED_DATE_FIELDS.join('|')})['"\`]?\\s*:\\s*(['"\`])(\\d{4}-\\d{2}-\\d{2}[^'"\`]*)\\2`,
   'gi',
 );
 
@@ -122,7 +122,9 @@ export function blankOutStringsAndCommentsKeepingOffsets(source) {
   return out.join('');
 }
 
-const API_CALL_THAT_CAN_CARRY_A_SEED_BODY = /\.(post|fetch)\s*\(/g;
+const API_CALL_THAT_CAN_CARRY_A_SEED_BODY = /\.(post|put|patch|fetch)\s*\(/g;
+
+export const HTTP_METHODS_A_FETCH_CAN_SEED_WITH = new Set(['POST', 'PUT', 'PATCH']);
 
 export const HTTP_METHOD_ABSENT = 'ABSENT';
 export const HTTP_METHOD_NOT_A_STRING_LITERAL = 'NOT_A_STRING_LITERAL';
@@ -160,7 +162,7 @@ export function httpMethodDeclaredInsideArguments(source, start, end) {
   return source.slice(cursor + 1, closingQuote).toUpperCase();
 }
 
-export function findApiPostArgumentSpans(source) {
+export function findSeedingCallArgumentSpans(source) {
   const masked = blankOutStringsAndCommentsKeepingOffsets(source);
   const spans = [];
   API_CALL_THAT_CAN_CARRY_A_SEED_BODY.lastIndex = 0;
@@ -172,8 +174,10 @@ export function findApiPostArgumentSpans(source) {
 
     if (match[1] === 'fetch') {
       const declared = httpMethodDeclaredInsideArguments(source, openParen, closeParen);
-      const couldBeAPost = declared === 'POST' || declared === HTTP_METHOD_NOT_A_STRING_LITERAL;
-      if (!couldBeAPost) continue;
+      const couldSeed =
+        HTTP_METHODS_A_FETCH_CAN_SEED_WITH.has(declared) ||
+        declared === HTTP_METHOD_NOT_A_STRING_LITERAL;
+      if (!couldSeed) continue;
     }
 
     spans.push({ start: openParen, end: closeParen });
@@ -188,15 +192,24 @@ function lineAndColumnOf(source, offset) {
   return { line, column };
 }
 
-export function findAbsoluteDateSeedsInApiPosts(source) {
-  const spans = findApiPostArgumentSpans(source);
+export function findAbsoluteDateSeedsInApiSeeds(source) {
+  const seedingCallSpans = findSeedingCallArgumentSpans(source);
+  if (seedingCallSpans.length === 0) return [];
+
   const findings = [];
-  ABSOLUTE_DATE_SEED_IN_EITHER_CAMEL_OR_LEGACY_PASCAL_CASE.lastIndex = 0;
+  const regex = ABSOLUTE_DATE_SEED_IN_ANY_QUOTE_STYLE_AND_EITHER_CAMEL_OR_LEGACY_PASCAL_CASE;
+  regex.lastIndex = 0;
   let match;
-  while ((match = ABSOLUTE_DATE_SEED_IN_EITHER_CAMEL_OR_LEGACY_PASCAL_CASE.exec(source)) !== null) {
+  while ((match = regex.exec(source)) !== null) {
     const offset = match.index;
-    if (!spans.some((span) => offset > span.start && offset < span.end)) continue;
-    findings.push({ ...lineAndColumnOf(source, offset), field: match[1], value: match[3] });
+    findings.push({
+      ...lineAndColumnOf(source, offset),
+      field: match[1],
+      value: match[3],
+      insideTheSeedingCall: seedingCallSpans.some(
+        (span) => offset > span.start && offset < span.end,
+      ),
+    });
   }
   return findings;
 }
@@ -228,7 +241,7 @@ export function typeScriptFilesUnder(root) {
 export function scanTypeScriptTree(root) {
   const violations = [];
   for (const file of typeScriptFilesUnder(root)) {
-    for (const finding of findAbsoluteDateSeedsInApiPosts(readFileSync(file, 'utf8'))) {
+    for (const finding of findAbsoluteDateSeedsInApiSeeds(readFileSync(file, 'utf8'))) {
       violations.push({ file, ...finding });
     }
   }
@@ -246,15 +259,25 @@ export function scanEveryGuardedTree(roots = DEFAULT_SCAN_ROOTS) {
 }
 
 export const RULE_EXPLANATION = [
-  'No e2e source file may seed an absolute date through an API POST.',
+  'No e2e source file may seed an absolute date through an API write call.',
   'The server applies a default 90-day window to flights.list(), so an absolute',
   'seed date silently leaves that window on a future run date. The spec then reds',
   'on an unchanged sha, in a scheduled lane that nobody watches (J-19 MAIN-1).',
-  'The guard reads every .ts file under both e2e trees, spec and helper alike, and',
-  "treats .post(...) and .fetch(..., { method: 'POST' }) as seeding call sites.",
+  'The guard reads every .ts file under both e2e trees, spec and helper alike.',
+  'It treats .post(...), .put(...), .patch(...) and .fetch(...) with a method of',
+  "'POST', 'PUT' or 'PATCH' as seeding call sites.",
+  'It reads a single-quoted, a double-quoted and a backtick-quoted value alike,',
+  'behind a plain key and behind a quoted key alike.',
+  'A template literal reds only when its text starts with the date, so',
+  '`${flightDate}T08:00:00Z` stays green and `2026-05-15T08:00:00Z` reds.',
+  'A file that holds one seeding call site is guarded end to end, so a request',
+  'body hoisted to a const outside the call reds too.',
+  'LIMIT: the guard reads no data flow. Inside a file that seeds, it cannot tell a',
+  'hoisted seed body from a route.fulfill response body, and it reds both. Inside',
+  'a file that never seeds, it reads no date at all.',
   'Fix: derive the date from the run date with',
   "seededFlightDateInsideListWindowAndPastBillGate() from 'tests/real-idp/_helpers/seed-flight-date',",
-  'then build startDateTime / ldgDateTime from it with a template literal.',
+  'then interpolate it into startDateTime / ldgDateTime with a template literal.',
 ].join('\n  ');
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
@@ -271,8 +294,11 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   } else {
     console.error(`absolute-flight-date guard: ${violations.length} violation(s)\n`);
     for (const v of violations) {
+      const site = v.insideTheSeedingCall
+        ? 'inside a seeding call'
+        : 'outside every seeding call, in a file that seeds';
       console.error(`  ${relative(process.cwd(), v.file)}:${v.line}:${v.column}`);
-      console.error(`    ${v.field}: '${v.value}'`);
+      console.error(`    ${v.field}: '${v.value}' — ${site}`);
     }
     console.error(`\n  ${RULE_EXPLANATION}`);
     process.exit(1);

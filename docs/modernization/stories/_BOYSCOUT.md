@@ -68,8 +68,22 @@ stragglers each ceremony so the file shrinks.
   `*.spec.ts` under `alpenflight/web/e2e/tests`, and recognised only a `.post(` call site. It never
   opened a `_helpers/*.ts` fixture, never opened the root `e2e/` suite, and never saw a
   `request.fetch({ method: 'POST' })` seed. T-17 widened it to every `.ts` file under both e2e trees
-  and to both POST forms; see the T-17 task line for the exact scope.
+  and to both POST forms; see the T-17 task line for the exact scope. **T-17 read only two of the three
+  quote styles, and J-19 T-21 corrected that**: a backtick-quoted date — the very form the guard's own
+  message recommended — was invisible. T-21 reads all three quote styles, adds `.put(` / `.patch(` /
+  a `PUT` or `PATCH` `.fetch(`, and guards a seeding file end to end so a hoisted const body reds too.
   *(seam: those 13 mock fixtures)*
+- **[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]** [S2] J-19 T-21 widened the quote styles, the verbs
+  and the call span of `absolute-flight-date-in-api-seed-guard.mjs`, but the guarded field list is still
+  the three flight fields T-03 chose. A T-21 scan over every file that holds a seeding call site found
+  absolute dates on **other** date fields that the same 90-day-window class of hazard can reach:
+  `reservations-migration-parity.spec.ts:305-381` seeds `start` / `end` at `2026-09-02`,
+  `deliveries-write-parity.spec.ts:519` seeds `deliveryDateTime` at `2026-06-01`,
+  `aircraft-migration-parity.spec.ts:312` seeds `atDateTime` at `2026-01-01`, and
+  `e2e/tests/email/notifications.spec.ts:48` seeds `SelectedDay` at `2026-06-15`. Each needs the same
+  question T-01 answered for `flightDate`: does a server-side default window reach this date on a future
+  run date? Answer it per field, then either derive the date or add the field to `GUARDED_DATE_FIELDS`.
+  *(seam: `GUARDED_DATE_FIELDS` + those four specs)*
 - **[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]** [S2] `alpenflight/web/tsconfig.json` sets `files: []`, and
   neither `tsconfig.app.json` nor `tsconfig.spec.json` includes `scripts/**`. So every file under
   `alpenflight/web/scripts/` — including the two CI guards J-19 added and their own specs — is

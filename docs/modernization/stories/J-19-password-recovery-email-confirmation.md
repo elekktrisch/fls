@@ -365,6 +365,28 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   showed the recorded resource URL, accepted the bound 403, and reddened an unrelated 403 that the old
   status-only pattern passed. `tsc -p e2e/tsconfig.json`, `ng lint` and `prettier --check` are green.
   **Not verified:** the real-idp chain, because the Spring backend does not run on this box.
+- [x] **T-21** — [BLOCKER, gap-hunter pass 3] The guard could not catch the form its own message
+  recommended. `absolute-flight-date-in-api-seed-guard.mjs:16` read `(['"])` only, so a
+  backtick-quoted date was invisible, and `RULE_EXPLANATION:257` told the developer to build
+  `startDateTime` / `ldgDateTime` with a template literal. MAIN-1 could therefore re-enter `main`
+  through the guard's own advice. The value match now reads all three quote styles (`:16`). A
+  template literal reds when its text starts with the date, and greens when it interpolates a derived
+  date, so `` `${flightDate}T08:00:00Z` `` — the shape T-01 shipped — stays green and
+  `` `2026-05-15T08:00:00Z` `` reds. The same match now also reads a quoted JSON-style key.
+  `.put(`, `.patch(` and a `.fetch(` whose method is `'PUT'` or `'PATCH'` join the seeding verbs
+  (`:125`, `:127`). A file that holds one seeding call site is guarded end to end (`:196`), so a
+  request body hoisted to a const outside the call span reds; a file that never seeds reads no date
+  at all, which keeps the 29 `route.fulfill` mock-lane dates green. `RULE_EXPLANATION:248` states
+  every covered form and states the limit: the guard reads no data flow, so inside a file that seeds
+  it cannot tell a hoisted seed body from a mocked response body, and it reds both.
+  **Verified locally:** each new form scored 0 findings against the T-17 guard and ≥1 against the
+  widened guard — backtick date, quoted key, hoisted const, `.put(`, `.patch(`, `PUT` `.fetch(`;
+  the interpolated template literal and the mock-lane file scored 0 against both. Eight new cases in
+  `absolute-flight-date-in-api-seed-guard.spec.ts` hold each form, and one case feeds the recommended
+  template literal read out of `RULE_EXPLANATION` back through the guard, so the message can never
+  again recommend a form the guard cannot verify. `pnpm test:scripts` is green at 53 tests. The
+  widened scan over all 147 files stays green and caught nothing that was previously hidden, because
+  every remaining absolute date sits in a file with zero seeding call sites.
 
 ## Gate obligations carried by later tasks
 
@@ -426,6 +448,14 @@ literal that proves it is another verb. The field match now also accepts the roo
 PascalCase spelling (`FlightDate` / `StartDateTime` / `LdgDateTime`). The guard throws when a scanned
 tree moves, instead of silently covering nothing. Nothing is exempt: no allow-list exists, because
 the widened scan found zero violations across all 145 scanned files.
+
+**T-17 read only two of the three quote styles, and T-21 fixed that.** The value match accepted a
+single-quoted and a double-quoted date only, so a backtick-quoted date stayed invisible — the exact
+form the guard's own `RULE_EXPLANATION` told the developer to write. T-21 reads all three quote
+styles, reds a template literal whose text starts with the date, and greens a template literal that
+interpolates a derived date. It adds `.put(`, `.patch(` and a `PUT` / `PATCH` `.fetch(` to the
+seeding verbs, and it guards a file end to end once that file holds one seeding call site, so a
+request body hoisted to a const reds too. The message now states the limit it cannot see past.
 
 ### MAIN-2 — `nightly` / legacy server build: the restore step does not cover its own inputs
 
