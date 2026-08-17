@@ -44,6 +44,8 @@ const PUBLIC_ROUTES: readonly PublicRoute[] = [
   },
   { path: '/auth/callback' },
   { path: '/auth/logout' },
+  { path: '/lostpassword', renders: 'lostpassword-page' },
+  { path: '/confirm', renders: 'confirm-page' },
 ];
 
 test.describe('public routes stay public — real-idp', () => {

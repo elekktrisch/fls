@@ -242,7 +242,31 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `/tmp/flsweb-build`, no MSSQL container), so the first live run is the fan-out job
   `alpenflight-proof-fanout.yml`. The `POST /api/v1/users/lostpassword` success path is already
   proven green there by `e2e/tests/email/notifications.spec.ts:143`.
-- [ ] **T-15** — Thicken `account-recovery.spec.ts` to the full assertions for AC-1 to AC-5, AC-7 and AC-8.
+- [x] **T-15** — `account-recovery.spec.ts` now carries 9 active cases and no `test.fixme`, so the
+  per-push proof job runs THIS spec (`is_baseline=false`). AC-1, AC-2, AC-3, AC-4, AC-5, AC-7 and
+  AC-8 all assert for real. Driven green LOCALLY against live Keycloak 26.5.7 + Mailpit + the SPA on
+  4201: 9/9 in 46 s. Three findings came from the live run, not from reading.
+  (1) **The theme back link targeted the wrong application in CI.** `docker-compose.yml:95` bakes the
+  Keycloak client `baseUrl` from `ALPENFLIGHT_WEB_BASE_URL`, default `http://localhost:4200/` — the
+  `pnpm start` port. The real-idp project serves the SPA on 4201, so AC-4 and AC-5 would have clicked
+  through to the mock-auth instance and proved nothing about the application under test. The five
+  Keycloak image builds that feed a real-idp run now pass `http://localhost:4201/`
+  (`ci.yml` ×3, `alpenflight-e2e-real-idp.yml`, `alpenflight-proof-fanout.yml`), and the real-idp
+  preflight gets the matching `EXPECTED_BASE_URL`. `compose-smoke.yml` keeps 4200. The spec asserts
+  the back-link host equals the host under test, so this cannot drift back unnoticed.
+  (2) **T-08's back-link logic is correct.** A stale local image had hidden it. With the committed
+  `footer.ftl` the spent reset link resolves to `/lostpassword` and the verified info page to
+  `/confirm?outcome=verified`.
+  (3) **Keycloak serves the spent action link with HTTP 400.** AC-4 now asserts that status instead of
+  tolerating the console error it raises.
+  The reset completes the Keycloak authentication, so AC-2 signs out through `/auth/logout` first and
+  then proves the new password by counting the authorization-code grants Keycloak accepts. AC-7 also
+  joins the `public-routes.spec.ts` table, which adds the no-bearer / no-nav-bar / no-undeclared-read
+  assertions the journey spec does not make. Gallery: `ci.yml` carries the J-19 `add_pair` block for
+  the `form` and `confirm` views, and the fan-out carries the two AlpenFlight `add_shot` halves plus
+  the spec in its real-bundle list.
+  **Not verified locally:** the backend does not run on this box, so the SPA answered from a stub. The
+  post-sign-in SPA state of a club-less member is CI-only.
 
 ## Gate obligations carried by later tasks
 

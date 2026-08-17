@@ -21,5 +21,12 @@ Then delete this file.
 new password itself. AlpenFlight sends a reset link and Keycloak collects the password. The two
 products differ by design. These shots let the operator read the old screens beside the new ones.
 
-**No per-push pairing yet.** `ci.yml` gets a J-19 `add_pair` block after these refs land and after
-the AlpenFlight `/lostpassword` and `/confirm` captures exist.
+**The per-push pairing is wired.** `ci.yml` carries the J-19 `add_pair` block for the `form` and
+`confirm` views. It reads the legacy half from this directory and the AlpenFlight half from the PNGs
+`account-recovery.spec.ts` writes (`alpenflight-lostpassword-form.png`,
+`alpenflight-confirm-verified.png`). Until the two PNGs above land here, `add_pair` stages the
+AlpenFlight half alone and logs the missing legacy half. Copy the files in and the page pairs with no
+further change.
+
+**The `success` view has no AlpenFlight half.** Keycloak owns the "check your email" screen, so the
+per-push page declares only `form` and `confirm`. The `success` shot stays on the fan-out page.

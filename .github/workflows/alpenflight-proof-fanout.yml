@@ -664,6 +664,13 @@ jobs:
       # retried (a flaky spec must not be silently retried into green).
       # Mailpit is already up from the pre-legacy step above.
       - name: Build pgAdmin + Keycloak images
+        env:
+          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
+          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
+          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
+          # start` port, and would send the member from Keycloak to a different
+          # application than the one under test.
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
             docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
@@ -902,7 +909,8 @@ jobs:
             e2e/tests/real-idp/deliveries-write-parity.spec.ts \
             e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
             e2e/tests/real-idp/email-templates.spec.ts \
-            e2e/tests/real-idp/public-registration-parity.spec.ts
+            e2e/tests/real-idp/public-registration-parity.spec.ts \
+            e2e/tests/real-idp/account-recovery.spec.ts
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +
       # screenshot/video) BEFORE the staging + gallery + link-check steps run: the
@@ -1321,6 +1329,10 @@ jobs:
             "Legacy flsweb: the /lostpassword screen after the spec sends the form. The legacy server accepted the request, and the page shows its success message."
           add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-confirm.png" "J-19" "legacy" "confirm" \
             "Legacy flsweb: the /confirm screen that the legacy reset link opens. It shows two password fields and one button. The spec never sends this form."
+          add_shot "alpenflight/web/test-results" "alpenflight-lostpassword-form.png" "J-19" "alpenflight" "form" \
+            "AlpenFlight: the /lostpassword page renders without a session. It explains the four steps, it warns that the reset link works one time only, and its start action moves the browser to the Keycloak realm."
+          add_shot "alpenflight/web/test-results" "alpenflight-confirm-verified.png" "J-19" "alpenflight" "confirm" \
+            "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

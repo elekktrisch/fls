@@ -62,6 +62,13 @@ jobs:
         run: bash alpenflight/ops/dev-up-infra.sh
 
       - name: Build pgAdmin + Keycloak images
+        env:
+          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
+          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
+          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
+          # start` port, and would send the member from Keycloak to a different
+          # application than the one under test.
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           docker compose -f docker-compose.yml --profile next build pgadmin keycloak
 
@@ -71,6 +78,10 @@ jobs:
             up -d --wait --wait-timeout 240 postgres pgadmin keycloak
 
       - name: Preflight — Keycloak delivers a verify-email into Mailpit
+        env:
+          # Mirrors the build-arg above: the probe asserts the theme back-link href
+          # equals the client baseUrl the image was built with.
+          EXPECTED_BASE_URL: http://localhost:4201/
         run: |
           set -euo pipefail
           if bash alpenflight/auth/scripts/check-keycloak-integration.sh; then

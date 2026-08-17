@@ -778,6 +778,13 @@ jobs:
           exit 1
 
       - name: Build pgAdmin + Keycloak images
+        env:
+          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
+          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
+          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
+          # start` port, and would send the member from Keycloak to a different
+          # application than the one under test.
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
             docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
@@ -1243,6 +1250,28 @@ jobs:
               "alpenflight-flights-date-keyboard.png" \
               "AlpenFlight: typing a from + to date (dd.MM.yyyy) into the date-range fields commits on Enter, refetches the list for the typed range and sticks in the inputs — with zero uncaught browser-console errors (a typed date used to silently revert)"
           fi
+          # ----- J-19 password recovery + email confirmation (form/confirm) ----
+          # The view keys (form, confirm) match the fanout's J-19 add_shot
+          # declarations (alpenflight-proof-fanout.yml ~L1318) and the legacy-ref
+          # filenames in e2e/legacy-reference/lostpassword/. Those legacy PNGs are
+          # NOT committed yet (PENDING.md holds the capture-once follow-up: the
+          # flsweb stack runs only in the fanout), so add_pair stages the AF half
+          # alone until they land, then pairs automatically with no further change.
+          # The AF filenames match the PNGs account-recovery.spec.ts writes to
+          # test-results/ on the state that RENDERS the asserted result: the
+          # /lostpassword page before the handoff, and /confirm after the theme back
+          # link lands on the verified outcome.
+          # NO legacy `success` pair: Keycloak owns the "check your email" screen,
+          # so AlpenFlight has no peer for it. That legacy shot stays in the fanout
+          # page — the per-push page must never advertise a half it cannot produce.
+          if [ "${PROOF_JOURNEY:-}" = "J-19" ]; then
+            add_pair "J-19" "lostpassword" "form" "form.png" "alpenflight-lostpassword-form.png" \
+              "Legacy flsweb: the /lostpassword form renders without a session. It shows one text field and one button." \
+              "AlpenFlight: the /lostpassword page renders without a session. It explains the four steps, it warns that the reset link works one time only, and its start action moves the browser to the Keycloak realm."
+            add_pair "J-19" "lostpassword" "confirm" "confirm.png" "alpenflight-confirm-verified.png" \
+              "Legacy flsweb: the /confirm form. The legacy application collects the new password itself. It shows two password fields and one button." \
+              "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -1496,6 +1525,13 @@ jobs:
           exit 1
 
       - name: Build pgAdmin + Keycloak images
+        env:
+          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
+          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
+          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
+          # start` port, and would send the member from Keycloak to a different
+          # application than the one under test.
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
             docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
@@ -1833,6 +1869,13 @@ jobs:
           exit 1
 
       - name: Build pgAdmin + Keycloak images
+        env:
+          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
+          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
+          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
+          # start` port, and would send the member from Keycloak to a different
+          # application than the one under test.
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
             docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
