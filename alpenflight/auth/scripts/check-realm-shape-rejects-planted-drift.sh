@@ -14,12 +14,12 @@ trap 'rm -rf "$PLANTED_REALMS_DIR"' EXIT
 
 selftest_failed=0
 
-expect_guard_rejects_planted_credential() {
+expect_guard_rejects_planted_drift() {
   local case_name="$1" planted_realm="$2" expected_failure_message="$3"
   local guard_output guard_exit=0
   guard_output="$(bash "$GUARD" "$planted_realm" 2>&1)" || guard_exit=$?
   if [[ "$guard_exit" -eq 0 ]]; then
-    printf '  FAIL  %-42s the guard exited 0 on a planted credential\n' "$case_name"
+    printf '  FAIL  %-42s the guard exited 0 on a planted drift\n' "$case_name"
     selftest_failed=1
     return
   fi
@@ -29,7 +29,7 @@ expect_guard_rejects_planted_credential() {
     selftest_failed=1
     return
   fi
-  printf '  ok    %-42s the guard exited %s and named the allow-set\n' "$case_name" "$guard_exit"
+  printf '  ok    %-42s the guard exited %s and named the drift\n' "$case_name" "$guard_exit"
 }
 
 expect_guard_accepts_committed_realm() {
@@ -50,6 +50,7 @@ CLIENT_SECRET_NO_DEV_CLIENT_MAY_CARRY='sk-live-outside-the-allow-set'
 REALM_WITH_FOREIGN_USER_PASSWORD="${PLANTED_REALMS_DIR}/realm-with-foreign-user-password.json"
 REALM_WITH_FOREIGN_CLIENT_SECRET="${PLANTED_REALMS_DIR}/realm-with-foreign-client-secret.json"
 REALM_WITH_MASKED_CLIENT_SECRET="${PLANTED_REALMS_DIR}/realm-with-masked-client-secret.json"
+REALM_WITH_PASSWORD_RECOVERY_OFF="${PLANTED_REALMS_DIR}/realm-with-password-recovery-off.json"
 
 jq --arg planted "$PASSWORD_NO_DEV_SEED_USER_MAY_CARRY" '
   .users |= map(
@@ -67,27 +68,34 @@ jq '
   .clients |= map(if .clientId == "alpenflight-proffix" then .secret = "**********" else . end)
 ' "$COMMITTED_EXPORT" > "$REALM_WITH_MASKED_CLIENT_SECRET"
 
-echo "checking that check-realm-shape.sh rejects a credential outside the dev allow-set"
+jq '.resetPasswordAllowed = false' "$COMMITTED_EXPORT" > "$REALM_WITH_PASSWORD_RECOVERY_OFF"
 
-expect_guard_rejects_planted_credential \
+echo "checking that check-realm-shape.sh rejects a planted drift in the committed realm export"
+
+expect_guard_rejects_planted_drift \
   "planted user password" \
   "$REALM_WITH_FOREIGN_USER_PASSWORD" \
   "user password outside the dev allow-set"
 
-expect_guard_rejects_planted_credential \
+expect_guard_rejects_planted_drift \
   "planted client secret" \
   "$REALM_WITH_FOREIGN_CLIENT_SECRET" \
   "client secret outside the dev allow-set"
 
-expect_guard_rejects_planted_credential \
+expect_guard_rejects_planted_drift \
   "export-masked client secret" \
   "$REALM_WITH_MASKED_CLIENT_SECRET" \
   "client secret outside the dev allow-set"
 
+expect_guard_rejects_planted_drift \
+  "password recovery switched off" \
+  "$REALM_WITH_PASSWORD_RECOVERY_OFF" \
+  "resetPasswordAllowed must be true"
+
 expect_guard_accepts_committed_realm
 
 [[ "$selftest_failed" -eq 0 ]] || {
-  echo "FAIL: check-realm-shape.sh does not enforce the realm-credential allow-set"
+  echo "FAIL: check-realm-shape.sh does not reject every planted drift"
   exit 1
 }
 echo "PASS"

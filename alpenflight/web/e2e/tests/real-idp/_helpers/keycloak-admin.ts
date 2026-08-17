@@ -127,6 +127,23 @@ export async function getUserById(userId: string): Promise<AdminUser> {
   return (await res.json()) as AdminUser;
 }
 
+interface UserRepresentationOverrides {
+  enabled?: boolean;
+  emailVerified?: boolean;
+  requiredActions?: readonly string[];
+}
+
+async function putUserRepresentationMergedBecauseKeycloakClearsEveryFieldThePutOmits(
+  userId: string,
+  overrides: UserRepresentationOverrides,
+): Promise<Response> {
+  const currentRepresentation = await getUserById(userId);
+  return adminRequest(`/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...currentRepresentation, ...overrides }),
+  });
+}
+
 export async function createUser(user: TestUser): Promise<string> {
   return createUserWithAttributes(user, {});
 }
@@ -203,13 +220,10 @@ export async function makeMigratedAdminLoginable(
       `makeMigratedAdminLoginable: reset-password failed (${pwRes.status}): ${await pwRes.text()}`,
     );
   }
-  const userRes = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      requiredActions: [],
-      emailVerified: true,
-    }),
-  });
+  const userRes = await putUserRepresentationMergedBecauseKeycloakClearsEveryFieldThePutOmits(
+    userId,
+    { requiredActions: [], emailVerified: true },
+  );
   if (!userRes.ok) {
     throw new Error(
       `makeMigratedAdminLoginable: clear required-actions failed (${userRes.status}): ` +
@@ -365,13 +379,20 @@ export async function setUserEnabled(
         `email.endsWith('@example.com').`,
     );
   }
-  const res = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ enabled }),
+  const res = await putUserRepresentationMergedBecauseKeycloakClearsEveryFieldThePutOmits(userId, {
+    enabled,
   });
   if (!res.ok) {
     throw new Error(
       `setUserEnabled(${userId}, ${enabled}) failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  const emailAfterTheWrite = (await getUserById(userId)).email;
+  if (emailAfterTheWrite?.toLowerCase() !== emailForGuard.toLowerCase()) {
+    throw new Error(
+      `setUserEnabled(${userId}, ${enabled}) left the email as '${emailAfterTheWrite}' instead ` +
+        `of '${emailForGuard}'. A Keycloak PUT replaces the whole user, so an omitted field is ` +
+        `cleared, and sweepE2eUsers can never reclaim a user whose email is gone.`,
     );
   }
 }

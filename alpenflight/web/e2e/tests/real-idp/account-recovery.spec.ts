@@ -4,10 +4,16 @@ import {
   type BrowserContextOptions,
   type Page,
   type Request,
-  type Response,
   type TestInfo,
 } from '@playwright/test';
-import { allowConsoleErrors, expect, test, watchConsoleErrors } from '../_helpers/console-guard';
+import {
+  allowConsoleErrors,
+  consoleErrorAllowanceForStatusesOnEndpoint,
+  expect,
+  test,
+  watchConsoleErrors,
+} from '../_helpers/console-guard';
+import { countAuthorizationCodeGrantsKeycloakAccepted } from '../_helpers/keycloak-grant-counters';
 
 import { createUser, deleteUser, findUserByEmail } from './_helpers/keycloak-admin';
 import { KC_ERROR_SELECTOR, fillKcLogin, fillKcRegistration } from './_helpers/kc-form';
@@ -36,11 +42,9 @@ const KC_THEME_BACK_LINK = 'a.af-back-to-landing';
 const KC_CONFIRM_VALIDITY_INTERSTITIAL_PROCEED_LINK =
   '#kc-info-message a[href*="login-actions/action-token"]';
 
-const KC_TOKEN_ENDPOINT_PATH = '/protocol/openid-connect/token';
-const AUTHORIZATION_CODE_GRANT_BODY = 'grant_type=authorization_code';
-
 const LOSTPASSWORD_PATH = '/lostpassword';
 const CONFIRM_PATH = '/confirm';
+const ONBOARDING_PATH_THE_TENANT_GUARD_SENDS_A_CLUBLESS_MEMBER_TO = '/join';
 const CONFIRM_PATH_AND_QUERY_THE_VERIFIED_BACK_LINK_TARGETS = '/confirm?outcome=verified';
 const LANDING_PATH = '/';
 const LOGOUT_PATH = '/auth/logout';
@@ -56,6 +60,7 @@ const TEST_ID = {
   landingTopbarLostPassword: 'landing-topbar-lost-password',
   signupPage: 'signup-page',
   signupLocal: 'signup-local',
+  joinPage: 'join-page',
 } as const;
 
 const PASSWORD_THE_RESET_LINK_SETS = 'E2eReset-2026!';
@@ -72,8 +77,15 @@ const COLD_FIRST_SMTP_SEND_TIMEOUT_MS = 45_000;
 const REAL_KEYCLOAK_ROUND_TRIP_TIMEOUT_MS = 30_000;
 const THE_WHOLE_RESET_CHAIN_INCLUDING_TWO_KEYCLOAK_LOGINS_TIMEOUT_MS = 120_000;
 
+const OWN_MEMBER_READ_ENDPOINTS_A_CLUBLESS_MEMBER_REACHES_AFTER_SIGN_IN = [
+  '/api/v1/me',
+  '/api/v1/me/join-request',
+] as const;
+
 const A_BRAND_NEW_KEYCLOAK_USER_HAS_NO_ALPENFLIGHT_CLUB_SO_ITS_OWN_MEMBER_READS_ANSWER_403_OR_404 =
-  /\b40[34]\b/;
+  OWN_MEMBER_READ_ENDPOINTS_A_CLUBLESS_MEMBER_REACHES_AFTER_SIGN_IN.map((endpoint) =>
+    consoleErrorAllowanceForStatusesOnEndpoint([403, 404], endpoint),
+  );
 
 const KEYCLOAK_SERVES_THE_SPENT_LINK_ERROR_PAGE_WITH_THE_STATUS_THIS_CASE_ASSERTS =
   /Failed to load resource.*\b400\b/;
@@ -111,20 +123,6 @@ async function openRecordedContext(
   const page = await context.newPage();
   watchConsoleErrors(page, testInfo);
   return { context, page };
-}
-
-function countAuthorizationCodeGrantsKeycloakAccepted(page: Page): () => number {
-  let observed = 0;
-  page.on('response', (response: Response) => {
-    if (
-      response.url().includes(KC_TOKEN_ENDPOINT_PATH) &&
-      (response.request().postData() ?? '').includes(AUTHORIZATION_CODE_GRANT_BODY) &&
-      response.status() === 200
-    ) {
-      observed += 1;
-    }
-  });
-  return () => observed;
 }
 
 function countRequestsTheSpaSentToKeycloak(page: Page): () => number {
@@ -304,7 +302,7 @@ test.describe('account recovery — the reset chain over a real Keycloak and a r
   }, testInfo) => {
     allowConsoleErrors(
       testInfo,
-      A_BRAND_NEW_KEYCLOAK_USER_HAS_NO_ALPENFLIGHT_CLUB_SO_ITS_OWN_MEMBER_READS_ANSWER_403_OR_404,
+      ...A_BRAND_NEW_KEYCLOAK_USER_HAS_NO_ALPENFLIGHT_CLUB_SO_ITS_OWN_MEMBER_READS_ANSWER_403_OR_404,
     );
     const { context, page } = await openRecordedContext(browser, testInfo);
     const authorizationCodeGrantsKeycloakAccepted =
@@ -345,6 +343,19 @@ test.describe('account recovery — the reset chain over a real Keycloak and a r
             'below would pass on a signed-out page',
         })
         .toBeGreaterThan(grantsBeforeTheSignInWithTheNewPassword);
+      await page.waitForURL(
+        (url) =>
+          url.host === SPA_HOST &&
+          url.pathname === ONBOARDING_PATH_THE_TENANT_GUARD_SENDS_A_CLUBLESS_MEMBER_TO,
+        { timeout: REAL_KEYCLOAK_ROUND_TRIP_TIMEOUT_MS },
+      );
+      await expect(
+        page.getByTestId(TEST_ID.joinPage),
+        'the signed-in application rendered no onboarding page. The tenant guard reaches /join ' +
+          'only after the backend answers the own-member reads, so an application that fails ' +
+          'every /api/v1/me read renders nothing here — and a blank page also carries no ' +
+          'sign-in control',
+      ).toBeVisible();
       await expect(page.getByTestId(TEST_ID.landingTopbarSignIn)).toHaveCount(0);
 
       completedResetChain = { user, userId, usedResetLink, passwordBeforeTheReset };

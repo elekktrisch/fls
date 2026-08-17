@@ -11,7 +11,7 @@ depends_on: [J-16]
 rolls_up: [S-100]
 acceptance:
   - "[happy] AC-1 — The landing page links to `/lostpassword`, the page renders without a session, and its primary action moves the browser to a Keycloak URL. Assertion: `account-recovery.spec.ts` — goto `/`, click `landing-topbar-lost-password`, land on `/lostpassword` with no `page.goto`, `lostpassword-page` visible, click `lostpassword-start`, `waitForURL(/\\/realms\\/alpenflight\\//)`."
-  - "[happy] AC-2 — An ephemeral user completes the reset chain and signs in with the NEW password. Assertion: same spec — create the user through `keycloak-admin.createUser`, submit the address on the Keycloak reset form, `waitForExactlyOneMessage` in Mailpit, follow the link, set the new password, then sign in with it and assert `landing-topbar-sign-in` has count 0."
+  - "[happy] AC-2 — An ephemeral user completes the reset chain and signs in with the NEW password. Assertion: same spec — create the user through `keycloak-admin.createUser`, submit the address on the Keycloak reset form, `waitForExactlyOneMessage` in Mailpit, follow the link, set the new password, then sign in with it, wait for the tenant guard to land the club-less member on `/join`, and assert `join-page` is visible and `landing-topbar-sign-in` has count 0. **T-20 strengthened the post-sign-in assertion**: the count-0 check alone also passes on a blank application that fails every own-member read."
   - "[key-error] AC-3 — The OLD password stops working after the reset. Assertion: same spec — `fillKcLogin(ephemeral.email, oldPassword)` keeps the URL on `/realms/alpenflight/login-actions/authenticate` and `KC_ERROR_SELECTOR` is visible."
   - "[key-error] AC-4 — A second use of the same reset link does not authenticate the user, and the Keycloak page returns the user to `/lostpassword`. Assertion: same spec — visit the link again, follow the theme back link, assert the pathname is `/lostpassword` and `lostpassword-page` is visible."
   - "[happy] AC-5 — A verify-email link opened in a session-less browser lands on `/confirm` in the verified state with a sign-in action. Assertion: same spec — open the Mailpit verify link in a fresh `browser.newContext()`, follow the theme back link, assert `confirm-outcome-verified` visible and `confirm-sign-in` visible."
@@ -19,7 +19,7 @@ acceptance:
   - "[edge] AC-7 — Both new routes are public. Assertion: `public-routes.spec.ts` — an unauthenticated goto of `/lostpassword` and of `/confirm` renders each page testid and the URL never enters `/realms/`."
   - "[edge] AC-8 — Both pages fit a 360 x 640 portrait viewport and their actions meet the touch-target rule. Assertion: same spec at that viewport — `document.documentElement.scrollWidth <= clientWidth`, and every CTA `boundingBox()` has height >= 44 and width >= 44."
   - "[happy] AC-9 (rider) — Keycloak chrome honours `?ui_locales=fr`. Assertion: `login.spec.ts` locale test loses `@quarantine-kc26` and asserts `html` has attribute `lang=fr`."
-  - "[happy] AC-10 (rider) — The SPA stays signed in past access-token expiry. Assertion: `token-lifecycle.spec.ts` silent-refresh test loses `@quarantine-kc26` and asserts the host is not the Keycloak host and `landing-topbar-sign-in` has count 0."
+  - "[happy] AC-10 (rider) — The SPA stays signed in past access-token expiry. Assertion: `token-lifecycle.spec.ts` silent-refresh test loses `@quarantine-kc26`, asserts Keycloak ACCEPTED at least one `refresh_token` grant, and asserts the host is not the Keycloak host and `landing-topbar-sign-in` has count 0. **T-20 made the counter status-aware**: a request-only count also rises on a rejected rotation that a silent re-authorize then repairs."
   - "[key-error] AC-11 (rider) — CI rejects a realm-export password outside the allow-set. Assertion: a negative test feeds `check-realm-shape.sh` a realm file that carries a foreign password and asserts a non-zero exit code."
 screen: /lostpassword + /confirm   # replacing legacy flsweb/src/lostpassword/ + flsweb/src/confirm/
 headless_pulled_in: none — Keycloak owns every credential action; this journey adds NO app write endpoint
@@ -140,7 +140,8 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   lines 131-134 and 146-147 already assert those are `${KEYCLOAK_...}` markers, which is a stronger rule
   than an allow-set. `check-realm-shape.sh` now takes an optional realm-file argument, so the negative test
   can feed it a planted file. The negative test is
-  `check-realm-shape-rejects-credential-outside-allow-set.sh`, wired into `ci.yml`'s graph-root `changes`
+  `alpenflight/auth/scripts/check-realm-shape-rejects-planted-drift.sh` (T-20 renamed it, because it now
+  covers a realm flag too), wired into `ci.yml`'s graph-root `changes`
   job, which carries no `if:` and no `needs:` and therefore never gets path-filtered away.
 - [x] **T-10** — Rider `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]`: read-merge-write in
   `KeycloakDeploymentDirectoryAdapter.setUserAttribute`. The adapter now reads the full user
@@ -328,7 +329,42 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `check-keycloak-integration.sh:9-10` derives its expectation from `E2E_REAL_IDP_BASE_URL`, so the
   preflight compares the baked `baseUrl` with the SPA the suite is about to drive.
   `compose-smoke.yml` needs no env: both its build and its probe now default to 4201.
-- [ ] **T-20** — [SUSPECTS] Bind the console allowances to endpoints, assert ACCEPTED rotations in AC-10, fix the attributes-only PUT still live at `keycloak-admin.ts:356`, and guard `resetPasswordAllowed` in `check-realm-shape.sh`.
+- [x] **T-20** — [SUSPECTS] Four assertions that could pass for the wrong reason, one seam: a guard that
+  tolerates more than it names.
+  (A) **The console allowances were status-only.** A `/\b403\b/` swallowed a 403 from any endpoint. The
+  guard now records the failing resource URL beside the message
+  (`alpenflight/web/e2e/tests/_helpers/console-guard.ts:69`), and
+  `consoleErrorAllowanceForStatusesOnEndpoint` (`:44`) accepts an error only when the status matches AND
+  the recorded resource pathname is exactly the declared endpoint. `register.spec.ts:26` binds the 404 to
+  `/api/v1/migrations/handshake/current` and the 403 to `/api/v1/migrations/handshake`;
+  `account-recovery.spec.ts:80` binds AC-2 to `/api/v1/me` and `/api/v1/me/join-request`. AC-2's own
+  post-sign-in state is now `/join` plus a visible `join-page` (`:346`), not a sign-in button count of
+  zero: the tenant guard reaches `/join` only after the backend answers the own-member reads
+  (`alpenflight/web/src/app/core/session/tenant-required.guard.ts:32`), so an application that fails
+  every `/api/v1/me` read renders nothing there — and a blank page scores zero on the old assertion too.
+  `join-request.spec.ts:53` already proves that same landing for the same user shape in the same lane.
+  (B) **AC-10 counted requests, not accepted rotations.** A rejected rotation plus a silent re-authorize
+  on a live SSO cookie raised the count, kept the host off Keycloak and kept the CTA at zero. The three
+  grant counters now live in `alpenflight/web/e2e/tests/_helpers/keycloak-grant-counters.ts` and all
+  three read the response status. `keycloak-grant-counters.spec.ts:53` is the negative test: it drives a
+  400 rotation and asserts the accepted count stays zero. It is red against a count that ignores the
+  status.
+  (C) **The `[KC-SET-USER-ATTRIBUTE-PARTIAL-PUT]` bug class was still live in test code.**
+  `keycloak-admin.setUserEnabled` and `makeMigratedAdminLoginable` sent the same partial PUT T-10 fixed
+  server-side, so Keycloak could clear the email and `sweepE2eUsers` could never reclaim the user
+  (`isCleanupCandidate` filters on the email). Both call sites now read the full representation, merge
+  the overrides and re-send it
+  (`alpenflight/web/e2e/tests/real-idp/_helpers/keycloak-admin.ts:136`). `setUserEnabled` then re-reads
+  the user and fails when the email moved, so the disabled-user case proves the merge on every run.
+  (D) **The realm-shape guard never asserted `resetPasswordAllowed`.** That single flag carries AC-1 to
+  AC-4. `check-realm-shape.sh:119` asserts it, and the negative test — renamed
+  `check-realm-shape-rejects-planted-drift.sh`, because it covers more than credentials now — plants
+  `resetPasswordAllowed: false`. The planted case exits 0 against the guard without the assertion, and
+  exits 1 with it.
+  **Verified locally:** D red then green; B red then green; A proven with a scratch Chromium run that
+  showed the recorded resource URL, accepted the bound 403, and reddened an unrelated 403 that the old
+  status-only pattern passed. `tsc -p e2e/tsconfig.json`, `ng lint` and `prettier --check` are green.
+  **Not verified:** the real-idp chain, because the Spring backend does not run on this box.
 
 ## Gate obligations carried by later tasks
 

@@ -116,10 +116,11 @@ ok "clubId user-profile: admin-edit-only (tenant-escalation gate)"
 
 [[ $(jq -r '.registrationAllowed' "$EXPORT")  == "true"  ]] || fail "registrationAllowed must be true (S-134)"
 [[ $(jq -r '.verifyEmail' "$EXPORT")          == "true"  ]] || fail "verifyEmail must be true (S-134 signup verification)"
+[[ $(jq -r '.resetPasswordAllowed' "$EXPORT") == "true"  ]] || fail "resetPasswordAllowed must be true (J-19 AC-1 to AC-4). This flag alone puts the forgot-password link on the Keycloak login page and opens the reset-credentials flow. With it off, /lostpassword hands the member to a page that offers no recovery, and the whole reset chain dies."
 [[ $(jq -r '.bruteForceProtected' "$EXPORT")  == "true"  ]] || fail "bruteForceProtected must be true"
 [[ $(jq -r '.eventsEnabled' "$EXPORT")        == "true"  ]] || fail "eventsEnabled must be true"
 [[ $(jq -r '.adminEventsEnabled' "$EXPORT")   == "true"  ]] || fail "adminEventsEnabled must be true"
-ok "realm hygiene: registration on + verifyEmail on, bruteforce on, events + admin events on"
+ok "realm hygiene: registration on + verifyEmail on + resetPasswordAllowed on, bruteforce on, events + admin events on"
 
 PWPOL=$(jq -r '.passwordPolicy // ""' "$EXPORT")
 for rx in 'length\(12\)' 'notUsername(\(|[^a-zA-Z])' 'notEmail(\(|[^a-zA-Z])' 'specialChars\(1\)'; do

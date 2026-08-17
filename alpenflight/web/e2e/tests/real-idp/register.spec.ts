@@ -1,5 +1,10 @@
 import { type Page, type TestInfo } from '@playwright/test';
-import { allowConsoleErrors, test, expect } from '../_helpers/console-guard';
+import {
+  allowConsoleErrors,
+  consoleErrorAllowanceForStatusesOnEndpoint,
+  test,
+  expect,
+} from '../_helpers/console-guard';
 
 import { findUserByEmail, deleteUser } from './_helpers/keycloak-admin';
 import {
@@ -18,9 +23,15 @@ const VERIFY_MAIL_DELIVERY_BUDGET_LEAVING_ROOM_INSIDE_THE_REAL_IDP_TEST_TIMEOUT_
 
 const SIGNUP_PATH_THE_LANDING_MIGRATE_CTA_TARGETS = '/signup?intent=migrate';
 
-const GET_HANDSHAKE_CURRENT_404_IS_BY_DESIGN_FOR_A_FIRST_TIME_REGISTRANT = /\b404\b/;
+const HANDSHAKE_CURRENT_ENDPOINT = '/api/v1/migrations/handshake/current';
 
-const POST_HANDSHAKE_403_IS_A_KNOWN_PRODUCT_DEFECT_NOT_NORMAL_BEHAVIOUR = /\b403\b/;
+const HANDSHAKE_ENDPOINT = '/api/v1/migrations/handshake';
+
+const GET_HANDSHAKE_CURRENT_404_IS_BY_DESIGN_FOR_A_FIRST_TIME_REGISTRANT =
+  consoleErrorAllowanceForStatusesOnEndpoint([404], HANDSHAKE_CURRENT_ENDPOINT);
+
+const POST_HANDSHAKE_403_IS_A_KNOWN_PRODUCT_DEFECT_NOT_NORMAL_BEHAVIOUR =
+  consoleErrorAllowanceForStatusesOnEndpoint([403], HANDSHAKE_ENDPOINT);
 
 const KNOWN_PRODUCT_DEFECT_THE_PAGE_RENDERS_BUT_THE_HANDSHAKE_FAILS = {
   type: 'known-product-defect',

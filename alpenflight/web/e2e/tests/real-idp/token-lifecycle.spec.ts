@@ -1,5 +1,9 @@
-import { type Page, type Request, type Response } from '@playwright/test';
+import { type Page, type Request } from '@playwright/test';
 import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
+import {
+  countRefreshTokenGrantsKeycloakAccepted,
+  countRefreshTokenGrantsKeycloakRejected,
+} from '../_helpers/keycloak-grant-counters';
 
 import {
   ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS,
@@ -25,9 +29,7 @@ const WITHIN_ONE_LIFESPAN_THE_SPA_MUST_HAVE_ATTEMPTED_A_ROTATION_MS =
   ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS * 1000;
 
 const FLIGHTS_NAV_TEST_ID = 'af-nav-section-/flights';
-const KC_TOKEN_ENDPOINT_PATH = '/protocol/openid-connect/token';
 const KC_AUTHORIZE_ENDPOINT_PATH = '/protocol/openid-connect/auth';
-const REFRESH_TOKEN_GRANT_BODY = 'grant_type=refresh_token';
 
 const isSignedOutDestination = (url: URL): boolean =>
   url.host === KC_HOST ||
@@ -35,33 +37,6 @@ const isSignedOutDestination = (url: URL): boolean =>
 
 const isSettledPrivateRoute = (url: URL): boolean =>
   url.host === SPA_HOST && url.pathname !== '/' && !url.pathname.startsWith('/auth/');
-
-function countRefreshTokenGrants(page: Page): () => number {
-  let observed = 0;
-  page.on('request', (request: Request) => {
-    if (
-      request.url().includes(KC_TOKEN_ENDPOINT_PATH) &&
-      (request.postData() ?? '').includes(REFRESH_TOKEN_GRANT_BODY)
-    ) {
-      observed += 1;
-    }
-  });
-  return () => observed;
-}
-
-function countRefreshTokenGrantsKeycloakRejected(page: Page): () => number {
-  let observed = 0;
-  page.on('response', (response: Response) => {
-    if (
-      response.url().includes(KC_TOKEN_ENDPOINT_PATH) &&
-      (response.request().postData() ?? '').includes(REFRESH_TOKEN_GRANT_BODY) &&
-      response.status() >= 400
-    ) {
-      observed += 1;
-    }
-  });
-  return () => observed;
-}
 
 function countAuthorizeRequests(page: Page): () => number {
   let observed = 0;
@@ -95,7 +70,7 @@ test.describe('token-lifecycle — realm-mutating', () => {
   test.setTimeout(180_000);
 
   test('silent refresh — SPA stays authenticated past access-token expiry', async ({ page }) => {
-    const refreshTokenGrants = countRefreshTokenGrants(page);
+    const refreshTokenGrantsKeycloakAccepted = countRefreshTokenGrantsKeycloakAccepted(page);
     await withRealmPatch(
       { accessTokenLifespan: ACCESS_TOKEN_LIFESPAN_ABOVE_SPA_RENEW_WINDOW_SECONDS },
       async () => {
@@ -107,8 +82,10 @@ test.describe('token-lifecycle — realm-mutating', () => {
         await page.waitForTimeout(PAST_THE_EXPIRY_OF_THE_ACCESS_TOKEN_THE_LOGIN_MINTED_MS);
 
         expect(
-          refreshTokenGrants(),
-          'no refresh_token grant observed — the SPA never renewed, so a pass would only prove the page did not move',
+          refreshTokenGrantsKeycloakAccepted(),
+          'Keycloak accepted no refresh_token grant — the SPA never renewed. A rejected rotation ' +
+            'plus a silent re-authorize on the live SSO cookie reaches every assertion below, so ' +
+            'a pass would prove a re-login and not a silent refresh',
         ).toBeGreaterThan(0);
         expect(new URL(page.url()).host).not.toBe(KC_HOST);
         await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
