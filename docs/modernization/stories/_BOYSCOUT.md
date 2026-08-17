@@ -70,6 +70,14 @@ stragglers each ceremony so the file shrinks.
   `request.fetch({ method: 'POST' })` seed. T-17 widened it to every `.ts` file under both e2e trees
   and to both POST forms; see the T-17 task line for the exact scope.
   *(seam: those 13 mock fixtures)*
+- **[WEB-SCRIPTS-ARE-TYPECHECKED-BY-NOTHING]** [S2] `alpenflight/web/tsconfig.json` sets `files: []`, and
+  neither `tsconfig.app.json` nor `tsconfig.spec.json` includes `scripts/**`. So every file under
+  `alpenflight/web/scripts/` — including the two CI guards J-19 added and their own specs — is
+  typechecked by no CI job. J-19 T-17 typechecked the guard spec by hand to ship. This is the same
+  "a gate must cover its own inputs" class as the guard gap it was found next to, one level up: the
+  guards that protect the suite are themselves unguarded. *(seam: a tsconfig that includes
+  `alpenflight/web/scripts/**` + a CI step that runs it)*
+  [[project_gate_must_cover_its_own_inputs]]
 - **[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]** [S2] `alpenflight/auth/scripts/check-theme-load.sh` cannot
   pass: it built a raw authorize URL with no PKCE parameters (the same fault J-19 T-12 found in
   `login.spec.ts`, so Keycloak 302s away before any theme renders) and it matches a root-element
