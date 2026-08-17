@@ -268,6 +268,12 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Not verified locally:** the backend does not run on this box, so the SPA answered from a stub. The
   post-sign-in SPA state of a club-less member is CI-only.
 
+- [ ] **T-16** — [BLOCKER, gap-hunter A] `/lostpassword` is URL-only. Nothing in the app links to it, so every proof enters by `page.goto`, and the journey's own Context stays true after the journey. Give it a chrome entry point and make the spec ENTER through it.
+- [ ] **T-17** — [BLOCKER, both hunters] The absolute-date guard scans only `*.spec.ts` under `alpenflight/web/e2e/tests`, and only `.post(` call sites. Nine `_helpers/*-fixture.ts` seeders and the whole root `e2e/tests/` tree escape it. Widen it, and DELETE this journey's false claim that it covers its own inputs.
+- [ ] **T-18** — [BLOCKER, gap-hunter B] `/confirm`'s expired branch is unreachable in production. The theme routes every spent action to `/lostpassword`, so nothing produces `?outcome=expired`. Delete the dead branch, its mock tests and its 8 i18n keys, and correct the contract prose that asked for it.
+- [ ] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix is CI-only. `docker-compose.yml:95`, `dev-up-alpenflight.sh:23`, `dev-up-nocompose.sh:30` and `check-keycloak-integration.sh:9` give three different answers, so the documented local loop still bakes 4200.
+- [ ] **T-20** — [SUSPECTS] Bind the console allowances to endpoints, assert ACCEPTED rotations in AC-10, fix the attributes-only PUT still live at `keycloak-admin.ts:356`, and guard `resetPasswordAllowed` in `check-realm-shape.sh`.
+
 ## Gate obligations carried by later tasks
 
 - **T-15 must click `#kc-info-message a`.** Keycloak 26.5.7 shows a "confirm validity" page before it
