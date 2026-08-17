@@ -17,7 +17,7 @@ acceptance:
   - "[happy] AC-5 — A verify-email link opened in a session-less browser lands on `/confirm` in the verified state with a sign-in action. Assertion: same spec — open the Mailpit verify link in a fresh `browser.newContext()`, follow the theme back link, assert `confirm-outcome-verified` visible and `confirm-sign-in` visible."
   - "[happy] AC-6 — A new member registers through the migrate CTA and the real Keycloak SMTP path delivers the verify mail. The member lands on `/migrate/start` and the handshake page renders. Assertion: `register.spec.ts` happy path runs without `@quarantine-kc26`, opens `/signup?intent=migrate`, follows the Mailpit verify link, then asserts `toHaveURL(/\\/migrate\\/start$/)` and `migrate-handshake` visible. **Qualified:** the page renders, and the handshake does not complete. `POST /api/v1/migrations/handshake` answers 403 to a club-less registrant, so the page shows its error state. The spec declares that 403 as a known product defect. Rider `[MIGRATE-HANDSHAKE-403-FOR-CLUBLESS-REGISTRANT]` in `_BOYSCOUT.md` holds the fix, and J-21 owns it."
   - "[edge] AC-7 — Both new routes are public. Assertion: `public-routes.spec.ts` — an unauthenticated goto of `/lostpassword` and of `/confirm` renders each page testid and the URL never enters `/realms/`."
-  - "[edge] AC-8 — Both pages fit a 360 x 640 portrait viewport and their actions meet the touch-target rule. Assertion: same spec at that viewport — `document.documentElement.scrollWidth <= clientWidth`, and every CTA `boundingBox()` has height >= 44 and width >= 44."
+  - "[edge] AC-8 — Both pages fit a 360 x 640 portrait viewport and every call-to-action button meets the touch-target rule. Assertion: same spec at that viewport — `document.documentElement.scrollWidth <= clientWidth`; the `af-button` count equals the measured testid list, so an unmeasured call to action reds; and each measured `boundingBox()` has height >= 44 and width >= 44. The measured set is `lostpassword-start` + `lostpassword-sign-in-link` on `/lostpassword` and `confirm-sign-in` on `/confirm`. **T-22 widened this**: the real-idp case measured `lostpassword-start` alone, so the AC claimed more than it proved. The header locale switches are chrome, not calls to action, and no lane counts them."
   - "[happy] AC-9 (rider) — Keycloak chrome honours `?ui_locales=fr`. Assertion: `login.spec.ts` locale test loses `@quarantine-kc26` and asserts `html` has attribute `lang=fr`."
   - "[happy] AC-10 (rider) — The SPA stays signed in past access-token expiry. Assertion: `token-lifecycle.spec.ts` silent-refresh test loses `@quarantine-kc26`, asserts Keycloak ACCEPTED at least one `refresh_token` grant, and asserts the host is not the Keycloak host and `landing-topbar-sign-in` has count 0. **T-20 made the counter status-aware**: a request-only count also rises on a rejected rotation that a silent re-authorize then repairs."
   - "[key-error] AC-11 (rider) — CI rejects a realm-export password outside the allow-set. Assertion: a negative test feeds `check-realm-shape.sh` a realm file that carries a foreign password and asserts a non-zero exit code."
@@ -387,6 +387,45 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   again recommend a form the guard cannot verify. `pnpm test:scripts` is green at 53 tests. The
   widened scan over all 147 files stays green and caught nothing that was previously hidden, because
   every remaining absolute date sits in a file with zero seeding call sites.
+
+- [x] **T-22** — [BLOCKER + SUSPECT, gap-hunter pass 3] T-19's guard was path-filtered away from what it
+  validates, and AC-8 claimed more than it measured.
+  (1) **The bring-up guard reads eleven sites and `compose-lint.yml` filtered nine of them out**
+  (`alpenflight/web/package.json`, `alpenflight/web/e2e/playwright.config.ts`, `alpenflight/auth/Dockerfile`,
+  both `alpenflight/auth/scripts/*.sh`, `ci.yml`, `alpenflight-e2e-real-idp.yml`). A flip of
+  `package.json:10` back to 4200 ran no guard. `bash alpenflight/ops/test-bring-up-guards.sh` moves to
+  `ci.yml`'s graph-root `changes` job (`ci.yml:110`), beside the comment-policy, absolute-date and
+  realm-shape guards. That job carries no `paths:`, no `if:` and no `needs:`, `ci.yml` itself declares no
+  `paths:`, and `required` lists `changes` first in its `needs:` and reads its result
+  (`ci.yml:2413`, `:2460`) — so the guard cannot be filtered away and its red blocks the merge. Removing
+  `compose-lint.yml`'s filter was the weaker option: that workflow is not the branch-protection check, so a
+  red there gates nothing. The guard needs no Docker (it stubs `docker` on `PATH`) and runs in 0.16 s.
+  (2) **The guard now covers its own wiring.** Its last check reads every workflow that names
+  `test-bring-up-guards.sh` and fails when all of them declare `paths:`
+  (`alpenflight/ops/test-bring-up-guards.sh:198-218`). This is the third path-filter miss in the journey
+  (T-03 `_helpers`, T-17 backticks), so the rule is now structural, not procedural.
+  (3) `alpenflight/auth/README.md:182` claimed `compose-lint.yml` "runs it on every push". That was false;
+  it now names the lane and why nothing can skip it.
+  (4) **Audit of every other path-filtered workflow.** `extract.yml` covers `tenant-rules.yaml`
+  (`alpenflight/database/**`) — the [[project_gate_must_cover_its_own_inputs]] defect is closed.
+  `qodana.yml`'s filter matches `qodana.yaml`'s `include.paths` exactly; its build files are the one gap,
+  filed as `[QODANA-BUILD-FILE-BLIND-SPOT]` [S3]. `compose-smoke.yml`'s `check-keycloak-integration.sh`
+  asserts a port whose source of truth (`playwright.config.ts`) sits outside its filter — that
+  cross-file comparison is exactly what now runs unfiltered in `changes`, so the drift is caught before
+  compose-smoke matters. `compose-lint.yml`'s remaining steps read only `docker-compose.yml` and
+  `alpenflight/ops/**`, both in its filter.
+  (5) **AC-8 measured one CTA of two.** The real-idp route table listed `lostpassword-start` alone while the
+  AC said "every CTA", and the mock lane already covered both. **Widened, not narrowed**:
+  `lostpassword-sign-in-link` joins the measured set, and an `af-button` count assertion now fails when a
+  page renders a call to action the list does not name
+  (`alpenflight/web/e2e/tests/real-idp/account-recovery.spec.ts:549`), so the AC cannot outgrow its
+  assertion again. The header locale switches are chrome, not calls to action; no lane counts them, and the
+  AC wording now says so.
+  **Verified locally:** `package.json:10` flipped to 4200 → the guard exits 1 and names the site; restored →
+  exit 0. The pre-T-22 wiring (step back in `compose-lint.yml` only) → the new self-check exits 1. Both AC-8
+  cases green against live Keycloak 26.5.7 and the SPA on 4201; the pre-T-22 CTA list reds the count
+  assertion (expected 1, received 2). `actionlint` green on `ci.yml` + `compose-lint.yml`;
+  `tsc -p e2e/tsconfig.json`, `eslint`, `prettier --check` and the comment-policy guard green.
 
 ## Gate obligations carried by later tasks
 

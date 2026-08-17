@@ -181,7 +181,12 @@ Two guards hold this:
 
 - `alpenflight/ops/test-bring-up-guards.sh` compares every site that bakes or
   asserts the value against the port `playwright.config.ts` serves the
-  real-OIDC SPA on. `compose-lint.yml` runs it on every push.
+  real-OIDC SPA on. It runs in `ci.yml`'s graph-root `changes` job, which
+  carries no `paths:` filter, no `if:` and no `needs:`, so every push runs it.
+  `required` needs `changes`, so a red guard blocks the merge. The guard's last
+  check reads the workflows that call it and fails when every one of them
+  filters by path, because nine of the sites it reads sit outside the
+  `compose-lint.yml` filter that used to hold it.
 - `alpenflight/auth/scripts/check-keycloak-integration.sh` reads the baked
   `baseUrl` out of the running Keycloak and compares it with
   `E2E_REAL_IDP_BASE_URL`. The real-idp preflight and `compose-smoke.yml` run it.

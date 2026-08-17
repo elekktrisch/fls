@@ -33,9 +33,6 @@ jobs:
       - name: every new-stack service declares a healthcheck
         run: bash alpenflight/ops/lint-compose.sh
 
-      - name: bring-up guards (fail-loud + fan-out mailpit ordering)
-        run: bash alpenflight/ops/test-bring-up-guards.sh
-
   shared-network-smoke:
     name: shared-network round-trip
     runs-on: ubuntu-latest

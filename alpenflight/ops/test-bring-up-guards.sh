@@ -195,6 +195,28 @@ while read -r workflow; do
         "${workflow}" '^ *(ALPENFLIGHT_WEB_BASE_URL|EXPECTED_BASE_URL):'
 done < <(grep -lE '^ *(ALPENFLIGHT_WEB_BASE_URL|EXPECTED_BASE_URL):' "${REPO_ROOT}"/.github/workflows/*.yml)
 
+echo "== a workflow with no path filter runs this guard on every push =="
+
+trigger_block_of() {
+    sed -n '1,/^jobs:/p' "$1"
+}
+
+THIS_GUARD_FILENAME="$(basename "${BASH_SOURCE[0]}")"
+workflows_running_this_guard=()
+workflows_running_this_guard_on_every_push=()
+while read -r workflow; do
+    workflows_running_this_guard+=("$(basename "${workflow}")")
+    if ! trigger_block_of "${workflow}" | grep -qE '^[[:space:]]+paths:'; then
+        workflows_running_this_guard_on_every_push+=("$(basename "${workflow}")")
+    fi
+done < <(grep -lF "${THIS_GUARD_FILENAME}" "${REPO_ROOT}"/.github/workflows/*.yml)
+
+if [[ "${#workflows_running_this_guard_on_every_push[@]}" -gt 0 ]]; then
+    pass "runs unfiltered in ${workflows_running_this_guard_on_every_push[*]}"
+else
+    fail "every workflow that runs this guard filters by path (${workflows_running_this_guard[*]:-none}) — this guard reads sites under alpenflight/web, alpenflight/auth and .github/workflows, so an edit to one of them would skip the guard that validates it"
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
     printf '\n%d guard(s) failed\n' "${failures}" >&2
     exit 1

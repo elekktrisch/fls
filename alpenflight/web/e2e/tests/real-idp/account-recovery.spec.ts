@@ -53,6 +53,7 @@ const SIGNUP_PATH_THE_LANDING_MIGRATE_CTA_TARGETS = '/signup?intent=migrate';
 const TEST_ID = {
   lostpasswordPage: 'lostpassword-page',
   lostpasswordStart: 'lostpassword-start',
+  lostpasswordSignInLink: 'lostpassword-sign-in-link',
   confirmPage: 'confirm-page',
   confirmOutcomeVerified: 'confirm-outcome-verified',
   confirmSignIn: 'confirm-sign-in',
@@ -72,6 +73,7 @@ const AF_CONFIRM_SHOT_THE_GALLERY_PAIRS_AGAINST_THE_LEGACY_CONFIRM_FORM =
 
 const MOBILE_PORTRAIT_VIEWPORT = { width: 360, height: 640 } as const;
 const MINIMUM_TOUCH_TARGET_EDGE_PX = 44;
+const EVERY_CALL_TO_ACTION_THESE_PAGES_RENDER = 'af-button';
 
 const COLD_FIRST_SMTP_SEND_TIMEOUT_MS = 45_000;
 const REAL_KEYCLOAK_ROUND_TRIP_TIMEOUT_MS = 30_000;
@@ -101,7 +103,7 @@ const ACCOUNT_RECOVERY_ROUTES: readonly AccountRecoveryRoute[] = [
   {
     path: LOSTPASSWORD_PATH,
     rendersTestId: TEST_ID.lostpasswordPage,
-    callsToActionTestIds: [TEST_ID.lostpasswordStart],
+    callsToActionTestIds: [TEST_ID.lostpasswordStart, TEST_ID.lostpasswordSignInLink],
   },
   {
     path: CONFIRM_PATH,
@@ -544,8 +546,17 @@ test.describe('account recovery — both routes fit a 360 x 640 portrait screen'
         );
         expect(fitsWithoutHorizontalScroll).toBe(true);
 
+        await expect(
+          page.locator(EVERY_CALL_TO_ACTION_THESE_PAGES_RENDER),
+          `${route.path} renders a call to action that this case does not measure. AC-8 claims ` +
+            'every call to action meets 44 x 44 pixels, so add the new testid to ' +
+            'callsToActionTestIds, or the claim is larger than the assertion',
+        ).toHaveCount(route.callsToActionTestIds.length);
+
         for (const callToActionTestId of route.callsToActionTestIds) {
-          const box = await page.getByTestId(callToActionTestId).boundingBox();
+          const callToAction = page.getByTestId(callToActionTestId);
+          await expect(callToAction).toBeVisible();
+          const box = await callToAction.boundingBox();
           expect(box, `${callToActionTestId} has no bounding box on ${route.path}`).not.toBeNull();
           expect(box?.width ?? 0).toBeGreaterThanOrEqual(MINIMUM_TOUCH_TARGET_EDGE_PX);
           expect(box?.height ?? 0).toBeGreaterThanOrEqual(MINIMUM_TOUCH_TARGET_EDGE_PX);

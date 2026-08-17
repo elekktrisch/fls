@@ -469,6 +469,13 @@ stragglers each ceremony so the file shrinks.
   + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +
   next journeys; don't churn merged ones). *(seam: `docs/modernization/stories/*.md` per-touch)*
   [[feedback_self_explanatory_no_history_comments]]
+- **[QODANA-BUILD-FILE-BLIND-SPOT]** [S3] Filed by J-19 T-22's audit of every path-filtered workflow.
+  `qodana.yml:29-33` filters to `alpenflight/server/src/main/java/**` + the three qodana files, which
+  matches `qodana.yaml`'s own `include.paths` exactly — so the inspected sources are covered. The gap is
+  one level out: Qodana resolves the inspection classpath from `alpenflight/server/build.gradle.kts` and
+  `settings.gradle.kts`, and neither is in the filter. A build-file change that breaks resolution reports
+  no finding until the next Java-source push. Add the two build files to the filter.
+  *(seam: `.github/workflows/qodana.yml`)* [[project_gate_must_cover_its_own_inputs]]
 
 ## Pending (filed by /do-ship 2026-06-13, J-26 gate)
 

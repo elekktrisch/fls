@@ -107,6 +107,9 @@ jobs:
       - name: Realm-shape guard + its negative test (J-19 — runs on EVERY push, deliberately never path-filtered)
         run: bash alpenflight/auth/scripts/check-realm-shape-rejects-planted-drift.sh
 
+      - name: Bring-up + real-OIDC-SPA-port guards (J-19 — runs on EVERY push, deliberately never path-filtered)
+        run: bash alpenflight/ops/test-bring-up-guards.sh
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #
