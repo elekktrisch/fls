@@ -64,8 +64,12 @@ stragglers each ceremony so the file shrinks.
   `flights/05-flights-edit.spec.ts:88`, `flights/flights-list-delete.spec.ts:26,39`,
   `forms/validation-hardening.spec.ts:197`, `reporting/custom-builder.spec.ts:26`,
   `reporting/flight-reports.spec.ts:65,92,164,180`. Convert on next touch for consistency only.
-  The guard already walks all of `e2e/tests/**`, so a future API seed at an absolute date reds at
-  once. *(seam: those 13 mock fixtures)*
+  **T-03's coverage claim was wrong, and J-19 T-17 corrected it.** The T-03 guard walked only
+  `*.spec.ts` under `alpenflight/web/e2e/tests`, and recognised only a `.post(` call site. It never
+  opened a `_helpers/*.ts` fixture, never opened the root `e2e/` suite, and never saw a
+  `request.fetch({ method: 'POST' })` seed. T-17 widened it to every `.ts` file under both e2e trees
+  and to both POST forms; see the T-17 task line for the exact scope.
+  *(seam: those 13 mock fixtures)*
 - **[CHECK-THEME-LOAD-IS-ROTTEN-AND-UNWIRED]** [S2] `alpenflight/auth/scripts/check-theme-load.sh` cannot
   pass: it built a raw authorize URL with no PKCE parameters (the same fault J-19 T-12 found in
   `login.spec.ts`, so Keycloak 302s away before any theme renders) and it matches a root-element

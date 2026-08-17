@@ -105,7 +105,7 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
 
 - [x] **T-01** — MAIN-1 fix (`5d709fe0d`): the two DCT seed dates are relative to the run date. Offset 30 days inside the free range `[4, 89]`; worst-case margin 29 days, swept over 3000 run dates plus clock and zone skew.
 - [x] **T-02** — Scaffold: `account-recovery.spec.ts` stub (all `test.fixme`, real selectors + flow) + the J-19 proof-gallery page linked from the index.
-- [x] **T-03** — MAIN-1 guard: T-01's constant + `daysAgo()` now live in `tests/real-idp/_helpers/seed-flight-date.ts`; all three real-idp seed sites derive the date from the run date. `scripts/absolute-flight-date-in-api-seed-guard.mjs` rejects an absolute `flightDate` / `startDateTime` / `ldgDateTime` inside an API POST across `e2e/tests/**`, and runs in `ci.yml`'s `changes` job on every push with no path filter. The 13 remaining mock-lane dates sit in `route.fulfill` response bodies, which no server window can expire; they stay with the suite-wide date audit.
+- [x] **T-03** — MAIN-1 guard: T-01's constant + `daysAgo()` now live in `tests/real-idp/_helpers/seed-flight-date.ts`; all three real-idp seed sites derive the date from the run date. `scripts/absolute-flight-date-in-api-seed-guard.mjs` rejects an absolute `flightDate` / `startDateTime` / `ldgDateTime` inside an API POST, and runs in `ci.yml`'s `changes` job on every push with no path filter. The 13 remaining mock-lane dates sit in `route.fulfill` response bodies, which no server window can expire; they stay with the suite-wide date audit. **T-03 shipped a narrower scan than this line first claimed — T-17 widened it.**
 - [x] **T-04** — MAIN-2 fix: both legacy server builds now restore every `packages.config` under `flsserver/src` — the same glob the `actions/cache` key hashes — and a new step asserts the six HintPath assemblies exist before `xbuild` runs. `FLS.sln` was the wrong authority: it omits `FLS.Server.Console`, which the xbuild loop builds, and `FLS.Server.ProffixInvoiceService`, which the cache key hashes. `alpenflight-proof-fanout.yml` carried a solution restore with no assertion; both files now hold the identical two steps.
 - [x] **T-04b** — T-04 restored every `packages.config`, which raised the nuget process count from 2 to 9, so one transient failure now reds the job far more often. The cold run failed on the 6th config with a Mono BoringSSL `CERTIFICATE_VERIFY_FAILED` against api.nuget.org. Each per-config restore now gets 3 attempts with a 10s then 20s backoff, plus `-NonInteractive`. A "package NuGet cannot find" output stops the retries at once, because no retry creates a package that does not exist. Both workflows hold the identical step; T-04's assertion step is unchanged.
 - [x] **T-05** — MAIN-3 fix: `nightly.yml` legacy web build sets `npm_config_tmp` and asserts its own output.
@@ -288,7 +288,21 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   `landing.actions.lostPassword` in all four locale bundles. AC-1 ran green against the live
   Keycloak 26.5 container and the SPA on 4201; the Spring backend does not run on this box, and AC-1
   needs none.
-- [ ] **T-17** — [BLOCKER, both hunters] The absolute-date guard scans only `*.spec.ts` under `alpenflight/web/e2e/tests`, and only `.post(` call sites. Nine `_helpers/*-fixture.ts` seeders and the whole root `e2e/tests/` tree escape it. Widen it, and DELETE this journey's false claim that it covers its own inputs.
+- [x] **T-17** — [BLOCKER, both hunters] The absolute-date guard now reads **every `.ts` file under
+  both `alpenflight/web/e2e/` and the repo-root `e2e/`** (145 files; `node_modules`, `test-results`,
+  `playwright-report` and `screenshots` excluded), so `_helpers/*-fixture.ts` seeders and the whole
+  root suite are inside it. It treats `.post(...)` **and** `.fetch(...)` as seeding call sites, and
+  accepts a `.fetch` whose `method` is `'POST'` or is not a string literal that proves another verb;
+  a literal `'GET'` and a method-less `.fetch` stay out. The field match accepts the root suite's
+  legacy PascalCase spelling. `scanEveryGuardedTree` throws when a scanned tree moves, so the guard
+  cannot silently cover nothing. **Nothing is exempt and no allow-list exists** — the widened scan is
+  green over all 145 files. The two duplicate local `daysAgo()` copies in
+  `_helpers/reporting-parity-fixture.ts` and `_helpers/daily-report-fixture.ts` now import the shared
+  `_helpers/seed-flight-date.ts`. `absolute-flight-date-in-api-seed-guard.spec.ts` grew six cases
+  that the T-03 guard scored 0 on: a `_helpers/*.ts` seed, a root-tree seed, an explicit
+  `method: 'POST'` fetch, a variable-method fetch, the legacy PascalCase spelling, and the
+  moved-tree throw — plus a GET/method-less green so the widening cannot over-fire. T-03's coverage
+  claim is corrected here, in the MAIN-1 section, and in `_BOYSCOUT.md`.
 - [ ] **T-18** — [BLOCKER, gap-hunter B] `/confirm`'s expired branch is unreachable in production. The theme routes every spent action to `/lostpassword`, so nothing produces `?outcome=expired`. Delete the dead branch, its mock tests and its 8 i18n keys, and correct the contract prose that asked for it.
 - [ ] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix is CI-only. `docker-compose.yml:95`, `dev-up-alpenflight.sh:23`, `dev-up-nocompose.sh:30` and `check-keycloak-integration.sh:9` give three different answers, so the documented local loop still bakes 4200.
 - [ ] **T-20** — [SUSPECTS] Bind the console allowances to endpoints, assert ACCEPTED rotations in AC-10, fix the attributes-only PUT still live at `keycloak-admin.ts:356`, and guard `resetPasswordAllowed` in `check-realm-shape.sh`.
@@ -338,10 +352,21 @@ API-SEEDED date can expire against the list window. There were exactly three suc
 the shared helper `e2e/tests/real-idp/_helpers/seed-flight-date.ts`. The other 13 absolute dates
 were measured, not assumed: each of those specs has **zero `.post()` calls**, so every one of those
 dates sits in a `route.fulfill` response body that no server window can expire. The carve's claim
-that `05-flights-edit` would red on 2026-08-18 was wrong. The guard
-(`web/scripts/absolute-flight-date-in-api-seed-guard.mjs`, wired at `ci.yml:104` in the graph-root
-`changes` job with no `if:`/`needs:`) walks all of `e2e/tests/**`, so it covers its own inputs and a
-future API seed at an absolute date reds at once.
+that `05-flights-edit` would red on 2026-08-18 was wrong. The guard lives at
+`web/scripts/absolute-flight-date-in-api-seed-guard.mjs` and is wired at `ci.yml:104` in the
+graph-root `changes` job with no `if:`/`needs:`.
+
+**T-03 did not cover its own inputs, and T-17 fixed that.** The T-03 scan collected only `*.spec.ts`,
+rooted at `alpenflight/web/e2e/tests`, and recognised only a `.post(` call site. Three whole classes
+of seed therefore passed green: a seed in a `_helpers/*.ts` fixture (nine such fixtures POST),
+anything in the root `e2e/` suite, and a seed written as `request.fetch({ method: 'POST' })`. This is
+the same defect class as MAIN-2 below. T-17 widened the scan to **every `.ts` file under both
+`alpenflight/web/e2e/` and the repo-root `e2e/`** (`node_modules` and build output excluded), and to
+**both POST forms** — `.post(...)`, plus `.fetch(...)` whose `method` is `'POST'` or is not a string
+literal that proves it is another verb. The field match now also accepts the root suite's legacy
+PascalCase spelling (`FlightDate` / `StartDateTime` / `LdgDateTime`). The guard throws when a scanned
+tree moves, instead of silently covering nothing. Nothing is exempt: no allow-list exists, because
+the widened scan found zero violations across all 145 scanned files.
 
 ### MAIN-2 — `nightly` / legacy server build: the restore step does not cover its own inputs
 
