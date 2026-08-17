@@ -6,7 +6,7 @@ THEME_NAME="${THEME_NAME:-alpenflight}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8090}"
 REALM="${REALM:-alpenflight}"
 WEB_CLIENT_ID="${WEB_CLIENT_ID:-alpenflight-web}"
-REDIRECT_URI_URL_ENCODED="${REDIRECT_URI_URL_ENCODED:-http%3A%2F%2Flocalhost%3A4200%2F}"
+REDIRECT_URI_URL_ENCODED="${REDIRECT_URI_URL_ENCODED:-http%3A%2F%2Flocalhost%3A4201%2F}"
 
 AUTH_BASE="${KEYCLOAK_URL%/}/realms/${REALM}/protocol/openid-connect/auth"
 

@@ -6,7 +6,8 @@ KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8090}"
 MAILPIT_URL="${MAILPIT_URL:-http://localhost:8025}"
 REALM="${REALM:-alpenflight}"
 WEB_CLIENT_ID="${WEB_CLIENT_ID:-alpenflight-web}"
-EXPECTED_BASE_URL="${EXPECTED_BASE_URL:-http://localhost:4200/}"
+REAL_IDP_SPA_ORIGIN_THE_SUITE_DRIVES="${E2E_REAL_IDP_BASE_URL:-http://localhost:4201}"
+EXPECTED_BASE_URL="${EXPECTED_BASE_URL:-${REAL_IDP_SPA_ORIGIN_THE_SUITE_DRIVES%/}/}"
 ADMIN_USER="${KC_ADMIN_USER:-admin}"
 ADMIN_PASS="${KC_ADMIN_PASS:-admin}"
 
@@ -55,8 +56,8 @@ ADMIN_BASE_URL=$(curl -fsS -G "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
   --data-urlencode "clientId=${WEB_CLIENT_ID}" \
   | jq -r '.[0].baseUrl // ""')
 [[ "$ADMIN_BASE_URL" == "$EXPECTED_BASE_URL" ]] \
-  || fail "alpenflight-web.baseUrl in H2 = '${ADMIN_BASE_URL}' — expected '${EXPECTED_BASE_URL}'. Build-arg substitution failed?"
-ok "alpenflight-web.baseUrl in H2 = ${ADMIN_BASE_URL} (build-arg substitution resolved)"
+  || fail "alpenflight-web.baseUrl in H2 = '${ADMIN_BASE_URL}', but the SPA under test serves at '${EXPECTED_BASE_URL}'. The login-theme back links and the account console would return the member to a different application, and the member would see no error. Rebuild the Keycloak image with --build-arg ALPENFLIGHT_WEB_BASE_URL=${EXPECTED_BASE_URL}, or point E2E_REAL_IDP_BASE_URL at the SPA this Keycloak was built for."
+ok "alpenflight-web.baseUrl in H2 = ${ADMIN_BASE_URL} (equals the SPA under test)"
 
 REALM_CFG=$(curl -fsS "${KEYCLOAK_URL}/admin/realms/${REALM}" -H "Authorization: Bearer ${TOKEN}")
 SMTP_FROM=$(jq -r '.smtpServer.from // ""' <<<"$REALM_CFG")
@@ -139,7 +140,7 @@ HTTP=$(curl -fsS -o /tmp/kc-verify.out -w '%{http_code}' \
 [[ "$HTTP" == "204" ]] || fail "send-verify-email HTTP ${HTTP}: $(cat /tmp/kc-verify.out) — FreeMarker template failure (Failed to template email) surfaces as 500 here"
 
 RECEIVED=""
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
+for _ in 1 2 3 4 5 6 7 8 9 10; do
   RECEIVED=$(curl -fsS -G "${MAILPIT_URL}/api/v1/search" \
     --data-urlencode "query=to:\"${TEST_EMAIL}\"" \
     | jq -r '.messages[0].ID // empty')

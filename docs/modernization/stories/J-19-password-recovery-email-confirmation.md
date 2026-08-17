@@ -252,8 +252,9 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   through to the mock-auth instance and proved nothing about the application under test. The five
   Keycloak image builds that feed a real-idp run now pass `http://localhost:4201/`
   (`ci.yml` ×3, `alpenflight-e2e-real-idp.yml`, `alpenflight-proof-fanout.yml`), and the real-idp
-  preflight gets the matching `EXPECTED_BASE_URL`. `compose-smoke.yml` keeps 4200. The spec asserts
-  the back-link host equals the host under test, so this cannot drift back unnoticed.
+  preflight gets the matching `EXPECTED_BASE_URL`. The spec asserts the back-link host equals the
+  host under test. This fix reached CI only; T-19 carried it into the local loop and moved
+  `compose-smoke.yml` to 4201 with it.
   (2) **T-08's back-link logic is correct.** A stale local image had hidden it. With the committed
   `footer.ftl` the spent reset link resolves to `/lostpassword` and the verified info page to
   `/confirm?outcome=verified`.
@@ -313,7 +314,20 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   drove the expired path, and three i18n keys in four locales are deleted. Removing the expired path
   left the parser with one possible result, so the whole parser is deleted, not simplified. The
   contract prose in "Spec must assert" and the T-07 record now state the reachable behaviour.
-- [ ] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix is CI-only. `docker-compose.yml:95`, `dev-up-alpenflight.sh:23`, `dev-up-nocompose.sh:30` and `check-keycloak-integration.sh:9` give three different answers, so the documented local loop still bakes 4200.
+- [x] **T-19** — [BLOCKER, gap-hunter B] The 4201 base-URL fix was CI-only, so the documented local
+  loop still baked 4200. The rule the code now states: 4200 serves the `mock-auth` SPA, which never
+  contacts Keycloak; 4201 serves the `development` SPA, the only build that follows a link Keycloak
+  renders. Therefore every image build bakes `http://localhost:4201/`. `Dockerfile:24` (the deepest
+  default, missed by T-15), `docker-compose.yml:95`, `check-keycloak-integration.sh:9`,
+  `check-theme-load.sh:9` and `rebuild-keycloak.sh:35` move to 4201; `dev-up-alpenflight.sh:10` and
+  `rebuild-keycloak.sh:10` export the build arg instead of riding the compose default. `pnpm start`
+  serves the real-OIDC SPA, so `package.json:10` pins it to 4201 and `package.json:11` pins
+  `start:mock-auth` to 4200 — that also stops a running `pnpm start` from shadowing the mock-auth
+  Playwright server. Two guards hold it: `test-bring-up-guards.sh` compares all eleven sites against
+  the port `playwright.config.ts` serves the real-OIDC SPA on, and
+  `check-keycloak-integration.sh:9-10` derives its expectation from `E2E_REAL_IDP_BASE_URL`, so the
+  preflight compares the baked `baseUrl` with the SPA the suite is about to drive.
+  `compose-smoke.yml` needs no env: both its build and its probe now default to 4201.
 - [ ] **T-20** — [SUSPECTS] Bind the console allowances to endpoints, assert ACCEPTED rotations in AC-10, fix the attributes-only PUT still live at `keycloak-admin.ts:356`, and guard `resetPasswordAllowed` in `check-realm-shape.sh`.
 
 ## Gate obligations carried by later tasks

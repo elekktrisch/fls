@@ -779,11 +779,6 @@ jobs:
 
       - name: Build pgAdmin + Keycloak images
         env:
-          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
-          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
-          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
-          # start` port, and would send the member from Keycloak to a different
-          # application than the one under test.
           ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
@@ -1526,11 +1521,6 @@ jobs:
 
       - name: Build pgAdmin + Keycloak images
         env:
-          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
-          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
-          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
-          # start` port, and would send the member from Keycloak to a different
-          # application than the one under test.
           ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
@@ -1870,11 +1860,6 @@ jobs:
 
       - name: Build pgAdmin + Keycloak images
         env:
-          # The real-idp Playwright project serves the SPA on 4201, so the Keycloak
-          # client baseUrl — the target of the login-theme back links (J-19 AC-4 /
-          # AC-5) — must be that instance. The compose default is 4200, the `pnpm
-          # start` port, and would send the member from Keycloak to a different
-          # application than the one under test.
           ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do

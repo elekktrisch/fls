@@ -20,8 +20,15 @@ Greenfield Angular 21 SPA. See [`CLAUDE.md`](./CLAUDE.md) for day-to-day convent
 
 ```bash
 pnpm install
-pnpm start             # ng serve on http://localhost:4200
+pnpm start             # real OIDC, ng serve on http://localhost:4201
 ```
+
+`pnpm start` serves the `development` configuration, which authenticates
+against the local Keycloak. The Keycloak image bakes `http://localhost:4201/`
+as the SPA it returns the member to, so this loop needs port 4201. Run
+`pnpm start:mock-auth` for the mock-auth SPA on 4200; that build never contacts
+Keycloak. See `alpenflight/auth/README.md` § "Which SPA port the image must
+bake".
 
 The dev server proxies `/api/v1/*`, `/Token`, `/oauth2/*`, `/realms/*` to `http://localhost:8080` per `proxy.conf.json`. Run the matching `alpenflight/server/` instance there.
 
@@ -29,7 +36,8 @@ The dev server proxies `/api/v1/*`, `/Token`, `/oauth2/*`, `/realms/*` to `http:
 
 | Script | Purpose |
 |---|---|
-| `pnpm start` | `ng serve` (dev, with proxy) |
+| `pnpm start` | `ng serve` on 4201, real OIDC (dev, with proxy) |
+| `pnpm start:mock-auth` | `ng serve` on 4200, mock auth (no Keycloak) |
 | `pnpm build` | `ng build` (defaults to production config) |
 | `pnpm build:prod` | explicit production build with bundle-budget enforcement |
 | `pnpm test` | Vitest via `ng test` |
@@ -37,7 +45,8 @@ The dev server proxies `/api/v1/*`, `/Token`, `/oauth2/*`, `/realms/*` to `http:
 | `pnpm format` | Prettier check |
 | `pnpm format:fix` | Prettier write |
 | `pnpm e2e:install` | install Playwright browsers (Chromium) |
-| `pnpm e2e` | Playwright against `pnpm start` |
+| `pnpm e2e` | Playwright against the mock-auth SPA on 4200 |
+| `pnpm e2e:real-idp` | Playwright against the real-OIDC SPA on 4201 + a live Keycloak |
 
 ## Deploy artifact
 

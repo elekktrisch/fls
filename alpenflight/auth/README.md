@@ -54,7 +54,7 @@ bash alpenflight/ops/rebuild-keycloak.sh
 
 | Client ID | Type | Flows | Notes |
 |---|---|---|---|
-| `alpenflight-web` | public | Authorization Code + PKCE-S256 | SPA. No direct-grants, no implicit. Redirect URIs: `http://localhost:{4200,3000}/*`. |
+| `alpenflight-web` | public | Authorization Code + PKCE-S256 | SPA. No direct-grants, no implicit. Redirect URIs: `http://localhost:{3000,4200,4201}/*`. The baked `baseUrl` names one of them — see `ALPENFLIGHT_WEB_BASE_URL` below. |
 | `alpenflight-backend` | bearer-only | (token validator) | Spring Security 7 resource server (S-020 wires this in). |
 | `alpenflight-backend-admin` | confidential | client-credentials only | Backend → KC admin REST machine client (S-052). Service-account scoped to **`manage-users` + `view-users` + `query-users`** on `realm-management` only — NOT `manage-realm` / `manage-clients` / `impersonation`. Dev secret `alpenflight-backend-admin-dev-secret`; prod secret via `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. Rotate at deploy. |
 | `alpenflight-proffix` | confidential | client-credentials only | Machine client. Service-account role `proffix-sync`. Dev secret `alpenflight-proffix-dev-secret` — rotate at deploy. |
@@ -161,7 +161,34 @@ the first verification).
 | `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
 | `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
 | `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
-| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Feeds login footer + account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
+| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4201/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Keycloak bakes it into `alpenflight-web.baseUrl`. It feeds the login-theme back links and the account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
+
+#### Which SPA port the image must bake
+
+The repo runs the SPA on two ports. Each port has one purpose:
+
+| Port | Angular configuration | Talks to Keycloak | Started by |
+|---|---|---|---|
+| 4200 | `mock-auth` (file-replaces `app.config.mock.ts`) | no | `pnpm start:mock-auth`, the `chromium` Playwright project |
+| 4201 | `development` (real OIDC) | yes | `pnpm start`, the `real-idp` Playwright project |
+
+Only the SPA on 4201 follows a link that Keycloak renders. Therefore every
+image build bakes `http://localhost:4201/`, in CI and on the laptop. A build
+that bakes 4200 sends the member from Keycloak to the mock-auth application,
+and the member sees no error.
+
+Two guards hold this:
+
+- `alpenflight/ops/test-bring-up-guards.sh` compares every site that bakes or
+  asserts the value against the port `playwright.config.ts` serves the
+  real-OIDC SPA on. `compose-lint.yml` runs it on every push.
+- `alpenflight/auth/scripts/check-keycloak-integration.sh` reads the baked
+  `baseUrl` out of the running Keycloak and compares it with
+  `E2E_REAL_IDP_BASE_URL`. The real-idp preflight and `compose-smoke.yml` run it.
+
+To drive the real-OIDC SPA on a different port, set `E2E_REAL_IDP_BASE_URL` for
+the suite and `ALPENFLIGHT_WEB_BASE_URL` for the image build. Set both, or the
+preflight fails.
 
 Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
 Keycloak lands there during local signup smokes — click the verify link to
@@ -202,7 +229,7 @@ all the working defaults. Clicking "Continue with Google" against the
 `set-via-env-for-google-signup` sentinel renders Keycloak's stock
 `invalid_client` page — that's the "feature is off" signal, not a setup
 bug. The `ALPENFLIGHT_WEB_BASE_URL` build-arg has its own
-`http://localhost:4200/` fallback at the `docker-compose.yml` build-args
+`http://localhost:4201/` fallback at the `docker-compose.yml` build-args
 layer, so the SPA root link also works out of the box.
 
 ### Google Cloud Console — one-time setup (prod / per-developer)
@@ -323,7 +350,7 @@ bash alpenflight/ops/rebuild-keycloak.sh
 
 | Page | URL |
 |---|---|
-| Login (default DE) | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2F&state=preview` |
+| Login (default DE) | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A4201%2F&state=preview` |
 | Login (French)     | same URL + `&kc_locale=fr` |
 | Account console    | `http://localhost:8090/realms/alpenflight/account/` (redirects to login when no session) |
 | Verify-email       | trigger via `/signup` SPA route → mailpit at `http://localhost:8025` |
