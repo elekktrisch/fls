@@ -12,6 +12,12 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from gh_pages_payload import (
+    megabytes,
+    payload_bytes_of_published_checkout,
+    plant_git_metadata_github_pages_never_publishes,
+)
+
 LEGACY_REPORT_DIR = "legacy/report"
 LEGACY_REPORT_ATTACHMENT_DIR = "legacy/report/data"
 PROOF_PREVIEW_DIR = "alpenflight/proof-preview"
@@ -24,14 +30,6 @@ PLAYWRIGHT_REPORT_BASE64_PAYLOAD = re.compile(
     r'id="playwrightReportBase64"\s*>\s*data:application/zip;base64,([A-Za-z0-9+/=]+)'
 )
 SHA1_NAMED_ATTACHMENT_FILE = re.compile(r"[0-9a-f]{40}\.[A-Za-z0-9]+")
-
-
-def bytes_under(directory: Path) -> int:
-    return sum(f.stat().st_size for f in directory.rglob("*") if f.is_file())
-
-
-def megabytes(byte_count: int) -> str:
-    return f"{byte_count / 1048576:.1f} MB"
 
 
 def attachment_names_the_published_report_still_references(site: Path) -> set[str]:
@@ -198,12 +196,24 @@ def run_selftest_so_a_broken_rule_cannot_report_green() -> None:
         site = root / "site"
         site.mkdir()
         plant_a_site_that_exercises_every_rule(site, live_branch)
+        git_metadata_bytes = 1048576
+        plant_git_metadata_github_pages_never_publishes(site, git_metadata_bytes)
         repo = make_repo_with_one_branch(root, live_branch)
         workflow_dir = root / "workflows"
         workflow_dir.mkdir()
 
+        payload_before = payload_bytes_of_published_checkout(site)
         deletions = apply_retention(site, repo, workflow_dir)
+        payload_after = payload_bytes_of_published_checkout(site)
 
+        assert payload_before < git_metadata_bytes, (
+            f"selftest: the summary reports {payload_before} bytes for a site whose published "
+            f"files are a few hundred bytes; it counted the git metadata of the checkout"
+        )
+        assert payload_after < payload_before, (
+            f"selftest: the summary reports {payload_after} bytes after the rule deleted "
+            f"{len(deletions)} path(s) from a {payload_before}-byte site"
+        )
         assert (site / LEGACY_REPORT_ATTACHMENT_DIR / ("a" * 40 + ".zip")).exists(), (
             "selftest: the rule deleted an attachment the published report references"
         )
@@ -275,9 +285,9 @@ def main() -> int:
         return 0
 
     site = Path(arguments.site).resolve()
-    before = bytes_under(site)
+    before = payload_bytes_of_published_checkout(site)
     deletions = apply_retention(site, Path(arguments.repo).resolve(), Path(arguments.workflows))
-    after = bytes_under(site)
+    after = payload_bytes_of_published_checkout(site)
 
     for deletion in deletions:
         print(f"  deleted {deletion}")

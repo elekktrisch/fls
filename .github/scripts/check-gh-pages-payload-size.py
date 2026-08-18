@@ -3,22 +3,21 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+from gh_pages_payload import (
+    megabytes,
+    payload_bytes_of_published_checkout,
+    plant_git_metadata_github_pages_never_publishes,
+)
+
 GITHUB_PAGES_HARD_CAP_BYTES = 1024 * 1024 * 1024
-PAYLOAD_BYTES_THAT_REDS_LONG_BEFORE_THE_HARD_CAP = 600 * 1024 * 1024
-
-
-def megabytes(byte_count: int) -> str:
-    return f"{byte_count / 1048576:.1f} MB"
-
-
-def payload_bytes_of_local_directory(directory: Path) -> int:
-    return sum(f.stat().st_size for f in directory.rglob("*") if f.is_file())
+PAYLOAD_BYTES_THAT_REDS_LONG_BEFORE_THE_HARD_CAP = 400 * 1024 * 1024
 
 
 def read_github_api(url: str, token: str) -> dict:
@@ -70,6 +69,28 @@ def assert_payload_stays_under_the_threshold(measured: int, threshold: int, sour
     )
 
 
+def commit_every_file_the_way_a_publish_does(checkout: Path) -> None:
+    for command in (
+        ["git", "init", "-q", "-b", "gh-pages", "."],
+        ["git", "config", "user.email", "payload@selftest"],
+        ["git", "config", "user.name", "payload selftest"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "published"],
+    ):
+        subprocess.run(command, cwd=checkout, check=True)
+
+
+def payload_bytes_the_published_branch_holds(checkout: Path) -> int:
+    listed = subprocess.run(
+        ["git", "ls-tree", "-r", "-l", "HEAD"],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return sum(int(line.split()[3]) for line in listed.stdout.splitlines())
+
+
 def run_selftest_so_a_broken_measurement_cannot_report_green() -> None:
     threshold = 4096
     with tempfile.TemporaryDirectory() as scratch:
@@ -78,7 +99,7 @@ def run_selftest_so_a_broken_measurement_cannot_report_green() -> None:
         (over / "nested" / "big.bin").write_bytes(b"x" * (threshold + 1))
         try:
             assert_payload_stays_under_the_threshold(
-                payload_bytes_of_local_directory(over), threshold, "selftest"
+                payload_bytes_of_published_checkout(over), threshold, "selftest"
             )
         except SystemExit as red:
             assert "over the" in str(red), f"selftest: wrong failure message {red}"
@@ -88,8 +109,26 @@ def run_selftest_so_a_broken_measurement_cannot_report_green() -> None:
         under = Path(scratch) / "under"
         under.mkdir()
         (under / "small.bin").write_bytes(b"x" * (threshold - 1))
-        assert_payload_stays_under_the_threshold(
-            payload_bytes_of_local_directory(under), threshold, "selftest"
+        plant_git_metadata_github_pages_never_publishes(under, threshold * 4)
+        measured = payload_bytes_of_published_checkout(under)
+        assert measured == threshold - 1, (
+            f"selftest: the measurement reports {measured} bytes where GitHub Pages publishes "
+            f"{threshold - 1}; it counted the git metadata, which Pages never serves"
+        )
+        assert_payload_stays_under_the_threshold(measured, threshold, "selftest")
+
+        published = Path(scratch) / "checkout-of-the-published-branch"
+        (published / "alpenflight" / "proof").mkdir(parents=True)
+        (published / "alpenflight" / "proof" / "index.html").write_text("page", encoding="utf8")
+        (published / "alpenflight" / "proof" / "run.webm").write_bytes(b"v" * threshold)
+        (published / ".nojekyll").write_text("", encoding="utf8")
+        commit_every_file_the_way_a_publish_does(published)
+        measured_from_the_checkout = payload_bytes_of_published_checkout(published)
+        held_by_the_branch = payload_bytes_the_published_branch_holds(published)
+        assert measured_from_the_checkout == held_by_the_branch, (
+            f"selftest: --dir measures {measured_from_the_checkout} bytes where the published "
+            f"branch holds {held_by_the_branch}; --dir and the git-trees API must report the "
+            f"same payload for the same tree"
         )
     print("PASS")
 
@@ -116,7 +155,7 @@ def main() -> int:
         return 0
 
     if arguments.dir:
-        measured = payload_bytes_of_local_directory(Path(arguments.dir))
+        measured = payload_bytes_of_published_checkout(Path(arguments.dir))
         source = arguments.dir
     else:
         try:

@@ -497,6 +497,27 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Escalation [S1]:** the site is still 913.7 MB. The retention workflow reaches `main` only with this
   journey, so the manager must dispatch `gh-pages-retention.yml` (or merge first) before the deployed
   bookmark can go green.
+- [x] **T-25** — [DEFECT in T-24's instrumentation] The local measurement walked the checkout with
+  `rglob("*")`, so it counted the `.git` directory that GitHub Pages never serves. On the real shallow
+  checkout the git metadata adds 611.5 MB, so `--dir` reported 1526.1 MB and the retention summary
+  reported the same inflated pair.
+  **The measurement now counts only the published payload.**
+  `.github/scripts/gh_pages_payload.py` holds one definition, and both scripts import it, so the guard
+  and the retention summary can never drift apart. It skips every path under `.git`. Nothing else needs
+  a skip: `peaceiris/actions-gh-pages` excludes `.github` at publish time, so the branch never holds it,
+  and every deploy step sets `enable_jekyll: false`, which writes `.nojekyll` and makes Pages serve the
+  branch tree as it stands. The published tree carries exactly one dot-path, `.nojekyll` itself, and no
+  symlink.
+  **Measured on a real shallow checkout of `origin/gh-pages`:** 914.6 MB before the sweep, 74.9 MB after,
+  511 paths deleted, 839.7 MB reclaimed. The checkout measurement and the git-trees API agree to the
+  byte, 958992033 both ways, which proves both are right. T-24's `913.7 MB → 74.1 MB` was therefore the
+  true payload; only its instrumentation was wrong.
+  **The threshold drops to 400 MB.** A swept site holds 74.9 MB, so the guard reds at 5.3 times a healthy
+  payload and leaves 624 MB of the 1 GB cap free. The observed lapse added 839.7 MB, which crosses the old
+  600 MB threshold and the cap in the same period; 400 MB keeps that whole growth inside the headroom.
+  **Verified locally:** both selftests green; each selftest red against the pre-fix measurement (the guard
+  reports 20504 bytes where Pages publishes 4095; the checkout-versus-branch case reports 26900 against
+  4100); the guard red at 914.6 MB and green at 74.9 MB against the real tree.
 
 ## Gate obligations carried by later tasks
 
