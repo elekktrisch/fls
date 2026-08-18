@@ -518,6 +518,37 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Verified locally:** both selftests green; each selftest red against the pre-fix measurement (the guard
   reports 20504 bytes where Pages publishes 4095; the checkout-versus-branch case reports 26900 against
   4100); the guard red at 914.6 MB and green at 74.9 MB against the real tree.
+- [x] **T-26** — [DEFECT in T-24's retention rule] The rule deleted `alpenflight/proof/legacy-parity`
+  because no workflow still names it as a `destination_dir`. That question tests the PRODUCERS of a
+  directory. A published page CONSUMES it: `alpenflight/previews/index.html` links into `J-2`, `J-2b`,
+  `J-5`, `J-6`, `J-7`, `J-8`, `J-9` and `J-27`. The sweep as written left 8 dead links on a live page.
+  **Reachability is now the rule for every deletion.** `gh-pages-retention.py:115` splits the paths the
+  three rules propose into the paths no surviving page reaches and the paths a surviving page still
+  reaches. It parses the HTML that REMAINS after the sweep, never the pre-sweep set, and it repeats the
+  pass until the kept set is stable, so a link on a page the same sweep deletes keeps nothing. A path
+  counts as reached when a link lands on it or under it.
+  **Two link forms that lie are excluded.** `gh-pages-retention.py:47` reads `href`, `src`, `poster`,
+  `data` and `action` from real tags through `html.parser`, which treats `<script>` and `<style>` bodies
+  as character data. The minified Playwright report JS in `legacy/report/index.html`, `report/index.html`
+  and `alpenflight/report/index.html` therefore contributes no link; a naive `src=` regex invents
+  `'+a+'` and `'+Ne(t)+'` from that same text. `gh-pages-retention.py:58` rejects every target that
+  carries a scheme or a host, so `about:blank`, `mailto:`, `javascript:`, `data:` and an external URL
+  address no published file. It maps the site-root form `/fls/…` onto the published path, and it derives
+  the `/fls` prefix from `GITHUB_REPOSITORY`, so a repository rename cannot silently widen the sweep.
+  **Measured on a real shallow clone of `origin/gh-pages`:** 914.6 MB before, **206.9 MB** after, 510
+  paths deleted, 707.7 MB reclaimed. The corrected sweep keeps `alpenflight/proof/legacy-parity` (132.0
+  MB, 13 pages); T-24 deleted it. It still deletes `alpenflight/proof/j-0c-fanout`, the
+  `verify-J-17-T-03-fanout` preview and all 508 unreachable report attachments. 206.9 MB passes T-25's
+  400 MB threshold, which stays as T-25 set it.
+  **Zero dead links on the surviving tree:** 609 site-file links across 34 surviving pages, 0 broken, 8
+  non-file targets excluded.
+  **Recommendation [S3] `[PREVIEWS-INDEX-STALE]`:** `alpenflight/previews/index.html` looks like a stale
+  artifact. J-11 (#236) deleted `generate-previews-index.mjs` and the `rebuild-previews-index` action, so
+  nothing regenerates the page; its newest row reads `2026-06-23T01:16:30Z`. The operator's rule is one
+  gallery page for the current journey. Deleting the page and `legacy-parity` together brings the payload
+  to 74.9 MB, and the reachability rule handles that pair in one sweep. The cost: `alpenflight/proof/J-0`,
+  `J-0c` and `J-1` keep a back-link to `/fls/alpenflight/previews/`, which then goes dead. The manager
+  owns this decision about published content, so this task deleted nothing.
 
 ## Gate obligations carried by later tasks
 
