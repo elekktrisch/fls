@@ -230,6 +230,7 @@ jobs:
       # gh-pages publish of the branch-preview proof bookmark.
       contents: write
       pull-requests: write
+      pages: read
     env:
       # Legacy stack
       FLS_LISTEN_URL: "http://*:25567/"
@@ -1528,6 +1529,7 @@ jobs:
           GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           REF_NAME: ${{ github.ref_name }}
           GALLERY_LINKS_ONLY: '1'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
           GALLERY_DEPLOYED_JOURNEY="$JID" \

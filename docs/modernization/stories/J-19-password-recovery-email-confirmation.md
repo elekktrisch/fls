@@ -459,6 +459,44 @@ Keycloak login theme, not these pages. Build both pages from the J-17 public for
   **Escalation [S3] `[KC-ACCOUNT-CONSOLE-FRAME-SRC]`:** the stock account console frames
   `http://localhost:8099/` and its own CSP `frame-src 'self'` blocks it, which prints a console error. It
   predates this journey, comes from Keycloak's own code, and no real-idp test opens that page.
+- [x] **T-24** — [BLOCKER, run `ci` head `cb4908f16`, `alpenflight proof (real-idp, clean-seed)` step 28]
+  The published site grew to **913.7 MB** against the 1 GB GitHub Pages cap, so a Pages BUILD errored while
+  the git push succeeded. The CDN kept the previous copy, and the deployed-bookmark guard called it a stale
+  CDN copy. The builds API proves the pattern: build `9b463aa00` errored with "Page build failed." on
+  2026-08-17, two builds on 2026-08-15 errored, and the runs between them built. The site sits on the
+  failure boundary, so the red is intermittent.
+  **The retention rule deletes only what no published page reaches.**
+  `.github/scripts/gh-pages-retention.py` holds three rules. (1) It deletes a `legacy/report/data` file that
+  the published `legacy/report/index.html` does not name; the nightly replaces that report on every run and
+  merges the attachments, so every earlier run's attachment is unreachable. The live report named **0 of the
+  508 files** — measured by decoding the report's own base64 payload. (2) It deletes an
+  `alpenflight/proof-preview/<dir>` whose branch is gone from origin; that reaps a `workflow_dispatch`
+  preview the PR-close reaper never sees. (3) It deletes the two retired fan-out destinations
+  `alpenflight/proof/legacy-parity` and `alpenflight/proof/j-0c-fanout`, and it refuses to run when a
+  workflow still names one as a `destination_dir`. Measured against the real published tree:
+  **913.7 MB → 74.1 MB**, 511 paths deleted. The rule keeps `alpenflight/proof-preview/integration-J-19`,
+  every `alpenflight/proof` video and journey page, and the pre-namespace root directories (`report/`,
+  `screenshots/`, `videos/`, `logs/`, 25.5 MB), because an old PR body can still link them.
+  `.github/workflows/gh-pages-retention.yml` runs the rule daily, after each nightly, and on demand.
+  **The guard now names the true cause.** `gallery-deployed-link-check.spec.ts:53` reads the Pages builds
+  API, keeps the builds that started after this run generated the page, and reports "GitHub Pages FAILED TO
+  BUILD … <the API's own error>" when one errored. It fails at once, because polling never clears a failed
+  build. When the build reports `built`, the spec keeps the stale-CDN message and adds the build status.
+  The CDN budget stays 180 s: the observed failure was an errored build, not a slow one, and a longer window
+  only delays the report. The spec extends the budget to a 240 s ceiling while the API reports `building` or
+  `queued`, so it waits exactly as long as GitHub works.
+  **The size guard reds long before the cap.** `.github/scripts/check-gh-pages-payload-size.py` measures the
+  payload and fails above 600 MB. `ci.yml:1377` runs it before every proof deploy through the git-trees API,
+  which needs no clone.
+  **Verified locally:** both selftests green; the size guard red at 913.7 MB and green at 74.1 MB against
+  the real tree; the guard red against the real errored build `9b463aa00`; the guard red with the stale-CDN
+  message when the build reports `built`; both deployed cases green against the live J-19 bookmark;
+  `actionlint` green on `ci.yml`, `gh-pages-retention.yml` and `alpenflight-proof-fanout.yml`.
+  **Only a CI run can confirm** the retention workflow's push to gh-pages, the Pages build that follows it,
+  and `pages: read` on the `GITHUB_TOKEN`.
+  **Escalation [S1]:** the site is still 913.7 MB. The retention workflow reaches `main` only with this
+  journey, so the manager must dispatch `gh-pages-retention.yml` (or merge first) before the deployed
+  bookmark can go green.
 
 ## Gate obligations carried by later tasks
 

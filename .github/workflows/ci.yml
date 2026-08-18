@@ -754,6 +754,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      pages: read
     env:
       E2E_REAL_IDP: '1'
     steps:
@@ -1374,6 +1375,12 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+      - name: Payload-size guard — the published site must stay far under the GitHub Pages cap
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/check-gh-pages-payload-size.py
+
       # Publish the single-bookmark gallery to the canonical gh-pages path on
       # main. `!cancelled()` (not the implicit `success()`) so a red proof CASE
       # still deploys the page the operator needs to see; `steps.gallery.outcome`
@@ -1423,6 +1430,7 @@ jobs:
           GALLERY_DEPLOYED_JOURNEY: ${{ needs.changes.outputs.proof_is_baseline != 'true' && needs.changes.outputs.proof_journey || '' }}
           GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           GALLERY_LINKS_ONLY: '1'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
