@@ -31,20 +31,17 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
 
-- **[CI-CHECKOUT-FETCHES-ALL-OF-GH-PAGES]** [S1] `ci.yml:86` checks out with `fetch-depth: 0`, so
-  `actions/checkout` fetches `+refs/heads/*`, which includes `gh-pages`. That branch holds at least
-  0.87 GiB in 1518 blobs no other branch reaches — every proof video, trace and screenshot CI has
-  published. (Measured on a SHALLOW clone whose `gh-pages` is grafted, so the real branch is
-  larger.) The retention cron deletes files from the gh-pages TIP only, so the history keeps every
-  blob and grows on each publish. The `changes` job pays that cost under `timeout-minutes: 3`
-  (`ci.yml:44`): 37–42 s on 12 of 15 recent runs, 100 s and 118 s on two, and 3 m 25 s on run
-  32286548088, where GitHub killed the job (`The job has exceeded the maximum execution time of
-  3m0s`) inside `git fetch` and the `required` gate went red for a cause no reviewer can act on.
-  Both readers of that history — the `incremental` step and `dorny/paths-filter` — need file NAMES
-  and not file CONTENT, and `incremental` already fails safe when the BEFORE SHA is absent.
-  Candidate fix: add `filter: blob:none` to that checkout, then measure the step. Bounding the
-  gh-pages history itself is the root fix and rewrites a published branch.
-  *(seam: `ci.yml:84-86` checkout options + the `changes` job timeout at `:44`)*
+- **[GH-PAGES-HISTORY-IS-UNBOUNDED]** [S2] Two guards bound the gh-pages TREE: the retention cron
+  deletes what no published page reaches, and `check-gh-pages-payload-size.py` reds over 400 MB.
+  Nothing bounds the gh-pages HISTORY. Every deleted proof video, trace and screenshot stays in the
+  branch's objects, and the cron's own delete commit adds one more. Measured: at least 0.87 GiB in
+  1518 blobs that no other branch reaches, on a SHALLOW clone whose `gh-pages` is grafted, so the
+  real branch is larger. This cost GitHub storage, and it broke the `changes` job's clone once (run
+  32286548088) until `filter: blob:none` removed the historical content from that fetch. Root fix:
+  re-write `gh-pages` as one orphan commit that holds the current published tree, on a schedule.
+  That force-pushes a published branch, so it must take the existing `gh-pages-deploy` concurrency
+  group and must run after the retention sweep, never beside it.
+  *(seam: `gh-pages-retention.yml`, after the "Publish the pruned site" step)*
 - **[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]** [S2] `check-theme-resources-are-all-self-hosted.sh:10`
   catches an external host only inside `url(` or `@import`. Reproduced: an `.ftl` carrying
   `<link href="//fonts.googleapis.com/css2?family=Roboto">` and `<script src="//cdn…">` passes with

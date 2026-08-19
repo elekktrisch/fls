@@ -41,7 +41,7 @@ jobs:
   changes:
     name: detect changes
     runs-on: ubuntu-22.04
-    timeout-minutes: 3
+    timeout-minutes: 11
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
@@ -81,9 +81,12 @@ jobs:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
       # shallow depth-1 checkout would not have locally.
-      - uses: actions/checkout@v4
+      - name: Check out every ref, without the historical file content gh-pages accumulates (the readers below need file NAMES, which live in trees)
+        uses: actions/checkout@v4
+        timeout-minutes: 8
         with:
           fetch-depth: 0
+          filter: blob:none
 
       # Fail the whole run before any gate job spends compute: a ternary whose
       # then-branch is falsy silently disables the branch it looks like it
