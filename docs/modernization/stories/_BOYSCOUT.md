@@ -17,6 +17,12 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+**Burndown moved to a dedicated journey (operator, 2026-08-19).** Neither oldest-first (J-17 retro) nor
+severity-first (J-31 retro) drained this file: it went ~17 → 45 riders, and J-19 alone burned 2 while filing 9.
+A per-journey slot cannot match the discovery rate, and throttling the filing would be worse — J-19's riders
+came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns draining every S1 and S2.**
+`/do-ship` still folds on-surface riders opportunistically. Filing stays unrestricted.
+
 **Severity markers** — `/do-retro` tags every rider, `/do-ship` burns them down highest-first:
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
@@ -52,27 +58,6 @@ stragglers each ceremony so the file shrinks.
   (migrate-from-legacy upload wizard, `_ORDER.md:23`), so the fix rides J-21.
   *(seam: `PreTenantUserLookup.resolveUserId` + `JitUserMaterializerImpl` + `MigrationHandshakeService`
   + the verified-email signup path)*
-- **[ABSOLUTE-DATES-IN-MOCK-FULFILL-BODIES]** [S3] **Corrected by J-19 T-03, measured not assumed.**
-  Only API-SEEDED dates can expire against `FlightsService.java:47`'s 90-day list window. J-19 fixed
-  and guarded all three such sites (`delivery-creation-test-parity`, `deliveries-parity`,
-  `deliveries-write-parity`), now sharing
-  `e2e/tests/real-idp/_helpers/seed-flight-date.ts`. The remaining 13 absolute dates were checked
-  empirically: every one of those specs has **zero `.post()` calls**, so each date sits in a
-  `route.fulfill` response body that no server window can expire. They are cosmetic, not timed reds:
-  `accounting/deliveries.spec.ts:86`, `accounting/delivery-creation-test.spec.ts:62`,
-  `flights/04-flights-create.spec.ts:99`, `flights/04c-flights-paired-create.spec.ts:103`,
-  `flights/05-flights-edit.spec.ts:88`, `flights/flights-list-delete.spec.ts:26,39`,
-  `forms/validation-hardening.spec.ts:197`, `reporting/custom-builder.spec.ts:26`,
-  `reporting/flight-reports.spec.ts:65,92,164,180`. Convert on next touch for consistency only.
-  **T-03's coverage claim was wrong, and J-19 T-17 corrected it.** The T-03 guard walked only
-  `*.spec.ts` under `alpenflight/web/e2e/tests`, and recognised only a `.post(` call site. It never
-  opened a `_helpers/*.ts` fixture, never opened the root `e2e/` suite, and never saw a
-  `request.fetch({ method: 'POST' })` seed. T-17 widened it to every `.ts` file under both e2e trees
-  and to both POST forms; see the T-17 task line for the exact scope. **T-17 read only two of the three
-  quote styles, and J-19 T-21 corrected that**: a backtick-quoted date — the very form the guard's own
-  message recommended — was invisible. T-21 reads all three quote styles, adds `.put(` / `.patch(` /
-  a `PUT` or `PATCH` `.fetch(`, and guards a seeding file end to end so a hoisted const body reds too.
-  *(seam: those 13 mock fixtures)*
 - **[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]** [S2] J-19 T-21 widened the quote styles, the verbs
   and the call span of `absolute-flight-date-in-api-seed-guard.mjs`, but the guarded field list is still
   the three flight fields T-03 chose. A T-21 scan over every file that holds a seeding call site found
@@ -464,11 +449,6 @@ stragglers each ceremony so the file shrinks.
   to cut the workflow YAML (~4.5k→~2k) — the only still-pending half (the mock-suite sharding, real-idp shard,
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
-- **[HISTORY→GIT] Journey/story files contract-only.** [S3] Prune journey files to frontmatter + ACs + the
-  task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
-  + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +
-  next journeys; don't churn merged ones). *(seam: `docs/modernization/stories/*.md` per-touch)*
-  [[feedback_self_explanatory_no_history_comments]]
 - **[QODANA-BUILD-FILE-BLIND-SPOT]** [S3] Filed by J-19 T-22's audit of every path-filtered workflow.
   `qodana.yml:29-33` filters to `alpenflight/server/src/main/java/**` + the three qodana files, which
   matches `qodana.yaml`'s own `include.paths` exactly — so the inspected sources are covered. The gap is
