@@ -115,6 +115,13 @@ jobs:
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh --selftest
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh
 
+      - name: gh-pages retention + payload-size + deploy-gating guards, each with its negative test (the daily cron DELETES published files — runs on EVERY push, deliberately never path-filtered)
+        run: |
+          python3 .github/scripts/gh-pages-retention.py --selftest
+          python3 .github/scripts/check-gh-pages-payload-size.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py
+
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
       #
@@ -1376,6 +1383,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Payload-size guard — the published site must stay far under the GitHub Pages cap
+        id: payload_size_guard
         if: ${{ !cancelled() && steps.gallery.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1387,7 +1395,7 @@ jobs:
       # still gates on a built page (never publish a never-built one). keep_files
       # so it coexists with the e2e dashboard under /alpenflight/.
       - name: Deploy proof gallery to gh-pages (main)
-        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1400,7 +1408,7 @@ jobs:
       # Per-PR preview deploy of the SAME single page to a disjoint per-branch
       # subpath. `!cancelled()` so a red proof case still deploys the bookmark.
       - name: Deploy proof gallery to gh-pages (PR preview)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

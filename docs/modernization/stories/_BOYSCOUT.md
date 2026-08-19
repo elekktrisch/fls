@@ -27,32 +27,10 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
-## Pending (filed by /do-retro J-19 window, 2026-08-19 — the destructive gh-pages path)
+## Pending (filed by /do-retro J-19 window, 2026-08-19)
 
-Found by the confirming `gap-hunter` round AFTER #251 merged. All three sit on the daily 05:30
-`gh-pages-retention.yml` cron, which DELETES published content.
+Found by the confirming `gap-hunter` round AFTER #251 merged.
 
-- **[RETENTION-GUARDS-HAVE-NO-PR-GATE]** [S1] Neither `gh-pages-retention.py --selftest` nor
-  `check-gh-pages-payload-size.py --selftest` runs in the PR lane. Both run only inside
-  `.github/workflows/gh-pages-retention.yml:25,28` (schedule / nightly / dispatch), and `ci.yml:1382`
-  runs the size guard WITHOUT its selftest. So a pull request that breaks the destructive sweep is
-  green, and the cron then deletes live gh-pages content with no red anywhere. `ci.yml:113` wires the
-  theme guard's selftest deliberately; these two were missed. This is the FIFTH guard in this window
-  that failed to cover its own inputs, and the first on a path that destroys data.
-  *(seam: `ci.yml`'s `changes` job + both `--selftest` entry points)*
-  [[feedback_gate_must_prove_a_red_per_input_class]]
-- **[PAYLOAD-GUARD-CANNOT-STOP-THE-PUBLISH]** [S1] `ci.yml:1378` reds when the payload exceeds the
-  threshold, but the deploy steps at `:1389` and `:1404` carry `if: ${{ !cancelled() && … }}`, which
-  evaluates TRUE after a failed step. So at 950 MB the guard reds and the same job pushes anyway,
-  Pages errors the build, and the operator gets a stale gallery — precisely the failure J-19 T-24 was
-  filed to prevent. The guard changes the message, not the outcome. Gate the deploy on the guard's
-  result. *(seam: the two `actions-gh-pages` steps' `if:` conditions)*
-- **[RETENTION-DELETES-ON-A-MISSED-REGEX]** [S1] `.github/scripts/gh-pages-retention.py:166` — when the
-  report payload regex does not match, it `continue`s with an EMPTY referenced set, so every
-  `legacy/report/data` file is treated as unreachable and deleted. Every sibling failure path (missing
-  report, `BadZipFile`) warns and KEEPS. A Playwright report-format change is enough to trigger it, and
-  the deletion is silent. Fail closed: an unparseable report must keep everything, like its siblings.
-  *(seam: that `continue` branch)*
 - **[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]** [S2] `check-theme-resources-are-all-self-hosted.sh:10`
   catches an external host only inside `url(` or `@import`. Reproduced: an `.ftl` carrying
   `<link href="//fonts.googleapis.com/css2?family=Roboto">` and `<script src="//cdn…">` passes with
