@@ -31,6 +31,16 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
 
+- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S2] The J-31 sweep deleted every comment in
+  `alpenflight/` and `e2e/`, and the gate at `ci.yml:105` reads those two roots only. `.github/`
+  was never swept, so it still holds 1850 comment lines in 5895 (31%), and `ci.yml` alone holds 883
+  in 2501 (35%). The operator reads that narration as a policy breach, because the rule is one rule
+  for the repository. The stripper maps `.yml`, `.yaml` and `.sh`, so it can sweep the workflows
+  today; it has no `.py` mapping, so `.github/scripts` needs one first. Sweep with `/comment-strip`
+  BEFORE adding `.github` to the gate's roots, because the gate reds on its first run otherwise.
+  Same class as the extract.yml hole: a gate that does not read its own inputs.
+  *(seam: `.claude/skills/comment-strip/scripts/strip.mjs` extension map + the gate's roots at
+  `ci.yml:105`)* [[project_gate_must_cover_its_own_inputs]]
 - **[GH-PAGES-HISTORY-IS-UNBOUNDED]** [S2] Two guards bound the gh-pages TREE: the retention cron
   deletes what no published page reaches, and `check-gh-pages-payload-size.py` reds over 400 MB.
   Nothing bounds the gh-pages HISTORY. Every deleted proof video, trace and screenshot stays in the

@@ -41,7 +41,7 @@ jobs:
   changes:
     name: detect changes
     runs-on: ubuntu-22.04
-    timeout-minutes: 11
+    timeout-minutes: 5
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
@@ -81,9 +81,9 @@ jobs:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
       # shallow depth-1 checkout would not have locally.
-      - name: Check out every ref, without the historical file content gh-pages accumulates (the readers below need file NAMES, which live in trees)
+      - name: Check out every ref without historical file content
         uses: actions/checkout@v4
-        timeout-minutes: 8
+        timeout-minutes: 2
         with:
           fetch-depth: 0
           filter: blob:none
@@ -118,7 +118,7 @@ jobs:
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh --selftest
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh
 
-      - name: gh-pages retention + payload-size + deploy-gating guards, each with its negative test (the daily cron DELETES published files — runs on EVERY push, deliberately never path-filtered)
+      - name: gh-pages guards + their negative tests
         run: |
           python3 .github/scripts/gh-pages-retention.py --selftest
           python3 .github/scripts/check-gh-pages-payload-size.py --selftest
