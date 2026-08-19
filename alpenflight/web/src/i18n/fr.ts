@@ -173,6 +173,19 @@ const fr: Translations = {
       required: 'Saisie obligatoire.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Se connecter',
+    },
+    errors: {
+      unreachable: 'Le service de connexion est indisponible. Réessayez plus tard.',
+    },
+    language: 'Langue',
+    verified: {
+      body: 'Votre compte est prêt. Connectez-vous maintenant.',
+      headline: 'AlpenFlight a confirmé votre adresse e-mail.',
+    },
+  },
   deliveries: {
     title: 'Livraisons',
     actions: {
@@ -343,6 +356,7 @@ const fr: Translations = {
   },
   landing: {
     actions: {
+      lostPassword: 'Mot de passe oublié ?',
       migrateFromLegacy: 'Migrer depuis FLS legacy',
       requestAccess: 'Demander un accès',
       signIn: 'Se connecter',
@@ -468,6 +482,29 @@ const fr: Translations = {
     readonlyBanner:
       'Lecture seule. Les emplacements de votre club sont gérés par votre administrateur de club.',
     title: 'Emplacements',
+  },
+  lostpassword: {
+    actions: {
+      signIn: 'Se connecter',
+      start: 'Aller au service de connexion',
+    },
+    caution: 'Le lien fonctionne une seule fois. N’utilisez pas le lien une deuxième fois.',
+    errors: {
+      unreachable: 'Le service de connexion est indisponible. Réessayez plus tard.',
+    },
+    headline: 'Réinitialiser votre mot de passe',
+    knowThePassword: 'Vous connaissez votre mot de passe ?',
+    language: 'Langue',
+    steps: {
+      openTheMail: 'Ouvrez l’e-mail d’AlpenFlight, puis sélectionnez le lien de réinitialisation.',
+      selectForgotPassword:
+        'Sélectionnez le lien de mot de passe oublié dans le service de connexion.',
+      setTheNewPassword:
+        'Saisissez deux fois votre nouveau mot de passe, puis envoyez le formulaire.',
+      typeTheAddress: 'Saisissez votre adresse e-mail, puis envoyez le formulaire.',
+    },
+    tagline:
+      'AlpenFlight conserve votre mot de passe dans le service de connexion. La réinitialisation commence là.',
   },
   migrateHandshake: {
     copied: 'Handshake copié.',

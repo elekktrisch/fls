@@ -1,9 +1,20 @@
 import { type APIRequestContext } from '@playwright/test';
 import { expect, test } from '../_helpers/console-guard';
 
-const DEPLOYED_POLL_BUDGET_MS = 180_000;
-const DEPLOYED_TEST_TIMEOUT_MS = DEPLOYED_POLL_BUDGET_MS + 30_000;
+const CDN_PROPAGATION_BUDGET_MS = 180_000;
+const WALL_CEILING_WHILE_GITHUB_STILL_BUILDS_THE_PAGE_MS = 240_000;
+const DEPLOYED_TEST_TIMEOUT_MS = WALL_CEILING_WHILE_GITHUB_STILL_BUILDS_THE_PAGE_MS + 30_000;
 const RETRY_INTERVAL_MS = 5_000;
+
+const PAGES_API_REPOSITORY = process.env['GITHUB_REPOSITORY'];
+const PAGES_API_TOKEN = process.env['GITHUB_TOKEN'];
+
+interface PagesBuild {
+  status: string;
+  detail: string;
+}
+
+const PAGES_BUILD_STATUS_UNREADABLE = 'unreadable';
 
 const EXPECT_GENERATED_AT = (() => {
   const raw = process.env['GALLERY_EXPECT_GENERATED_AT']?.trim();
@@ -21,6 +32,78 @@ async function getFresh(request: APIRequestContext, url: string) {
   return request.get(u.href, {
     headers: { 'cache-control': 'no-cache', pragma: 'no-cache' },
   });
+}
+
+interface PagesBuildFromApi {
+  status?: string;
+  commit?: string;
+  created_at?: string;
+  error?: { message?: string | null };
+}
+
+function buildsStartedAfterThisRunGeneratedThePage(
+  builds: PagesBuildFromApi[],
+): PagesBuildFromApi[] {
+  if (!EXPECT_GENERATED_AT) return builds;
+  const publishedAtMs = Date.parse(EXPECT_GENERATED_AT);
+  const ours = builds.filter((b) => Date.parse(b.created_at ?? '') >= publishedAtMs);
+  return ours.length > 0 ? ours : builds.slice(0, 1);
+}
+
+async function readPagesBuildThisRunTriggered(request: APIRequestContext): Promise<PagesBuild> {
+  if (!PAGES_API_REPOSITORY || !PAGES_API_TOKEN) {
+    return {
+      status: PAGES_BUILD_STATUS_UNREADABLE,
+      detail:
+        'the GitHub Pages build status was NOT read (set GITHUB_REPOSITORY + GITHUB_TOKEN with `pages: read` to tell a failed build apart from CDN lag)',
+    };
+  }
+  const res = await request.get(
+    `https://api.github.com/repos/${PAGES_API_REPOSITORY}/pages/builds?per_page=20`,
+    {
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${PAGES_API_TOKEN}`,
+        'x-github-api-version': '2022-11-28',
+      },
+      failOnStatusCode: false,
+    },
+  );
+  if (!res.ok()) {
+    return {
+      status: PAGES_BUILD_STATUS_UNREADABLE,
+      detail: `the GitHub Pages build status was NOT read (builds API answered ${res.status()})`,
+    };
+  }
+  const candidates = buildsStartedAfterThisRunGeneratedThePage(
+    (await res.json()) as PagesBuildFromApi[],
+  );
+  const errored = candidates.find((b) => b.status === 'errored');
+  if (errored) {
+    return {
+      status: 'errored',
+      detail:
+        `GitHub Pages FAILED TO BUILD the site pushed as commit ${errored.commit ?? 'unknown'} ` +
+        `at ${errored.created_at ?? 'unknown time'}. The builds API reports: ` +
+        `"${errored.error?.message ?? '(no message)'}". The git push to gh-pages succeeded, so ` +
+        'the CDN keeps serving the PREVIOUS copy — this is NOT CDN lag, and polling will never ' +
+        'clear it. The usual cause is the published site crossing the 1 GB GitHub Pages cap; run ' +
+        'the gh-pages-retention workflow, then re-publish.',
+    };
+  }
+  const newest = candidates[0];
+  if (!newest) {
+    return {
+      status: PAGES_BUILD_STATUS_UNREADABLE,
+      detail: 'the GitHub Pages builds API listed no build at all',
+    };
+  }
+  return {
+    status: newest.status ?? PAGES_BUILD_STATUS_UNREADABLE,
+    detail:
+      `the GitHub Pages build for commit ${newest.commit ?? 'unknown'} reports status ` +
+      `"${newest.status ?? PAGES_BUILD_STATUS_UNREADABLE}", so the publish itself is not the fault`,
+  };
 }
 
 function stalenessReason(html: string): string {
@@ -67,16 +150,38 @@ async function checkOnce(request: APIRequestContext, url: string): Promise<strin
   return broken;
 }
 
-async function checkWithRetry(request: APIRequestContext, url: string): Promise<void> {
-  const deadlineMs = Date.now() + DEPLOYED_POLL_BUDGET_MS;
-  let broken: string[];
+async function pollUntilPublishedOrProvenBroken(
+  request: APIRequestContext,
+  attempt: () => Promise<string[]>,
+): Promise<{ remaining: string[]; build: PagesBuild }> {
+  const startedAtMs = Date.now();
+  const wallCeilingMs = startedAtMs + WALL_CEILING_WHILE_GITHUB_STILL_BUILDS_THE_PAGE_MS;
+  let deadlineMs = startedAtMs + CDN_PROPAGATION_BUDGET_MS;
+  let build: PagesBuild = { status: PAGES_BUILD_STATUS_UNREADABLE, detail: 'not read yet' };
   for (;;) {
-    broken = await checkOnce(request, url);
-    if (broken.length === 0) return;
-    if (Date.now() >= deadlineMs) break;
+    const remaining = await attempt();
+    if (remaining.length === 0) return { remaining, build };
+    build = await readPagesBuildThisRunTriggered(request);
+    if (build.status === 'errored') return { remaining, build };
+    if (build.status === 'building' || build.status === 'queued') {
+      deadlineMs = Math.min(wallCeilingMs, Date.now() + CDN_PROPAGATION_BUDGET_MS);
+    }
+    if (Date.now() >= deadlineMs) return { remaining, build };
     await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
   }
-  expect(broken, `live dead links (after retry):\n  - ${broken.join('\n  - ')}`).toEqual([]);
+}
+
+async function checkWithRetry(request: APIRequestContext, url: string): Promise<void> {
+  const { remaining, build } = await pollUntilPublishedOrProvenBroken(request, () =>
+    checkOnce(request, url),
+  );
+  if (build.status === 'errored') {
+    expect(build.status, build.detail).not.toBe('errored');
+  }
+  expect(
+    remaining,
+    `live dead links (after retry) — ${build.detail}:\n  - ${remaining.join('\n  - ')}`,
+  ).toEqual([]);
 }
 
 const DEPLOYED_GALLERY_URL = process.env['GALLERY_DEPLOYED_URL'];
@@ -103,16 +208,18 @@ test.describe('proof-gallery deployed bookmark', () => {
     );
     test.setTimeout(DEPLOYED_TEST_TIMEOUT_MS);
     const url = pageUrl(DEPLOYED_GALLERY_URL!);
-    const deadlineMs = Date.now() + DEPLOYED_POLL_BUDGET_MS;
 
-    let lastErr: string;
-    for (;;) {
-      lastErr = await tryAssertJourneyPage(request, url, DEPLOYED_GALLERY_JOURNEY!);
-      if (lastErr === '') return;
-      if (Date.now() >= deadlineMs) break;
-      await new Promise((r) => setTimeout(r, RETRY_INTERVAL_MS));
+    const { remaining, build } = await pollUntilPublishedOrProvenBroken(request, async () => {
+      const reason = await tryAssertJourneyPage(request, url, DEPLOYED_GALLERY_JOURNEY!);
+      return reason === '' ? [] : [reason];
+    });
+    if (build.status === 'errored') {
+      expect(build.status, build.detail).not.toBe('errored');
     }
-    expect(lastErr, `deployed in-flight page check (after retry):\n  ${lastErr}`).toBe('');
+    expect(
+      remaining.join('\n  '),
+      `deployed in-flight page check (after retry) — ${build.detail}:\n  ${remaining.join('\n  ')}`,
+    ).toBe('');
   });
 });
 

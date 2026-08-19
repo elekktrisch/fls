@@ -21,7 +21,7 @@ FROM quay.io/keycloak/keycloak:26.5
 # `${ALPENFLIGHT_WEB_BASE_URL}` marker (check-realm-shape.sh asserts it +
 # normalize-realm-export.sh re-injects on round-trip). Rotation requires
 # `rebuild-keycloak.sh` — same operator workflow as KEYCLOAK_GOOGLE_*.
-ARG ALPENFLIGHT_WEB_BASE_URL=http://localhost:4200/
+ARG ALPENFLIGHT_WEB_BASE_URL=http://localhost:4201/
 
 # USER 0 so the RUN sed below can rewrite the import file. The base image's
 # `/opt/keycloak/data/import/` is root-owned (created before its USER 1000),

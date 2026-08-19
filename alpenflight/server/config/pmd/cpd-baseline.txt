@@ -187,5 +187,15 @@
 # @ExceptionHandler registration and per-aggregate @DomainEvents hook above:
 # framework-mandated per-class registration, not logic duplication.
 #
+# Re-measured 2026-08-15 (J-19 T-10, read-merge-write on the deployment
+# directory): 5356 (-61). The rider made
+# KeycloakDeploymentDirectoryAdapter.setUserAttribute read-merge-write, which
+# cloned the block KeycloakAdminClient already carried: read the full user
+# representation, merge one attribute, and re-send every field a Keycloak PUT
+# clears. Both call sites now delegate to the shared-kernel record
+# platform.keycloak.MergeableKeycloakUserRepresentation, so the codebase holds
+# the partial-PUT rule once. The measurement landed below the prior baseline.
+# Lock the gain.
+#
 # Single non-comment, non-blank line = the token baseline.
-5417
+5356

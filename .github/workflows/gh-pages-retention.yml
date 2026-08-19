@@ -1,0 +1,73 @@
+name: gh-pages retention
+
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows: [nightly]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  prune-unreachable-published-files:
+    name: prune what no published page reaches
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Retention rule + its negative test
+        run: python3 .github/scripts/gh-pages-retention.py --selftest
+
+      - name: Payload-size guard + its negative test
+        run: python3 .github/scripts/check-gh-pages-payload-size.py --selftest
+
+      - name: Check out the published site
+        id: published
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git init -q gh-pages-site
+          cd gh-pages-site
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git fetch -q --depth 1 origin gh-pages; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "gh-pages does not exist — nothing published, nothing to prune."
+            exit 0
+          fi
+          git checkout -q -b gh-pages FETCH_HEAD
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+
+      - name: Apply the retention rule
+        if: ${{ steps.published.outputs.exists == 'true' }}
+        run: |
+          python3 .github/scripts/gh-pages-retention.py \
+            --site gh-pages-site \
+            --repo . \
+            --workflows .github/workflows
+
+      - name: Publish the pruned site
+        if: ${{ steps.published.outputs.exists == 'true' }}
+        run: |
+          set -euo pipefail
+          cd gh-pages-site
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "the published site already holds only reachable files."
+            exit 0
+          fi
+          git commit -q -m "chore: gh-pages retention — drop what no published page reaches"
+          git push -q origin gh-pages
+
+      - name: Assert the pruned payload stays under the threshold
+        if: ${{ steps.published.outputs.exists == 'true' }}
+        run: python3 .github/scripts/check-gh-pages-payload-size.py --dir gh-pages-site

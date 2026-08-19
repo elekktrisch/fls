@@ -7,6 +7,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 PROJECT="alpenflight-dev"
 
+ALPENFLIGHT_WEB_BASE_URL="${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4201/}"
+export ALPENFLIGHT_WEB_BASE_URL
+
 # shellcheck source=lib/shared-network.sh
 source "${SCRIPT_DIR}/lib/shared-network.sh"
 # shellcheck source=lib/fail-loud.sh
@@ -39,6 +42,7 @@ cat <<INFO
   pgAdmin                     http://localhost:5050  (dev@example.com / dev)
   Keycloak admin              http://localhost:8090  (admin / admin)
   Keycloak mgmt (health)      http://localhost:9090/health/ready
+  Login-theme back links      ${ALPENFLIGHT_WEB_BASE_URL}  (baked into the image at build time)
 
 Tear down:
   docker compose -p ${PROJECT} down              # keep volumes

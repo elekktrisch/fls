@@ -46,3 +46,5 @@ alpenflight/server/backend.pid
 
 # /comment-strip working state (manifests, shard state)
 .comment-strip/
+
+__pycache__/

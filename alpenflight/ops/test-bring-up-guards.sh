@@ -5,6 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 FANOUT_WORKFLOW="${REPO_ROOT}/.github/workflows/alpenflight-proof-fanout.yml"
+PLAYWRIGHT_CONFIG="${REPO_ROOT}/alpenflight/web/e2e/playwright.config.ts"
 
 failures=0
 pass() { printf '  ok   %s\n' "$1"; }
@@ -127,6 +128,93 @@ elif [[ "${mailpit_line}" -lt "${legacy_pw_line}" ]]; then
     pass "fan-out ordering: mailpit bring-up (line ${mailpit_line}) precedes legacy e2e (line ${legacy_pw_line})"
 else
     fail "fan-out ordering: mailpit bring-up (line ${mailpit_line}) runs AFTER the legacy e2e steps (line ${legacy_pw_line}) — global-setup will time out before any spec runs"
+fi
+
+echo "== every site that bakes or asserts the Keycloak client baseUrl names the real-OIDC SPA port =="
+
+port_of_default_in() {
+    local file="$1" variable="$2"
+    grep -oE "${variable}'?\] \?\? 'http://localhost:[0-9]{4}'" "${file}" | grep -oE '[0-9]{4}'
+}
+
+REAL_OIDC_SPA_PORT="$(port_of_default_in "${PLAYWRIGHT_CONFIG}" "E2E_REAL_IDP_BASE_URL")"
+MOCK_AUTH_SPA_PORT="$(port_of_default_in "${PLAYWRIGHT_CONFIG}" "E2E_BASE_URL")"
+
+ports_named_on_lines_matching() {
+    local file="$1" selector="$2"
+    grep -E -- "${selector}" "${file}" \
+        | grep -oE 'localhost(:|%3A)[0-9]{4}|--port[= ][0-9]{4}' \
+        | grep -oE '[0-9]{4}$'
+}
+
+assert_names_the_real_oidc_spa_port() {
+    local label="$1" file="$2" selector="$3" named seen=0
+    while read -r named; do
+        [[ -z "${named}" ]] && continue
+        seen=1
+        if [[ "${named}" == "${REAL_OIDC_SPA_PORT}" ]]; then
+            pass "${label}: names ${named}, the port the real-OIDC SPA serves"
+        else
+            fail "${label}: names port ${named}, but the SPA that follows the Keycloak login-theme back links serves on ${REAL_OIDC_SPA_PORT} — the theme would return the member to a different application"
+        fi
+    done < <(ports_named_on_lines_matching "${file}" "${selector}")
+    if [[ "${seen}" -eq 0 ]]; then
+        fail "${label}: no port matched /${selector}/ in ${file} — this guard lost its own input"
+    fi
+}
+
+if [[ -z "${REAL_OIDC_SPA_PORT}" || -z "${MOCK_AUTH_SPA_PORT}" ]]; then
+    fail "playwright.config.ts no longer declares both SPA base-URL defaults — this guard lost its own input"
+elif [[ "${REAL_OIDC_SPA_PORT}" == "${MOCK_AUTH_SPA_PORT}" ]]; then
+    fail "the real-OIDC SPA and the mock-auth SPA both claim port ${REAL_OIDC_SPA_PORT} — the two loops cannot run together"
+else
+    pass "playwright.config.ts separates the mock-auth SPA (${MOCK_AUTH_SPA_PORT}) from the real-OIDC SPA (${REAL_OIDC_SPA_PORT})"
+fi
+
+assert_names_the_real_oidc_spa_port "playwright real-idp dev server" \
+    "${PLAYWRIGHT_CONFIG}" 'configuration=development'
+assert_names_the_real_oidc_spa_port "web package.json start script" \
+    "${REPO_ROOT}/alpenflight/web/package.json" '"start":'
+assert_names_the_real_oidc_spa_port "keycloak Dockerfile build arg" \
+    "${REPO_ROOT}/alpenflight/auth/Dockerfile" '^ARG ALPENFLIGHT_WEB_BASE_URL'
+assert_names_the_real_oidc_spa_port "docker-compose keycloak build arg" \
+    "${REPO_ROOT}/docker-compose.yml" 'ALPENFLIGHT_WEB_BASE_URL'
+assert_names_the_real_oidc_spa_port "dev-up-alpenflight keycloak build arg" \
+    "${REPO_ROOT}/alpenflight/ops/dev-up-alpenflight.sh" 'ALPENFLIGHT_WEB_BASE_URL'
+assert_names_the_real_oidc_spa_port "dev-up-nocompose keycloak build hint" \
+    "${REPO_ROOT}/alpenflight/ops/dev-up-nocompose.sh" 'ALPENFLIGHT_WEB_BASE_URL'
+assert_names_the_real_oidc_spa_port "rebuild-keycloak login preview" \
+    "${REPO_ROOT}/alpenflight/ops/rebuild-keycloak.sh" 'ALPENFLIGHT_WEB_BASE_URL'
+assert_names_the_real_oidc_spa_port "check-keycloak-integration expectation" \
+    "${REPO_ROOT}/alpenflight/auth/scripts/check-keycloak-integration.sh" 'E2E_REAL_IDP_BASE_URL'
+assert_names_the_real_oidc_spa_port "check-theme-load redirect uri" \
+    "${REPO_ROOT}/alpenflight/auth/scripts/check-theme-load.sh" 'REDIRECT_URI_URL_ENCODED='
+
+while read -r workflow; do
+    assert_names_the_real_oidc_spa_port "workflow $(basename "${workflow}")" \
+        "${workflow}" '^ *(ALPENFLIGHT_WEB_BASE_URL|EXPECTED_BASE_URL):'
+done < <(grep -lE '^ *(ALPENFLIGHT_WEB_BASE_URL|EXPECTED_BASE_URL):' "${REPO_ROOT}"/.github/workflows/*.yml)
+
+echo "== a workflow with no path filter runs this guard on every push =="
+
+trigger_block_of() {
+    sed -n '1,/^jobs:/p' "$1"
+}
+
+THIS_GUARD_FILENAME="$(basename "${BASH_SOURCE[0]}")"
+workflows_running_this_guard=()
+workflows_running_this_guard_on_every_push=()
+while read -r workflow; do
+    workflows_running_this_guard+=("$(basename "${workflow}")")
+    if ! trigger_block_of "${workflow}" | grep -qE '^[[:space:]]+paths:'; then
+        workflows_running_this_guard_on_every_push+=("$(basename "${workflow}")")
+    fi
+done < <(grep -lF "${THIS_GUARD_FILENAME}" "${REPO_ROOT}"/.github/workflows/*.yml)
+
+if [[ "${#workflows_running_this_guard_on_every_push[@]}" -gt 0 ]]; then
+    pass "runs unfiltered in ${workflows_running_this_guard_on_every_push[*]}"
+else
+    fail "every workflow that runs this guard filters by path (${workflows_running_this_guard[*]:-none}) — this guard reads sites under alpenflight/web, alpenflight/auth and .github/workflows, so an edit to one of them would skip the guard that validates it"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then

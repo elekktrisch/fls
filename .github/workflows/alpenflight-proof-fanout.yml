@@ -75,14 +75,67 @@ jobs:
       - name: Install NuGet CLI
         run: sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 
-      - name: Restore packages
+      - name: Restore every packages.config the cache key hashes, and retry a transient transport failure
         working-directory: flsserver/src
         run: |
-          # Restore the whole solution: projects reference packages declared in
-          # OTHER projects' packages.config (e.g. Console uses Microsoft.Owin.Hosting,
-          # declared in FLS.Server.Tests), so a per-csproj restore misses them on a
-          # cold cache (integration-branch dispatch) — only a warm cache hid it.
-          mono /usr/local/bin/nuget.exe restore FLS.sln
+          set -euo pipefail
+          package_configs=$(find . -name packages.config -not -path './packages/*' | sort)
+          if [ -z "$package_configs" ]; then
+            echo "Found no packages.config under flsserver/src. The restore has no inputs and the cache key hashes an empty set."
+            exit 1
+          fi
+          attempts_per_config=3
+          restore_log=$(mktemp)
+          for package_config in $package_configs; do
+            attempt=1
+            while : ; do
+              set +e
+              mono /usr/local/bin/nuget.exe restore "$package_config" -SolutionDirectory . -NonInteractive 2>&1 | tee "$restore_log"
+              last_exit_code=${PIPESTATUS[0]}
+              set -e
+              if [ "$last_exit_code" -eq 0 ]; then
+                break
+              fi
+              if grep -qE "Unable to find (package|version)" "$restore_log"; then
+                echo "Restore of $package_config failed with exit code $last_exit_code and reported a package NuGet cannot find."
+                echo "A retry cannot create a package that does not exist, so attempt $attempt of $attempts_per_config is the last one."
+                exit "$last_exit_code"
+              fi
+              if [ "$attempt" -ge "$attempts_per_config" ]; then
+                echo "Restore of $package_config used all $attempts_per_config attempts and failed. The last exit code was $last_exit_code."
+                echo "Read the NuGet output above. A repeated Ssl or connection error points to api.nuget.org. Every other error is a real restore failure."
+                exit "$last_exit_code"
+              fi
+              backoff_seconds=$((attempt * 10))
+              echo "Attempt $attempt of $attempts_per_config for $package_config failed with exit code $last_exit_code. The next attempt starts in $backoff_seconds seconds."
+              sleep "$backoff_seconds"
+              attempt=$((attempt + 1))
+            done
+          done
+
+      - name: Assert the restore produced every assembly xbuild resolves by HintPath
+        working-directory: flsserver/src
+        run: |
+          set -euo pipefail
+          missing_count=0
+          for assembly in \
+              packages/EnterpriseLibrary.Common.6.0.1304.0/lib/NET45/Microsoft.Practices.EnterpriseLibrary.Common.dll \
+              packages/EnterpriseLibrary.Validation.6.0.1304.0/lib/NET45/Microsoft.Practices.EnterpriseLibrary.Validation.dll \
+              packages/System.Linq.Dynamic.1.0.7/lib/net40/System.Linq.Dynamic.dll \
+              packages/Newtonsoft.Json.12.0.2/lib/net45/Newtonsoft.Json.dll \
+              packages/EntityFramework.6.2.0/lib/net45/EntityFramework.dll \
+              packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll ; do
+            if [ ! -f "$assembly" ]; then
+              echo "Absent after the restore: flsserver/src/$assembly"
+              missing_count=$((missing_count + 1))
+            fi
+          done
+          if [ "$missing_count" -gt 0 ]; then
+            echo "The restore exited 0 and left $missing_count assembly path(s) absent."
+            echo "Without this assertion the job stays green here and fails two steps later, in xbuild, with CS0234 / CS0246 errors in FLS.Common."
+            echo "Restore every packages.config under flsserver/src, and do not let a warm actions/cache entry hide an incomplete restore."
+            exit 1
+          fi
 
       - name: xbuild projects (Debug)
         working-directory: flsserver/src
@@ -132,14 +185,9 @@ jobs:
           restore-keys: |
             flsweb-node-modules-${{ runner.os }}-
 
-      - name: yarn install (if cache miss)
+      - name: yarn install (if cache miss) — npm_config_tmp gives the phantomjs postinstall a writable temp dir
         if: steps.flsweb-cache.outputs.cache-hit != 'true'
         env:
-          # phantomjs (transitive via highcharts@0.0.11) fails a cold yarn install:
-          # its install.js path.joins process.env.npm_config_tmp (undefined) before
-          # the valid fallback → "Path must be a string", and its default binary CDN
-          # is dead. The webpack build never runs phantomjs; give it a temp dir + a
-          # live mirror so the postinstall succeeds.
           npm_config_tmp: /tmp
           PHANTOMJS_CDNURL: https://github.com/Medium/phantomjs/releases/download/v1.9.19
         run: |
@@ -150,7 +198,20 @@ jobs:
           sudo npm install --global yarn@1 -s
           cd /tmp/flsweb-build
           yarn install --network-timeout 600000
-          cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
+
+      - name: Assert the fresh node_modules has the webpack-dev-server that the fan-out job starts
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: |
+          for required_path in node_modules/.bin/webpack-dev-server node_modules/webpack; do
+            if [ ! -e "/tmp/flsweb-build/$required_path" ]; then
+              echo "::error::yarn install exited 0 but /tmp/flsweb-build/$required_path does not exist. The fan-out job starts webpack-dev-server from this cache, so it would fail there instead of here. Read the [4/4] Building fresh packages output of the previous step."
+              exit 1
+            fi
+          done
+
+      - name: Copy the asserted node_modules into the cache path
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
 
   # ===========================================================================
   # fanout-proof — the full chain on one runner.
@@ -169,6 +230,7 @@ jobs:
       # gh-pages publish of the branch-preview proof bookmark.
       contents: write
       pull-requests: write
+      pages: read
     env:
       # Legacy stack
       FLS_LISTEN_URL: "http://*:25567/"
@@ -576,6 +638,17 @@ jobs:
             --project=accounting \
             tests/accounting/accounting-parity-J8.spec.ts
 
+      - name: Run J-19 T-14 legacy password-recovery capture spec (non-blocking, if:always + continue-on-error, records legacy video)
+        id: legacy-pw-lostpassword
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=auth \
+            tests/auth/lostpassword-parity-J19.spec.ts
+
       # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
@@ -592,6 +665,8 @@ jobs:
       # retried (a flaky spec must not be silently retried into green).
       # Mailpit is already up from the pre-legacy step above.
       - name: Build pgAdmin + Keycloak images
+        env:
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           for i in 1 2 3; do
             docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
@@ -830,7 +905,8 @@ jobs:
             e2e/tests/real-idp/deliveries-write-parity.spec.ts \
             e2e/tests/real-idp/delivery-creation-test-parity.spec.ts \
             e2e/tests/real-idp/email-templates.spec.ts \
-            e2e/tests/real-idp/public-registration-parity.spec.ts
+            e2e/tests/real-idp/public-registration-parity.spec.ts \
+            e2e/tests/real-idp/account-recovery.spec.ts
 
       # Upload the per-test failure artifacts (error-context.md + trace.zip +
       # screenshot/video) BEFORE the staging + gallery + link-check steps run: the
@@ -901,6 +977,7 @@ jobs:
           REP_WEBM="$(find /tmp/fls-e2e-results -path '*reporting-parity-J7*' -name '*.webm' | head -1 || true)"
           # J-8 — legacy accounting-rule-filter list+edit-form parity video (T-18).
           ACCT_WEBM="$(find /tmp/fls-e2e-results -path '*accounting-parity-J8*' -name '*.webm' | head -1 || true)"
+          LEGACY_PASSWORD_RECOVERY_WEBM="$(find /tmp/fls-e2e-results -path '*lostpassword-parity-J19*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -964,6 +1041,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-8\",\"file\":\"accounting-parity-J8.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_ACCT")},"
           else
             echo "No J-8 accounting .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$LEGACY_PASSWORD_RECOVERY_WEBM" ]; then
+            cp "$LEGACY_PASSWORD_RECOVERY_WEBM" "$STAGE/lostpassword-parity-J19.webm"
+            CAP_LOSTPW="Legacy flsweb shows the password-recovery screens. The spec opens /lostpassword, sends the form, reads the success message, and opens the /confirm choose-password form. The legacy app collects the new password itself. AlpenFlight gives that task to Keycloak, so the two products differ by design. This capture makes no parity claim."
+            VIDEOS="$VIDEOS{\"journey\":\"J-19\",\"file\":\"lostpassword-parity-J19.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_LOSTPW")},"
+          else
+            echo "No J-19 legacy password-recovery .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -1235,6 +1319,17 @@ jobs:
           add_shot "alpenflight/web/test-results" "alpenflight-deliveries-form.png" "J-10b" "alpenflight" "form" \
             "AlpenFlight: an engine-created delivery's detail — the inline FlightTime line item, the resolved recipient (PILOT_PAYS_ALL fallback), the Prepared badge, and the linked flight"
 
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-form.png" "J-19" "legacy" "form" \
+            "Legacy flsweb: the /lostpassword form renders without a session. It shows one text field and one button."
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-success.png" "J-19" "legacy" "success" \
+            "Legacy flsweb: the /lostpassword screen after the spec sends the form. The legacy server accepted the request, and the page shows its success message."
+          add_shot "/tmp/fls-e2e-results" "legacy-lostpassword-confirm.png" "J-19" "legacy" "confirm" \
+            "Legacy flsweb: the /confirm screen that the legacy reset link opens. It shows two password fields and one button. The spec never sends this form."
+          add_shot "alpenflight/web/test-results" "alpenflight-lostpassword-form.png" "J-19" "alpenflight" "form" \
+            "AlpenFlight: the /lostpassword page renders without a session. It explains the four steps, it warns that the reset link works one time only, and its start action moves the browser to the Keycloak realm."
+          add_shot "alpenflight/web/test-results" "alpenflight-confirm-verified.png" "J-19" "alpenflight" "confirm" \
+            "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
+
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -1434,6 +1529,7 @@ jobs:
           GALLERY_EXPECT_GENERATED_AT: ${{ steps.gallery.outputs.generated_at }}
           REF_NAME: ${{ github.ref_name }}
           GALLERY_LINKS_ONLY: '1'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
           GALLERY_DEPLOYED_JOURNEY="$JID" \

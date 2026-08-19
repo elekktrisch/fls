@@ -58,6 +58,13 @@ five screens; not a single atomic action.
 - **Note the migration contribution.** Name the legacy entity/table each journey migrates (scopes its
   per-journey mapper + seed); flag greenfield = N/A. A unit-passing mapper is NOT a working migrate — fidelity
   is unproven until a real legacy→ingest round-trip runs green. [[verify-infra-is-run-not-just-authored]]
+- **An AC states the OBSERVABLE, not the intent — it must name its proving assertion.** Word each AC as
+  what the spec/IT can be pointed at as asserting, never as what the screen is meant to do. J-31 found 18
+  spec titles claiming more than their assertions and ≥3 shipped ACs over-claiming: J-13's "time-range
+  filter narrows to events in range" only proves a future from-bound empties the list; J-12b's "non-admin
+  cannot reach /join-requests (403 / redirect)" never asserts a 403; S-174's login AC asserts only that the
+  path is not under `/realms/`. If you cannot name the assertion that would prove it, narrow the AC until
+  you can (`/do-ship` §5 ticks ACs only against a named assertion).
 - **AC reachability pre-flight — run it per AC, before you write the AC** (operator 2026-08-14). For each
   AC, verify against the code: (a) the **actor** it names can REACH the screen — route exists, a nav entry
   is visible to that role, and the read endpoints authorize that role; (b) every **value** it asserts has

@@ -41,6 +41,23 @@ export function handleSilentRenewFailed(session: SessionPort, reauthorize: () =>
   reauthorize();
 }
 
+function isSilentRenewResult(authenticationResult: unknown): boolean {
+  return (
+    typeof authenticationResult === 'object' &&
+    authenticationResult !== null &&
+    (authenticationResult as { isRenewProcess?: unknown }).isRenewProcess === true
+  );
+}
+
+export function postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage(
+  authenticationResult: unknown,
+): string | null {
+  if (isSilentRenewResult(authenticationResult)) {
+    return null;
+  }
+  return consumePostLoginRedirect() ?? DEFAULT_POST_LOGIN_ROUTE;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OidcSessionBridge {
   private readonly oidc = inject(OidcSecurityService);
@@ -61,9 +78,13 @@ export class OidcSessionBridge {
         filter((e) => e.type === EventTypes.NewAuthenticationResult),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => {
-        const target = consumePostLoginRedirect() ?? DEFAULT_POST_LOGIN_ROUTE;
-        this.router.navigateByUrl(target);
+      .subscribe((event) => {
+        const target = postLoginTargetUnlessASilentRenewMustLeaveTheUserOnTheCurrentPage(
+          event.value,
+        );
+        if (target !== null) {
+          void this.router.navigateByUrl(target);
+        }
       });
 
     this.events

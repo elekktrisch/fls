@@ -62,6 +62,8 @@ jobs:
         run: bash alpenflight/ops/dev-up-infra.sh
 
       - name: Build pgAdmin + Keycloak images
+        env:
+          ALPENFLIGHT_WEB_BASE_URL: http://localhost:4201/
         run: |
           docker compose -f docker-compose.yml --profile next build pgadmin keycloak
 
@@ -70,52 +72,23 @@ jobs:
           docker compose -p alpenflight-dev -f docker-compose.yml \
             up -d --wait --wait-timeout 240 postgres pgadmin keycloak
 
-      # J-26 T-30d — fail-loud Keycloak→Mailpit SMTP preflight. register.spec's
-      # verify-email path is the ONLY KC-sent-SMTP case in the suite and runs
-      # ONLY here (ci.yml's per-push proof spec never registers), so a broken
-      # KC→Mailpit hop surfaced as a silent mid-suite "no message within 15s"
-      # 15 specs later. Assert the two structural prerequisites UP FRONT so a
-      # gap reds the job early with a precise message (the T-29 host-vs-container
-      # DNS class, now for the KC container reaching the cross-project `mailpit`
-      # service over the external `alpenflight_shared` network):
-      #   1. KC's container env carries KEYCLOAK_SMTP_HOST=mailpit — the realm
-      #      import's ${KEYCLOAK_SMTP_HOST} placeholder is substituted from this
-      #      (KC 26.x replaces realm-JSON env placeholders on import by default);
-      #      a missing env leaves the literal `${...}` host → no delivery.
-      #   2. KC can DNS-resolve + TCP-connect to mailpit:1025 — the SMTP listener
-      #      the realm points at by service DNS. The image ships no nc/curl, so
-      #      probe with bash `/dev/tcp` (the same technique KC's own healthcheck uses).
-      - name: Preflight — Keycloak can reach Mailpit SMTP
+      - name: Preflight — Keycloak delivers a verify-email into Mailpit
+        env:
+          EXPECTED_BASE_URL: http://localhost:4201/
         run: |
           set -euo pipefail
-          KC=alpenflight-dev-keycloak-1
-          echo "── KC SMTP env ─────────────────────────────"
-          SMTP_HOST="$(docker exec "$KC" printenv KEYCLOAK_SMTP_HOST || true)"
-          SMTP_PORT="$(docker exec "$KC" printenv KEYCLOAK_SMTP_PORT || true)"
-          echo "KEYCLOAK_SMTP_HOST=${SMTP_HOST:-<unset>} KEYCLOAK_SMTP_PORT=${SMTP_PORT:-<unset>}"
-          if [ "$SMTP_HOST" != "mailpit" ] || [ "$SMTP_PORT" != "1025" ]; then
-            echo "::error::KC container SMTP env is not mailpit:1025 — the realm's \
-          \${KEYCLOAK_SMTP_HOST}/\${KEYCLOAK_SMTP_PORT} placeholders won't resolve to the \
-          Mailpit service (no verify-email delivery). Check alpenflight/auth/.env.example \
-          is loaded as the keycloak env_file." >&2
-            exit 1
-          fi
-          echo "── KC → mailpit:1025 TCP reachability ──────"
-          # Probe from INSIDE the KC container with the same bash `/dev/tcp`
-          # technique the KC healthcheck uses (the image ships no nc/curl, but
-          # bash + /dev/tcp is present). A successful connect proves both the
-          # cross-project DNS (mailpit resolves over alpenflight_shared) and the
-          # SMTP listener — exactly the hop the verify-email send takes. Fails
-          # the job on a DNS or network gap instead of a silent mid-suite "no
-          # message" timeout.
-          if docker exec "$KC" bash -c 'exec 3<>/dev/tcp/mailpit/1025' 2>/dev/null; then
-            echo "OK: KC reached mailpit:1025 over alpenflight_shared"
+          if bash alpenflight/auth/scripts/check-keycloak-integration.sh; then
+            echo "Keycloak created a user, sent the verify-email and Mailpit received it \
+          with the realm action-token link. Every mail-layer part is proven: the realm \
+          smtpServer substitution, alpenflight_shared DNS, mailpit:1025, and the email \
+          template. A spec that later reports 'no message to:<address>' is a browser-form \
+          or application fault, not a mail fault."
           else
-            echo "::error::KC cannot reach mailpit:1025 — cross-project DNS or SMTP \
-          listener gap on alpenflight_shared. The realm's smtpServer points at \
-          mailpit:1025 by service DNS; KC must join the shared network with mailpit \
-          (docker-compose.yml networks: [alpenflight_shared] on both)." >&2
-            docker exec "$KC" bash -c 'getent hosts mailpit || echo "DNS: mailpit unresolved"' >&2 || true
+            echo "::error::Keycloak could not deliver a verify-email into Mailpit. The \
+          fault is in the mail layer — the realm smtpServer substitution, alpenflight_shared \
+          DNS, the mailpit:1025 listener, or the email template. The script output above \
+          names which one. Do NOT blame the register or recovery spec." >&2
+            docker exec alpenflight-dev-keycloak-1 bash -c 'getent hosts mailpit || echo "DNS: mailpit unresolved"' >&2 || true
             exit 1
           fi
 
@@ -243,17 +216,10 @@ jobs:
       # DATASOURCE_* is exported so the parity specs' beforeAll Gradle seeder
       # shell-outs reach the same Postgres the backend uses (synth bundle mode).
       #
-      # `--grep-invert` drops two sets the cross-journey clean-seed run must not
-      # carry: (1) `showcase seed` — `start-dashboard.spec.ts` asserts the
+      # `--grep-invert` drops the one set the cross-journey clean-seed run must
+      # not carry: `showcase seed` — `start-dashboard.spec.ts` asserts the
       # `@Profile("showcase")` counts this run never seeds; its gating job is
-      # `alpenflight-dashboard-proof` in ci.yml. (2) `@quarantine-kc26` — three
-      # specs that regressed against the KC-26 upgrade, not against our code:
-      # login `?ui_locales=fr` (locale param honored differently), register
-      # verify-mail (KC→Mailpit SMTP delivery), and token-lifecycle silent-refresh
-      # (refresh-grant / SSO behavior). Excluded here so the `real-idp-merge`
-      # 0-fail tally is over the stable set; each has a named fix-owner rider in
-      # _BOYSCOUT.md [KC-26 UPGRADE DRIFT] — this exclusion is explicit + tracked,
-      # not a silent grep. Filtering applies before sharding,
+      # `alpenflight-dashboard-proof` in ci.yml. Filtering applies before sharding,
       # so the dropped tests leave the pool first; `--shard` then partitions the
       # remainder and `--reporter=blob` feeds the `real-idp-merge` job.
       # `--workers=1` keeps each shard serial (one realm + one Mailpit inbox).
@@ -273,7 +239,7 @@ jobs:
             --workers=1 \
             --shard="${SHARD}/4" \
             --reporter=blob \
-            --grep-invert 'showcase seed|@quarantine-kc26' \
+            --grep-invert 'showcase seed' \
             e2e/tests/real-idp/
 
       - name: Collect logs on failure

@@ -1,4 +1,10 @@
-import { test as base, expect, type Page, type TestInfo } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  type ConsoleMessage,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 const BENIGN_PATTERNS: readonly (string | RegExp)[] = [/Failed to load resource.*favicon\.ico/i];
 
@@ -8,9 +14,41 @@ function isBenign(message: string): boolean {
   );
 }
 
+export type ConsoleErrorAllowance = string | RegExp | ((message: string) => boolean);
+
 interface ConsoleGuard {
   readonly errors: string[];
-  readonly allowed: (string | RegExp)[];
+  readonly allowed: ConsoleErrorAllowance[];
+}
+
+const FAILING_RESOURCE_URL_IN_THE_RECORDED_MESSAGE = /\[resource: ([^\]]+)\]/;
+
+function withTheFailingResourceUrlSoAnAllowanceCanBindToItsEndpoint(
+  text: string,
+  message: ConsoleMessage,
+): string {
+  const resourceUrl = message.location().url;
+  return resourceUrl ? `${text} [resource: ${resourceUrl}]` : text;
+}
+
+function pathnameOfRecordedResource(message: string): string | undefined {
+  const resourceUrl = FAILING_RESOURCE_URL_IN_THE_RECORDED_MESSAGE.exec(message)?.[1];
+  if (resourceUrl === undefined) return undefined;
+  try {
+    return new URL(resourceUrl).pathname;
+  } catch {
+    return undefined;
+  }
+}
+
+export function consoleErrorAllowanceForStatusesOnEndpoint(
+  statuses: readonly number[],
+  endpointPathname: string,
+): ConsoleErrorAllowance {
+  const carriesOneOfTheStatuses = new RegExp(`\\b(${statuses.join('|')})\\b`);
+  return (message: string): boolean =>
+    carriesOneOfTheStatuses.test(message) &&
+    pathnameOfRecordedResource(message) === endpointPathname;
 }
 
 const guards = new WeakMap<TestInfo, ConsoleGuard>();
@@ -29,7 +67,8 @@ export function watchConsoleErrors(page: Page, testInfo: TestInfo): void {
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const text = `console.error: ${msg.text()}`;
-    if (!isBenign(text)) g.errors.push(text);
+    if (isBenign(text)) return;
+    g.errors.push(withTheFailingResourceUrlSoAnAllowanceCanBindToItsEndpoint(text, msg));
   });
   page.on('pageerror', (err) => {
     const text = `pageerror: ${err.message}`;
@@ -37,12 +76,16 @@ export function watchConsoleErrors(page: Page, testInfo: TestInfo): void {
   });
 }
 
-export function allowConsoleErrors(testInfo: TestInfo, ...patterns: (string | RegExp)[]): void {
+export function allowConsoleErrors(testInfo: TestInfo, ...patterns: ConsoleErrorAllowance[]): void {
   guardFor(testInfo).allowed.push(...patterns);
 }
 
-function isAllowed(message: string, allowed: readonly (string | RegExp)[]): boolean {
-  return allowed.some((p) => (typeof p === 'string' ? message.includes(p) : p.test(message)));
+function isAllowed(message: string, allowed: readonly ConsoleErrorAllowance[]): boolean {
+  return allowed.some((p) => {
+    if (typeof p === 'string') return message.includes(p);
+    if (typeof p === 'function') return p(message);
+    return p.test(message);
+  });
 }
 
 const BOOTSTRAP_REFERENCE_PATHS: readonly string[] = [
@@ -152,7 +195,7 @@ export const test = base.extend<{ consoleGuard: void }>({
         unexpected,
         `uncaught browser errors (console.error / pageerror) during the test:\n${unexpected.join(
           '\n',
-        )}\n\nIf a test DELIBERATELY triggers one, declare it via allowConsoleErrors(testInfo, /pattern/).`,
+        )}\n\nIf a test DELIBERATELY triggers one, declare it via allowConsoleErrors(testInfo, consoleErrorAllowanceForStatusesOnEndpoint([status], '/api/v1/…')). Bind the allowance to the endpoint, because a status-only pattern also hides an unrelated failure.`,
       ).toEqual([]);
     },
     { auto: true },

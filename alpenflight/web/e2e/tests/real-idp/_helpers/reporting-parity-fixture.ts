@@ -1,6 +1,7 @@
 import { type APIRequestContext } from '@playwright/test';
 
 import { seedFlightMasterdata, type FlightMasterdata } from './flight-parity-fixture';
+import { daysAgo } from './seed-flight-date';
 
 const CREW_TYPE_PILOT_OR_STUDENT = '019e2e15-2c00-76b0-8000-0000000036b0';
 const CREW_TYPE_FLIGHT_INSTRUCTOR = '019e2e15-2c00-76b2-8000-0000000036b2';
@@ -128,12 +129,6 @@ async function postInstructor(
     );
   }
   return String(((await res.json()) as { id: string }).id);
-}
-
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
 }
 
 function iso(date: string, hhmm: string): string {

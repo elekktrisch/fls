@@ -172,6 +172,19 @@ const it: Translations = {
       required: 'Campo obbligatorio.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Accedi',
+    },
+    errors: {
+      unreachable: 'Il servizio di accesso non è disponibile. Riprova più tardi.',
+    },
+    language: 'Lingua',
+    verified: {
+      body: 'Il tuo account è pronto. Accedi ora.',
+      headline: 'AlpenFlight ha confermato il tuo indirizzo email.',
+    },
+  },
   deliveries: {
     title: 'Consegne',
     actions: {
@@ -342,6 +355,7 @@ const it: Translations = {
   },
   landing: {
     actions: {
+      lostPassword: 'Password dimenticata?',
       migrateFromLegacy: 'Migra da FLS legacy',
       requestAccess: 'Richiedi l’accesso',
       signIn: 'Accedi',
@@ -466,6 +480,27 @@ const it: Translations = {
     readonlyBanner:
       'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
+  },
+  lostpassword: {
+    actions: {
+      signIn: 'Accedi',
+      start: 'Vai al servizio di accesso',
+    },
+    caution: 'Il link funziona una sola volta. Non usare il link una seconda volta.',
+    errors: {
+      unreachable: 'Il servizio di accesso non è disponibile. Riprova più tardi.',
+    },
+    headline: 'Reimposta la password',
+    knowThePassword: 'Conosci la tua password?',
+    language: 'Lingua',
+    steps: {
+      openTheMail: 'Apri l’email di AlpenFlight, poi seleziona il link di reimpostazione.',
+      selectForgotPassword: 'Seleziona il link della password dimenticata nel servizio di accesso.',
+      setTheNewPassword: 'Inserisci due volte la nuova password, poi invia il modulo.',
+      typeTheAddress: 'Inserisci il tuo indirizzo email, poi invia il modulo.',
+    },
+    tagline:
+      'AlpenFlight conserva la tua password nel servizio di accesso. La reimpostazione inizia lì.',
   },
   migrateHandshake: {
     copied: 'Handshake copiato.',

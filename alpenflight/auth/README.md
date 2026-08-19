@@ -12,7 +12,8 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 | `Dockerfile` | Bakes `realm-export.json` into a custom `alpenflight-keycloak:local` image. Used by the `keycloak` service in the root `docker-compose.yml`. |
 | `scripts/export-realm.sh` | Re-export the realm from a running Keycloak. Writes to `realm-export.json`; `git diff` shows drift. |
 | `scripts/normalize-realm-export.sh` | Deterministic-sorts the export. Strips volatile fields, dev-passwords-only injection, deep-sorts set-shaped arrays. |
-| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.) plus the theme-ref pins. |
+| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.), the theme-ref pins, the recovery flags the reset chain needs (`registrationAllowed`, `verifyEmail`, `resetPasswordAllowed`), and the dev-only allow-set for every seed-user password and client secret. Takes an optional realm-file argument; it defaults to the committed export. |
+| `scripts/check-realm-shape-rejects-planted-drift.sh` | Negative test for the guard above. Plants a foreign password, a foreign client secret, an export-masked secret and `resetPasswordAllowed: false`, and asserts a non-zero exit for each; then asserts exit zero on the committed export. Runs on EVERY push in `ci.yml`'s `changes` job. |
 | `scripts/check-theme-load.sh` | Operator smoke against a running Keycloak — asserts the alpenflight theme is loaded and locale fallback to parent works. Not wired to CI (no live Keycloak for the alpenflight realm). |
 | `themes/alpenflight/` | Custom Keycloak theme (login, account, email). Per-type parents: `keycloak.v2` for login, `keycloak.v3` for account, `keycloak` for email (only email parent shipped). |
 
@@ -53,7 +54,7 @@ bash alpenflight/ops/rebuild-keycloak.sh
 
 | Client ID | Type | Flows | Notes |
 |---|---|---|---|
-| `alpenflight-web` | public | Authorization Code + PKCE-S256 | SPA. No direct-grants, no implicit. Redirect URIs: `http://localhost:{4200,3000}/*`. |
+| `alpenflight-web` | public | Authorization Code + PKCE-S256 | SPA. No direct-grants, no implicit. Redirect URIs: `http://localhost:{3000,4200,4201}/*`. The baked `baseUrl` names one of them — see `ALPENFLIGHT_WEB_BASE_URL` below. |
 | `alpenflight-backend` | bearer-only | (token validator) | Spring Security 7 resource server (S-020 wires this in). |
 | `alpenflight-backend-admin` | confidential | client-credentials only | Backend → KC admin REST machine client (S-052). Service-account scoped to **`manage-users` + `view-users` + `query-users`** on `realm-management` only — NOT `manage-realm` / `manage-clients` / `impersonation`. Dev secret `alpenflight-backend-admin-dev-secret`; prod secret via `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. Rotate at deploy. |
 | `alpenflight-proffix` | confidential | client-credentials only | Machine client. Service-account role `proffix-sync`. Dev secret `alpenflight-proffix-dev-secret` — rotate at deploy. |
@@ -160,7 +161,39 @@ the first verification).
 | `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
 | `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
 | `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
-| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Feeds login footer + account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
+| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4201/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Keycloak bakes it into `alpenflight-web.baseUrl`. It feeds the login-theme back links and the account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
+
+#### Which SPA port the image must bake
+
+The repo runs the SPA on two ports. Each port has one purpose:
+
+| Port | Angular configuration | Talks to Keycloak | Started by |
+|---|---|---|---|
+| 4200 | `mock-auth` (file-replaces `app.config.mock.ts`) | no | `pnpm start:mock-auth`, the `chromium` Playwright project |
+| 4201 | `development` (real OIDC) | yes | `pnpm start`, the `real-idp` Playwright project |
+
+Only the SPA on 4201 follows a link that Keycloak renders. Therefore every
+image build bakes `http://localhost:4201/`, in CI and on the laptop. A build
+that bakes 4200 sends the member from Keycloak to the mock-auth application,
+and the member sees no error.
+
+Two guards hold this:
+
+- `alpenflight/ops/test-bring-up-guards.sh` compares every site that bakes or
+  asserts the value against the port `playwright.config.ts` serves the
+  real-OIDC SPA on. It runs in `ci.yml`'s graph-root `changes` job, which
+  carries no `paths:` filter, no `if:` and no `needs:`, so every push runs it.
+  `required` needs `changes`, so a red guard blocks the merge. The guard's last
+  check reads the workflows that call it and fails when every one of them
+  filters by path, because nine of the sites it reads sit outside the
+  `compose-lint.yml` filter that used to hold it.
+- `alpenflight/auth/scripts/check-keycloak-integration.sh` reads the baked
+  `baseUrl` out of the running Keycloak and compares it with
+  `E2E_REAL_IDP_BASE_URL`. The real-idp preflight and `compose-smoke.yml` run it.
+
+To drive the real-OIDC SPA on a different port, set `E2E_REAL_IDP_BASE_URL` for
+the suite and `ALPENFLIGHT_WEB_BASE_URL` for the image build. Set both, or the
+preflight fails.
 
 Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
 Keycloak lands there during local signup smokes — click the verify link to
@@ -201,7 +234,7 @@ all the working defaults. Clicking "Continue with Google" against the
 `set-via-env-for-google-signup` sentinel renders Keycloak's stock
 `invalid_client` page — that's the "feature is off" signal, not a setup
 bug. The `ALPENFLIGHT_WEB_BASE_URL` build-arg has its own
-`http://localhost:4200/` fallback at the `docker-compose.yml` build-args
+`http://localhost:4201/` fallback at the `docker-compose.yml` build-args
 layer, so the SPA root link also works out of the box.
 
 ### Google Cloud Console — one-time setup (prod / per-developer)
@@ -302,8 +335,8 @@ blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
 | `login/resources/img/splash.jpg` | cockpit photo background (copy of `alpenflight/web/public/splash.jpg`); layered under a slate-900/55% wash via `--keycloak-bg-logo-url` |
 | `login/resources/img/alpenflight-logo.svg` | reserved for a future template-override path; the stock keycloak.v2 `template.ftl` does NOT include `div.kc-logo-text`, so today this file is unused and the wordmark is rendered as text by `#kc-header-wrapper` |
 | `login/resources/img/favicon.ico` | shared with `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred) |
-| `login/footer.ftl` | overrides keycloak.v2's empty footer macro to render the "« Back to Start" link; href reads `${client.baseUrl}` (set per-environment on the alpenflight-web client — S-173 wires the env-substitution) |
-| `login/messages/messages_{de,en,fr,it}.properties` | shorter locale labels (`locale_de=Deutsch` etc.), one-word page title (`loginAccountTitle=Sign in` / `Anmelden` / `Connexion` / `Accedi`), and the `backToLanding` string ("« Back to Start" + native translations) |
+| `login/footer.ftl` | overrides keycloak.v2's empty footer macro to render the back link on every login-theme page, `base/login/info.ftl` and `base/login/error.ftl` included; the href reads `${client.baseUrl}` (set per-environment on the alpenflight-web client — S-173 wires the env-substitution) and the page decides the target: the "email verified" info page sends the member to `/confirm?outcome=verified`, an "action expired" page sends the member to `/lostpassword`, every other page keeps the landing page. Keycloak omits `client` on a client-less error page, so the macro renders no link there |
+| `login/messages/messages_{de,en,fr,it}.properties` | shorter locale labels (`locale_de=Deutsch` etc.), one-word page title (`loginAccountTitle=Sign in` / `Anmelden` / `Connexion` / `Accedi`), and the three back-link strings `backToLanding` / `backToEmailConfirmation` / `backToPasswordRecovery` (native translations in all four bundles — Keycloak renders the raw key when a bundle misses one). Keycloak formats every value with `MessageFormat`, so an apostrophe must be doubled (`l''accueil`) |
 | `account/theme.properties` | parent=keycloak.v3 (K26.5 default React account console) |
 | `account/resources/logo.svg` | v3 header logo (`${resourceUrl}/logo.svg`) |
 | `account/resources/favicon.svg` | v3 favicon (`${properties.favIcon!'/favicon.svg'}`) |
@@ -322,7 +355,7 @@ bash alpenflight/ops/rebuild-keycloak.sh
 
 | Page | URL |
 |---|---|
-| Login (default DE) | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2F&state=preview` |
+| Login (default DE) | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A4201%2F&state=preview` |
 | Login (French)     | same URL + `&kc_locale=fr` |
 | Account console    | `http://localhost:8090/realms/alpenflight/account/` (redirects to login when no session) |
 | Verify-email       | trigger via `/signup` SPA route → mailpit at `http://localhost:8025` |

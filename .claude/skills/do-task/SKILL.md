@@ -14,6 +14,8 @@ Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-dire
 Schema is structural; business rules on aggregates. Per directive 1: code that
 ships the slice beats prose.
 
+**Operator-facing text uses ASD-STE100** (`CLAUDE.md` §"Operator-facing language") — chat, PR bodies, commit messages, journey files, gallery captions. Active voice, ≤20-word instructions, one word one meaning, no idioms.
+
 **Search posture.** Default to MCP servers over raw grep: the IntelliJ MCP
 (`search_in_files_by_regex`, `search_in_files_by_text`, `find_files_by_glob`,
 `search_symbol`, `get_symbol_info`) for code search/navigation and the

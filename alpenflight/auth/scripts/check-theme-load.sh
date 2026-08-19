@@ -6,7 +6,7 @@ THEME_NAME="${THEME_NAME:-alpenflight}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8090}"
 REALM="${REALM:-alpenflight}"
 WEB_CLIENT_ID="${WEB_CLIENT_ID:-alpenflight-web}"
-REDIRECT_URI_URL_ENCODED="${REDIRECT_URI_URL_ENCODED:-http%3A%2F%2Flocalhost%3A4200%2F}"
+REDIRECT_URI_URL_ENCODED="${REDIRECT_URI_URL_ENCODED:-http%3A%2F%2Flocalhost%3A4201%2F}"
 
 AUTH_BASE="${KEYCLOAK_URL%/}/realms/${REALM}/protocol/openid-connect/auth"
 
@@ -15,11 +15,20 @@ ok()   { printf '  \033[0;32m✓\033[0m %s\n' "$1"; }
 
 echo "smoking ${KEYCLOAK_URL} (realm=${REALM})"
 
+to_base64url() { openssl base64 | tr '+/' '-_' | tr -d '=\n'; }
+
+pkce_challenge_without_which_the_web_client_rejects_the_authorize_request() {
+  local verifier
+  verifier=$(openssl rand 32 | to_base64url)
+  printf '%s' "$verifier" | openssl dgst -sha256 -binary | to_base64url
+}
+
 build_url() {
   local locale="${1:-}"
-  local extra="${locale:+&ui_locales=${locale}&kc_locale=${locale}}"
-  printf '%s?client_id=%s&response_type=code&scope=openid&redirect_uri=%s&state=smoke&nonce=smoke%s' \
-    "$AUTH_BASE" "$WEB_CLIENT_ID" "$REDIRECT_URI_URL_ENCODED" "$extra"
+  local extra="${locale:+&ui_locales=${locale}}"
+  printf '%s?client_id=%s&response_type=code&scope=openid&redirect_uri=%s&state=smoke&nonce=smoke&code_challenge=%s&code_challenge_method=S256%s' \
+    "$AUTH_BASE" "$WEB_CLIENT_ID" "$REDIRECT_URI_URL_ENCODED" \
+    "$(pkce_challenge_without_which_the_web_client_rejects_the_authorize_request)" "$extra"
 }
 
 HTML=$(curl -sS -L "$(build_url)") \
@@ -32,9 +41,10 @@ esac
 
 for locale in de fr it; do
   HTML=$(curl -sS -L "$(build_url "$locale")")
-  case "$HTML" in
-    *"<html lang=\"${locale}\""*) ok "locale=${locale}: <html lang=\"${locale}\"> rendered (parent fallback works)" ;;
-    *) fail "locale=${locale}: <html lang=\"${locale}\"> not found in rendered HTML" ;;
+  ROOT_ELEMENT=$(printf '%s' "$HTML" | grep -o '<html[^>]*>' | head -1 || true)
+  case "$ROOT_ELEMENT" in
+    *"lang=\"${locale}\""*) ok "locale=${locale}: <html lang=\"${locale}\"> rendered (parent fallback works)" ;;
+    *) fail "locale=${locale}: the rendered root element is '${ROOT_ELEMENT}', which carries no lang=\"${locale}\"" ;;
   esac
 done
 

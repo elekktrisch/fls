@@ -171,6 +171,19 @@ const de = {
       required: 'Eingabe erforderlich.',
     },
   },
+  confirm: {
+    actions: {
+      signIn: 'Anmelden',
+    },
+    errors: {
+      unreachable: 'Der Anmeldedienst ist nicht erreichbar. Versuche es später erneut.',
+    },
+    language: 'Sprache',
+    verified: {
+      body: 'Dein Konto ist bereit. Melde dich jetzt an.',
+      headline: 'AlpenFlight hat deine E-Mail-Adresse bestätigt.',
+    },
+  },
   deliveries: {
     title: 'Lieferungen',
     actions: {
@@ -342,6 +355,7 @@ const de = {
   },
   landing: {
     actions: {
+      lostPassword: 'Passwort vergessen?',
       migrateFromLegacy: 'Von Legacy-FLS migrieren',
       requestAccess: 'Zugang anfragen',
       signIn: 'Anmelden',
@@ -467,6 +481,26 @@ const de = {
     readonlyBanner:
       'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
+  },
+  lostpassword: {
+    actions: {
+      signIn: 'Anmelden',
+      start: 'Zum Anmeldedienst',
+    },
+    caution: 'Der Link funktioniert nur einmal. Verwende den Link kein zweites Mal.',
+    errors: {
+      unreachable: 'Der Anmeldedienst ist nicht erreichbar. Versuche es später erneut.',
+    },
+    headline: 'Passwort zurücksetzen',
+    knowThePassword: 'Kennst du dein Passwort?',
+    language: 'Sprache',
+    steps: {
+      openTheMail: 'Öffne die E-Mail von AlpenFlight und wähle den Link.',
+      selectForgotPassword: 'Wähle im Anmeldedienst den Link für das vergessene Passwort.',
+      setTheNewPassword: 'Gib das neue Passwort zweimal ein und sende das Formular.',
+      typeTheAddress: 'Gib deine E-Mail-Adresse ein und sende das Formular.',
+    },
+    tagline: 'AlpenFlight speichert dein Passwort im Anmeldedienst. Das Zurücksetzen startet dort.',
   },
   migrateHandshake: {
     copied: 'Handshake kopiert.',

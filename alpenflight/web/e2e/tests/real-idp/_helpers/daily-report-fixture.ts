@@ -1,6 +1,7 @@
 import { type APIRequestContext } from '@playwright/test';
 
 import { seedFlightMasterdata } from './flight-parity-fixture';
+import { daysAgo } from './seed-flight-date';
 import { freshTestUser } from './test-user';
 
 const CREW_TYPE_PILOT_OR_STUDENT = '019e2e15-2c00-76b0-8000-0000000036b0';
@@ -28,12 +29,6 @@ export interface DailyReportSeed {
 interface PersonCreated {
   id: string;
   memberships?: { receiveFlightReports: boolean }[];
-}
-
-function daysAgo(n: number): string {
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() - n);
-  return day.toISOString().slice(0, 10);
 }
 
 function ddMmYyyy(isoDate: string): string {

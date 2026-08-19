@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-EXPORT="${REPO_ROOT}/alpenflight/auth/realm-export.json"
+EXPORT="${1:-${REPO_ROOT}/alpenflight/auth/realm-export.json}"
 [[ -f "$EXPORT" ]] || { echo "FAIL: $EXPORT missing"; exit 1; }
 
 fail() { echo "FAIL: $1"; exit 1; }
@@ -116,16 +116,67 @@ ok "clubId user-profile: admin-edit-only (tenant-escalation gate)"
 
 [[ $(jq -r '.registrationAllowed' "$EXPORT")  == "true"  ]] || fail "registrationAllowed must be true (S-134)"
 [[ $(jq -r '.verifyEmail' "$EXPORT")          == "true"  ]] || fail "verifyEmail must be true (S-134 signup verification)"
+[[ $(jq -r '.resetPasswordAllowed' "$EXPORT") == "true"  ]] || fail "resetPasswordAllowed must be true (J-19 AC-1 to AC-4). This flag alone puts the forgot-password link on the Keycloak login page and opens the reset-credentials flow. With it off, /lostpassword hands the member to a page that offers no recovery, and the whole reset chain dies."
 [[ $(jq -r '.bruteForceProtected' "$EXPORT")  == "true"  ]] || fail "bruteForceProtected must be true"
 [[ $(jq -r '.eventsEnabled' "$EXPORT")        == "true"  ]] || fail "eventsEnabled must be true"
 [[ $(jq -r '.adminEventsEnabled' "$EXPORT")   == "true"  ]] || fail "adminEventsEnabled must be true"
-ok "realm hygiene: registration on + verifyEmail on, bruteforce on, events + admin events on"
+ok "realm hygiene: registration on + verifyEmail on + resetPasswordAllowed on, bruteforce on, events + admin events on"
 
 PWPOL=$(jq -r '.passwordPolicy // ""' "$EXPORT")
 for rx in 'length\(12\)' 'notUsername(\(|[^a-zA-Z])' 'notEmail(\(|[^a-zA-Z])' 'specialChars\(1\)'; do
   [[ "$PWPOL" =~ $rx ]] || fail "passwordPolicy missing rule matching /$rx/ (got: '$PWPOL')"
 done
 ok "password policy: length(12) + notUsername + notEmail + specialChars(1)"
+
+DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
+  'sysadmin-dev-2026!'
+  'clubadmin1-dev-2026!'
+  'clubadmin2-dev-2026!'
+  'clubadmin3-dev-2026!'
+  'clubadmin4-dev-2026!'
+  'clubadmin-c2-dev-2026!'
+  'pilot1-dev-2026!'
+  'pilot-c2-dev-2026!'
+  'pilot-empty1-dev-2026!'
+)
+DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT=(
+  'alpenflight-backend-admin-dev-secret'
+  'alpenflight-proffix-dev-secret'
+)
+
+ALLOWED_PASSWORDS_JSON=$(jq -n --args '$ARGS.positional' "${DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]}")
+FOREIGN_USER_PASSWORDS=$(jq -r --argjson allowed "$ALLOWED_PASSWORDS_JSON" '
+  [ .users[]? as $u
+    | ($u.credentials // [])[]
+    | select((.value // "") | IN($allowed[]) | not)
+    | $u.username
+  ] | join(", ")
+' "$EXPORT")
+[[ -z "$FOREIGN_USER_PASSWORDS" ]] || fail "user password outside the dev allow-set, on seed user(s): $FOREIGN_USER_PASSWORDS.
+    This message hides the value, because a build log is not a safe place for a credential.
+    Warning: a real password must never enter the committed realm export. Every seed credential in
+    this file is a dev-only placeholder that the realm password policy accepts.
+    Rotate the value back to a dev-only placeholder, or add the new placeholder to
+    DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT in check-realm-shape.sh.
+    Add the value only after you confirm that no real system accepts it."
+ok "user passwords: ${#DEV_ONLY_USER_PASSWORDS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]} dev-only placeholders, no value outside the allow-set"
+
+ALLOWED_CLIENT_SECRETS_JSON=$(jq -n --args '$ARGS.positional' "${DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]}")
+FOREIGN_CLIENT_SECRETS=$(jq -r --argjson allowed "$ALLOWED_CLIENT_SECRETS_JSON" '
+  [ .clients[]?
+    | select(.secret != null)
+    | select(.secret | IN($allowed[]) | not)
+    | .clientId
+  ] | join(", ")
+' "$EXPORT")
+[[ -z "$FOREIGN_CLIENT_SECRETS" ]] || fail "client secret outside the dev allow-set, on client(s): $FOREIGN_CLIENT_SECRETS.
+    This message hides the value, because a build log is not a safe place for a credential.
+    Warning: a real client secret must never enter the committed realm export. A Keycloak export masks
+    an unknown secret as a row of asterisks, so a masked value also fails here.
+    Restore the dev-only placeholder in normalize-realm-export.sh, or add the new placeholder to
+    DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT in check-realm-shape.sh.
+    Add the value only after you confirm that no real system accepts it."
+ok "client secrets: ${#DEV_ONLY_CLIENT_SECRETS_ALLOWED_IN_THE_COMMITTED_EXPORT[@]} dev-only placeholders, no value outside the allow-set"
 
 [[ $(jq -e '.smtpServer | length > 0' "$EXPORT") == "true" ]] || fail "smtpServer block must be non-empty (S-134 verify-email)"
 for key in host port from user password auth starttls; do

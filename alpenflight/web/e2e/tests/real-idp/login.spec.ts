@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test';
+import { createHash, randomBytes } from 'node:crypto';
 import { test, expect } from '../_helpers/console-guard';
 
 import { assertLocalhostIssuer, _testing as kcAdmin } from './_helpers/keycloak-admin';
@@ -6,6 +7,14 @@ import { KC_ERROR_SELECTOR, fillKcLogin } from './_helpers/kc-form';
 
 const READ_ONLY_SEED_USER = 'pilot1@example.com';
 const READ_ONLY_SEED_PASSWORD = 'pilot1-dev-2026!';
+
+const KC_PAGE_TITLE = '#kc-page-title';
+const KC_PAGE_TITLE_FROM_OUR_FRENCH_BUNDLE = 'Connexion';
+
+function pkceChallengeWithoutWhichTheWebClientRejectsTheAuthorizeRequest(): string {
+  const verifier = randomBytes(32).toString('base64url');
+  return createHash('sha256').update(verifier).digest('base64url');
+}
 
 async function startLogin(page: Page, path = '/'): Promise<void> {
   await page.goto(path);
@@ -54,9 +63,7 @@ test.describe('login — real-idp', () => {
     await expect(page.locator('#username')).toBeVisible();
   });
 
-  test('@quarantine-kc26 locale ?ui_locales=fr — <html lang="fr"> on KC chrome', async ({
-    page,
-  }) => {
+  test('locale ?ui_locales=fr — <html lang="fr"> on KC chrome', async ({ page }) => {
     assertLocalhostIssuer();
     const baseUrl = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
     const kcAuthorizeUrlBypassingTheSpaLocale =
@@ -67,9 +74,17 @@ test.describe('login — real-idp', () => {
         scope: 'openid',
         redirect_uri: `${baseUrl}/`,
         state: 'locale-smoke',
+        code_challenge: pkceChallengeWithoutWhichTheWebClientRejectsTheAuthorizeRequest(),
+        code_challenge_method: 'S256',
         ui_locales: 'fr',
       }).toString();
     await page.goto(kcAuthorizeUrlBypassingTheSpaLocale);
+
+    await expect(
+      page,
+      'the authorize request bounced back to the SPA instead of rendering the Keycloak login page',
+    ).toHaveURL(/\/realms\/alpenflight\//);
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+    await expect(page.locator(KC_PAGE_TITLE)).toHaveText(KC_PAGE_TITLE_FROM_OUR_FRENCH_BUNDLE);
   });
 });

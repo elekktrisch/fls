@@ -14,6 +14,7 @@ import { enterViaNav } from '../_helpers/nav';
 
 import { seedFlightMasterdata, type FlightMasterdata } from './_helpers/flight-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
+import { seededFlightDateInsideListWindowAndPastBillGate } from './_helpers/seed-flight-date';
 import {
   loginAsReservationAdmin,
   captureReservationAdminBearer,
@@ -70,14 +71,15 @@ async function newRecordedContext(
 
 async function seedFlight(api: APIRequestContext, bearer: string): Promise<string> {
   const md: FlightMasterdata = await seedFlightMasterdata(api, bearer);
+  const flightDate = seededFlightDateInsideListWindowAndPastBillGate();
   const res = await api.post(FLIGHTS, {
     headers: { authorization: bearer, 'content-type': 'application/json' },
     data: {
       flightAircraftType: 'GLIDER',
       aircraftId: md.gliderAircraftId,
-      flightDate: '2026-05-15',
-      startDateTime: '2026-05-15T08:00:00Z',
-      ldgDateTime: '2026-05-15T09:30:00Z',
+      flightDate,
+      startDateTime: `${flightDate}T08:00:00Z`,
+      ldgDateTime: `${flightDate}T09:30:00Z`,
       startLocationId: md.locationId,
       ldgLocationId: md.locationId,
       flightTypeId: md.gliderFlightTypeId,

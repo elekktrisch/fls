@@ -3,6 +3,7 @@ package ch.alpenflight.tenancy.provisioning.infra;
 import ch.alpenflight.platform.keycloak.BearerTokenInterceptor;
 import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
 import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
+import ch.alpenflight.platform.keycloak.MergeableKeycloakUserRepresentation;
 import ch.alpenflight.platform.keycloak.RedactingRestClientInterceptor;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentNames;
@@ -169,15 +170,38 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         Objects.requireNonNull(userKeycloakSub, "userKeycloakSub");
         Objects.requireNonNull(attributeName, "attributeName");
         Objects.requireNonNull(values, "values");
+        MergeableKeycloakUserRepresentation current = readUserForMerge(userKeycloakSub);
+        Map<String, Object> body = current.putBodyResendingFieldsKeycloakWouldClear(
+                current.attributesWithMerged(attributeName, values));
         try {
             http.put()
                     .uri(props.adminBase() + "/users/" + userKeycloakSub)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("attributes", Map.of(attributeName, values)))
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             throw transportFailureStatusOnly("set user attribute", e);
+        }
+    }
+
+    private MergeableKeycloakUserRepresentation readUserForMerge(UUID userKeycloakSub) {
+        String body;
+        try {
+            body = http.get()
+                    .uri(props.adminBase() + "/users/" + userKeycloakSub)
+                    .retrieve()
+                    .body(String.class);
+        } catch (HttpStatusCodeException e) {
+            throw transportFailureStatusOnly("read user for attribute merge", e);
+        }
+        if (body == null || body.isBlank()) {
+            return MergeableKeycloakUserRepresentation.empty();
+        }
+        try {
+            return objectMapper.readValue(body, MergeableKeycloakUserRepresentation.class);
+        } catch (Exception causeWithheldSoRealmPayloadCannotReachTheLogs) {
+            throw new KeycloakProvisioningException("malformed user representation from directory");
         }
     }
 
