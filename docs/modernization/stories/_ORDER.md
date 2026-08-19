@@ -18,7 +18,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
@@ -71,7 +70,6 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
