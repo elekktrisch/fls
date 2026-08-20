@@ -191,7 +191,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
 - [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
-- [ ] T-07b — [S1] transaction demarcation structure: `runAs` outside the template, the tx writer bean, the boot-time template
+- [x] T-07b — [S1] transaction demarcation structure: `runAs` outside the template, the tx writer bean, the boot-time template
 - [ ] T-07c — [S1] JPA write-then-read identity: the bound `flush()` name, the operating club from the carrier
 - [ ] T-07d — [S1] packaged-artifact dependency shape: no production class injects `RestClient.Builder`; fix the OpenAPI snapshot failure message that invites accepting a contract break
   - `OVERFLOW:` three seams (cap is one), six new test files (cap is five), two test layers with four
@@ -203,6 +203,16 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
       (`JoinRequestsService.java:56,64`); `FlightInitialState.resolveSeeds:28` keeps the
       `TransactionTemplate` inside `@PostConstruct`, because the injected `EntityManager` proxy needs
       a bound JDBC session at boot.
+      **Done — the third reason was refuted, and the guard states the measured one instead.**
+      Invariants 1 and 2 hold, and `FlightReportRebuildServiceIT` measures the mechanism: the swapped
+      order binds the Hibernate session to `NO_TENANT` and reds all three cases. Invariant 3 is a
+      different rule than the rider asked for. The stated reason is false: a lookup without the
+      `TransactionTemplate`, and a lookup in the constructor body, both start the context green
+      against real Postgres, because the Spring shared-`EntityManager` proxy defers the close until
+      the terminal query call. The real invariant is the `@PostConstruct` annotation. Remove it and
+      the context still starts, `initialProcessStateId` keeps the all-zero sentinel, and five cases
+      of `FlightProcessStatePatchIT` get 500 in place of 201. `TransactionDemarcationStructureGuardTest`
+      carries all three reasons in its failure messages.
     - **T-07c — JPA write-then-read identity** (Postgres integration tests, second layer).
       `AircraftRepository.flush()` keeps its literal name, because `JpaAircraftRepository` satisfies it
       from `JpaRepository.flush()` by signature (`JpaAircraftRepository.java:13`); a rename makes Spring
@@ -267,6 +277,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-43 — [S2] `RequestTenantHint` lost its only producer when T-03 deleted the interceptor; `RequestAuditFilter.java:80-91` is now unreachable (T-03 finding)
 - [ ] T-44 — [S2] `verifyArchUnitFailsOnViolation` and `verifyNullAwayFailsOnViolation` hang off no `check` task, so CI never runs them (T-03 finding)
 - [ ] T-45 — [S1] three audit call sites pass a snapshot whose class the `entityType` does not name, so the allow-list matches almost nothing and the row is nearly empty: `PersonsService.java:243,262,278` record `PersonClub` with a `Person` / `PersonResponse`; `AircraftsService.java:252,277` record `Aircraft` with `AircraftStateHistoryEntryResponse` / `AircraftOperatingCounterResponse`, so those two config entries are dead (T-05 finding — the startup guard's stated residual limit, made concrete)
+- [ ] T-46 — [S1] four scheduled jobs bypass their own `@Transactional` through a self-call, so the run opens no transaction: `AircraftDatabaseSyncJob.java:43` calls `runOnce`, `DailyReportJob.java:86` and `PlanningDayNotificationJob.java:114` call `runForCurrentClub`, `LicenceNotificationJob.java:63` calls `runOnce`. Both `DailyReportJob` and `PlanningDayNotificationJob` already inject an `ObjectProvider` self-proxy for the other entry point, so the `@Scheduled` path is the miss. Fix the four call sites, then widen `TransactionDemarcationStructureGuardTest.noClassCallsATransactionalMethodItDeclaresItself` from this seam to the whole production tree; the repository-wide run reports nine sites, and the other five are an `ObjectProvider` self-proxy that does cross the proxy, a caller that is itself `@Transactional`, and compiler-generated bridge methods that the rule already skips (T-07b finding)
 
 ## Assumptions made
 

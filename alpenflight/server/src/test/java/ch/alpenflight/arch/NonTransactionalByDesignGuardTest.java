@@ -209,7 +209,7 @@ class NonTransactionalByDesignGuardTest {
                         .contains(call.getTargetOwner().getFullName()));
     }
 
-    private static Optional<String> transactionalAnnotationOn(HasAnnotations<?> annotated) {
+    static Optional<String> transactionalAnnotationOn(HasAnnotations<?> annotated) {
         for (JavaAnnotation<?> annotation : annotated.getAnnotations()) {
             if (TRANSACTION_DEMARCATING_ANNOTATION_NAMES
                     .contains(annotation.getRawType().getFullName())) {
