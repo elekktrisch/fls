@@ -192,7 +192,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [x] T-07b — [S1] transaction demarcation structure: `runAs` outside the template, the tx writer bean, the boot-time template
-- [ ] T-07c — [S1] JPA write-then-read identity: the bound `flush()` name, the operating club from the carrier
+- [x] T-07c — [S1] JPA write-then-read identity: the bound `flush()` name, the operating club from the carrier
 - [ ] T-07d — [S1] packaged-artifact dependency shape: no production class injects `RestClient.Builder`; fix the OpenAPI snapshot failure message that invites accepting a contract break
   - `OVERFLOW:` three seams (cap is one), six new test files (cap is five), two test layers with four
     ArchUnit classes (cap is three at one layer). The seven remaining invariants split cleanly:
@@ -226,6 +226,21 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
       cascade at flush. Three further call sites flush to convert a
       `DataIntegrityViolationException` into a domain exception. Establish the real reason per call
       site before you write the guard, as T-06 did for `AUDIT_LOG`.
+      **Done — the rider named the wrong mechanism twice, and both guards state the measured one.**
+      `merge` is the mechanism at no call site. `changeAircraftState:245` and
+      `recordAircraftCounter:270` call no `save()`; the cascaded child gets its id at flush, and
+      `AircraftMapper.java:94` reads that id through `Objects.requireNonNull`.
+      `changeAircraftState:239` flushes for write ORDER, because Hibernate runs the insert of the
+      new period before the update that closes the old one, and `ux_aas_current_state_per_aircraft`
+      then reds. `persist:307` and `transferOwnership:217` flush to pull the constraint violation
+      inside the try; with no flush it arrives at commit, after the catch. The rename claim is also
+      too broad: an unparseable rename fails the context load, but a parseable rename such as
+      `deleteByDeletedOnNotNull` starts the application and silently deletes rows. For the second
+      invariant, `@TenantId` stamps `operatingClubId` at the insert while `@GeneratedValue` stamps
+      the id at persist. A swap to the entity read reds nothing today, because
+      `FlightReportProjector.java:41` auto-flushes inside `save()`.
+      `FlightOperatingClubComesFromTheCarrierIT` replaces that projector, which removes the
+      accident and makes the swap red with `operatingClubId=null`.
     - **T-07d — packaged-artifact dependency shape** (ArchUnit, one rule). No production class injects
       `RestClient.Builder`; `HttpOgnDeviceDatabase:27` builds the client itself. `spring-boot-starter-test`
       auto-configures that builder, so a `@SpringBootTest` passes over a boot jar that dies at startup.
