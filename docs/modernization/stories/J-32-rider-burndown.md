@@ -148,6 +148,13 @@ nothing today, which is the absence that produced the rider.
 public-registration writes only. Retention 90 days: a scheduled job nulls `client_ip` and keeps the
 row. The privacy notice ships with the journey, not after it.
 
+**Public-registration intake is a reviewed exception to the impersonation guard (operator,
+2026-08-20).** Rule 2 of `ImpersonationHttpEntryPointGuardTest` fires on `PublicRegistrationController`,
+which takes a club slug from four unauthenticated paths. An anonymous registrant submits to a club's
+published intake; the registrant does not act as the club. The club publishes the slug and can close
+the surface. The controller joins `ClubsController` in the allow-list. The operator also kept the
+`ADR 0008` paragraph that names the guard and both exceptions.
+
 ## Tasks
 
 Order: proof-carrying work first (Waves 1-2 plus the actor cell), then one mid-journey `gap-hunter`
