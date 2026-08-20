@@ -77,6 +77,8 @@ jobs:
       # that executes nothing.
       mock_filter: ${{ steps.mock_spec.outputs.filter }}
       mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
+      dashboard_showcase_proof_runs_per_push: ${{ steps.showcase_scope.outputs.dashboard_showcase_proof_runs_per_push }}
+      profile_showcase_proof_runs_per_push: ${{ steps.showcase_scope.outputs.profile_showcase_proof_runs_per_push }}
     steps:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
@@ -498,6 +500,17 @@ jobs:
           fi
           echo "mock filter '${filter}' selects no ACTIVE (non-fixme) test → full chromium suite until thickened"
           emit "" "true"; exit 0
+
+      - name: Derive which showcase-seed real-idp proof the journey-under-work owns
+        id: showcase_scope
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/derive-showcase-seed-proof-scope.sh --selftest
+          bash .github/scripts/derive-showcase-seed-proof-scope.sh \
+            "${HEAD_REF:-${REF_NAME:-}}" >> "$GITHUB_OUTPUT"
 
 
   # ---------------------------------------------------------------------------
@@ -1531,6 +1544,7 @@ jobs:
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
+      && needs.changes.outputs.dashboard_showcase_proof_runs_per_push == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -1827,9 +1841,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # alpenflight-profile-proof — J-4's SHOWCASE-SEEDED /profile self-edit gate.
   #
-  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q2). The operator
-  # made J-4's `/profile` self-edit UI proof a REQUIRED per-push merge gate — it
-  # IS in the `required` aggregator's `needs` (see `required` below). It runs
+  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q2). It runs
   # ONLY `e2e/tests/profile/self-edit.spec.ts` against the SAME showcase-seeded
   # real stack `alpenflight-dashboard-proof` boots (Postgres + Keycloak + Mailpit
   # + the alpenflight backend + `ng serve`), because the profile spec drives a
@@ -1870,6 +1882,7 @@ jobs:
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
+      && needs.changes.outputs.profile_showcase_proof_runs_per_push == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -2429,10 +2442,6 @@ jobs:
   #     aircraft flake) removed that reason, so the real chain gates again: a red
   #     real-idp run for the journey in flight now BLOCKS merge. The full
   #     cross-journey regression stays nightly (`alpenflight-e2e-real-idp.yml`).
-  #   - `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit spec)
-  #     also gates the merge. The J-3 dashboard display job
-  #     (`alpenflight-dashboard-proof`) stays NON-blocking (the visual showcase +
-  #     gallery), so the gate isn't coupled to `start-dashboard.spec.ts`.
   # `alpenflight-proof`'s `if:` guard is identical to next-build-server /
   # next-build-web / next-auth-realm-shape (`next == 'true' && docs_only !=
   # 'true'`), and
