@@ -2,7 +2,8 @@
 id: J-32
 title: Rider burndown — drain every S1 + S2 boyscout rider (hardening)
 epic: E-13
-status: todo
+status: in_progress
+started_at: 2026-08-20
 journey0: false
 hardening: true
 carved: true
@@ -17,7 +18,7 @@ acceptance:
   - "[happy] The S1 and S2 rider count in _BOYSCOUT.md reaches zero, and each shipped bullet is deleted."
 screen: /system/logs — the built audit-trail screen, reused for the proof
 headless_pulled_in: audit redaction + tenant-bypass allow-list + actor attribution → /system/logs
-migration: N/A — hardening
+migration: mapper-touching — T-12 and T-14 edit producer mappers, so `fan-out parity` is a hard merge gate (the carve said N/A)
 parity_test: alpenflight/web/e2e/tests/real-idp/audit-log-two-club.spec.ts
 adr_refs: [0008, 0022, 0026]
 ---
@@ -119,6 +120,71 @@ Wave 1 alone satisfies the journey bar of one provable screen result plus a gree
 and its test; `ClubSpec` plus the bundle-envelope mapper; `PublicRegistrationTxWriter` plus the actor
 projection; the three "deliberately NOT `@Transactional`" methods named in
 `[LOST-INVARIANTS-NEED-GUARDS]`.
+
+## Adjudications
+
+**`[DEAD-BUT-WIRED-IMPERSONATION-INTERCEPTOR]` — delete all three (operator, 2026-08-20).** Remove
+`AuditTargetTenant`, `AuditTargetTenantInterceptor` and the `TenancyWebMvcConfig` registration. Add a
+guard test that reds when an impersonation HTTP entry point returns. Evidence: `b72f9c6a0` (S-027)
+added the annotation for `/api/v1/admin/locations/{clubId}`; `41e1323ba` (S-159) withdrew that surface
+the same day; no forward story needs it; [ADR 0008](../adrs/0008-multi-tenancy-mechanism.md) §Amendment
+S-159 states `Tenants.runAs` "is never wired through to an HTTP path". The amendment is enforced by
+nothing today, which is the absence that produced the rider.
+
+**`[ANON-WRITE-ATTRIBUTION]` — adjudicated earlier (operator, /do-retro 2026-08-14).** Build
+`actor_kind = ANONYMOUS_PUBLIC` with `system_actor=false`, plus raw `client_ip` on anonymous
+public-registration writes only. Retention 90 days: a scheduled job nulls `client_ip` and keeps the
+row. The privacy notice ships with the journey, not after it.
+
+## Tasks
+
+Order: proof-carrying work first (Waves 1-2 plus the actor cell), then one mid-journey `gap-hunter`
+round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT.md`.
+
+- [ ] T-01 — spec stub for ACs 1-5 + scaffold the J-32 gallery page; re-tag one `proofVideo` to `journey: 'J-32'`
+- [ ] T-02 — scope the per-push gate: only the J-32 spec runs real-idp, prior journeys run mock-IdP
+- [ ] T-03 — [S1] delete the impersonation annotation, interceptor and registration; add the no-HTTP-entry-point guard
+- [ ] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
+- [ ] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
+- [ ] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
+- [ ] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
+- [ ] T-07b — [S1] arch guards for the remaining lost invariants
+- [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
+- [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
+- [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path
+- [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
+- [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally
+- [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
+- [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
+- [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate
+- [ ] T-14 — [S1] J-8 `AccountingRuleFilter`: correct the mapper so migrated `filter_config` matches legacy
+- [ ] T-15 — [S2] `MapperVsSchemaCompatibilityTest` red since J-13: add the missing Flyway placeholder
+- [ ] T-16 — [S2] J-0c Location migrated render
+- [ ] T-17 — [S2] fanout has no reporting spec over migrated data
+- [ ] T-18 — [S2] `[VACUOUS-NARROWING-ASSERTIONS]` — seed the should-be-excluded rows
+- [ ] T-19 — [S2] `[SPEC-TITLES-OVERCLAIM]` — narrow the two J-13 ACs or strengthen the specs
+- [ ] T-20 — [S2] ban `page.route` under `e2e/tests/real-idp/` with an eslint override
+- [ ] T-21 — [S2] sweep `.github/` comments and add the directory to the comment-gate roots
+- [ ] T-22 — [S2] typecheck `web/scripts/**` in CI
+- [ ] T-23 — [S2] cover renames inside inline Angular `template:` literals
+- [ ] T-24 — [S2] `e2e/tsconfig.json` module resolution + an e2e lint/typecheck lane
+- [ ] T-25 — [S2] widen the absolute-date guard to the five unread fields
+- [ ] T-26 — [S2] theme guards: protocol-relative URLs + wire or delete `check-theme-load.sh`
+- [ ] T-27 — [S2] make a fan-out red visible
+- [ ] T-28 — [S2] `RequestIdFilter` MDC key matches the logback pattern
+- [ ] T-29 — [S2] give each tenant-isolation IT its own club identity
+- [ ] T-30 — [S2] persons detail route may be shadowed by the list glob
+- [ ] T-31 — [S2] reservations evicted body: read the id from the 201 `Location` header
+- [ ] T-32 — [S2] `liveFieldErrors` gates on touched/dirty
+- [ ] T-33 — [S2] `MOCK_CLUB_ID` takes the real `clb-<uuid>` shape
+- [ ] T-34 — [S2] legacy J-2 readiness: un-quarantine or re-home the parity coverage
+- [ ] T-35 — [S2] suite isolation: non-migration parity specs seed their own data
+- [ ] T-36 — [S2] bound the gh-pages history
+- [ ] T-37 — [S2] bare `/signup` → `/join` funnel spec
+- [ ] T-38 — [S2] un-mask the migration-ingest constraint name on dev/test only
+- [ ] T-39 — [S2] op-field-mutate test coverage
+- [ ] T-40 — [S2] JIT-username robustness: reject a distinct sub reusing a live username
+- [ ] T-41 — [S2] explicit `@Operation` operationIds so orval emits named client methods
 
 ## Assumptions made
 
