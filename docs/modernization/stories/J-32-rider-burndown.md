@@ -193,7 +193,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [x] T-07b — [S1] transaction demarcation structure: `runAs` outside the template, the tx writer bean, the boot-time template
 - [x] T-07c — [S1] JPA write-then-read identity: the bound `flush()` name, the operating club from the carrier
-- [ ] T-07d — [S1] packaged-artifact dependency shape: no production class injects `RestClient.Builder`; fix the OpenAPI snapshot failure message that invites accepting a contract break
+- [x] T-07d — [S1] packaged-artifact dependency shape: no production class injects `RestClient.Builder`; fix the OpenAPI snapshot failure message that invites accepting a contract break
   - `OVERFLOW:` three seams (cap is one), six new test files (cap is five), two test layers with four
     ArchUnit classes (cap is three at one layer). The seven remaining invariants split cleanly:
     - **T-07b — transaction demarcation structure** (ArchUnit, pure JVM; extends the T-07a family).
@@ -244,14 +244,23 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     - **T-07d — packaged-artifact dependency shape** (ArchUnit, one rule). No production class injects
       `RestClient.Builder`; `HttpOgnDeviceDatabase:27` builds the client itself. `spring-boot-starter-test`
       auto-configures that builder, so a `@SpringBootTest` passes over a boot jar that dies at startup.
+      **Done — the hazard is measured, and the rider named the wrong module.** The builder bean comes
+      from `spring-boot-restclient`, which `spring-boot-starter-restclient-test` pulls onto the test
+      runtime classpath only; `spring-boot-starter-test` alone does not carry it. The measurements:
+      the jar of the current code starts and `/actuator/health` reports UP; the same jar with a
+      `RestClient.Builder` constructor parameter prints `APPLICATION FAILED TO START` and
+      "No qualifying bean of type `org.springframework.web.client.RestClient$Builder` available";
+      `ApplicationContextTest.contextLoads` passes over that same broken code. An
+      `ObjectProvider<RestClient.Builder>` is worse, not safer: the jar starts, health reports UP, and
+      the deferred `getObject()` throws — and `HttpOgnDeviceDatabase` catches `RuntimeException`, so
+      the aircraft sync reports success and writes nothing. `PackagedArtifactDependencyShapeGuardTest`
+      carries every measured fact in its failure message.
     - **Already guarded — do not re-file.** `AuditEventDtos.AuditEventRow.beforeState`/`afterState`
       stay `Map<String, Object>`: `OpenApiSnapshotIT.snapshotMatchesLiveSpec` compares the live spec to
       the committed `web/openapi/openapi.json`, which pins
       `{"type": "object", "additionalProperties": {}}` for both fields. A change to `String` flips them
-      to `{"type": "string"}` and reds that test. **Residual limit:** the failure message reads
-      "Committed OpenAPI snapshot is stale vs. live spec. Run with ALPENFLIGHT_OPENAPI_REFRESH=true to
-      regenerate", which tells the developer to accept the contract change. Correct the message to name
-      the generated-client contract; that is a one-line edit and belongs to T-07d.
+      to `{"type": "string"}` and reds that test. **Done — the message now asks the developer whether
+      the contract change was intended, and names regeneration as the deliberate-change action only.**
 - [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
 - [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
 - [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
