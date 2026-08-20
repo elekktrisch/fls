@@ -167,6 +167,18 @@ published intake; the registrant does not act as the club. The club publishes th
 the surface. The controller joins `ClubsController` in the allow-list. The operator also kept the
 `ADR 0008` paragraph that names the guard and both exceptions.
 
+**Licence and medical dates stay in the audit trail (operator, 2026-08-20).** `PersonLicences`
+allow-lists `licenceNumber` and six medical and licence expiry dates. Those values land verbatim in
+`t_mutation_audit_event.after_state`, and `MePersonLicencesControllerIT.java:126` pins them
+un-redacted. Safety-of-flight licence currency and medical currency are a legitimate audit purpose.
+T-08c records the basis and the retention next to the anonymous-write privacy notice. The behaviour
+predates J-32 and does not change here.
+
+**The redaction failure direction was over-redaction, never a leak.** `PiiRedactor.java:62` gives an
+unmatched type an empty allow-set, so every field renders `[redacted]`. The audit trail was silently
+useless for the mismatched types; no personal data escaped. `Person` deny-all was in effect
+throughout, because deny-all keys on the string name.
+
 ## Tasks
 
 Order: proof-carrying work first (Waves 1-2 plus the actor cell), then one mid-journey `gap-hunter`
@@ -182,7 +194,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-07b — [S1] arch guards for the remaining lost invariants
 - [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
 - [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
-- [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path
+- [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
 - [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
 - [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
