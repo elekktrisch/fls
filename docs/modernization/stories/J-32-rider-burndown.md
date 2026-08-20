@@ -191,6 +191,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-39 — [S2] op-field-mutate test coverage
 - [ ] T-40 — [S2] JIT-username robustness: reject a distinct sub reusing a live username
 - [ ] T-41 — [S2] explicit `@Operation` operationIds so orval emits named client methods
+- [ ] T-42 — [S2] the nightly and the §4 gate grep-invert the two showcase-seed specs, so neither lane ever ran them (T-02 finding, `alpenflight-e2e-real-idp.yml:243`)
 
 ## Assumptions made
 
