@@ -41,7 +41,7 @@ jobs:
   changes:
     name: detect changes
     runs-on: ubuntu-22.04
-    timeout-minutes: 3
+    timeout-minutes: 5
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
@@ -81,9 +81,12 @@ jobs:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
       # shallow depth-1 checkout would not have locally.
-      - uses: actions/checkout@v4
+      - name: Check out every ref without historical file content
+        uses: actions/checkout@v4
+        timeout-minutes: 2
         with:
           fetch-depth: 0
+          filter: blob:none
 
       # Fail the whole run before any gate job spends compute: a ternary whose
       # then-branch is falsy silently disables the branch it looks like it
@@ -114,6 +117,13 @@ jobs:
         run: |
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh --selftest
           bash alpenflight/auth/scripts/check-theme-resources-are-all-self-hosted.sh
+
+      - name: gh-pages guards + their negative tests
+        run: |
+          python3 .github/scripts/gh-pages-retention.py --selftest
+          python3 .github/scripts/check-gh-pages-payload-size.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py --selftest
+          python3 .github/scripts/check-gh-pages-deploy-is-gated-on-the-payload-guard.py
 
       # ---------------------------------------------------------------------
       # Troubleshooting mode (fail-closed).
@@ -1376,6 +1386,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Payload-size guard — the published site must stay far under the GitHub Pages cap
+        id: payload_size_guard
         if: ${{ !cancelled() && steps.gallery.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1387,7 +1398,7 @@ jobs:
       # still gates on a built page (never publish a never-built one). keep_files
       # so it coexists with the e2e dashboard under /alpenflight/.
       - name: Deploy proof gallery to gh-pages (main)
-        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        if: ${{ !cancelled() && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1400,7 +1411,7 @@ jobs:
       # Per-PR preview deploy of the SAME single page to a disjoint per-branch
       # subpath. `!cancelled()` so a red proof case still deploys the bookmark.
       - name: Deploy proof gallery to gh-pages (PR preview)
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.payload_size_guard.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

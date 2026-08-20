@@ -101,3 +101,14 @@ trustworthy there). (Omit if verdict is solidly real with nothing notable.)
 - You don't fix anything — you find. `/do-ship` does the fixing inline.
 - You don't pass judgment on naming, layering aesthetics, or doc quality.
 - You don't soften findings to be agreeable. Your value is the catch.
+
+## When you run
+
+You run TWICE per journey (operator 2026-08-19): once **MID-JOURNEY**, as soon as the screens exist and before
+the rider burndown — hunt hollow screens, unreachable states and fabricated producer contracts while the fix is
+still one task; and once as a **confirming round** at the gate. J-19 ran three gate-time rounds and each found
+blockers, because both its hollow-green defects had been visible since the screens landed.
+
+**Assume a guard has a coverage hole.** J-19 shipped four guards and each missed an input class inside its own
+stated scope. For every guard in the diff ask: which classes does it claim, does a planted violation in EACH red,
+does its lane run unfiltered, and would its selftest have caught the bug it now has?

@@ -17,9 +17,46 @@ genuinely new vertical feature scope.
 in git + the PR. `/do-ship` deletes a rider as it ships; `/do-retro` sweeps any
 stragglers each ceremony so the file shrinks.
 
+**Burndown moved to a dedicated journey (operator, 2026-08-19).** Neither oldest-first (J-17 retro) nor
+severity-first (J-31 retro) drained this file: it went ~17 → 45 riders, and J-19 alone burned 2 while filing 9.
+A per-journey slot cannot match the discovery rate, and throttling the filing would be worse — J-19's riders
+came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns draining every S1 and S2.**
+`/do-ship` still folds on-surface riders opportunistically. Filing stays unrestricted.
+
 **Severity markers** — `/do-retro` tags every rider, `/do-ship` burns them down highest-first:
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
+
+## Pending (filed by /do-retro J-19 window, 2026-08-19)
+
+Found by the confirming `gap-hunter` round AFTER #251 merged.
+
+- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S2] The J-31 sweep deleted every comment in
+  `alpenflight/` and `e2e/`, and the gate at `ci.yml:105` reads those two roots only. `.github/`
+  was never swept, so it still holds 1850 comment lines in 5895 (31%), and `ci.yml` alone holds 883
+  in 2501 (35%). The operator reads that narration as a policy breach, because the rule is one rule
+  for the repository. The stripper maps `.yml`, `.yaml` and `.sh`, so it can sweep the workflows
+  today; it has no `.py` mapping, so `.github/scripts` needs one first. Sweep with `/comment-strip`
+  BEFORE adding `.github` to the gate's roots, because the gate reds on its first run otherwise.
+  Same class as the extract.yml hole: a gate that does not read its own inputs.
+  *(seam: `.claude/skills/comment-strip/scripts/strip.mjs` extension map + the gate's roots at
+  `ci.yml:105`)* [[project_gate_must_cover_its_own_inputs]]
+- **[GH-PAGES-HISTORY-IS-UNBOUNDED]** [S2] Two guards bound the gh-pages TREE: the retention cron
+  deletes what no published page reaches, and `check-gh-pages-payload-size.py` reds over 400 MB.
+  Nothing bounds the gh-pages HISTORY. Every deleted proof video, trace and screenshot stays in the
+  branch's objects, and the cron's own delete commit adds one more. Measured: at least 0.87 GiB in
+  1518 blobs that no other branch reaches, on a SHALLOW clone whose `gh-pages` is grafted, so the
+  real branch is larger. This cost GitHub storage, and it broke the `changes` job's clone once (run
+  32286548088) until `filter: blob:none` removed the historical content from that fetch. Root fix:
+  re-write `gh-pages` as one orphan commit that holds the current published tree, on a schedule.
+  That force-pushes a published branch, so it must take the existing `gh-pages-deploy` concurrency
+  group and must run after the retention sweep, never beside it.
+  *(seam: `gh-pages-retention.yml`, after the "Publish the pruned site" step)*
+- **[THEME-GUARD-MISSES-PROTOCOL-RELATIVE-URLS]** [S2] `check-theme-resources-are-all-self-hosted.sh:10`
+  catches an external host only inside `url(` or `@import`. Reproduced: an `.ftl` carrying
+  `<link href="//fonts.googleapis.com/css2?family=Roboto">` and `<script src="//cdn…">` passes with
+  rc=0. The exact regression J-19 T-23 fixed returns through that form; the selftest plants only the
+  CSS `@import` case. *(seam: that script's pattern + its selftest fixtures)*
 
 ## Pending (filed by /do-plan J-19 carve, 2026-08-16 — main-branch reds)
 
@@ -52,27 +89,6 @@ stragglers each ceremony so the file shrinks.
   (migrate-from-legacy upload wizard, `_ORDER.md:23`), so the fix rides J-21.
   *(seam: `PreTenantUserLookup.resolveUserId` + `JitUserMaterializerImpl` + `MigrationHandshakeService`
   + the verified-email signup path)*
-- **[ABSOLUTE-DATES-IN-MOCK-FULFILL-BODIES]** [S3] **Corrected by J-19 T-03, measured not assumed.**
-  Only API-SEEDED dates can expire against `FlightsService.java:47`'s 90-day list window. J-19 fixed
-  and guarded all three such sites (`delivery-creation-test-parity`, `deliveries-parity`,
-  `deliveries-write-parity`), now sharing
-  `e2e/tests/real-idp/_helpers/seed-flight-date.ts`. The remaining 13 absolute dates were checked
-  empirically: every one of those specs has **zero `.post()` calls**, so each date sits in a
-  `route.fulfill` response body that no server window can expire. They are cosmetic, not timed reds:
-  `accounting/deliveries.spec.ts:86`, `accounting/delivery-creation-test.spec.ts:62`,
-  `flights/04-flights-create.spec.ts:99`, `flights/04c-flights-paired-create.spec.ts:103`,
-  `flights/05-flights-edit.spec.ts:88`, `flights/flights-list-delete.spec.ts:26,39`,
-  `forms/validation-hardening.spec.ts:197`, `reporting/custom-builder.spec.ts:26`,
-  `reporting/flight-reports.spec.ts:65,92,164,180`. Convert on next touch for consistency only.
-  **T-03's coverage claim was wrong, and J-19 T-17 corrected it.** The T-03 guard walked only
-  `*.spec.ts` under `alpenflight/web/e2e/tests`, and recognised only a `.post(` call site. It never
-  opened a `_helpers/*.ts` fixture, never opened the root `e2e/` suite, and never saw a
-  `request.fetch({ method: 'POST' })` seed. T-17 widened it to every `.ts` file under both e2e trees
-  and to both POST forms; see the T-17 task line for the exact scope. **T-17 read only two of the three
-  quote styles, and J-19 T-21 corrected that**: a backtick-quoted date — the very form the guard's own
-  message recommended — was invisible. T-21 reads all three quote styles, adds `.put(` / `.patch(` /
-  a `PUT` or `PATCH` `.fetch(`, and guards a seeding file end to end so a hoisted const body reds too.
-  *(seam: those 13 mock fixtures)*
 - **[ABSOLUTE-DATE-GUARD-READS-THREE-FIELDS-ONLY]** [S2] J-19 T-21 widened the quote styles, the verbs
   and the call span of `absolute-flight-date-in-api-seed-guard.mjs`, but the guarded field list is still
   the three flight fields T-03 chose. A T-21 scan over every file that holds a seeding call site found
@@ -464,11 +480,6 @@ stragglers each ceremony so the file shrinks.
   to cut the workflow YAML (~4.5k→~2k) — the only still-pending half (the mock-suite sharding, real-idp shard,
   and KC-26 quarantine all shipped). *(seam: `ci.yml` + `alpenflight-proof-fanout.yml` + `alpenflight-e2e.yml` +
   new composites)*
-- **[HISTORY→GIT] Journey/story files contract-only.** [S3] Prune journey files to frontmatter + ACs + the
-  task checklist + load-bearing decisions + a short Outcome — drop the per-task implementation prose
-  + any "Original (for trace)" blocks; that history is in git/commit messages. Per-touch (the in-flight +
-  next journeys; don't churn merged ones). *(seam: `docs/modernization/stories/*.md` per-touch)*
-  [[feedback_self_explanatory_no_history_comments]]
 - **[QODANA-BUILD-FILE-BLIND-SPOT]** [S3] Filed by J-19 T-22's audit of every path-filtered workflow.
   `qodana.yml:29-33` filters to `alpenflight/server/src/main/java/**` + the three qodana files, which
   matches `qodana.yaml`'s own `include.paths` exactly — so the inspected sources are covered. The gap is

@@ -164,7 +164,10 @@ def attachment_names_the_published_report_still_references(site: Path) -> set[st
         referenced.update(SHA1_NAMED_ATTACHMENT_FILE.findall(html))
         payload = PLAYWRIGHT_REPORT_BASE64_PAYLOAD.search(html)
         if not payload:
-            continue
+            raise ValueError(
+                f"{html_file.relative_to(site)} embeds no playwrightReportBase64 payload, so the "
+                f"attachments it references stay unknown"
+            )
         report_zip = zipfile.ZipFile(io.BytesIO(base64.b64decode(payload.group(1))))
         for entry in report_zip.namelist():
             entry_text = report_zip.read(entry).decode("utf8", errors="replace")
@@ -276,19 +279,33 @@ def apply_retention(site: Path, repo_with_the_branches: Path, workflow_dir: Path
     return deletions
 
 
+ATTACHMENT_THE_EMBEDDED_REPORT_PAYLOAD_NAMES = "a" * 40 + ".zip"
+ATTACHMENT_ONLY_THE_REPORT_HTML_TEXT_NAMES = "c" * 40 + ".png"
+ATTACHMENT_NO_PUBLISHED_REPORT_NAMES = "b" * 40 + ".zip"
+EVERY_ATTACHMENT_THE_SELFTEST_SITE_HOLDS = (
+    ATTACHMENT_THE_EMBEDDED_REPORT_PAYLOAD_NAMES,
+    ATTACHMENT_ONLY_THE_REPORT_HTML_TEXT_NAMES,
+    ATTACHMENT_NO_PUBLISHED_REPORT_NAMES,
+)
+
+
 def plant_a_site_that_exercises_every_rule(root: Path, live_branch: str) -> None:
     attachments = root / LEGACY_REPORT_ATTACHMENT_DIR
     attachments.mkdir(parents=True)
-    kept = "a" * 40 + ".zip"
-    dropped = "b" * 40 + ".zip"
-    (attachments / kept).write_bytes(b"kept")
-    (attachments / dropped).write_bytes(b"dropped")
+    for attachment in EVERY_ATTACHMENT_THE_SELFTEST_SITE_HOLDS:
+        (attachments / attachment).write_bytes(b"attachment")
     report_payload = io.BytesIO()
     with zipfile.ZipFile(report_payload, "w") as report_zip:
-        report_zip.writestr("report.json", '{"attachments":[{"path":"data/' + kept + '"}]}')
+        report_zip.writestr(
+            "report.json",
+            '{"attachments":[{"path":"data/' + ATTACHMENT_THE_EMBEDDED_REPORT_PAYLOAD_NAMES + '"}]}',
+        )
     encoded = base64.b64encode(report_payload.getvalue()).decode("ascii")
     (root / LEGACY_REPORT_DIR / "index.html").write_text(
-        f'<html><script id="playwrightReportBase64">data:application/zip;base64,{encoded}</script></html>',
+        f"<html>"
+        f'<script id="playwrightReportBase64">data:application/zip;base64,{encoded}</script>'
+        f'<script>window.trace={{"file":"data/{ATTACHMENT_ONLY_THE_REPORT_HTML_TEXT_NAMES}"}}</script>'
+        f"</html>",
         encoding="utf8",
     )
     (root / PROOF_PREVIEW_DIR / live_branch).mkdir(parents=True)
@@ -362,12 +379,20 @@ def selftest_the_rule_deletes_only_what_no_published_page_reaches() -> None:
             f"selftest: the summary reports {payload_after} bytes after the rule deleted "
             f"{len(deletions)} path(s) from a {payload_before}-byte site"
         )
-        assert (site / LEGACY_REPORT_ATTACHMENT_DIR / ("a" * 40 + ".zip")).exists(), (
-            "selftest: the rule deleted an attachment the published report references"
+        assert (
+            site / LEGACY_REPORT_ATTACHMENT_DIR / ATTACHMENT_THE_EMBEDDED_REPORT_PAYLOAD_NAMES
+        ).exists(), (
+            "selftest: the rule deleted an attachment the embedded report payload references"
         )
-        assert not (site / LEGACY_REPORT_ATTACHMENT_DIR / ("b" * 40 + ".zip")).exists(), (
-            "selftest: the rule kept an attachment no published report references"
+        assert (
+            site / LEGACY_REPORT_ATTACHMENT_DIR / ATTACHMENT_ONLY_THE_REPORT_HTML_TEXT_NAMES
+        ).exists(), (
+            "selftest: the rule deleted an attachment only the report HTML text names. The rule "
+            "must read both reference forms: the embedded payload and the HTML text"
         )
+        assert not (
+            site / LEGACY_REPORT_ATTACHMENT_DIR / ATTACHMENT_NO_PUBLISHED_REPORT_NAMES
+        ).exists(), "selftest: the rule kept an attachment no published report references"
         assert (site / PROOF_PREVIEW_DIR / LIVE_BRANCH_OF_THE_SELFTEST_SITE).is_dir(), (
             "selftest: the rule deleted the preview of a branch that still exists"
         )
@@ -388,8 +413,37 @@ def selftest_an_unreadable_report_proves_no_attachment_unreachable() -> None:
 
         apply_retention(site, repo, workflow_dir)
 
-        assert (site / LEGACY_REPORT_ATTACHMENT_DIR / ("b" * 40 + ".zip")).exists(), (
+        assert (
+            site / LEGACY_REPORT_ATTACHMENT_DIR / ATTACHMENT_NO_PUBLISHED_REPORT_NAMES
+        ).exists(), (
             "selftest: an unreadable report pruned attachments it could not prove unreachable"
+        )
+
+
+def selftest_a_report_the_payload_regex_misses_keeps_every_attachment() -> None:
+    with tempfile.TemporaryDirectory() as scratch:
+        site, repo, workflow_dir = plant_the_selftest_site(scratch)
+        (site / LEGACY_REPORT_DIR / "index.html").write_text(
+            "<html><body>a report format that embeds no base64 payload</body></html>",
+            encoding="utf8",
+        )
+
+        deletions = apply_retention(site, repo, workflow_dir)
+
+        for attachment in EVERY_ATTACHMENT_THE_SELFTEST_SITE_HOLDS:
+            assert (site / LEGACY_REPORT_ATTACHMENT_DIR / attachment).exists(), (
+                f"selftest: the rule deleted {attachment} because the payload regex missed. "
+                f"A report the rule cannot read proves no attachment unreachable, so the rule "
+                f"must keep every attachment, like it does for a missing or corrupt report"
+            )
+        pruned_attachments = [
+            deletion
+            for deletion in deletions
+            if deletion.startswith(LEGACY_REPORT_ATTACHMENT_DIR)
+        ]
+        assert not pruned_attachments, (
+            f"selftest: the rule reported the deletions {pruned_attachments} for a report it "
+            f"cannot read"
         )
 
 
@@ -544,6 +598,7 @@ def selftest_a_target_that_addresses_no_published_file_is_not_a_reference() -> N
 def run_selftest_so_a_broken_rule_cannot_report_green() -> None:
     selftest_the_rule_deletes_only_what_no_published_page_reaches()
     selftest_an_unreadable_report_proves_no_attachment_unreachable()
+    selftest_a_report_the_payload_regex_misses_keeps_every_attachment()
     selftest_the_rule_refuses_a_destination_a_workflow_still_publishes()
     selftest_a_relative_link_keeps_the_directory_it_points_into()
     selftest_a_root_absolute_link_keeps_the_directory_it_points_into()
