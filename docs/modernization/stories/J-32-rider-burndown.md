@@ -190,7 +190,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
 - [x] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
 - [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
-- [ ] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
+- [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [ ] T-07b — [S1] arch guards for the remaining lost invariants
 - [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
 - [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
