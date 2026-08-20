@@ -13,7 +13,6 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 import transactiondemarcationplants.TransactionDemarcationPlants;
@@ -184,30 +183,90 @@ class TransactionDemarcationStructureGuardRedsOnEveryPlantedViolationTest {
                 .doesNotThrowAnyException();
     }
 
-    @Test
-    void input_class_the_caller_invokes_its_own_transactional_method_through_this() {
-        Class<?> plant = TransactionDemarcationPlants
-                .PlantedCallerWithTheWriterInlinedAndCalledThroughThis.class;
-
+    private static void assertTheSelfCallRuleRedsOn(Class<?> plant) {
         assertThatThrownBy(() -> TransactionDemarcationStructureGuardTest
-                .noClassCallsATransactionalMethodItDeclaresItself(Set.of(plant.getName()))
+                .noClassCallsATransactionalMethodItDeclaresItself()
                 .check(imported(plant)))
                 .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("calls its own @Transactional method")
+                .hasMessageContaining("calls its own method")
                 .hasMessageContaining(TransactionDemarcationPlants.PINNED_WRITE_METHOD_NAME)
-                .hasMessageContaining("skips the Spring proxy and opens no transaction");
+                .hasMessageContaining("skips the Spring proxy and opens no transaction")
+                .hasMessageContaining(TransactionDemarcationStructureGuardTest
+                        .RESIDUAL_LIMIT_THESE_RULES_DO_NOT_COVER);
+    }
+
+    private static void assertTheSelfCallRuleStaysGreenOn(Class<?>... plants) {
+        assertThatCode(() -> TransactionDemarcationStructureGuardTest
+                .noClassCallsATransactionalMethodItDeclaresItself()
+                .check(imported(plants)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void input_class_the_caller_invokes_its_own_transactional_method_through_this() {
+        assertTheSelfCallRuleRedsOn(TransactionDemarcationPlants
+                .PlantedCallerWithTheWriterInlinedAndCalledThroughThis.class);
+    }
+
+    @Test
+    void input_class_a_scheduled_entry_point_self_calls_a_method_level_transactional() {
+        assertTheSelfCallRuleRedsOn(TransactionDemarcationPlants
+                .PlantedScheduledEntryPointThatSelfCallsItsMethodLevelTransactional.class);
+    }
+
+    @Test
+    void input_class_a_constructor_self_calls_a_method_a_class_level_transactional_covers() {
+        assertTheSelfCallRuleRedsOn(TransactionDemarcationPlants
+                .PlantedConstructorThatSelfCallsAClassLevelTransactionalMethod.class);
+    }
+
+    @Test
+    void input_class_a_private_helper_forwards_the_self_call_to_the_transactional_method() {
+        assertTheSelfCallRuleRedsOn(TransactionDemarcationPlants
+                .PlantedScheduledEntryPointThatSelfCallsThroughAPrivateHelper.class);
+    }
+
+    @Test
+    void input_class_a_lambda_body_carries_the_self_call_to_the_transactional_method() {
+        assertTheSelfCallRuleRedsOn(TransactionDemarcationPlants
+                .PlantedScheduledEntryPointThatSelfCallsInsideALambda.class);
+    }
+
+    @Test
+    void the_self_call_rule_cannot_see_a_self_call_routed_through_a_method_reference() {
+        assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
+                .PlantedScheduledEntryPointThatSelfCallsThroughAMethodReference.class);
+
+        assertThat(TransactionDemarcationStructureGuardTest
+                .RESIDUAL_LIMIT_THESE_RULES_DO_NOT_COVER)
+                .as("a shape the rule cannot see must be named in the failure message")
+                .contains("It cannot see a self-call routed through a method reference");
     }
 
     @Test
     void the_self_call_rule_stays_green_when_the_transactional_method_sits_on_another_bean() {
-        Class<?> caller = TransactionDemarcationPlants
-                .PlantedCallerThatCallsAnotherBeansTransactionalMethod.class;
-        Class<?> writer = TransactionDemarcationPlants.PlantedTransactionalWriterBean.class;
+        assertTheSelfCallRuleStaysGreenOn(
+                TransactionDemarcationPlants
+                        .PlantedCallerThatCallsAnotherBeansTransactionalMethod.class,
+                TransactionDemarcationPlants.PlantedTransactionalWriterBean.class);
+    }
 
-        assertThatCode(() -> TransactionDemarcationStructureGuardTest
-                .noClassCallsATransactionalMethodItDeclaresItself(Set.of(caller.getName()))
-                .check(imported(caller, writer)))
-                .doesNotThrowAnyException();
+    @Test
+    void the_self_call_rule_stays_green_on_an_object_provider_self_proxy() {
+        assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
+                .PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider.class);
+    }
+
+    @Test
+    void the_self_call_rule_stays_green_inside_one_class_level_transactional_boundary() {
+        assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
+                .PlantedClassLevelTransactionalWhoseMethodsCallEachOther.class);
+    }
+
+    @Test
+    void the_self_call_rule_stays_green_when_the_calling_method_is_transactional_itself() {
+        assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
+                .PlantedTransactionalMethodCalledFromATransactionalMethodOfTheSameClass.class);
     }
 
     @Test

@@ -3,7 +3,9 @@ package transactiondemarcationplants;
 import ch.alpenflight.platform.tenancy.Tenants;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -259,6 +261,124 @@ public final class TransactionDemarcationPlants {
         private UUID lookUpTheSeedBeforeTheConstructorAssignsAnything() {
             transactions.executeWithoutResult(status -> { });
             return new UUID(0L, 0L);
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatSelfCallsItsMethodLevelTransactional {
+
+        public void runScheduled() {
+            fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    @Transactional
+    public static class PlantedConstructorThatSelfCallsAClassLevelTransactionalMethod {
+
+        private final String filed;
+
+        public PlantedConstructorThatSelfCallsAClassLevelTransactionalMethod() {
+            this.filed = fileTheRequest(new UUID(0L, 0L));
+        }
+
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+
+        public String filed() {
+            return filed;
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatSelfCallsThroughAPrivateHelper {
+
+        public void runScheduled() {
+            forwardToTheTransactionalWrite();
+        }
+
+        private void forwardToTheTransactionalWrite() {
+            fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatSelfCallsInsideALambda {
+
+        public String runScheduled() {
+            return Optional.of(new UUID(0L, 0L))
+                    .map(clubId -> fileTheRequest(clubId).strip())
+                    .orElse("");
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatSelfCallsThroughAMethodReference {
+
+        public String runScheduled() {
+            return Optional.of(new UUID(0L, 0L)).map(this::fileTheRequest).orElse("");
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider {
+
+        private final ObjectProvider<
+                PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider> self;
+
+        public PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider(
+                ObjectProvider<PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider>
+                        self) {
+            this.self = self;
+        }
+
+        public void runScheduled() {
+            self.getObject().fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    @Transactional
+    public static class PlantedClassLevelTransactionalWhoseMethodsCallEachOther {
+
+        public String runInsideTheClassLevelBoundary() {
+            return fileTheRequest(new UUID(0L, 0L));
+        }
+
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedTransactionalMethodCalledFromATransactionalMethodOfTheSameClass {
+
+        @Transactional
+        public String sweep() {
+            return fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
         }
     }
 

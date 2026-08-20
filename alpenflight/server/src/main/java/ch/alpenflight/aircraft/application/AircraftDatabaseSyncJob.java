@@ -13,6 +13,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,16 +32,20 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private final AircraftRepository aircraft;
     private final OgnDeviceDatabase ddb;
+    private final ObjectProvider<AircraftDatabaseSyncJob> self;
 
-    public AircraftDatabaseSyncJob(AircraftRepository aircraft, OgnDeviceDatabase ddb) {
+    public AircraftDatabaseSyncJob(AircraftRepository aircraft,
+                                   OgnDeviceDatabase ddb,
+                                   ObjectProvider<AircraftDatabaseSyncJob> self) {
         this.aircraft = aircraft;
         this.ddb = ddb;
+        this.self = self;
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        runOnce();
+        self.getObject().runOnce();
     }
 
     @Override

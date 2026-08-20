@@ -83,7 +83,7 @@ public class DailyReportJob implements BusinessJob {
     @Scheduled(cron = CRON)
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
-        runForCurrentClub();
+        self.getObject().runForCurrentClub();
     }
 
     @Override

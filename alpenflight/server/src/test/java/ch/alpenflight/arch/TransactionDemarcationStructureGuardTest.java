@@ -38,6 +38,8 @@ class TransactionDemarcationStructureGuardTest {
             "org.springframework.stereotype.Component";
     private static final String POST_CONSTRUCT_FULL_NAME = "jakarta.annotation.PostConstruct";
     private static final String ENTITY_MANAGER_FULL_NAME = "jakarta.persistence.EntityManager";
+    private static final String OBJECT_PROVIDER_FULL_NAME =
+            "org.springframework.beans.factory.ObjectProvider";
 
     private static final Set<String> PROGRAMMATIC_TRANSACTION_STARTER_OWNERS = Set.of(
             "org.springframework.transaction.support.TransactionTemplate",
@@ -109,14 +111,21 @@ class TransactionDemarcationStructureGuardTest {
                     + "helper method, so a helper that opens the transaction both hides the shape "
                     + "and reds the rule. It cannot see a transaction that a caller opened "
                     + "further out, or that another class started on the same thread. The "
-                    + "self-call rule reads the declared call target, so it catches this.method() "
-                    + "and a call on a field of the same class. It covers the two classes of this "
-                    + "seam only, because a repository-wide run reports two shapes that are not "
-                    + "bypasses: a call through an ObjectProvider self-injection, which does "
-                    + "cross the proxy, and a call from a compiler-generated bridge method, which "
-                    + "this rule now skips. The self-call rule also reads a method-level "
-                    + "@Transactional only, because a class-level one makes every internal call "
-                    + "look like a violation. The boot-callback rule reads the @PostConstruct "
+                    + "self-call rule covers every production class. It reads the declared call "
+                    + "target, so it catches this.method(), a call on a field of the same class, "
+                    + "and a call inside a lambda body. It cannot see a self-call routed through a "
+                    + "method reference: javac compiles this::method to an invokedynamic "
+                    + "instruction, and ArchUnit records that as a method reference, not as a "
+                    + "method call. Measured: the rule stays green on a planted "
+                    + "this::transactionalMethod. It reads the @Transactional of the target from "
+                    + "the method or from the declaring class, and it passes over three shapes "
+                    + "that open no new hole: a call whose source line also reaches ObjectProvider, "
+                    + "which does cross the proxy; a call from a compiler-generated bridge method; "
+                    + "and a call whose origin already runs inside the same boundary, either "
+                    + "because the origin carries its own @Transactional or because a class-level "
+                    + "@Transactional covers origin and target alike. The ObjectProvider test reads "
+                    + "one source line, so splitting self.getObject() and the call over two lines "
+                    + "reds the rule. The boot-callback rule reads the @PostConstruct "
                     + "annotation and the constructor call sites; it does not prove that the seed "
                     + "row exists.";
 
@@ -155,14 +164,9 @@ class TransactionDemarcationStructureGuardTest {
             writerStaysASeparateProxiedBean(JOIN_REQUEST_WRITER_PIN,
                     WHY_THE_JOIN_REQUEST_WRITER_STAYS_A_SEPARATE_PROXIED_BEAN);
 
-    static final Set<String> CLASSES_OF_THIS_SEAM_THAT_MAY_NOT_SELF_CALL_A_TRANSACTIONAL_METHOD =
-            Set.of(JOIN_REQUEST_WRITER_PIN.callerFullName(),
-                    JOIN_REQUEST_WRITER_PIN.writerFullName());
-
     @ArchTest
-    static final ArchRule no_class_of_this_seam_calls_a_transactional_method_it_declares_itself =
-            noClassCallsATransactionalMethodItDeclaresItself(
-                    CLASSES_OF_THIS_SEAM_THAT_MAY_NOT_SELF_CALL_A_TRANSACTIONAL_METHOD);
+    static final ArchRule no_production_class_calls_a_transactional_method_it_declares_itself =
+            noClassCallsATransactionalMethodItDeclaresItself();
 
     @ArchTest
     static final ArchRule the_boot_seed_resolution_stays_a_post_construct_callback =
@@ -196,16 +200,17 @@ class TransactionDemarcationStructureGuardTest {
                 .allowEmptyShould(true);
     }
 
-    static ArchRule noClassCallsATransactionalMethodItDeclaresItself(Set<String> scope) {
+    static ArchRule noClassCallsATransactionalMethodItDeclaresItself() {
         return classes()
-                .that(describe("carry a transaction boundary of this demarcation seam",
-                        (JavaClass c) -> scope.contains(c.getFullName())))
                 .should(callNoTransactionalMethodItDeclaresItself())
-                .as("A class of this seam must not call a @Transactional method that it declares "
-                        + "itself. Spring opens the transaction in a proxy around the bean. A "
-                        + "self-call never crosses the proxy, so Spring opens no transaction, and "
-                        + "the write runs with no rollback boundary. Keep the boundary on a "
-                        + "separate bean, as JoinRequestTxWriter does for JoinRequestsService."
+                .as("A class must not call a @Transactional method that it declares itself. Spring "
+                        + "opens the transaction in a proxy around the bean. A self-call never "
+                        + "crosses the proxy, so Spring opens no transaction, and the write runs "
+                        + "with no rollback boundary. Reach the boundary through an injected "
+                        + "ObjectProvider self-proxy, as DailyReportJob does, or move it onto a "
+                        + "separate bean, as JoinRequestTxWriter does for JoinRequestsService. "
+                        + "Measured on the AircraftDatabaseSyncJob run: the self-call let a "
+                        + "half-finished sync keep the aircraft it already wrote."
                         + RESIDUAL_LIMIT_THESE_RULES_DO_NOT_COVER)
                 .allowEmptyShould(true);
     }
@@ -344,22 +349,48 @@ class TransactionDemarcationStructureGuardTest {
             public void check(JavaClass candidate, ConditionEvents events) {
                 for (JavaMethodCall call : candidate.getMethodCallsFromSelf()) {
                     if (!call.getTargetOwner().getFullName().equals(candidate.getFullName())
-                            || isCompilerGenerated(call.getOrigin())) {
+                            || isCompilerGenerated(call.getOrigin())
+                            || reachesTheBeanThroughAnObjectProviderOnTheSameLine(call)) {
                         continue;
                     }
                     Optional<JavaMethod> target = call.getTarget().resolveMember();
-                    if (target.isEmpty()
-                            || NonTransactionalByDesignGuardTest
-                            .transactionalAnnotationOn(target.get()).isEmpty()) {
+                    if (target.isEmpty()) {
+                        continue;
+                    }
+                    Optional<String> demarcation =
+                            transactionalAnnotationOnTheMethodOrItsClass(target.get());
+                    if (demarcation.isEmpty()
+                            || theOriginAlreadyRunsInsideThatBoundary(call, candidate,
+                            target.get())) {
                         continue;
                     }
                     events.add(SimpleConditionEvent.violated(candidate, candidate.getName()
-                            + " calls its own @Transactional method " + call.getTarget().getName()
-                            + " at " + call.getSourceCodeLocation()
+                            + " calls its own method " + call.getTarget().getName()
+                            + ", which carries " + demarcation.get() + ", at "
+                            + call.getSourceCodeLocation()
                             + ", so the call skips the Spring proxy and opens no transaction."));
                 }
             }
         };
+    }
+
+    private static boolean reachesTheBeanThroughAnObjectProviderOnTheSameLine(JavaMethodCall call) {
+        return call.getOrigin().getMethodCallsFromSelf().stream()
+                .anyMatch(sibling -> sibling.getLineNumber() == call.getLineNumber()
+                        && OBJECT_PROVIDER_FULL_NAME
+                        .equals(sibling.getTargetOwner().getFullName()));
+    }
+
+    private static boolean theOriginAlreadyRunsInsideThatBoundary(
+            JavaMethodCall call, JavaClass candidate, JavaMethod target) {
+        if (!(call.getOrigin() instanceof JavaMethod origin)) {
+            return false;
+        }
+        if (NonTransactionalByDesignGuardTest.transactionalAnnotationOn(origin).isPresent()) {
+            return true;
+        }
+        return NonTransactionalByDesignGuardTest.transactionalAnnotationOn(candidate).isPresent()
+                && NonTransactionalByDesignGuardTest.transactionalAnnotationOn(target).isEmpty();
     }
 
     private static ArchCondition<JavaClass> resolveTheSeedFromAPostConstructCallbackOnly(

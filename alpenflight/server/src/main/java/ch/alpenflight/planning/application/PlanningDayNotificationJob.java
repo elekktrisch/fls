@@ -111,7 +111,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
     @Scheduled(cron = "0 0 6 * * *")
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
-        runForCurrentClub();
+        self.getObject().runForCurrentClub();
     }
 
     @Override
