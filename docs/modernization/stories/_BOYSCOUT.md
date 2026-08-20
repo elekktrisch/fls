@@ -371,12 +371,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
 
-- **[MANIFEST-TENANT-BYPASS-COUNT]** [S1] `ManifestTenantBypassAllowListTest.java:23` — the deleted comment named
-  **eleven** allow-listed tenant-bypass entries; the list actually holds **twelve**. Either the comment rotted
-  or an entry was added without the deliberation the allow-list exists to force. The open question is whether
-  **`AUDIT_LOG`** is a deliberate bypass. A tenant-bypass allow-list is exactly the kind of list where a
-  silently-grown entry is a tenancy leak, so this needs an answer, not a re-counted comment. *(seam: the
-  bypass allow-list + its test)*
 - **[MIGRATION-BUNDLE-DEAD-EDGES]** [S3] Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
   `LEGACY_SYSTEM_USER_ID` is `public` with **zero references** (duplicate of the bindings GUID);
   `migration-bundle/build.gradle.kts:51` carried an archunit-1.4.2-vs-Java-25 workaround whose rationale died

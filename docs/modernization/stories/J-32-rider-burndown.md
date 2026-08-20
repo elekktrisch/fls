@@ -147,6 +147,14 @@ the same day; no forward story needs it; [ADR 0008](../adrs/0008-multi-tenancy-m
 S-159 states `Tenants.runAs` "is never wired through to an HTTP path". The amendment is enforced by
 nothing today, which is the absence that produced the rider.
 
+**`AUDIT_LOG` stays on the cross-tenant allow-list (T-06, evidence below).** The rider named the wrong
+entry. `AUDIT_LOG` sits on the list since the first commit of the file, where the list held exactly
+eleven entries and the shipped text named `AuditLog.actor_user_id` as its reason. J-9b added
+`PERSON_FLIGHT_TIME_CREDIT` as the twelfth entry and its reason, but left the count word and the test
+method name at eleven. J-31 then deleted the rotted text. The grant is real: the audit row keeps its
+own `tenant_club_id` discriminator, and only the actor crosses tenants. T-06 replaces the count word
+with a machine-read grant table and a negative test.
+
 **`[ANON-WRITE-ATTRIBUTION]` — adjudicated earlier (operator, /do-retro 2026-08-14).** Build
 `actor_kind = ANONYMOUS_PUBLIC` with `system_actor=false`, plus raw `client_ip` on anonymous
 public-registration writes only. Retention 90 days: a scheduled job nulls `client_ip` and keeps the
@@ -169,7 +177,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-03 — [S1] delete the impersonation annotation, interceptor and registration; add the no-HTTP-entry-point guard
 - [x] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
 - [x] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
-- [ ] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
+- [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [ ] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [ ] T-07b — [S1] arch guards for the remaining lost invariants
 - [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
