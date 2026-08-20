@@ -122,6 +122,12 @@ assertion would pass vacuously. T-05 must plant the denial, or T-10 must drive a
 as `Person`. Score the old code before you claim the guard works
 ([[feedback_adversarial_seed_for_narrowing_assertions]]).
 
+**AC 6 is measured against the carve-time rider set, not a moving one.** The journey drains the 39
+S1 and S2 riders that `_BOYSCOUT.md` held on 2026-08-20. Tasks keep finding new ones — T-02 found a
+never-run lane, T-03 found two more. An in-scope finding (a gate hole, or dead code this journey
+created) becomes a `T-NN` here. A genuinely out-of-scope finding stays filed and does not block AC 6.
+Without this rule AC 6 chases its own tail, and the done-bar stops being honest.
+
 **Seams for `/do-ship`.** `PiiRedactor` ↔ the redaction config; the manifest tenant-bypass allow-list
 and its test; `ClubSpec` plus the bundle-envelope mapper; `PublicRegistrationTxWriter` plus the actor
 projection; the three "deliberately NOT `@Transactional`" methods named in
@@ -192,6 +198,8 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-40 — [S2] JIT-username robustness: reject a distinct sub reusing a live username
 - [ ] T-41 — [S2] explicit `@Operation` operationIds so orval emits named client methods
 - [ ] T-42 — [S2] the nightly and the §4 gate grep-invert the two showcase-seed specs, so neither lane ever ran them (T-02 finding, `alpenflight-e2e-real-idp.yml:243`)
+- [ ] T-43 — [S2] `RequestTenantHint` lost its only producer when T-03 deleted the interceptor; `RequestAuditFilter.java:80-91` is now unreachable (T-03 finding)
+- [ ] T-44 — [S2] `verifyArchUnitFailsOnViolation` and `verifyNullAwayFailsOnViolation` hang off no `check` task, so CI never runs them (T-03 finding)
 
 ## Assumptions made
 
