@@ -192,6 +192,39 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [ ] T-07b — [S1] arch guards for the remaining lost invariants
+  - `OVERFLOW:` three seams (cap is one), six new test files (cap is five), two test layers with four
+    ArchUnit classes (cap is three at one layer). The seven remaining invariants split cleanly:
+    - **T-07b — transaction demarcation structure** (ArchUnit, pure JVM; extends the T-07a family).
+      `FlightReportRebuildService.rebuildForClub:42` keeps `Tenants.runAs` outside the
+      `TransactionTemplate`; `JoinRequestTxWriter` stays a separate proxied bean so the
+      `@Transactional` boundary nests inside `Tenants.runAs`
+      (`JoinRequestsService.java:56,64`); `FlightInitialState.resolveSeeds:28` keeps the
+      `TransactionTemplate` inside `@PostConstruct`, because the injected `EntityManager` proxy needs
+      a bound JDBC session at boot.
+    - **T-07c — JPA write-then-read identity** (Postgres integration tests, second layer).
+      `AircraftRepository.flush()` keeps its literal name, because `JpaAircraftRepository` satisfies it
+      from `JpaRepository.flush()` by signature (`JpaAircraftRepository.java:13`); a rename makes Spring
+      Data read it as a derived query and the repository fails to start.
+      `FlightsService.createFlight:87` reads the operating club from `TenantContextCarrier`, not from
+      the saved entity.
+      **Warning — the rider states a reason that the call sites do not support.** It blames
+      `save()` routing through `em.merge`. Two of the five `AircraftsService` call sites
+      (`changeAircraftState:245`, `recordAircraftCounter:270`) call no `save()` at all: the parent is
+      already managed, and the `@GeneratedValue(strategy = UUID)` child gets its id from the
+      cascade at flush. Three further call sites flush to convert a
+      `DataIntegrityViolationException` into a domain exception. Establish the real reason per call
+      site before you write the guard, as T-06 did for `AUDIT_LOG`.
+    - **T-07d — packaged-artifact dependency shape** (ArchUnit, one rule). No production class injects
+      `RestClient.Builder`; `HttpOgnDeviceDatabase:27` builds the client itself. `spring-boot-starter-test`
+      auto-configures that builder, so a `@SpringBootTest` passes over a boot jar that dies at startup.
+    - **Already guarded — do not re-file.** `AuditEventDtos.AuditEventRow.beforeState`/`afterState`
+      stay `Map<String, Object>`: `OpenApiSnapshotIT.snapshotMatchesLiveSpec` compares the live spec to
+      the committed `web/openapi/openapi.json`, which pins
+      `{"type": "object", "additionalProperties": {}}` for both fields. A change to `String` flips them
+      to `{"type": "string"}` and reds that test. **Residual limit:** the failure message reads
+      "Committed OpenAPI snapshot is stale vs. live spec. Run with ALPENFLIGHT_OPENAPI_REFRESH=true to
+      regenerate", which tells the developer to accept the contract change. Correct the message to name
+      the generated-client contract; that is a one-line edit and belongs to T-07d.
 - [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
 - [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
 - [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
