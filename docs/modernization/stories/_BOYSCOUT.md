@@ -27,6 +27,26 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-32 T-03, 2026-08-20)
+
+- **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] T-03 deleted `AuditTargetTenantInterceptor`. That
+  interceptor was the only writer of a `RequestTenantHint` attribute that outlives the handler, because it
+  never restored the attribute. `Tenants.runAs` writes the same attribute, but it restores the prior value in
+  its `finally` block. `RequestAuditFilter` reads the attribute in the outermost `finally`, after every
+  `runAs` unwound, so `RequestTenantHint.currentForRequest` now always answers null. The
+  `targetTenantHint != null` branch at `alpenflight/server/src/main/java/ch/alpenflight/audit/web/RequestAuditFilter.java:80-91`
+  is unreachable. Decide: delete `RequestTenantHint` and that branch, then drop `RequestAuditFilter` from the
+  `TenantsRunAsAllowlistTest` allow-list — or keep the hint and give it a producer. [ADR 0008](../adrs/0008-multi-tenancy-mechanism.md)
+  §Amendment S-159 names `RequestAuditFilter` as an in-process `runAs` seam, so the deletion needs the
+  operator. *(seam: `RequestTenantHint` + `RequestAuditFilter` + `TenantsRunAsAllowlistTest`)*
+- **[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]** [S2] `verifyArchUnitFailsOnViolation`
+  (`alpenflight/server/build.gradle.kts:339`) and `verifyNullAwayFailsOnViolation` (`:146`) both prove that a
+  guard reds on a planted violation. Neither task depends on `check`, and `ci.yml:583` runs only
+  `./gradlew build`, so neither has ever run in CI. The `src/archDemo/java` and `src/nullawayDemo/java`
+  violations are therefore unscored. Wire both into `check`, or delete the two source sets and their tasks.
+  Same class as the `extract.yml` hole: the repository authors a gate and never runs it.
+  *(seam: `alpenflight/server/build.gradle.kts` check wiring)* [[feedback_verify_infra_is_run_not_just_authored]]
+
 ## Pending (filed by /do-retro J-19 window, 2026-08-19)
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
@@ -261,14 +281,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
 
-- **[DEAD-BUT-WIRED-IMPERSONATION-INTERCEPTOR — needs a security decision]** [S1] `@AuditTargetTenant` has **zero
-  usages repo-wide**, yet `AuditTargetTenantInterceptor` **is wired onto `/api/v1/**`** by `TenancyWebMvcConfig`.
-  The comment the sweep deleted said there is no production caller (the S-049c impersonation surface was
-  withdrawn in S-159) and, verbatim, **"DO NOT WIRE WITHOUT SECURITY REVIEW"**. That warning now exists
-  nowhere in the code. Decide: delete the annotation + interceptor + config registration, or wire it
-  deliberately with the review the comment demanded. Related: `Tenants.runAs` has **no HTTP entry point** by
-  design — `TenantBypassGuardTest` guards the carrier, but nothing guards the *absence* of an impersonation
-  controller. *(seam: `@AuditTargetTenant` + `AuditTargetTenantInterceptor` + `TenancyWebMvcConfig`)*
 - **[CLUBSPEC-MUST-NOT-CARRY-DEPLOYMENT-ID]** [S1] `ClubSpec` deliberately has **no `deploymentId` component**: the
   bundle-envelope mapper must strip any inbound `deployment_id`, or a crafted migration bundle smuggles a Club
   into **another user's Deployment**. That was recorded only in a comment the sweep deleted, and it is an
