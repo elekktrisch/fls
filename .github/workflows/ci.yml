@@ -1286,6 +1286,14 @@ jobs:
               "Legacy flsweb: the /confirm form. The legacy application collects the new password itself. It shows two password fields and one button." \
               "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
           fi
+          if [ "${PROOF_JOURNEY:-}" = "J-32" ]; then
+            add_af_only "J-32" "audit" "attribution" \
+              "alpenflight-audit-actor-attribution.png" \
+              "AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names an actor, and each row on the page names an actor."
+            add_af_only "J-32" "audit" "detail" \
+              "alpenflight-audit-row-detail.png" \
+              "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"

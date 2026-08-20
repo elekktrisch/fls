@@ -141,7 +141,7 @@ row. The privacy notice ships with the journey, not after it.
 Order: proof-carrying work first (Waves 1-2 plus the actor cell), then one mid-journey `gap-hunter`
 round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT.md`.
 
-- [ ] T-01 — spec stub for ACs 1-5 + scaffold the J-32 gallery page; re-tag one `proofVideo` to `journey: 'J-32'`
+- [x] T-01 — spec stub for ACs 1-5 + scaffold the J-32 gallery page; re-tag one `proofVideo` to `journey: 'J-32'`
 - [ ] T-02 — scope the per-push gate: only the J-32 spec runs real-idp, prior journeys run mock-IdP
 - [ ] T-03 — [S1] delete the impersonation annotation, interceptor and registration; add the no-HTTP-entry-point guard
 - [ ] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)

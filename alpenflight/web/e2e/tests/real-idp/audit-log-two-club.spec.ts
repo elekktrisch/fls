@@ -168,6 +168,13 @@ function auditRowsWithTarget(page: Page, targetType: string) {
   return page.getByTestId(TESTIDS.row).filter({ has: page.getByText(targetType, { exact: true }) });
 }
 
+async function filterToCreatedLocations(page: Page): Promise<void> {
+  await selectAfOption(page, TESTIDS.filterAction, 'CREATE');
+  await page.getByTestId(TESTIDS.filterTarget).locator('input').fill('Location');
+  await expect(page.getByTestId(TESTIDS.rowTarget).first()).toHaveText('Location');
+  await expect(page.getByTestId(TESTIDS.rowAction).first()).toHaveText('Created');
+}
+
 async function enterAuditLogs(page: Page): Promise<void> {
   await page.goto(START_PATH);
   await expect(page).toHaveURL(START_PATH);
@@ -189,6 +196,106 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
 
   test.afterAll(async () => {
     await fixture?.dispose();
+  });
+
+  test('[happy] club-A admin: the audit row for a real write names an actor, and every row on the page names one', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    const nonce = randomUuid().slice(0, 8);
+    const attributedLocationName = `Audit attribution ${nonce}`;
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+      await createLocationViaUi(page, { name: attributedLocationName });
+
+      await enterAuditLogs(page);
+      await filterToCreatedLocations(page);
+
+      const newestCreateRow = page.getByTestId(TESTIDS.row).first();
+      await expect(newestCreateRow).toBeVisible();
+      await expect(
+        newestCreateRow.getByTestId(TESTIDS.rowActor),
+        'the row for this write must name the actor who made it',
+      ).not.toHaveText('');
+
+      const actorCells = page.getByTestId(TESTIDS.rowActor);
+      const actorCellCount = await actorCells.count();
+      expect(
+        actorCellCount,
+        'the CREATE + Location filter must leave at least one row to attribute',
+      ).toBeGreaterThan(0);
+      for (let i = 0; i < actorCellCount; i++) {
+        await expect(
+          actorCells.nth(i),
+          'every audit row names an actor or names the system',
+        ).not.toHaveText('');
+      }
+
+      await newestCreateRow.click();
+      await expect(page.getByTestId(TESTIDS.rowDetail)).toContainText(attributedLocationName);
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-audit-actor-attribution.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-32',
+        caption:
+          'J-32 · actor attribution · A club-A administrator creates a Location in the real ' +
+          'application. At /system/logs the row for that write names an actor, and each row on ' +
+          'the page names an actor. The expanded row carries the created name.',
+        acTag: 'happy',
+      });
+    }
+  });
+
+  test('[edge] club-A admin: expanding an audit row renders the field-level snapshot table', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    const nonce = randomUuid().slice(0, 8);
+    const snapshotLocationName = `Audit snapshot ${nonce}`;
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+      await createLocationViaUi(page, { name: snapshotLocationName });
+
+      await enterAuditLogs(page);
+      await filterToCreatedLocations(page);
+
+      const newestCreateRow = page.getByTestId(TESTIDS.row).first();
+      await expect(newestCreateRow).toBeVisible();
+      await newestCreateRow.click();
+
+      const detail = page.getByTestId(TESTIDS.rowDetail);
+      await expect(detail).toBeVisible();
+      await expect(detail).toContainText(snapshotLocationName);
+
+      const snapshotFieldRows = detail.locator('tbody tr');
+      await expect(snapshotFieldRows.first()).toBeVisible();
+      expect(
+        await snapshotFieldRows.count(),
+        'the expanded row must render one line for each field of the written entity',
+      ).toBeGreaterThan(1);
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-audit-row-detail.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-32',
+        caption:
+          'J-32 · audit row detail · A club-A administrator creates a Location in the real ' +
+          'application. At /system/logs the expanded row shows the field-level snapshot table, ' +
+          'with one line for each field of the written Location.',
+        acTag: 'edge',
+      });
+    }
   });
 
   test('[happy] club-A admin: a real create+edit surfaces at /system/logs with action, target, actor, time, status; filters + row-detail diff', async ({
@@ -442,11 +549,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await ctxA.close();
       await ctx.close();
       await proofVideo(pageA, testInfo, {
-        journey: 'J-13',
+        journey: 'J-32',
         caption:
-          'J-13 · tenant isolation · a Location CREATE audit event written in club B is ABSENT from ' +
-          "club A admin's /system/logs, and a direct API read as club A's real token never surfaces a " +
-          'club-B-scoped row — the structural @TenantId proof',
+          'J-32 · tenant isolation · Club B writes a Location CREATE audit event. The club-A ' +
+          'administrator does not see that event at /system/logs. A direct API read with the ' +
+          'real club-A token returns no club-B row.',
         acTag: 'edge',
       });
     }
