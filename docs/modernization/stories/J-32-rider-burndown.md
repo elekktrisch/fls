@@ -191,7 +191,9 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
 - [x] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [x] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
-- [ ] T-07b — [S1] arch guards for the remaining lost invariants
+- [ ] T-07b — [S1] transaction demarcation structure: `runAs` outside the template, the tx writer bean, the boot-time template
+- [ ] T-07c — [S1] JPA write-then-read identity: the bound `flush()` name, the operating club from the carrier
+- [ ] T-07d — [S1] packaged-artifact dependency shape: no production class injects `RestClient.Builder`; fix the OpenAPI snapshot failure message that invites accepting a contract break
   - `OVERFLOW:` three seams (cap is one), six new test files (cap is five), two test layers with four
     ArchUnit classes (cap is three at one layer). The seven remaining invariants split cleanly:
     - **T-07b — transaction demarcation structure** (ArchUnit, pure JVM; extends the T-07a family).
