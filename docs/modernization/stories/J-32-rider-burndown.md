@@ -116,6 +116,12 @@ in its place. The `.github/` comment sweep is filed as a Wave 5 rider and must f
 intent, so the carve keeps it. The waves let `/do-ship` land value in order if the journey runs long.
 Wave 1 alone satisfies the journey bar of one provable screen result plus a green gate.
 
+**AC 4's `[redacted]` half needs a denied field to exist (T-01 finding).** Every field of `Location`
+and `Aircraft` is allow-listed in `application.yml`, so a clean seed renders no sentinel and the
+assertion would pass vacuously. T-05 must plant the denial, or T-10 must drive a deny-all entity such
+as `Person`. Score the old code before you claim the guard works
+([[feedback_adversarial_seed_for_narrowing_assertions]]).
+
 **Seams for `/do-ship`.** `PiiRedactor` ↔ the redaction config; the manifest tenant-bypass allow-list
 and its test; `ClubSpec` plus the bundle-envelope mapper; `PublicRegistrationTxWriter` plus the actor
 projection; the three "deliberately NOT `@Transactional`" methods named in
