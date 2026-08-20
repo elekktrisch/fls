@@ -163,7 +163,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-01 — spec stub for ACs 1-5 + scaffold the J-32 gallery page; re-tag one `proofVideo` to `journey: 'J-32'`
 - [x] T-02 — scope the per-push gate: only the J-32 spec runs real-idp, prior journeys run mock-IdP
 - [x] T-03 — [S1] delete the impersonation annotation, interceptor and registration; add the no-HTTP-entry-point guard
-- [ ] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
+- [x] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
 - [ ] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
 - [ ] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [ ] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases

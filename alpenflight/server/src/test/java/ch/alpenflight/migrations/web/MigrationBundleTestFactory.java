@@ -8,6 +8,7 @@ import ch.alpenflight.migration.bundle.crypto.BundleHeader;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migration.bundle.crypto.SecureBytes;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -72,6 +73,21 @@ final class MigrationBundleTestFactory {
                 unmappedReason);
         return encryptedBundleWithEntries(cipher, uploadId, rsaPublicKeyDer, manifest,
                 tarEntriesAfterManifest);
+    }
+
+    static byte[] buildBundleWhoseSoleClubDeclarationCarriesExtraKeys(
+            MigrationBundleCipher cipher,
+            UUID uploadId,
+            byte[] rsaPublicKeyDer,
+            String deploymentName,
+            BundleManifest.ClubDeclaration soleClub,
+            Map<String, String> extraClubDeclarationKeys) throws IOException {
+        BundleManifest manifest = manifestWithAllUnmapped(deploymentName, List.of(soleClub));
+        ObjectNode manifestNode = JSON.valueToTree(manifest);
+        ObjectNode clubNode = (ObjectNode) manifestNode.get("clubs").get(0);
+        extraClubDeclarationKeys.forEach(clubNode::put);
+        return encryptedBundleWithRawManifest(cipher, uploadId, rsaPublicKeyDer,
+                JSON.writeValueAsBytes(manifestNode), Map.of());
     }
 
     static byte[] buildEmptyClubsBundle(MigrationBundleCipher cipher,
@@ -162,7 +178,16 @@ final class MigrationBundleTestFactory {
                                                      BundleManifest manifest,
                                                      Map<String, byte[]> tarEntriesAfterManifest)
             throws IOException {
-        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+        return encryptedBundleWithRawManifest(cipher, uploadId, rsaPublicKeyDer,
+                JSON.writeValueAsBytes(manifest), tarEntriesAfterManifest);
+    }
+
+    private static byte[] encryptedBundleWithRawManifest(MigrationBundleCipher cipher,
+                                                         UUID uploadId,
+                                                         byte[] rsaPublicKeyDer,
+                                                         byte[] manifestBytes,
+                                                         Map<String, byte[]> tarEntriesAfterManifest)
+            throws IOException {
         byte[] tarGzPlaintext = wrapInTarGz(manifestBytes, tarEntriesAfterManifest);
 
         byte[] sessionKey = new byte[32];
