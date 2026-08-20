@@ -326,13 +326,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
   matched, which is presumably why nobody checked. One-character-class fix, but it changes log output, so it
   did not ride a comment sweep. *(seam: `RequestIdFilter` MDC key ↔ `logback-spring.xml`)*
-- **[AUDIT-REDACTION-BINDS-FIELD-NAMES-AS-STRINGS]** [S1] `application.yml`'s `audit.redaction.entities.*.allow` /
-  `denyAll` lists **Java field names as strings**, matched at runtime via `Field.getName()` in `PiiRedactor`.
-  Renaming a field on any audited entity silently flips it to `[redacted]` in the audit trail — **no compile
-  check catches it**, and the symptom is missing audit data, not a red build. This blocked two otherwise-obvious
-  `Club` renames in T-10. Give it a pin: bind by a constant/enum the compiler can see, or add a startup guard
-  asserting every configured name resolves to a real field. *(seam: `PiiRedactor` ↔ `application.yml` redaction
-  config)*
 - **[SERVER-MAIN-SWEEP-NITS]** [S3] Four pre-existing nits the strip exposed, none touched (all would change
   behaviour or a CI-verified artifact): delivery eligibility (`LOCKED` + billable type + `created_on <= today-3d`)
   lives in `DeliveryCreationService.eligibleFlights` rather than on an aggregate, in tension with ADR 0022 §2;

@@ -116,11 +116,15 @@ in its place. The `.github/` comment sweep is filed as a Wave 5 rider and must f
 intent, so the carve keeps it. The waves let `/do-ship` land value in order if the journey runs long.
 Wave 1 alone satisfies the journey bar of one provable screen result plus a green gate.
 
-**AC 4's `[redacted]` half needs a denied field to exist (T-01 finding).** Every field of `Location`
-and `Aircraft` is allow-listed in `application.yml`, so a clean seed renders no sentinel and the
-assertion would pass vacuously. T-05 must plant the denial, or T-10 must drive a deny-all entity such
-as `Person`. Score the old code before you claim the guard works
-([[feedback_adversarial_seed_for_narrowing_assertions]]).
+**AC 4's `[redacted]` half rides `Person` (T-05 decision).** Every field of `Location` and `Aircraft`
+is allow-listed, so those two render no sentinel and an assertion on them passes vacuously (T-01
+finding). T-05 kept the shipped `deny-all: Person` instead of inventing a fixture-only denial: name,
+birthday, address, phones, both email addresses, licence number and the medical expiry dates are real
+PII that the audit trail must not store. `PiiRedactorTest` pins it against the shipped policy plus a
+real `Person`, with a `Location` control that proves the redactor does not redact everything.
+**T-10 drives it like this:** log in as the club-A administrator, create a Person at `/persons/new`,
+then open `/system/logs`, filter `targetEntityType=Person`, and expand the newest row. Every value in
+the snapshot table reads `[redacted]`; the row still names the action, the actor and the time.
 
 **AC 6 is measured against the carve-time rider set, not a moving one.** The journey drains the 39
 S1 and S2 riders that `_BOYSCOUT.md` held on 2026-08-20. Tasks keep finding new ones — T-02 found a
@@ -164,7 +168,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [x] T-02 — scope the per-push gate: only the J-32 spec runs real-idp, prior journeys run mock-IdP
 - [x] T-03 — [S1] delete the impersonation annotation, interceptor and registration; add the no-HTTP-entry-point guard
 - [x] T-04 — [S1] assert `ClubSpec` carries no deployment-scoped component; the envelope mapper strips inbound `deployment_id` (AC 5)
-- [ ] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
+- [x] T-05 — [S1] `PiiRedactor` startup guard: every configured redaction field name resolves to a field (AC 4)
 - [ ] T-06 — [S1] adjudicate the twelfth tenant-bypass allow-list entry (`AUDIT_LOG`); pin the reviewed set (AC 3)
 - [ ] T-07a — [S1] arch guards for the three "deliberately NOT `@Transactional`" cases
 - [ ] T-07b — [S1] arch guards for the remaining lost invariants
@@ -207,6 +211,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-42 — [S2] the nightly and the §4 gate grep-invert the two showcase-seed specs, so neither lane ever ran them (T-02 finding, `alpenflight-e2e-real-idp.yml:243`)
 - [ ] T-43 — [S2] `RequestTenantHint` lost its only producer when T-03 deleted the interceptor; `RequestAuditFilter.java:80-91` is now unreachable (T-03 finding)
 - [ ] T-44 — [S2] `verifyArchUnitFailsOnViolation` and `verifyNullAwayFailsOnViolation` hang off no `check` task, so CI never runs them (T-03 finding)
+- [ ] T-45 — [S1] three audit call sites pass a snapshot whose class the `entityType` does not name, so the allow-list matches almost nothing and the row is nearly empty: `PersonsService.java:243,262,278` record `PersonClub` with a `Person` / `PersonResponse`; `AircraftsService.java:252,277` record `Aircraft` with `AircraftStateHistoryEntryResponse` / `AircraftOperatingCounterResponse`, so those two config entries are dead (T-05 finding — the startup guard's stated residual limit, made concrete)
 
 ## Assumptions made
 

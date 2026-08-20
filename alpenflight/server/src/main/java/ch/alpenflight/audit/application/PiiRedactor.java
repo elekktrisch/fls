@@ -63,7 +63,7 @@ public class PiiRedactor {
                 ? Set.of()
                 : Set.copyOf(entry.allow());
 
-        for (Field f : collectFields(snapshot.getClass())) {
+        for (Field f : instanceFieldsThisRedactorSerializes(snapshot.getClass())) {
             String name = f.getName();
             f.setAccessible(true);
             try {
@@ -117,8 +117,8 @@ public class PiiRedactor {
                 || value instanceof Class<?>;
     }
 
-    private static java.util.List<Field> collectFields(Class<?> type) {
-        java.util.List<Field> fields = new java.util.ArrayList<>();
+    static List<Field> instanceFieldsThisRedactorSerializes(Class<?> type) {
+        List<Field> fields = new ArrayList<>();
         Class<?> current = type;
         while (current != null && current != Object.class) {
             for (Field f : current.getDeclaredFields()) {

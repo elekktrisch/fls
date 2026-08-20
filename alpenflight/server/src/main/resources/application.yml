@@ -159,6 +159,9 @@ audit:
           - discountInPercent
           - unitTypeCode
       Club:
+        snapshot-types:
+          - 'ch.alpenflight.clubs.domain.Club'
+          - 'ch.alpenflight.clubs.application.ClubDtos$ClubResponse'
         allow:
           - id
           - name
@@ -197,6 +200,9 @@ audit:
           - pendingTransitions
           - keycloakState
       Location:
+        snapshot-types:
+          - 'ch.alpenflight.locations.domain.Location'
+          - 'ch.alpenflight.locations.application.LocationDtos$LocationDetail'
         allow:
           - id
           - clubId
@@ -265,6 +271,8 @@ audit:
           - deletedOn
           - deletedByUserId
       PersonLicences:
+        snapshot-types:
+          - 'ch.alpenflight.persons.application.SelfLicencesView'
         allow:
           - hasMotorPilotLicence
           - hasTowPilotLicence
@@ -288,6 +296,8 @@ audit:
           - hasGliderWinchStartPermission
           - receiveOwnedAircraftStatisticReports
       PersonClubNotificationPrefs:
+        snapshot-types:
+          - 'ch.alpenflight.persons.application.SelfNotificationPrefsView'
         allow:
           - receiveFlightReports
           - receiveAircraftReservationNotifications
@@ -325,6 +335,9 @@ audit:
           - byEmail
           - matchCount
       Aircraft:
+        snapshot-types:
+          - 'ch.alpenflight.aircraft.domain.Aircraft'
+          - 'ch.alpenflight.aircraft.application.AircraftDtos$AircraftDetail'
         allow:
           - id
           - managingClubId
@@ -405,6 +418,9 @@ audit:
           - nextMaintenanceAtFlightOperatingCounterInSeconds
           - nextMaintenanceAtEngineOperatingCounterInSeconds
       AircraftReservation:
+        snapshot-types:
+          - 'ch.alpenflight.reservations.domain.AircraftReservation'
+          - 'ch.alpenflight.reservations.application.AircraftReservationDtos$AircraftReservationDetail'
         allow:
           - id
           - operatingClubId
@@ -423,6 +439,9 @@ audit:
           - deletedOn
           - deletedByUserId
       FlightType:
+        snapshot-types:
+          - 'ch.alpenflight.flighttypes.domain.FlightType'
+          - 'ch.alpenflight.flighttypes.application.FlightTypeDtos$FlightTypeDetail'
         allow:
           - id
           - operatingClubId
@@ -454,6 +473,9 @@ audit:
           - deletedOn
           - deletedByUserId
       FlightCostBalanceType:
+        snapshot-types:
+          - 'ch.alpenflight.flighttypes.domain.FlightCostBalanceType'
+          - 'ch.alpenflight.flighttypes.application.FlightCostBalanceTypeDtos$FlightCostBalanceTypeResponse'
         allow:
           - id
           - code
