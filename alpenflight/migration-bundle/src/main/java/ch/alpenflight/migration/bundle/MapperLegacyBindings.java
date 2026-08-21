@@ -18,6 +18,9 @@ public final class MapperLegacyBindings {
     private static final String LEGACY_ASPNET_SYSTEM_USER_ID_NEVER_MIGRATED =
             "13731EE2-C1D8-455C-8AD1-C39399893FFF";
 
+    private static final String PLANNING_DAY_SURVIVOR_ORDER_LIVE_ROW_BEATS_SOFT_DELETED =
+            "ORDER BY IsDeleted, CreatedOn, PlanningDayId";
+
     private static final Map<EntityType, Binding> BINDINGS = Map.ofEntries(
             entry(EntityType.COUNTRY, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
@@ -563,12 +566,12 @@ public final class MapperLegacyBindings {
                                DeletedOn, DeletedByUserId,
                                ROW_NUMBER() OVER (
                                    PARTITION BY ClubId, Day, LocationId
-                                   ORDER BY CreatedOn, PlanningDayId
+                                   %s
                                ) AS rn
                         FROM PlanningDays
                     ) deduped
                     WHERE rn = 1
-                    """,
+                    """.formatted(PLANNING_DAY_SURVIVOR_ORDER_LIVE_ROW_BEATS_SOFT_DELETED),
                     "t_planning_day",
                     """
                     INSERT INTO t_planning_day (
@@ -603,7 +606,7 @@ public final class MapperLegacyBindings {
                                    PARTITION BY kept.KeptPlanningDayId,
                                                 pda.AssignedPersonId,
                                                 pda.AssignmentTypeId
-                                   ORDER BY CASE WHEN pda.DeletedOn IS NULL THEN 0 ELSE 1 END,
+                                   ORDER BY pda.IsDeleted,
                                             pda.CreatedOn,
                                             pda.PlanningDayAssignmentId
                                ) AS composite_rn
@@ -613,14 +616,14 @@ public final class MapperLegacyBindings {
                             SELECT ClubId, Day, LocationId,
                                    FIRST_VALUE(PlanningDayId) OVER (
                                        PARTITION BY ClubId, Day, LocationId
-                                       ORDER BY CreatedOn, PlanningDayId
+                                       %s
                                    ) AS KeptPlanningDayId,
                                    PlanningDayId
                             FROM PlanningDays
                         ) kept ON kept.PlanningDayId = pda.AssignedPlanningDayId
                     ) remapped
                     WHERE composite_rn = 1
-                    """,
+                    """.formatted(PLANNING_DAY_SURVIVOR_ORDER_LIVE_ROW_BEATS_SOFT_DELETED),
                     "t_planning_day_assignment",
                     """
                     INSERT INTO t_planning_day_assignment (

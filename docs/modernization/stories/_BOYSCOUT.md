@@ -445,20 +445,6 @@ safety step. **Each rider rides the next touch of its form.**
   masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
   [[project_synth_bundle_doesnt_validate_producer_select]]
 
-## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
-
-- **Producer dedupe is soft-delete-blind (gap-hunter, J-6 T-11b/T-16).** [S1] The PLANNING_DAY (and the
-  assignment FIRST_VALUE remap) producer SELECT partitions across ALL legacy `PlanningDays` rows with NO
-  `WHERE DeletedOn IS NULL` filter, but `ux_pln_club_date_loc` is PARTIAL (`WHERE deleted_on IS NULL`,
-  V4:303-305). If a `(Club,Day,Loc)` partition ever held an earlier-`CreatedOn` *deleted* row + a later
-  *live* row, `ROW_NUMBER ORDER BY CreatedOn` keeps the DELETED one → silently drops the live planning day
-  (the partial index would never have collided). **Neutralized for J-6**: legacy `PlanningDayService.cs:407`
-  HARD-deletes planning days, so `DeletedOn`/`IsDeleted` are vestigially never set — no soft-deleted days
-  exist to trigger it. **Fix before this dedupe pattern is copied to a SOFT-deleting table:** add
-  `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
-  deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
-  MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
-
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
 - **CI fail-aggregate (surface ALL reds in one run).** [S3] ci.yml stops at the first failing layer (build → server-test → web-lint → mock-e2e discovered serially across cycles). Run the independent checks as parallel jobs that all report, so one run shows every red at once. *(seam: ci.yml job parallelism/aggregation)*
