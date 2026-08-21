@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <!-- Machine-readable build stamp: the deployed-bookmark link-check compares it
      against the page IT published, so a stale CDN copy cannot pass as this run's. -->
-<meta name="proof-generated-at" content="2026-08-21T07:55:15.290Z">
+<meta name="proof-generated-at" content="2026-08-21T09:03:39.751Z">
 <title>AlpenFlight proof — J-32</title>
 <style>
 :root {
@@ -96,30 +96,30 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>254/merge</code> &middot; 2026-08-21T07:55:15.290Z
+      merged journeys' proof lives in their PRs. Generated on <code>254/merge</code> &middot; 2026-08-21T09:03:39.751Z
     </p>
   </header>
 
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-07e7a1b7db8b0e5d4f0d1987135c70bb29261215.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-dcaa0c5928bb35c530d09cd9d771b6058d313862.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-32 · actor attribution · A club-A administrator creates a Location in the real application. At /system/logs the row for that write names the administrator by username, and no row on the page leaves the actor cell empty. The expanded row carries the created name.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0379cacd76b422c7c663e684d34ca8f285d6cc88.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f6864eca6268dbf02053ba85d278544aa49092ab.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · redaction · A club-A administrator creates a Person and a Location in the real application. At /system/logs every value of the Person row reads [redacted], and the typed name is absent, while the Location row of the same trail still shows its name. The redacted row keeps its action, its actor and its time.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e6527b7e76b664e497aba7111bf0e6d6bc3b4809.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f0b2a535ea3a82e849a0e013ee2d07215dc4fdab.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-32 · anonymous attribution · A registrant submits a public scenic-flight form with no token. At /system/logs the club-B administrator reads that row as the public form. The cell is not empty and shows no raw identifier, and it differs from the administrator row, which the same screen names by username. The real API row carries actorKind=ANONYMOUS_PUBLIC, systemActor=false and no actor user id. No HTTP surface produces a SYSTEM row, so AnonymousActorProjectionIT proves the scheduled-job kind in the data, and audit-logs-list.spec.ts proves its &quot;System&quot; label on the screen.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f2553c52f15cd3cad1e16d5099d265d24aad272e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-5a677918d193574425945066f2b0db35dbc04fd6.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · tenant isolation · Club B writes a Location CREATE audit row, then club A writes its own. At /system/logs the club-A administrator expands the newest CREATE/Location row, and it carries the club-A name. A direct API read with the real club-A token returns club-A rows and no club-B row.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7b726398629d7445fe4ce20c6da83f7d26a932fd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b347c03e015b745c30259785c2abd2a3adf8c77d.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · audit row detail · A club-A administrator creates a Location in the real application. At /system/logs the expanded row shows the field-level snapshot table, with one line for each field of the written Location.</span></figcaption>
         </figure>
         </div>
