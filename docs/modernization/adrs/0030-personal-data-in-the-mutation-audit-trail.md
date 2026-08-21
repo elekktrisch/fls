@@ -1,8 +1,13 @@
 # 0030 — Personal data in the mutation-audit trail (anonymous-write client IP)
 
-- **Status:** PROPOSED — drafted by `/do-retro` 2026-08-14 from the operator's
-  `[ANON-WRITE-ATTRIBUTION]` adjudication. **Not in force until the operator accepts.**
-- **Date:** 2026-08-14
+- **Status:** ACCEPTED — the operator accepted it on 2026-08-21, after J-32 shipped the decision.
+  `/do-retro` drafted it on 2026-08-14 from the operator's `[ANON-WRITE-ATTRIBUTION]` adjudication.
+- **Date:** 2026-08-14, accepted 2026-08-21
+- **Shipped by:** J-32 — `actor_kind = ANONYMOUS_PUBLIC` and the `client_ip` column (T-08a, `V59`),
+  the per-tenant 90-day retention sweep and the on-request erasure endpoint (T-08b), and the
+  column-level `UPDATE (client_ip)` grant that keeps the table otherwise append-only (T-08b, `V60`).
+  `PrivacyNoticeMatchesTheShippedBehaviourTest` binds `docs/modernization/privacy-notice.md` to the
+  code, so the notice cannot drift from the behaviour.
 - **Scope:** Whether `t_mutation_audit_event` may hold personal data, and under what
   retention/redaction terms. Triggered by anonymous public registration (J-17); written
   to generalise to any future unauthenticated write.
