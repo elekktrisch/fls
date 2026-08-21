@@ -104,7 +104,7 @@ jobs:
       - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
         run: python3 .github/scripts/required-gate-reds-when-a-required-job-skips-its-live-lane.py
 
-      - name: Fan-out verdict-reader guard (J-32 — the reader must still tell a parity defect from a chain that could not run, and must still find the fan-out job and its parity step by name)
+      - name: Fan-out verdict-reader guard (J-32 — the reader must tell a parity defect from a chain that could not run, from a spec that asserts no migrated data, and from a proven parity whose run went red at a later step; it must still find the fan-out job, its parity step and every spec that step drives)
         run: python3 .github/scripts/fanout-parity-verdict.py --selftest
 
       - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)

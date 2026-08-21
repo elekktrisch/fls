@@ -429,7 +429,22 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     the deploy replaced the good bookmark with a thin page. The list now carries
     `audit-log-two-club.spec.ts`, which the frontmatter already names as the journey parity test. The
     step budget moves to 35 minutes and the job budget to 55 minutes for the added run time.
-- [ ] T-60 — [S1 BLOCKER] `fanout-parity-verdict.py` misreports a non-producer spec failure as a producer defect, and `:206` returns `COULD_NOT_RUN` when the parity step passed but another step failed, which denies a proven parity
+- [x] T-60 — [S1 BLOCKER] `fanout-parity-verdict.py` misreports a non-producer spec failure as a producer defect, and `:206` returns `COULD_NOT_RUN` when the parity step passed but another step failed, which denies a proven parity
+  - **The verdict names the red spec, not the red step.** The reader takes the red spec paths out of
+    the run log, which the `['github']` Playwright reporter writes, and it matches them against the
+    twelve specs the parity step drives. A red spec that asserts migrated data reads `PARITY_DEFECT`.
+    A red spec that asserts none reads `UNRELATED_SPEC_RED` and tells the developer to hunt no
+    mapper. A red the reader cannot name reads `PARITY_STEP_RED_SPEC_UNNAMED` and blocks.
+  - **A proven parity is never denied.** A green parity step under a red job reads
+    `PARITY_PROVEN_RUN_RED_ELSEWHERE`. The verdict states that parity holds, names every red step by
+    number and name, and still refuses the merge, so the red reaches a human.
+  - **Every verdict is scored against real API data.** `fanout-parity-verdict-fixtures.json` carries
+    five runs captured from the Actions API, and `--capture-fixture` re-captures them. The pre-fix
+    reader scores run 32456112094 as `PARITY_DEFECT` and run 30756910798 as `COULD_NOT_RUN`; both
+    are wrong, which is the measurement that both classes were uncovered.
+  - **Residual limit, stated in the failure message.** The reader cannot name a spec whose run log
+    GitHub deleted, and Playwright stops a serial suite at its first red test, so the verdict names
+    the specs that DID go red and certifies no spec that never ran.
 - [ ] T-61 — [S2] the T-45 guard found fifteen more audit call sites passing a snapshot the recorded type does not describe, pinned in `alpenflight/server/config/audit/undecided-audit-snapshot-fields.txt`
 - [ ] T-57 — [S2] the bundle ingest maps a cross-tenant FK rejection to `500 INGEST_INTERNAL_ERROR`, so a tenancy rejection reads as a server fault (T-51 finding)
 - [ ] T-58 — [S2] `AuditLogMapper` declares no `foreignKeyColumns()`, so `ForeignKeyResolver` looks for `user_id` while the wire field is `actor_user_id`; latent only because `AUDIT_LOG` is unregistered (T-51 finding)
