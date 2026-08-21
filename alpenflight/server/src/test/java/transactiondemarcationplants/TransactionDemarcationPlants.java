@@ -1,5 +1,7 @@
 package transactiondemarcationplants;
 
+import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.tenancy.Tenants;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
@@ -349,6 +351,81 @@ public final class TransactionDemarcationPlants {
 
         public void runScheduled() {
             self.getObject().fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedScheduledEntryPointThatNamesTheTransactionalReason {
+
+        private final SelfProxy<PlantedScheduledEntryPointThatNamesTheTransactionalReason> self;
+
+        public PlantedScheduledEntryPointThatNamesTheTransactionalReason(
+                ObjectProvider<PlantedScheduledEntryPointThatNamesTheTransactionalReason> self) {
+            this.self = SelfProxy.around(self);
+        }
+
+        public void runScheduled() {
+            self.soTheTransactionalBoundaryApplies().fileTheRequest(new UUID(0L, 0L));
+        }
+
+        @Transactional
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    public static class PlantedSelfProxyNamingATransactionTheTargetNoLongerDeclares {
+
+        private final SelfProxy<PlantedSelfProxyNamingATransactionTheTargetNoLongerDeclares> self;
+
+        public PlantedSelfProxyNamingATransactionTheTargetNoLongerDeclares(
+                ObjectProvider<PlantedSelfProxyNamingATransactionTheTargetNoLongerDeclares> self) {
+            this.self = SelfProxy.around(self);
+        }
+
+        public void runScheduled() {
+            self.soTheTransactionalBoundaryApplies().fileTheRequest(new UUID(0L, 0L));
+        }
+
+        public String fileTheRequest(UUID clubId) {
+            return clubId.toString();
+        }
+    }
+
+    @MeasuredJob(name = "planted-measured-job")
+    public static class PlantedMeasuredJobThatNamesTheJobRunRecordReason {
+
+        private final SelfProxy<PlantedMeasuredJobThatNamesTheJobRunRecordReason> self;
+
+        public PlantedMeasuredJobThatNamesTheJobRunRecordReason(
+                ObjectProvider<PlantedMeasuredJobThatNamesTheJobRunRecordReason> self) {
+            this.self = SelfProxy.around(self);
+        }
+
+        public void runScheduled() {
+            self.soTheJobRunRecordIsWritten().runOnce();
+        }
+
+        public String runOnce() {
+            return PINNED_WRITE_METHOD_NAME;
+        }
+    }
+
+    public static class PlantedSelfProxyNamingAJobRunRecordTheAspectNeverWrites {
+
+        private final SelfProxy<PlantedSelfProxyNamingAJobRunRecordTheAspectNeverWrites> self;
+
+        public PlantedSelfProxyNamingAJobRunRecordTheAspectNeverWrites(
+                ObjectProvider<PlantedSelfProxyNamingAJobRunRecordTheAspectNeverWrites> self) {
+            this.self = SelfProxy.around(self);
+        }
+
+        public void runScheduled() {
+            self.soTheJobRunRecordIsWritten().fileTheRequest(new UUID(0L, 0L));
         }
 
         @Transactional

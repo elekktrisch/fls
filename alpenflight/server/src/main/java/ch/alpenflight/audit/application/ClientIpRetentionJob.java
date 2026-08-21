@@ -3,6 +3,7 @@ package ch.alpenflight.audit.application;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import ch.alpenflight.platform.tenancy.Tenants;
 import java.util.UUID;
@@ -26,20 +27,20 @@ public class ClientIpRetentionJob implements BusinessJob {
 
     private final ClientIpRedaction redaction;
     private final ClubRepository clubs;
-    private final ObjectProvider<ClientIpRetentionJob> self;
+    private final SelfProxy<ClientIpRetentionJob> self;
 
     public ClientIpRetentionJob(ClientIpRedaction redaction,
                                 ClubRepository clubs,
                                 ObjectProvider<ClientIpRetentionJob> self) {
         this.redaction = redaction;
         this.clubs = clubs;
-        this.self = self;
+        this.self = SelfProxy.around(self);
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        self.getObject().runOnce();
+        self.soTheJobRunRecordIsWritten().runOnce();
     }
 
     @Override

@@ -10,6 +10,7 @@ import ch.alpenflight.arch.TransactionDemarcationStructureGuardTest.WriterPinned
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -252,9 +253,71 @@ class TransactionDemarcationStructureGuardRedsOnEveryPlantedViolationTest {
     }
 
     @Test
-    void the_self_call_rule_stays_green_on_an_object_provider_self_proxy() {
+    void input_class_a_raw_object_provider_crosses_the_proxy_without_naming_a_reason() {
+        assertThatThrownBy(() -> TransactionDemarcationStructureGuardTest
+                .noClassCallsATransactionalMethodItDeclaresItself()
+                .check(imported(TransactionDemarcationPlants
+                        .PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider
+                        .class)))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("through a raw ObjectProvider")
+                .hasMessageContaining("names no reason for existing");
+    }
+
+    @Test
+    void the_self_call_rule_stays_green_when_the_self_proxy_names_the_transactional_reason() {
         assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
-                .PlantedScheduledEntryPointThatCrossesTheProxyThroughAnObjectProvider.class);
+                .PlantedScheduledEntryPointThatNamesTheTransactionalReason.class);
+    }
+
+    @Test
+    void input_class_the_self_proxy_names_a_transaction_the_target_does_not_declare() {
+        assertThatThrownBy(() -> TransactionDemarcationStructureGuardTest
+                .noClassCallsATransactionalMethodItDeclaresItself()
+                .check(imported(TransactionDemarcationPlants
+                        .PlantedSelfProxyNamingATransactionTheTargetNoLongerDeclares.class)))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("through SelfProxy."
+                        + TransactionDemarcationStructureGuardTest
+                        .SELF_PROXY_REASON_THE_TRANSACTION_APPLIES)
+                .hasMessageContaining("carries no @Transactional, so the stated reason is false");
+    }
+
+    @Test
+    void the_self_call_rule_stays_green_when_the_self_proxy_names_the_job_run_record_reason() {
+        assertTheSelfCallRuleStaysGreenOn(TransactionDemarcationPlants
+                .PlantedMeasuredJobThatNamesTheJobRunRecordReason.class);
+    }
+
+    @Test
+    void input_class_the_self_proxy_names_a_job_run_record_the_aspect_never_writes() {
+        assertThatThrownBy(() -> TransactionDemarcationStructureGuardTest
+                .noClassCallsATransactionalMethodItDeclaresItself()
+                .check(imported(TransactionDemarcationPlants
+                        .PlantedSelfProxyNamingAJobRunRecordTheAspectNeverWrites.class)))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("through SelfProxy."
+                        + TransactionDemarcationStructureGuardTest
+                        .SELF_PROXY_REASON_THE_JOB_RUN_RECORD_IS_WRITTEN)
+                .hasMessageContaining("MeasuredJobAspect advises only runOnce");
+    }
+
+    @Test
+    void every_reason_the_self_proxy_offers_is_a_reason_this_guard_verifies() {
+        List<String> reasonsTheHelperOffers = Arrays.stream(
+                        loaded(TransactionDemarcationStructureGuardTest.SELF_PROXY_FULL_NAME)
+                                .getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .filter(method -> !Modifier.isStatic(method.getModifiers()))
+                .map(Method::getName)
+                .toList();
+
+        assertThat(reasonsTheHelperOffers)
+                .as("SelfProxy states the reason for a proxy hop in the method it offers; a "
+                        + "reason the guard does not verify is a reason nobody re-tests")
+                .isNotEmpty()
+                .allMatch(TransactionDemarcationStructureGuardTest
+                        .SELF_PROXY_REASONS_THIS_RULE_VERIFIES::contains);
     }
 
     @Test

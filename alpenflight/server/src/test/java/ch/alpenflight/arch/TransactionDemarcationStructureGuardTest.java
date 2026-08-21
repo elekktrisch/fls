@@ -40,6 +40,19 @@ class TransactionDemarcationStructureGuardTest {
     private static final String ENTITY_MANAGER_FULL_NAME = "jakarta.persistence.EntityManager";
     private static final String OBJECT_PROVIDER_FULL_NAME =
             "org.springframework.beans.factory.ObjectProvider";
+    static final String SELF_PROXY_FULL_NAME =
+            "ch.alpenflight.platform.scheduling.SelfProxy";
+    private static final String MEASURED_JOB_FULL_NAME =
+            "ch.alpenflight.platform.scheduling.MeasuredJob";
+    private static final String METHOD_THE_MEASURED_JOB_ASPECT_ADVISES = "runOnce";
+    static final String SELF_PROXY_REASON_THE_TRANSACTION_APPLIES =
+            "soTheTransactionalBoundaryApplies";
+    static final String SELF_PROXY_REASON_THE_JOB_RUN_RECORD_IS_WRITTEN =
+            "soTheJobRunRecordIsWritten";
+
+    static final Set<String> SELF_PROXY_REASONS_THIS_RULE_VERIFIES = Set.of(
+            SELF_PROXY_REASON_THE_TRANSACTION_APPLIES,
+            SELF_PROXY_REASON_THE_JOB_RUN_RECORD_IS_WRITTEN);
 
     private static final Set<String> PROGRAMMATIC_TRANSACTION_STARTER_OWNERS = Set.of(
             "org.springframework.transaction.support.TransactionTemplate",
@@ -123,9 +136,11 @@ class TransactionDemarcationStructureGuardTest {
                     + "which does cross the proxy; a call from a compiler-generated bridge method; "
                     + "and a call whose origin already runs inside the same boundary, either "
                     + "because the origin carries its own @Transactional or because a class-level "
-                    + "@Transactional covers origin and target alike. The ObjectProvider test reads "
-                    + "one source line, so splitting self.getObject() and the call over two lines "
-                    + "reds the rule. The boot-callback rule reads the @PostConstruct "
+                    + "@Transactional covers origin and target alike. A self-call that hops over "
+                    + "the proxy states its reason by the SelfProxy method it calls, and this rule "
+                    + "reds when the code no longer keeps that reason. The SelfProxy test reads "
+                    + "one source line, so splitting the reason call and the call it guards over "
+                    + "two lines reds the rule. The boot-callback rule reads the @PostConstruct "
                     + "annotation and the constructor call sites; it does not prove that the seed "
                     + "row exists.";
 
@@ -206,11 +221,15 @@ class TransactionDemarcationStructureGuardTest {
                 .as("A class must not call a @Transactional method that it declares itself. Spring "
                         + "opens the transaction in a proxy around the bean. A self-call never "
                         + "crosses the proxy, so Spring opens no transaction, and the write runs "
-                        + "with no rollback boundary. Reach the boundary through an injected "
-                        + "ObjectProvider self-proxy, as DailyReportJob does, or move it onto a "
-                        + "separate bean, as JoinRequestTxWriter does for JoinRequestsService. "
-                        + "Measured on the AircraftDatabaseSyncJob run: the self-call let a "
-                        + "half-finished sync keep the aircraft it already wrote."
+                        + "with no rollback boundary. Reach the boundary through a SelfProxy "
+                        + "field, as DailyReportJob does, or move it onto a separate bean, as "
+                        + "JoinRequestTxWriter does for JoinRequestsService. A raw ObjectProvider "
+                        + "crosses the proxy too, and this rule refuses it anyway: the hop is "
+                        + "correct but states no reason, so the next reader cannot tell it from "
+                        + "ceremony and deletes it. SelfProxy names the reason in the method it "
+                        + "offers, and this rule reads that name. Measured on the "
+                        + "AircraftDatabaseSyncJob run: the self-call let a half-finished sync "
+                        + "keep the aircraft it already wrote."
                         + RESIDUAL_LIMIT_THESE_RULES_DO_NOT_COVER)
                 .allowEmptyShould(true);
     }
@@ -344,13 +363,14 @@ class TransactionDemarcationStructureGuardTest {
     }
 
     private static ArchCondition<JavaClass> callNoTransactionalMethodItDeclaresItself() {
-        return new ArchCondition<>("call no @Transactional method that it declares itself") {
+        return new ArchCondition<>("call no @Transactional method that it declares itself, and "
+                + "hop over the Spring proxy only through a SelfProxy method whose stated reason "
+                + "the code still keeps") {
             @Override
             public void check(JavaClass candidate, ConditionEvents events) {
                 for (JavaMethodCall call : candidate.getMethodCallsFromSelf()) {
                     if (!call.getTargetOwner().getFullName().equals(candidate.getFullName())
-                            || isCompilerGenerated(call.getOrigin())
-                            || reachesTheBeanThroughAnObjectProviderOnTheSameLine(call)) {
+                            || isCompilerGenerated(call.getOrigin())) {
                         continue;
                     }
                     Optional<JavaMethod> target = call.getTarget().resolveMember();
@@ -359,6 +379,31 @@ class TransactionDemarcationStructureGuardTest {
                     }
                     Optional<String> demarcation =
                             transactionalAnnotationOnTheMethodOrItsClass(target.get());
+
+                    Optional<String> statedReason = selfProxyReasonOnTheSameLine(call);
+                    if (statedReason.isPresent()) {
+                        Optional<String> broken = reasonTheCodeNoLongerKeeps(
+                                candidate, target.get(), statedReason.get(), demarcation);
+                        if (broken.isPresent()) {
+                            events.add(SimpleConditionEvent.violated(candidate,
+                                    candidate.getName() + " reaches its own method "
+                                            + call.getTarget().getName() + " through SelfProxy."
+                                            + statedReason.get() + " at "
+                                            + call.getSourceCodeLocation() + ", " + broken.get()));
+                        }
+                        continue;
+                    }
+
+                    if (reachesTheBeanThroughARawObjectProviderOnTheSameLine(call)) {
+                        events.add(SimpleConditionEvent.violated(candidate, candidate.getName()
+                                + " reaches its own method " + call.getTarget().getName()
+                                + " through a raw ObjectProvider at " + call.getSourceCodeLocation()
+                                + ", so the hop crosses the Spring proxy but names no reason for "
+                                + "existing. Hold the provider in a SelfProxy field and call the "
+                                + "SelfProxy method that states why the hop is there."));
+                        continue;
+                    }
+
                     if (demarcation.isEmpty()
                             || theOriginAlreadyRunsInsideThatBoundary(call, candidate,
                             target.get())) {
@@ -374,7 +419,42 @@ class TransactionDemarcationStructureGuardTest {
         };
     }
 
-    private static boolean reachesTheBeanThroughAnObjectProviderOnTheSameLine(JavaMethodCall call) {
+    private static Optional<String> reasonTheCodeNoLongerKeeps(JavaClass candidate,
+                                                              JavaMethod target,
+                                                              String statedReason,
+                                                              Optional<String> demarcation) {
+        if (SELF_PROXY_REASON_THE_TRANSACTION_APPLIES.equals(statedReason)
+                && demarcation.isEmpty()) {
+            return Optional.of("but " + target.getName() + " carries no @Transactional, so the "
+                    + "stated reason is false. Either restore the annotation, or state the reason "
+                    + "the hop really keeps, or delete the hop.");
+        }
+        if (SELF_PROXY_REASON_THE_JOB_RUN_RECORD_IS_WRITTEN.equals(statedReason)
+                && !theMeasuredJobAspectAdvises(candidate, target)) {
+            return Optional.of("but MeasuredJobAspect advises only "
+                    + METHOD_THE_MEASURED_JOB_ASPECT_ADVISES + " on a @MeasuredJob class, so the "
+                    + "stated reason is false. Either restore that shape, or state the reason the "
+                    + "hop really keeps, or delete the hop.");
+        }
+        return Optional.empty();
+    }
+
+    private static boolean theMeasuredJobAspectAdvises(JavaClass candidate, JavaMethod target) {
+        return candidate.isAnnotatedWith(MEASURED_JOB_FULL_NAME)
+                && METHOD_THE_MEASURED_JOB_ASPECT_ADVISES.equals(target.getName());
+    }
+
+    private static Optional<String> selfProxyReasonOnTheSameLine(JavaMethodCall call) {
+        return call.getOrigin().getMethodCallsFromSelf().stream()
+                .filter(sibling -> sibling.getLineNumber() == call.getLineNumber())
+                .filter(sibling -> SELF_PROXY_FULL_NAME
+                        .equals(sibling.getTargetOwner().getFullName()))
+                .map(sibling -> sibling.getTarget().getName())
+                .findFirst();
+    }
+
+    private static boolean reachesTheBeanThroughARawObjectProviderOnTheSameLine(
+            JavaMethodCall call) {
         return call.getOrigin().getMethodCallsFromSelf().stream()
                 .anyMatch(sibling -> sibling.getLineNumber() == call.getLineNumber()
                         && OBJECT_PROVIDER_FULL_NAME

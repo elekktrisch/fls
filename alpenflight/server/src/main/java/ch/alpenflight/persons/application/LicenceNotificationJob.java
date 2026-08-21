@@ -5,6 +5,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -48,7 +49,7 @@ public class LicenceNotificationJob implements BusinessJob {
 
     private final PersonRepository persons;
     private final TemplatedMailService mail;
-    private final ObjectProvider<LicenceNotificationJob> self;
+    private final SelfProxy<LicenceNotificationJob> self;
     private final Clock clock;
 
     public LicenceNotificationJob(PersonRepository persons,
@@ -57,14 +58,14 @@ public class LicenceNotificationJob implements BusinessJob {
                                   Clock clock) {
         this.persons = persons;
         this.mail = mail;
-        this.self = self;
+        this.self = SelfProxy.around(self);
         this.clock = clock;
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        self.getObject().runOnce();
+        self.soTheTransactionalBoundaryApplies().runOnce();
     }
 
     @Override

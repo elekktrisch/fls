@@ -6,6 +6,7 @@ import ch.alpenflight.aircraft.domain.OgnDeviceDatabase;
 import ch.alpenflight.aircraft.domain.OgnDeviceDatabase.OgnDevice;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.util.HashMap;
 import java.util.Locale;
@@ -32,20 +33,20 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private final AircraftRepository aircraft;
     private final OgnDeviceDatabase ddb;
-    private final ObjectProvider<AircraftDatabaseSyncJob> self;
+    private final SelfProxy<AircraftDatabaseSyncJob> self;
 
     public AircraftDatabaseSyncJob(AircraftRepository aircraft,
                                    OgnDeviceDatabase ddb,
                                    ObjectProvider<AircraftDatabaseSyncJob> self) {
         this.aircraft = aircraft;
         this.ddb = ddb;
-        this.self = self;
+        this.self = SelfProxy.around(self);
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        self.getObject().runOnce();
+        self.soTheTransactionalBoundaryApplies().runOnce();
     }
 
     @Override

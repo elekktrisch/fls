@@ -124,13 +124,17 @@ surface, and the notice says so. Where it publishes stays open.
 
 ## Task record
 
-38 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-68. The
+39 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-69. The
 carve budgeted 15. Task growth came from the gate and from two `gap-hunter` rounds, which is the
 expected shape of a hardening journey.
 
 - [x] T-67 — a git push arms the fan-out, and the gate waits for the run it armed.
 - [x] T-68 — a date-picker spec waits for the overlay panel before it types, so the picker cannot
   throw on the screen under proof.
+- [x] T-69 — a named `SelfProxy` states why each scheduled job hops over the Spring proxy, and the
+  arch rule reads that name. Six of the seven hops keep the transaction. The seventh keeps the
+  job-run record, because `ClientIpRetentionJob.runOnce` carries no `@Transactional` by design. The
+  rule now refuses a raw `ObjectProvider` self-call as well: the hop is correct but states no reason.
 
 33 S2 tasks were re-filed to `_BOYSCOUT.md`, including ten defects that J-32 tasks found and did not
 fix. No finding was dropped.
