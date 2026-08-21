@@ -407,6 +407,10 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Residual limit, stated in the failure message.** The gate arms only on the two producer trees
     whose legacy SELECT no synthetic bundle exercises. A server-side ingest change, a Flyway change or
     a spec change reaches the real fan-out and does not arm this gate.
+- [ ] T-62 — [S1 BLOCKER] `fanout-parity-verdict.py:395` returns `PARITY_PROVEN` when any covering run passed, even when the newest covering run reads `PARITY_DEFECT`, and `gate()` only warns; the selftest never scores that variant, so the gate fails at its stated purpose
+- [ ] T-63 — [S1 BLOCKER] the real-idp `page.route` ban misses `page.routeFromHAR`, `page['route']`, a destructured `route`, and every `_helpers/` file, where `console-guard.ts:165` exports `installMockApiStubs` routing `**/api/v1/**`
+- [ ] T-64 — [S2] `AuditRedactionConfigStartupGuard.java:29` is wired by `@Component` alone and every test builds it by hand, so deleting the annotation reds nothing
+- [ ] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
