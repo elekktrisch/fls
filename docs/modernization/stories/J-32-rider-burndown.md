@@ -356,13 +356,35 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     The helper now waits for the `targetEntityType=` response, and the anonymous case pins the row
     count to what the real read returns. Both reds came from the trace, not from a guess.
 - [x] T-49 — [S1 BLOCKER] `MutationAuditEventListener.java:83` writes `client_ip` by raw JDBC with `tenant_club_id` NULL, which bypasses the aggregate rule that `V59` and `V60` cite to justify having no database CHECK; `ClientIpRetentionJob.java:49` sweeps per club, so a null-tenant row keeps its IP for ever
-- [ ] T-50 — [S1 BLOCKER] the AC 2 proof compares two i18n constants and never renders a `SYSTEM` row (`audit-log-two-club.spec.ts:523`), and the caption claims a scheduled-job label the spec does not assert
+- [x] T-50 — [S1 BLOCKER] the AC 2 proof compares two i18n constants and never renders a `SYSTEM` row (`audit-log-two-club.spec.ts:523`), and the caption claims a scheduled-job label the spec does not assert
+  - **Done — the proof asserts what the real screen renders, and the caption claims only that.** The
+    old line compared two `de.ts` constants and passed with the feature deleted.
+  - **A genuine `SYSTEM` row reaches no HTTP surface, and no bounded proof run.** `SecurityConfig.java:35`
+    enumerates two anonymous writes, and both record `ANONYMOUS_PUBLIC`. `JobsAdminController.java:48`
+    runs a job inside the caller's security context, so "Run now" records `NORMAL`. Every `@Scheduled`
+    cron is daily or hourly, so no job fires inside a 45-second case. One HTTP-reachable `SYSTEM` row
+    does exist, and it is the defect T-54 removes: `AuditTrailService.java:85` classifies a FAILED
+    anonymous write as `SYSTEM`. A proof built on that row would pin a bug.
+  - **Option (b), for that reason.** The real-idp case asserts the rendered anonymous cell: it reads
+    the public-form label, it is not empty, it matches no raw identifier shape, and it differs from
+    the administrator cell the same screen renders. The `SYSTEM` half stays where it is provable —
+    `AnonymousActorProjectionIT.java:119` in the data, `audit-logs-list.spec.ts:196` on the screen,
+    and `audit-actor-cell.spec.ts` on the label rule. The mocked-backend case now compares two
+    RENDERED cells, so it too has application contact.
+  - **Both videos end on the asserted state.** The anonymous case reads the administrator row first
+    and the anonymous rows last. The tenant-isolation case takes its bearer directly after the login,
+    so the API read no longer navigates the page to `/start` after the assertions.
+  - **The scheduled-job fixture names the real producer.** `PlanningDayNotificationJob.java:56` writes
+    `PlanningNotificationRun` with the club id as the target id, and `PiiRedactor.java:62` writes
+    `[redacted]` for every field of an unlisted entity.
 - [ ] T-51 — [S1 BLOCKER] the manifest column-level grant check reads `EntityPolicy.tenantBypassFks`, but `ManifestBuilder.java:56,61` hardcodes `Set.of()`, so the T-06 guard never scores a real bundle
 - [x] T-52 — [S1 BLOCKER] T-02 removed the last executing lane for both showcase-seed proofs and `required` scores `skipped` as success, so two surfaces this journey edits are now ungated (supersedes T-42)
 - [ ] T-53 — [S1 BLOCKER] `fan-out parity` is schedule and dispatch only and sits outside `required.needs`, so the mapper edits in T-12 and T-14 would land with no gate; ship this before them (supersedes T-27)
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
+  - T-50 shipped the last two nits: the fixture names `PlanningNotificationRun`, and both videos end
+    on the state their caption describes. The guard exemption and the boundary test remain.
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
 - [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate

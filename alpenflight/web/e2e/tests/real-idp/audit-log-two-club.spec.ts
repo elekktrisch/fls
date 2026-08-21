@@ -39,7 +39,8 @@ const PILOT_PASSWORD = 'pilot1-dev-2026!';
 const REDACTED_SENTINEL = '[redacted]';
 
 const ANONYMOUS_PUBLIC_ACTOR_LABEL = de.auditLogs.actor.anonymousPublic;
-const SCHEDULED_JOB_ACTOR_LABEL = de.auditLogs.actor.system;
+const THE_RAW_IDENTIFIER_SHAPE_AN_ACTOR_CELL_MUST_NEVER_RENDER =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 const MASTERDATA_CHILD_RENDERED_ONLY_WHILE_THE_OVERLAY_IS_OPEN = 'af-nav-section-/aircraft';
 
@@ -482,7 +483,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     }
   });
 
-  test('[happy] club-B admin: an anonymous public registration reads as the public form, and its row is not a system row', async ({
+  test('[happy] club-B admin: an anonymous public registration reads as the public form, never as an empty cell or a raw identifier, and differently from the administrator row', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -495,12 +496,17 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await submitScenicRegistrationWithoutAToken(ctx.request, slug);
 
       await enterAuditLogs(page);
-      await filterAuditTarget(page, PUBLIC_REGISTRATION_TARGET);
 
-      await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-audit-anonymous-actor.png`,
-        fullPage: true,
-      });
+      await filterAuditTarget(page, CLUB_TARGET);
+      const authenticatedActorCell = page.getByTestId(TESTIDS.rowActor).first();
+      await expect(
+        authenticatedActorCell,
+        'the administrator write on the same screen names its actor by username',
+      ).toHaveText(fixture.clubB.user.email);
+      const administratorCellAsRendered =
+        (await authenticatedActorCell.textContent())?.trim() ?? '';
+
+      await filterAuditTarget(page, PUBLIC_REGISTRATION_TARGET);
 
       const anonymousRows = await readAuditEvents(
         ctx.request,
@@ -520,10 +526,20 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
           'the anonymous submission reads as the public form',
         ).toHaveText(ANONYMOUS_PUBLIC_ACTOR_LABEL);
       }
+
+      const anonymousCellAsRendered = (await anonymousActors.first().textContent())?.trim() ?? '';
       expect(
-        ANONYMOUS_PUBLIC_ACTOR_LABEL,
-        'the public form and a scheduled job read differently on the screen',
-      ).not.toBe(SCHEDULED_JOB_ACTOR_LABEL);
+        anonymousCellAsRendered,
+        'the anonymous row leaves no empty actor cell, although it carries no actor id',
+      ).not.toBe('');
+      expect(
+        anonymousCellAsRendered,
+        'the anonymous row names the form, and never falls back to a raw identifier',
+      ).not.toMatch(THE_RAW_IDENTIFIER_SHAPE_AN_ACTOR_CELL_MUST_NEVER_RENDER);
+      expect(
+        anonymousCellAsRendered,
+        'the two rendered cells of this screen tell the anonymous write and the administrator apart',
+      ).not.toBe(administratorCellAsRendered);
 
       const newest = anonymousRows[0]!;
       expect(newest.actorKind, 'the anonymous write is classified apart from a scheduled job').toBe(
@@ -535,23 +551,22 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       ).toBe(false);
       expect(newest.actorUserId, 'the anonymous registrant is no club user').toBeFalsy();
 
-      await filterAuditTarget(page, CLUB_TARGET);
-      const authenticatedActor = page.getByTestId(TESTIDS.rowActor).first();
-      await expect(
-        authenticatedActor,
-        'the administrator write on the same screen names its actor by username',
-      ).toHaveText(fixture.clubB.user.email);
-      await expect(authenticatedActor).not.toHaveText(ANONYMOUS_PUBLIC_ACTOR_LABEL);
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-audit-anonymous-actor.png`,
+        fullPage: true,
+      });
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-32',
         caption:
           'J-32 · anonymous attribution · A registrant submits a public scenic-flight form with ' +
-          'no token. At /system/logs the club-B administrator reads that row as the public form, ' +
-          'and the real API row carries actorKind=ANONYMOUS_PUBLIC with systemActor=false — a ' +
-          'scheduled job carries SYSTEM and reads "System". The administrator write on the same ' +
-          'screen names the administrator by username.',
+          'no token. At /system/logs the club-B administrator reads that row as the public form. ' +
+          'The cell is not empty and shows no raw identifier, and it differs from the ' +
+          'administrator row, which the same screen names by username. The real API row carries ' +
+          'actorKind=ANONYMOUS_PUBLIC, systemActor=false and no actor user id. No HTTP surface ' +
+          'produces a SYSTEM row, so AnonymousActorProjectionIT proves the scheduled-job kind in ' +
+          'the data, and audit-logs-list.spec.ts proves its "System" label on the screen.',
         acTag: 'happy',
       });
     }
@@ -577,15 +592,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     const pageA = await ctxA.newPage();
     try {
       await loginAsClubAdmin(pageA, fixture.clubA);
+      const bearerA = await bearerFor(pageA);
       await createLocationViaUi(pageA, { name: clubAOwnTargetName });
 
       await enterAuditLogs(pageA);
       await filterToCreatedLocations(pageA);
-
-      await pageA.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-audit-tenant-isolation.png`,
-        fullPage: true,
-      });
 
       const newestForClubA = await expandNewestRow(pageA);
       await expect(
@@ -593,7 +604,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
         'the newest Location CREATE the club-A admin reads is their own write',
       ).toContainText(clubAOwnTargetName);
 
-      const bearerA = await bearerFor(pageA);
+      await pageA.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-audit-tenant-isolation.png`,
+        fullPage: true,
+      });
+
       const items = await readAuditEvents(ctxA.request, bearerA, 'pageSize=200');
       expect(items.length, 'the club-A read returns rows to scope').toBeGreaterThan(0);
       expect(
@@ -616,9 +631,9 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
         journey: 'J-32',
         caption:
           'J-32 · tenant isolation · Club B writes a Location CREATE audit row, then club A writes ' +
-          'its own. At /system/logs the club-A administrator reads the club-A row and not the ' +
-          'club-B row. A direct API read with the real club-A token returns club-A rows and no ' +
-          'club-B row.',
+          'its own. At /system/logs the club-A administrator expands the newest CREATE/Location ' +
+          'row, and it carries the club-A name. A direct API read with the real club-A token ' +
+          'returns club-A rows and no club-B row.',
         acTag: 'edge',
       });
     }

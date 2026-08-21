@@ -19,6 +19,9 @@ const UNRESOLVED_ACTOR_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000007';
 
 const ACTOR_LABEL = de.auditLogs.actor;
 
+const PLANNING_NOTIFICATION_RUN_TARGET_THE_SCHEDULED_JOB_REALLY_WRITES = 'PlanningNotificationRun';
+const REDACTED_SENTINEL_THE_REDACTOR_WRITES_FOR_AN_UNLISTED_ENTITY = '[redacted]';
+
 const clubUsers: UserListItem[] = [
   {
     id: `usr-${ACTOR_USER_ID}`,
@@ -99,14 +102,19 @@ const anonymousPublicRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
   systemActor: false,
 };
 
-const scheduledJobRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
+const scheduledPlanningNotificationJobRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
   id: SCHEDULED_JOB_ROW_ID,
   occurredAt: '2026-07-20T13:10:00Z',
   actorKind: AuditEventRowActorKind.SYSTEM,
   tenantClubId: CLUB_A_ID,
   action: AuditEventRowAction.PLANNING_NOTIFICATIONS_RUN,
-  targetEntityType: 'PlanningDay',
-  targetEntityId: 'pd-019e30c3-2c00-7600-8000-000000000001',
+  targetEntityType: PLANNING_NOTIFICATION_RUN_TARGET_THE_SCHEDULED_JOB_REALLY_WRITES,
+  targetEntityId: CLUB_A_ID,
+  afterState: {
+    clubId: REDACTED_SENTINEL_THE_REDACTOR_WRITES_FOR_AN_UNLISTED_ENTITY,
+    imminentMailCount: REDACTED_SENTINEL_THE_REDACTOR_WRITES_FOR_AN_UNLISTED_ENTITY,
+    weekAheadMailCount: REDACTED_SENTINEL_THE_REDACTOR_WRITES_FOR_AN_UNLISTED_ENTITY,
+  },
   failed: false,
   systemActor: true,
 };
@@ -129,7 +137,7 @@ const seedRows: AuditEventRow[] = [
   ...succeededRowsCarryNoHttpStatus,
   failedRowCarriesTheRecordedHttpStatus,
   anonymousPublicRowCarriesNoActorIdentifierAtAll,
-  scheduledJobRowCarriesNoActorIdentifierAtAll,
+  scheduledPlanningNotificationJobRowCarriesNoActorIdentifierAtAll,
   federatedActorRowResolvesToNoClubUser,
 ];
 
@@ -211,13 +219,23 @@ test('audit-logs: the actor column tells an authenticated user, an anonymous pub
   const user = page.locator(`[data-audit-id="${USER_ROW_ID}"]`);
   await expect(user.getByTestId('audit-row-actor')).toHaveText(ACTOR_USERNAME);
 
-  const anonymous = page.locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`);
-  await expect(anonymous.getByTestId('audit-row-actor')).toHaveText(ACTOR_LABEL.anonymousPublic);
+  const anonymousActorCell = page
+    .locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`)
+    .getByTestId('audit-row-actor');
+  await expect(anonymousActorCell).toHaveText(ACTOR_LABEL.anonymousPublic);
 
-  const scheduledJob = page.locator(`[data-audit-id="${SCHEDULED_JOB_ROW_ID}"]`);
-  await expect(scheduledJob.getByTestId('audit-row-actor')).toHaveText(ACTOR_LABEL.system);
+  const scheduledJobActorCell = page
+    .locator(`[data-audit-id="${SCHEDULED_JOB_ROW_ID}"]`)
+    .getByTestId('audit-row-actor');
+  await expect(scheduledJobActorCell).toHaveText(ACTOR_LABEL.system);
 
-  expect(ACTOR_LABEL.anonymousPublic).not.toBe(ACTOR_LABEL.system);
+  const anonymousCellAsRendered = (await anonymousActorCell.textContent())?.trim();
+  const scheduledJobCellAsRendered = (await scheduledJobActorCell.textContent())?.trim();
+  expect(anonymousCellAsRendered, 'the rendered anonymous cell is not empty').toBeTruthy();
+  expect(
+    anonymousCellAsRendered,
+    'the screen renders the anonymous submission and the scheduled job as different text',
+  ).not.toBe(scheduledJobCellAsRendered);
 
   const federated = page.locator(`[data-audit-id="${UNRESOLVED_ACTOR_ROW_ID}"]`);
   await expect(federated.getByTestId('audit-row-actor')).toHaveText(UNLISTED_ACTOR_KEYCLOAK_SUB);
