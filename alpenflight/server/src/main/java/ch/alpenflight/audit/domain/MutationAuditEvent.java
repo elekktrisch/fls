@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -18,6 +19,8 @@ import org.jspecify.annotations.Nullable;
 @Entity
 @Table(name = "t_mutation_audit_event")
 public class MutationAuditEvent {
+
+    public static final Duration CLIENT_IP_RETENTION = Duration.ofDays(90);
 
     @Id
     @UuidV7
@@ -74,7 +77,7 @@ public class MutationAuditEvent {
     private @Nullable AuditActorKind actorKind;
 
     @AuditRedact
-    @Column(name = "client_ip", updatable = false, columnDefinition = "text")
+    @Column(name = "client_ip", columnDefinition = "text")
     private @Nullable String clientIp;
 
     @AuditRedact
@@ -187,6 +190,18 @@ public class MutationAuditEvent {
 
     public @Nullable String getClientIp() {
         return clientIp;
+    }
+
+    public static Instant clientIpRetentionCutoff(Instant now) {
+        return now.minus(CLIENT_IP_RETENTION);
+    }
+
+    public boolean clientIpRetentionHasElapsedAt(Instant now) {
+        return clientIp != null && !getOccurredAt().isAfter(clientIpRetentionCutoff(now));
+    }
+
+    public void redactClientIpKeepingEveryOtherCell() {
+        this.clientIp = null;
     }
 
     public @Nullable String getLegacyActorUserId() {

@@ -18,6 +18,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Component;
 
 interface JpaMutationAuditEventRepository extends JpaRepository<MutationAuditEvent, UUID> {
+
+    List<MutationAuditEvent> findByClientIpIsNotNullAndOccurredAtLessThanEqualOrderByOccurredAtAsc(
+            Instant cutoff);
 }
 
 @Component
@@ -39,8 +42,18 @@ class MutationAuditEventRepositoryAdapter implements MutationAuditEventRepositor
     }
 
     @Override
+    public MutationAuditEvent saveRedactedRow(MutationAuditEvent redactedRow) {
+        return jpa.save(redactedRow);
+    }
+
+    @Override
     public Optional<MutationAuditEvent> findById(UUID id) {
         return jpa.findById(id);
+    }
+
+    @Override
+    public List<MutationAuditEvent> findClientIpBearingRowsOccurredOnOrBefore(Instant cutoff) {
+        return jpa.findByClientIpIsNotNullAndOccurredAtLessThanEqualOrderByOccurredAtAsc(cutoff);
     }
 
     @Override

@@ -21,6 +21,7 @@ class TenantsRunAsAllowlistTest {
     private static final Set<String> ALLOWED_CALLER_FQNS = Set.of(
             "ch.alpenflight.platform.tenancy.Tenants",
             "ch.alpenflight.audit.application.MutationAuditEventListener",
+            "ch.alpenflight.audit.application.ClientIpRetentionJob",
             "ch.alpenflight.audit.web.RequestAuditFilter",
             "ch.alpenflight.deployments.application.DeploymentContext",
             "ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService",

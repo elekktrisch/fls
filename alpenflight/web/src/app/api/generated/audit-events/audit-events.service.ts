@@ -160,5 +160,38 @@ export class AuditEventsService {
         params: filteredParams,}
     );
   }
+/**
+ * @summary Redact the client IP of one audit event of the caller's tenant. The audit row stays; only the client IP goes.
+ */
+ redactAuditEventClientIp<TData = void>(auditEventId: string, options?: HttpClientBodyOptions): Observable<TData>;
+ redactAuditEventClientIp<TData = void>(auditEventId: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ redactAuditEventClientIp<TData = void>(auditEventId: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  redactAuditEventClientIp<TData = void>(
+    auditEventId: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.delete<TData>(
+      `/api/v1/admin/audit-events/${auditEventId}/client-ip`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.delete<TData>(
+      `/api/v1/admin/audit-events/${auditEventId}/client-ip`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.delete<TData>(
+      `/api/v1/admin/audit-events/${auditEventId}/client-ip`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
 };
 

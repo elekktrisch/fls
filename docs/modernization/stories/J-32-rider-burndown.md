@@ -276,7 +276,16 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     second branch and prints an empty cell, because both actor ids are null. T-09 must key the cell on
     the new `actorKind` field of `AuditEventRow`, add an operator label for `ANONYMOUS_PUBLIC`, and keep
     `systemActor` for `SYSTEM`. The API carries `actorKind`; it deliberately carries no `client_ip`.
-- [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
+- [x] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
+  - The sweep runs **per tenant**: it opens `Tenants.runAs` for every club, soft-deleted clubs
+    included, and redacts inside the `@TenantId` discriminator. It reads no row across a tenant
+    boundary. `ClientIpRetentionJob` joins the `Tenants.runAs` allow-list on that basis. The rule
+    lives on the aggregate (`MutationAuditEvent.clientIpRetentionHasElapsedAt`), not in the schema.
+  - **The boundary: a row exactly 90 days old is redacted.** The window keeps an IP for strictly
+    less than 90 days.
+  - V60 grants the app role a **column-level** `UPDATE (client_ip)`. The V54 append-only carve-out
+    still refuses every other UPDATE and every DELETE on `t_mutation_audit_event`, so the database
+    itself enforces "redaction, not deletion".
 - [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
 - [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
 - [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally

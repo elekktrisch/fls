@@ -10,7 +10,11 @@ public interface MutationAuditEventRepository {
 
     MutationAuditEvent append(MutationAuditEvent event);
 
+    MutationAuditEvent saveRedactedRow(MutationAuditEvent redactedRow);
+
     Optional<MutationAuditEvent> findById(UUID id);
+
+    List<MutationAuditEvent> findClientIpBearingRowsOccurredOnOrBefore(Instant cutoff);
 
     List<MutationAuditEvent> findPage(@Nullable Instant occurredFrom,
                                       @Nullable Instant occurredTo,
