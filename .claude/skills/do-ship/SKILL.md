@@ -85,6 +85,15 @@ as many as the 60/40 debt share affords; a rider whose seam no journey touches n
 oldest-first nor severity-first drained the file (~17 → 45), so the operator (2026-08-19) put S1+S2 burndown on a
 dedicated hardening journey. **As each rider ships, DELETE its bullet** — never `✅`/struck-through.
 
+**A rider's SYMPTOM is evidence; its CAUSE is a guess. Open every burndown task by confirming or refuting the
+stated cause against the tree, and say which** (operator 2026-08-21). J-32 burned ~16 rider causes and **eight
+were wrong**: a "hard delete" that soft-deletes through an EF interceptor and names a different column; a
+`flush()` blamed on `em.merge` that had three unrelated reasons across five call sites; an "unexplainable"
+allow-list entry explained in its own first commit; a bean blamed on the wrong module; a caption blamed for
+overclaiming an assertion that was itself vacuous; and **four riders whose defects J-27 had fixed two months
+earlier**. Every catch came from a worker who measured. Also treat a green as a hypothesis: a rider can look
+fixed because the test stopped asserting it, or because the case is `test.skip`ped — J-32 hit both.
+
 **Sizing gate (pre-dispatch, every task).** Each `T-NN`: **one seam** (one aggregate+repo / one resource's
 endpoints / one component-route / one migration / one spec edit — *'the domain layer' is not a task, 'the Booking
 aggregate' is*); **≤8 files, ≤5 new**, one change describable without 'and', **≤3 tests at one layer**;
@@ -116,10 +125,10 @@ STALE instructions); its in-tree work is UNVERIFIED DRAFT for a fresh finisher w
 environment rules + the verification protocol. Decompose toward SMALLER tasks — a death loses less.
 
 **Fan-out over many units (a sweep, N shards): dispatch workers DIRECTLY — never a coordinator layer.** A
-coordinator holds the whole batch in one session, so ONE death loses all of it (J-31: a coordinator plus its 6
-judges died with **zero shard reports written**, so the tree's partial edits were unaccountable and discarded).
-Each worker **writes its report as soon as its edits are done** — that artifact, not the diff, makes the work
-keepable; on a death **keep only work with a completed report**; dispatch in waves of **~4**.
+coordinator holds the whole batch in one session, so ONE death loses all of it (J-31: a coordinator + 6 judges
+died with **zero shard reports written**; the partial edits were unaccountable and discarded). Each worker
+**writes its report as soon as its edits are done** — that artifact, not the diff, makes the work keepable; on a
+death **keep only work with a completed report**; dispatch in waves of **~4**.
 
 **A worker's local check can be weaker than the gate — run the REAL build at every batch boundary.** J-31's
 judges used `javac -proc:none`, which disables the annotation processors, so NullAway/ErrorProne were exactly
@@ -135,21 +144,25 @@ divergence, a 17-vs-3 blast radius) and each time the worker who RAN something w
 on `main`** — green on `main` + red on-branch is JOURNEY-CAUSED (J-12a). **For a migration-fidelity red, MINE
 the run's artifacts for the ACTUAL migrated values** (`gh run download`), never a derived expected value (J-27).
 
-**Run a full-repo `./gradlew check` + the full mock-e2e suite at the BACKEND-batch boundary, AND the full `pnpm
-test` at the FRONTEND-batch boundary, BEFORE §4.** Per-task workers verify FOCUSED tests (the right commit bar);
-cross-cutting regressions surface only in the full suite: `cpdRatchet`, a shared spec ANOTHER journey asserts, a
-`main`-push-only workflow, a shared web unit spec (J-13's new nav entry vs `nav-sections.spec.ts`'s exact-set
-assertion). Once per batch — not per-task (too slow), not only at §4 (each miss costs a ~25-min real-idp cycle).
+**The batch boundary is a PUSH plus a JOB-LEVEL CI read — never "all shards green" (operator 2026-08-21).**
+Per-task workers verify FOCUSED tests (the right commit bar); cross-cutting regressions surface only in the full
+suite: `cpdRatchet`, a shared spec ANOTHER journey asserts, a `main`-push-only workflow, a shared web unit spec
+(J-13's new nav entry vs `nav-sections.spec.ts`'s exact-set assertion). A full local `./gradlew check` OOMs on a
+2-core box, so every worker shards and reports the shards it ran — which is TRUE per shard and says nothing about
+the gaps. J-32 lost a `V60` `GRANT` red into those gaps for FOUR tasks while two workers reported green. So at
+each batch boundary: push, read the CI result **job-level**, and continue only then. Read the STEP list on a fast
+run — a docs-only head skips the heavy lane and reports green over the skips. Once per batch — not per-task (too
+slow), not only at §4 (each miss costs a ~25-min real-idp cycle).
 **When a task changes a SHARED surface** (a guard, the post-signup landing, an auth/tenant resolver, a spec
 contract others assert), add a task to grep + update the cross-journey consumers up front — J-12a ate three gate
 cycles here.
 
-**A quarantine tag's recorded cause is a HYPOTHESIS.** Nobody re-tests it, because the tag makes the red look
-like someone else's problem. J-19 chased `[KC-26 UPGRADE DRIFT]`, which blamed three quarantined tests on a
-Keycloak upgrade: all three were OUR bugs (an unfilled `#username`, a missing PKCE parameter, a token lifespan
-shorter than the SPA renew window), the tag also hid an assertion naming a landing path J-12a had changed, and
-the third concealed a PRODUCTION bug — every silent renew threw the operator to `/start`. Reproduce before you
-believe the rider, suspect the test helper first, and demand a reproduction from any rider blaming an external
+**A quarantine tag or a `test.skip` reason is a HYPOTHESIS nobody re-tests** — the tag makes the red look like
+someone else's problem. J-19's `[KC-26 UPGRADE DRIFT]` blamed a Keycloak upgrade for three tests; all three were
+OUR bugs, and one concealed a PRODUCTION bug (every silent renew threw the operator to `/start`). J-32's J-0c
+skip blamed "a load-starved runner" for months; the real cause was a **disabled Save button** over a product
+defect — a migrated Location whose legacy ICAO the aggregate refused could never be saved. Reproduce before you
+believe it, suspect the test helper first, and demand a reproduction from any rider blaming an external
 component. [[feedback_quarantine_diagnosis_is_a_hypothesis]]
 
 **Task growth is expected, not a failure** (operator 2026-08-19). The carve budgets slack because the gate
@@ -191,18 +204,20 @@ journey `fan-out parity` is a HARD merge gate**. When the head is docs/CI-only t
 **name the last CODE-bearing sha and verify the lane there** (J-19 hunted back three commits for it); say in the
 PR which sha proves what. Executed ≠ proving THIS journey: confirm the proof job logged `baseline=false` and the
 bookmark's `<h1>` reads the journey id. **A warm cache proves nothing about a cold-cache fix** — bust the cache
-(`gh cache delete`) and re-run. [[project_false_green_derive_fallback]]
+(`gh cache delete`) and re-run. **A gate whose evidence needs a human trigger is not a gate** (operator
+2026-08-21): if you find yourself dispatching a workflow by hand to feed a required check, that is the defect —
+fix the trigger, do not keep pressing the button. [[project_false_green_derive_fallback]]
 
-**A gate must PROVE A RED PER INPUT CLASS.** J-19 shipped four guards and every one missed a class inside its
-own stated scope: the date guard skipped `_helpers/*.ts` + the root `e2e/` tree, its own fix then skipped
-**backtick** literals (the form its failure message recommended), the port guard ran in a `paths:`-filtered
-workflow covering 2 of the 11 sites it checked, and the size guard's selftest passed while the function counted
-`.git` (the fixture had none). Authors test the shape they pictured; the miss is always the one they didn't.
-So before a guard is done: **enumerate** the classes it claims (file types, dirs, quote styles, verbs, call
-shapes); **plant a violation in EACH and score the OLD implementation** to prove the class was uncovered; put it
-in a graph-root job with no `paths:`/`if:`/`needs:` (J-31's `comment-strip --check` is the pattern — `extract.yml`
-was filtered away from `tenant-rules.yaml` and stayed red ~3 months); make the selftest fixture carry the
-adversarial shape; and state the residual limit in the FAILURE MESSAGE, where a blocked developer reads it.
+**A gate must PROVE A RED PER INPUT CLASS.** Authors test the shape they pictured; the miss is always the one
+they didn't. J-19 shipped four guards that each missed a class inside their own scope. J-32 did it three more
+times: T-02's lane claim, T-53's selftest (its own purpose was the unscored class), and a `page.route` ban that
+linted **18** bypass shapes clean. So before a guard is done: **enumerate** the classes it claims (file types,
+dirs, quote styles, call shapes); **plant a violation in EACH and score the OLD implementation** to prove the
+class was uncovered; put it in a graph-root job with no `paths:`/`if:`/`needs:` (`extract.yml` was filtered away
+from `tenant-rules.yaml` and stayed red ~3 months); and state the residual limit in the FAILURE MESSAGE.
+**Then verify one level OUT — is the guard WIRED, and does its justification hold?** J-32's redaction guard
+carried `@Component` and ran nowhere (deleting it reddened nothing across 125 tests); T-02 verified its own edit
+correctly and shipped a false claim about the lane backing it up; a rider was closed green over a `test.skip`.
 [[feedback_gate_must_prove_a_red_per_input_class]]
 
 **Dev-time proof = THIS journey only; full green only at the gate** ([[feedback_dev_time_test_strategy]]). Per
@@ -256,10 +271,10 @@ Tell the operator the docs-head skips are expected, and which sha carries the pr
 
 **Troubleshooting mode — iterate on GitHub, not on this box** (operator 2026-08-02). When diagnosis needs repeated
 heavy runs, push a temporary workflow running only the job under diagnosis, so it runs IN PARALLEL with local
-coding instead of monopolising a 2-core box (J-15: Gradle beside Playwright → 13 phantom failures + 3× slowdown).
-Fail-closed: a committed marker (`.ci-troubleshooting`) makes `ci.yml` skip the heavy lane AND `required`
-hard-FAIL; `required` re-reads the marker itself, so its red survives any job-graph rewiring. Before handover:
-delete the marker, **fold every test the scratch runs added into normal CI**, confirm the heavy lane ran green.
+coding (J-15: Gradle beside Playwright → 13 phantom failures + 3× slowdown). Fail-closed: a committed
+`.ci-troubleshooting` marker makes `ci.yml` skip the heavy lane AND `required` hard-FAIL, and `required` re-reads
+the marker itself so its red survives a job-graph rewiring. Before handover: delete the marker, **fold every test
+the scratch runs added into normal CI**, confirm the heavy lane ran green.
 
 **Reconcile the PR's OWN checklist** — the **AC checklist** is a DIFFERENT list from the task checklist (J-15
 reported "all tasks done" on 13/13 tasks while the PR showed 7 unticked ACs). **Tick an AC only against a NAMED
@@ -282,8 +297,8 @@ ARTICLE→J-11); or `gap-hunter` flags a blocker needing a contract/ADR/sacred-c
 **A "parity exclusion" must be cosmetic or proven-unreachable** (J-9b): legitimate ONLY if cosmetic OR the worker
 cites the data/config making it unreachable. A *reachable* divergence — especially on a money/safety surface — is
 a suspected ported-legacy bug → **escalate, never bury it** in a rider (J-9b nearly shipped a reachable
-over-credit; the operator caught it at review). **Verify the legacy behaviour in the SERVER, not the UI label** —
-J-19's carve read `GENERATE_NEW_PASSWORD` off a button and invented an ADR-0026 divergence that did not exist.
+over-credit; J-32 found a migrated Location that could never be saved). **Verify legacy in the SERVER, not the
+UI label** — J-19's carve read `GENERATE_NEW_PASSWORD` off a button and invented a divergence that did not exist.
 
 ## Quality bar
 
@@ -291,10 +306,8 @@ J-19's carve read `GENERATE_NEW_PASSWORD` off a button and invented an ADR-0026 
   = the real full-chain run; declared+signed mocks only, undeclared mock = red.
 - Schema structural, business rules on aggregates (ADR 0022 §2). Tasks commit to `integration/J-NNN`; the
   **manager pushes**; never merge red; one PR per journey. Prune before done; cite file:line/PR#/J-ID.
-- **No comments — put the understanding in the name.** Zero human-written prose in code, specs or YAML. A comment
-  you want to write is a symbol/test/constant needing a longer name, or a `docs/modernization/` entry. Survivors:
-  tool-parsed directives (`eslint-disable*`, `@ts-*`, `prettier-ignore`, `noinspection`, `language=`,
-  `@formatter:off/on`, shebangs) and `// ext:` at an externally-owned boundary. History → the commit message.
+- **No comments — put the understanding in the name** (survivors + full rule: `CLAUDE.md`). A comment you want to
+  write is a symbol/test/constant needing a longer name. History → the commit message.
 - Does **not** merge PRs, auto-edit ADRs, or delete issues.
 
 ## When done
