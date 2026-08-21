@@ -33,6 +33,18 @@ The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file th
 below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
 this file untouched.
 
+- **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
+  directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
+  **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
+  `e2e/tests/public/signup.spec.ts:77,87,96,105,125,144`, all `sessionStorage` inside `page.evaluate`,
+  which looks like a false positive of an app-side rule. T-63 refused to silence the rule to widen the
+  gate, which was correct. Decide the rule first, then widen the lane. *(seam: `angular.json`
+  `lintFilePatterns` + the app-side rule)*
+- **[GATING-LANE-SKIP-HAS-NO-GUARD]** [S2] T-65 deleted a `test.skip` that hid the migrated-copy rename
+  from the gating fan-out lane for months. Nothing stops the next author adding one. A
+  `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
+  would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
+  its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
 - **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S2] `AuditTrailService.java:83` classifies a **failed**
   anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
   `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
