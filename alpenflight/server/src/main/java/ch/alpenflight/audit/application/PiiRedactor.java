@@ -96,7 +96,41 @@ public class PiiRedactor {
         if (value instanceof Map<?, ?>) {
             return REDACTED_SENTINEL;
         }
+        Field soleWrappedField = soleFieldOfALeafWrappingRecord(value);
+        if (soleWrappedField != null) {
+            return unwrap(value, soleWrappedField);
+        }
         return walk(value.getClass().getSimpleName(), value);
+    }
+
+    private static @Nullable Field soleFieldOfALeafWrappingRecord(Object value) {
+        if (!(value instanceof Record)) {
+            return null;
+        }
+        List<Field> fields = instanceFieldsThisRedactorSerializes(value.getClass());
+        if (fields.size() != 1) {
+            return null;
+        }
+        Field only = fields.get(0);
+        only.setAccessible(true);
+        try {
+            Object wrapped = only.get(value);
+            return wrapped != null && isLeafType(wrapped) ? only : null;
+        } catch (IllegalAccessException e) {
+            return null;
+        }
+    }
+
+    private static Object unwrap(Object value, Field soleWrappedField) {
+        if (soleWrappedField.isAnnotationPresent(AuditRedact.class)) {
+            return REDACTED_SENTINEL;
+        }
+        try {
+            Object wrapped = soleWrappedField.get(value);
+            return wrapped == null ? REDACTED_SENTINEL : wrapped;
+        } catch (IllegalAccessException e) {
+            return REDACTED_SENTINEL;
+        }
     }
 
     private static boolean isLeafType(Object value) {

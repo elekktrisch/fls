@@ -251,11 +251,15 @@ audit:
           - clubId
           - name
       PersonClub:
+        snapshot-types:
+          - 'ch.alpenflight.persons.domain.PersonClub'
+          - 'ch.alpenflight.persons.application.PersonDtos$PersonClubResponse'
         allow:
           - id
           - clubId
           - memberNumber
           - memberStateId
+          - memberStateName
           - motorPilot
           - towPilot
           - gliderInstructor
@@ -264,10 +268,19 @@ audit:
           - passenger
           - winchOperator
           - motorInstructor
+          - isMotorPilot
+          - isTowPilot
+          - isGliderInstructor
+          - isGliderPilot
+          - isGliderTrainee
+          - isPassenger
+          - isWinchOperator
+          - isMotorInstructor
           - receiveFlightReports
           - receiveAircraftReservationNotifications
           - receivePlanningDayRoleReminder
           - active
+          - isActive
           - deletedOn
           - deletedByUserId
       PersonLicences:
@@ -338,6 +351,8 @@ audit:
         snapshot-types:
           - 'ch.alpenflight.aircraft.domain.Aircraft'
           - 'ch.alpenflight.aircraft.application.AircraftDtos$AircraftDetail'
+          - 'ch.alpenflight.aircraft.application.AircraftDtos$AircraftStateHistoryEntryResponse'
+          - 'ch.alpenflight.aircraft.application.AircraftDtos$AircraftOperatingCounterResponse'
         allow:
           - id
           - managingClubId
@@ -377,6 +392,17 @@ audit:
           - deletedByUserId
           - stateHistory
           - operatingCounters
+          - aircraftStateId
+          - validFrom
+          - validTo
+          - atDateTime
+          - totalTowedGliderStarts
+          - totalWinchLaunchStarts
+          - totalSelfStarts
+          - flightOperatingCounterInSeconds
+          - engineOperatingCounterInSeconds
+          - nextMaintenanceAtFlightOperatingCounterInSeconds
+          - nextMaintenanceAtEngineOperatingCounterInSeconds
       AircraftStateHistoryEntry:
         allow:
           - id

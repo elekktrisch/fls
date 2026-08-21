@@ -1,5 +1,6 @@
 package ch.alpenflight.aircraft.application;
 
+import ch.alpenflight.audit.domain.AuditRedact;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.AircraftStateId;
 import ch.alpenflight.platform.id.AircraftTypeId;
@@ -60,8 +61,8 @@ public final class AircraftDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftStateId aircraftStateId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant validFrom,
             @Nullable Instant validTo,
-            @Nullable UUID noticedByPersonId,
-            @Nullable String remarks) {}
+            @AuditRedact @Nullable UUID noticedByPersonId,
+            @AuditRedact @Nullable String remarks) {}
 
     @Schema(description = "Single operating-counter entry under an Aircraft.")
     public record AircraftOperatingCounterResponse(

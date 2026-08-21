@@ -119,7 +119,7 @@ class AuditRedactionCoverageTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static RedactionPolicy loadPolicy() throws Exception {
+    static RedactionPolicy loadPolicy() throws Exception {
         try (InputStream in = AuditRedactionCoverageTest.class
                 .getResourceAsStream("/application.yml")) {
             if (in == null) {
@@ -141,9 +141,13 @@ class AuditRedactionCoverageTest {
         }
     }
 
-    private record RedactionPolicy(Set<String> denyAll, Map<String, Set<String>> allowByEntity) {
+    record RedactionPolicy(Set<String> denyAll, Map<String, Set<String>> allowByEntity) {
         Set<String> allowed(String entityName) {
             return allowByEntity.getOrDefault(entityName, Collections.emptySet());
+        }
+
+        boolean hasEntryFor(String entityName) {
+            return allowByEntity.containsKey(entityName);
         }
     }
 }
