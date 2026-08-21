@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <!-- Machine-readable build stamp: the deployed-bookmark link-check compares it
      against the page IT published, so a stale CDN copy cannot pass as this run's. -->
-<meta name="proof-generated-at" content="2026-08-21T15:37:56.475Z">
+<meta name="proof-generated-at" content="2026-08-21T17:09:47.254Z">
 <title>AlpenFlight proof — J-32</title>
 <style>
 :root {
@@ -91,39 +91,91 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-32 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-32</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 0 screenshots</span>
+      <span class="summary-jid">J-32</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 5 screenshots</span>
     </p>
     <p class="meta">
       The in-flight journey's green <code>real-idp</code> proof pass-video(s) + paired
       legacy &harr; AlpenFlight screenshots. Bookmark this page — its URL is stable;
-      merged journeys' proof lives in their PRs. Generated on <code>integration/J-32</code> &middot; 2026-08-21T15:37:56.475Z
+      merged journeys' proof lives in their PRs. Generated on <code>254/merge</code> &middot; 2026-08-21T17:09:47.254Z
     </p>
   </header>
 
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-58345c2832a14da7fe56ce16676f3c488ffe9839.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-bb0104f929dbf3b25ae6f38a30ea00bc6cf801ea.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-32 · actor attribution · A club-A administrator creates a Location in the real application. At /system/logs the row for that write names the administrator by username, and no row on the page leaves the actor cell empty. The expanded row carries the created name.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f4356149832d08a934ecf102af676fd12de43eb9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-933271611b2eae5fc8949f5b5f6a86db99fb15a3.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · redaction · A club-A administrator creates a Person and a Location in the real application. At /system/logs every value of the Person row reads [redacted], and the typed name is absent, while the Location row of the same trail still shows its name. The redacted row keeps its action, its actor and its time.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1281f1640ac569e606da92e1d361478ad4b23164.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ea6bd33be2977b06502ef05194400f73701c8df8.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-32 · anonymous attribution · A registrant submits a public scenic-flight form with no token. At /system/logs the club-B administrator reads that row as the public form. The cell is not empty and shows no raw identifier, and it differs from the administrator row, which the same screen names by username. The real API row carries actorKind=ANONYMOUS_PUBLIC, systemActor=false and no actor user id. No HTTP surface produces a SYSTEM row, so AnonymousActorProjectionIT proves the scheduled-job kind in the data, and audit-logs-list.spec.ts proves its &quot;System&quot; label on the screen.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-af502d5668c5ff51fab161a265ccdfc00f671739.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-cabfb5dd3a4dfbd61d135e4ef947497ebf22d0b4.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · tenant isolation · Club B writes a Location CREATE audit row, then club A writes its own. At /system/logs the club-A administrator expands the newest CREATE/Location row, and it carries the club-A name. A direct API read with the real club-A token returns club-A rows and no club-B row.</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f7e1500c1358525b9eda2333d8ed21d17849bfe2.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a99cc40b77c7de96f4228d02623d379d4a51426c.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-32 · audit row detail · A club-A administrator creates a Location in the real application. At /system/logs the expanded row shows the field-level snapshot table, with one line for each field of the written Location.</span></figcaption>
         </figure>
         </div>
-
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">attribution</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-audit-actor-attribution.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-audit-actor-attribution.png" alt="alpenflight attribution" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names the administrator who made it, by username, and no row on the page leaves the actor cell empty.</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">redaction</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-audit-person-redacted.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-audit-person-redacted.png" alt="alpenflight redaction" loading="lazy"></a>
+            <figcaption>AlpenFlight: one expanded /system/logs row for a Person write. Every value reads [redacted], and the name the operator typed is absent. The row keeps its action, its actor and its time.</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">anonymous-actor</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-audit-anonymous-actor.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-audit-anonymous-actor.png" alt="alpenflight anonymous-actor" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /system/logs rows for a public scenic-flight registration submitted with no token. The actor cell reads the public-form label, which differs from the label a scheduled job gets.</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">tenant-isolation</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-audit-tenant-isolation.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-audit-tenant-isolation.png" alt="alpenflight tenant-isolation" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /system/logs audit trail of the club-A administrator, filtered to CREATE and Location. Club B wrote a Location moments before. The club-A administrator reads the club-A row only.</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">detail</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-audit-row-detail.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-audit-row-detail.png" alt="alpenflight detail" loading="lazy"></a>
+            <figcaption>AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location.</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
         <section class="maintainability">
           <h4>Maintainability <span class="status success">no new findings</span></h4>
           <table class="maint-table">
