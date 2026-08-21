@@ -1302,7 +1302,16 @@ jobs:
           if [ "${PROOF_JOURNEY:-}" = "J-32" ]; then
             add_af_only "J-32" "audit" "attribution" \
               "alpenflight-audit-actor-attribution.png" \
-              "AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names an actor, and each row on the page names an actor."
+              "AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names the administrator who made it, by username, and no row on the page leaves the actor cell empty."
+            add_af_only "J-32" "audit" "redaction" \
+              "alpenflight-audit-person-redacted.png" \
+              "AlpenFlight: one expanded /system/logs row for a Person write. Every value reads [redacted], and the name the operator typed is absent. The row keeps its action, its actor and its time."
+            add_af_only "J-32" "audit" "anonymous-actor" \
+              "alpenflight-audit-anonymous-actor.png" \
+              "AlpenFlight: the /system/logs rows for a public scenic-flight registration submitted with no token. The actor cell reads the public-form label, which differs from the label a scheduled job gets."
+            add_af_only "J-32" "audit" "tenant-isolation" \
+              "alpenflight-audit-tenant-isolation.png" \
+              "AlpenFlight: the /system/logs audit trail of the club-A administrator, filtered to CREATE and Location. Club B wrote a Location moments before. The club-A administrator reads the club-A row only."
             add_af_only "J-32" "audit" "detail" \
               "alpenflight-audit-row-detail.png" \
               "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."

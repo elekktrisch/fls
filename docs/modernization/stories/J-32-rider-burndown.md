@@ -316,7 +316,45 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     grant), both fall back to the raw sub. To name them, `AuditQueryService.toRow` must carry an
     `actorDisplayName` resolved by one batched `keycloak_sub IN (…)` read. That crosses the
     audit→users Modulith boundary and changes the API shape, so it is a separate task, not this seam.
-- [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally
+- [x] T-10 — thicken the spec to full assertions for ACs 1-4; drive it green locally (AC 5 stays IT-proven)
+  - **Green on the real chain, on this box: 10 of 10 cases in 2.1 minutes.** Real Keycloak, real
+    Mailpit, the backend on the LAN Postgres, both dev servers. No `page.route`, so the spec declares
+    no mocked seam.
+  - **AC 1.** The row for the write names the administrator by username, which is the Keycloak
+    username of the fixture principal. No actor cell on the page is empty. The expanded row carries
+    the created name.
+  - **AC 2.** A registrant submits the real public scenic-flight endpoint with no token. The club-B
+    administrator reads that row as the public-form label; the real API row carries
+    `actorKind=ANONYMOUS_PUBLIC`, `systemActor=false` and no actor user id; the public-form label
+    differs from the scheduled-job label; and the administrator write on the same screen reads the
+    username. **A genuine `SYSTEM` row is reachable from no HTTP surface.**
+    `SecurityConfig.java:35` enumerates two anonymous writes and both are public registrations, and
+    the jobs-console "Run now" (`JobRegistry.runOnce`) runs inside the caller's security context, so
+    it records `NORMAL`. The `SYSTEM` half stays proven by `AnonymousActorProjectionIT` and
+    `audit-actor-cell.spec.ts`.
+  - **AC 3.** Club B writes a Location, then club A writes its own. On screen the newest
+    CREATE/Location row the club-A administrator reads is the club-A write. The real API read of 200
+    rows returns rows, carries a club-A row, carries no club-B tenant id, and carries the club-B
+    Location name nowhere. **The old row-level assertion was vacuous:** an audit row renders action,
+    target, actor, status and time and never the entity name, so
+    `rows.filter({ hasText: clubBTargetName }).toHaveCount(0)` could not be non-zero.
+  - **AC 4.** A real Person write. Every value of the expanded row reads `[redacted]`, the typed
+    first and last name are absent, and the row keeps its action, its actor and its time. The
+    control against over-redaction: the Location row of the same trail still shows its name.
+  - **AC 5 is not e2e-provable, and the spec claims it nowhere.** The bundle envelope has no screen
+    manifestation. T-04 proves it with an arch guard plus a crafted-bundle round-trip.
+  - **Real-idp runs on the development box.** The `docker compose` CLI plugin is absent, but the
+    `keycloak` and `mailpit` containers already run, and `./gradlew bootRun` against the LAN Postgres
+    completes the chain. Correct the "blocked" note before you send another journey to CI for a
+    signal the box can give in minutes.
+  - **Finding — the nav overlay eats a row click (T-48).** `enterViaNav` leaves the Masterdata
+    overlay open. It covers the list, so a row click retries until the test timeout. The trace showed
+    the click never completing. `enterAuditLogs` now dismisses the overlay.
+  - **Finding — the target filter returned before it narrowed.** The helper asserted the first row's
+    target only. The newest row already carried the wanted target, so the helper returned while the
+    screen still showed the unfiltered list, and the next assertion scored a row of the old list.
+    The helper now waits for the `targetEntityType=` response, and the anonymous case pins the row
+    count to what the real read returns. Both reds came from the trace, not from a guess.
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
 - [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate
@@ -353,6 +391,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-44 — [S2] `verifyArchUnitFailsOnViolation` and `verifyNullAwayFailsOnViolation` hang off no `check` task, so CI never runs them (T-03 finding)
 - [ ] T-45 — [S1] three audit call sites pass a snapshot whose class the `entityType` does not name, so the allow-list matches almost nothing and the row is nearly empty: `PersonsService.java:243,262,278` record `PersonClub` with a `Person` / `PersonResponse`; `AircraftsService.java:252,277` record `Aircraft` with `AircraftStateHistoryEntryResponse` / `AircraftOperatingCounterResponse`, so those two config entries are dead (T-05 finding — the startup guard's stated residual limit, made concrete)
 - [ ] T-47 — [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException` and reports the aircraft sync as a success, so the job writes nothing and says it worked (T-07d finding)
+- [ ] T-48 — [S2] `enterViaNav` (`e2e/tests/_helpers/nav.ts:21`) leaves the Masterdata overlay open, so the next click on the page under it retries until the test timeout instead of failing with a cause; every spec that enters a masterdata screen through the chrome and then clicks carries the hazard. Close the overlay inside the helper and assert it closed (T-10 finding; `audit-log-two-club.spec.ts` works around it locally)
 - [x] T-46 — [S1] four scheduled jobs bypass their own `@Transactional` through a self-call, so the run opens no transaction: `AircraftDatabaseSyncJob.java:43` calls `runOnce`, `DailyReportJob.java:86` and `PlanningDayNotificationJob.java:114` call `runForCurrentClub`, `LicenceNotificationJob.java:63` calls `runOnce`. Both `DailyReportJob` and `PlanningDayNotificationJob` already inject an `ObjectProvider` self-proxy for the other entry point, so the `@Scheduled` path is the miss. Fix the four call sites, then widen `TransactionDemarcationStructureGuardTest.noClassCallsATransactionalMethodItDeclaresItself` from this seam to the whole production tree; the repository-wide run reports nine sites, and the other five are an `ObjectProvider` self-proxy that does cross the proxy, a caller that is itself `@Transactional`, and compiler-generated bridge methods that the rule already skips (T-07b finding)
 
 ## Assumptions made
