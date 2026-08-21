@@ -73,9 +73,12 @@ abuse of an unauthenticated, row-writing, publicly reachable endpoint, and it ex
   write already runs inside an explicit `Tenants.runAs` window, and the audit row stays
   club-scoped.
 
-## Open for the operator
+## Resolved by the operator
 
-1. Accept, or send back with a different retention window / a hashed variant.
-2. Whether the redaction job is club-scoped or global (it reads across tenants by nature).
-3. Whether the privacy-notice text is in scope for the implementing journey or handled
-   outside the repo.
+1. **Accepted on 2026-08-21**, with the 90-day window and the raw IP as drafted. No hashed variant.
+2. **Club-scoped.** `ClientIpRetentionJob` runs `Tenants.runAs` per club and redacts inside the
+   `@TenantId` discriminator, so it makes no cross-tenant read. It enumerates soft-deleted clubs too,
+   because an active-only enumeration kept a retired club's IP addresses for ever.
+3. **In this repository, as source text.** `docs/modernization/privacy-notice.md` holds the notice and
+   `PrivacyNoticeMatchesTheShippedBehaviourTest` binds its claims to the code. The product publishes no
+   privacy surface yet, and the notice says so. Where the product publishes it stays open.

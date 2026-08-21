@@ -355,6 +355,14 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     screen still showed the unfiltered list, and the next assertion scored a row of the old list.
     The helper now waits for the `targetEntityType=` response, and the anonymous case pins the row
     count to what the real read returns. Both reds came from the trace, not from a guess.
+- [ ] T-49 — [S1 BLOCKER] `MutationAuditEventListener.java:83` writes `client_ip` by raw JDBC with `tenant_club_id` NULL, which bypasses the aggregate rule that `V59` and `V60` cite to justify having no database CHECK; `ClientIpRetentionJob.java:49` sweeps per club, so a null-tenant row keeps its IP for ever
+- [ ] T-50 — [S1 BLOCKER] the AC 2 proof compares two i18n constants and never renders a `SYSTEM` row (`audit-log-two-club.spec.ts:523`), and the caption claims a scheduled-job label the spec does not assert
+- [ ] T-51 — [S1 BLOCKER] the manifest column-level grant check reads `EntityPolicy.tenantBypassFks`, but `ManifestBuilder.java:56,61` hardcodes `Set.of()`, so the T-06 guard never scores a real bundle
+- [ ] T-52 — [S1 BLOCKER] T-02 removed the last executing lane for both showcase-seed proofs and `required` scores `skipped` as success, so two surfaces this journey edits are now ungated (supersedes T-42)
+- [ ] T-53 — [S1 BLOCKER] `fan-out parity` is schedule and dispatch only and sits outside `required.needs`, so the mapper edits in T-12 and T-14 would land with no gate; ship this before them (supersedes T-27)
+- [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
+- [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
+- [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
 - [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate
