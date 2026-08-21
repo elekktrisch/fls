@@ -33,6 +33,13 @@ The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file th
 below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
 this file untouched.
 
+- **[FANOUT-VERDICT-BLAMES-A-FIXED-RUN-WHILE-THE-NEW-ONE-RUNS]** [S2] When the newest covering fan-out
+  run reads `STILL_RUNNING`, `fanout-parity-verdict.py` lets an older red decide and prints
+  `PARITY_STEP_RED_SPEC_UNNAMED` with text that tells the developer to open the failed run. The gate
+  blocks correctly — an unproven parity must not merge — but the message names the wrong thing: the old
+  red may already be fixed by the very commit under test, as it was on `a999eda96`. Give the transient
+  case its own verdict that says the covering run is still running and names it. *(seam:
+  `.github/scripts/fanout-parity-verdict.py` `decide()` + `READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR`)*
 - **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
   directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
   **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
