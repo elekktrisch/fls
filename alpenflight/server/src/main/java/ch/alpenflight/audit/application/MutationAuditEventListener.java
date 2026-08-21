@@ -51,21 +51,12 @@ class MutationAuditEventListener {
 
     private void safeWrite(MutationAuditRequest request) {
         try {
-            UUID tenant = request.tenantClubId();
-            if (request.systemActor()
-                    && (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant))) {
-                writeUnscopedRow(request);
-            } else if (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
-                UUID resolved = tenantResolver.resolveCurrentTenantIdentifier();
-                if (resolved == null || ClubTenantIdentifierResolver.NO_TENANT.equals(resolved)) {
-                    writeUnscopedRow(request);
-                } else {
-                    MutationAuditEvent row = build(request);
-                    Tenants.runAs(resolved, () -> repository.append(row));
-                }
+            UUID clubTenant = clubTenantOf(request);
+            MutationAuditEvent row = build(request, clubTenant);
+            if (clubTenant == null) {
+                insertRowNoClubTenantOwns(row);
             } else {
-                MutationAuditEvent row = build(request);
-                Tenants.runAs(tenant, () -> repository.append(row));
+                Tenants.runAs(clubTenant, () -> repository.append(row));
             }
         } catch (RuntimeException e) {
             LOG.error("audit-listener failed to persist row action={} target={} requestId={}",
@@ -73,13 +64,23 @@ class MutationAuditEventListener {
         }
     }
 
-    private void writeUnscopedRow(MutationAuditRequest request) {
-        String entityType = request.target().entityType();
-        @Nullable String before = redactor.serialize(entityType, request.target().before());
-        @Nullable String after = redactor.serialize(entityType, request.target().after());
-        Integer status = request.httpStatus();
-        Short statusShort = status == null ? null : status.shortValue();
-        UUID id = UuidCreator.getTimeOrderedEpoch();
+    private @Nullable UUID clubTenantOf(MutationAuditRequest request) {
+        UUID carriedByTheRequest = request.tenantClubId();
+        if (namesAClub(carriedByTheRequest)) {
+            return carriedByTheRequest;
+        }
+        if (request.systemActor()) {
+            return null;
+        }
+        UUID resolvedFromTheCurrentContext = tenantResolver.resolveCurrentTenantIdentifier();
+        return namesAClub(resolvedFromTheCurrentContext) ? resolvedFromTheCurrentContext : null;
+    }
+
+    private static boolean namesAClub(@Nullable UUID tenant) {
+        return tenant != null && !ClubTenantIdentifierResolver.NO_TENANT.equals(tenant);
+    }
+
+    private void insertRowNoClubTenantOwns(MutationAuditEvent row) {
         jdbc.update(
                 "INSERT INTO t_mutation_audit_event ("
                         + "id, occurred_at, actor_user_id, actor_keycloak_sub, tenant_club_id, "
@@ -88,24 +89,25 @@ class MutationAuditEventListener {
                         + "http_status, failure_reason) "
                         + "VALUES (?::uuid, ?, ?::uuid, ?, NULL, ?, ?, ?::uuid, ?, ?::jsonb, ?::jsonb, "
                         + "?, ?, ?, ?, ?, ?)",
-                id, java.sql.Timestamp.from(request.occurredAt()),
-                request.actorUserId() == null ? null : request.actorUserId().toString(),
-                request.actorKeycloakSub(),
-                request.action().name(),
-                entityType,
-                request.target().entityId() == null ? null : request.target().entityId().toString(),
-                request.requestId(),
-                before,
-                after,
-                request.failed(),
-                request.systemActor(),
-                request.actorKind().name(),
-                request.clientIp(),
-                statusShort,
-                request.failureReason());
+                UuidCreator.getTimeOrderedEpoch(),
+                java.sql.Timestamp.from(row.getOccurredAt()),
+                row.getActorUserId() == null ? null : row.getActorUserId().toString(),
+                row.getActorKeycloakSub(),
+                row.getAction().name(),
+                row.getTargetEntityType(),
+                row.getTargetEntityId() == null ? null : row.getTargetEntityId().toString(),
+                row.getRequestId(),
+                row.getBeforeState(),
+                row.getAfterState(),
+                row.isFailed(),
+                row.isSystemActor(),
+                row.getActorKind().name(),
+                row.getClientIp(),
+                row.getHttpStatus(),
+                row.getFailureReason());
     }
 
-    private MutationAuditEvent build(MutationAuditRequest request) {
+    private MutationAuditEvent build(MutationAuditRequest request, @Nullable UUID clubTenant) {
         String entityType = request.target().entityType();
         @Nullable String before = redactor.serialize(entityType, request.target().before());
         @Nullable String after = redactor.serialize(entityType, request.target().after());
@@ -115,7 +117,7 @@ class MutationAuditEventListener {
                 .occurredAt(request.occurredAt())
                 .actorUserId(request.actorUserId())
                 .actorKeycloakSub(request.actorKeycloakSub())
-                .tenantClubId(request.tenantClubId())
+                .tenantClubId(clubTenant)
                 .action(request.action())
                 .targetEntityType(entityType)
                 .targetEntityId(request.target().entityId())
@@ -125,10 +127,23 @@ class MutationAuditEventListener {
                 .failed(request.failed())
                 .systemActor(request.systemActor())
                 .actorKind(request.actorKind())
-                .clientIp(request.clientIp())
+                .clientIp(clientIpOnlyWhenAClubTenantCanRedactIt(request, clubTenant))
                 .httpStatus(statusShort)
                 .failureReason(request.failureReason())
                 .build();
+    }
+
+    private @Nullable String clientIpOnlyWhenAClubTenantCanRedactIt(MutationAuditRequest request,
+                                                                   @Nullable UUID clubTenant) {
+        @Nullable String clientIp = request.clientIp();
+        if (clientIp == null || clubTenant != null) {
+            return clientIp;
+        }
+        LOG.warn("audit row keeps no client IP: the listener resolved no club, and both the "
+                        + "retention sweep and the erasure endpoint reach a row through its club. "
+                        + "action={} target={} requestId={}",
+                request.action(), request.target().entityType(), request.requestId());
+        return null;
     }
 
     record SyntheticFailedMutation(MutationAuditRequest request) {}

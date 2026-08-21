@@ -355,7 +355,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     screen still showed the unfiltered list, and the next assertion scored a row of the old list.
     The helper now waits for the `targetEntityType=` response, and the anonymous case pins the row
     count to what the real read returns. Both reds came from the trace, not from a guess.
-- [ ] T-49 — [S1 BLOCKER] `MutationAuditEventListener.java:83` writes `client_ip` by raw JDBC with `tenant_club_id` NULL, which bypasses the aggregate rule that `V59` and `V60` cite to justify having no database CHECK; `ClientIpRetentionJob.java:49` sweeps per club, so a null-tenant row keeps its IP for ever
+- [x] T-49 — [S1 BLOCKER] `MutationAuditEventListener.java:83` writes `client_ip` by raw JDBC with `tenant_club_id` NULL, which bypasses the aggregate rule that `V59` and `V60` cite to justify having no database CHECK; `ClientIpRetentionJob.java:49` sweeps per club, so a null-tenant row keeps its IP for ever
 - [ ] T-50 — [S1 BLOCKER] the AC 2 proof compares two i18n constants and never renders a `SYSTEM` row (`audit-log-two-club.spec.ts:523`), and the caption claims a scheduled-job label the spec does not assert
 - [ ] T-51 — [S1 BLOCKER] the manifest column-level grant check reads `EntityPolicy.tenantBypassFks`, but `ManifestBuilder.java:56,61` hardcodes `Set.of()`, so the T-06 guard never scores a real bundle
 - [x] T-52 — [S1 BLOCKER] T-02 removed the last executing lane for both showcase-seed proofs and `required` scores `skipped` as success, so two surfaces this journey edits are now ungated (supersedes T-42)

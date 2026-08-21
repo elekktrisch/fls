@@ -12,6 +12,8 @@ class ClientIpRetentionWindowTest {
 
     private static final String SUBMITTER_IP = "198.51.100.7";
 
+    private static final UUID CLUB_OF_THE_REGISTRATION = UUID.randomUUID();
+
     private final Instant now = Instant.now();
 
     @Test
@@ -64,6 +66,7 @@ class ClientIpRetentionWindowTest {
                 .targetEntityType("PublicFlightRegistration")
                 .targetEntityId(UUID.randomUUID())
                 .occurredAt(occurredAt)
+                .tenantClubId(CLUB_OF_THE_REGISTRATION)
                 .actorKind(AuditActorKind.ANONYMOUS_PUBLIC)
                 .clientIp(clientIp)
                 .build();

@@ -249,6 +249,7 @@ class ClientIpRetentionIT extends PostgresIntegrationTest {
                 .targetEntityType(ANONYMOUS_ENTITY)
                 .targetEntityId(clubId)
                 .occurredAt(occurredAt)
+                .tenantClubId(clubId)
                 .actorKind(AuditActorKind.ANONYMOUS_PUBLIC)
                 .clientIp(clientIp)
                 .build())).getId();

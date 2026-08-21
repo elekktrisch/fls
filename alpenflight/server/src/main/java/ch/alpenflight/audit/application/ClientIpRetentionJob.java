@@ -45,26 +45,33 @@ public class ClientIpRetentionJob implements BusinessJob {
     @Override
     public RunSummary runOnce() {
         int redacted = 0;
-        int tenantsThatFailed = 0;
+        int sweepsThatFailed = 0;
         for (UUID clubId : clubs.idsOfEveryClubIncludingTheSoftDeleted()) {
             try {
                 redacted += Tenants.runAs(clubId,
                         redaction::redactEveryClientIpPastRetentionInTheCurrentTenant);
-            } catch (RuntimeException failureOfOneTenantThatMustNotStopTheOthers) {
-                tenantsThatFailed++;
-                LOG.error("{} failed for club {} — continuing with the next tenant",
-                        JOB_NAME, clubId, failureOfOneTenantThatMustNotStopTheOthers);
+            } catch (RuntimeException failureOfOneSweepThatMustNotStopTheOthers) {
+                sweepsThatFailed++;
+                LOG.error("{} failed for club {} — continuing with the next sweep",
+                        JOB_NAME, clubId, failureOfOneSweepThatMustNotStopTheOthers);
             }
         }
-        return new RunSummary(redacted, tenantsThatFailed);
+        try {
+            redacted += redaction.redactEveryClientIpPastRetentionOnARowNoClubTenantOwns();
+        } catch (RuntimeException failureOfTheSweepForRowsOutsideEveryClub) {
+            sweepsThatFailed++;
+            LOG.error("{} failed for the rows no club owns — those client IPs stay until the "
+                            + "next run", JOB_NAME, failureOfTheSweepForRowsOutsideEveryClub);
+        }
+        return new RunSummary(redacted, sweepsThatFailed);
     }
 
-    public record RunSummary(int redactedClientIpCount, int failedTenantCount) {
+    public record RunSummary(int redactedClientIpCount, int failedSweepCount) {
 
         @Override
         public String toString() {
             return redactedClientIpCount + " client IPs redacted past the retention window, "
-                    + failedTenantCount + " tenants failed";
+                    + failedSweepCount + " sweeps failed";
         }
     }
 }

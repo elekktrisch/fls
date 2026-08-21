@@ -57,6 +57,17 @@ class MutationAuditEventRepositoryAdapter implements MutationAuditEventRepositor
     }
 
     @Override
+    public int redactEveryClientIpNoClubTenantOwnsOccurredOnOrBefore(Instant cutoff) {
+        return em.createNativeQuery(
+                        "UPDATE t_mutation_audit_event SET client_ip = NULL "
+                                + "WHERE client_ip IS NOT NULL "
+                                + "AND tenant_club_id IS NULL "
+                                + "AND occurred_at <= :cutoff")
+                .setParameter("cutoff", cutoff)
+                .executeUpdate();
+    }
+
+    @Override
     public List<MutationAuditEvent> findPage(@Nullable Instant occurredFrom,
                                              @Nullable Instant occurredTo,
                                              @Nullable AuditAction action,

@@ -16,6 +16,8 @@ public interface MutationAuditEventRepository {
 
     List<MutationAuditEvent> findClientIpBearingRowsOccurredOnOrBefore(Instant cutoff);
 
+    int redactEveryClientIpNoClubTenantOwnsOccurredOnOrBefore(Instant cutoff);
+
     List<MutationAuditEvent> findPage(@Nullable Instant occurredFrom,
                                       @Nullable Instant occurredTo,
                                       @Nullable AuditAction action,

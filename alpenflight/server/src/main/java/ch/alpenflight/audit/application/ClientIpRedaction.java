@@ -46,6 +46,12 @@ public class ClientIpRedaction {
     }
 
     @Transactional
+    public int redactEveryClientIpPastRetentionOnARowNoClubTenantOwns() {
+        return events.redactEveryClientIpNoClubTenantOwnsOccurredOnOrBefore(
+                MutationAuditEvent.clientIpRetentionCutoff(clock.instant()));
+    }
+
+    @Transactional
     public boolean redactOneClientIpAheadOfTheRetentionWindow(UUID auditEventId) {
         Optional<MutationAuditEvent> targeted = events.findById(auditEventId);
         if (targeted.isEmpty()) {

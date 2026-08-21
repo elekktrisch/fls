@@ -30,6 +30,11 @@ records an IP address on no other write. `MutationAuditEvent.Builder` refuses a 
 other actor kind, and `AuditTrailService.recordAnonymousPublicSubmission` drops the address when the
 submitter holds a bearer token.
 
+The audit row always names the club of the registration. `MutationAuditEvent.Builder` refuses a
+client IP on a row that names no club, because both the retention job and the erasure endpoint reach
+a row through its club. When the application resolves no club, it writes the audit row and drops the
+address.
+
 ### Why the application records it
 
 The two endpoints accept a write from the internet without authentication. An abuse guard limits how
@@ -54,6 +59,12 @@ days old or older, so the application keeps an address for less than 90 days.
 proves the boundary. The job runs once for each club, and it includes a club that an operator
 deleted (`ClientIpRetentionJob.java:49`). The job reads no row of another club, because it works
 inside `Tenants.runAs`.
+
+The job then runs one more sweep, for the audit rows that name no club
+(`ClientIpRetentionJob.java:60`). The application writes no address on such a row, so that sweep
+finds only what a database operation outside the application wrote. The sweep makes the window hold
+for those rows too. `EveryClientIpStaysReachableByTheRetentionSweepIT` proves that the table keeps
+no address past the window, whatever wrote the row.
 
 ### How a person gets the address removed earlier
 

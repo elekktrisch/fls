@@ -276,6 +276,7 @@ public class MutationAuditEvent {
                 occurredAt = Instant.now();
             }
             refuseAClientIpOnAnyActorKindOtherThanAnonymousPublic();
+            refuseAClientIpOnARowNoClubTenantCanRedact();
             return new MutationAuditEvent(this);
         }
 
@@ -284,6 +285,15 @@ public class MutationAuditEvent {
                 throw new IllegalStateException(
                         "clientIp is recorded on an ANONYMOUS_PUBLIC audit row only; "
                                 + "actorKind was " + actorKind);
+            }
+        }
+
+        private void refuseAClientIpOnARowNoClubTenantCanRedact() {
+            if (clientIp != null && tenantClubId == null) {
+                throw new IllegalStateException(
+                        "clientIp is recorded on a club-scoped audit row only; both the retention "
+                                + "sweep and the erasure endpoint reach a row through its club, so "
+                                + "a row without tenantClubId would keep its clientIp for ever");
             }
         }
     }
