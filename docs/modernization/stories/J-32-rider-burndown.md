@@ -419,7 +419,20 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Precedence and its residual limit ride in the failure message.** A second fan-out attempt that
     passes clears a red the first attempt found, so an intermittent parity defect can still reach
     `main`.
-- [ ] T-63 — [S1 BLOCKER] the real-idp `page.route` ban misses `page.routeFromHAR`, `page['route']`, a destructured `route`, and every `_helpers/` file, where `console-guard.ts:165` exports `installMockApiStubs` routing `**/api/v1/**`
+- [x] T-63 — [S1 BLOCKER] the real-idp `page.route` ban misses `page.routeFromHAR`, `page['route']`, a destructured `route`, and every `_helpers/` file, where `console-guard.ts:165` exports `installMockApiStubs` routing `**/api/v1/**`
+  - **The lane is two directories, not one.** The real-idp Playwright project runs
+    `tests/real-idp/**` AND `tests/profile/**` (`e2e/playwright.config.ts:99-100`), but the rule and
+    `angular.json` `lintFilePatterns` named only the first. Both now name both.
+  - **Five call shapes red, one import shape reds.** The rule scores a dot member, a computed-string
+    or template-literal member, a destructured or aliased binding, a bare `route(...)` call, and a
+    run-time module load. The import ban scores a named, aliased or namespace import of a helper
+    whose name reads as a route installer.
+  - **The shared helper directory stays outside the ban.** `e2e/tests/_helpers/console-guard.ts`
+    installs the `**/api/v1/**` floor for the mock-auth project on purpose, so the glob does not
+    reach it; the real-idp lane may not import a route installer out of it.
+  - **Residual limit, stated in the failure message.** A run-time member name, a route installer
+    named outside the convention, a renaming re-export outside the lane, and a new lane directory
+    that joins the Playwright project but not the two file lists all still pass.
 - [ ] T-64 — [S2] `AuditRedactionConfigStartupGuard.java:29` is wired by `@Component` alone and every test builds it by hand, so deleting the annotation reds nothing
 - [ ] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
