@@ -562,11 +562,3 @@ safety step. **Each rider rides the next touch of its form.**
   all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. *(seam: `server/src/test`, per-touch)*
 
-## Pending (J-9-filed, UPDATED by J-10 2026-06-15 — the fanout now runs end to end)
-
-**⚠ BLOCKS the next MIGRATION journey** (hard fanout gate, J-9 retro). Fold into the next migration journey
-(J-1 / J-21, whichever ships first):
-
-- **J-0c Location migrated render.** [S2] `fan-out-migration-parity.spec.ts:167` fails — investigate the migrated
-  Location render. *(`fan-out-migration-parity.spec.ts`)*
-

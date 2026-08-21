@@ -19,6 +19,9 @@ const SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY: { retries?: number 
 
 const LIVE_MIGRATION_SEED_TIMEOUT_MS = 120_000;
 
+const TWO_REAL_KEYCLOAK_LOGINS_PLUS_AN_EDIT_NEED_MORE_THAN_THE_PROJECT_BUDGET_MS = 180_000;
+const ONLY_THE_LOAD_STARVED_FAN_OUT_RUNNER_CANNOT_FINISH_THE_RENAME_CASE = REAL_BUNDLE;
+
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -114,9 +117,15 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     }
   });
 
-  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows) [skipped: times out on the load-starved fanout runner; re-run in the nightly real-idp suite]', async ({
+  test('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
     browser,
   }, testInfo) => {
+    test.skip(
+      ONLY_THE_LOAD_STARVED_FAN_OUT_RUNNER_CANNOT_FINISH_THE_RENAME_CASE,
+      'the load-starved fan-out runner cannot finish two real-Keycloak logins plus an edit inside ' +
+        'the budget; the nightly real-idp suite runs this case over the synth fan-out fixture',
+    );
+    testInfo.setTimeout(TWO_REAL_KEYCLOAK_LOGINS_PLUS_AN_EDIT_NEED_MORE_THAN_THE_PROJECT_BUDGET_MS);
     expect(clubBLocationId, 'club B must have located its copy first').toBeTruthy();
     const renamed = fixture.locationName + RENAMED_SUFFIX;
     const ctx = await newRecordedContext(browser, baseURL, testInfo);

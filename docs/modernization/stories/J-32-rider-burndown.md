@@ -487,7 +487,30 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     real producer SELECT plus the real mapper, on PostgreSQL 17.
   - No producer file changed.
 - [ ] T-15 — [S2] `MapperVsSchemaCompatibilityTest` red since J-13: add the missing Flyway placeholder
-- [ ] T-16 — [S2] J-0c Location migrated render
+- [x] T-16 — [S2] J-0c Location migrated render: the rider is stale, and its neighbour skip now runs
+  - **The rider named a case that passes.** Line 167 held "club-B admin sees its OWN copy of the migrated
+    Location" before J-27. That case is `fan-out-migration-parity.spec.ts:99` today. J-27 T-03b (PR #228,
+    2026-06-20) fixed it fixture-side: the 409-reuse path picked the two clubs in arbitrary Keycloak order
+    with no Location-ownership filter, so club B could be a non-owner. Fan-out runs 32456112094 and
+    32467009395 pass club-A, club-B and the cross-tenant 404 over the real bundle.
+  - **The skip covers a DIFFERENT case, and that case ran nowhere.** J-1 T-18 (PR #202, 2026-06-03) skipped
+    "renaming club-A copy leaves club-B copy unchanged" because it timed out on the load-starved fan-out
+    runner. The skip was unconditional. The nightly real-idp suite that the skip reason promised never ran
+    the case either. The assertion stayed invisible for eleven weeks.
+  - **The migrated render is genuinely correct.** A local real-idp run of the spec on the LAN Postgres passes
+    club-A at `:78` and club-B at `:99` over the synth fan-out fixture.
+  - **The skip is now conditional and visible.** `fan-out-migration-parity.spec.ts:120` skips only when the
+    real bundle drives the fan-out runner, prints the reason in the report, and takes a 180-second budget for
+    its two real-Keycloak logins. The nightly `alpenflight-e2e-real-idp.yml` full `--project=real-idp` glob
+    now runs the case over the synth fan-out fixture.
+  - **The rename assertion also moved to a lane that always runs.** The local run of the un-skipped case went
+    red on a blank `/locations` page after the third cold `page.goto` of the run, with no console error and no
+    4xx in the trace — the reboot-and-renew stall of `project_real_idp_goto_reboot_renew_stall`, under 54 MB
+    of free memory. A second local run could not re-test it, because the fan-out fixture takes its
+    409-reuse path against an already-ingested database. So the assertion no longer depends on a healthy
+    runner: `LocationsTenantIsolationIT.java:98` renames club A's fanned-out copy and asserts club B's copy
+    keeps the original name and never carries the new one. It runs in `check` on every push. Teeth verified:
+    a planted second rename on club B's copy reds it with an expected-versus-actual, not an error.
 - [ ] T-17 — [S2] fanout has no reporting spec over migrated data
 - [ ] T-18 — [S2] `[VACUOUS-NARROWING-ASSERTIONS]` — seed the should-be-excluded rows
 - [x] T-19 — [S2] `[SPEC-TITLES-OVERCLAIM]` — narrow the two J-13 ACs or strengthen the specs
