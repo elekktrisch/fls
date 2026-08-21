@@ -448,7 +448,19 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Residual limit.** The test runs the real `SpringApplication` on the TEST classpath, not the
     packaged boot jar. A jar-level regression test costs a `bootJar` plus a process launch plus a health
     probe on every `check`, so this journey does not add one.
-- [ ] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
+- [x] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
+  - **The review is right.** The fan-out lane sets `J0C_BUNDLE_SOURCE: real`
+    (`alpenflight-proof-fanout.yml:873`), and the skip condition was that same flag, so the gating lane
+    skipped the case. Fan-out run 32471626072 on this branch reports "1 skipped, 89 passed", and the
+    rename case is the only case in that run's twelve specs whose skip is active under the real bundle:
+    every other skip reads `!useRealBundle()`.
+  - **Only a non-gating lane ran it.** `alpenflight-e2e-real-idp.yml:5` states the nightly is not a PR
+    gate, and it is the only other lane that globs the spec.
+  - **The substitute does not use fan-out rows.** `LocationsTenantIsolationIT.java:93` creates two rows
+    through `LocationsService`, so it proves per-tenant edit isolation, not migrated fan-out isolation.
+  - **The case now runs in the gating lane.** The skip is deleted, the 180-second budget stays, and the
+    case moved after the cross-tenant 404 case: the describe is serial, so the rename is now the last
+    case and a rename failure cannot mask the three that pass before it.
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state

@@ -20,7 +20,6 @@ const SINGLE_USE_REAL_BUNDLE_CANNOT_BE_RE_INGESTED_ON_RETRY: { retries?: number 
 const LIVE_MIGRATION_SEED_TIMEOUT_MS = 120_000;
 
 const TWO_REAL_KEYCLOAK_LOGINS_PLUS_AN_EDIT_NEED_MORE_THAN_THE_PROJECT_BUDGET_MS = 180_000;
-const ONLY_THE_LOAD_STARVED_FAN_OUT_RUNNER_CANNOT_FINISH_THE_RENAME_CASE = REAL_BUNDLE;
 
 async function newRecordedContext(
   browser: Browser,
@@ -117,14 +116,38 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     }
   });
 
+  test('cross-tenant GET of club-B Location as club-A 404s (isolation on migrated data)', async ({
+    browser,
+  }, testInfo) => {
+    expect(clubBLocationId, 'club B id must be known from the earlier assert').toBeTruthy();
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsMigratedAdmin(page, fixture.clubA);
+      const bearer = await bearerFromLocationsList(page);
+      const res = await ctx.request.get(`/api/v1/locations/${clubBLocationId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(
+        res.status(),
+        'cross-tenant GET of the other club’s migrated Location must 404 ' +
+          '(invisible under tenant scope), not 403',
+      ).toBe(404);
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-0c',
+        caption:
+          'J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location ' +
+          '(tenant isolation holds on migrated data)',
+        acTag: 'key-error',
+      });
+    }
+  });
+
   test('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
     browser,
   }, testInfo) => {
-    test.skip(
-      ONLY_THE_LOAD_STARVED_FAN_OUT_RUNNER_CANNOT_FINISH_THE_RENAME_CASE,
-      'the load-starved fan-out runner cannot finish two real-Keycloak logins plus an edit inside ' +
-        'the budget; the nightly real-idp suite runs this case over the synth fan-out fixture',
-    );
     testInfo.setTimeout(TWO_REAL_KEYCLOAK_LOGINS_PLUS_AN_EDIT_NEED_MORE_THAN_THE_PROJECT_BUDGET_MS);
     expect(clubBLocationId, 'club B must have located its copy first').toBeTruthy();
     const renamed = fixture.locationName + RENAMED_SUFFIX;
@@ -177,35 +200,6 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
       ).toHaveCount(0);
     } finally {
       await ctxB.close();
-    }
-  });
-
-  test('cross-tenant GET of club-B Location as club-A 404s (isolation on migrated data)', async ({
-    browser,
-  }, testInfo) => {
-    expect(clubBLocationId, 'club B id must be known from the earlier assert').toBeTruthy();
-    const ctx = await newRecordedContext(browser, baseURL, testInfo);
-    const page = await ctx.newPage();
-    try {
-      await loginAsMigratedAdmin(page, fixture.clubA);
-      const bearer = await bearerFromLocationsList(page);
-      const res = await ctx.request.get(`/api/v1/locations/${clubBLocationId}`, {
-        headers: { authorization: bearer },
-      });
-      expect(
-        res.status(),
-        'cross-tenant GET of the other club’s migrated Location must 404 ' +
-          '(invisible under tenant scope), not 403',
-      ).toBe(404);
-    } finally {
-      await ctx.close();
-      await proofVideo(page, testInfo, {
-        journey: 'J-0c',
-        caption:
-          'J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location ' +
-          '(tenant isolation holds on migrated data)',
-        acTag: 'key-error',
-      });
     }
   });
 });
