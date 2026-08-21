@@ -291,8 +291,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   callers** in `src/main`, `src/test` or e2e; the deleted comment claimed "Called by the user-deactivation
   flow". Wire it into user deactivation or delete it. *(seam: `ActorResolver` + the deactivation flow)*
 
-
-
 - **[REQUEST-ID-NEVER-LOGGED]** [S2] `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
   **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
   **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
@@ -359,23 +357,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
   establishing which, because a spec that passes on CI and fails locally erodes trust in both.
   Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
-
-
-- **[ANON-WRITE-ATTRIBUTION]** [S1] J-17 shipped the app's first unauthenticated write endpoints **and** an abuse guard, but
-  `/system/logs` cannot tell an anonymous internet registration from a cron job: `system_actor=true`, both actor ids null,
-  and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
-  that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
-  on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
-  redaction, and whether it belongs in the audit table at all), which is why this was filed for the operator rather than
-  fixed in-journey.
-  **ADJUDICATED (operator, /do-retro 2026-08-14) — build it as:** `actor_kind = ANONYMOUS_PUBLIC` (distinct from a
-  system/cron actor, `system_actor=false`), **plus the raw `client_ip`** recorded on anonymous public-registration
-  writes ONLY — never on authenticated ones. **Retention 90 days**: a scheduled job nulls `client_ip` on rows older
-  than that and **keeps the audit row** (redaction, not deletion — the trail survives, the personal data does not).
-  Redaction on request must be possible ahead of the window. Ships with a privacy-notice entry naming the purpose
-  (abuse investigation), the 90-day window, and the redaction path — the notice is part of the AC, not a follow-up.
-  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` is the intended tripwire and goes red.
-  *(seam: audit actor columns + the anonymous write path + a retention job)*
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 

@@ -286,7 +286,20 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - V60 grants the app role a **column-level** `UPDATE (client_ip)`. The V54 append-only carve-out
     still refuses every other UPDATE and every DELETE on `t_mutation_audit_event`, so the database
     itself enforces "redaction, not deletion".
-- [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
+- [x] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
+  - The notice lives at `docs/modernization/privacy-notice.md`. The repository had no privacy or
+    data-protection surface, and a published page is an operator decision, so the notice ships as
+    the source text and states that the product does not publish it yet.
+  - `PrivacyNoticeMatchesTheShippedBehaviourTest` binds the notice to the code: every day count in
+    the notice must equal `MutationAuditEvent.CLIENT_IP_RETENTION`, the notice must name the job
+    `client-ip-retention` and the cron must run daily, the erasure path must equal the path
+    `AuditAdminController` exposes, the notice must name `ANONYMOUS_PUBLIC`, the projection must
+    carry no client IP, and the listed licence fields must equal the non-flag entries of
+    `audit.redaction.entities.PersonLicences.allow`. Five planted violations red five of the six
+    cases; the sixth guards main code and takes no planted notice.
+  - **Open for the operator:** where the product publishes this text, and in which languages. ADR
+    0030 is still `PROPOSED` although T-08a and T-08b shipped its decision, and its question 3
+    ("is the privacy-notice text in scope for the implementing journey?") is now answered.
 - [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
 - [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
