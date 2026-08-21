@@ -27,6 +27,44 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-32 close-out, 2026-08-21)
+
+The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file the S2 tail. Each bullet
+below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
+this file untouched.
+
+- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S2] `AuditTrailService.java:83` classifies a **failed**
+  anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
+  `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
+  tell from a cron row. That is the case `[ANON-WRITE-ATTRIBUTION]` named as its motivation, so the
+  motivating case stays open. *(seam: `AuditTrailService.recordFailed` + `RequestAuditFilter`)*
+- **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] The T-45 guard found **fifteen** more audit call sites that
+  pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
+  EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,
+  because an unmatched type gets an empty allow-set. The sites are pinned in
+  `alpenflight/server/config/audit/undecided-audit-snapshot-fields.txt`. Decide each one, as T-45 did for
+  its five. *(seam: the audit call sites + `application.yml` redaction config)*
+- **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
+  and reports the aircraft device sync as a success. The job writes nothing and says it worked. T-07d
+  found this while it enumerated the `ObjectProvider` injection shape. *(seam: `HttpOgnDeviceDatabase`)*
+- **[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]** [S2] `audit-logs.store.ts:93` calls `listUsers`, which
+  admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too
+  (`AuditAdminController.java:28`). A system administrator gets a 403, the store falls back to the raw
+  subject, and the console guard probably reds. *(seam: `audit-logs.store` + `UsersController`)*
+- **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
+  rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
+  operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
+- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S2] `AuditLogMapper` declares no
+  `foreignKeyColumns()`, so `ForeignKeyResolver` looks for the conventional `user_id` while the wire field
+  is `actor_user_id`. This is latent only because `AUDIT_LOG` is unregistered; it bites when it ships.
+- **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
+  behind it. T-10 found it while it drove the proof spec. *(seam: the nav overlay)*
+- **[J-32-GATE-NITS]** [S2] Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
+  impersonation guard exempts all of `ClubsController` when only `deleteClub` needs it, so `updateClub`
+  could lose `@tenant.isOwnClub` and pass; `ClientIpRetentionIT` asserts 90 days plus a margin, so only the
+  unit test hits the true boundary; and `ClientIpRedaction.java:38` re-checks a window the query already
+  filtered, which no input can reach.
+
 ## Pending (filed by /do-ship J-32 T-03, 2026-08-20)
 
 - **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] T-03 deleted `AuditTargetTenantInterceptor`. That
