@@ -10,6 +10,7 @@ import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helper
 import { enterViaNav } from '../_helpers/nav';
 import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 import { selectAfOption } from '../_helpers/af-select';
+import { typeDateIntoAfDatePicker } from '../_helpers/af-date-picker';
 import {
   ACTIVE_CLUB_STATE_ID,
   CH_COUNTRY_ID,
@@ -823,7 +824,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
           new URL(r.url()).pathname === '/api/v1/admin/audit-events' &&
           new URL(r.url()).searchParams.has('occurredFrom'),
       );
-      await pickDate(page, TESTIDS.filterFrom, tomorrowDisplay());
+      await typeDateIntoAfDatePicker(page, TESTIDS.filterFrom, tomorrowDisplay());
       const issued = await req;
       expect(new URL(issued.url()).searchParams.get('occurredFrom')).toBeTruthy();
       await expect(page.getByTestId(TESTIDS.empty)).toBeVisible();
@@ -950,13 +951,6 @@ async function loginAsSeeded(page: Page, username: string, password: string): Pr
   await page.waitForURL(/\/realms\/alpenflight\//);
   await fillKcLogin(page, username, password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
-}
-
-async function pickDate(page: Page, testId: string, displayDate: string): Promise<void> {
-  const input = page.getByTestId(testId).locator('input').first();
-  await input.click();
-  await input.fill(displayDate);
-  await input.press('Enter');
 }
 
 function tomorrowDisplay(): string {

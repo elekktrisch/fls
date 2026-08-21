@@ -1,6 +1,11 @@
 import { type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 
 import { test, expect, watchConsoleErrors } from '../_helpers/console-guard';
+import {
+  afDatePickerInputs,
+  afDatePickerPanel,
+  typeDateOnlyAfterTheOverlayPanelExists,
+} from '../_helpers/af-date-picker';
 import { formatDdMmYyyy, isoDateFromLocal } from '../../../src/app/shared/util/date/format-date';
 
 import {
@@ -10,12 +15,10 @@ import {
 } from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
-function rangeInputs(page: Page) {
-  return page.getByTestId('flights-date-range').locator('input');
-}
+const FLIGHTS_DATE_RANGE_TESTID = 'flights-date-range';
 
-function pickerOverlay(page: Page) {
-  return page.locator('.cdk-overlay-container .ant-picker-panel-container');
+function rangeInputs(page: Page) {
+  return afDatePickerInputs(page, FLIGHTS_DATE_RANGE_TESTID);
 }
 
 const REAL_LOGIN_TIMEOUT_MS = 180_000;
@@ -119,7 +122,7 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
 
       const refetch = rangeRefetch(page);
       await rangeInputs(page).first().click();
-      const overlay = pickerOverlay(page);
+      const overlay = afDatePickerPanel(page);
       await expect(overlay).toBeVisible();
       const selectableDayCells = overlay.locator(
         '.ant-picker-cell-in-view:not(.ant-picker-cell-disabled) .ant-picker-cell-inner',
@@ -171,11 +174,8 @@ test.describe('Flights date-range filter — control hardening (real-idp)', () =
       const from = formatDdMmYyyy(fromDate);
       const to = formatDdMmYyyy(toDate);
 
-      await inputs.first().click();
-      await inputs.first().fill(from);
-      await page.keyboard.press('Enter');
-      await inputs.nth(1).fill(to);
-      await page.keyboard.press('Enter');
+      await typeDateOnlyAfterTheOverlayPanelExists(page, inputs.first(), from);
+      await typeDateOnlyAfterTheOverlayPanelExists(page, inputs.nth(1), to);
 
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-flights-date-keyboard.png`,

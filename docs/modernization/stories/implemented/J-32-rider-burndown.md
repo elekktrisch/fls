@@ -124,11 +124,13 @@ surface, and the notice says so. Where it publishes stays open.
 
 ## Task record
 
-37 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-67. The
+38 tasks shipped: T-01 to T-16 and T-19, T-20, T-45, T-46, T-49 to T-53, T-59, T-60, T-62 to T-68. The
 carve budgeted 15. Task growth came from the gate and from two `gap-hunter` rounds, which is the
 expected shape of a hardening journey.
 
 - [x] T-67 — a git push arms the fan-out, and the gate waits for the run it armed.
+- [x] T-68 — a date-picker spec waits for the overlay panel before it types, so the picker cannot
+  throw on the screen under proof.
 
 33 S2 tasks were re-filed to `_BOYSCOUT.md`, including ten defects that J-32 tasks found and did not
 fix. No finding was dropped.
