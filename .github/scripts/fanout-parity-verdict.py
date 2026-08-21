@@ -70,6 +70,16 @@ RESIDUAL_LIMIT = (
     "certifies no spec that never ran."
 )
 
+PRECEDENCE_WHEN_COVERING_RUNS_DISAGREE = (
+    "PRECEDENCE WHEN COVERING RUNS DISAGREE — the newest covering run whose parity step went red "
+    "decides, and this gate refuses the merge. An older green run answers only for a newer run "
+    "whose parity step passed, or for a newer run that never reached the parity step, such as a "
+    "chain that could not build the legacy stack. A newer green run over the same producer files "
+    "replaces an older red one, so a red never blocks this branch permanently: repair the cause, "
+    "then dispatch the fan-out again. RESIDUAL LIMIT of this rule — a second attempt that passes "
+    "clears a red the first attempt found, so an intermittent parity defect can still reach main."
+)
+
 PARITY_PROVEN = "PARITY_PROVEN"
 PARITY_DEFECT = "PARITY_DEFECT"
 UNRELATED_SPEC_RED = "UNRELATED_SPEC_RED"
@@ -366,6 +376,12 @@ def read_run(api, run: FanoutRun, jobs: list[dict]) -> RunReading:
 
 MOST_RECENT_RUNS_THE_GATE_ASKS_THE_API_ABOUT = 12
 
+READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR = (
+    PARITY_DEFECT,
+    UNRELATED_SPEC_RED,
+    PARITY_STEP_RED_SPEC_UNNAMED,
+)
+
 
 def decide(
     api,
@@ -392,6 +408,10 @@ def decide(
         reading = read_run(api, run, api.jobs_of(run.run_id))
         if newest_reading is None:
             newest_run, newest_reading = run, reading
+        if reading.verdict in READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR:
+            return Decision(
+                reading.verdict, True, producer_files, run, reading, newest_run, newest_reading
+            )
         if reading.verdict == PARITY_PROVEN:
             return Decision(
                 PARITY_PROVEN, False, producer_files, run, reading, newest_run, newest_reading
@@ -448,19 +468,17 @@ def render(decision: Decision) -> str:
                 "red steps beside the parity step: none — the API names no red step, so the job "
                 "itself timed out or was cancelled after the parity step passed"
             )
-    if (
-        decision.newest_reading is not None
-        and decision.newest_reading is not reading
-        and decision.newest_reading.names_a_red()
-    ):
+    if decision.newest_reading is not None and decision.newest_reading is not reading:
         lines.append(
             f"the newest covering run {decision.newest_run.run_id} reads "
-            f"{decision.newest_reading.verdict}, and an older covering run proves parity: "
-            f"{decision.newest_run.html_url}"
+            f"{decision.newest_reading.verdict}, and the older covering run {decision.run.run_id} "
+            f"decides this verdict: {decision.newest_run.html_url}"
         )
     if decision.verdict in VERDICT_WHAT_TO_DO:
         lines.append(VERDICT_WHAT_TO_DO[decision.verdict])
     lines.append(RESIDUAL_LIMIT)
+    if decision.newest_reading is not None:
+        lines.append(PRECEDENCE_WHEN_COVERING_RUNS_DISAGREE)
     return "\n".join(lines)
 
 
@@ -488,8 +506,8 @@ def gate(base_sha: str, head_sha: str, repository: str) -> int:
         and decision.newest_reading.names_a_red()
     ):
         print(
-            "::warning title=the newest covering fan-out run is red "
-            f"({decision.newest_reading.verdict})::" + report.replace("\n", " ")
+            "::warning title=the newest covering fan-out run is red and its parity step did not go "
+            f"red ({decision.newest_reading.verdict})::" + report.replace("\n", " ")
         )
     return 0
 
@@ -600,17 +618,29 @@ class FakeGithubActionsApi:
 
 
 class CapturedGithubActionsApi:
-    def __init__(self, captured: dict):
-        self.captured = captured
+    def __init__(self, captured_runs_newest_first: list[dict]):
+        self.captured_runs_newest_first = captured_runs_newest_first
 
     def fanout_runs_newest_first(self) -> list[FanoutRun]:
-        return [FanoutRun(**self.captured["run"])]
+        return [FanoutRun(**captured["run"]) for captured in self.captured_runs_newest_first]
+
+    def _captured(self, run_id: int) -> dict:
+        return next(
+            captured
+            for captured in self.captured_runs_newest_first
+            if captured["run"]["run_id"] == run_id
+        )
 
     def jobs_of(self, run_id: int) -> list[dict]:
-        return self.captured["jobs"]
+        return self._captured(run_id)["jobs"]
 
     def job_log(self, job_id: int) -> str:
-        return "\n".join(self.captured["parity_job_log_lines_that_name_a_red_spec_or_an_early_stop"])
+        for captured in self.captured_runs_newest_first:
+            if any(job.get("id") == job_id for job in captured["jobs"]):
+                return "\n".join(
+                    captured["parity_job_log_lines_that_name_a_red_spec_or_an_early_stop"]
+                )
+        return ""
 
 
 class FakeProducerFileHistory:
@@ -690,6 +720,11 @@ def synthetic_input_classes() -> list[tuple[str, Decision]]:
 
     def covering(sha: str = PROVEN_SHA) -> FakeProducerFileHistory:
         return FakeProducerFileHistory({("base000", HEAD): TOUCHED_MAPPER, (sha, HEAD): ()})
+
+    def two_covering_runs(newer_sha: str, older_sha: str) -> FakeProducerFileHistory:
+        return FakeProducerFileHistory(
+            {("base000", HEAD): TOUCHED_MAPPER, (newer_sha, HEAD): (), (older_sha, HEAD): ()}
+        )
 
     scored(
         "a genuine parity mismatch",
@@ -813,6 +848,24 @@ def synthetic_input_classes() -> list[tuple[str, Decision]]:
         ),
         covering(),
     )
+    scored(
+        "both covering runs found a parity defect",
+        FakeGithubActionsApi(
+            [fanout_run(15, "newer00"), fanout_run(16, PROVEN_SHA)],
+            {15: fanout_jobs("failure", "failure"), 16: fanout_jobs("failure", "failure")},
+            {PARITY_JOB_ID_IN_THE_FAKES: playwright_log_naming(A_PRODUCER_SPEC)},
+        ),
+        two_covering_runs("newer00", PROVEN_SHA),
+    )
+    scored(
+        "the newest covering run is red on a spec it cannot name and an older covering run proves parity",
+        FakeGithubActionsApi(
+            [fanout_run(17, "newer00"), fanout_run(18, PROVEN_SHA, conclusion="success")],
+            {17: fanout_jobs("failure", "failure"), 18: fanout_jobs("success")},
+            {},
+        ),
+        two_covering_runs("newer00", PROVEN_SHA),
+    )
     return classes
 
 
@@ -826,19 +879,24 @@ def captured_input_classes() -> list[tuple[str, Decision]]:
     fixtures = json.loads(RUNS_CAPTURED_FROM_THE_REAL_API.read_text(encoding="utf-8"))
     classes = []
     for input_class in fixtures["input_classes"]:
-        captured = fixtures["captured_runs"][input_class["run_id"]]
-        head_sha = captured["run"]["head_sha"]
-        covers = input_class["the_branch_head_changed_no_producer_file_after_this_run"]
-        history = FakeProducerFileHistory(
-            {
-                ("base000", HEAD): TOUCHED_MAPPER,
-                (head_sha, HEAD): () if covers else TOUCHED_MAPPER,
-            }
-        )
+        captured_runs_newest_first = [
+            fixtures["captured_runs"][run_id] for run_id in input_class["run_ids_newest_first"]
+        ]
+        covers = input_class["the_branch_head_changed_no_producer_file_after_these_runs"]
+        producer_files_by_pair = {("base000", HEAD): TOUCHED_MAPPER}
+        for captured in captured_runs_newest_first:
+            producer_files_by_pair[(captured["run"]["head_sha"], HEAD)] = (
+                () if covers else TOUCHED_MAPPER
+            )
         classes.append(
             (
                 input_class["name"],
-                decide(CapturedGithubActionsApi(captured), history, "base000", HEAD),
+                decide(
+                    CapturedGithubActionsApi(captured_runs_newest_first),
+                    FakeProducerFileHistory(producer_files_by_pair),
+                    "base000",
+                    HEAD,
+                ),
             )
         )
     return classes
@@ -863,6 +921,11 @@ EXPECTED_SELFTEST_VERDICTS = {
         False,
     ),
     "a green fan-out job whose parity step never ran": (COULD_NOT_RUN, True),
+    "both covering runs found a parity defect": (PARITY_DEFECT, True),
+    "the newest covering run is red on a spec it cannot name and an older covering run proves parity": (
+        PARITY_STEP_RED_SPEC_UNNAMED,
+        True,
+    ),
     "run 32102550688 — the parity step red on a producer spec": (PARITY_DEFECT, True),
     "run 32456112094 — the parity step red on a spec that asserts no migrated data": (
         UNRELATED_SPEC_RED,
@@ -878,6 +941,23 @@ EXPECTED_SELFTEST_VERDICTS = {
         NO_RUN_COVERS_THESE_PRODUCER_FILES,
         True,
     ),
+    "run 30760024409 — a green fan-out that predates a chain that could not run": (
+        PARITY_PROVEN,
+        False,
+    ),
+    "run 31127036858 — a green fan-out over these producer files that predates a later defect": (
+        PARITY_PROVEN,
+        False,
+    ),
+    "runs 32102550688 over 31127036858 — the newest covering run found a parity defect and an "
+    "older covering run proved parity": (PARITY_DEFECT, True),
+    "runs 32450447026 over 32102550688 — the newest covering run proves parity and an older "
+    "covering run found a parity defect": (PARITY_PROVEN, False),
+    "runs 32450447026 over 31127036858 — both covering runs prove parity": (PARITY_PROVEN, False),
+    "runs 32456112094 over 32450447026 — the newest covering run is red on a spec that asserts no "
+    "migrated data and an older covering run proves parity": (UNRELATED_SPEC_RED, True),
+    "runs 31123658151 over 30760024409 — the newest covering run could not run and an older "
+    "covering run proves parity": (PARITY_PROVEN, False),
 }
 
 
@@ -1024,6 +1104,19 @@ def selftest() -> int:
             "that arrived after the green never reaches a human"
         )
 
+    newest_run_found_a_defect = message_by_input_class.get(
+        "runs 32102550688 over 31127036858 — the newest covering run found a parity defect and an "
+        "older covering run proved parity",
+        "",
+    )
+    if newest_run_found_a_defect and (
+        PRECEDENCE_WHEN_COVERING_RUNS_DISAGREE not in newest_run_found_a_defect
+    ):
+        failures.append(
+            "the message that refuses the merge does not state which covering run decides, so a "
+            "developer cannot tell whether a newer green fan-out clears the red"
+        )
+
     now = datetime(2026, 8, 21, 12, 0, tzinfo=timezone.utc)
     yesterdays_run_age = days_since("2026-08-20T05:22:38Z", now)
     week_old_run_age = days_since("2026-08-14T06:07:37Z", now)
@@ -1105,8 +1198,8 @@ def capture_fixture(
     ] + [
         {
             "name": input_class,
-            "run_id": str(run_id),
-            "the_branch_head_changed_no_producer_file_after_this_run": run_still_covers_the_branch_head,
+            "run_ids_newest_first": [str(run_id)],
+            "the_branch_head_changed_no_producer_file_after_these_runs": run_still_covers_the_branch_head,
         }
     ]
     fixtures["input_classes"].sort(key=lambda entry: entry["name"])

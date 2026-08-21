@@ -407,7 +407,18 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Residual limit, stated in the failure message.** The gate arms only on the two producer trees
     whose legacy SELECT no synthetic bundle exercises. A server-side ingest change, a Flyway change or
     a spec change reaches the real fan-out and does not arm this gate.
-- [ ] T-62 — [S1 BLOCKER] `fanout-parity-verdict.py:395` returns `PARITY_PROVEN` when any covering run passed, even when the newest covering run reads `PARITY_DEFECT`, and `gate()` only warns; the selftest never scores that variant, so the gate fails at its stated purpose
+- [x] T-62 — [S1 BLOCKER] `fanout-parity-verdict.py:395` returns `PARITY_PROVEN` when any covering run passed, even when the newest covering run reads `PARITY_DEFECT`, and `gate()` only warns; the selftest never scores that variant, so the gate fails at its stated purpose
+  - **The newest covering run whose parity step went red decides.** An older green run answers only
+    for a newer run whose parity step passed, or for a newer run that never reached the parity step.
+    A newer green run over the same producer files replaces an older red one, so a red never blocks
+    the branch permanently.
+  - **The disagreement matrix is scored.** The selftest scores older-green over newer-defect,
+    older-defect under newer-green, both defect, both green, a newest chain that could not run over
+    an older green, a newest unnamed spec red over an older green, and the newest red at a later
+    step over an older green. Five of these classes score runs captured from the real Actions API.
+  - **Precedence and its residual limit ride in the failure message.** A second fan-out attempt that
+    passes clears a red the first attempt found, so an intermittent parity defect can still reach
+    `main`.
 - [ ] T-63 — [S1 BLOCKER] the real-idp `page.route` ban misses `page.routeFromHAR`, `page['route']`, a destructured `route`, and every `_helpers/` file, where `console-guard.ts:165` exports `installMockApiStubs` routing `**/api/v1/**`
 - [ ] T-64 — [S2] `AuditRedactionConfigStartupGuard.java:29` is wired by `@Component` alone and every test builds it by hand, so deleting the annotation reds nothing
 - [ ] T-65 — [S2] confirm whether the migrated-copy rename still skips in the fan-out lane (`fan-out-migration-parity.spec.ts:23`); the T-16 worker and the final review disagree
@@ -443,7 +454,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     `PARITY_PROVEN_RUN_RED_ELSEWHERE`. The verdict states that parity holds, names every red step by
     number and name, and still refuses the merge, so the red reaches a human.
   - **Every verdict is scored against real API data.** `fanout-parity-verdict-fixtures.json` carries
-    five runs captured from the Actions API, and `--capture-fixture` re-captures them. The pre-fix
+    seven runs captured from the Actions API, and `--capture-fixture` re-captures them. The pre-fix
     reader scores run 32456112094 as `PARITY_DEFECT` and run 30756910798 as `COULD_NOT_RUN`; both
     are wrong, which is the measurement that both classes were uncovered.
   - **Residual limit, stated in the failure message.** The reader cannot name a spec whose run log

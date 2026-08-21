@@ -2022,38 +2022,1064 @@
         "2026-08-21T05:34:51.8601242Z   ✘  4 [auth] › tests/auth/lostpassword-parity-J19.spec.ts:21:5 › J-19 capture (no parity claim): legacy /lostpassword form + its success message + the legacy /confirm choose-password form (retry #3) (3.0s)",
         "2026-08-21T05:34:51.8860477Z   1) [auth] › tests/auth/lostpassword-parity-J19.spec.ts:21:5 › J-19 capture (no parity claim): legacy /lostpassword form + its success message + the legacy /confirm choose-password form "
       ]
+    },
+    "31127036858": {
+      "run": {
+        "run_id": 31127036858,
+        "head_sha": "d33d3fd40d16fc10b7732e0ada30811d5750a92d",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-08-06T19:39:31Z",
+        "html_url": "https://github.com/elekktrisch/fls/actions/runs/31127036858",
+        "head_branch": "integration/J-17"
+      },
+      "jobs": [
+        {
+          "name": "legacy server build",
+          "id": 92701934957,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Install Mono 6.12",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Cache NuGet packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Install NuGet CLI",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Restore packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "xbuild projects (Debug)",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Drop EF SqlServer DLL into bin",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Upload FLS.Server.Console bin artifact",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "Post Cache NuGet packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "legacy web build",
+          "id": 92701934975,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Cache flsweb node_modules",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "yarn install (if cache miss)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 8,
+              "name": "Post Cache flsweb node_modules",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "fan-out parity (legacy → migrate+Keycloak → AlpenFlight)",
+          "id": 92702000839,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Pin the random Location name (chain-wide)",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Install Mono 6.12 (background)",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Create alpenflight_shared network",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Bring up alpenflight-infra (mailpit)",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Start MSSQL (fls-e2e compose, default profile)",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Download FLS.Server.Console bin",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Restore flsweb node_modules cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Prepare flsweb tree",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Wait for Mono install",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Wait for MSSQL healthcheck",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Apply FLSTest schema and seed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Start FLS.Server.Console (legacy API)",
+              "conclusion": "success"
+            },
+            {
+              "number": 16,
+              "name": "Start flsweb webpack-dev-server (legacy SPA)",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "Set up Node 20 for legacy Playwright",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "Cache Playwright browsers (legacy e2e)",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Install legacy Playwright deps",
+              "conclusion": "success"
+            },
+            {
+              "number": 20,
+              "name": "Run T-04 legacy create-flow spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 21,
+              "name": "Run J-1 T-14 legacy aircraft parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 22,
+              "name": "Run J-2 T-10 legacy flight parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 23,
+              "name": "Run J-4 T-12 legacy /profile parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 24,
+              "name": "Run J-5 T-16 legacy reservation parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 25,
+              "name": "Run J-6 T-13 legacy planning parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 26,
+              "name": "Run J-7 T-01 legacy reporting parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 27,
+              "name": "Run J-8 T-18 legacy accounting parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 28,
+              "name": "Build pgAdmin + Keycloak images",
+              "conclusion": "success"
+            },
+            {
+              "number": 29,
+              "name": "Bring up alpenflight-dev (postgres + pgadmin + keycloak)",
+              "conclusion": "success"
+            },
+            {
+              "number": 30,
+              "name": "Set up Java 25",
+              "conclusion": "success"
+            },
+            {
+              "number": 31,
+              "name": "Set up Node 22",
+              "conclusion": "success"
+            },
+            {
+              "number": 32,
+              "name": "Set up pnpm",
+              "conclusion": "success"
+            },
+            {
+              "number": 33,
+              "name": "Restore pnpm store cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 34,
+              "name": "Install alpenflight/web deps",
+              "conclusion": "success"
+            },
+            {
+              "number": 35,
+              "name": "Install Playwright browser (alpenflight/web)",
+              "conclusion": "success"
+            },
+            {
+              "number": 36,
+              "name": "Flyway migrate (alpenflight Postgres)",
+              "conclusion": "success"
+            },
+            {
+              "number": 37,
+              "name": "Build alpenflight backend bootJar",
+              "conclusion": "success"
+            },
+            {
+              "number": 38,
+              "name": "Start alpenflight backend",
+              "conclusion": "success"
+            },
+            {
+              "number": 39,
+              "name": "Wait for backend /actuator/health",
+              "conclusion": "success"
+            },
+            {
+              "number": 40,
+              "name": "Mint migration handshake to file",
+              "conclusion": "success"
+            },
+            {
+              "number": 41,
+              "name": "Build alpenflight-export fat jar",
+              "conclusion": "success"
+            },
+            {
+              "number": 42,
+              "name": "Run alpenflight-export against legacy MSSQL (read-only)",
+              "conclusion": "success"
+            },
+            {
+              "number": 43,
+              "name": "Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine + J-10b deliveries write + J-17 public registration)",
+              "conclusion": "success"
+            },
+            {
+              "number": 44,
+              "name": "Upload Playwright test-results on failure (pre-gallery)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 45,
+              "name": "Stage legacy parity videos + caption sidecar (J-0c + J-1)",
+              "conclusion": "success"
+            },
+            {
+              "number": 46,
+              "name": "Re-pin Node for the .mjs proof generators (mirror ci.yml)",
+              "conclusion": "success"
+            },
+            {
+              "number": 47,
+              "name": "Emit maintainability reports (fail-soft)",
+              "conclusion": "success"
+            },
+            {
+              "number": 48,
+              "name": "Build + link-check proof gallery (legacy + AlpenFlight, J-0c)",
+              "conclusion": "success"
+            },
+            {
+              "number": 49,
+              "name": "Collect logs on failure",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 50,
+              "name": "Upload proof artifact (all videos + reports)",
+              "conclusion": "success"
+            },
+            {
+              "number": 51,
+              "name": "Compute fan-out branch-preview destination",
+              "conclusion": "success"
+            },
+            {
+              "number": 52,
+              "name": "Deploy fan-out gallery to gh-pages (branch preview)",
+              "conclusion": "success"
+            },
+            {
+              "number": 53,
+              "name": "Emit fan-out preview URL",
+              "conclusion": "success"
+            },
+            {
+              "number": 54,
+              "name": "Link-check the DEPLOYED branch-preview gallery",
+              "conclusion": "success"
+            },
+            {
+              "number": 55,
+              "name": "Stop backend",
+              "conclusion": "success"
+            },
+            {
+              "number": 56,
+              "name": "Tear down",
+              "conclusion": "success"
+            },
+            {
+              "number": 57,
+              "name": "Mark job failed if a gating spec was red (post-publish)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 105,
+              "name": "Post Re-pin Node for the .mjs proof generators (mirror ci.yml)",
+              "conclusion": "success"
+            },
+            {
+              "number": 106,
+              "name": "Post Restore pnpm store cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 107,
+              "name": "Post Set up pnpm",
+              "conclusion": "success"
+            },
+            {
+              "number": 108,
+              "name": "Post Set up Node 22",
+              "conclusion": "success"
+            },
+            {
+              "number": 109,
+              "name": "Post Set up Java 25",
+              "conclusion": "success"
+            },
+            {
+              "number": 110,
+              "name": "Post Cache Playwright browsers (legacy e2e)",
+              "conclusion": "success"
+            },
+            {
+              "number": 111,
+              "name": "Post Set up Node 20 for legacy Playwright",
+              "conclusion": "success"
+            },
+            {
+              "number": 112,
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 113,
+              "name": "Post Restore flsweb node_modules cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 114,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 115,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "parity_job_log_lines_that_name_a_red_spec_or_an_early_stop": []
+    },
+    "30760024409": {
+      "run": {
+        "run_id": 30760024409,
+        "head_sha": "3c92f213b1ea7e1007f547ab3b619f85e764dbc4",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-08-02T17:57:38Z",
+        "html_url": "https://github.com/elekktrisch/fls/actions/runs/30760024409",
+        "head_branch": "integration/J-17"
+      },
+      "jobs": [
+        {
+          "name": "legacy web build",
+          "id": 91528764809,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Cache flsweb node_modules",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "yarn install (if cache miss)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 8,
+              "name": "Post Cache flsweb node_modules",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "legacy server build",
+          "id": 91528764854,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Install Mono 6.12",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Cache NuGet packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Install NuGet CLI",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Restore packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "xbuild projects (Debug)",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Drop EF SqlServer DLL into bin",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Upload FLS.Server.Console bin artifact",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "Post Cache NuGet packages",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "name": "fan-out parity (legacy → migrate+Keycloak → AlpenFlight)",
+          "id": 91528851243,
+          "conclusion": "success",
+          "steps": [
+            {
+              "number": 1,
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "number": 2,
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 3,
+              "name": "Pin the random Location name (chain-wide)",
+              "conclusion": "success"
+            },
+            {
+              "number": 4,
+              "name": "Install Mono 6.12 (background)",
+              "conclusion": "success"
+            },
+            {
+              "number": 5,
+              "name": "Create alpenflight_shared network",
+              "conclusion": "success"
+            },
+            {
+              "number": 6,
+              "name": "Bring up alpenflight-infra (mailpit)",
+              "conclusion": "success"
+            },
+            {
+              "number": 7,
+              "name": "Start MSSQL (fls-e2e compose, default profile)",
+              "conclusion": "success"
+            },
+            {
+              "number": 8,
+              "name": "Download FLS.Server.Console bin",
+              "conclusion": "success"
+            },
+            {
+              "number": 9,
+              "name": "Restore flsweb node_modules cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 10,
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 11,
+              "name": "Prepare flsweb tree",
+              "conclusion": "success"
+            },
+            {
+              "number": 12,
+              "name": "Wait for Mono install",
+              "conclusion": "success"
+            },
+            {
+              "number": 13,
+              "name": "Wait for MSSQL healthcheck",
+              "conclusion": "success"
+            },
+            {
+              "number": 14,
+              "name": "Apply FLSTest schema and seed",
+              "conclusion": "success"
+            },
+            {
+              "number": 15,
+              "name": "Start FLS.Server.Console (legacy API)",
+              "conclusion": "success"
+            },
+            {
+              "number": 16,
+              "name": "Start flsweb webpack-dev-server (legacy SPA)",
+              "conclusion": "success"
+            },
+            {
+              "number": 17,
+              "name": "Set up Node 20 for legacy Playwright",
+              "conclusion": "success"
+            },
+            {
+              "number": 18,
+              "name": "Cache Playwright browsers (legacy e2e)",
+              "conclusion": "success"
+            },
+            {
+              "number": 19,
+              "name": "Install legacy Playwright deps",
+              "conclusion": "success"
+            },
+            {
+              "number": 20,
+              "name": "Run T-04 legacy create-flow spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 21,
+              "name": "Run J-1 T-14 legacy aircraft parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 22,
+              "name": "Run J-2 T-10 legacy flight parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 23,
+              "name": "Run J-4 T-12 legacy /profile parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 24,
+              "name": "Run J-5 T-16 legacy reservation parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 25,
+              "name": "Run J-6 T-13 legacy planning parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 26,
+              "name": "Run J-7 T-01 legacy reporting parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 27,
+              "name": "Run J-8 T-18 legacy accounting parity spec (records legacy video)",
+              "conclusion": "success"
+            },
+            {
+              "number": 28,
+              "name": "Build pgAdmin + Keycloak images",
+              "conclusion": "success"
+            },
+            {
+              "number": 29,
+              "name": "Bring up alpenflight-dev (postgres + pgadmin + keycloak)",
+              "conclusion": "success"
+            },
+            {
+              "number": 30,
+              "name": "Set up Java 25",
+              "conclusion": "success"
+            },
+            {
+              "number": 31,
+              "name": "Set up Node 22",
+              "conclusion": "success"
+            },
+            {
+              "number": 32,
+              "name": "Set up pnpm",
+              "conclusion": "success"
+            },
+            {
+              "number": 33,
+              "name": "Restore pnpm store cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 34,
+              "name": "Install alpenflight/web deps",
+              "conclusion": "success"
+            },
+            {
+              "number": 35,
+              "name": "Install Playwright browser (alpenflight/web)",
+              "conclusion": "success"
+            },
+            {
+              "number": 36,
+              "name": "Flyway migrate (alpenflight Postgres)",
+              "conclusion": "success"
+            },
+            {
+              "number": 37,
+              "name": "Build alpenflight backend bootJar",
+              "conclusion": "success"
+            },
+            {
+              "number": 38,
+              "name": "Start alpenflight backend",
+              "conclusion": "success"
+            },
+            {
+              "number": 39,
+              "name": "Wait for backend /actuator/health",
+              "conclusion": "success"
+            },
+            {
+              "number": 40,
+              "name": "Mint migration handshake to file",
+              "conclusion": "success"
+            },
+            {
+              "number": 41,
+              "name": "Build alpenflight-export fat jar",
+              "conclusion": "success"
+            },
+            {
+              "number": 42,
+              "name": "Run alpenflight-export against legacy MSSQL (read-only)",
+              "conclusion": "success"
+            },
+            {
+              "number": 43,
+              "name": "Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations + J-6 planning + J-8 accounting + J-9 engine + J-10b deliveries write + J-17 public registration)",
+              "conclusion": "success"
+            },
+            {
+              "number": 44,
+              "name": "Upload Playwright test-results on failure (pre-gallery)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 45,
+              "name": "Stage legacy parity videos + caption sidecar (J-0c + J-1)",
+              "conclusion": "success"
+            },
+            {
+              "number": 46,
+              "name": "Re-pin Node for the .mjs proof generators (mirror ci.yml)",
+              "conclusion": "success"
+            },
+            {
+              "number": 47,
+              "name": "Emit maintainability reports (fail-soft)",
+              "conclusion": "success"
+            },
+            {
+              "number": 48,
+              "name": "Build + link-check proof gallery (legacy + AlpenFlight, J-0c)",
+              "conclusion": "success"
+            },
+            {
+              "number": 49,
+              "name": "Collect logs on failure",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 50,
+              "name": "Upload proof artifact (all videos + reports)",
+              "conclusion": "success"
+            },
+            {
+              "number": 51,
+              "name": "Compute fan-out branch-preview destination",
+              "conclusion": "success"
+            },
+            {
+              "number": 52,
+              "name": "Deploy fan-out gallery to gh-pages (branch preview)",
+              "conclusion": "success"
+            },
+            {
+              "number": 53,
+              "name": "Emit fan-out preview URL",
+              "conclusion": "success"
+            },
+            {
+              "number": 54,
+              "name": "Link-check the DEPLOYED branch-preview gallery",
+              "conclusion": "success"
+            },
+            {
+              "number": 55,
+              "name": "Stop backend",
+              "conclusion": "success"
+            },
+            {
+              "number": 56,
+              "name": "Tear down",
+              "conclusion": "success"
+            },
+            {
+              "number": 57,
+              "name": "Mark job failed if a gating spec was red (post-publish)",
+              "conclusion": "skipped"
+            },
+            {
+              "number": 105,
+              "name": "Post Re-pin Node for the .mjs proof generators (mirror ci.yml)",
+              "conclusion": "success"
+            },
+            {
+              "number": 106,
+              "name": "Post Restore pnpm store cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 107,
+              "name": "Post Set up pnpm",
+              "conclusion": "success"
+            },
+            {
+              "number": 108,
+              "name": "Post Set up Node 22",
+              "conclusion": "success"
+            },
+            {
+              "number": 109,
+              "name": "Post Set up Java 25",
+              "conclusion": "success"
+            },
+            {
+              "number": 110,
+              "name": "Post Cache Playwright browsers (legacy e2e)",
+              "conclusion": "success"
+            },
+            {
+              "number": 111,
+              "name": "Post Set up Node 20 for legacy Playwright",
+              "conclusion": "success"
+            },
+            {
+              "number": 112,
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 113,
+              "name": "Post Restore flsweb node_modules cache",
+              "conclusion": "success"
+            },
+            {
+              "number": 114,
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "number": 115,
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ],
+      "parity_job_log_lines_that_name_a_red_spec_or_an_early_stop": []
     }
   },
   "input_classes": [
     {
       "name": "run 30756910798 — the parity specs passed and a later step went red",
-      "run_id": "30756910798",
-      "the_branch_head_changed_no_producer_file_after_this_run": true
+      "run_ids_newest_first": [
+        "30756910798"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "run 30760024409 — a green fan-out that predates a chain that could not run",
+      "run_ids_newest_first": [
+        "30760024409"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
     },
     {
       "name": "run 31123658151 — the legacy builds never finished",
-      "run_id": "31123658151",
-      "the_branch_head_changed_no_producer_file_after_this_run": true
+      "run_ids_newest_first": [
+        "31123658151"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "run 31127036858 — a green fan-out over these producer files that predates a later defect",
+      "run_ids_newest_first": [
+        "31127036858"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
     },
     {
       "name": "run 32102550688 — the parity step red on a producer spec",
-      "run_id": "32102550688",
-      "the_branch_head_changed_no_producer_file_after_this_run": true
+      "run_ids_newest_first": [
+        "32102550688"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
     },
     {
       "name": "run 32450447026 — a green fan-out over these producer files",
-      "run_id": "32450447026",
-      "the_branch_head_changed_no_producer_file_after_this_run": true
+      "run_ids_newest_first": [
+        "32450447026"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
     },
     {
       "name": "run 32450447026 — a green fan-out that predates the producer edit",
-      "run_id": "32450447026",
-      "the_branch_head_changed_no_producer_file_after_this_run": false
+      "run_ids_newest_first": [
+        "32450447026"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": false
     },
     {
       "name": "run 32456112094 — the parity step red on a spec that asserts no migrated data",
-      "run_id": "32456112094",
-      "the_branch_head_changed_no_producer_file_after_this_run": true
+      "run_ids_newest_first": [
+        "32456112094"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "runs 31123658151 over 30760024409 — the newest covering run could not run and an older covering run proves parity",
+      "run_ids_newest_first": [
+        "31123658151",
+        "30760024409"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "runs 32102550688 over 31127036858 — the newest covering run found a parity defect and an older covering run proved parity",
+      "run_ids_newest_first": [
+        "32102550688",
+        "31127036858"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "runs 32450447026 over 31127036858 — both covering runs prove parity",
+      "run_ids_newest_first": [
+        "32450447026",
+        "31127036858"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "runs 32450447026 over 32102550688 — the newest covering run proves parity and an older covering run found a parity defect",
+      "run_ids_newest_first": [
+        "32450447026",
+        "32102550688"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
+    },
+    {
+      "name": "runs 32456112094 over 32450447026 — the newest covering run is red on a spec that asserts no migrated data and an older covering run proves parity",
+      "run_ids_newest_first": [
+        "32456112094",
+        "32450447026"
+      ],
+      "the_branch_head_changed_no_producer_file_after_these_runs": true
     }
   ]
 }
