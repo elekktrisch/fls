@@ -21,6 +21,7 @@ import {
 } from './_helpers/reservation-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 import { selectAfOption } from '../_helpers/af-select';
+import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 
 const RESERVATIONS = '/api/v1/aircraft-reservations';
 
@@ -200,8 +201,13 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await loginAsReservationAdmin(page);
 
       await page.goto('/reservations?lang=de');
-      await expect(page.locator('h1')).toContainText('Reservationen');
       await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+      await expect(page.locator('h1')).toContainText(
+        await labelInTheLocaleTheSessionRenders(
+          page,
+          (translations) => translations.reservations.title,
+        ),
+      );
 
       await page.getByTestId('reservations-new-button').locator('button').click();
       await expect(page).toHaveURL('/reservations/new');

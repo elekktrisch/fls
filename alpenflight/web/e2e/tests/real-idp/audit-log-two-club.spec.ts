@@ -8,6 +8,7 @@ import {
 import { test, expect, watchConsoleErrors, allowConsoleErrors } from '../_helpers/console-guard';
 
 import { enterViaNav } from '../_helpers/nav';
+import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 import { selectAfOption } from '../_helpers/af-select';
 import {
   ACTIVE_CLUB_STATE_ID,
@@ -22,11 +23,9 @@ import { proofVideo } from './_helpers/proof-video';
 import { registrantWireBody } from './_helpers/public-registration-fixture';
 import { freshTestUser } from './_helpers/test-user';
 import { AuditEventRowActorKind } from '../../../src/app/api/generated/model/auditEventRowActorKind';
-import de from '../../../src/i18n/de';
 
 const AUDIT_LOGS_PATH = '/system/logs';
 const START_PATH = '/start';
-const START_PATH_PINNING_THE_LOCALE_OF_THE_ASSERTED_LABELS = '/start?lang=de';
 
 const AUDIT_PAGE_SIZE = 50;
 const SUCCESS_ROW_HTTP_STATUS_PLACEHOLDER = '—';
@@ -38,7 +37,6 @@ const PILOT_PASSWORD = 'pilot1-dev-2026!';
 
 const REDACTED_SENTINEL = '[redacted]';
 
-const ANONYMOUS_PUBLIC_ACTOR_LABEL = de.auditLogs.actor.anonymousPublic;
 const THE_RAW_IDENTIFIER_SHAPE_AN_ACTOR_CELL_MUST_NEVER_RENDER =
   /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
@@ -249,7 +247,7 @@ async function filterToCreatedLocations(page: Page): Promise<void> {
 }
 
 async function enterAuditLogs(page: Page): Promise<void> {
-  await page.goto(START_PATH_PINNING_THE_LOCALE_OF_THE_ASSERTED_LABELS);
+  await page.goto(START_PATH);
   await expect(page).toHaveURL(/\/start/);
   await expect(
     page.getByTestId('af-nav-group-masterdata').or(page.getByTestId('af-nav-burger')).first(),
@@ -497,6 +495,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
 
       await enterAuditLogs(page);
 
+      const anonymousPublicActorLabel = await labelInTheLocaleTheSessionRenders(
+        page,
+        (translations) => translations.auditLogs.actor.anonymousPublic,
+      );
+
       await filterAuditTarget(page, CLUB_TARGET);
       const authenticatedActorCell = page.getByTestId(TESTIDS.rowActor).first();
       await expect(
@@ -524,7 +527,7 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
         await expect(
           anonymousActors.nth(i),
           'the anonymous submission reads as the public form',
-        ).toHaveText(ANONYMOUS_PUBLIC_ACTOR_LABEL);
+        ).toHaveText(anonymousPublicActorLabel);
       }
 
       const anonymousCellAsRendered = (await anonymousActors.first().textContent())?.trim() ?? '';

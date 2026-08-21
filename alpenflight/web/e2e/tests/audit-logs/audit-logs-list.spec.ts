@@ -5,7 +5,7 @@ import type { AuditEventRow } from '../../../src/app/api/generated/model/auditEv
 import { AuditEventRowAction } from '../../../src/app/api/generated/model/auditEventRowAction';
 import { AuditEventRowActorKind } from '../../../src/app/api/generated/model/auditEventRowActorKind';
 import type { UserListItem } from '../../../src/app/api/generated/model/userListItem';
-import de from '../../../src/i18n/de';
+import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const ACTOR_USER_ID = '019e30c3-2c00-7100-8000-000000000001';
@@ -16,8 +16,6 @@ const USER_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000001';
 const ANONYMOUS_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000005';
 const SCHEDULED_JOB_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000006';
 const UNRESOLVED_ACTOR_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000007';
-
-const ACTOR_LABEL = de.auditLogs.actor;
 
 const PLANNING_NOTIFICATION_RUN_TARGET_THE_SCHEDULED_JOB_REALLY_WRITES = 'PlanningNotificationRun';
 const REDACTED_SENTINEL_THE_REDACTOR_WRITES_FOR_AN_UNLISTED_ENTITY = '[redacted]';
@@ -214,7 +212,7 @@ test('audit-logs: the actor column tells an authenticated user, an anonymous pub
     }),
   );
 
-  await page.goto('/system/logs?lang=de');
+  await page.goto('/system/logs');
 
   const user = page.locator(`[data-audit-id="${USER_ROW_ID}"]`);
   await expect(user.getByTestId('audit-row-actor')).toHaveText(ACTOR_USERNAME);
@@ -222,12 +220,22 @@ test('audit-logs: the actor column tells an authenticated user, an anonymous pub
   const anonymousActorCell = page
     .locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`)
     .getByTestId('audit-row-actor');
-  await expect(anonymousActorCell).toHaveText(ACTOR_LABEL.anonymousPublic);
+  await expect(anonymousActorCell).toHaveText(
+    await labelInTheLocaleTheSessionRenders(
+      page,
+      (translations) => translations.auditLogs.actor.anonymousPublic,
+    ),
+  );
 
   const scheduledJobActorCell = page
     .locator(`[data-audit-id="${SCHEDULED_JOB_ROW_ID}"]`)
     .getByTestId('audit-row-actor');
-  await expect(scheduledJobActorCell).toHaveText(ACTOR_LABEL.system);
+  await expect(scheduledJobActorCell).toHaveText(
+    await labelInTheLocaleTheSessionRenders(
+      page,
+      (translations) => translations.auditLogs.actor.system,
+    ),
+  );
 
   const anonymousCellAsRendered = (await anonymousActorCell.textContent())?.trim();
   const scheduledJobCellAsRendered = (await scheduledJobActorCell.textContent())?.trim();
