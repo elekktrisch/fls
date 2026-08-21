@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -202,19 +203,16 @@ class MigrationFolderConventionsTest {
             "\\bCREATE\\s+USER\\b",
             "\\bCREATE\\s+ROLE\\b");
 
-    private static final String SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION = "V54__";
-
-    private static final String SECURITY_REVIEWED_CLIENT_IP_REDACTION_GRANT_MIGRATION = "V60__";
-
-    private static final Set<String> SECURITY_REVIEWED_ROLE_PROVISIONING_MIGRATIONS =
-            Set.of(
-                    SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION,
-                    SECURITY_REVIEWED_CLIENT_IP_REDACTION_GRANT_MIGRATION);
+    private static final Map<String, Set<String>>
+            SECURITY_REVIEWED_ROLE_PROVISIONING_PATTERNS_PER_MIGRATION =
+                    Map.of(
+                            "V54__", ROLE_PROVISIONING_PATTERNS,
+                            "V60__", Set.of("\\bGRANT\\s"));
 
     private static boolean isRoleProvisioningException(String filename, String patternText) {
-        return SECURITY_REVIEWED_ROLE_PROVISIONING_MIGRATIONS.stream()
-                        .anyMatch(filename::startsWith)
-                && ROLE_PROVISIONING_PATTERNS.contains(patternText);
+        return SECURITY_REVIEWED_ROLE_PROVISIONING_PATTERNS_PER_MIGRATION.entrySet().stream()
+                .filter(reviewed -> filename.startsWith(reviewed.getKey()))
+                .anyMatch(reviewed -> reviewed.getValue().contains(patternText));
     }
 
     @Test
