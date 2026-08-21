@@ -7,6 +7,7 @@ export default tseslint.config(
   { ignores: ['src/app/api/generated/**'] },
   {
     files: ['**/*.ts'],
+    ignores: ['e2e/tests/real-idp/**/*.ts'],
     extends: [
       eslint.configs.recommended,
       ...tseslint.configs.recommended,
@@ -179,6 +180,21 @@ export default tseslint.config(
                 'Domain stores do not import sibling stores. Coordinate via MUTATION_BUS. See alpenflight/web/src/app/core/mutation-bus/README.md.',
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['e2e/tests/real-idp/**/*.ts'],
+    extends: [tseslint.configs.base],
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='route']",
+          message:
+            'A real-idp spec proves the full legacy → migrate → Keycloak → app chain. page.route / context.route intercepts that chain and turns the proof into a mock, so it is forbidden here. To COUNT or inspect requests use page.on("request", ...), which observes without intercepting. To mock, write the spec under a mock-auth project directory instead.',
         },
       ],
     },

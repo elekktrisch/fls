@@ -644,11 +644,11 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       expect(oob.status(), 'the out-of-band write succeeds, bumping the server version').toBe(200);
 
       let putCount = 0;
-      await page.route(`**/api/v1/flights/${flightId}`, async (route) => {
-        if (route.request().method() === 'PUT') {
+      const flightUpdatePath = `/api/v1/flights/${flightId}`;
+      page.on('request', (observed) => {
+        if (observed.method() === 'PUT' && new URL(observed.url()).pathname === flightUpdatePath) {
           putCount += 1;
         }
-        await route.continue();
       });
 
       await page.getByTestId('flight-step-next').click();

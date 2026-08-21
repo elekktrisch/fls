@@ -414,7 +414,7 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     on the state their caption describes. The guard exemption and the boundary test remain.
 - [ ] T-57 — [S2] the bundle ingest maps a cross-tenant FK rejection to `500 INGEST_INTERNAL_ERROR`, so a tenancy rejection reads as a server fault (T-51 finding)
 - [ ] T-58 — [S2] `AuditLogMapper` declares no `foreignKeyColumns()`, so `ForeignKeyResolver` looks for `user_id` while the wire field is `actor_user_id`; latent only because `AUDIT_LOG` is unregistered (T-51 finding)
-- [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
+- [x] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
 - [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate
 - [ ] T-14 — [S1] J-8 `AccountingRuleFilter`: correct the mapper so migrated `filter_config` matches legacy
@@ -422,8 +422,8 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-16 — [S2] J-0c Location migrated render
 - [ ] T-17 — [S2] fanout has no reporting spec over migrated data
 - [ ] T-18 — [S2] `[VACUOUS-NARROWING-ASSERTIONS]` — seed the should-be-excluded rows
-- [ ] T-19 — [S2] `[SPEC-TITLES-OVERCLAIM]` — narrow the two J-13 ACs or strengthen the specs
-- [ ] T-20 — [S2] ban `page.route` under `e2e/tests/real-idp/` with an eslint override
+- [x] T-19 — [S2] `[SPEC-TITLES-OVERCLAIM]` — narrow the two J-13 ACs or strengthen the specs
+- [x] T-20 — [S2] ban `page.route` under `e2e/tests/real-idp/` with an eslint override
 - [ ] T-21 — [S2] sweep `.github/` comments and add the directory to the comment-gate roots
 - [ ] T-22 — [S2] typecheck `web/scripts/**` in CI
 - [ ] T-23 — [S2] cover renames inside inline Angular `template:` literals

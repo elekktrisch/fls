@@ -804,7 +804,9 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
     }
   });
 
-  test('[happy] time-range filter narrows to events in range', async ({ browser }, testInfo) => {
+  test('[happy] a future from-bound empties the audit list through a real occurredFrom request; clearing restores it', async ({
+    browser,
+  }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
@@ -831,8 +833,11 @@ test.describe('Audit-log viewer — two-club tenant isolation (real-idp)', () =>
       await proofVideo(page, testInfo, {
         journey: 'J-13',
         caption:
-          'J-13 · time-range filter · a from-date bound issues a REAL occurredFrom request and narrows ' +
-          'the audit list to events in range (a future bound empties it); clearing restores the list',
+          'J-13 · time-range filter · a club-A admin sets the from-date to tomorrow at /system/logs: ' +
+          'the screen issues a REAL occurredFrom request, every row drops and the empty state shows; ' +
+          'clearing the filter brings the rows back. The control has date granularity, so all rows of ' +
+          'one run share one date — this proof does NOT show an in-range row that stays beside an ' +
+          'out-of-range row that drops.',
         acTag: 'happy',
       });
     }

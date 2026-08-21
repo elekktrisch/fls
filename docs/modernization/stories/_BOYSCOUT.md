@@ -250,23 +250,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-11, 2026-08-15)
 
-- **[MONEY-PROOF-CAPTION-OVERCLAIMS]** [S1] `deliveries-write-parity.spec.ts`'s `[money-proof]` **gallery caption**
-  reads "asserting the actual balance == original − glider − tow", but the spec asserts
-  `drawdown > ONE_PASS_SECONDS` — an inequality, not the arithmetic. The caption is what the operator reads in
-  the proof gallery, so the gallery has been advertising a balance-equality proof that was never made, on an
-  accounting surface. Either assert the equality or correct the caption; a proof artifact must claim only what
-  it shows. *(seam: that spec's assertion + its `proofVideo` caption)*
-- **[SPEC-TITLES-OVERCLAIM — the AC is where two of them live]** [S2] Six spec titles claimed more than their
-  assertions and were retitled in-journey. Two were left alone because they mirror story ACs verbatim, which
-  means the **AC** over-claims: `[happy] time-range filter narrows to events in range` (J-13 AC line 15) only
-  proves that a future from-bound empties the list and clearing restores it; `[edge] non-admin cannot reach
-  /join-requests (403 / redirect)` (J-12b AC) proves the redirect and absent nav entries, never a 403 status.
-  Fix the ACs or the specs. Same family as [VACUOUS-NARROWING-ASSERTIONS]. *(seam: those two ACs + specs)*
-- **[REAL-IDP-SPECS-MUST-NOT-page.route]** [S2] The real-idp parity specs carried a header invariant — "NO mocking on
-  the happy + key-error paths; a `page.route` interception would defeat the seam" — enforced only by that prose.
-  It is now gone, and nothing forbids a future `page.route` in a real-idp spec, which would silently convert a
-  full-chain proof into a mocked one. This one **is** cheaply enforceable: an eslint rule banning `page.route`
-  under `e2e/tests/real-idp/`. *(seam: an eslint override for that directory)*
 - **[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]** [S2] `forms/validation-hardening.spec.ts:150-154` registers a persons
   **detail** route first and a broad `**/api/v1/persons**` list glob after. Playwright is last-registered-wins
   and the broad glob also matches `/api/v1/persons/{id}`, so the list array may be serving the detail GET. The

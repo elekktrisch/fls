@@ -363,8 +363,22 @@ test.describe('Admin join-request approval — real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
+      const pilotBearerPromise = page.waitForRequest((req) => {
+        const auth = req.headers()['authorization'];
+        return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
+      });
       await loginAs(page, PILOT_USER, PILOT_PASSWORD);
       await page.waitForURL(/\/start$/, { timeout: 30_000 });
+
+      const pilotBearer = (await pilotBearerPromise).headers()['authorization']!;
+      const pilotReadsTheAdminList = await ctx.request.get('/api/v1/join-requests?status=pending', {
+        headers: { authorization: pilotBearer },
+      });
+      expect(
+        pilotReadsTheAdminList.status(),
+        'the admin list endpoint itself rejects a PILOT with 403 — the guard is not the only defence',
+      ).toBe(403);
+
       await page.goto(JOIN_REQUESTS_PATH);
       await expect(page).not.toHaveURL(new RegExp(`${JOIN_REQUESTS_PATH}$`));
       await expect(page.getByTestId(TESTIDS.page)).toHaveCount(0);
