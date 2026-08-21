@@ -450,7 +450,24 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
 - [ ] T-58 — [S2] `AuditLogMapper` declares no `foreignKeyColumns()`, so `ForeignKeyResolver` looks for `user_id` while the wire field is `actor_user_id`; latent only because `AUDIT_LOG` is unregistered (T-51 finding)
 - [x] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [x] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
-- [ ] T-13 — [S1] J-9 article-5001: fix the migrated FlightTime filter predicate
+- [x] T-13 — [S1] J-9 article-5001: the rider is stale, and the migrated FlightTime filter has no defect
+  - **Legacy genuinely emits the article-5001 line.** `flsserver/database/FLSTest/3 insert/_test-fixture.sql:315`
+    defines the "FlightTime: Glider per minute" rule — type 30, glider, every aircraft, 0 to MAX seconds,
+    unit Min — with `ArticleTarget {"ArticleNumber":"5001","DeliveryLineText":"Glider flight minutes"}`.
+  - **AlpenFlight emits it too, over migrated data.** Mined from fan-out run 32456112094 on this branch:
+    `test-results/proof-manifest.json` records the migrated block as passed, and
+    `alpenflight-dct-migrated-inputs.png` renders 5001 "HB-3256 Glider flight minutes" 10 Minuten,
+    5001 12 Minuten and 6001 "Landegebuehr LSZK" 2 Landung. The values are not derived: they match the
+    22-minute HB-3256 glider flight (`6 Insert Test Flights.sql:143`) and the 600-second, 25 %
+    `PersonFlightTimeCredit` (`_test-fixture.sql:726`). ADR 0026 D-3 puts the 5001 tier at `min = 0`, so
+    the credit split is behaviour-identical to legacy and no money divergence is reachable here.
+  - **J-27 T-09 fixed it on 2026-06-20 and nobody deleted the rider.** A malformed recipient fixture made
+    the engine answer 500, which suppressed every item. The predicate and shadowing hunt was a red herring,
+    so the rider named a cause its own evidence never supported.
+  - **The spec now separates the two causes.** `delivery-creation-test-parity.spec.ts:502` records the
+    HTTP status and the article numbers the engine returned for each migrated glider flight, and the
+    failure message prints them. A 5xx can no longer read as "the filter predicate missed".
+  - No producer file changed, so `fan-out parity` needs no fresh run for this task.
 - [ ] T-14 — [S1] J-8 `AccountingRuleFilter`: correct the mapper so migrated `filter_config` matches legacy
 - [ ] T-15 — [S2] `MapperVsSchemaCompatibilityTest` red since J-13: add the missing Flyway placeholder
 - [ ] T-16 — [S2] J-0c Location migrated render

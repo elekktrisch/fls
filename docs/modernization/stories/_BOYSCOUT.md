@@ -567,11 +567,6 @@ safety step. **Each rider rides the next touch of its form.**
 **⚠ BLOCKS the next MIGRATION journey** (hard fanout gate, J-9 retro). Fold into the next migration journey
 (J-1 / J-21, whichever ships first):
 
-- **J-9 article-5001 — the migrated FlightTime filter emits no article-5001 line.** [S1] T-07's poll-to-COMPLETED
-  did NOT resolve it (so it's not just deployment timing) — the migrated "FlightTime: Glider per minute"
-  filter genuinely isn't applying over the migrated glider flight. Investigate the migrated filter's
-  predicate/scope vs the migrated flight. T-08 strengthened the assertion to bit-exact (`=== 47`), so it
-  fails loud. *(`delivery-creation-test-parity.spec.ts` migrated block)*
 - **J-8 AccountingRuleFilter migrated predicate config not intact.** [S1] `accounting-rules-parity.spec.ts:524`
   — the migrated filter renders but its `filter_config` predicate doesn't match legacy (an
   AccountingRuleFilter migration-fidelity gap). *(`accounting-rules-parity.spec.ts` + the filter mapper)*
