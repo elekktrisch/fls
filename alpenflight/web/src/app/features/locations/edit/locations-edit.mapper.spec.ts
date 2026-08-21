@@ -114,10 +114,27 @@ describe('locations-edit.mapper', () => {
 
   it('formToUpdateRequest preserves the same shape (no clubId/tenant field)', () => {
     const formValue = detailToFormValue(baseDetail);
-    const req = formToUpdateRequest(formValue);
+    const req = formToUpdateRequest(formValue, formValue.icaoCode);
     expect(req.icaoCode).toBe('LSZF');
     expect(req.inOutboundPoints).toHaveLength(1);
     expect(Object.keys(req)).not.toContain('clubId');
     expect(Object.keys(req)).not.toContain('tenantId');
+  });
+
+  it('formToUpdateRequest sends a migrated legacy ICAO verbatim while the operator does not change it', () => {
+    const legacyIcaoOutsideThePattern = 'j0cx1';
+    const formValue = detailToFormValue({
+      ...baseDetail,
+      icaoCode: legacyIcaoOutsideThePattern,
+    });
+    const req = formToUpdateRequest(formValue, legacyIcaoOutsideThePattern);
+    expect(req.icaoCode).toBe(legacyIcaoOutsideThePattern);
+  });
+
+  it('formToUpdateRequest uppercases an ICAO the operator changed', () => {
+    const formValue = detailToFormValue({ ...baseDetail, icaoCode: 'j0cx1' });
+    formValue.icaoCode = 'lszk';
+    const req = formToUpdateRequest(formValue, 'j0cx1');
+    expect(req.icaoCode).toBe('LSZK');
   });
 });

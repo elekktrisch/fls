@@ -165,6 +165,11 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
       await page.goto(`/locations/${clubAId}/edit`);
       await expect(page.getByTestId('locations-edit-form')).toBeVisible();
       await page.locator('#LocationName').fill(renamed);
+      await expect(
+        page.getByTestId('locations-save-button').locator('button'),
+        'the migrated legacy ICAO does not match the pattern; Save must stay enabled for a ' +
+          'value the operator did not change',
+      ).toBeEnabled();
       await page.getByTestId('locations-save-button').click();
       await updated;
       await expect(page).toHaveURL('/locations');

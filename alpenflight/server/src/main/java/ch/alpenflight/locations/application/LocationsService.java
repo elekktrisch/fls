@@ -118,7 +118,7 @@ public class LocationsService {
                 req.longitude(),
                 req.elevation(),
                 req.elevationUnitTypeId());
-        loc.setIcao(req.icaoCode());
+        loc.setIcaoValidatingOnlyAChangedValue(req.icaoCode());
         loc.setRunway(req.runwayDirection(), req.runwayLength(), req.runwayLengthUnitTypeId());
         loc.setFrequency(req.airportFrequency());
         loc.setDescription(req.description());

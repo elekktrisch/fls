@@ -3,6 +3,7 @@ package ch.alpenflight.locations.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.reflect.Field;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class LocationDomainTest {
 
+    private static final String LEGACY_ICAO = "J0CX";
     private static final UUID CH = UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID GRASS = UUID.fromString("019e2e15-2c00-72c9-8000-0000000032c9");
 
@@ -37,35 +39,60 @@ class LocationDomainTest {
     @Test
     void setIcao_rejects_lowercase_throwsDomainException() {
         Location loc = newLoc();
-        assertThatThrownBy(() -> loc.setIcao("abcd"))
+        assertThatThrownBy(() -> loc.setIcaoValidatingOnlyAChangedValue("abcd"))
                 .isInstanceOf(IcaoCodeInvalidException.class);
     }
 
     @Test
     void setIcao_rejects_wrongLength_throwsDomainException() {
         Location loc = newLoc();
-        assertThatThrownBy(() -> loc.setIcao("ABC"))
+        assertThatThrownBy(() -> loc.setIcaoValidatingOnlyAChangedValue("ABC"))
                 .isInstanceOf(IcaoCodeInvalidException.class);
-        assertThatThrownBy(() -> loc.setIcao("ABCDE"))
+        assertThatThrownBy(() -> loc.setIcaoValidatingOnlyAChangedValue("ABCDE"))
                 .isInstanceOf(IcaoCodeInvalidException.class);
     }
 
     @Test
     void setIcao_accepts_fourLetter_andTwoLetterTwoDigit() {
         Location loc = newLoc();
-        loc.setIcao("LSZH");
+        loc.setIcaoValidatingOnlyAChangedValue("LSZH");
         assertThat(loc.getIcaoCode()).isEqualTo("LSZH");
-        loc.setIcao("AB12");
+        loc.setIcaoValidatingOnlyAChangedValue("AB12");
         assertThat(loc.getIcaoCode()).isEqualTo("AB12");
     }
 
     @Test
     void setIcao_acceptsNull_andBlankBecomesNull() {
         Location loc = newLoc();
-        loc.setIcao(null);
+        loc.setIcaoValidatingOnlyAChangedValue(null);
         assertThat(loc.getIcaoCode()).isNull();
-        loc.setIcao("   ");
+        loc.setIcaoValidatingOnlyAChangedValue("   ");
         assertThat(loc.getIcaoCode()).isNull();
+    }
+
+    @Test
+    void setIcao_keepsALegacyValueOutsideThePattern_whenTheSubmittedValueIsUnchanged() {
+        Location migrated = locationCarryingTheLegacyIcaoTheMigrationWrote(LEGACY_ICAO);
+        migrated.setIcaoValidatingOnlyAChangedValue(LEGACY_ICAO);
+        assertThat(migrated.getIcaoCode())
+                .as("the migration writes a legacy ICAO past the aggregate; an unchanged submission "
+                        + "must retain it, so a migrated Location stays editable")
+                .isEqualTo(LEGACY_ICAO);
+    }
+
+    @Test
+    void setIcao_rejectsAChangeAwayFromALegacyValueToAnotherValueOutsideThePattern() {
+        Location migrated = locationCarryingTheLegacyIcaoTheMigrationWrote(LEGACY_ICAO);
+        assertThatThrownBy(() -> migrated.setIcaoValidatingOnlyAChangedValue("J0CY"))
+                .isInstanceOf(IcaoCodeInvalidException.class);
+        assertThat(migrated.getIcaoCode()).isEqualTo(LEGACY_ICAO);
+    }
+
+    @Test
+    void setIcao_acceptsAChangeFromALegacyValueToOneInsideThePattern() {
+        Location migrated = locationCarryingTheLegacyIcaoTheMigrationWrote(LEGACY_ICAO);
+        migrated.setIcaoValidatingOnlyAChangedValue("LSZK");
+        assertThat(migrated.getIcaoCode()).isEqualTo("LSZK");
     }
 
     @Test
@@ -94,11 +121,25 @@ class LocationDomainTest {
     @Test
     void softDelete_preservesIcaoForAuditTrail() {
         Location loc = newLoc();
-        loc.setIcao("LSZH");
+        loc.setIcaoValidatingOnlyAChangedValue("LSZH");
         loc.softDelete(null, Clock.systemUTC());
         assertThat(loc.getIcaoCode())
                 .as("ICAO must survive soft-delete for the audit trail S-027 will surface")
                 .isEqualTo("LSZH");
+    }
+
+    private static Location locationCarryingTheLegacyIcaoTheMigrationWrote(String legacyIcao) {
+        Location loc = newLoc();
+        try {
+            Field field = Location.class.getDeclaredField("icaoCode");
+            field.setAccessible(true);
+            field.set(loc, legacyIcao);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "Location.icaoCode is the field the migration writes by SQL; this test plants "
+                            + "the same value the aggregate cannot accept through its own API", e);
+        }
+        return loc;
     }
 
     private static Location newLoc() {

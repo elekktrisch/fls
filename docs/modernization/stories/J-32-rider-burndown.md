@@ -461,7 +461,28 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **The case now runs in the gating lane.** The skip is deleted, the 180-second budget stays, and the
     case moved after the cross-tenant 404 case: the describe is serial, so the rename is now the last
     case and a rename failure cannot mask the three that pass before it.
-- [ ] T-66 — [S1 BLOCKER] a migrated Location whose legacy ICAO does not match `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$` can never be saved: `LocationMapper.java:103` writes the raw legacy value past `Location.validateIcao`, and both `Location.java:28` and `locations-edit.page.ts:52` then refuse it. The operator chose on 2026-08-21 to keep the stored value and enforce the pattern only when the operator changes the field
+- [x] T-66 — [S1 BLOCKER] a migrated Location whose legacy ICAO does not match `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$` can never be saved: `LocationMapper.java:103` writes the raw legacy value past `Location.validateIcao`, and both `Location.java:28` and `locations-edit.page.ts:52` then refuse it. The operator chose on 2026-08-21 to keep the stored value and enforce the pattern only when the operator changes the field
+  - **The rule lives on the aggregate.** `Location.setIcaoValidatingOnlyAChangedValue` returns early
+    when the submitted value equals the stored one, so a migrated row keeps its legacy ICAO and stays
+    editable. A changed value takes the pattern. No database CHECK, and the pattern did not loosen.
+  - **The wire contract had to move too.** `LocationUpdateRequest.icaoCode` carried a bean-validation
+    `@Pattern`, which rejected the unchanged legacy value with 400 before the aggregate ever ran. The
+    update payload now carries `@Size(max = 10)` only, and the `@Schema` description states why.
+    `LocationCreateRequest` keeps its `@Pattern`. The OpenAPI snapshot and the orval client are
+    regenerated for that one property.
+  - **Both layers, scored red first.** `MigratedLocationIcaoStaysEditableIT` seeds the row by SQL the
+    way the ingest does; of its four cases only the untouched-legacy-save case red on the old code
+    (400). `locations-crud.spec.ts:310` red on the old frontend with the Save button `disabled="true"`.
+    `LocationDomainTest` pins the rule on the aggregate: delete the early return and the retention case
+    reds.
+  - **Proven on the real chain.** `fan-out-migration-parity.spec.ts:148` passes locally: 5 of 5 cases,
+    real Keycloak, real ingest. The renamed club-A row kept `J0C0` and club-B's copy kept `J088` —
+    both outside the pattern. The case now asserts the Save button is enabled before it clicks.
+  - **The gate's data keeps the rule honest.** Both fixtures produced a conforming ICAO on some runs,
+    which hid the defect. `locations-fanout-J0c.spec.ts:142` and
+    `FanOutParityBundleSeeder.distinctLegacyIcaoPerClubReplicaAlwaysOutsideTheAlpenFlightPattern` now
+    emit a value that never matches, so every fan-out run exercises the retention rule.
+  - No producer file changed, so this task arms no fresh `fan-out parity` run of its own.
 - [ ] T-54 — [S2] `AuditTrailService.java:83` classifies a failed anonymous write as `SYSTEM` with no IP, so a tripped abuse guard still cannot say who — the case T-08a names as its motivation
 - [ ] T-55 — [S2] `audit-logs.store.ts:93` calls `listUsers`, which admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too: a 403 falls back silently to the raw sub
 - [ ] T-56 — [S2] gap-hunter nits: the impersonation guard exempts all of `ClubsController`, the retention boundary test asserts 90 days plus epsilon, the scheduled-job fixture names the wrong `targetEntityType`, and two proof videos end on `/start` rather than the asserted state

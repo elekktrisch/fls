@@ -124,7 +124,7 @@ public class Location extends SoftDeletableAggregate {
         Location loc = new Location();
         loc.rename(locationName, locationShortName);
         loc.relocate(countryId, locationTypeId, latitude, longitude, elevation, elevationUnitTypeId);
-        loc.setIcao(icaoCode);
+        loc.setIcaoValidatingOnlyAChangedValue(icaoCode);
         loc.setRunway(runwayDirection, runwayLength, runwayLengthUnitTypeId);
         loc.airportFrequency = blankToNull(airportFrequency);
         loc.description = blankToNull(description);
@@ -186,10 +186,13 @@ public class Location extends SoftDeletableAggregate {
         this.runwayLengthUnitTypeId = newRunwayLengthUnitTypeId;
     }
 
-    public void setIcao(@Nullable String newIcaoCode) {
-        String trimmed = blankToNull(newIcaoCode);
-        validateIcao(trimmed);
-        this.icaoCode = trimmed;
+    public void setIcaoValidatingOnlyAChangedValue(@Nullable String newIcaoCode) {
+        String submittedIcao = blankToNull(newIcaoCode);
+        if (Objects.equals(submittedIcao, this.icaoCode)) {
+            return;
+        }
+        validateIcao(submittedIcao);
+        this.icaoCode = submittedIcao;
     }
 
     public void setFrequency(@Nullable String newAirportFrequency) {

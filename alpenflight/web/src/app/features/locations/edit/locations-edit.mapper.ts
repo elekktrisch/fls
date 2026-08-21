@@ -76,7 +76,7 @@ function iopFromForm(p: InOutboundPointFormShape): InOutboundPointRequest {
   return req;
 }
 
-function commonRequest(value: LocationFormShape): LocationCreateRequest {
+function commonRequest(value: LocationFormShape, icaoCodeToSend: string): LocationCreateRequest {
   const req: LocationCreateRequest = {
     locationName: value.locationName.trim(),
     countryId: value.countryId,
@@ -89,7 +89,7 @@ function commonRequest(value: LocationFormShape): LocationCreateRequest {
       .map(iopFromForm),
   };
   assignOptional(req, 'locationShortName', trimOrOmit(value.locationShortName));
-  assignOptional(req, 'icaoCode', trimOrOmit(value.icaoCode.toUpperCase()));
+  assignOptional(req, 'icaoCode', trimOrOmit(icaoCodeToSend));
   assignOptional(req, 'latitude', trimOrOmit(value.latitude));
   assignOptional(req, 'longitude', trimOrOmit(value.longitude));
   assignOptional(req, 'description', trimOrOmit(value.description));
@@ -97,9 +97,24 @@ function commonRequest(value: LocationFormShape): LocationCreateRequest {
 }
 
 export function formToCreateRequest(value: LocationFormShape): LocationCreateRequest {
-  return commonRequest(value);
+  return commonRequest(value, value.icaoCode.toUpperCase());
 }
 
-export function formToUpdateRequest(value: LocationFormShape): LocationUpdateRequest {
-  return commonRequest(value);
+export function icaoCodeIsUnchangedFromTheLoadedValue(
+  icaoCodeInTheForm: string,
+  icaoCodeLoadedFromTheServer: string,
+): boolean {
+  return icaoCodeInTheForm === icaoCodeLoadedFromTheServer;
+}
+
+export function formToUpdateRequest(
+  value: LocationFormShape,
+  icaoCodeLoadedFromTheServer: string,
+): LocationUpdateRequest {
+  return commonRequest(
+    value,
+    icaoCodeIsUnchangedFromTheLoadedValue(value.icaoCode, icaoCodeLoadedFromTheServer)
+      ? icaoCodeLoadedFromTheServer
+      : value.icaoCode.toUpperCase(),
+  );
 }

@@ -307,6 +307,68 @@ test('locations: invalid ICAO pattern keeps Save disabled with an inline error',
   await expect(icaoAlertEmittedOnlyWhenAnErrorKeyIsPresent).toBeVisible();
 });
 
+test('locations: a migrated Location whose legacy ICAO breaks the pattern keeps Save enabled and saves the stored value', async ({
+  page,
+}) => {
+  const legacyIcaoOutsideThePattern = 'J0CX1';
+  const migrated: MockLocation = {
+    ...seedLocation,
+    icaoCode: legacyIcaoOutsideThePattern,
+    inOutboundPoints: [],
+  };
+  const locations: MockLocation[] = [migrated];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
+
+  await page.goto(`/locations/${migrated.id}/edit`);
+  await expect(page.getByTestId('locations-edit-form')).toBeVisible();
+  await expect(page.locator('#IcaoCode')).toHaveValue(legacyIcaoOutsideThePattern);
+
+  const icaoAlertEmittedOnlyWhenAnErrorKeyIsPresent = page
+    .locator('af-form-field')
+    .filter({ has: page.locator('#IcaoCode') })
+    .locator('af-field-errors [role="alert"]');
+  await expect(icaoAlertEmittedOnlyWhenAnErrorKeyIsPresent).toBeHidden();
+  await expect(page.getByTestId('locations-save-button').locator('button')).toBeEnabled();
+
+  await page.locator('#LocationName').fill('Birrfeld (renamed)');
+  const put = page.waitForRequest(
+    (req) => req.method() === 'PUT' && new URL(req.url()).pathname.endsWith(migrated.id),
+  );
+  await page.getByTestId('locations-save-button').click();
+  const sent = (await put).postDataJSON() as { icaoCode?: string };
+
+  expect(sent.icaoCode).toBe(legacyIcaoOutsideThePattern);
+  await expect(page).toHaveURL('/locations');
+  expect(locations.find((l) => l.id === migrated.id)?.locationName).toBe('Birrfeld (renamed)');
+  expect(locations.find((l) => l.id === migrated.id)?.icaoCode).toBe(legacyIcaoOutsideThePattern);
+});
+
+test('locations: changing a migrated Location ICAO to a non-conforming value disables Save', async ({
+  page,
+}) => {
+  const legacyIcaoOutsideThePattern = 'J0CX1';
+  const migrated: MockLocation = {
+    ...seedLocation,
+    icaoCode: legacyIcaoOutsideThePattern,
+    inOutboundPoints: [],
+  };
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend([migrated]));
+
+  await page.goto(`/locations/${migrated.id}/edit`);
+  await expect(page.getByTestId('locations-edit-form')).toBeVisible();
+
+  const icao = page.locator('#IcaoCode');
+  await icao.fill('J0CY1');
+  await icao.blur();
+
+  await expect(page.getByTestId('locations-save-button').locator('button')).toBeDisabled();
+
+  await icao.fill('LSZK');
+  await expect(page.getByTestId('locations-save-button').locator('button')).toBeEnabled();
+});
+
 test('locations: lowercase ICAO is uppercased on save', async ({ page }) => {
   const locations: MockLocation[] = [];
   await stubReferenceData(page);
