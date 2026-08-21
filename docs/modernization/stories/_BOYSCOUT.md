@@ -33,6 +33,20 @@ The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file th
 below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
 this file untouched.
 
+- **[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]** [S2] J-32 T-67 made a `git push` arm the fan-out and
+  made the gate wait for it, so no human triggers a run any more. The selftest scores 38 input classes,
+  but the **`push`-arm, wait and self-dispatch paths have never executed**: every fan-out in J-32 was a
+  `workflow_dispatch`, and no producer-tree change remained to arm the new trigger. The operator decided
+  on 2026-08-21 that the next journey touching a producer mapper is the real test. That journey must
+  **confirm the trigger fires** and the gate waits, and must not assume it did — authored infra can be
+  wired wrong in a way only an end-to-end run reveals
+  ([[feedback_verify_infra_is_run_not_just_authored]]). *(seam:
+  `.github/workflows/alpenflight-proof-fanout.yml` `on.push` + `fanout-parity-verdict.py` `resolve()`)*
+- **[E2E-HELPERS-ARE-LINTED-BY-NOTHING]** [S2] `alpenflight/web/e2e/tests/_helpers/**` sits outside
+  `angular.json` `lintFilePatterns`, so the helpers every spec depends on are gated by no lint. T-63
+  banned importing installer-named exports from `_helpers/` into a real-idp spec, which guards the
+  import but not the helper. T-68 then added a new helper there that nothing lints. *(seam:
+  `angular.json` `lintFilePatterns`; related to `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`)*
 - **[FANOUT-VERDICT-BLAMES-A-FIXED-RUN-WHILE-THE-NEW-ONE-RUNS]** [S2] When the newest covering fan-out
   run reads `STILL_RUNNING`, `fanout-parity-verdict.py` lets an older red decide and prints
   `PARITY_STEP_RED_SPEC_UNNAMED` with text that tells the developer to open the failed run. The gate
