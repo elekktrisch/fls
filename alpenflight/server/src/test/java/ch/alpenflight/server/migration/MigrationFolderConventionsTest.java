@@ -204,8 +204,16 @@ class MigrationFolderConventionsTest {
 
     private static final String SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION = "V54__";
 
+    private static final String SECURITY_REVIEWED_CLIENT_IP_REDACTION_GRANT_MIGRATION = "V60__";
+
+    private static final Set<String> SECURITY_REVIEWED_ROLE_PROVISIONING_MIGRATIONS =
+            Set.of(
+                    SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION,
+                    SECURITY_REVIEWED_CLIENT_IP_REDACTION_GRANT_MIGRATION);
+
     private static boolean isRoleProvisioningException(String filename, String patternText) {
-        return filename.startsWith(SECURITY_REVIEWED_MIGRATOR_ROLE_SPLIT_MIGRATION)
+        return SECURITY_REVIEWED_ROLE_PROVISIONING_MIGRATIONS.stream()
+                        .anyMatch(filename::startsWith)
                 && ROLE_PROVISIONING_PATTERNS.contains(patternText);
     }
 
@@ -250,14 +258,6 @@ class MigrationFolderConventionsTest {
                     .sorted()
                     .toList();
         }
-    }
-
-    private Path locateMigration(String filename) throws IOException {
-        URL folderUrl = getClass().getClassLoader().getResource("db/migration");
-        if (folderUrl == null) {
-            throw new IOException("db/migration resource folder not found");
-        }
-        return urlToPath(folderUrl).resolve(filename);
     }
 
     private List<Pattern> loadForbiddenPatterns() throws IOException {
