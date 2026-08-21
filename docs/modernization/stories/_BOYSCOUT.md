@@ -392,11 +392,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   `system_actor`, carrying it through the projection + the viewer's actor cell in the same change.
   `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` goes red either way and is the
   intended tripwire. *(seam: `AuditActorKind` + `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts`)*
-- **[AUDIT-ACTOR-CELL]** [S2] Same cell, separate nit: for an authenticated row `/system/logs` prints the raw
-  `actorUserId` UUID, and prints **nothing** when the principal has no `t_user` row (a federated sub the
-  lookup can't resolve — `ActorResolver` legitimately yields a null id while `system_actor` stays false). Give
-  the cell a username/display-name (or at minimum fall back to `actorKeycloakSub`) so an audit reader can tell
-  who acted. *(seam: `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts:187`)*
 
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 

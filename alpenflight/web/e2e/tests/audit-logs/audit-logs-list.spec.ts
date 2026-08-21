@@ -3,17 +3,41 @@ import { expect, test } from '../_helpers/console-guard';
 import type { AuditEventPage } from '../../../src/app/api/generated/model/auditEventPage';
 import type { AuditEventRow } from '../../../src/app/api/generated/model/auditEventRow';
 import { AuditEventRowAction } from '../../../src/app/api/generated/model/auditEventRowAction';
+import { AuditEventRowActorKind } from '../../../src/app/api/generated/model/auditEventRowActorKind';
+import type { UserListItem } from '../../../src/app/api/generated/model/userListItem';
+import de from '../../../src/i18n/de';
 
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
-const ACTOR_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000001';
+const ACTOR_USER_ID = '019e30c3-2c00-7100-8000-000000000001';
+const ACTOR_USERNAME = 'a.meier';
+const ACTOR_KEYCLOAK_SUB = '2b3f1d84-9c11-4c1e-9a5d-6f0f1a2b3c4d';
+const UNLISTED_ACTOR_KEYCLOAK_SUB = '7c4e2a19-3b55-4d02-8f61-5e0a9c8d7b6a';
 const USER_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000001';
 const ANONYMOUS_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000005';
+const SCHEDULED_JOB_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000006';
+const UNRESOLVED_ACTOR_ROW_ID = 'aud-019e30c3-2c00-7200-8000-000000000007';
+
+const ACTOR_LABEL = de.auditLogs.actor;
+
+const clubUsers: UserListItem[] = [
+  {
+    id: `usr-${ACTOR_USER_ID}`,
+    username: ACTOR_USERNAME,
+    friendlyName: 'Anna Meier',
+    notificationEmail: 'anna.meier@example.test',
+    roles: [],
+    enabled: true,
+    invitePending: false,
+  },
+];
 
 const succeededRowsCarryNoHttpStatus: AuditEventRow[] = [
   {
     id: USER_ROW_ID,
     occurredAt: '2026-07-20T08:15:00Z',
     actorUserId: ACTOR_USER_ID,
+    actorKeycloakSub: ACTOR_KEYCLOAK_SUB,
+    actorKind: AuditEventRowActorKind.NORMAL,
     tenantClubId: CLUB_A_ID,
     action: AuditEventRowAction.UPDATE,
     targetEntityType: 'Aircraft',
@@ -62,22 +86,51 @@ const failedRowCarriesTheRecordedHttpStatus: AuditEventRow = {
   httpStatus: 404,
 };
 
-const anonymousRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
+const anonymousPublicRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
   id: ANONYMOUS_ROW_ID,
   occurredAt: '2026-07-20T12:05:00Z',
+  actorKind: AuditEventRowActorKind.ANONYMOUS_PUBLIC,
   tenantClubId: CLUB_A_ID,
   action: AuditEventRowAction.CREATE,
   targetEntityType: 'PublicFlightRegistration',
   targetEntityId: CLUB_A_ID,
   afterState: { kind: 'DISCOVERY_FLIGHT', clubId: CLUB_A_ID },
   failed: false,
+  systemActor: false,
+};
+
+const scheduledJobRowCarriesNoActorIdentifierAtAll: AuditEventRow = {
+  id: SCHEDULED_JOB_ROW_ID,
+  occurredAt: '2026-07-20T13:10:00Z',
+  actorKind: AuditEventRowActorKind.SYSTEM,
+  tenantClubId: CLUB_A_ID,
+  action: AuditEventRowAction.PLANNING_NOTIFICATIONS_RUN,
+  targetEntityType: 'PlanningDay',
+  targetEntityId: 'pd-019e30c3-2c00-7600-8000-000000000001',
+  failed: false,
   systemActor: true,
+};
+
+const federatedActorRowResolvesToNoClubUser: AuditEventRow = {
+  id: UNRESOLVED_ACTOR_ROW_ID,
+  occurredAt: '2026-07-20T14:20:00Z',
+  actorKeycloakSub: UNLISTED_ACTOR_KEYCLOAK_SUB,
+  actorKind: AuditEventRowActorKind.NORMAL,
+  tenantClubId: CLUB_A_ID,
+  action: AuditEventRowAction.UPDATE,
+  targetEntityType: 'Club',
+  targetEntityId: CLUB_A_ID,
+  afterState: { name: 'SG Birrfeld' },
+  failed: false,
+  systemActor: false,
 };
 
 const seedRows: AuditEventRow[] = [
   ...succeededRowsCarryNoHttpStatus,
   failedRowCarriesTheRecordedHttpStatus,
-  anonymousRowCarriesNoActorIdentifierAtAll,
+  anonymousPublicRowCarriesNoActorIdentifierAtAll,
+  scheduledJobRowCarriesNoActorIdentifierAtAll,
+  federatedActorRowResolvesToNoClubUser,
 ];
 
 function setupAuditBackend(rows: AuditEventRow[]) {
@@ -140,19 +193,34 @@ test('audit-logs: /system/logs lists mutation-audit rows with filters + row deta
   await page.screenshot({ path: 'screenshots/audit-logs/01-list-populated.png', fullPage: true });
 });
 
-test('audit-logs: the actor column separates an anonymous write from a user mutation', async ({
+test('audit-logs: the actor column tells an authenticated user, an anonymous public submission and a scheduled job apart', async ({
   page,
 }) => {
   const rows = seedRows.map((r) => ({ ...r }));
   await page.route('**/api/v1/admin/audit-events**', setupAuditBackend(rows));
+  await page.route('**/api/v1/users', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(clubUsers),
+    }),
+  );
 
   await page.goto('/system/logs?lang=de');
 
-  const anonymous = page.locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`);
-  await expect(anonymous.getByTestId('audit-row-actor')).toHaveText('System');
-
   const user = page.locator(`[data-audit-id="${USER_ROW_ID}"]`);
-  await expect(user.getByTestId('audit-row-actor')).toHaveText(ACTOR_USER_ID);
+  await expect(user.getByTestId('audit-row-actor')).toHaveText(ACTOR_USERNAME);
+
+  const anonymous = page.locator(`[data-audit-id="${ANONYMOUS_ROW_ID}"]`);
+  await expect(anonymous.getByTestId('audit-row-actor')).toHaveText(ACTOR_LABEL.anonymousPublic);
+
+  const scheduledJob = page.locator(`[data-audit-id="${SCHEDULED_JOB_ROW_ID}"]`);
+  await expect(scheduledJob.getByTestId('audit-row-actor')).toHaveText(ACTOR_LABEL.system);
+
+  expect(ACTOR_LABEL.anonymousPublic).not.toBe(ACTOR_LABEL.system);
+
+  const federated = page.locator(`[data-audit-id="${UNRESOLVED_ACTOR_ROW_ID}"]`);
+  await expect(federated.getByTestId('audit-row-actor')).toHaveText(UNLISTED_ACTOR_KEYCLOAK_SUB);
 
   await page.screenshot({ path: 'screenshots/audit-logs/02-anonymous-actor.png', fullPage: true });
 });

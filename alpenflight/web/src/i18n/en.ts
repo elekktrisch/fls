@@ -123,6 +123,12 @@ const en: Translations = {
   },
   auditLogs: {
     title: 'Audit logs',
+    actor: {
+      anonymousPublic: 'Public form',
+      legacyMigrated: 'Migration',
+      system: 'System',
+      unknown: 'Unknown',
+    },
     columns: {
       action: 'Action',
       target: 'Target',
@@ -156,7 +162,6 @@ const en: Translations = {
       next: 'Next',
       page: 'From offset {{offset}}',
     },
-    systemActor: 'System',
   },
   common: {
     errors: {

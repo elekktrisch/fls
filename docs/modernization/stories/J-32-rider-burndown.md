@@ -300,7 +300,22 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
   - **Open for the operator:** where the product publishes this text, and in which languages. ADR
     0030 is still `PROPOSED` although T-08a and T-08b shipped its decision, and its question 3
     ("is the privacy-notice text in scope for the implementing journey?") is now answered.
-- [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
+- [x] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)
+  - **Done — the cell keys on `actorKind`, and the three kinds read differently on screen.** An
+    authenticated row reads the username (`a.meier`), an `ANONYMOUS_PUBLIC` row reads "Öffentliches
+    Formular", a `SYSTEM` row reads "System" and a `LEGACY_MIGRATED` row reads "Migration".
+    `audit-actor-cell.ts` holds the whole rule, so `audit-actor-cell.spec.ts` scores the rendered text
+    against the shipped German labels of `de.ts`, the fallback case included.
+  - **The username comes from the club user projection, and it costs one request per screen.**
+    `AuditLogsStore.loadActorUsernames` calls `GET /api/v1/users` once and keys `username` on the raw
+    `actorUserId`, because `UserListItem.id` carries the `usr-` prefix and the audit row does not. The
+    page fires no per-row lookup. `clubAdminGuard` and the endpoint share the `CLUB_ADMINISTRATOR`
+    role, so the caller who reads the screen can also read the projection.
+  - **The remaining gap, scoped.** No projection maps an `actorKeycloakSub` to a name. A federated
+    principal with no `t_user` row, and an actor from another club (the `AUDIT_LOG` tenant-bypass
+    grant), both fall back to the raw sub. To name them, `AuditQueryService.toRow` must carry an
+    `actorDisplayName` resolved by one batched `keycloak_sub IN (…)` read. That crosses the
+    audit→users Modulith boundary and changes the API shape, so it is a separate task, not this seam.
 - [ ] T-10 — thicken the spec to full assertions for ACs 1-5; drive it green locally
 - [ ] T-11 — [S1] `[MONEY-PROOF-CAPTION-OVERCLAIMS]` — assert the balance equality or correct the caption
 - [ ] T-12 — [S1] producer dedupe is soft-delete-blind: scope the dedupe source, extend the dedupe IT
