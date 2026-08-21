@@ -27,6 +27,97 @@ came from real `gap-hunter` and worker findings. **J-32 (hardening) now owns dra
 **[S1]** security / tenancy / correctness / money · **[S2]** coverage gap / silent-failure risk ·
 **[S3]** cosmetic / dead code / doc.
 
+## Pending (filed by /do-ship J-32 close-out, 2026-08-21)
+
+The operator decided on 2026-08-21 to ship J-32 on its S1 work and to re-file the S2 tail. Each bullet
+below names a defect a J-32 task found and did not fix. J-32 also leaves the carve-time S2 riders in
+this file untouched.
+
+- **[FANOUT-PUSH-ARM-IS-AUTHORED-BUT-NEVER-FIRED]** [S2] J-32 T-67 made a `git push` arm the fan-out and
+  made the gate wait for it, so no human triggers a run any more. The selftest scores 38 input classes,
+  but the **`push`-arm, wait and self-dispatch paths have never executed**: every fan-out in J-32 was a
+  `workflow_dispatch`, and no producer-tree change remained to arm the new trigger. The operator decided
+  on 2026-08-21 that the next journey touching a producer mapper is the real test. That journey must
+  **confirm the trigger fires** and the gate waits, and must not assume it did — authored infra can be
+  wired wrong in a way only an end-to-end run reveals
+  ([[feedback_verify_infra_is_run_not_just_authored]]). *(seam:
+  `.github/workflows/alpenflight-proof-fanout.yml` `on.push` + `fanout-parity-verdict.py` `resolve()`)*
+- **[E2E-HELPERS-ARE-LINTED-BY-NOTHING]** [S2] `alpenflight/web/e2e/tests/_helpers/**` sits outside
+  `angular.json` `lintFilePatterns`, so the helpers every spec depends on are gated by no lint. T-63
+  banned importing installer-named exports from `_helpers/` into a real-idp spec, which guards the
+  import but not the helper. T-68 then added a new helper there that nothing lints. *(seam:
+  `angular.json` `lintFilePatterns`; related to `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`)*
+- **[FANOUT-VERDICT-BLAMES-A-FIXED-RUN-WHILE-THE-NEW-ONE-RUNS]** [S2] When the newest covering fan-out
+  run reads `STILL_RUNNING`, `fanout-parity-verdict.py` lets an older red decide and prints
+  `PARITY_STEP_RED_SPEC_UNNAMED` with text that tells the developer to open the failed run. The gate
+  blocks correctly — an unproven parity must not merge — but the message names the wrong thing: the old
+  red may already be fixed by the very commit under test, as it was on `a999eda96`. Give the transient
+  case its own verdict that says the covering run is still running and names it. *(seam:
+  `.github/scripts/fanout-parity-verdict.py` `decide()` + `READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR`)*
+- **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
+  directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
+  **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
+  `e2e/tests/public/signup.spec.ts:77,87,96,105,125,144`, all `sessionStorage` inside `page.evaluate`,
+  which looks like a false positive of an app-side rule. T-63 refused to silence the rule to widen the
+  gate, which was correct. Decide the rule first, then widen the lane. *(seam: `angular.json`
+  `lintFilePatterns` + the app-side rule)*
+- **[GATING-LANE-SKIP-HAS-NO-GUARD]** [S2] T-65 deleted a `test.skip` that hid the migrated-copy rename
+  from the gating fan-out lane for months. Nothing stops the next author adding one. A
+  `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
+  would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
+  its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
+- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S2] `AuditTrailService.java:83` classifies a **failed**
+  anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
+  `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
+  tell from a cron row. That is the case `[ANON-WRITE-ATTRIBUTION]` named as its motivation, so the
+  motivating case stays open. *(seam: `AuditTrailService.recordFailed` + `RequestAuditFilter`)*
+- **[UNDECIDED-AUDIT-SNAPSHOT-FIELDS]** [S2] The T-45 guard found **fifteen** more audit call sites that
+  pass a snapshot whose class the recorded `entityType` does not describe — Article, PlanningDay,
+  EmailTemplate, UserRole, PersonLookup, User and Delivery among them. Each row renders almost empty,
+  because an unmatched type gets an empty allow-set. The sites are pinned in
+  `alpenflight/server/config/audit/undecided-audit-snapshot-fields.txt`. Decide each one, as T-45 did for
+  its five. *(seam: the audit call sites + `application.yml` redaction config)*
+- **[OGN-SYNC-SWALLOWS-ITS-OWN-FAILURE]** [S2] `HttpOgnDeviceDatabase.java:53` catches `RuntimeException`
+  and reports the aircraft device sync as a success. The job writes nothing and says it worked. T-07d
+  found this while it enumerated the `ObjectProvider` injection shape. *(seam: `HttpOgnDeviceDatabase`)*
+- **[AUDIT-LOGS-STORE-403-FALLS-BACK-SILENTLY]** [S2] `audit-logs.store.ts:93` calls `listUsers`, which
+  admits `CLUB_ADMINISTRATOR` only, while `/system/logs` admits `SYSTEM_ADMINISTRATOR` too
+  (`AuditAdminController.java:28`). A system administrator gets a 403, the store falls back to the raw
+  subject, and the console guard probably reds. *(seam: `audit-logs.store` + `UsersController`)*
+- **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
+  rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
+  operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
+- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S2] `AuditLogMapper` declares no
+  `foreignKeyColumns()`, so `ForeignKeyResolver` looks for the conventional `user_id` while the wire field
+  is `actor_user_id`. This is latent only because `AUDIT_LOG` is unregistered; it bites when it ships.
+- **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
+  behind it. T-10 found it while it drove the proof spec. *(seam: the nav overlay)*
+- **[J-32-GATE-NITS]** [S2] Four nits the mid-journey `gap-hunter` round raised and J-32 did not fix: the
+  impersonation guard exempts all of `ClubsController` when only `deleteClub` needs it, so `updateClub`
+  could lose `@tenant.isOwnClub` and pass; `ClientIpRetentionIT` asserts 90 days plus a margin, so only the
+  unit test hits the true boundary; and `ClientIpRedaction.java:38` re-checks a window the query already
+  filtered, which no input can reach.
+
+## Pending (filed by /do-ship J-32 T-03, 2026-08-20)
+
+- **[REQUEST-TENANT-HINT-HAS-NO-PRODUCER-LEFT]** [S2] T-03 deleted `AuditTargetTenantInterceptor`. That
+  interceptor was the only writer of a `RequestTenantHint` attribute that outlives the handler, because it
+  never restored the attribute. `Tenants.runAs` writes the same attribute, but it restores the prior value in
+  its `finally` block. `RequestAuditFilter` reads the attribute in the outermost `finally`, after every
+  `runAs` unwound, so `RequestTenantHint.currentForRequest` now always answers null. The
+  `targetTenantHint != null` branch at `alpenflight/server/src/main/java/ch/alpenflight/audit/web/RequestAuditFilter.java:80-91`
+  is unreachable. Decide: delete `RequestTenantHint` and that branch, then drop `RequestAuditFilter` from the
+  `TenantsRunAsAllowlistTest` allow-list — or keep the hint and give it a producer. [ADR 0008](../adrs/0008-multi-tenancy-mechanism.md)
+  §Amendment S-159 names `RequestAuditFilter` as an in-process `runAs` seam, so the deletion needs the
+  operator. *(seam: `RequestTenantHint` + `RequestAuditFilter` + `TenantsRunAsAllowlistTest`)*
+- **[ARCHUNIT-AND-NULLAWAY-DEMO-GATES-NEVER-RUN]** [S2] `verifyArchUnitFailsOnViolation`
+  (`alpenflight/server/build.gradle.kts:339`) and `verifyNullAwayFailsOnViolation` (`:146`) both prove that a
+  guard reds on a planted violation. Neither task depends on `check`, and `ci.yml:583` runs only
+  `./gradlew build`, so neither has ever run in CI. The `src/archDemo/java` and `src/nullawayDemo/java`
+  violations are therefore unscored. Wire both into `check`, or delete the two source sets and their tasks.
+  Same class as the `extract.yml` hole: the repository authors a gate and never runs it.
+  *(seam: `alpenflight/server/build.gradle.kts` check wiring)* [[feedback_verify_infra_is_run_not_just_authored]]
+
 ## Pending (filed by /do-retro J-19 window, 2026-08-19)
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
@@ -125,12 +216,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   user through the Keycloak admin API (`join-request.spec.ts:57-62`). J-19 found this while fixing a
   stale assertion that had named the pre-J-12a landing path. Not J-19's surface (password recovery),
   so it rides the next journey over the signup funnel. *(seam: a real-idp spec for bare `/signup`)*
-- **[FANOUT-RED-IS-INVISIBLE]** [S2] `alpenflight proof fan-out` failed on 8 consecutive scheduled
-  runs (2026-08-08 to 2026-08-15) and nothing surfaced it; the operator learned it from the J-19
-  carve. A scheduled red gates no PR. J-30 gave the nightly loud surfacing and the fan-out never got
-  it. Give the fan-out the same treatment, or fold its verdict into a surface the operator already
-  reads. *(seam: `alpenflight-proof-fanout.yml` result surfacing)*
-  [[project_nightly_e2e_dead_stack_silent_hang]]
 
 ## Pending (filed by /do-ship J-31 T-14, 2026-08-15)
 
@@ -236,23 +321,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-11, 2026-08-15)
 
-- **[MONEY-PROOF-CAPTION-OVERCLAIMS]** [S1] `deliveries-write-parity.spec.ts`'s `[money-proof]` **gallery caption**
-  reads "asserting the actual balance == original − glider − tow", but the spec asserts
-  `drawdown > ONE_PASS_SECONDS` — an inequality, not the arithmetic. The caption is what the operator reads in
-  the proof gallery, so the gallery has been advertising a balance-equality proof that was never made, on an
-  accounting surface. Either assert the equality or correct the caption; a proof artifact must claim only what
-  it shows. *(seam: that spec's assertion + its `proofVideo` caption)*
-- **[SPEC-TITLES-OVERCLAIM — the AC is where two of them live]** [S2] Six spec titles claimed more than their
-  assertions and were retitled in-journey. Two were left alone because they mirror story ACs verbatim, which
-  means the **AC** over-claims: `[happy] time-range filter narrows to events in range` (J-13 AC line 15) only
-  proves that a future from-bound empties the list and clearing restores it; `[edge] non-admin cannot reach
-  /join-requests (403 / redirect)` (J-12b AC) proves the redirect and absent nav entries, never a 403 status.
-  Fix the ACs or the specs. Same family as [VACUOUS-NARROWING-ASSERTIONS]. *(seam: those two ACs + specs)*
-- **[REAL-IDP-SPECS-MUST-NOT-page.route]** [S2] The real-idp parity specs carried a header invariant — "NO mocking on
-  the happy + key-error paths; a `page.route` interception would defeat the seam" — enforced only by that prose.
-  It is now gone, and nothing forbids a future `page.route` in a real-idp spec, which would silently convert a
-  full-chain proof into a mocked one. This one **is** cheaply enforceable: an eslint rule banning `page.route`
-  under `e2e/tests/real-idp/`. *(seam: an eslint override for that directory)*
 - **[PERSONS-DETAIL-ROUTE-MAY-BE-SHADOWED]** [S2] `forms/validation-hardening.spec.ts:150-154` registers a persons
   **detail** route first and a broad `**/api/v1/persons**` list glob after. Playwright is last-registered-wins
   and the broad glob also matches `/api/v1/persons/{id}`, so the list array may be serving the detail GET. The
@@ -261,47 +329,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-10, 2026-08-15)
 
-- **[DEAD-BUT-WIRED-IMPERSONATION-INTERCEPTOR — needs a security decision]** [S1] `@AuditTargetTenant` has **zero
-  usages repo-wide**, yet `AuditTargetTenantInterceptor` **is wired onto `/api/v1/**`** by `TenancyWebMvcConfig`.
-  The comment the sweep deleted said there is no production caller (the S-049c impersonation surface was
-  withdrawn in S-159) and, verbatim, **"DO NOT WIRE WITHOUT SECURITY REVIEW"**. That warning now exists
-  nowhere in the code. Decide: delete the annotation + interceptor + config registration, or wire it
-  deliberately with the review the comment demanded. Related: `Tenants.runAs` has **no HTTP entry point** by
-  design — `TenantBypassGuardTest` guards the carrier, but nothing guards the *absence* of an impersonation
-  controller. *(seam: `@AuditTargetTenant` + `AuditTargetTenantInterceptor` + `TenancyWebMvcConfig`)*
-- **[CLUBSPEC-MUST-NOT-CARRY-DEPLOYMENT-ID]** [S1] `ClubSpec` deliberately has **no `deploymentId` component**: the
-  bundle-envelope mapper must strip any inbound `deployment_id`, or a crafted migration bundle smuggles a Club
-  into **another user's Deployment**. That was recorded only in a comment the sweep deleted, and it is an
-  invariant enforced by an *absence* — nothing fails if someone adds the field. Wants an arch/IT assertion that
-  `ClubSpec` carries no deployment-scoped component. *(seam: `ClubSpec` + the bundle-envelope mapper)*
-- **[LOST-INVARIANTS-NEED-GUARDS]** [S1] The comments this sweep could NOT convert into names were
-  disproportionately **warnings against plausible future changes** — each an invariant a well-meaning
-  refactor breaks *silently*, and for which a comment was already a weak guard. Give the load-bearing ones
-  an arch test or an IT so the machine holds them:
-  - **Three "deliberately NOT `@Transactional`" cases**, each of which someone will add for consistency:
-    `JoinRequestsService.latestForCaller` (Hibernate binds tenant at session-open, so a method-level tx pins
-    the session to `NO_TENANT` and the read inside `Tenants.runAs` misses);
-    `DailyFlightValidationJob.runForCurrentClub` (one bad flight must not poison the club's batch); and
-    `LifecycleTransitionAuditListener`'s plain `@EventListener` (the audit port already opens its own
-    fresh-tx listener; double-deferring pushes the row past the actor resolver's boundary).
-  - **`Tenants.runAs` must stay OUTSIDE the `TransactionTemplate`** in `FlightReportRebuildService` — same
-    session-open tenant binding.
-  - **`JoinRequestTxWriter` exists only** so the `@Transactional` boundary nests inside `Tenants.runAs`
-    (self-invocation would skip the proxy advice); inlining it looks like a simplification.
-  - **`FlightInitialState.resolveSeeds`** wraps a `TransactionTemplate` inside `@PostConstruct` because the
-    EntityManager needs a bound JDBC session — dropping the "redundant" wrapper breaks **boot**, not tests.
-  - **`AircraftRepository.flush()`** cannot be renamed (Spring Data binds `JpaRepository.flush()` by name),
-    so the reason has NO in-code trace at all: `save()` on a managed parent routes through `em.merge`, which
-    cascades by *copying* transient children, leaving the caller's child reference without its generated UUID.
-  - **`AuditEventDtos.AuditEventRow.beforeState`/`afterState` are `Map<String,Object>` not `String`** so
-    OpenAPI codegen emits free-form JSON objects; "simplifying" to `String` silently changes the generated
-    client contract.
-  - **`FlightsService.createFlight`** reads the operating club from `TenantContextCarrier`, not
-    `saved.getOperatingClubId()`, because the `@TenantId` discriminator is not reliably populated back onto
-    the in-memory entity post-save.
-  - **`HttpOgnDeviceDatabase`** must not inject `RestClient.Builder` — that passes `@SpringBootTest` and kills
-    the **boot jar** ([[project_test_classpath_hides_boot_failures]]). Partially rescued into a method name.
-  *(seam: arch tests / ITs for the above, in `server/src/test/java/ch/alpenflight/arch`)*
 - **[PACKAGE-INFO-DOMAIN-VOCABULARY-LOST]** [S3] The `package-info.java` files are now bare `@NullMarked` /
   `@ApplicationModule` declarations. Layering stays ArchUnit-enforced and tenancy stays structural, but the
   **domain vocabulary** went with them — notably the aircraft three-axis ownership model
@@ -312,20 +339,11 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   callers** in `src/main`, `src/test` or e2e; the deleted comment claimed "Called by the user-deactivation
   flow". Wire it into user deactivation or delete it. *(seam: `ActorResolver` + the deactivation flow)*
 
-
-
 - **[REQUEST-ID-NEVER-LOGGED]** [S2] `RequestIdFilter` puts MDC key **`requestId`**; `logback-spring.xml:11` renders
   **`%X{request_id:-}`**. They do not match, so the reserved request-id placeholder in every log line has
   **always been empty** — request tracing has never worked. The comment the sweep deleted asserted the two
   matched, which is presumably why nobody checked. One-character-class fix, but it changes log output, so it
   did not ride a comment sweep. *(seam: `RequestIdFilter` MDC key ↔ `logback-spring.xml`)*
-- **[AUDIT-REDACTION-BINDS-FIELD-NAMES-AS-STRINGS]** [S1] `application.yml`'s `audit.redaction.entities.*.allow` /
-  `denyAll` lists **Java field names as strings**, matched at runtime via `Field.getName()` in `PiiRedactor`.
-  Renaming a field on any audited entity silently flips it to `[redacted]` in the audit trail — **no compile
-  check catches it**, and the symptom is missing audit data, not a red build. This blocked two otherwise-obvious
-  `Club` renames in T-10. Give it a pin: bind by a constant/enum the compiler can see, or add a startup guard
-  asserting every configured name resolves to a real field. *(seam: `PiiRedactor` ↔ `application.yml` redaction
-  config)*
 - **[SERVER-MAIN-SWEEP-NITS]** [S3] Four pre-existing nits the strip exposed, none touched (all would change
   behaviour or a CI-verified artifact): delivery eligibility (`LOCKED` + billable type + `created_on <= today-3d`)
   lives in `DeliveryCreationService.eligibleFlights` rather than on an aggregate, in tension with ADR 0022 §2;
@@ -371,12 +389,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-31 T-07, 2026-08-14)
 
-- **[MANIFEST-TENANT-BYPASS-COUNT]** [S1] `ManifestTenantBypassAllowListTest.java:23` — the deleted comment named
-  **eleven** allow-listed tenant-bypass entries; the list actually holds **twelve**. Either the comment rotted
-  or an entry was added without the deliberation the allow-list exists to force. The open question is whether
-  **`AUDIT_LOG`** is a deliberate bypass. A tenant-bypass allow-list is exactly the kind of list where a
-  silently-grown entry is a tenancy leak, so this needs an answer, not a re-counted comment. *(seam: the
-  bypass allow-list + its test)*
 - **[MIGRATION-BUNDLE-DEAD-EDGES]** [S3] Three nits the strip exposed, each pre-existing: `UserMapper.java:19`
   `LEGACY_SYSTEM_USER_ID` is `public` with **zero references** (duplicate of the bindings GUID);
   `migration-bundle/build.gradle.kts:51` carried an archunit-1.4.2-vs-Java-25 workaround whose rationale died
@@ -393,23 +405,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
   establishing which, because a spec that passes on CI and fails locally erodes trust in both.
   Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
-
-
-- **[ANON-WRITE-ATTRIBUTION]** [S1] J-17 shipped the app's first unauthenticated write endpoints **and** an abuse guard, but
-  `/system/logs` cannot tell an anonymous internet registration from a cron job: `system_actor=true`, both actor ids null,
-  and **no client IP is recorded anywhere** (`PublicRegistrationTxWriter.java:147`; `AnonymousActorProjectionIT:143` pins
-  that `actor_kind` does not separate them). So if the guard trips, the audit trail cannot say who. Recording a client IP
-  on anonymous writes is a **privacy decision, not just a schema one** (personal data under GDPR — retention window,
-  redaction, and whether it belongs in the audit table at all), which is why this was filed for the operator rather than
-  fixed in-journey.
-  **ADJUDICATED (operator, /do-retro 2026-08-14) — build it as:** `actor_kind = ANONYMOUS_PUBLIC` (distinct from a
-  system/cron actor, `system_actor=false`), **plus the raw `client_ip`** recorded on anonymous public-registration
-  writes ONLY — never on authenticated ones. **Retention 90 days**: a scheduled job nulls `client_ip` on rows older
-  than that and **keeps the audit row** (redaction, not deletion — the trail survives, the personal data does not).
-  Redaction on request must be possible ahead of the window. Ships with a privacy-notice entry naming the purpose
-  (abuse investigation), the 90-day window, and the redaction path — the notice is part of the AC, not a follow-up.
-  `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` is the intended tripwire and goes red.
-  *(seam: audit actor columns + the anonymous write path + a retention job)*
 
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
@@ -445,11 +440,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   `system_actor`, carrying it through the projection + the viewer's actor cell in the same change.
   `AnonymousActorProjectionIT.actor_kind_does_not_separate_the_two_rows` goes red either way and is the
   intended tripwire. *(seam: `AuditActorKind` + `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts`)*
-- **[AUDIT-ACTOR-CELL]** [S2] Same cell, separate nit: for an authenticated row `/system/logs` prints the raw
-  `actorUserId` UUID, and prints **nothing** when the principal has no `t_user` row (a federated sub the
-  lookup can't resolve — `ActorResolver` legitimately yields a null id while `system_actor` stays false). Give
-  the cell a username/display-name (or at minimum fall back to `actorKeycloakSub`) so an audit reader can tell
-  who acted. *(seam: `AuditEventDtos.AuditEventRow` + `audit-logs-list.page.ts:187`)*
 
 ## Pending (filed by /do-ship J-30 gate, 2026-07-22)
 
@@ -525,20 +515,6 @@ safety step. **Each rider rides the next touch of its form.**
   fanout red is diagnosable without server-log archaeology (J-6 23505/23503 each cost a log-dig). Keep prod
   masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
   [[project_synth_bundle_doesnt_validate_producer_select]]
-
-## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
-
-- **Producer dedupe is soft-delete-blind (gap-hunter, J-6 T-11b/T-16).** [S1] The PLANNING_DAY (and the
-  assignment FIRST_VALUE remap) producer SELECT partitions across ALL legacy `PlanningDays` rows with NO
-  `WHERE DeletedOn IS NULL` filter, but `ux_pln_club_date_loc` is PARTIAL (`WHERE deleted_on IS NULL`,
-  V4:303-305). If a `(Club,Day,Loc)` partition ever held an earlier-`CreatedOn` *deleted* row + a later
-  *live* row, `ROW_NUMBER ORDER BY CreatedOn` keeps the DELETED one → silently drops the live planning day
-  (the partial index would never have collided). **Neutralized for J-6**: legacy `PlanningDayService.cs:407`
-  HARD-deletes planning days, so `DeletedOn`/`IsDeleted` are vestigially never set — no soft-deleted days
-  exist to trigger it. **Fix before this dedupe pattern is copied to a SOFT-deleting table:** add
-  `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
-  deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
-  MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
 
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
@@ -657,18 +633,3 @@ safety step. **Each rider rides the next touch of its form.**
   all mint a fresh id (the T-19 wall). Such pinned-id seeds keep their raw `INSERT` (documented inline), citing
   the `tenancy-showcase-seed-deterministic-ids` native-sql-register precedent. *(seam: `server/src/test`, per-touch)*
 
-## Pending (J-9-filed, UPDATED by J-10 2026-06-15 — the fanout now runs end to end)
-
-**⚠ BLOCKS the next MIGRATION journey** (hard fanout gate, J-9 retro). Fold into the next migration journey
-(J-1 / J-21, whichever ships first):
-
-- **J-9 article-5001 — the migrated FlightTime filter emits no article-5001 line.** [S1] T-07's poll-to-COMPLETED
-  did NOT resolve it (so it's not just deployment timing) — the migrated "FlightTime: Glider per minute"
-  filter genuinely isn't applying over the migrated glider flight. Investigate the migrated filter's
-  predicate/scope vs the migrated flight. T-08 strengthened the assertion to bit-exact (`=== 47`), so it
-  fails loud. *(`delivery-creation-test-parity.spec.ts` migrated block)*
-- **J-8 AccountingRuleFilter migrated predicate config not intact.** [S1] `accounting-rules-parity.spec.ts:524`
-  — the migrated filter renders but its `filter_config` predicate doesn't match legacy (an
-  AccountingRuleFilter migration-fidelity gap). *(`accounting-rules-parity.spec.ts` + the filter mapper)*
-- **J-0c Location migrated render.** [S2] `fan-out-migration-parity.spec.ts:167` fails — investigate the migrated
-  Location render. *(`fan-out-migration-parity.spec.ts`)*

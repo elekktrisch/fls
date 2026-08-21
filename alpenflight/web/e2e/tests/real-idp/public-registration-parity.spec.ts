@@ -13,6 +13,7 @@ import {
   testId,
 } from '../public-registration/_helpers/public-registration-form';
 import { enterClubSettingsViaNav, enterViaNav } from '../_helpers/nav';
+import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 import { fillKcLogin } from './_helpers/kc-form';
 import { waitForExactlyOneMessage, waitForMessageWithBody } from './_helpers/mailpit-client';
 import { proofVideo } from './_helpers/proof-video';
@@ -51,7 +52,6 @@ const RESERVATION_SKIP_HOMEBASE_WORD = 'Heimflugplatz';
 
 const AUDIT_REGISTRATION_TARGET = 'PublicFlightRegistration';
 const AUDIT_AUTHENTICATED_ACTOR_TARGET = 'Location';
-const AUDIT_SYSTEM_ACTOR = 'System';
 
 const AUDIT_TESTID = {
   table: 'audit-logs-table',
@@ -787,6 +787,11 @@ test.describe('public registration — error contract + abuse guard', () => {
       await expect(page).toHaveURL('/system/logs');
       await expect(page.getByTestId(AUDIT_TESTID.table)).toBeVisible();
 
+      const anonymousPublicActorLabel = await labelInTheLocaleTheSessionRenders(
+        page,
+        (translations) => translations.auditLogs.actor.anonymousPublic,
+      );
+
       await filterAuditTarget(page, AUDIT_REGISTRATION_TARGET);
       await page.screenshot({
         path: `${testInfo.outputDir}/audit-anonymous-registration.png`,
@@ -797,12 +802,12 @@ test.describe('public registration — error contract + abuse guard', () => {
       const anonymousCount = await anonymousActors.count();
       expect(anonymousCount, 'the accepted submission left an audit entry').toBeGreaterThan(0);
       for (let i = 0; i < anonymousCount; i += 1) {
-        await expect(anonymousActors.nth(i)).toHaveText(AUDIT_SYSTEM_ACTOR);
+        await expect(anonymousActors.nth(i)).toHaveText(anonymousPublicActorLabel);
       }
 
       await filterAuditTarget(page, AUDIT_AUTHENTICATED_ACTOR_TARGET);
       const staged = page.getByTestId(AUDIT_TESTID.rowActor).first();
-      await expect(staged).not.toHaveText(AUDIT_SYSTEM_ACTOR);
+      await expect(staged).not.toHaveText(anonymousPublicActorLabel);
       await expect(staged, 'an authenticated row names its actor').not.toBeEmpty();
     } finally {
       await ctx.close();

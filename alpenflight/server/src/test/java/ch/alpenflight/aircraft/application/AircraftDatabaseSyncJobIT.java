@@ -12,8 +12,10 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,11 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     private static final String IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS = "HB-3000";
 
     private static final String IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS = "HB-9999";
+
+    private static final String IMMATRICULATION_THE_FIXTURE_GIVES_A_REJECTED_COMPETITION_SIGN =
+            "HB-9998";
+
+    private static final String REJECTED_COMPETITION_SIGN_MESSAGE = "competitionSign must match";
 
     private static HttpServer ddbServer;
 
@@ -61,7 +68,8 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
     void removeOurFixtureAircraft() {
         seeded.clear();
         dropSeeded(IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS,
-                IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS);
+                IMMATRICULATION_ONLY_THE_FIXTURE_KNOWS,
+                IMMATRICULATION_THE_FIXTURE_GIVES_A_REJECTED_COMPETITION_SIGN);
     }
 
     @AfterEach
@@ -104,6 +112,34 @@ class AircraftDatabaseSyncJobIT extends PostgresIntegrationTest {
         assertThat(summary.unmatchedCount()).isGreaterThanOrEqualTo(1);
     }
 
+
+    @Test
+    void runScheduled_rollsBackTheAircraftItAlreadySaved_whenALaterAircraftOfTheSameRunFails() {
+        UUID savedBeforeTheFailure = seedAircraft(IMMATRICULATION_WE_OWN_AND_THE_FIXTURE_KNOWS);
+        UUID rejectedLaterInTheSameRun =
+                seedAircraft(IMMATRICULATION_THE_FIXTURE_GIVES_A_REJECTED_COMPETITION_SIGN);
+
+        try {
+            job.runScheduled();
+        } catch (RuntimeException failureThatReachedTheScheduledEntryPoint) {
+            assertThat(failureThatReachedTheScheduledEntryPoint)
+                    .hasMessageContaining(REJECTED_COMPETITION_SIGN_MESSAGE);
+        }
+
+        assertThat(registryValuesOf(savedBeforeTheFailure))
+                .as("the scheduled entry point must open a real transaction, so the aircraft that "
+                        + "the run saved before the failure keeps no registry value")
+                .containsOnlyNulls();
+        assertThat(registryValuesOf(rejectedLaterInTheSameRun))
+                .as("the aircraft that the domain rejected keeps no registry value either")
+                .containsOnlyNulls();
+    }
+
+    private List<@Nullable String> registryValuesOf(UUID aircraftId) {
+        Aircraft found = aircraft.findActiveById(aircraftId).orElseThrow();
+        return Arrays.asList(
+                found.getFlarmId(), found.getAircraftModel(), found.getCompetitionSign());
+    }
 
     private long countOf(String immatriculation) {
         Long v = jdbc.queryForObject(

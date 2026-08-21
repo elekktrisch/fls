@@ -499,16 +499,25 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
 
       let hb3256Items: DeliveryItem[] | undefined;
       let hb3256FlightId: string | undefined;
+      const whatTheEngineReturnedPerMigratedGliderFlight: string[] = [];
       for (const flight of gliderFlights) {
         const exampleRes = await ctx.request.get(`${DCT}/example/${flight.id}`, {
           headers: { authorization: migratedBearer },
         });
         if (exampleRes.status() !== 200) {
+          whatTheEngineReturnedPerMigratedGliderFlight.push(
+            `${flight.id} → HTTP ${exampleRes.status()}, so the engine produced no items at all`,
+          );
           continue;
         }
         const items =
           ((await exampleRes.json()) as { delivery?: { items?: DeliveryItem[] } }).delivery
             ?.items ?? [];
+        whatTheEngineReturnedPerMigratedGliderFlight.push(
+          `${flight.id} → HTTP 200 with [${items
+            .map((i) => `${i.articleNumber} "${i.itemText}"`)
+            .join(' | ')}]`,
+        );
         if (
           items.some(
             (i) => i.articleNumber === MIGRATED_FT_ARTICLE && i.itemText === MIGRATED_FT_ITEM_TEXT,
@@ -524,9 +533,12 @@ test.describe('Delivery creation test harness — migrated inputs drive the engi
         hb3256Items,
         `the engine, run over the MIGRATED HB-3256 glider flight, must emit its genuine FlightTime line ` +
           `(article ${MIGRATED_FT_ARTICLE}, "${MIGRATED_FT_ITEM_TEXT}") — proving the migrated J-8 filters + ` +
-          `J-2 flight drive the rules engine end to end over genuine legacy seed. A missing line after the ` +
-          `deployment is COMPLETED (the shared-bundle ingest polls to terminal before this read) means the ` +
-          `migrated filters did not match the migrated flight, not a read race.`,
+          `J-2 flight drive the rules engine end to end over genuine legacy seed. The deployment is ` +
+          `COMPLETED before this read (the shared-bundle ingest polls to terminal), so this is never a read ` +
+          `race. Read the per-flight engine result below BEFORE you suspect the filter predicate: an HTTP ` +
+          `5xx means the engine refused the migrated inputs and suppressed every item, which J-27 T-09 ` +
+          `proved is a different defect from a predicate that does not match. The engine returned ` +
+          `${whatTheEngineReturnedPerMigratedGliderFlight.join('; ')}`,
       ).toBeTruthy();
 
       const ftLines = hb3256Items!.filter(

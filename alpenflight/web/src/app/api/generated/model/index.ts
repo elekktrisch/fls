@@ -43,6 +43,7 @@ export * from './articleUpdateRequest';
 export * from './auditEventPage';
 export * from './auditEventRow';
 export * from './auditEventRowAction';
+export * from './auditEventRowActorKind';
 export * from './auditEventRowAfterState';
 export * from './auditEventRowBeforeState';
 export * from './clubCreateRequest';

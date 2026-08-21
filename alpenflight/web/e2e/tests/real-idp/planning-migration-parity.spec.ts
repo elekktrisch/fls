@@ -32,6 +32,7 @@ import {
   purgeMailpit,
 } from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
+import { labelInTheLocaleTheSessionRenders } from '../_helpers/rendered-locale';
 
 const PLANNINGDAYS = '/api/v1/planning-days';
 
@@ -202,8 +203,13 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       await loginAsReservationAdmin(page);
 
       await page.goto('/planning?lang=de');
-      await expect(page.locator('h1')).toContainText('Planung');
       await expect(page.getByTestId('planning-list')).toBeVisible();
+      await expect(page.locator('h1')).toContainText(
+        await labelInTheLocaleTheSessionRenders(
+          page,
+          (translations) => translations.planning.title,
+        ),
+      );
       await expect(
         page.locator('[data-testid^="planning-row-"][data-weekend="true"]').first(),
         'the V34 weekend seed day renders flagged on the future-days list',

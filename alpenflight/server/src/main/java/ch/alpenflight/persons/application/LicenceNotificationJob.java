@@ -5,6 +5,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -16,6 +17,7 @@ import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,20 +49,23 @@ public class LicenceNotificationJob implements BusinessJob {
 
     private final PersonRepository persons;
     private final TemplatedMailService mail;
+    private final SelfProxy<LicenceNotificationJob> self;
     private final Clock clock;
 
     public LicenceNotificationJob(PersonRepository persons,
                                   TemplatedMailService mail,
+                                  ObjectProvider<LicenceNotificationJob> self,
                                   Clock clock) {
         this.persons = persons;
         this.mail = mail;
+        this.self = SelfProxy.around(self);
         this.clock = clock;
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        runOnce();
+        self.soTheTransactionalBoundaryApplies().runOnce();
     }
 
     @Override

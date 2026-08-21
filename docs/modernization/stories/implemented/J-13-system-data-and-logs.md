@@ -12,7 +12,7 @@ rolls_up: [S-056, S-160]
 acceptance:
   - "[happy] A club-admin opens /system/logs; a mutation performed earlier in the run appears as a row with action, target entity type, actor, occurredAt timestamp, and HTTP status (failure-only — success rows show '—', see Decisions)."
   - "[happy] Filtering by action (e.g. UPDATE) and by target entity type narrows the list to matching rows; clearing filters restores the full list."
-  - "[happy] Time-range filter (occurredFrom / occurredTo) narrows the list to events in range."
+  - "[happy] Time-range filter: a future from-bound empties the audit list through a real occurredFrom request, and clearing the filter restores the list. NOT proven — that the filter keeps an in-range row beside an out-of-range row that drops; the control has date granularity, so all rows of one run share one date."
   - "[happy] Pagination: with more events than one page, advancing fetches the next offset (hasMore / nextOffset cursor); default page size is 50."
   - "[happy] Expanding a row shows the before/after state payload (diff for UPDATE, after-only for CREATE, before-only for DELETE)."
   - "[key-error] A plain PILOT is denied the screen (guard redirects home), the nav entry is absent, and the endpoint returns 403."

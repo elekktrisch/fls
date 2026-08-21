@@ -1,6 +1,7 @@
 package ch.alpenflight.audit.application;
 
 import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditActorKind;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ public final class AuditEventDtos {
                                 Instant occurredAt,
                                 @Nullable UUID actorUserId,
                                 @Nullable String actorKeycloakSub,
+                                AuditActorKind actorKind,
                                 @Nullable UUID tenantClubId,
                                 AuditAction action,
                                 String targetEntityType,

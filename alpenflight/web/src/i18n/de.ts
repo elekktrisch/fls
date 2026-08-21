@@ -123,6 +123,12 @@ const de = {
   },
   auditLogs: {
     title: 'Protokolle',
+    actor: {
+      anonymousPublic: 'Öffentliches Formular',
+      legacyMigrated: 'Migration',
+      system: 'System',
+      unknown: 'Unbekannt',
+    },
     columns: {
       action: 'Aktion',
       target: 'Objekt',
@@ -156,7 +162,6 @@ const de = {
       next: 'Weiter',
       page: 'Ab Position {{offset}}',
     },
-    systemActor: 'System',
   },
   common: {
     errors: {

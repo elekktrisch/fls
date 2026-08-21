@@ -6,6 +6,7 @@ import ch.alpenflight.aircraft.domain.OgnDeviceDatabase;
 import ch.alpenflight.aircraft.domain.OgnDeviceDatabase.OgnDevice;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import java.util.HashMap;
 import java.util.Locale;
@@ -13,6 +14,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,16 +33,20 @@ public class AircraftDatabaseSyncJob implements BusinessJob {
 
     private final AircraftRepository aircraft;
     private final OgnDeviceDatabase ddb;
+    private final SelfProxy<AircraftDatabaseSyncJob> self;
 
-    public AircraftDatabaseSyncJob(AircraftRepository aircraft, OgnDeviceDatabase ddb) {
+    public AircraftDatabaseSyncJob(AircraftRepository aircraft,
+                                   OgnDeviceDatabase ddb,
+                                   ObjectProvider<AircraftDatabaseSyncJob> self) {
         this.aircraft = aircraft;
         this.ddb = ddb;
+        this.self = SelfProxy.around(self);
     }
 
     @Scheduled(cron = CRON)
     @UnscopedScheduledJob
     public void runScheduled() {
-        runOnce();
+        self.soTheTransactionalBoundaryApplies().runOnce();
     }
 
     @Override

@@ -17,6 +17,15 @@
       "cn": "ZZ",
       "tracked": "Y",
       "identified": "Y"
+    },
+    {
+      "device_type": "F",
+      "device_id": "DDC0DE",
+      "aircraft_model": "LS4",
+      "registration": "HB-9998",
+      "cn": "REJECTED-BY-THE-COMPETITION-SIGN-RULE",
+      "tracked": "Y",
+      "identified": "Y"
     }
   ]
 }

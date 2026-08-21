@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class AircraftReservationMapper implements Mapper {
@@ -77,6 +78,11 @@ public final class AircraftReservationMapper implements Mapper {
                 new ForeignKeyColumn(SECOND_CREW_PERSON_ID, EntityType.PERSON),
                 new ForeignKeyColumn(RESERVATION_TYPE_ID, EntityType.AIRCRAFT_RESERVATION_TYPE),
                 new ForeignKeyColumn(LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(AIRCRAFT_ID, PILOT_PERSON_ID, SECOND_CREW_PERSON_ID);
     }
 
     @Override

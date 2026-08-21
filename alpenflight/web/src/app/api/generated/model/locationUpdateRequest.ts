@@ -8,7 +8,7 @@
 import type { InOutboundPointRequest } from './inOutboundPointRequest';
 
 /**
- * Payload to update a Location. Replaces the full IOP list (orphan-removal cleans up).
+ * Payload to update a Location. Replaces the full IOP list (orphan-removal cleans up). The ICAO code carries no wire-level pattern, because a migrated Location keeps the legacy value the migration wrote. The Location aggregate applies the pattern to a CHANGED value only.
  */
 export type LocationUpdateRequest = {
   /**
@@ -28,7 +28,6 @@ export type LocationUpdateRequest = {
   /**
      * @minLength 0
      * @maxLength 10
-     * @pattern ^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$
      */
   icaoCode?: string;
   /**

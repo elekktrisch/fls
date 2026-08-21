@@ -15,6 +15,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
 import java.time.Instant;
@@ -59,7 +60,7 @@ public class DailyReportJob implements BusinessJob {
     private final TemplatedMailService mail;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final DeploymentContext deploymentContext;
-    private final ObjectProvider<DailyReportJob> self;
+    private final SelfProxy<DailyReportJob> self;
     private final Clock clock;
 
     public DailyReportJob(FlightRepository flights,
@@ -76,20 +77,21 @@ public class DailyReportJob implements BusinessJob {
         this.mail = mail;
         this.tenantResolver = tenantResolver;
         this.deploymentContext = deploymentContext;
-        this.self = self;
+        this.self = SelfProxy.around(self);
         this.clock = clock;
     }
 
     @Scheduled(cron = CRON)
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
-        runForCurrentClub();
+        self.soTheTransactionalBoundaryApplies().runForCurrentClub();
     }
 
     @Override
     public RunSummary runOnce() {
         return new RunSummary(deploymentContext.foldOverClubs(JOB_NAME, 0,
-                (total, club) -> total + self.getObject().runForCurrentClub().mailCount(),
+                (total, club) -> total
+                        + self.soTheTransactionalBoundaryApplies().runForCurrentClub().mailCount(),
                 LifecycleState.ACTIVE));
     }
 

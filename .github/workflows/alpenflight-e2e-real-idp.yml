@@ -218,8 +218,14 @@ jobs:
       #
       # `--grep-invert` drops the one set the cross-journey clean-seed run must
       # not carry: `showcase seed` — `start-dashboard.spec.ts` asserts the
-      # `@Profile("showcase")` counts this run never seeds; its gating job is
-      # `alpenflight-dashboard-proof` in ci.yml. Filtering applies before sharding,
+      # `@Profile("showcase")` counts this run never seeds. This run therefore
+      # covers NEITHER showcase-seeded spec: the path argument below collects only
+      # `e2e/tests/real-idp/`, so `e2e/tests/profile/self-edit.spec.ts` is never
+      # even considered here. Both run per push in ci.yml only —
+      # `alpenflight-dashboard-proof` (non-blocking display + gallery) and
+      # `alpenflight-profile-proof` (REQUIRED merge gate). Do not add an `if:`
+      # guard to either without first giving this run a showcase-seeded lane.
+      # Filtering applies before sharding,
       # so the dropped tests leave the pool first; `--shard` then partitions the
       # remainder and `--reporter=blob` feeds the `real-idp-merge` job.
       # `--workers=1` keeps each shard serial (one realm + one Mailpit inbox).

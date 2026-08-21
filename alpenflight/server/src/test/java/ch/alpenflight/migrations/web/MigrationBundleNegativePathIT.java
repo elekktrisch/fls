@@ -20,6 +20,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -56,6 +58,7 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
 
     private UUID userId;
     private UUID userSub;
+    private UUID anotherOwnerSub;
     private String verifiedToken;
     private String testClubKey;
     private String testClubSlug;
@@ -64,6 +67,7 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
     void seedUser() {
         userSub = UUID.randomUUID();
         userId = UUID.randomUUID();
+        anotherOwnerSub = UUID.randomUUID();
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "IT-" + tag;
         testClubSlug = "neg-" + tag;
@@ -97,6 +101,11 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
+        jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
+                + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)",
+                anotherOwnerSub.toString());
+        jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
+                anotherOwnerSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
     }
 
@@ -387,6 +396,93 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 .as("a SYSTEM_GLOBAL_RESOLVE entry progresses with a null club scope instead "
                         + "of failing the run")
                 .isEqualTo("COMPLETED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"deployment_id", "deploymentId"})
+    void crafted_club_declaration_naming_another_owners_deployment_moves_no_club_into_it(
+            String craftedDeploymentSelectorKey) throws Exception {
+        UUID anotherOwnersDeploymentId = insertDeploymentOwnedByAnotherUser();
+
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWhoseSoleClubDeclarationCarriesExtraKeys(
+                cipher, uploadId, publicKeyDer, "Deployment-Smuggle IT", soleClub(),
+                Map.of(craftedDeploymentSelectorKey, anotherOwnersDeploymentId.toString()));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+
+        assertThat(clubCountIn(anotherOwnersDeploymentId))
+                .as("the Deployment a bundle names belongs to another Keycloak subject — the "
+                        + "server picks the Deployment from the authenticated caller, so no Club "
+                        + "of this bundle may land there; body=%s", res.getBody())
+                .isZero();
+        assertThat(clubCountWithKey(testClubKey))
+                .as("the crafted Club reached no Deployment at all")
+                .isZero();
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(errorCodeOf(res))
+                .as("the envelope mapper rejects the deployment selector instead of binding it; "
+                        + "a future mapper that strips it silently must change this assertion "
+                        + "deliberately, never by accident")
+                .isEqualTo("MANIFEST_INVALID");
+    }
+
+    @Test
+    void the_same_bundle_without_the_crafted_key_provisions_into_the_callers_own_deployment()
+            throws Exception {
+        UUID anotherOwnersDeploymentId = insertDeploymentOwnedByAnotherUser();
+
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWhoseSoleClubDeclarationCarriesExtraKeys(
+                cipher, uploadId, publicKeyDer, "Deployment-Smuggle IT", soleClub(), Map.of());
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+
+        assertThat(res.getStatusCode())
+                .as("without the crafted key the very same bundle is accepted, so the rejection "
+                        + "above is caused by the deployment selector and by nothing else; body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.OK);
+        UUID callersOwnDeploymentId = UUID.fromString(
+                JSON.readTree(res.getBody()).get("deploymentId").asText());
+        assertThat(callersOwnDeploymentId).isNotEqualTo(anotherOwnersDeploymentId);
+        assertThat(deploymentIdOfClubWithKey(testClubKey)).isEqualTo(callersOwnDeploymentId);
+        assertThat(clubCountIn(anotherOwnersDeploymentId)).isZero();
+    }
+
+    private UUID insertDeploymentOwnedByAnotherUser() {
+        UUID anotherOwnersDeploymentId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_deployment (id, name, owner_keycloak_sub,
+                                          lifecycle_state, plan, created_on, modified_on, version,
+                                          kc_state)
+                VALUES (?::uuid, ?, ?::uuid, 'TRIAL', 'FREE', now(), now(), 0, 'READY')
+                """,
+                anotherOwnersDeploymentId.toString(),
+                "Deployment Of Another Owner", anotherOwnerSub.toString());
+        return anotherOwnersDeploymentId;
+    }
+
+    private Integer clubCountIn(UUID deploymentId) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE deployment_id = ?::uuid",
+                Integer.class, deploymentId.toString());
+    }
+
+    private Integer clubCountWithKey(String clubKey) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE club_key = ?", Integer.class, clubKey);
+    }
+
+    private UUID deploymentIdOfClubWithKey(String clubKey) {
+        return UUID.fromString(jdbc.queryForObject(
+                "SELECT deployment_id::text FROM t_club WHERE club_key = ?", String.class, clubKey));
     }
 
     private JsonNode mintHandshake() throws Exception {

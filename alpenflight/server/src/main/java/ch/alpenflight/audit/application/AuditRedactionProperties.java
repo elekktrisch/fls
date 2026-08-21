@@ -13,9 +13,14 @@ public record AuditRedactionProperties(Map<String, EntityPolicy> entities,
         denyAll = denyAll == null ? List.of() : List.copyOf(denyAll);
     }
 
-    public record EntityPolicy(List<String> allow) {
+    public record EntityPolicy(List<String> allow, List<String> snapshotTypes) {
         public EntityPolicy {
             allow = allow == null ? List.of() : List.copyOf(allow);
+            snapshotTypes = snapshotTypes == null ? List.of() : List.copyOf(snapshotTypes);
+        }
+
+        public static EntityPolicy allowing(List<String> allow) {
+            return new EntityPolicy(allow, List.of());
         }
     }
 }

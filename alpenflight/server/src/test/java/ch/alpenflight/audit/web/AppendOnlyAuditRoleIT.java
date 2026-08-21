@@ -37,6 +37,50 @@ class AppendOnlyAuditRoleIT extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void app_role_may_null_the_client_ip_of_an_audit_row_and_nothing_else_on_it()
+            throws SQLException {
+        UUID seededId = seedAuditRowWithAClientIpAsOwner();
+
+        try (Connection appRole = openAppRoleOrSkip()) {
+            assertClientIpRedactionSucceeds(appRole, seededId);
+            assertUpdateDeniedWith42501(appRole, seededId);
+            assertDeleteDeniedWith42501(appRole, seededId);
+        }
+
+        assertThat(migratorJdbc.queryForObject(
+                "SELECT count(*) FROM t_mutation_audit_event WHERE id = ?::uuid",
+                Integer.class, seededId.toString()))
+                .as("redaction keeps the audit row; only the client IP goes")
+                .isEqualTo(1);
+    }
+
+    private void assertClientIpRedactionSucceeds(Connection appRole, UUID seededId)
+            throws SQLException {
+        try (Statement st = appRole.createStatement()) {
+            int redacted = st.executeUpdate(
+                    "UPDATE t_mutation_audit_event SET client_ip = NULL WHERE id = '"
+                            + seededId + "'");
+            assertThat(redacted)
+                    .as("the column-level UPDATE grant lets the retention sweep null client_ip")
+                    .isEqualTo(1);
+        }
+        assertThat(migratorJdbc.queryForObject(
+                "SELECT client_ip FROM t_mutation_audit_event WHERE id = ?::uuid",
+                String.class, seededId.toString()))
+                .isNull();
+    }
+
+    private UUID seedAuditRowWithAClientIpAsOwner() {
+        UUID id = UUID.randomUUID();
+        migratorJdbc.update(
+                "INSERT INTO t_mutation_audit_event "
+                        + "(id, action, target_entity_type, actor_kind, client_ip) "
+                        + "VALUES (?::uuid, ?, ?, ?, ?)",
+                id.toString(), "CREATE", "AppendOnlyProbe", "ANONYMOUS_PUBLIC", "203.0.113.5");
+        return id;
+    }
+
     private UUID seedAuditRowAsOwner() {
         UUID id = UUID.randomUUID();
         migratorJdbc.update(

@@ -32,21 +32,22 @@ public class PublicRegistrationTxWriter {
     }
 
     @Transactional
-    public RegisteredPersons registerScenic(PublicClub club, PublicRegistrantDetails details) {
+    public RegisteredPersons registerScenic(PublicClub club, PublicRegistrantDetails details,
+            String submitterClientIp) {
         PublicRegistrationKind kind = PublicRegistrationKind.SCENIC_FLIGHT;
         RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
-        audit(club, kind);
+        audit(club, kind, submitterClientIp);
         return registered;
     }
 
     @Transactional
     public DiscoveryRegistration registerDiscovery(PublicClub club,
-            PublicRegistrantDetails details, LocalDate selectedDay) {
+            PublicRegistrantDetails details, LocalDate selectedDay, String submitterClientIp) {
         PublicRegistrationKind kind = PublicRegistrationKind.DISCOVERY_FLIGHT;
         RegisteredPersons registered = writeRegistrants(club.clubId(), kind, details);
         DiscoveryReservationOutcome reservation = reservationBooker.blockDoubleSeaterAllDayDeliberatelyOverlappingOtherCandidates(
                 club.clubId(), registered.registrantPersonId(), selectedDay);
-        audit(club, kind);
+        audit(club, kind, submitterClientIp);
         return new DiscoveryRegistration(registered, reservation);
     }
 
@@ -95,10 +96,11 @@ public class PublicRegistrationTxWriter {
         person.joinClub(clubId, null, null, roles, PersonNotificationPrefs.none(), false);
     }
 
-    private void audit(PublicClub club, PublicRegistrationKind kind) {
-        auditTrail.record(AuditAction.CREATE,
+    private void audit(PublicClub club, PublicRegistrationKind kind, String submitterClientIp) {
+        auditTrail.recordAnonymousPublicSubmission(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, club.clubId(),
-                        new AcceptedRegistration(kind, club.clubId())));
+                        new AcceptedRegistration(kind, club.clubId())),
+                submitterClientIp);
     }
 
     private static UUID idOf(Person saved) {

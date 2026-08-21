@@ -53,4 +53,8 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     @Query("select c.id from Club c where c.deploymentId = :deploymentId "
             + "and c.deletedOn is null order by c.id")
     List<UUID> findIdsByDeploymentId(UUID deploymentId);
+
+    @Override
+    @Query("select c.id from Club c order by c.id")
+    List<UUID> idsOfEveryClubIncludingTheSoftDeleted();
 }

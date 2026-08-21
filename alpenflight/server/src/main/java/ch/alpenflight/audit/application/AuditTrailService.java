@@ -1,6 +1,7 @@
 package ch.alpenflight.audit.application;
 
 import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditActorKind;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.platform.tenancy.TenantContextCarrier;
@@ -32,7 +33,17 @@ public class AuditTrailService implements AuditTrail {
 
     @Override
     public void record(AuditAction action, AuditedTarget target) {
-        publisher.publishEvent(build(action, target, false, null, null));
+        publisher.publishEvent(
+                build(action, target, attributionOfTheCurrentPrincipal(), false, null, null));
+    }
+
+    @Override
+    public void recordAnonymousPublicSubmission(AuditAction action,
+                                                AuditedTarget target,
+                                                String clientIp) {
+        publisher.publishEvent(build(action, target,
+                anonymousPublicAttributionUnlessAPrincipalIsAuthenticated(clientIp),
+                false, null, null));
     }
 
     @Override
@@ -41,17 +52,17 @@ public class AuditTrailService implements AuditTrail {
                              int httpStatus,
                              String failureReason) {
         publisher.publishEvent(new MutationAuditEventListener.SyntheticFailedMutation(
-                build(action, target, true, httpStatus, failureReason)));
+                build(action, target, attributionOfTheCurrentPrincipal(),
+                        true, httpStatus, failureReason)));
     }
 
     private MutationAuditRequest build(AuditAction action,
                                        AuditedTarget target,
+                                       ActorAttribution attribution,
                                        boolean failed,
                                        @Nullable Integer httpStatus,
                                        @Nullable String failureReason) {
         ActorResolver.Actor actor = actorResolver.resolve();
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean systemActor = !(auth instanceof JwtAuthenticationToken && auth.isAuthenticated());
         UUID tenant = resolvedTenant();
         Instant occurredAt = Instant.now(clock);
         String requestId = MDC.get("requestId");
@@ -62,18 +73,39 @@ public class AuditTrailService implements AuditTrail {
                 actor.userId(),
                 actor.keycloakSub(),
                 tenant,
-                systemActor,
+                attribution.systemActor(),
+                attribution.kind(),
+                attribution.clientIp(),
                 requestId,
                 failed,
                 httpStatus,
                 failureReason);
     }
 
+    private static ActorAttribution attributionOfTheCurrentPrincipal() {
+        return anAuthenticatedJwtPrincipalIsPresent()
+                ? new ActorAttribution(AuditActorKind.NORMAL, false, null)
+                : new ActorAttribution(AuditActorKind.SYSTEM, true, null);
+    }
+
+    private static ActorAttribution anonymousPublicAttributionUnlessAPrincipalIsAuthenticated(
+            String clientIp) {
+        return anAuthenticatedJwtPrincipalIsPresent()
+                ? attributionOfTheCurrentPrincipal()
+                : new ActorAttribution(AuditActorKind.ANONYMOUS_PUBLIC, false, clientIp);
+    }
+
+    private static boolean anAuthenticatedJwtPrincipalIsPresent() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth instanceof JwtAuthenticationToken && auth.isAuthenticated();
+    }
+
     private @Nullable UUID resolvedTenant() {
-        UUID t = TenantContextCarrier.current().orElse(null);
-        if (t != null) {
-            return t;
-        }
-        return null;
+        return TenantContextCarrier.current().orElse(null);
+    }
+
+    private record ActorAttribution(AuditActorKind kind,
+                                    boolean systemActor,
+                                    @Nullable String clientIp) {
     }
 }

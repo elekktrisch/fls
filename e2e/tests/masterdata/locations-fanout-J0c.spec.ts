@@ -139,7 +139,7 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
     .toUpperCase()
     .slice(0, 6);
   const LOCATION_NAME = pinnedLocationNameFromProofWorkflow ?? `J0C-${freshNameSuffix}`;
-  const ICAO = `J${freshNameSuffix.slice(0, 3)}`;
+  const legacyIcaoDeterministicallyOutsideTheAlpenFlightPattern = `J0${freshNameSuffix.slice(0, 2)}`;
 
   const ctxA = await browser.newContext({
     viewport: { width: 1280, height: 800 },
@@ -160,7 +160,7 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   await gotoRoute(pageA, '/masterdata/locations/new');
   await pageA.locator('#LocationName').waitFor({ state: 'visible' });
   await pageA.locator('#LocationName').fill(LOCATION_NAME);
-  await pageA.locator('#IcaoCode').fill(ICAO);
+  await pageA.locator('#IcaoCode').fill(legacyIcaoDeterministicallyOutsideTheAlpenFlightPattern);
   await pageA.locator('#Description').fill('J-0c fan-out parity (legacy create)');
   await fillLocationRequiredDropdowns(pageA);
 

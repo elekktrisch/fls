@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 public final class FlightMapper implements Mapper {
@@ -139,6 +140,11 @@ public final class FlightMapper implements Mapper {
         return List.of(
                 new ReferenceLookup(PROCESS_STATE_ID, "t_flight_process_state"),
                 new ReferenceLookup(FLIGHT_COST_BALANCE_TYPE_ID, "t_flight_cost_balance_type"));
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        return Set.of(AIRCRAFT_ID);
     }
 
     @Override

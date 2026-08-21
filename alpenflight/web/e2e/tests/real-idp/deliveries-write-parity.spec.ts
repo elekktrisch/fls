@@ -41,6 +41,15 @@ const DAYS_AGED_PAST_ELIGIBILITY_FLOOR = 4;
 const DAYS_AGED_STILL_INELIGIBLE = 0;
 const NO_FLIGHT_LINK = '-';
 
+const TEARDOWN_SPAWNS_ONE_GRADLE_SEEDER_PER_FIXTURE_ROW_TIMEOUT_MS = 300_000;
+
+const SEEDED_FLIGHT_START_TIME_UTC = '08:00:00Z';
+const SEEDED_FLIGHT_LANDING_TIME_UTC = '09:30:00Z';
+const SECONDS_PER_SEEDED_FLIGHT =
+  (Date.parse(`1970-01-01T${SEEDED_FLIGHT_LANDING_TIME_UTC}`) -
+    Date.parse(`1970-01-01T${SEEDED_FLIGHT_START_TIME_UTC}`)) /
+  1000;
+
 const CREATE_BUTTON = 'del-create-button';
 const DELETE_CONFIRM_MODAL = 'del-delete-confirm-modal';
 const DELETE_CONFIRM = 'del-delete-confirm';
@@ -127,8 +136,8 @@ async function createGliderFlight(
       flightAircraftType: 'GLIDER',
       aircraftId,
       flightDate,
-      startDateTime: `${flightDate}T08:00:00Z`,
-      ldgDateTime: `${flightDate}T09:30:00Z`,
+      startDateTime: `${flightDate}T${SEEDED_FLIGHT_START_TIME_UTC}`,
+      ldgDateTime: `${flightDate}T${SEEDED_FLIGHT_LANDING_TIME_UTC}`,
       startLocationId: md.locationId,
       ldgLocationId: md.locationId,
       flightTypeId: md.gliderFlightTypeId,
@@ -242,6 +251,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
   });
 
   test.afterAll(async () => {
+    test.setTimeout(TEARDOWN_SPAWNS_ONE_GRADLE_SEEDER_PER_FIXTURE_ROW_TIMEOUT_MS);
     for (const id of [...createdDeliveryIds]) {
       await runSeeder(`delete-delivery ${id}`).catch(() => undefined);
     }
@@ -642,17 +652,18 @@ test.describe('Deliveries — write side (real-idp)', () => {
     expect(JSON.parse(await crossBook.text()), 'cross-tenant book is a no-op false').toBe(false);
   });
 
-  test('[money-proof] glider + tow drawing on ONE credit → create SUMS both passes (not under-consumed)', async ({
+  test('[money-proof] two flights billed to ONE credit → create SUMS both consumptions, balance == original − pass − pass', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
+    const pilotBilledByNoOtherFlightInThisSpec = md.towPilotPersonId;
     const firstPassId = await createGliderFlight(
       api.request,
       adminBearer,
       md,
       md.gliderAircraftId,
-      md.pilotPersonId,
+      pilotBilledByNoOtherFlightInThisSpec,
       createdFlightIds,
     );
     const secondPassId = await createGliderFlight(
@@ -660,7 +671,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
       adminBearer,
       md,
       md.gliderAircraftId,
-      md.pilotPersonId,
+      pilotBilledByNoOtherFlightInThisSpec,
       createdFlightIds,
     );
     await runSeeder(`lock-and-age ${firstPassId} ${DAYS_AGED_PAST_ELIGIBILITY_FLOOR}`);
@@ -669,7 +680,7 @@ test.describe('Deliveries — write side (real-idp)', () => {
     const creditId = await grantCredit(
       api.request,
       adminBearer,
-      md.pilotPersonId,
+      pilotBilledByNoOtherFlightInThisSpec,
       md.gliderImmat,
       ORIGINAL_BALANCE,
     );
@@ -699,18 +710,15 @@ test.describe('Deliveries — write side (real-idp)', () => {
         DELIVERY_PREPARED,
       );
 
-      const ONE_PASS_SECONDS = 5_400;
-      const afterCreate = await currentBalance(api.request, adminBearer, creditId);
-      const drawdown = ORIGINAL_BALANCE - afterCreate;
-      expect(drawdown, 'create drew the credit down (it was consumed)').toBeGreaterThan(0);
       expect(
-        drawdown,
-        'both passes are SUMMED onto the credit — the drawdown exceeds a single 5400 s pass ' +
-          '(NOT the legacy last-write-wins single-pass under-consumption)',
-      ).toBeGreaterThan(ONE_PASS_SECONDS);
+        await currentBalance(api.request, adminBearer, creditId),
+        'both consumptions are SUMMED onto the one credit — the balance equals the original minus ' +
+          'the first flight minus the second flight, in full (NOT the legacy last-write-wins ' +
+          'single-pass under-consumption, which would leave one flight uncharged)',
+      ).toBe(ORIGINAL_BALANCE - SECONDS_PER_SEEDED_FLIGHT - SECONDS_PER_SEEDED_FLIGHT);
 
-      const row = page.getByTestId(`del-row-${firstDelivery.id}`);
-      await expect(row).toBeVisible();
+      await expect(page.getByTestId(`del-row-${firstDelivery.id}`)).toBeVisible();
+      await expect(page.getByTestId(`del-row-${secondDelivery.id}`)).toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-deliveries-shared-credit.png`,
         fullPage: true,
@@ -723,10 +731,13 @@ test.describe('Deliveries — write side (real-idp)', () => {
       await proofVideo(page, testInfo, {
         journey: 'J-10b',
         caption:
-          'J-10b · deliveries · when a glider flight and its tow both draw on ONE PersonFlightTimeCredit, ' +
-          'create SUMS both passes onto the credit (asserting the actual balance == original − glider − tow) ' +
-          'rather than the legacy last-write-wins under-consumption — the proof for the 3rd reachable legacy ' +
-          'money bug',
+          'J-10b · deliveries · two eligible flights of the same pilot draw on ONE ' +
+          'PersonFlightTimeCredit; the video shows both engine-created deliveries in the /deliveries ' +
+          'list, and the spec re-reads the credit and asserts the balance is EXACTLY the original ' +
+          'minus the first flight minus the second flight (5400 s each) — the credit is scoped to a ' +
+          'pilot no other flight in this spec bills, so no other flight can move that balance. The ' +
+          'legacy last-write-wins under-consumption would leave one flight uncharged and fail the ' +
+          'equality. The balance is an API value; the screen shows the two deliveries, not the balance.',
         acTag: 'happy',
       });
     }

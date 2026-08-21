@@ -124,6 +124,12 @@ const it: Translations = {
   },
   auditLogs: {
     title: 'Registri',
+    actor: {
+      anonymousPublic: 'Modulo pubblico',
+      legacyMigrated: 'Migrazione',
+      system: 'Sistema',
+      unknown: 'Sconosciuto',
+    },
     columns: {
       action: 'Azione',
       target: 'Oggetto',
@@ -157,7 +163,6 @@ const it: Translations = {
       next: 'Successivo',
       page: 'Dalla posizione {{offset}}',
     },
-    systemActor: 'Sistema',
   },
   common: {
     errors: {

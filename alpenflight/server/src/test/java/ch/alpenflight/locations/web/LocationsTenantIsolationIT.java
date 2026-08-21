@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.locations.application.LocationDtos.LocationCreateRequest;
 import ch.alpenflight.locations.application.LocationDtos.LocationDetail;
+import ch.alpenflight.locations.application.LocationDtos.LocationUpdateRequest;
 import ch.alpenflight.locations.domain.IcaoCodeAlreadyExistsException;
 import ch.alpenflight.locations.domain.LocationNotFoundException;
 import ch.alpenflight.locations.application.LocationsService;
@@ -89,6 +90,42 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void renaming_one_clubs_fanned_out_copy_leaves_the_other_clubs_copy_untouched() {
+        String sharedLegacyName =
+                TEST_NAME_PREFIX + "Fanned out " + Long.toString(System.nanoTime(), 36);
+        String renamedByClubA = sharedLegacyName + " (renamed by club A)";
+
+        AtomicReference<LocationDetail> clubACopy = new AtomicReference<>();
+        AtomicReference<LocationDetail> clubBCopy = new AtomicReference<>();
+        TenantTestContext.runAs(clubA, () ->
+                clubACopy.set(locations.createLocation(namedPayload(sharedLegacyName, "AG77"))));
+        TenantTestContext.runAs(clubB, () ->
+                clubBCopy.set(locations.createLocation(namedPayload(sharedLegacyName, "AG88"))));
+
+        assertThat(clubACopy.get().id().toString())
+                .as("one legacy Location fans out to two DISTINCT rows, one per owning club")
+                .isNotEqualTo(clubBCopy.get().id().toString());
+
+        TenantTestContext.runAs(clubA, () ->
+                locations.updateLocation(clubACopy.get().id(),
+                        renameOf(clubACopy.get(), renamedByClubA)));
+
+        TenantTestContext.runAs(clubA, () ->
+                assertThat(locations.getLocation(clubACopy.get().id()).locationName())
+                        .as("club A's own copy carries the new name")
+                        .isEqualTo(renamedByClubA));
+        TenantTestContext.runAs(clubB, () -> {
+            assertThat(locations.getLocation(clubBCopy.get().id()).locationName())
+                    .as("club B's copy keeps the ORIGINAL name — the rename did not leak across "
+                            + "the fan-out")
+                    .isEqualTo(sharedLegacyName);
+            assertThat(locations.listLocations())
+                    .as("no row in club B's list carries club A's new name")
+                    .noneMatch(li -> renamedByClubA.equals(li.locationName()));
+        });
+    }
+
+    @Test
     void no_tenant_context_yields_empty_reads() {
         TenantTestContext.runAs(clubA, () ->
                 locations.createLocation(payload("Hidden A", "AE55")));
@@ -101,11 +138,38 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    private LocationUpdateRequest renameOf(LocationDetail current, String newName) {
+        return new LocationUpdateRequest(
+                newName,
+                current.locationShortName(),
+                current.countryId(),
+                current.locationTypeId(),
+                current.icaoCode(),
+                current.latitude(),
+                current.longitude(),
+                current.elevation(),
+                current.elevationUnitTypeId(),
+                current.runwayDirection(),
+                current.runwayLength(),
+                current.runwayLengthUnitTypeId(),
+                current.airportFrequency(),
+                current.description(),
+                current.sortIndicator(),
+                current.isInboundRouteRequired(),
+                current.isOutboundRouteRequired(),
+                current.isFastEntryRecord(),
+                List.of());
+    }
+
     private LocationCreateRequest payload(String name, String icaoCode) {
+        return namedPayload(name + " " + Long.toString(System.nanoTime(), 36), icaoCode);
+    }
+
+    private LocationCreateRequest namedPayload(String exactName, String icaoCode) {
         UUID countryId = UUID.fromString(LocationsTestFixtures.SEED_COUNTRY_ID);
         UUID typeId = UUID.fromString(LocationsTestFixtures.SEED_LOCATION_TYPE_GRASS_RUNWAY);
         return new LocationCreateRequest(
-                name + " " + Long.toString(System.nanoTime(), 36),
+                exactName,
                 null,
                 CountryId.of(countryId),
                 LocationTypeId.of(typeId),

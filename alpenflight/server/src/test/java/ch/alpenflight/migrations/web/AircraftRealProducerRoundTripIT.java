@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migration.tool.BundleWriter;
 import ch.alpenflight.migration.tool.EntityStreamResult;
+import ch.alpenflight.migration.tool.ManifestBuilder;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
@@ -173,15 +175,20 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         UUID homebaseReplicaId =
                 Coercions.deriveFanOutId(legacyHomebaseLocationId, legacyClubId);
 
-        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
-                EntityType.COUNTRY, systemGlobalPolicy(),
-                EntityType.CLUB_STATE, systemGlobalPolicy(),
-                EntityType.CLUB, fullPortPolicy(),
-                EntityType.PERSON, fullPortPolicy(),
-                EntityType.LOCATION, fullPortPolicy(),
-                EntityType.AIRCRAFT, fullPortPolicy(),
-                EntityType.AIRCRAFT_AIRCRAFT_STATE, fullPortPolicy(),
-                EntityType.AIRCRAFT_OPERATING_COUNTER, fullPortPolicy());
+        Map<EntityType, EntityPolicy> entityPolicies = ManifestBuilder.entityPoliciesFor(
+                List.of(EntityType.COUNTRY, EntityType.CLUB_STATE, EntityType.CLUB,
+                        EntityType.PERSON, EntityType.LOCATION, EntityType.AIRCRAFT,
+                        EntityType.AIRCRAFT_AIRCRAFT_STATE,
+                        EntityType.AIRCRAFT_OPERATING_COUNTER),
+                KnownMappers.all());
+
+        assertThat(entityPolicies.get(EntityType.AIRCRAFT).tenantBypassFks())
+                .as("the bundle this test posts must carry the cross-tenant columns the real "
+                        + "producer emits, so the manifest allow-list check scores a real "
+                        + "bundle instead of an empty declaration")
+                .containsExactlyInAnyOrder("aircraft_owner_person_id", "homebase_id");
+        assertThat(entityPolicies.get(EntityType.AIRCRAFT_AIRCRAFT_STATE).tenantBypassFks())
+                .containsExactly("noticed_by_person_id");
 
         EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
                 clubNdjson(legacyClubId, key, "ARP Club Legacy", "Addr"), 1);
@@ -596,22 +603,6 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .body(body),
                 String.class);
-    }
-
-    private static EntityPolicy fullPortPolicy() {
-        return new EntityPolicy(
-                EntityPolicy.PortPolicy.FULL_PORT,
-                EntityPolicy.TombstonePolicy.PORT_ALL,
-                java.util.Set.of(),
-                java.util.List.of());
-    }
-
-    private static EntityPolicy systemGlobalPolicy() {
-        return new EntityPolicy(
-                EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
-                EntityPolicy.TombstonePolicy.SKIP_DELETED,
-                java.util.Set.of(),
-                java.util.List.of());
     }
 
     private static byte[] decodePem(String pem) {

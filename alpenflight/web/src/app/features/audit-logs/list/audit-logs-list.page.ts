@@ -27,6 +27,7 @@ import { ListAuditEventsAction } from '@api/generated/model';
 import type { AuditEventRow, ListAuditEventsAction as AuditAction } from '@api/generated/model';
 
 import { actionBadgeClass, actionLabel } from './action-catalog';
+import { auditActorCellText } from './audit-actor-cell';
 import { buildAuditDiff } from './audit-diff';
 import { AuditLogsStore } from '../audit-logs.store';
 
@@ -183,7 +184,7 @@ function startOfLocalDateOnly(date: Date): string {
                     class="flex-none text-sm text-slate-500 tabular"
                     data-testid="audit-row-actor"
                   >
-                    {{ row.systemActor ? t('systemActor') : row.actorUserId }}
+                    {{ actorText(row, store.actorUsernamesByUserId(), t) }}
                   </span>
                   <span class="flex-none flex items-center gap-3">
                     <span
@@ -304,6 +305,7 @@ export class AuditLogsListPage implements OnInit {
   protected readonly label = actionLabel;
   protected readonly badgeClass = actionBadgeClass;
   protected readonly formatWhen = formatIsoDateTime;
+  protected readonly actorText = auditActorCellText;
   protected readonly actionOptions = ACTION_OPTIONS;
 
   protected readonly expandedRowId = signal<string | null>(null);
@@ -332,6 +334,7 @@ export class AuditLogsListPage implements OnInit {
 
   ngOnInit(): void {
     this.store.loadPage();
+    this.store.loadActorUsernames();
   }
 
   protected isExpanded(row: AuditEventRow): boolean {

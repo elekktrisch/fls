@@ -11,16 +11,19 @@ import {
   withState,
 } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { filter, pipe, switchMap, tap } from 'rxjs';
 
 import { AuditEventsService } from '@api/generated/audit-events/audit-events.service';
+import { UsersService } from '@api/generated/users/users.service';
 import type {
   AuditEventPage,
   AuditEventRow,
   ListAuditEventsAction,
   ListAuditEventsParams,
+  UserListItem,
 } from '@api/generated/model';
 
+import { actorUsernamesByUserId, type ActorUsernamesByUserId } from './list/audit-actor-cell';
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 const PAGE_SIZE = 50;
@@ -37,6 +40,7 @@ interface AuditLogsState {
   pageOffset: number;
   pageSize: number;
   items: readonly AuditEventRow[];
+  actorUsernamesByUserId: ActorUsernamesByUserId;
   hasMore: boolean;
   nextOffset: number;
   isLoading: boolean;
@@ -48,6 +52,7 @@ const initialState: AuditLogsState = {
   pageOffset: 0,
   pageSize: PAGE_SIZE,
   items: [],
+  actorUsernamesByUserId: {},
   hasMore: false,
   nextOffset: 0,
   isLoading: false,
@@ -76,7 +81,28 @@ export const AuditLogsStore = signalStore(
     canPrev: computed(() => pageOffset() > 0),
     canNext: computed(() => hasMore()),
   })),
-  withMethods((store, auditApi = inject(AuditEventsService)) => {
+  withMethods((store, auditApi = inject(AuditEventsService), usersApi = inject(UsersService)) => {
+    const noUsernameIsLoadedYet = (): boolean =>
+      Object.keys(store.actorUsernamesByUserId()).length === 0;
+
+    const leaveEveryActorCellOnItsKeycloakSubFallback = (): void =>
+      patchState(store, { actorUsernamesByUserId: {} });
+
+    const loadActorUsernames = rxMethod<void>(
+      pipe(
+        filter(noUsernameIsLoadedYet),
+        switchMap(() =>
+          usersApi.listUsers().pipe(
+            tapResponse({
+              next: (users: UserListItem[]) =>
+                patchState(store, { actorUsernamesByUserId: actorUsernamesByUserId(users) }),
+              error: leaveEveryActorCellOnItsKeycloakSubFallback,
+            }),
+          ),
+        ),
+      ),
+    );
+
     const loadPage = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
@@ -102,6 +128,7 @@ export const AuditLogsStore = signalStore(
 
     return {
       loadPage,
+      loadActorUsernames,
       setFilters(partial: { [K in keyof AuditFilters]?: AuditFilters[K] | undefined }): void {
         const next: AuditFilters = { ...store.filters() };
         for (const [key, value] of Object.entries(partial) as [keyof AuditFilters, unknown][]) {

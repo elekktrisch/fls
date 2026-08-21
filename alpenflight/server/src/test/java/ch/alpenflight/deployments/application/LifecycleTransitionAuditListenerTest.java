@@ -62,6 +62,14 @@ class LifecycleTransitionAuditListenerTest {
         }
 
         @Override
+        public void recordAnonymousPublicSubmission(AuditAction action,
+                                                    AuditedTarget target,
+                                                    String clientIp) {
+            throw new AssertionError(
+                    "a lifecycle transition has no anonymous submitter: " + action + " " + clientIp);
+        }
+
+        @Override
         public void recordFailed(AuditAction action,
                                  AuditedTarget target,
                                  int httpStatus,

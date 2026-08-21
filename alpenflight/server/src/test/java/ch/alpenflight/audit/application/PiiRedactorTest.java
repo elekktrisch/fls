@@ -4,8 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.audit.application.AuditRedactionProperties.EntityPolicy;
 import ch.alpenflight.audit.domain.AuditRedact;
+import ch.alpenflight.locations.domain.Location;
+import ch.alpenflight.persons.domain.Person;
+import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -35,7 +40,7 @@ class PiiRedactorTest {
     @Test
     void allow_listed_fields_emit_verbatim() {
         PiiRedactor redactor = redactorFor(
-                Map.of("Club", new EntityPolicy(List.of("name", "slug", "clubKey"))),
+                Map.of("Club", EntityPolicy.allowing(List.of("name", "slug", "clubKey"))),
                 List.of());
 
         JsonNode out = parse(redactor.serialize("Club", new ClubSnapshot()));
@@ -48,7 +53,7 @@ class PiiRedactorTest {
     @Test
     void non_allow_listed_field_appears_as_redacted_sentinel() {
         PiiRedactor redactor = redactorFor(
-                Map.of("Club", new EntityPolicy(List.of("name"))),
+                Map.of("Club", EntityPolicy.allowing(List.of("name"))),
                 List.of());
 
         JsonNode out = parse(redactor.serialize("Club", new ClubSnapshot()));
@@ -60,7 +65,7 @@ class PiiRedactorTest {
     @Test
     void audit_redact_annotation_overrides_any_allow_entry() {
         PiiRedactor redactor = redactorFor(
-                Map.of("Club", new EntityPolicy(List.of("name", "operatorMobile"))),
+                Map.of("Club", EntityPolicy.allowing(List.of("name", "operatorMobile"))),
                 List.of());
 
         JsonNode out = parse(redactor.serialize("Club", new ClubSnapshot()));
@@ -73,7 +78,7 @@ class PiiRedactorTest {
     @Test
     void deny_all_redacts_every_field_for_listed_entity_type() {
         PiiRedactor redactor = redactorFor(
-                Map.of("Person", new EntityPolicy(List.of("firstName", "lastName", "email"))),
+                Map.of("Person", EntityPolicy.allowing(List.of("firstName", "lastName", "email"))),
                 List.of("Person"));
 
         @SuppressWarnings("UnusedVariable")
@@ -94,8 +99,8 @@ class PiiRedactorTest {
     void nested_field_recurses_under_runtime_type_simple_name() {
         PiiRedactor redactor = redactorFor(
                 Map.of(
-                        "Outer", new EntityPolicy(List.of("topField", "child")),
-                        "ChildSnap", new EntityPolicy(List.of("safe"))),
+                        "Outer", EntityPolicy.allowing(List.of("topField", "child")),
+                        "ChildSnap", EntityPolicy.allowing(List.of("safe"))),
                 List.of());
 
         JsonNode out = parse(redactor.serialize("Outer", new OuterSnap()));
@@ -111,7 +116,7 @@ class PiiRedactorTest {
     @Test
     void unknown_nested_type_defaults_to_full_deny() {
         PiiRedactor redactor = redactorFor(
-                Map.of("Outer", new EntityPolicy(List.of("topField", "child"))),
+                Map.of("Outer", EntityPolicy.allowing(List.of("topField", "child"))),
                 List.of());
 
         JsonNode out = parse(redactor.serialize("Outer", new OuterSnap()));
@@ -129,6 +134,39 @@ class PiiRedactorTest {
 
         assertThat(out.get("name").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
         assertThat(out.get("slug").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
+    }
+
+    @Test
+    void the_shipped_policy_denies_person_pii_and_still_emits_an_allow_listed_location_name()
+            throws IOException {
+        PiiRedactor shipped = new PiiRedactor(ShippedRedactionPolicy.properties(), JSON);
+
+        Person person = Person.register("Anna", "Muller-Tschudi", null);
+        person.updateContact("Bahnhofstrasse 1", null, "3013", "Bern", "BE",
+                UUID.randomUUID(), "+41 31 555 00 11", "+41 79 555 00 11", null, null,
+                "anna.mueller@example.ch", null, false, LocalDate.of(1988, 4, 12), null, true);
+
+        String personSnapshot = shipped.serialize("Person", person);
+
+        assertThat(personSnapshot)
+                .as("Person is deny-all in the shipped policy on privacy grounds, so /system/logs "
+                        + "records that a Person changed without storing the person's data")
+                .contains("\"firstname\":\"" + PiiRedactor.REDACTED_SENTINEL + "\"")
+                .contains("\"lastname\":\"" + PiiRedactor.REDACTED_SENTINEL + "\"")
+                .contains("\"emailPrivate\":\"" + PiiRedactor.REDACTED_SENTINEL + "\"")
+                .contains("\"birthday\":\"" + PiiRedactor.REDACTED_SENTINEL + "\"")
+                .contains("\"mobilePhone\":\"" + PiiRedactor.REDACTED_SENTINEL + "\"")
+                .doesNotContain("Anna", "Muller-Tschudi", "anna.mueller@example.ch",
+                        "1988-04-12", "Bahnhofstrasse 1", "+41 79 555 00 11");
+
+        Location location = Location.create("Bern-Belp", "BELP", UUID.randomUUID(), UUID.randomUUID(),
+                "LSZB", null, null, null, null, null, null, null, null, null, null,
+                false, false, false);
+
+        assertThat(shipped.serialize("Location", location))
+                .as("the control: the same shipped policy emits an allow-listed field verbatim, so "
+                        + "the Person assertion cannot pass because the redactor redacts everything")
+                .contains("\"locationName\":\"Bern-Belp\"");
     }
 
     @Test

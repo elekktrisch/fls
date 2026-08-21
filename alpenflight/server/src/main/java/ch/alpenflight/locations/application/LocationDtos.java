@@ -84,13 +84,16 @@ public final class LocationDtos {
             boolean isFastEntryRecord,
             @Nullable @Valid List<InOutboundPointRequest> inOutboundPoints) {}
 
-    @Schema(description = "Payload to update a Location. Replaces the full IOP list (orphan-removal cleans up).")
+    @Schema(description = "Payload to update a Location. Replaces the full IOP list (orphan-removal"
+            + " cleans up). The ICAO code carries no wire-level pattern, because a migrated"
+            + " Location keeps the legacy value the migration wrote. The Location aggregate"
+            + " applies the pattern to a CHANGED value only.")
     public record LocationUpdateRequest(
             @NotBlank @Size(max = 100) String locationName,
             @Nullable @Size(max = 50) String locationShortName,
             @NotNull CountryId countryId,
             @NotNull LocationTypeId locationTypeId,
-            @Nullable @Size(max = 10) @Pattern(regexp = ICAO_REGEX) String icaoCode,
+            @Nullable @Size(max = 10) String icaoCode,
             @Nullable @Size(max = 10) String latitude,
             @Nullable @Size(max = 10) String longitude,
             @Nullable Integer elevation,

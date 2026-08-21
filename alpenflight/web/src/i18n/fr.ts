@@ -125,6 +125,12 @@ const fr: Translations = {
   },
   auditLogs: {
     title: 'Journaux',
+    actor: {
+      anonymousPublic: 'Formulaire public',
+      legacyMigrated: 'Migration',
+      system: 'Système',
+      unknown: 'Inconnu',
+    },
     columns: {
       action: 'Action',
       target: 'Objet',
@@ -158,7 +164,6 @@ const fr: Translations = {
       next: 'Suivant',
       page: 'À partir de {{offset}}',
     },
-    systemActor: 'Système',
   },
   common: {
     errors: {

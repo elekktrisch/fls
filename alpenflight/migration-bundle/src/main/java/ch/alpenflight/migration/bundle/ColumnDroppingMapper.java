@@ -8,6 +8,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public final class ColumnDroppingMapper implements Mapper {
 
@@ -42,6 +44,13 @@ public final class ColumnDroppingMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeyTargets() {
         return delegate.foreignKeyTargets();
+    }
+
+    @Override
+    public Set<String> crossTenantForeignKeyColumns() {
+        Set<String> stillOnTheWire = new TreeSet<>(delegate.crossTenantForeignKeyColumns());
+        stillOnTheWire.remove(droppedColumn);
+        return Set.copyOf(stillOnTheWire);
     }
 
     @Override

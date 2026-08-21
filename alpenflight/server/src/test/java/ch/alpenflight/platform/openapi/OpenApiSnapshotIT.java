@@ -58,7 +58,21 @@ class OpenApiSnapshotIT {
         OpenApiSnapshotNormalize.stripVolatile(committed);
 
         assertThat(live)
-                .as("Committed OpenAPI snapshot is stale vs. live spec. Run with ALPENFLIGHT_OPENAPI_REFRESH=true to regenerate via OpenApiSnapshotRegenerationIT.")
+                .as("The live OpenAPI spec no longer matches the committed snapshot at %s. "
+                        + "The snapshot is the published API contract: web/openapi/openapi.json "
+                        + "generates the TypeScript client, so every difference below changes what "
+                        + "the browser sends and expects. Read the difference first and answer one "
+                        + "question: did you intend to change the contract? If you did not, the "
+                        + "difference is the defect — fix the server code and leave the snapshot "
+                        + "alone. A field type that widens or narrows is the common accident. For "
+                        + "example AuditEventRow.beforeState and afterState must stay "
+                        + "Map<String, Object>, which the snapshot pins as "
+                        + "{\"type\": \"object\", \"additionalProperties\": {}}; a change to String "
+                        + "makes them {\"type\": \"string\"} and silently changes the generated "
+                        + "client. Regenerate only for a deliberate contract change: run with "
+                        + "ALPENFLIGHT_OPENAPI_REFRESH=true to refresh the snapshot through "
+                        + "OpenApiSnapshotRegenerationIT, regenerate the client, and carry the "
+                        + "change through every caller.", snapshot)
                 .isEqualTo(committed);
     }
 }

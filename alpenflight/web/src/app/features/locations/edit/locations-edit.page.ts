@@ -46,6 +46,7 @@ import {
   emptyInOutboundPointForm,
   formToCreateRequest,
   formToUpdateRequest,
+  icaoCodeIsUnchangedFromTheLoadedValue,
   type InOutboundPointFormShape,
 } from './locations-edit.mapper';
 
@@ -346,12 +347,17 @@ export class LocationsEditPage {
     })),
   );
 
+  private icaoCodeLoadedFromTheServer = '';
+
   protected readonly form: LocationForm = this.fb.group({
     locationName: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(100)]),
     locationShortName: this.fb.nonNullable.control('', [Validators.maxLength(50)]),
     countryId: this.fb.nonNullable.control('', [Validators.required]),
     locationTypeId: this.fb.nonNullable.control('', [Validators.required]),
-    icaoCode: this.fb.nonNullable.control('', [Validators.maxLength(10), icaoFormatValidator()]),
+    icaoCode: this.fb.nonNullable.control('', [
+      Validators.maxLength(10),
+      icaoFormatValidatorThatAcceptsTheUnchangedLoadedValue(() => this.icaoCodeLoadedFromTheServer),
+    ]),
     latitude: this.fb.nonNullable.control('', [Validators.maxLength(10)]),
     longitude: this.fb.nonNullable.control('', [Validators.maxLength(10)]),
     description: this.fb.nonNullable.control(''),
@@ -412,6 +418,7 @@ export class LocationsEditPage {
       const countriesReady = this.referenceData.countries().length > 0;
       const typesReady = this.referenceData.locationTypes().length > 0;
       const value = detailToFormValue(detail);
+      this.icaoCodeLoadedFromTheServer = value.icaoCode;
       this.iopArray.clear({ emitEvent: false });
       for (const p of value.inOutboundPoints) {
         this.iopArray.push(this.makeIopGroup(p), { emitEvent: false });
@@ -483,7 +490,10 @@ export class LocationsEditPage {
     this.saveSubmitted.set(true);
     const id = this.locationId();
     if (id) {
-      this.store.update({ id, req: formToUpdateRequest(value) });
+      this.store.update({
+        id,
+        req: formToUpdateRequest(value, this.icaoCodeLoadedFromTheServer),
+      });
     } else {
       this.store.create(formToCreateRequest(value));
     }
@@ -514,10 +524,13 @@ export class LocationsEditPage {
   }
 }
 
-function icaoFormatValidator(): ValidatorFn {
+function icaoFormatValidatorThatAcceptsTheUnchangedLoadedValue(
+  icaoCodeLoadedFromTheServer: () => string,
+): ValidatorFn {
   return (control: AbstractControl) => {
     const raw = control.value as string | null;
     if (!raw || raw.trim().length === 0) return null;
+    if (icaoCodeIsUnchangedFromTheLoadedValue(raw, icaoCodeLoadedFromTheServer())) return null;
     return ICAO_PATTERN.test(raw.toUpperCase()) ? null : { pattern: true };
   };
 }

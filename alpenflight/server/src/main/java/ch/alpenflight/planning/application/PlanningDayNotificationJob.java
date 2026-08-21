@@ -25,6 +25,7 @@ import ch.alpenflight.platform.mail.MailSettings;
 import ch.alpenflight.platform.mail.TemplatedMailService;
 import ch.alpenflight.platform.scheduling.BusinessJob;
 import ch.alpenflight.platform.scheduling.MeasuredJob;
+import ch.alpenflight.platform.scheduling.SelfProxy;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -79,7 +80,7 @@ public class PlanningDayNotificationJob implements BusinessJob {
     private final MailSettings mailSettings;
     private final AuditTrail auditTrail;
     private final DeploymentContext deploymentContext;
-    private final ObjectProvider<PlanningDayNotificationJob> self;
+    private final SelfProxy<PlanningDayNotificationJob> self;
     private final Clock clock;
 
     public PlanningDayNotificationJob(PlanningDayRepository planningDays,
@@ -104,14 +105,14 @@ public class PlanningDayNotificationJob implements BusinessJob {
         this.mailSettings = mailSettings;
         this.auditTrail = auditTrail;
         this.deploymentContext = deploymentContext;
-        this.self = self;
+        this.self = SelfProxy.around(self);
         this.clock = clock;
     }
 
     @Scheduled(cron = "0 0 6 * * *")
     @LifecycleStateFilter({LifecycleState.ACTIVE})
     public void runScheduled() {
-        runForCurrentClub();
+        self.soTheTransactionalBoundaryApplies().runForCurrentClub();
     }
 
     @Override
@@ -125,7 +126,8 @@ public class PlanningDayNotificationJob implements BusinessJob {
             }
             RunSummary[] acc = {RunSummary.empty(ClubTenantIdentifierResolver.NO_TENANT)};
             deploymentContext.forEachClub(deploymentId, club ->
-                    acc[0] = acc[0].plus(self.getObject().runForCurrentClub()));
+                    acc[0] = acc[0].plus(
+                            self.soTheTransactionalBoundaryApplies().runForCurrentClub()));
             imminent += acc[0].imminentMailCount();
             weekAhead += acc[0].weekAheadMailCount();
         }

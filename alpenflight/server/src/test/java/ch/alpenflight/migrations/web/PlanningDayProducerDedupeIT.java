@@ -31,6 +31,9 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
     private final UUID distinctLocationId = UUID.randomUUID();
     private final UUID distinctRowId = UUID.randomUUID();
 
+    private static final int LEGACY_ROW_IS_LIVE = 0;
+    private static final int LEGACY_ROW_IS_SOFT_DELETED = 1;
+
     @BeforeEach
     void seedLegacyShapedStagingTable() {
         jdbc.execute("""
@@ -45,7 +48,8 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
                     ModifiedOn       TIMESTAMP,
                     ModifiedByUserId UUID,
                     DeletedOn        TIMESTAMP,
-                    DeletedByUserId  UUID
+                    DeletedByUserId  UUID,
+                    IsDeleted        SMALLINT NOT NULL
                 )
                 """);
         jdbc.update("DELETE FROM PlanningDays");
@@ -90,6 +94,86 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void producerSelectKeepsTheLiveDayWhenAnEarlierDayOnTheSameKeyWasSoftDeleted() {
+        UUID deletedThenRecreatedLocationId = UUID.randomUUID();
+        UUID softDeletedEarlierDayId = UUID.randomUUID();
+        UUID liveRecreatedDayId = UUID.randomUUID();
+
+        insertSoftDeletedRow(softDeletedEarlierDayId, deletedThenRecreatedLocationId,
+                Timestamp.valueOf("2019-03-01 07:00:00"), "deleted by the club admin",
+                Timestamp.valueOf("2020-05-04 12:00:00"));
+        insertRow(liveRecreatedDayId, deletedThenRecreatedLocationId,
+                Timestamp.valueOf("2021-08-09 06:15:00"), "re-created for the same date");
+
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY);
+        List<Map<String, Object>> rows = jdbc.queryForList(select);
+
+        List<UUID> survivorsOnTheRecreatedKey = rows.stream()
+                .filter(r -> r.get("locationid").toString()
+                        .equals(deletedThenRecreatedLocationId.toString()))
+                .map(r -> UUID.fromString(r.get("planningdayid").toString()))
+                .toList();
+
+        assertThat(survivorsOnTheRecreatedKey)
+                .as("legacy soft-deletes a planning day (FLSDataEntities.cs:1331 sets "
+                        + "IsDeleted = 1) and lets the club create the same "
+                        + "(ClubId, Day, LocationId) again, so a deleted row can hold the "
+                        + "earliest CreatedOn; the dedupe must keep the LIVE day, else the "
+                        + "operator loses the planning day that legacy still shows")
+                .containsExactly(liveRecreatedDayId);
+    }
+
+    @Test
+    void assignmentSelectRemapsOntoTheLiveDayWhenTheEarlierDayOnTheKeyWasSoftDeleted() {
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS PlanningDayAssignments (
+                    PlanningDayAssignmentId UUID PRIMARY KEY,
+                    AssignedPlanningDayId   UUID NOT NULL,
+                    AssignedPersonId        UUID,
+                    AssignmentTypeId        UUID,
+                    Remarks                 TEXT,
+                    CreatedOn               TIMESTAMP NOT NULL,
+                    CreatedByUserId         UUID,
+                    ModifiedOn              TIMESTAMP,
+                    ModifiedByUserId        UUID,
+                    DeletedOn               TIMESTAMP,
+                    DeletedByUserId         UUID,
+                    IsDeleted               SMALLINT NOT NULL
+                )
+                """);
+        jdbc.update("DELETE FROM PlanningDayAssignments");
+
+        UUID deletedThenRecreatedLocationId = UUID.randomUUID();
+        UUID softDeletedEarlierDayId = UUID.randomUUID();
+        UUID liveRecreatedDayId = UUID.randomUUID();
+        insertSoftDeletedRow(softDeletedEarlierDayId, deletedThenRecreatedLocationId,
+                Timestamp.valueOf("2019-03-01 07:00:00"), "deleted by the club admin",
+                Timestamp.valueOf("2020-05-04 12:00:00"));
+        insertRow(liveRecreatedDayId, deletedThenRecreatedLocationId,
+                Timestamp.valueOf("2021-08-09 06:15:00"), "re-created for the same date");
+
+        UUID assignmentOnTheLiveDay = UUID.randomUUID();
+        insertAssignment(assignmentOnTheLiveDay, liveRecreatedDayId);
+
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT);
+        List<Map<String, Object>> rows = jdbc.queryForList(select);
+
+        UUID remappedParentDay = rows.stream()
+                .filter(r -> r.get("planningdayassignmentid").toString()
+                        .equals(assignmentOnTheLiveDay.toString()))
+                .map(r -> UUID.fromString(r.get("assignedplanningdayid").toString()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(remappedParentDay)
+                .as("the FIRST_VALUE remap must pick the same survivor as the PLANNING_DAY "
+                        + "dedupe; if it still keeps the soft-deleted earlier day, this live "
+                        + "assignment is remapped onto a day the bundle never carries and "
+                        + "fk_pda_planning_day_id 23503s at ingest")
+                .isEqualTo(liveRecreatedDayId);
+    }
+
+    @Test
     void assignmentSelectRemapsAssignmentsOfDroppedDaysOntoTheKeptFirstSurvivor() {
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS PlanningDayAssignments (
@@ -103,7 +187,8 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
                     ModifiedOn              TIMESTAMP,
                     ModifiedByUserId        UUID,
                     DeletedOn               TIMESTAMP,
-                    DeletedByUserId         UUID
+                    DeletedByUserId         UUID,
+                    IsDeleted               SMALLINT NOT NULL
                 )
                 """);
         jdbc.update("DELETE FROM PlanningDayAssignments");
@@ -144,7 +229,8 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
                     ModifiedOn              TIMESTAMP,
                     ModifiedByUserId        UUID,
                     DeletedOn               TIMESTAMP,
-                    DeletedByUserId         UUID
+                    DeletedByUserId         UUID,
+                    IsDeleted               SMALLINT NOT NULL
                 )
                 """);
         jdbc.update("DELETE FROM PlanningDayAssignments");
@@ -206,22 +292,34 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
                 INSERT INTO PlanningDayAssignments
                     (PlanningDayAssignmentId, AssignedPlanningDayId, AssignedPersonId,
                      AssignmentTypeId, Remarks, CreatedOn, CreatedByUserId,
-                     ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NULL)
+                     ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId, IsDeleted)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, NULL, ?)
                 """,
                 id, planningDayId, personId, assignmentTypeId, "crew",
-                createdOn, deletedOn);
+                createdOn, deletedOn,
+                deletedOn == null ? LEGACY_ROW_IS_LIVE : LEGACY_ROW_IS_SOFT_DELETED);
     }
 
     private void insertRow(UUID id, UUID location, Timestamp createdOn, String remarks) {
+        insertRow(id, location, createdOn, remarks, null);
+    }
+
+    private void insertSoftDeletedRow(UUID id, UUID location, Timestamp createdOn,
+                                      String remarks, Timestamp deletedOn) {
+        insertRow(id, location, createdOn, remarks, deletedOn);
+    }
+
+    private void insertRow(UUID id, UUID location, Timestamp createdOn, String remarks,
+                           Timestamp deletedOn) {
         jdbc.update("""
                 INSERT INTO PlanningDays
                     (PlanningDayId, ClubId, Day, LocationId, Remarks,
                      CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
-                     DeletedOn, DeletedByUserId)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, NULL)
+                     DeletedOn, DeletedByUserId, IsDeleted)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, NULL, ?)
                 """,
                 id, clubId, java.sql.Date.valueOf(day), location, remarks,
-                createdOn, createdOn);
+                createdOn, createdOn, deletedOn,
+                deletedOn == null ? LEGACY_ROW_IS_LIVE : LEGACY_ROW_IS_SOFT_DELETED);
     }
 }

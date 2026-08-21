@@ -11,6 +11,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -18,7 +20,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Aspect
 @Component
+@Order(MeasuredJobAspect.OUTSIDE_THE_TRANSACTION_ADVISOR_SO_A_SWALLOWED_FAILURE_STILL_ROLLS_BACK)
 public class MeasuredJobAspect {
+
+    static final int OUTSIDE_THE_TRANSACTION_ADVISOR_SO_A_SWALLOWED_FAILURE_STILL_ROLLS_BACK =
+            Ordered.LOWEST_PRECEDENCE - 1;
 
     private static final Logger LOG = LoggerFactory.getLogger(MeasuredJobAspect.class);
     private static final String TIMER_NAME = "fls_job_duration_seconds";

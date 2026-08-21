@@ -160,7 +160,8 @@ public final class FanOutParityBundleSeeder {
         row.put("country_id", countryId.toString());
         row.put("location_type_id",
                 Coercions.legacyIntIdToUuidString(LEGACY_LOCATION_TYPE_GRASS));
-        row.put("icao_code", distinctIcaoPerClubReplica(legacyClubId));
+        row.put("icao_code",
+                distinctLegacyIcaoPerClubReplicaAlwaysOutsideTheAlpenFlightPattern(legacyClubId));
         row.put("latitude", "47.46");
         row.put("longitude", "8.55");
         row.put("elevation", 1416);
@@ -184,9 +185,10 @@ public final class FanOutParityBundleSeeder {
         return ndjsonLine(row);
     }
 
-    private static String distinctIcaoPerClubReplica(UUID legacyClubId) {
-        return "J" + Integer.toHexString(legacyClubId.hashCode())
-                .substring(0, 3)
+    private static String distinctLegacyIcaoPerClubReplicaAlwaysOutsideTheAlpenFlightPattern(
+            UUID legacyClubId) {
+        return "J0" + Integer.toHexString(legacyClubId.hashCode())
+                .substring(0, 2)
                 .toUpperCase(java.util.Locale.ROOT);
     }
 

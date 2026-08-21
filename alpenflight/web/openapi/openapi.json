@@ -65,11 +65,11 @@
     "name" : "AccountingReferenceData",
     "description" : "Reference catalogs for the accounting rule-filter edit form (cross-tenant)."
   }, {
-    "name" : "Deliveries",
-    "description" : "Read-only delivery (invoice-draft) viewer — tenant-scoped; paged list + view-by-id."
-  }, {
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
+  }, {
+    "name" : "Deliveries",
+    "description" : "Read-only delivery (invoice-draft) viewer — tenant-scoped; paged list + view-by-id."
   }, {
     "name" : "Migration bundle ingest",
     "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
@@ -5187,7 +5187,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED", "CLIENT_IP_REDACTED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -5301,6 +5301,30 @@
           },
           "404" : {
             "description" : "No live day with that id in the caller's club."
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-events/{auditEventId}/client-ip" : {
+      "delete" : {
+        "tags" : [ "Audit Events" ],
+        "summary" : "Redact the client IP of one audit event of the caller's tenant. The audit row stays; only the client IP goes.",
+        "operationId" : "redactAuditEventClientIp",
+        "parameters" : [ {
+          "name" : "auditEventId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "The client IP is gone. Every other cell of the row is unchanged."
+          },
+          "404" : {
+            "description" : "The caller's tenant holds no audit event with this id."
           }
         }
       }
@@ -5969,7 +5993,7 @@
       },
       "LocationUpdateRequest" : {
         "type" : "object",
-        "description" : "Payload to update a Location. Replaces the full IOP list (orphan-removal cleans up).",
+        "description" : "Payload to update a Location. Replaces the full IOP list (orphan-removal cleans up). The ICAO code carries no wire-level pattern, because a migrated Location keeps the legacy value the migration wrote. The Location aggregate applies the pattern to a CHANGED value only.",
         "properties" : {
           "locationName" : {
             "type" : "string",
@@ -5996,8 +6020,7 @@
           "icaoCode" : {
             "type" : "string",
             "maxLength" : 10,
-            "minLength" : 0,
-            "pattern" : "^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$"
+            "minLength" : 0
           },
           "latitude" : {
             "type" : "string",
@@ -11039,13 +11062,17 @@
           "actorKeycloakSub" : {
             "type" : "string"
           },
+          "actorKind" : {
+            "type" : "string",
+            "enum" : [ "NORMAL", "ANONYMOUS_PUBLIC", "SYSTEM", "LEGACY_MIGRATED" ]
+          },
           "tenantClubId" : {
             "type" : "string",
             "format" : "uuid"
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN", "CLUB_JOIN_CODE_ROTATED", "CLIENT_IP_REDACTED" ]
           },
           "targetEntityType" : {
             "type" : "string"

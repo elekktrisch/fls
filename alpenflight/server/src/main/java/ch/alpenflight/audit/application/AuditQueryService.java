@@ -46,6 +46,7 @@ public class AuditQueryService {
                 e.getOccurredAt(),
                 e.getActorUserId(),
                 e.getActorKeycloakSub(),
+                e.getActorKind(),
                 e.getTenantClubId(),
                 e.getAction(),
                 e.getTargetEntityType(),

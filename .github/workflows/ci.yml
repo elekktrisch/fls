@@ -101,6 +101,12 @@ jobs:
       - name: Journey-file lookup guard
         run: bash .github/scripts/journey-derive-selfcheck.sh
 
+      - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
+        run: python3 .github/scripts/required-gate-reds-when-a-required-job-skips-its-live-lane.py
+
+      - name: Fan-out verdict-reader guard (J-32 — the reader must tell a parity defect from a chain that could not run, from a spec that asserts no migrated data, and from a proven parity whose run went red at a later step; when two covering runs disagree, the newest run whose parity step went red must decide and must refuse the merge; it must still find the fan-out job, its parity step and every spec that step drives)
+        run: python3 .github/scripts/fanout-parity-verdict.py --selftest
+
       - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
         run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
 
@@ -1286,6 +1292,23 @@ jobs:
               "Legacy flsweb: the /confirm form. The legacy application collects the new password itself. It shows two password fields and one button." \
               "AlpenFlight: the /confirm page after a verify-email link opened in a browser without a session. Keycloak verified the address, the theme back link returned the member here, and the page shows the verified state with one sign-in action. ADR 0007 gives the password entry to Keycloak, so this page makes no parity claim against the legacy form."
           fi
+          if [ "${PROOF_JOURNEY:-}" = "J-32" ]; then
+            add_af_only "J-32" "audit" "attribution" \
+              "alpenflight-audit-actor-attribution.png" \
+              "AlpenFlight: the /system/logs audit trail, filtered to CREATE and Location after a real write. The row for that write names the administrator who made it, by username, and no row on the page leaves the actor cell empty."
+            add_af_only "J-32" "audit" "redaction" \
+              "alpenflight-audit-person-redacted.png" \
+              "AlpenFlight: one expanded /system/logs row for a Person write. Every value reads [redacted], and the name the operator typed is absent. The row keeps its action, its actor and its time."
+            add_af_only "J-32" "audit" "anonymous-actor" \
+              "alpenflight-audit-anonymous-actor.png" \
+              "AlpenFlight: the /system/logs rows for a public scenic-flight registration submitted with no token. The actor cell reads the public-form label, which differs from the label a scheduled job gets."
+            add_af_only "J-32" "audit" "tenant-isolation" \
+              "alpenflight-audit-tenant-isolation.png" \
+              "AlpenFlight: the /system/logs audit trail of the club-A administrator, filtered to CREATE and Location. Club B wrote a Location moments before. The club-A administrator reads the club-A row only."
+            add_af_only "J-32" "audit" "detail" \
+              "alpenflight-audit-row-detail.png" \
+              "AlpenFlight: one expanded /system/logs row. It shows the field-level snapshot table, with one line for each field of the written Location."
+          fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -2403,6 +2426,49 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  alpenflight-fanout-parity:
+    name: fan-out parity
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+      && needs.changes.outputs.troubleshooting != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Check out every ref so the gate can tell which commit a fan-out run covered
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Warn on every pull request while the newest fan-out on main is not green, so a scheduled red cannot rot unread (informs only, the next step is the gate)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/fanout-parity-verdict.py --report-latest-verdict-on-main
+
+      - name: Refuse the merge unless a real fan-out proved the producer files this branch changes, start one when the branch head moved past the run that refuses the merge, and wait for the run in flight to answer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          python3 .github/scripts/fanout-parity-verdict.py \
+            --base-sha "$PULL_REQUEST_BASE_SHA" \
+            --head-sha "$PULL_REQUEST_HEAD_SHA" \
+            --start-a-fanout-on-branch "$PULL_REQUEST_HEAD_BRANCH" \
+            --minutes-until-a-covering-run-must-appear 8 \
+            --minutes-until-the-covering-run-must-finish 45 \
+            --seconds-between-polls 30
+
   # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
@@ -2422,9 +2488,14 @@ jobs:
   #     real-idp run for the journey in flight now BLOCKS merge. The full
   #     cross-journey regression stays nightly (`alpenflight-e2e-real-idp.yml`).
   #   - `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit spec)
-  #     also gates the merge. The J-3 dashboard display job
-  #     (`alpenflight-dashboard-proof`) stays NON-blocking (the visual showcase +
-  #     gallery), so the gate isn't coupled to `start-dashboard.spec.ts`.
+  #     also gates the merge, and per-push is its ONLY executing lane: the
+  #     nightly `alpenflight-e2e-real-idp.yml` run passes `e2e/tests/real-idp/`
+  #     as its path argument, so it never collects `e2e/tests/profile/`, and its
+  #     `--grep-invert 'showcase seed'` drops `start-dashboard.spec.ts` too. The
+  #     J-3 dashboard display job (`alpenflight-dashboard-proof`) stays
+  #     NON-blocking (the visual showcase + gallery), so the gate isn't coupled
+  #     to `start-dashboard.spec.ts`; its red shows on the PR as a red check, not
+  #     as a merge block.
   # `alpenflight-proof`'s `if:` guard is identical to next-build-server /
   # next-build-web / next-auth-realm-shape (`next == 'true' && docs_only !=
   # 'true'`), and
@@ -2435,9 +2506,10 @@ jobs:
   # troubleshooting mode gets its own hard-fail step instead of relying on the
   # heavy lane's skips.
   # ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge]
+    needs: [changes, next-build-server, next-build-web, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e-merge, alpenflight-fanout-parity]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -2481,21 +2553,40 @@ jobs:
           R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
           R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e-merge.result }}
+          R_FANOUT_PARITY: ${{ needs.alpenflight-fanout-parity.result }}
+          HEAVY_LANE_STOOD_DOWN: ${{ (needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          MOCK_E2E_LANE_STOOD_DOWN: ${{ (github.event_name == 'push' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          FANOUT_PARITY_LANE_STOOD_DOWN: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
         run: |
+          set -uo pipefail
+          printf "  heavy lane stood down for this event: %s (mock-e2e lane: %s, fan-out parity lane: %s)\n\n" \
+            "$HEAVY_LANE_STOOD_DOWN" "$MOCK_E2E_LANE_STOOD_DOWN" "$FANOUT_PARITY_LANE_STOOD_DOWN"
           fail=0
-          for pair in \
-              "changes:$R_CHANGES" \
-              "alpenflight-build-server:$R_NEXT_SERVER" \
-              "alpenflight-build-web:$R_NEXT_WEB" \
-              "alpenflight-auth-realm-shape:$R_AUTH" \
-              "alpenflight-proof:$R_PROOF" \
-              "alpenflight-profile-proof:$R_PROFILE_PROOF" \
-              "alpenflight-mock-e2e-merge:$R_MOCK_E2E" ; do
-            name="${pair%%:*}"
-            result="${pair##*:}"
+          for job_result_and_permitted_skip in \
+              "changes|$R_CHANGES|false" \
+              "alpenflight-build-server|$R_NEXT_SERVER|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-build-web|$R_NEXT_WEB|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-auth-realm-shape|$R_AUTH|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-proof|$R_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-profile-proof|$R_PROFILE_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-mock-e2e-merge|$R_MOCK_E2E|$MOCK_E2E_LANE_STOOD_DOWN" \
+              "alpenflight-fanout-parity|$R_FANOUT_PARITY|$FANOUT_PARITY_LANE_STOOD_DOWN" ; do
+            IFS='|' read -r name result skip_is_permitted <<< "$job_result_and_permitted_skip"
             case "$result" in
-              success|skipped) printf "  %-28s %s\n" "$name" "$result" ;;
-              *)               printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
+              success)
+                printf "  %-28s %s\n" "$name" "$result" ;;
+              skipped)
+                if [ "$skip_is_permitted" = 'true' ]; then
+                  printf "  %-28s %s   (its lane stood down)\n" "$name" "$result"
+                else
+                  printf "  %-28s %s  <-- skipped while its lane was live, so it gated nothing\n" "$name" "$result"
+                  fail=1
+                fi ;;
+              *)
+                printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
             esac
           done
+          if [ "$fail" != "0" ]; then
+            echo "::error title=required is red::A job above failed, or it skipped while next=='true' and docs_only!='true'. RESIDUAL LIMIT — this gate reads JOB RESULTS for the jobs in its own needs list only: it cannot see a step a job swallowed with continue-on-error, it cannot see a spec a job's command never selected, it does not cover alpenflight-dashboard-proof, which is deliberately non-blocking (its red shows as a red check on the PR, not as a merge block), and the fan-out parity job it now aggregates arms only on the producer trees that job's own failure message names."
+          fi
           [ "$fail" = "0" ]

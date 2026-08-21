@@ -217,6 +217,35 @@ carries an expiry + removal plan.
   resolved `club_id` from the moment a request is filed (a claim the IdP would
   have to mint pre-membership — not on today's roadmap).
 
+### `mutation-audit-event-null-tenant-client-ip-redaction` — `Client-IP retention sweep for audit rows no club owns`
+
+- **Caller:** `src/main/java/ch/alpenflight/audit/infra/JpaMutationAuditEventRepository.java`
+- **Tenant-scoped tables touched:** `t_mutation_audit_event`
+- **Justification:** the register already approves a NULL-`tenant_club_id` INSERT
+  on this table (`mutation-audit-event-system-actor-write`). The 90-day client-IP
+  retention sweep must reach exactly those rows. `ClientIpRetentionJob` iterates
+  `Tenants.runAs(clubId, …)` over every club, so Hibernate's `@TenantId` filter
+  emits `tenant_club_id = ?` and a NULL-tenant row matches no club — the sweep
+  could never redact it, and the row would keep the address for ever. JPA offers
+  no "leave the discriminator out" read, so the same structurally-pre-tenant seam
+  that justifies the write justifies the redaction of what it wrote. Measured, not
+  argued: `EveryClientIpStaysReachableByTheRetentionSweepIT` seeds such a row and
+  fails without this statement.
+- **Tenancy gate:** the UPDATE selects on `tenant_club_id IS NULL`, so it can
+  touch no row any club owns — the complement of every tenant-scoped sweep, never
+  an overlap. It writes one cell, `client_ip = NULL`, which only removes personal
+  data; the V60 column-level grant permits that cell alone, and the V54
+  append-only rules still refuse every other UPDATE and every DELETE. The cutoff
+  comes from `MutationAuditEvent.clientIpRetentionCutoff`, parameter-bound, never
+  interpolated.
+- **Reviewer:** auto-registered with J-32 T-49; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-08-21.
+- **Expires:** 2027-08-21
+- **Remove when:** S-023's `UnscopedTenantContext` lands and the sweep can load
+  the rows through JPA, OR Hibernate exposes a per-read "leave null" switch for
+  `@TenantId`.
+
 ## Re-affirm log
 
 - **J-26 T-17 (2026-06-12) — full re-affirm pass.** Every entry above was

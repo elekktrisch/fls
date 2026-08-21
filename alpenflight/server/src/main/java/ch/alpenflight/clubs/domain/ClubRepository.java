@@ -26,5 +26,7 @@ public interface ClubRepository {
 
     List<UUID> findIdsByDeploymentId(UUID deploymentId);
 
+    List<UUID> idsOfEveryClubIncludingTheSoftDeleted();
+
     Club save(Club club);
 }

@@ -18,7 +18,6 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| J-32 | Rider burndown — drain every S1 + S2 boyscout rider (hardening) | E-13 | — | — | N/A (hardening) | none (reuses a built screen for its proof) |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
@@ -58,18 +57,6 @@ can't drift) over hand-drawn images; gh-pages hosting like the gallery; audience
 developers/stakeholders (architecture). After J-28 ships, the **[PER-JOURNEY-DOC]** standing rider has
 each feature journey contribute its manual page + diagram delta on its gate — keeping both current.
 
-**J-32 — Rider burndown (hardening)** (filed by `/do-retro` 2026-08-19, operator decision). `_BOYSCOUT.md` reached
-**45 riders across 30 sections**, with **12 S1** and the oldest dating to 2026-06-04. Neither oldest-first (J-17
-retro) nor severity-first (J-31 retro) drained it: J-19 burned 2 riders and filed 9. A per-journey slot cannot
-keep up with the discovery rate, and suppressing the filing would be worse — J-19's riders came from real
-gap-hunter and worker findings. So the operator chose a dedicated hardening journey, as with J-26, J-29, J-30
-and J-31.
-
-Bar: the same as any journey — **≥1 provable screen result + a green gate**. It reuses an already-built screen
-for the proof (J-31 drove the landing page). Done when **every S1 and S2 rider is shipped or deleted with a
-stated reason**, and each shipped bullet is removed from `_BOYSCOUT.md`. Security-relevant riders are never
-deleted, only fixed. Carve it with `/do-plan J-32` when the operator wants it; it has no `depends_on`.
-
 ## Journey-0 — `J-0 Locations CRUD`
 
 The thinnest already-built screen (`S-049/049b/049c` are `implemented/`), so no
@@ -83,7 +70,6 @@ and the proven mapper pattern.
 
 ## Per-journey Playwright contract (the one-line gate)
 
-- **J-32:** A built screen re-proves green while the S1+S2 rider count reaches zero; each shipped rider's bullet is deleted.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
 - **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.

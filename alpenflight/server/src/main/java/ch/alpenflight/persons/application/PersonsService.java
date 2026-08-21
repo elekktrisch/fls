@@ -4,6 +4,7 @@ import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.persons.application.PersonDtos.PersonClubRequest;
+import ch.alpenflight.persons.application.PersonDtos.PersonClubResponse;
 import ch.alpenflight.persons.application.PersonDtos.PersonCreateRequest;
 import ch.alpenflight.persons.application.PersonDtos.PersonListItem;
 import ch.alpenflight.persons.application.PersonDtos.PersonLookupMatch;
@@ -236,18 +237,19 @@ public class PersonsService {
         Person p = persons.findActiveById(id.value())
                 .orElseThrow(() -> new PersonNotFoundException(id));
         UUID tenant = currentTenantOrThrow();
-        PersonClub attached = applyJoin(p, tenant, req);
+        applyJoin(p, tenant, req);
         Person saved = persistPerson(p);
+        PersonClub attached = aliveMembershipInOrThrow(saved, tenant);
         UUID pcId = requirePersonClubId(attached);
         auditTrail.record(AuditAction.CREATE,
-                AuditedTarget.created(AUDIT_PERSON_CLUB, pcId, saved));
+                AuditedTarget.created(AUDIT_PERSON_CLUB, pcId, toClubSnapshot(attached)));
         return toResponse(saved);
     }
 
     public PersonResponse updateCurrentClubMembership(PersonId id, PersonClubRequest req) {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
-        PersonResponse beforeSnapshot = toResponse(p);
+        PersonClubResponse beforeSnapshot = toClubSnapshot(aliveMembershipInOrThrow(p, tenant));
         PersonClub pc = p.updateClubMembership(
                 tenant,
                 req.memberNumber(),
@@ -259,23 +261,22 @@ public class PersonsService {
         UUID pcId = requirePersonClubId(pc);
         PersonResponse after = toResponse(saved);
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_PERSON_CLUB, pcId, beforeSnapshot, after));
+                AuditedTarget.updated(AUDIT_PERSON_CLUB, pcId,
+                        beforeSnapshot, toClubSnapshot(pc)));
         return after;
     }
 
     public void leaveCurrentClub(PersonId id, @Nullable UUID userId) {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
-        UUID personClubIdCapturedBeforeLeave = p.getActivePersonClubs().stream()
-                .filter(pc -> tenant.equals(pc.getClubId()))
-                .findFirst()
-                .map(PersonsService::requirePersonClubId)
-                .orElseThrow(() -> new PersonNotFoundException(
-                        "Person has no alive PersonClub in club " + tenant));
+        PersonClub membershipBeforeLeave = aliveMembershipInOrThrow(p, tenant);
+        UUID personClubIdCapturedBeforeLeave = requirePersonClubId(membershipBeforeLeave);
+        PersonClubResponse beforeSnapshot = toClubSnapshot(membershipBeforeLeave);
         p.leaveClub(tenant, userId, clock);
         persistPerson(p);
         auditTrail.record(AuditAction.DELETE,
-                AuditedTarget.deleted(AUDIT_PERSON_CLUB, personClubIdCapturedBeforeLeave, p));
+                AuditedTarget.deleted(AUDIT_PERSON_CLUB, personClubIdCapturedBeforeLeave,
+                        beforeSnapshot));
     }
 
     @Transactional(readOnly = true)
@@ -366,6 +367,11 @@ public class PersonsService {
         return PersonMapper.toResponse(p,
                 PersonMapper.MemberStateNameLookup.fromList(memberStates.nameRowsInCurrentTenant()),
                 inOther);
+    }
+
+    private PersonClubResponse toClubSnapshot(PersonClub pc) {
+        return PersonMapper.toClubResponse(pc,
+                PersonMapper.MemberStateNameLookup.fromList(memberStates.nameRowsInCurrentTenant()));
     }
 
     private PersonClub applyJoin(Person p, UUID tenant, PersonClubRequest req) {

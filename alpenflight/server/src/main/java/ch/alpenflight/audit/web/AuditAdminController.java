@@ -3,6 +3,7 @@ package ch.alpenflight.audit.web;
 import ch.alpenflight.audit.application.AuditEventDtos.AuditEventPage;
 import ch.alpenflight.audit.application.AuditEventDtos.AuditEventQuery;
 import ch.alpenflight.audit.application.AuditQueryService;
+import ch.alpenflight.audit.application.ClientIpRedaction;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,8 +13,11 @@ import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,9 +31,11 @@ class AuditAdminController {
     private static final int DEFAULT_PAGE_SIZE = 50;
 
     private final AuditQueryService queryService;
+    private final ClientIpRedaction clientIpRedaction;
 
-    AuditAdminController(AuditQueryService queryService) {
+    AuditAdminController(AuditQueryService queryService, ClientIpRedaction clientIpRedaction) {
         this.queryService = queryService;
+        this.clientIpRedaction = clientIpRedaction;
     }
 
     @Operation(operationId = "listAuditEvents",
@@ -47,5 +53,19 @@ class AuditAdminController {
         return queryService.findPage(new AuditEventQuery(
                 occurredFrom, occurredTo, action, targetEntityType,
                 actorUserId, pageSize, pageOffset));
+    }
+
+    @Operation(operationId = "redactAuditEventClientIp",
+            summary = "Redact the client IP of one audit event of the caller's tenant. "
+                    + "The audit row stays; only the client IP goes.")
+    @ApiResponse(responseCode = "204",
+            description = "The client IP is gone. Every other cell of the row is unchanged.")
+    @ApiResponse(responseCode = "404",
+            description = "The caller's tenant holds no audit event with this id.")
+    @DeleteMapping("/{auditEventId}/client-ip")
+    ResponseEntity<Void> redactAuditEventClientIp(@PathVariable UUID auditEventId) {
+        return clientIpRedaction.redactOneClientIpAheadOfTheRetentionWindow(auditEventId)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 }

@@ -668,8 +668,63 @@ class MapperLegacyBindingsTest {
                         + "ux_pln_club_date_loc at ingest")
                 .contains("ROW_NUMBER() OVER")
                 .contains("PARTITION BY CLUBID, DAY, LOCATIONID")
-                .contains("ORDER BY CREATEDON, PLANNINGDAYID")
+                .contains("ORDER BY ISDELETED, CREATEDON, PLANNINGDAYID")
                 .contains("WHERE RN = 1");
+    }
+
+    @Test
+    void planningDaySurvivorOrderIsSharedSoTheDayAndItsAssignmentsKeepTheSameRow() {
+        String dayOrdering = windowOrderings(
+                MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY)).getFirst();
+        String assignmentRemapOrdering = windowOrderings(
+                MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT))
+                .stream()
+                .filter(ordering -> ordering.contains("PLANNINGDAYID")
+                        && !ordering.contains("PLANNINGDAYASSIGNMENTID"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(assignmentRemapOrdering)
+                .as("the FIRST_VALUE remap in PLANNING_DAY_ASSIGNMENT must rank the "
+                        + "PlanningDays partition exactly as the PLANNING_DAY dedupe does; "
+                        + "any divergence remaps an assignment onto a day the bundle never "
+                        + "carries and 23503s on fk_pda_planning_day_id at ingest")
+                .isEqualTo(dayOrdering);
+        assertThat(dayOrdering)
+                .as("legacy soft-deletes a planning day by setting IsDeleted = 1 "
+                        + "(FLSDataEntities.cs:1331) and puts no unique key on "
+                        + "(ClubId, Day, LocationId), so a deleted row can hold the earliest "
+                        + "CreatedOn; IsDeleted ranks first so a live day always beats it")
+                .startsWith("ORDER BY ISDELETED");
+    }
+
+    @Test
+    void planningDayAssignmentCompositeDedupeRanksOnTheLegacySoftDeleteFlag() {
+        String compositeOrdering = windowOrderings(
+                MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT))
+                .stream()
+                .filter(ordering -> ordering.contains("PLANNINGDAYASSIGNMENTID"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(compositeOrdering)
+                .as("IsDeleted is the flag legacy filters visibility on; DeletedOn is "
+                        + "nullable audit metadata a soft-deleted row can lack "
+                        + "(FLSDataEntities.cs:1275-1283 skips it), so ranking on DeletedOn "
+                        + "lets a deleted assignment beat the live one")
+                .startsWith("ORDER BY PDA.ISDELETED")
+                .doesNotContain("DELETEDON");
+    }
+
+    private static List<String> windowOrderings(String select) {
+        String normalised = select.toUpperCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
+        List<String> orderings = new java.util.ArrayList<>();
+        java.util.regex.Matcher matcher =
+                java.util.regex.Pattern.compile("ORDER BY ([^)]+)\\)").matcher(normalised);
+        while (matcher.find()) {
+            orderings.add("ORDER BY " + matcher.group(1).trim());
+        }
+        return orderings;
     }
 
     @Test
@@ -706,7 +761,7 @@ class MapperLegacyBindingsTest {
                         + "assignment FK-violates (23503) at ingest")
                 .contains("FIRST_VALUE(PLANNINGDAYID) OVER")
                 .contains("PARTITION BY CLUBID, DAY, LOCATIONID")
-                .contains("ORDER BY CREATEDON, PLANNINGDAYID")
+                .contains("ORDER BY ISDELETED, CREATEDON, PLANNINGDAYID")
                 .contains("AS ASSIGNEDPLANNINGDAYID");
     }
 

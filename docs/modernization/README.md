@@ -69,6 +69,7 @@ docs/modernization/
 ├── 01-current-state.md             feature inventory + architecture digest
 ├── 02-vision-and-constraints.md    target outcomes + non-negotiables
 ├── legacy-migration-plan.md        single source of truth: every legacy DB table → destination + semantics + owning journey
+├── privacy-notice.md               source text of the privacy notice; the product does not publish it yet
 ├── adrs/
 │   ├── 0001-<topic>.md             one ADR per major decision
 │   └── ...
