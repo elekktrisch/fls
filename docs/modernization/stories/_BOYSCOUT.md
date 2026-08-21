@@ -42,18 +42,6 @@ this file untouched.
   wired wrong in a way only an end-to-end run reveals
   ([[feedback_verify_infra_is_run_not_just_authored]]). *(seam:
   `.github/workflows/alpenflight-proof-fanout.yml` `on.push` + `fanout-parity-verdict.py` `resolve()`)*
-- **[E2E-HELPERS-ARE-LINTED-BY-NOTHING]** [S2] `alpenflight/web/e2e/tests/_helpers/**` sits outside
-  `angular.json` `lintFilePatterns`, so the helpers every spec depends on are gated by no lint. T-63
-  banned importing installer-named exports from `_helpers/` into a real-idp spec, which guards the
-  import but not the helper. T-68 then added a new helper there that nothing lints. *(seam:
-  `angular.json` `lintFilePatterns`; related to `[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]`)*
-- **[FANOUT-VERDICT-BLAMES-A-FIXED-RUN-WHILE-THE-NEW-ONE-RUNS]** [S2] When the newest covering fan-out
-  run reads `STILL_RUNNING`, `fanout-parity-verdict.py` lets an older red decide and prints
-  `PARITY_STEP_RED_SPEC_UNNAMED` with text that tells the developer to open the failed run. The gate
-  blocks correctly — an unproven parity must not merge — but the message names the wrong thing: the old
-  red may already be fixed by the very commit under test, as it was on `a999eda96`. Give the transient
-  case its own verdict that says the covering run is still running and names it. *(seam:
-  `.github/scripts/fanout-parity-verdict.py` `decide()` + `READINGS_NO_OLDER_GREEN_RUN_ANSWERS_FOR`)*
 - **[NG-LINT-COVERS-TWO-E2E-DIRECTORIES-ONLY]** [S2] `ng lint` reads `src/**` plus the two real-idp lane
   directories. The other approximately twenty `e2e/` directories are gated by nothing, and they carry
   **seven live errors** today — `e2e/tests/landing/landing.spec.ts:122` and
@@ -66,7 +54,7 @@ this file untouched.
   `no-restricted-syntax` rule banning a non-negated real-bundle `test.skip` under `e2e/tests/real-idp/`
   would hold it. T-65 did not build it, because the rule needs a proven red per input class and that is
   its own task. *(seam: `eslint.config.mjs` + the real-idp lane)*
-- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S2] `AuditTrailService.java:83` classifies a **failed**
+- **[ANON-FAILED-WRITE-READS-AS-SYSTEM]** [S1] `AuditTrailService.java:83` classifies a **failed**
   anonymous write as `SYSTEM` with no client IP. T-08a gave a successful anonymous write its own
   `ANONYMOUS_PUBLIC` kind, but a write that the abuse guard rejects still produces a row that nobody can
   tell from a cron row. That is the case `[ANON-WRITE-ATTRIBUTION]` named as its motivation, so the
@@ -87,7 +75,11 @@ this file untouched.
 - **[INGEST-CROSS-TENANT-REJECTION-READS-AS-500]** [S2] The bundle ingest maps a cross-tenant foreign-key
   rejection to `500 INGEST_INTERNAL_ERROR`, not a `4xx`. A tenancy defence reads as a server fault, so an
   operator cannot tell a rejected bundle from a broken server. T-51 found it. *(seam: the ingest error map)*
-- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S2] `AuditLogMapper` declares no
+- **[AUDITLOGMAPPER-DECLARES-NO-FOREIGN-KEY-COLUMNS]** [S1] **Promoted from S2 by the J-32 retro, because J-32
+  activated it.** T-51 called this latent "only because `AUDIT_LOG` is unregistered", and the same journey then
+  registered it (`KnownMappers:69`, `Manifest:60`). `ForeignKeyResolver` now seeks the conventional `user_id`
+  while the wire field is `actor_user_id`, so migrated audit rows keep raw legacy GUIDs instead of resolved ids.
+  A migration-correctness defect on a shipped path. Original text follows. `AuditLogMapper` declares no
   `foreignKeyColumns()`, so `ForeignKeyResolver` looks for the conventional `user_id` while the wire field
   is `actor_user_id`. This is latent only because `AUDIT_LOG` is unregistered; it bites when it ships.
 - **[NAV-OVERLAY-EATS-CLICKS]** [S2] `nav.ts:21` — an overlay takes a click the test aimed at the element
@@ -122,7 +114,7 @@ this file untouched.
 
 Found by the confirming `gap-hunter` round AFTER #251 merged.
 
-- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S2] The J-31 sweep deleted every comment in
+- **[COMMENT-GATE-DOES-NOT-COVER-GITHUB-DIR]** [S3] The J-31 sweep deleted every comment in
   `alpenflight/` and `e2e/`, and the gate at `ci.yml:105` reads those two roots only. `.github/`
   was never swept, so it still holds 1850 comment lines in 5895 (31%), and `ci.yml` alone holds 883
   in 2501 (35%). The operator reads that narration as a policy breach, because the rule is one rule
@@ -230,11 +222,6 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
   — alongside the finding that `angular.json`'s `lintFilePatterns` is `src/**` only, so `e2e/` has no lint gate
   either. J-31's `--check` is currently the only automated guard covering that directory.
   *(seam: `e2e/tsconfig.json` + an `e2e` lint/typecheck lane)*
-- **[INLINE-ANGULAR-TEMPLATES-ARE-NOT-TYPECHECKED]** [S2] A rename inside an inline `template:` literal compiles
-  clean and breaks at runtime — `tsc` never checks it. T-14 hit this on `CalendarDay.iso/key` and updated five
-  template sites by hand. This is a standing rename hazard for the whole `web/src` codebase, not a J-31 artifact;
-  worth a lint rule or a note in `web/CLAUDE.md` §4. *(seam: inline-template type checking)*
-
 ## Pending (filed by /do-ship J-31 T-12, 2026-08-15)
 
 - **[SCHEMA-DECISIONS-NOTE]** [S3] T-12 stripped 1,946 comments from the 58 applied Flyway migrations. Unlike every
@@ -398,17 +385,9 @@ Found by the confirming `gap-hunter` round AFTER #251 merged.
 
 ## Pending (filed by /do-ship J-17 gate, 2026-08-06)
 
-- **[RESERVATIONS-EVICTED-BODY]** [S2] `e2e/tests/real-idp/reservations-planning-hardening.spec.ts:693` reads
-  `response.json()` on a body the SPA has already evicted by navigating on POST-success — the documented
-  trap on this project ([[project_spa_nav_evicts_post_response_body]]); read the created id from the `201`
-  `Location` header or a re-GET instead. Found by J-17's compose-free local real-idp run, where it reds
-  **deterministically**; CI's sharded run is green, so something about the CI path masks it — worth
-  establishing which, because a spec that passes on CI and fails locally erodes trust in both.
-  Not J-17's surface (J-5/J-6 reservations+planning). *(seam: that spec's created-id read)*
-
 ## Pending (filed by /do-ship J-17 T-17, 2026-08-03)
 
-- **[FORM-FIRST-PAINT-RED]** [S2] `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
+- **[FORM-FIRST-PAINT-RED]** [S3] `liveFieldErrors` (`shared/util/form/inline-validation.ts`) reports from first paint, so a
   blank form opens **fully red** before the user has typed anything. T-17 hit this on the public registration form and
   gated each message on `events` (touched/dirty) **locally in `registrant-fieldset.component.ts`**. The util is consumed by
   **8 other screens**, so every blank *create* form in the app plausibly opens showing all its validation errors. Fix it in
@@ -507,14 +486,6 @@ safety step. **Each rider rides the next touch of its form.**
   DIVE handlers)*
 
 ## Pending (filed by /do-retro 2026-06-07, J-6 window)
-
-- **Un-mask the migration-ingest constraint in dev/test (operator grill, J-6 retro).** [S2] The bundle-ingest path
-  catches the JDBC `SQLException` and returns only `{"detail":"Database error during ingest [sqlstate=23505]",
-  "errorCode":"INGEST_INTERNAL_ERROR"}` — the real constraint name (`ux_pln_club_date_loc`, the FK name) is
-  buried in the server log. In dev/test profiles, include the constraint name in the error body/detail so a
-  fanout red is diagnosable without server-log archaeology (J-6 23505/23503 each cost a log-dig). Keep prod
-  masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
-  [[project_synth_bundle_doesnt_validate_producer_select]]
 
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
