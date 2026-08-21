@@ -468,7 +468,24 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
     HTTP status and the article numbers the engine returned for each migrated glider flight, and the
     failure message prints them. A 5xx can no longer read as "the filter predicate missed".
   - No producer file changed, so `fan-out parity` needs no fresh run for this task.
-- [ ] T-14 — [S1] J-8 `AccountingRuleFilter`: correct the mapper so migrated `filter_config` matches legacy
+- [x] T-14 — [S1] J-8 `AccountingRuleFilter`: the rider is stale, and the spec now asserts the predicate it names
+  - **The mapper needs no correction.** J-27 T-01 (PR #228, 2026-06-20) fixed the real cause. A bare
+    `JSON_VALUE` over the dirty legacy `ArticleTarget` text aborted the WHOLE producer cursor, so the
+    migrated FlightTime filter never arrived. The gated extraction sits at
+    `MapperLegacyBindings.java:672-683`. J-27's own fan-out gate recorded the case GREEN over real MSSQL,
+    and nobody deleted the rider.
+  - **The green did not prove the rider's claim.** The case asserted the article number, the delivery-line
+    text and the derived list target. It never asserted a predicate field, and its title claimed "predicate
+    config intact". This is a `[SPEC-TITLES-OVERCLAIM]` of the T-19 class.
+  - **The spec now asserts the predicate.** `accounting-rules-parity.spec.ts:439` reads the migrated
+    `filter_config` and asserts the glider-only scope flags, the 0-second minimum, the 2147483647-second
+    maximum, the extend-flight-type-codes flag, and BOTH invert-oriented empty match lists. Every value comes
+    from the legacy row in `flsserver/database/FLSTest/3 insert/_test-fixture.sql:312-329`. The case then
+    reopens the migrated filter and asserts the glider flag RENDERS checked, so the proof video shows the
+    predicate.
+  - **`AccountingRuleFilterProducerDedupeIT.java:229` already locks the same round-trip in `check`** over the
+    real producer SELECT plus the real mapper, on PostgreSQL 17.
+  - No producer file changed.
 - [ ] T-15 — [S2] `MapperVsSchemaCompatibilityTest` red since J-13: add the missing Flyway placeholder
 - [ ] T-16 — [S2] J-0c Location migrated render
 - [ ] T-17 — [S2] fanout has no reporting spec over migrated data

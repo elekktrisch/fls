@@ -567,8 +567,6 @@ safety step. **Each rider rides the next touch of its form.**
 **⚠ BLOCKS the next MIGRATION journey** (hard fanout gate, J-9 retro). Fold into the next migration journey
 (J-1 / J-21, whichever ships first):
 
-- **J-8 AccountingRuleFilter migrated predicate config not intact.** [S1] `accounting-rules-parity.spec.ts:524`
-  — the migrated filter renders but its `filter_config` predicate doesn't match legacy (an
-  AccountingRuleFilter migration-fidelity gap). *(`accounting-rules-parity.spec.ts` + the filter mapper)*
 - **J-0c Location migrated render.** [S2] `fan-out-migration-parity.spec.ts:167` fails — investigate the migrated
   Location render. *(`fan-out-migration-parity.spec.ts`)*
+

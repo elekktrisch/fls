@@ -27,6 +27,14 @@ const RECIPIENT_TARGET_LEGACY_ID = 10;
 const AIRCRAFT_FILTER_LEGACY_ID = 30;
 const NO_LANDING_TAX_LEGACY_ID = 20;
 
+const MIGRATED_LEGACY_FILTER_NAME = 'FlightTime: Glider per minute';
+const LEGACY_FIXTURE_MIN_FLIGHT_TIME_SECONDS = 0;
+const LEGACY_FIXTURE_MAX_FLIGHT_TIME_SECONDS = 2147483647;
+const LEGACY_FIXTURE_EMPTY_MATCH_LIST_USED_FOR_ALL_EXCEPT: MatchList = {
+  useAllExcept: true,
+  matched: [],
+};
+
 interface FilterTypeRow {
   id: string;
   code: string;
@@ -48,10 +56,22 @@ interface ListItem {
   target: string;
 }
 
+interface MigratedFilterConfig {
+  isRuleForGliderFlights: boolean;
+  isRuleForTowingFlights: boolean;
+  isRuleForMotorFlights: boolean;
+  extendMatchingFlightTypeCodesToGliderAndTowFlight: boolean;
+  minFlightTimeInSecondsMatchingValue: number | null;
+  maxFlightTimeInSecondsMatchingValue: number | null;
+  aircraftImmatriculations: MatchList;
+  flightTypeCodes: MatchList;
+  deliveryLineText?: string;
+}
+
 interface Detail extends ListItem {
   articleTarget?: string;
   recipientTarget?: string;
-  filterConfig: Record<string, unknown>;
+  filterConfig: MigratedFilterConfig;
 }
 
 async function newRecordedContext(
@@ -427,10 +447,10 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
       const list = await ctx.request.get(BASE, { headers: { authorization: migratedBearer } });
       expect(list.status(), 'the migrated TestClub lists its migrated filters').toBe(200);
       const items = (await list.json()) as ListItem[];
-      const migrated = items.find((f) => f.ruleFilterName === 'FlightTime: Glider per minute');
+      const migrated = items.find((f) => f.ruleFilterName === MIGRATED_LEGACY_FILTER_NAME);
       expect(
         migrated,
-        `the migrated legacy AccountingRuleFilter "FlightTime: Glider per minute" must be present ` +
+        `the migrated legacy AccountingRuleFilter "${MIGRATED_LEGACY_FILTER_NAME}" must be present ` +
           `for the migrated TestClub — the legacy→export→migrate→render round-trip. ` +
           `Got ${items.length} row(s): ${JSON.stringify(items.map((f) => f.ruleFilterName))}`,
       ).toBeTruthy();
@@ -447,13 +467,47 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
         'the migrated filter carries its legacy ArticleTarget article number (5001)',
       ).toBe('5001');
       expect(
-        (detail.filterConfig as { deliveryLineText?: string }).deliveryLineText,
+        detail.filterConfig.deliveryLineText,
         'the legacy DeliveryLineText folded into the migrated filter_config',
       ).toBe('Glider flight minutes');
       expect(
         migrated!.target,
         'the list target column derives from the migrated article + delivery-line text',
       ).toBe('5001 (Glider flight minutes)');
+
+      const predicate = detail.filterConfig;
+      const legacyFixtureLine =
+        'flsserver/database/FLSTest/3 insert/_test-fixture.sql — the "' +
+        MIGRATED_LEGACY_FILTER_NAME +
+        '" row';
+      expect(
+        [
+          predicate.isRuleForGliderFlights,
+          predicate.isRuleForTowingFlights,
+          predicate.isRuleForMotorFlights,
+        ],
+        `the legacy glider-only scope flags (1, 0, 0) round-tripped into filter_config — ${legacyFixtureLine}`,
+      ).toEqual([true, false, false]);
+      expect(
+        predicate.minFlightTimeInSecondsMatchingValue,
+        `the legacy MinFlightTimeInSecondsMatchingValue round-tripped, so the migrated rule still bills from second 0 — ${legacyFixtureLine}`,
+      ).toBe(LEGACY_FIXTURE_MIN_FLIGHT_TIME_SECONDS);
+      expect(
+        predicate.maxFlightTimeInSecondsMatchingValue,
+        `the legacy MaxFlightTimeInSecondsMatchingValue round-tripped unnarrowed, so the migrated rule still bills any flight duration — ${legacyFixtureLine}`,
+      ).toBe(LEGACY_FIXTURE_MAX_FLIGHT_TIME_SECONDS);
+      expect(
+        predicate.extendMatchingFlightTypeCodesToGliderAndTowFlight,
+        `the legacy ExtendMatchingFlightTypeCodesToGliderAndTowFlight stayed off — ${legacyFixtureLine}`,
+      ).toBe(false);
+      expect(
+        predicate.aircraftImmatriculations,
+        `the legacy UseRuleForAllAircraftsExceptListed=1 over an empty list round-tripped WITH its invert orientation, so the migrated rule still matches every aircraft — ${legacyFixtureLine}`,
+      ).toEqual(LEGACY_FIXTURE_EMPTY_MATCH_LIST_USED_FOR_ALL_EXCEPT);
+      expect(
+        predicate.flightTypeCodes,
+        `the legacy UseRuleForAllFlightTypesExceptListed=1 over an empty list round-tripped WITH its invert orientation, so the migrated rule still matches every flight type — ${legacyFixtureLine}`,
+      ).toEqual(LEGACY_FIXTURE_EMPTY_MATCH_LIST_USED_FOR_ALL_EXCEPT);
 
       await page.goto('/accountingrules?lang=en');
       await expect(page.getByTestId('accounting-rules-table')).toBeVisible();
@@ -465,6 +519,23 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
         path: `${testInfo.outputDir}/alpenflight-accountingrules-migrated-list.png`,
         fullPage: true,
       });
+
+      await page.getByTestId(`accounting-rules-row-${migrated!.id}`).click();
+      await expect(page).toHaveURL(new RegExp(`/accountingrules/${migrated!.id}/edit$`));
+      await expect(page.getByTestId('accounting-rules-edit-form')).toBeVisible();
+      await expect(page.locator('#RuleFilterName')).toHaveValue(MIGRATED_LEGACY_FILTER_NAME);
+      await expect(
+        page.getByTestId('accounting-rules-flag-glider'),
+        'the migrated glider scope RENDERS as a checked flag on the edit form',
+      ).toBeChecked();
+      await expect(page.getByTestId('accounting-rules-flag-towing')).not.toBeChecked();
+      await expect(page.getByTestId('accounting-rules-flag-motor')).not.toBeChecked();
+      await expect(page.locator('#ArticleNumber')).toHaveValue('5001');
+      await expect(page.locator('#DeliveryLineText')).toHaveValue('Glider flight minutes');
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-accountingrules-migrated-form.png`,
+        fullPage: true,
+      });
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -472,9 +543,10 @@ test.describe('Accounting rule filters — migrated legacy filter renders (real-
         caption:
           'J-8 · migrated accounting rule filter · a real legacy AccountingRuleFilter (the TestClub ' +
           'article-target rule "FlightTime: Glider per minute", article 5001), exported + migrated ' +
-          'through the live chain, renders in the migrated club’s /accountingrules list with its ' +
-          'predicate config intact — the ArticleTarget number + the DeliveryLineText folded into ' +
-          'filter_config both round-tripped (full legacy→export→migrate→Keycloak→UI)',
+          'through the live chain, renders in the migrated club’s /accountingrules list AND reopens ' +
+          'with its legacy predicate intact — glider-only scope, the 0-to-2147483647-second flight ' +
+          'window, and both invert-oriented match lists, plus the ArticleTarget number and the ' +
+          'DeliveryLineText folded into filter_config (full legacy→export→migrate→Keycloak→UI)',
         acTag: 'happy',
       });
     }
