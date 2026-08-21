@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { AuditEventRowAction } from './auditEventRowAction';
+import type { AuditEventRowActorKind } from './auditEventRowActorKind';
 import type { AuditEventRowAfterState } from './auditEventRowAfterState';
 import type { AuditEventRowBeforeState } from './auditEventRowBeforeState';
 
@@ -14,6 +15,7 @@ export type AuditEventRow = {
   occurredAt?: string;
   actorUserId?: string;
   actorKeycloakSub?: string;
+  actorKind?: AuditEventRowActorKind;
   tenantClubId?: string;
   action?: AuditEventRowAction;
   targetEntityType?: string;

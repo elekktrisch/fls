@@ -84,8 +84,10 @@ class MutationAuditEventListener {
                 "INSERT INTO t_mutation_audit_event ("
                         + "id, occurred_at, actor_user_id, actor_keycloak_sub, tenant_club_id, "
                         + "action, target_entity_type, target_entity_id, request_id, "
-                        + "before_state, after_state, failed, system_actor, http_status, failure_reason) "
-                        + "VALUES (?::uuid, ?, ?::uuid, ?, NULL, ?, ?, ?::uuid, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?)",
+                        + "before_state, after_state, failed, system_actor, actor_kind, client_ip, "
+                        + "http_status, failure_reason) "
+                        + "VALUES (?::uuid, ?, ?::uuid, ?, NULL, ?, ?, ?::uuid, ?, ?::jsonb, ?::jsonb, "
+                        + "?, ?, ?, ?, ?, ?)",
                 id, java.sql.Timestamp.from(request.occurredAt()),
                 request.actorUserId() == null ? null : request.actorUserId().toString(),
                 request.actorKeycloakSub(),
@@ -97,6 +99,8 @@ class MutationAuditEventListener {
                 after,
                 request.failed(),
                 request.systemActor(),
+                request.actorKind().name(),
+                request.clientIp(),
                 statusShort,
                 request.failureReason());
     }
@@ -120,6 +124,8 @@ class MutationAuditEventListener {
                 .afterState(after)
                 .failed(request.failed())
                 .systemActor(request.systemActor())
+                .actorKind(request.actorKind())
+                .clientIp(request.clientIp())
                 .httpStatus(statusShort)
                 .failureReason(request.failureReason())
                 .build();

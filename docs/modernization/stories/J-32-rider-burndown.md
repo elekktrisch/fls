@@ -261,7 +261,21 @@ round, then the burndown highest-severity-first. Severity tags mirror `_BOYSCOUT
       `{"type": "object", "additionalProperties": {}}` for both fields. A change to `String` flips them
       to `{"type": "string"}` and reds that test. **Done — the message now asks the developer whether
       the contract change was intended, and names regeneration as the deliberate-change action only.**
-- [ ] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
+- [x] T-08a — [S1] `actor_kind = ANONYMOUS_PUBLIC` + `client_ip` column + the anonymous write path (AC 2)
+  - **Done — three actor kinds now separate on the projection, and only the anonymous row keeps an IP.**
+    `AuditTrailService` classifies every write: a bearer principal reads `NORMAL`, an anonymous public
+    submission reads `ANONYMOUS_PUBLIC` with `system_actor=false`, and a write with no principal at all
+    reads `SYSTEM` with `system_actor=true`. `MutationAuditEvent.Builder` refuses a `client_ip` on any
+    actor kind other than `ANONYMOUS_PUBLIC`, so the privacy boundary is an aggregate rule, not a CHECK.
+    `AuditTrailService.recordAnonymousPublicSubmission` drops the IP when a principal IS authenticated,
+    which covers the real case: the public form accepts a bearer token because the path is `permitAll`.
+    `AnonymousActorProjectionIT` scores that case and asserts the two `PublicFlightRegistration` rows
+    differ. Scoring the old classification with the new tests reds 4 cases across 2 classes.
+  - **T-09 still needs the actor cell.** `audit-logs-list.page.ts:186` renders
+    `row.systemActor ? t('systemActor') : row.actorUserId`. An `ANONYMOUS_PUBLIC` row now takes the
+    second branch and prints an empty cell, because both actor ids are null. T-09 must key the cell on
+    the new `actorKind` field of `AuditEventRow`, add an operator label for `ANONYMOUS_PUBLIC`, and keep
+    `systemActor` for `SYSTEM`. The API carries `actorKind`; it deliberately carries no `client_ip`.
 - [ ] T-08b — [S1] 90-day `client_ip` null-out job + the on-request redaction path
 - [ ] T-08c — [S1] privacy-notice entry naming purpose, window and redaction path, plus the licence and medical-date audit basis
 - [ ] T-09 — [S2] `/system/logs` actor cell renders a username, falling back to `actorKeycloakSub` (AC 1)

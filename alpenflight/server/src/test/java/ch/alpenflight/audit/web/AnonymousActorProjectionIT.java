@@ -8,8 +8,10 @@ import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.clubs.domain.DiscoveryFlightDay;
 import ch.alpenflight.clubs.domain.DiscoveryFlightDayRepository;
+import ch.alpenflight.planning.application.PlanningDayNotificationJob;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
@@ -45,8 +47,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(JwtTestFixture.class)
 class AnonymousActorProjectionIT extends PostgresIntegrationTest {
 
-    private static final String PUBLIC_REGISTRATION_ENTITY = "PublicFlightRegistration";
-    private static final String CLUB_ENTITY = "Club";
+    private static final String ANONYMOUS_PUBLIC_ENTITY = "PublicFlightRegistration";
+    private static final String AUTHENTICATED_ENTITY = "Club";
+    private static final String SCHEDULED_JOB_ENTITY = "PlanningNotificationRun";
     private static final LocalDate BOOKABLE_DAY = LocalDate.of(2099, 6, 15);
 
     @Autowired TestRestTemplate rest;
@@ -56,6 +59,7 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
     @Autowired CountryRepository countries;
     @Autowired ClubStateRepository clubStates;
     @Autowired DiscoveryFlightDayRepository discoveryDays;
+    @Autowired PlanningDayNotificationJob planningDayNotifications;
 
     private UUID clubId;
     private String clubSlug;
@@ -92,45 +96,87 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void an_anonymous_submission_reads_as_a_system_actor_and_a_user_mutation_does_not()
-            throws Exception {
+    void actor_kind_separates_the_anonymous_registration_the_authenticated_write_and_the_job() {
+        submitAnonymously();
+        updateClubAsAdmin();
+        runTheScheduledJobForThisClub();
+
+        Map<String, Map<String, Object>> rows = auditRowsByTargetEntityType();
+
+        assertThat(rows.get(ANONYMOUS_PUBLIC_ENTITY))
+                .as("an anonymous internet registration")
+                .containsEntry("actor_kind", "ANONYMOUS_PUBLIC")
+                .containsEntry("system_actor", false)
+                .containsEntry("actor_user_id", null)
+                .containsEntry("actor_keycloak_sub", null);
+
+        assertThat(rows.get(AUTHENTICATED_ENTITY))
+                .as("a club administrator acting on a bearer token")
+                .containsEntry("actor_kind", "NORMAL")
+                .containsEntry("system_actor", false)
+                .containsEntry("actor_keycloak_sub", adminSub.toString());
+
+        assertThat(rows.get(SCHEDULED_JOB_ENTITY))
+                .as("a scheduled job with no principal at all")
+                .containsEntry("actor_kind", "SYSTEM")
+                .containsEntry("system_actor", true)
+                .containsEntry("actor_user_id", null)
+                .containsEntry("actor_keycloak_sub", null);
+    }
+
+    @Test
+    void an_authenticated_write_records_no_client_ip_even_on_the_public_form() {
+        submitAnonymously();
+        updateClubAsAdmin();
+        runTheScheduledJobForThisClub();
+        submitTheSamePublicFormCarryingTheAdminBearerToken();
+
+        List<Map<String, Object>> publicFormRows = jdbc.queryForList(
+                "SELECT actor_kind, client_ip FROM t_mutation_audit_event "
+                        + "WHERE tenant_club_id = ?::uuid AND target_entity_type = ? "
+                        + "ORDER BY occurred_at ASC",
+                clubId.toString(), ANONYMOUS_PUBLIC_ENTITY);
+        assertThat(publicFormRows).hasSize(2);
+        assertThat(publicFormRows.get(0)).containsEntry("actor_kind", "ANONYMOUS_PUBLIC");
+        assertThat(publicFormRows.get(0).get("client_ip"))
+                .as("the abuse guard's subject is on the row it acted on")
+                .isNotNull();
+        assertThat(publicFormRows.get(1)).containsEntry("actor_kind", "NORMAL");
+        assertThat(publicFormRows.get(1).get("client_ip"))
+                .as("the same form with a bearer token names the actor and keeps no client IP")
+                .isNull();
+
+        List<Map<String, Object>> ipCarryingRowsOfAnotherKind = jdbc.queryForList(
+                "SELECT id, actor_kind FROM t_mutation_audit_event "
+                        + "WHERE client_ip IS NOT NULL AND actor_kind <> 'ANONYMOUS_PUBLIC'");
+        assertThat(ipCarryingRowsOfAnotherKind)
+                .as("no row of any other actor kind, anywhere in the table, carries a client IP")
+                .isEmpty();
+    }
+
+    @Test
+    void the_projection_publishes_the_actor_kind_and_never_the_client_ip() throws Exception {
         submitAnonymously();
         updateClubAsAdmin();
 
         JsonNode page = listAuditEvents();
 
-        JsonNode anonymous = rowWithTarget(page, PUBLIC_REGISTRATION_ENTITY);
-        assertThat(anonymous.get("systemActor").asBoolean())
-                .as("the anonymous submission takes the viewer's system-actor branch")
-                .isTrue();
+        JsonNode anonymous = rowWithTarget(page, ANONYMOUS_PUBLIC_ENTITY);
+        assertThat(text(anonymous, "actorKind")).isEqualTo("ANONYMOUS_PUBLIC");
+        assertThat(anonymous.get("systemActor").asBoolean()).isFalse();
         assertThat(text(anonymous, "actorUserId")).isNull();
-        assertThat(text(anonymous, "actorKeycloakSub")).isNull();
         assertThat(text(anonymous, "tenantClubId"))
                 .as("and is scoped to the club the slug named")
                 .isEqualTo(clubId.toString());
-
-        JsonNode authenticated = rowWithTarget(page, CLUB_ENTITY);
-        assertThat(authenticated.get("systemActor").asBoolean())
-                .as("a club-admin mutation in the same page is NOT a system actor")
+        assertThat(anonymous.has("clientIp"))
+                .as("the admin projection carries no client IP; the raw value stays in the table")
                 .isFalse();
+
+        JsonNode authenticated = rowWithTarget(page, AUTHENTICATED_ENTITY);
+        assertThat(text(authenticated, "actorKind")).isEqualTo("NORMAL");
+        assertThat(authenticated.get("systemActor").asBoolean()).isFalse();
         assertThat(text(authenticated, "actorKeycloakSub")).isEqualTo(adminSub.toString());
-        assertThat(text(authenticated, "actorUserId"))
-                .as("the viewer's other branch renders actorUserId, so it has to be populated")
-                .isNotNull();
-    }
-
-    @Test
-    void actor_kind_does_not_separate_the_two_rows() {
-        submitAnonymously();
-        updateClubAsAdmin();
-
-        Map<String, String> kinds = actorKindByTargetEntityType();
-
-        assertThat(kinds)
-                .as("actor_kind reads the same on both rows, which is why the projection "
-                        + "omits it and the viewer keys on system_actor instead")
-                .containsEntry(PUBLIC_REGISTRATION_ENTITY, "NORMAL")
-                .containsEntry(CLUB_ENTITY, "NORMAL");
+        assertThat(text(authenticated, "actorUserId")).isNotNull();
     }
 
     private void submitAnonymously() {
@@ -156,6 +202,23 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).as("club update: %s", res.getBody()).isEqualTo(HttpStatus.OK);
     }
 
+    private void submitTheSamePublicFormCarryingTheAdminBearerToken() {
+        ResponseEntity<String> res = rest.exchange(
+                withBearer(RequestEntity
+                        .post(URI.create(
+                                "/api/v1/public/clubs/" + clubSlug + "/scenic-flight-registrations"))
+                        .contentType(MediaType.APPLICATION_JSON), adminToken)
+                        .body(PublicSubmissions.scenicBody()),
+                String.class);
+        assertThat(res.getStatusCode())
+                .as("authenticated scenic submission: %s", res.getBody())
+                .isEqualTo(HttpStatus.CREATED);
+    }
+
+    private void runTheScheduledJobForThisClub() {
+        Tenants.runAs(clubId, planningDayNotifications::runForCurrentClub);
+    }
+
     private JsonNode listAuditEvents() throws Exception {
         ResponseEntity<String> res = rest.exchange(
                 withBearer(RequestEntity.get(URI.create("/api/v1/admin/audit-events")), adminToken)
@@ -165,15 +228,25 @@ class AnonymousActorProjectionIT extends PostgresIntegrationTest {
         return AuditTestSupport.JSON.readTree(res.getBody());
     }
 
-    private Map<String, String> actorKindByTargetEntityType() {
-        Map<String, String> kinds = new LinkedHashMap<>();
-        for (Map<String, Object> row : jdbc.queryForList(
-                "SELECT target_entity_type, actor_kind FROM t_mutation_audit_event "
-                        + "WHERE tenant_club_id = ?::uuid",
-                clubId.toString())) {
-            kinds.put((String) row.get("target_entity_type"), (String) row.get("actor_kind"));
+    private Map<String, Map<String, Object>> auditRowsByTargetEntityType() {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT target_entity_type, actor_kind, system_actor, actor_user_id, "
+                        + "actor_keycloak_sub, client_ip FROM t_mutation_audit_event "
+                        + "WHERE tenant_club_id = ?::uuid "
+                        + "AND target_entity_type IN (?, ?, ?)",
+                clubId.toString(),
+                ANONYMOUS_PUBLIC_ENTITY, AUTHENTICATED_ENTITY, SCHEDULED_JOB_ENTITY);
+        Map<String, Map<String, Object>> byType = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            byType.put((String) row.get("target_entity_type"), row);
         }
-        return kinds;
+        assertThat(byType.keySet())
+                .containsExactlyInAnyOrder(
+                        ANONYMOUS_PUBLIC_ENTITY, AUTHENTICATED_ENTITY, SCHEDULED_JOB_ENTITY);
+        assertThat(rows)
+                .as("the three writes each produced exactly one row in this tenant")
+                .hasSize(3);
+        return byType;
     }
 
     private static JsonNode rowWithTarget(JsonNode page, String targetEntityType) {

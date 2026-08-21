@@ -1,6 +1,7 @@
 package ch.alpenflight.audit.application;
 
 import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditActorKind;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import java.time.Instant;
 import java.util.UUID;
@@ -13,6 +14,8 @@ record MutationAuditRequest(AuditAction action,
                             @Nullable String actorKeycloakSub,
                             @Nullable UUID tenantClubId,
                             boolean systemActor,
+                            AuditActorKind actorKind,
+                            @Nullable String clientIp,
                             @Nullable String requestId,
                             boolean failed,
                             @Nullable Integer httpStatus,

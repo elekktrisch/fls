@@ -72,14 +72,19 @@ class PublicRegistrationSecurityIT extends PostgresIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT actor_user_id, actor_keycloak_sub, system_actor, failed, action "
-                        + "FROM t_mutation_audit_event "
+                "SELECT actor_user_id, actor_keycloak_sub, system_actor, actor_kind, client_ip, "
+                        + "failed, action FROM t_mutation_audit_event "
                         + "WHERE target_entity_type = ? AND tenant_club_id = ?::uuid",
                 AUDIT_ENTITY_TYPE, openClubId.toString());
+        assertThat(row.get("actor_kind"))
+                .as("actor_kind classifies an anonymous internet write apart from a scheduled job")
+                .isEqualTo("ANONYMOUS_PUBLIC");
         assertThat(row.get("system_actor"))
-                .as("system_actor is the flag that classifies an anonymous write; actor_kind is "
-                        + "'NORMAL' on every non-migrated row, so it says nothing here")
-                .isEqualTo(true);
+                .as("an internet submitter is not the system")
+                .isEqualTo(false);
+        assertThat(row.get("client_ip"))
+                .as("the submitter's address is what the abuse guard acted on")
+                .isNotNull();
         assertThat(row.get("actor_user_id")).isNull();
         assertThat(row.get("actor_keycloak_sub")).isNull();
         assertThat(row.get("failed")).isEqualTo(false);

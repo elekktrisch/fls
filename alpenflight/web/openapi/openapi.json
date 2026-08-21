@@ -11039,6 +11039,10 @@
           "actorKeycloakSub" : {
             "type" : "string"
           },
+          "actorKind" : {
+            "type" : "string",
+            "enum" : [ "NORMAL", "ANONYMOUS_PUBLIC", "SYSTEM", "LEGACY_MIGRATED" ]
+          },
           "tenantClubId" : {
             "type" : "string",
             "format" : "uuid"

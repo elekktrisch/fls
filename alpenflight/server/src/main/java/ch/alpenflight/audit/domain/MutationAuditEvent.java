@@ -74,6 +74,10 @@ public class MutationAuditEvent {
     private @Nullable AuditActorKind actorKind;
 
     @AuditRedact
+    @Column(name = "client_ip", updatable = false, columnDefinition = "text")
+    private @Nullable String clientIp;
+
+    @AuditRedact
     @Column(name = "legacy_actor_user_id", updatable = false, columnDefinition = "text")
     private @Nullable String legacyActorUserId;
 
@@ -106,6 +110,7 @@ public class MutationAuditEvent {
         this.httpStatus = b.httpStatus;
         this.failureReason = b.failureReason;
         this.actorKind = b.actorKind;
+        this.clientIp = b.clientIp;
         this.legacyActorUserId = b.legacyActorUserId;
         this.legacyIntId = b.legacyIntId;
         this.legacyTargetRecordId = b.legacyTargetRecordId;
@@ -180,6 +185,10 @@ public class MutationAuditEvent {
         return Objects.requireNonNull(actorKind, "actorKind is non-null on loaded rows");
     }
 
+    public @Nullable String getClientIp() {
+        return clientIp;
+    }
+
     public @Nullable String getLegacyActorUserId() {
         return legacyActorUserId;
     }
@@ -212,6 +221,7 @@ public class MutationAuditEvent {
         private @Nullable Short httpStatus;
         private @Nullable String failureReason;
         private AuditActorKind actorKind = AuditActorKind.NORMAL;
+        private @Nullable String clientIp;
         private @Nullable String legacyActorUserId;
         private @Nullable Long legacyIntId;
         private @Nullable String legacyTargetRecordId;
@@ -234,6 +244,7 @@ public class MutationAuditEvent {
         public Builder httpStatus(@Nullable Short v) { this.httpStatus = v; return this; }
         public Builder failureReason(@Nullable String v) { this.failureReason = v; return this; }
         public Builder actorKind(AuditActorKind v) { this.actorKind = v; return this; }
+        public Builder clientIp(@Nullable String v) { this.clientIp = v; return this; }
         public Builder legacyActorUserId(@Nullable String v) { this.legacyActorUserId = v; return this; }
         public Builder legacyIntId(@Nullable Long v) { this.legacyIntId = v; return this; }
         public Builder legacyTargetRecordId(@Nullable String v) { this.legacyTargetRecordId = v; return this; }
@@ -249,7 +260,16 @@ public class MutationAuditEvent {
             if (occurredAt == null) {
                 occurredAt = Instant.now();
             }
+            refuseAClientIpOnAnyActorKindOtherThanAnonymousPublic();
             return new MutationAuditEvent(this);
+        }
+
+        private void refuseAClientIpOnAnyActorKindOtherThanAnonymousPublic() {
+            if (clientIp != null && actorKind != AuditActorKind.ANONYMOUS_PUBLIC) {
+                throw new IllegalStateException(
+                        "clientIp is recorded on an ANONYMOUS_PUBLIC audit row only; "
+                                + "actorKind was " + actorKind);
+            }
         }
     }
 }
