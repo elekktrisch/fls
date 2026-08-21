@@ -77,8 +77,6 @@ jobs:
       # that executes nothing.
       mock_filter: ${{ steps.mock_spec.outputs.filter }}
       mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
-      dashboard_showcase_proof_runs_per_push: ${{ steps.showcase_scope.outputs.dashboard_showcase_proof_runs_per_push }}
-      profile_showcase_proof_runs_per_push: ${{ steps.showcase_scope.outputs.profile_showcase_proof_runs_per_push }}
     steps:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
@@ -102,6 +100,9 @@ jobs:
       # it silently swaps in the J-0 baseline and reports green. Pin the rule.
       - name: Journey-file lookup guard
         run: bash .github/scripts/journey-derive-selfcheck.sh
+
+      - name: Required-gate guard (J-32 — every job in `required.needs` must run on a live lane, and a live-lane skip must red)
+        run: python3 .github/scripts/required-gate-reds-when-a-required-job-skips-its-live-lane.py
 
       - name: Comment-policy guard (J-31 — runs on EVERY push, deliberately never path-filtered)
         run: node .claude/skills/comment-strip/scripts/strip.mjs --check alpenflight e2e
@@ -500,17 +501,6 @@ jobs:
           fi
           echo "mock filter '${filter}' selects no ACTIVE (non-fixme) test → full chromium suite until thickened"
           emit "" "true"; exit 0
-
-      - name: Derive which showcase-seed real-idp proof the journey-under-work owns
-        id: showcase_scope
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          bash .github/scripts/derive-showcase-seed-proof-scope.sh --selftest
-          bash .github/scripts/derive-showcase-seed-proof-scope.sh \
-            "${HEAD_REF:-${REF_NAME:-}}" >> "$GITHUB_OUTPUT"
 
 
   # ---------------------------------------------------------------------------
@@ -1553,7 +1543,6 @@ jobs:
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
-      && needs.changes.outputs.dashboard_showcase_proof_runs_per_push == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -1850,7 +1839,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # alpenflight-profile-proof — J-4's SHOWCASE-SEEDED /profile self-edit gate.
   #
-  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q2). It runs
+  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q2). The operator
+  # made J-4's `/profile` self-edit UI proof a REQUIRED per-push merge gate — it
+  # IS in the `required` aggregator's `needs` (see `required` below). It runs
   # ONLY `e2e/tests/profile/self-edit.spec.ts` against the SAME showcase-seeded
   # real stack `alpenflight-dashboard-proof` boots (Postgres + Keycloak + Mailpit
   # + the alpenflight backend + `ng serve`), because the profile spec drives a
@@ -1891,7 +1882,6 @@ jobs:
       && needs.changes.outputs.next == 'true'
       && needs.changes.outputs.docs_only != 'true'
       && needs.changes.outputs.troubleshooting != 'true'
-      && needs.changes.outputs.profile_showcase_proof_runs_per_push == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -2451,6 +2441,15 @@ jobs:
   #     aircraft flake) removed that reason, so the real chain gates again: a red
   #     real-idp run for the journey in flight now BLOCKS merge. The full
   #     cross-journey regression stays nightly (`alpenflight-e2e-real-idp.yml`).
+  #   - `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit spec)
+  #     also gates the merge, and per-push is its ONLY executing lane: the
+  #     nightly `alpenflight-e2e-real-idp.yml` run passes `e2e/tests/real-idp/`
+  #     as its path argument, so it never collects `e2e/tests/profile/`, and its
+  #     `--grep-invert 'showcase seed'` drops `start-dashboard.spec.ts` too. The
+  #     J-3 dashboard display job (`alpenflight-dashboard-proof`) stays
+  #     NON-blocking (the visual showcase + gallery), so the gate isn't coupled
+  #     to `start-dashboard.spec.ts`; its red shows on the PR as a red check, not
+  #     as a merge block.
   # `alpenflight-proof`'s `if:` guard is identical to next-build-server /
   # next-build-web / next-auth-realm-shape (`next == 'true' && docs_only !=
   # 'true'`), and
@@ -2507,21 +2506,37 @@ jobs:
           R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
           R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e-merge.result }}
+          HEAVY_LANE_STOOD_DOWN: ${{ (needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
+          MOCK_E2E_LANE_STOOD_DOWN: ${{ (github.event_name == 'push' || needs.changes.outputs.next != 'true' || needs.changes.outputs.docs_only == 'true') && 'true' || 'false' }}
         run: |
+          set -uo pipefail
+          printf "  heavy lane stood down for this event: %s (mock-e2e lane: %s)\n\n" \
+            "$HEAVY_LANE_STOOD_DOWN" "$MOCK_E2E_LANE_STOOD_DOWN"
           fail=0
-          for pair in \
-              "changes:$R_CHANGES" \
-              "alpenflight-build-server:$R_NEXT_SERVER" \
-              "alpenflight-build-web:$R_NEXT_WEB" \
-              "alpenflight-auth-realm-shape:$R_AUTH" \
-              "alpenflight-proof:$R_PROOF" \
-              "alpenflight-profile-proof:$R_PROFILE_PROOF" \
-              "alpenflight-mock-e2e-merge:$R_MOCK_E2E" ; do
-            name="${pair%%:*}"
-            result="${pair##*:}"
+          for job_result_and_permitted_skip in \
+              "changes|$R_CHANGES|false" \
+              "alpenflight-build-server|$R_NEXT_SERVER|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-build-web|$R_NEXT_WEB|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-auth-realm-shape|$R_AUTH|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-proof|$R_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-profile-proof|$R_PROFILE_PROOF|$HEAVY_LANE_STOOD_DOWN" \
+              "alpenflight-mock-e2e-merge|$R_MOCK_E2E|$MOCK_E2E_LANE_STOOD_DOWN" ; do
+            IFS='|' read -r name result skip_is_permitted <<< "$job_result_and_permitted_skip"
             case "$result" in
-              success|skipped) printf "  %-28s %s\n" "$name" "$result" ;;
-              *)               printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
+              success)
+                printf "  %-28s %s\n" "$name" "$result" ;;
+              skipped)
+                if [ "$skip_is_permitted" = 'true' ]; then
+                  printf "  %-28s %s   (its lane stood down)\n" "$name" "$result"
+                else
+                  printf "  %-28s %s  <-- skipped while its lane was live, so it gated nothing\n" "$name" "$result"
+                  fail=1
+                fi ;;
+              *)
+                printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
             esac
           done
+          if [ "$fail" != "0" ]; then
+            echo "::error title=required is red::A job above failed, or it skipped while next=='true' and docs_only!='true'. RESIDUAL LIMIT — this gate reads JOB RESULTS for the jobs in its own needs list only: it cannot see a step a job swallowed with continue-on-error, it cannot see a spec a job's command never selected, and it does not cover alpenflight-dashboard-proof, which is deliberately non-blocking (its red shows as a red check on the PR, not as a merge block)."
+          fi
           [ "$fail" = "0" ]
